@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+# encoding: utf-8
+#hhaim
+
+import ws_main
+
+#mandatory ....
+top = ws_main.top
+out = ws_main.out
+
+
+def options(opt):
+    ws_main.options(opt)
+
+
+def configure(conf):
+    ws_main.configure(conf)
+
+
+def build(bld):
+    ws_main.build(bld)
+
+
+def build_info(bld):
+    ws_main.build_info(bld)
+
+
+
+
+
+
