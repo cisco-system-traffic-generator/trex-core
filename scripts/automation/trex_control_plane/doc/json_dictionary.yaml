@@ -1,0 +1,252 @@
+################################################################
+####           T-Rex JSON Dictionary definitions            ####
+################################################################
+
+
+trex-global :
+  name              : 
+    type : string
+    exp  : "this is a name representation of the main field"
+    val  : "trex-global"
+  type              : 
+    type : int
+    val  : 0
+  data              :
+    m_cpu_util : 
+      type : float
+      exp  : "CPU utilization (0-100)"
+      val  : 0.0
+    m_platform_factor : 
+      type : float
+      exp  : "multiplier factor"
+      val  : 1.0
+    m_tx_bps : 
+      type : float
+      exp  : "total tx bit per second"
+      val  : 0.0
+    m_rx_bps : 
+      type : float
+      exp  : "total rx bit per second"
+      val  : 0.0
+    m_tx_pps : 
+      type : float
+      exp  : "total tx packet per second"
+      val  : 0.0
+    m_tx_cps : 
+      type : float
+      exp  : "total tx connection per second"
+      val  : 0.0
+    m_tx_expected_cps : 
+      type : float
+      exp  : "expected tx connection per second"
+      val  : 0.0
+    m_tx_expected_pps : 
+      type : float
+      exp  : "expected tx packet per second"
+      val  : 0.0
+    m_tx_expected_bps : 
+      type : float
+      exp  : "expected tx bit per second"
+      val  : 0.0
+    m_rx_drop_bps : 
+      type : float
+      exp  : "drop rate in bit per second"
+      val  : 0.0
+    m_active_flows : 
+      type : float
+      exp  : "active trex flows"
+      val  : 0.0
+    m_open_flows : 
+      type : float
+      exp  : "open trex flows from startup (monotonically incrementing)"
+      val  : 0.0
+    m_total_tx_pkts : 
+      type : int
+      exp  : "total tx in packets"
+      val  : 0
+    m_total_rx_pkts : 
+      type : int
+      exp  : "total rx in packets"
+      val  : 0
+    m_total_tx_bytes : 
+      type : int
+      exp  : "total tx in bytes"
+      val  : 0
+    m_total_rx_bytes : 
+      type : int
+      exp  : "total rx in bytes"
+      val  : 0
+    opackets-# : 
+      type : int
+      exp  : "output packets (per interface)"
+      val  : 0
+    obytes-# : 
+      type : int
+      exp  : "output bytes (per interface)"
+      val  : 0
+    ipackets-# : 
+      type : int
+      exp  : "input packet (per interface)"
+      val  : 0
+    ibytes-# : 
+      type : int
+      exp  : "input bytes (per interface)"
+      val  : 0
+    ierrors-# : 
+      type : int
+      exp  : "input errors (per interface)"
+      val  : 0
+    oerrors-# : 
+      type : int
+      exp  : "input errors (per interface)"
+      val  : 0
+    m_total_tx_bps-# : 
+      type : float
+      exp  : "total transmitted data in bit per second"
+      val  : 0.0
+    unknown : 
+      type : int
+      exp  : ""
+      val  : 0
+
+tx-gen :
+  name              : 
+    type : string
+    exp  : "this is a name representation of the main field"
+    val  : "tx-gen"
+  type              : 
+    type : int
+    val  : 0
+  data              :
+    realtime-hist : 
+      type : dict
+      #exp  : "Containing TX history data, by the following keys:\n  - min_usec (max_usec): min (max) time packet sent before (after) it was intended to be sent\n  - cnt (high_cnt): how many packet were lower than min_usec (higher than max_usec) relative to the time these packets were intended to be injected"
+      exp  : "histogram of transmission. See extended information about histogram object under :ref:`histogram-object-fields`. The attribute analyzed is time packet has been sent before/after it was intended to be"
+      val  : '{ "min_usec":10, "max_usec":0, "high_cnt":0, "cnt":667866, "s_avg":0.0,  "histogram":[] }'
+    unknown : 
+      type : int
+      exp  : ""
+      val  : 0
+
+trex-latecny :
+  name              : 
+    type : string
+    exp  : "this is a name representation of the main field"
+    val  : "trex-latecny"
+  type              : 
+    type : int
+    val  : 0
+  data              :
+    avg-# : 
+      type : float
+      exp  : "average latency in usec (per interface)"
+      val  : 75.0
+    max-# : 
+      type : float
+      exp  : "max latency in usec from the test start (per interface)"
+      val  : 75.0
+    c-max-# : 
+      type : float
+      exp  : "max in the last 1 sec window (per interface)"
+      val  : 75.0
+    error-# : 
+      type : float
+      exp  : "errors in latency packets (per interface)"
+      val  : 75.0
+    unknown : 
+      type : int
+      exp  : ""
+      val  : 0
+
+
+trex-latecny-v2 :
+  name              : 
+    type : string
+    exp  : "this is a name representation of the main field"
+    val  : "trex-latecny-v2"
+  type              : 
+    type : int
+    val  : 0
+  data              :
+    cpu_util : 
+      type : float
+      exp  : "rx thread cpu % (this is not trex DP threads cpu%%)"
+      val  : 75.0
+    port-# : 
+      type : dict
+      exp  : "Containing per interface information. See extended information under ``port-# -> key_name -> sub_key``"
+      val  : ''
+    port-#->hist :
+      type : dict
+      exp  : "histogram of latency. See extended information about histogram object under :ref:`histogram-object-fields`"
+      val  : ''
+    port-#->stats :
+      type : dict
+      exp  : "Containing per interface information. See extended information under ``port-# -> key_name -> sub_key``"
+      val  : ''
+    port-#->stats->m_tx_pkt_ok :
+      type : int
+      exp  : "total of try sent packets"
+      val  : 60110
+    port-#->stats->m_pkt_ok :
+      type : int
+      exp  : "total of packets sent from hardware"
+      val  : 60065
+    port-#->stats->m_no_magic :
+      type : int
+      exp  : "rx error with no magic"
+      val  : 0
+    port-#->stats->m_no_id :
+      type : int
+      exp  : "rx errors with no id"
+      val  : 0
+    port-#->stats->m_seq_error :
+      type : int
+      exp  : "error in seq number"
+      val  : 18
+    port-#->stats->m_length_error :
+      type : int
+      exp  : ""
+      val  : 0
+    port-#->stats->m_rx_check :
+      type : int
+      exp  : "packets tested in rx"
+      val  : 407495
+    unknown : 
+      type : int
+      exp  : ""
+      val  : 0
+histogram-obj :
+  name              : 
+    type : string
+    exp  : "this is description of a histogram object being used in number of place throughout the JSON object"
+    val  : "histogram-obj"
+  data              :
+    min_usec :
+      type : int
+      exp  : "min attribute value in usec. pkt with latency less than this value is not counted"
+      val  : 10
+    max_usec :
+      type : int
+      exp  : "max attribute value in usec"
+      val  : 83819
+    high_cnt :
+      type : int
+      exp  : "how many packets on which its attribute > min_usec"
+      val  : 83819
+    cnt :
+      type : int
+      exp  : "total packets from test startup"
+      val  : 83819
+    s_avg :
+      type : float
+      exp  : "average value from test startup"
+      val  : 39.3
+    histogram :
+      type : array
+      exp  : "histogram of relevant object by the following keys:\n  - key: value in usec \n  - val: number of packets"
+      val  : '[{"key": 20, "val": 5048}, {"key": 30, "val": 6092}, {"key": 40, "val": 2092}]'
+
+
+
+

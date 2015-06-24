@@ -1,0 +1,25 @@
+- version       : 2
+  interfaces    : ["82:00.0","82:00.1"]
+  port_limit    : 2 
+  enable_zmq_pub  : true  # enable publisher for stats data 
+  zmq_pub_port    : 4510
+  #prefix          : setup3
+  #limit_memory    : 2048
+  c               : 4
+# for system of 1Gb/sec NIC or VM enable this  
+  port_bandwidth_gb : 10  # port bandwidth 10Gb/sec , for VM put here 1 for XL710 put 40 
+  platform :
+        master_thread_id  : 12
+        latency_thread_id : 13
+        dual_if   :
+             - socket   : 1
+               threads  : [8,9,10,11]
+    
+ 
+
+
+  
+
+  
+
+

@@ -1,0 +1,29 @@
+- version       : 2
+  interfaces    : ["08:00.0","08:00.1"]
+  port_limit    : 2 
+  enable_zmq_pub  : true  # enable publisher for stats data 
+  zmq_pub_port    : 4507
+  c               : 4
+# for system of 1Gb/sec NIC or VM enable this  
+  port_bandwidth_gb : 40  # port bandwidth 10Gb/sec , for VM put here 1 for XL710 put 40 
+  platform :
+        master_thread_id  : 0
+        latency_thread_id : 5
+        dual_if   :
+             - socket   : 0
+               threads  : [1,2,3,4,6,7]
+  port_info       :  # set eh mac addr 
+          - dest_mac        :   [0x00,0x0c,0x29,0x55,0x37,0xc7]  # port 0
+            src_mac         :   [0x00,0x0c,0x29,0x55,0x37,0xbd]
+          - dest_mac        :   [0x00,0x0c,0x29,0x55,0x37,0xbd]  # port 1
+            src_mac         :   [0x00,0x0c,0x29,0x55,0x37,0xc7]
+               
+    
+ 
+
+
+  
+
+  
+
+

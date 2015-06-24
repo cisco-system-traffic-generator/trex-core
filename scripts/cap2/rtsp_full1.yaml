@@ -1,0 +1,17 @@
+- duration : 5.0
+  min_src_ip : 0x80f1c2c3
+  max_src_ip : 0x90f1c2c3
+  min_dst_ip : 0xa0f2c2c3
+  max_dst_ip : 0xb0f2c2c3
+  cap_ipg    : true
+  #cap_ipg_min    : 100
+  #cap_override_ipg    : 200
+  mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
+  cap_info : 
+     - name: avl/delay_10_rtp_250k_full.pcap
+       cps : 1.0
+       ipg : 10000
+       rtt : 10000
+       w   : 5
+       plugin_id : 1
+

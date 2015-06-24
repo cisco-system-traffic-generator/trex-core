@@ -1,0 +1,25 @@
+#!/usr/bin/python
+
+import os
+import sys
+
+core = 0
+
+if '--core' in sys.argv:
+    try:
+        idx = sys.argv.index('--core')
+        core = int(sys.argv[idx + 1])
+        if core > 31 or core < 0:
+            print "Error: please provide core argument between 0 to 31"
+            exit(-1)
+        del sys.argv[idx:idx+2]
+    except IndexError:
+        print "Error: please make sure core option provided with argument"
+        exit(-1)
+    except ValueError:
+        print "Error: please make sure core option provided with integer argument"
+        exit(-1)
+
+str_argv = ' '.join(sys.argv[1:])
+cmd = "taskset -c {core} python automation/trex_control_plane/server/trex_daemon_server.py {argv}".format(core = core, argv = str_argv)
+os.system(cmd)

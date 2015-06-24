@@ -1,0 +1,9 @@
+- port_limit      : 2 
+  version       : 2
+  interfaces    : ["03:00.0","03:00.1","13:00.1","13:00.0"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status 
+  interface_mask  : [ "0000:11:00.00", "0000:11:00.01" ,"0000:0b:00.02","0000:0b:00.03"]  # deprecated
+  enable_zmq_pub  : true  # enable publisher for stats data 
+  zmq_pub_port    : 4500
+  telnet_port     : 4501 # the telnet port in case it is enable ( with intercative mode )
+  
+

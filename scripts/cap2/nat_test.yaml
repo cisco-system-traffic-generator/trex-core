@@ -1,0 +1,46 @@
+- duration : 0.1
+  generator :
+          distribution : "seq"
+          
+          clients_start : "16.0.0.3"
+          clients_end   : "16.0.0.103"
+          servers_start : "48.0.0.3"
+          servers_end   : "48.0.0.102"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0"
+          tcp_aging      : 0
+          udp_aging      : 0
+  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
+  cap_ipg    : true
+  #cap_ipg_min    : 30
+  #cap_override_ipg    : 200
+  wlength    : 107
+  one_app_server : false
+  cap_info :
+     - name: avl/delay_10_video_call_0.pcap
+       cps : 30
+       ipg : 10000
+       rtt : 10000
+       w   : 1
+     - name: avl/delay_10_video_call_rtp_0.pcap
+       cps : 60
+       ipg : 10000
+       rtt : 10000
+       w   : 1
+     - name: avl/delay_10_https_0.pcap
+       cps : 50
+       ipg : 10000
+       rtt : 10000
+       w   : 1
+     - name: avl/delay_10_rtp_250k_0_0.pcap
+       cps : 19.82
+       ipg : 10000
+       rtt : 10000
+       w   : 1
+     - name: avl/delay_10_rtp_250k_1_0.pcap
+       cps : 19.82
+       ipg : 10000
+       rtt : 10000
+       w   : 1
+

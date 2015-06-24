@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: jsonrpclib
+Version: 0.1.3
+Summary: This project is an implementation of the JSON-RPC v2.0 specification (backwards-compatible) as a client library.
+Home-page: http://github.com/joshmarshall/jsonrpclib/
+Author: Josh Marshall
+Author-email: catchjosh@gmail.com
+License: http://www.apache.org/licenses/LICENSE-2.0
+Description: UNKNOWN
+Platform: UNKNOWN

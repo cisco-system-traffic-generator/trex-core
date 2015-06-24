@@ -1,0 +1,80 @@
+
+<html>
+  <head>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+      google.load("visualization", "1", {packages:["corechart"]});
+      google.load("visualization", "1", {packages:["table"]});
+      google.setOnLoadCallback(drawChart);
+      function drawChart() {
+	  
+        var cpu_data = google.visualization.arrayToDataTable([
+          ['Bandwidth [Mbps]', 'CPU [%]', 'Max. Latency [usec]', 'Avg. Latency [usec]'],
+		  !@#$template_fill_graph!@#$ 
+															 ])
+
+        var cpu_options = {
+          title: '!@#$template_fill_head!@#$',
+          hAxis: { title: 'Bandwidth [Mbps]', format:'#.##'},
+          vAxes:[
+                {title: 'CPU Util [%]',format:'#%', minValue:0, maxValue: 1}, // Left axis
+                {title: 'Latency [usec]'}, // Right axis
+                ],
+          series: {0: {targetAxisIndex:0},
+                   1: {targetAxisIndex:1},
+                   2: {targetAxisIndex:1},
+                  },
+          colors: ["green", "red", "blue"],
+        };
+
+        var chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+
+        chart.draw(cpu_data, cpu_options);	
+		
+	var plot_data = new google.visualization.DataTable();
+        plot_data.addColumn('number', 'BW [Mbps]');
+		plot_data.addColumn('number', 'PPS [Kpps]');
+        plot_data.addColumn('number', 'CPU Util. [%]');
+		plot_data.addColumn('number', 'BW / CPU');
+        plot_data.addColumn('number', 'Max. Latency [usec]');
+		plot_data.addColumn('number', 'Avg. Latency [usec]');
+		plot_data.addColumn('number', 'Pkt Drop [pkts]');
+        plot_data.addRows([
+          !@#$template_fill_table!@#$
+						  ]);
+
+        var formatter = new google.visualization.NumberFormat(
+        {fractionDigits:2});
+        formatter.format(plot_data, 0); // Apply formatter to Bandwidth util column
+        
+		var formatter = new google.visualization.NumberFormat(
+		{fractionDigits: 0});
+		formatter.format(plot_data, 1); // Apply formatter to PPS column
+
+        formatter = new google.visualization.NumberFormat(
+        {pattern:'#,###%'});
+        formatter.format(plot_data, 2); // Apply formatter to CPU util column
+        
+		formatter = new google.visualization.NumberFormat(
+		{fractionDigits: 2});
+		formatter.format(plot_data, 3); // Apply formatter to BW / CPU column
+
+        formatter = new google.visualization.NumberFormat(
+        {fractionDigits: 0});
+        formatter.format(plot_data, 4); // Apply formatter to Avg Latency util column
+        formatter.format(plot_data, 5); // Apply formatter to Max Latency util column
+        formatter.format(plot_data, 6); // Apply formatter to Pkt Drop
+
+        var table = new google.visualization.Table(document.getElementById('table_div'));
+
+        table.draw(plot_data, {showRowNumber: true});
+      }
+
+    </script>
+  </head>
+  <body>
+	<div id="chart_div" style="width: 900px; height: 500px; position: relative;"></div>
+    <div id="table_div" style="display: table"></div>
+  </body>
+</html>
+

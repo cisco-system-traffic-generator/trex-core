@@ -1,0 +1,9 @@
+#! /bin/bash
+./trex-cfg
+cd $(dirname $0)
+export LD_LIBRARY_PATH=$PWD
+saveterm="$(stty -g)"
+./_$(basename $0) $@
+stty $saveterm  
+
+

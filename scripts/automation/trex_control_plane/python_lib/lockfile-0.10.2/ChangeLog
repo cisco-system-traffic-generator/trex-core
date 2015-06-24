@@ -1,0 +1,165 @@
+CHANGES
+=======
+
+0.10.2
+------
+
+* Fix package name
+
+0.10.1
+------
+
+* Add missing cover env in tox
+
+0.10.0
+------
+
+* Fix documentation bug report address
+* Add py34 in tox
+* Remove old diff file
+* Add .gitreview, tox targets and use pbr
+* fix for timeout=0
+* remove 2.5, 3.1 and 3.4 from the list for the time being - may get added back later
+* Bugfix: locking two different files in the same directory caused an error during unlocking the last unlocking
+* typo
+
+0.9.1
+-----
+
+* ignore dist dir
+* update to python 3 imports
+* python 3 tweaks
+* python 3 tweaks
+* ignore Emacs backups
+* note nose as a dependency
+* remove this test file - way incompatible with current code
+* stuff to ignore
+* Add py33, py34, delete py24, py25
+* Update source location
+* merge delete
+* merge delete
+* more merge stuff
+* this didn't come across with svn merge
+* all screwed up now
+* merge
+* merge
+* Make it clear that the path and threaded attributes to SymlinkLockFile and MkdirLockFile have the same constraints as for LinkLockFile. In particular, the directory which will contain path must be writable
+* add pidlockfile test stuff from Ben Finney - still a few problems - maybe I can get him to solve them :-)
+* ignore Sphinx build directory
+* Catch up on a little documentation
+* adapt decorator patch from issue 5
+* Allow timeout in constructor - resolves issue 3
+* add info to raise statements - from issue 6, yyurevich@jellycrystal.com
+* add useful repr() - from issue 6, yyurevich@jellycrystal.com
+* add symlinklockfile module
+* + py24
+* good for the branch? must be good for the trunk
+* add tox stuff, ignore dist dir
+* new version, move to Google Code
+* 
+* 
+* * Thread support is currently broken. This is more likely because of problems in this module, but suppress those tests for now just the same
+* By the nature of what it's trying to do PIDLockFile doesn't support threaded operation
+* defer creating testdb until we've instantiated a SQLiteLockFile instance
+* tweak unique_name slightly
+* Specify mode in octal
+* update to match pidlockfile change
+* missing import
+* I think I finally have this correct
+* patch pidlockfile module too
+* use abs import here as well
+* *argh*
+* Update to elide new import syntax
+* * Move future import for division where it's used. * Use __absolute_import__ to spell relative imports
+* Some PIDLockFile tests are failing. Check in anyway so others can consider the problems
+* Account for fact that Thread objects in Python 2.4 and earlier do not have an ident attribute
+* Make this a daemon thread so if things go awry the test run won't hang
+* * Add pidlockfile (not quite working properly) * Rearrange MANIFEST.in slightly to include test directory
+* Split those test methods which try both threaded and non-threaded naming schemes. More to do. Obviously you need to have test cases when using the non-threaded naming scheme from multiple threads
+* acknowledge Ben and Frank, alphabetize list
+* I don't think these are needed any longer - they came back during the hg->svn conversion
+* grand renaming: "filelock" -> "lockfile" & "FileLock" -> "LockFile"
+* Update for packages
+* Avoid using the backwards compatibility functions for FileLock. That object is not deprecated
+* how does the test dir keep sneaking into MANIFEST? also, include 2.4.diff in dist
+* update for new structure, use of ident attr
+* adjust build setup
+* move test helpers into test dir
+* first cut at packagized lockfile
+* Protect some more complex locking stuff so if they fail we don't deadlock
+* merge r75 from head
+* * One implementation of tname, not two - make it an instance attribute as a result
+* beginnings of a packagized lockfile
+* get the structure right
+* start over with the branches..
+* hmmm
+* hmmm
+* get us back to lockfile 0.8
+* r72 from hg
+* r70 from hg
+* r69 from hg
+* r68 from hg
+* r67 from hg
+* r66 from hg
+* r65 from hg
+* r64 from hg
+* r64 from hg
+* r63 from hg
+* r62 from hg
+* r61 from hg
+* r60 from hg
+* r59 from hg
+* r58 from hg
+* r57 from hg
+* r56 from hg
+* r55 from hg
+* r54 from hg
+* r53 from hg
+* r52 from hg
+* r51 from hg
+* r50 from hg
+* r49 from hg
+* r47 from hg
+* r46 from hg
+* r45 from hg
+* r44 from hg
+* r43 from hg
+* r42 from hg
+* r41 from hg
+* r38 from hg
+* r37 from hg
+* r36 from hg
+* r35 from hg
+* r34 from hg
+* r33 from hg
+* r32 from hg
+* r31 from hg
+* r29 from hg
+* r28 from hg
+* r27 from hg
+* r26 from hg
+* r25 from hg
+* r24 from hg
+* r23 from hg
+* r22 from hg
+* r21 from hg
+* r20 from hg
+* r19 from hg
+* r18 from hg
+* r16 from hg
+* r14 from hg
+* r13 from hg
+* r12 from hg
+* r11 from hg
+* r10 from hg
+* r9 from hg
+* r8 from hg
+* r7 from hg
+* r6 from hg
+* r5 from hg
+* r4 from hg
+* r3 from hg
+* r2 from hg
+* r1 from hg
+* r0 from hg
+* Initial directory structure

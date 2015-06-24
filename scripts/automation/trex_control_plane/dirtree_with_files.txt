@@ -1,0 +1,31 @@
+trex_control_plane/
+|-- Client
+|   |-- __init__.py
+|   |-- outer_packages.py
+|   |-- python_lib
+|   `-- trex_client.py
+|-- Server
+|   |-- CCustomLogger.py
+|   |-- outer_packages.py
+|   |-- trex_daemon_server
+|   |-- trex_daemon_server.py
+|   |-- trex_launch_thread.py
+|   |-- trex_server.py
+|   `-- zmq_monitor_thread.py
+|-- __init__.py
+|-- common
+|   |-- __init__.py
+|   |-- __init__.pyc
+|   |-- trex_status_e.py
+|   `-- trex_status_e.pyc
+|-- dirtree_no_files.txt
+|-- dirtree_with_files.txt
+`-- python_lib
+    |-- __init__.py
+    |-- enum34-1.0.4
+    |-- jsonrpclib-0.1.3
+    |-- lockfile-0.10.2
+    |-- python-daemon-2.0.5
+    |-- zmq
+    `-- zmq_fedora.tar.gz
+

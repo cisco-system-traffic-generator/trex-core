@@ -1,0 +1,53 @@
+#
+# Simple IMIX faster test (7x64B, 5x594B, 1x1518B)
+# we duplicate the template to utilize the memory better 
+- duration : 3
+  generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 0
+          udp_aging      : 0
+  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
+  cap_info : 
+     - name: cap2/udp_64B.pcap
+       cps   : 90615
+       ipg   : 10000
+       rtt   : 10000
+       w     : 1
+       limit : 16666
+     - name: cap2/udp_594B.pcap
+       cps   : 64725
+       ipg   : 10000
+       rtt   : 10000
+       w     : 1
+       limit : 16666
+     - name: cap2/udp_1518B.pcap
+       cps   : 12945
+       ipg   : 10000
+       rtt   : 10000
+       w     : 1
+       limit : 16667
+     - name: cap2/udp_64B.pcap
+       cps   : 90615
+       ipg   : 10000
+       rtt   : 10000
+       w     : 1
+       limit : 16667
+     - name: cap2/udp_594B.pcap
+       cps   : 64725
+       ipg   : 10000
+       rtt   : 10000
+       w     : 1
+       limit : 16667
+     - name: cap2/udp_1518B.pcap
+       cps   : 12945
+       ipg   : 10000
+       rtt   : 10000
+       w     : 1
+       limit : 16667       

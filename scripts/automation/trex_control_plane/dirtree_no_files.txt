@@ -1,0 +1,11 @@
+trex_control_plane/
+|-- Client
+|-- Server
+|-- common
+`-- python_lib
+    |-- enum34-1.0.4
+    |-- jsonrpclib-0.1.3
+    |-- lockfile-0.10.2
+    |-- python-daemon-2.0.5
+    `-- zmq
+

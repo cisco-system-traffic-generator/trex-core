@@ -1,0 +1,54 @@
+
+== TRex Low-Cost, High-Speed Stateful, Traffic Generator    
+
+Traditionally, network infrastructure devices have been tested using commercial traffic generators, while performance was measured using metrics like packets per second (PPS) and No Drop Rate (NDR). As the network infrastructure functionality has become more complex, stateful traffic generators have become necessary in order to test with more realistic application traffic pattern scenarios.
+Realistic and Stateful traffic generators are needed in order to:
+
+* Test and provide more realistic performance numbers
+* Design and architecture of SW and HW based on realistic use cases 
+
+=== Current Challenges
+
+* *Cost* : Commercial State-full traffic generators are expensive
+* *Scale* : Bandwidth does not scale up well with features complexity
+* *Standardization* : Lack of standardization of traffic patterns and methodologies
+* *Flexibility* : Commercial tools do not allow agility when flexibility and changes are needed
+
+=== Implications
+
+* High capital expenditure (capex) spent by different teams
+* Testing in low scale and extrapolation became a common practice, it is not accurate, and hides real life bottlenecks and quality issues
+* Different feature / platform teams benchmark and results methodology
+* Delays in development and testing due to testing tools features dependency
+* Resource and effort investment in developing different ad hoc tools and test methodologies
+
+TRex addresses these problems through an innovative and extendable software implementation and by leveraging standard and open SW and x86/UCS HW.
+
+=== TRex in a Nutshell
+
+* Generates and analyzes L4-7 traffic and able to provide in one tool capabilities provided by commercial L7 tools.
+* Stateful traffic generator based on pre-processing and smart replay of real traffic templates.
+* Generates and *amplifies* both client and server side traffic.
+* Customized functionality can be added.
+* Scale to 200Gb/sec for one UCS ( using Intel 40Gb/sec NICS)
+* Low cost
+* Virtual interfaces support, enable TRex to be used in a fully virtual environment without physical NICs and the following example use cases:
+** Amazon AWS
+** Cisco LaaS
+** TRex on your laptop
+** Self-contained packaging that can be easily installed and deployed
+
+=== Current TRex Feature sets 
+
+* Support Intel DPDK 1/10/40Gbps interfaces 
+* High scale of realistic traffic (number of clients, number of server, bandwidth)-up to 200Gb/sec in one UCS
+* Virtualization interfaces support (VMXNET3/E1000 )
+* Some stateless support for example IMIX traffic generation 
+* Latency/Jitter measurements
+* Flow ordering checks
+* NAT, PAT dynamic translation learning
+* IPV6 inline replacement 
+* Some cross flow support (e.g RTSP/SIP)
+
+*Cisco System Inc* 
+
