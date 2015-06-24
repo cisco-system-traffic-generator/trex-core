@@ -1,0 +1,7 @@
+#! /bin/bash
+
+export WAFLOCK=.lock-wafbuild_dpdk
+python2.7  waf-1.6.8 $@
+sts=$?
+exit $sts
+

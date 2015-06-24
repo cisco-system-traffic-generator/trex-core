@@ -1,0 +1,5 @@
+#! /bin/bash
+/router/bin/python-2.7.1 waf-1.6.8 $@
+sts=$?
+exit $sts
+
