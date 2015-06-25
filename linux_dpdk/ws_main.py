@@ -830,51 +830,7 @@ files_list=[
 
 files_dir=['cap2','avl','cfg','ko','automation','python-lib']
 
-RELEASE ='v1.73'
 
-def release(bld):
-    print "copy images and libs"
-    exec_p ="/auto/proj-pcube-b/apps/PL-b/tools/bp_sim2/"+RELEASE+"/"
-    os.system(' mkdir -p '+exec_p);
-    
-    for obj in build_types:
-        copy_single_system (bld,exec_p,obj);
-        copy_single_system1 (bld,exec_p,obj)
-
-    for obj in files_list:
-        src_file =  '../scripts/'+obj
-        dest_file = exec_p +'/'+obj
-        os.system("cp %s %s " %(src_file,dest_file));
-
-    for obj in files_dir:
-        src_file =  '../scripts/'+obj+'/' 
-        dest_file = exec_p +'/'+obj+'/'
-        os.system("cp -rv %s %s " %(src_file,dest_file));
-        os.system("chmod 755 %s " %(dest_file));
-
-    os.system('cd %s/..;tar --exclude="*.pyc" -zcvf %s/%s.tar.gz %s' %(exec_p,os.getcwd(),RELEASE,RELEASE))
-    os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),RELEASE,exec_p));
-
-
-def publish(bld):
-
-    exec_p ="/auto/proj-pcube-b/apps/PL-b/tools/bp_sim2/"+RELEASE+"/"
-
-    release_name ='%s.tar.gz' % (RELEASE);
-    from_        = exec_p+'/'+release_name;
-    os.system("rsync -av %s csi-wiki-01:/opt/apache-tomcat-7.0.52/webapps/trex/release/%s " %(from_,release_name))
-    os.system("ssh csi-wiki-01 'cd /opt/apache-tomcat-7.0.52/webapps/trex/release/;rm be_latest; ln -P %s be_latest'  " %(release_name))
-    os.system("ssh csi-wiki-01 'cd /opt/apache-tomcat-7.0.52/webapps/trex/release/;rm latest; ln -P %s latest'  " %(release_name))
-
-def publish_ext(bld):
-
-    exec_p ="/auto/proj-pcube-b/apps/PL-b/tools/bp_sim2/"+RELEASE+"/"
-
-    release_name ='%s.tar.gz' % (RELEASE);
-    from_        = exec_p+'/'+release_name;
-    os.system('rsync -avz -e "ssh -i /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/trex-1-keys.pem" --rsync-path=/usr/bin/rsync %s root@trex-tgn.cisco.com:/var/www/html/trex/release/%s' % (from_,release_name) )
-    os.system("ssh -i /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/trex-1-keys.pem -l root trex-tgn.cisco.com 'cd /var/www/html/trex/release/;rm be_latest; ln -P %s be_latest'  " %(release_name))
-    os.system("ssh -i /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/trex-1-keys.pem -l root trex-tgn.cisco.com 'cd /var/www/html/trex/release/;rm latest; ln -P %s latest'  " %(release_name))
 
 
 

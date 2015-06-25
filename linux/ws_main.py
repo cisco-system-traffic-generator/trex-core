@@ -518,23 +518,6 @@ def install_single_system (bld, exec_p, build_obj):
             relative_path = os.path.relpath(src_file, exec_p)
             os.symlink(relative_path, dest_file);
 
-#
-# need to fix this
-def install1(bld):
-    print "copy images and libs"
-    exec_p ="./"
- 
-    for obj in build_types:
-        install_single_system(bld,exec_p,obj);
-
-def release(bld):
-    print "copy images and libs"
-    exec_p ="/auto/proj-pcube-b/apps/PL-b/tools//bp_sim/v1.0/"
-    os.system(' mkdir -p '+exec_p);
-    
-    for obj in build_types:
-        install_single_system(bld,exec_p,obj);
-    
 
 
 
