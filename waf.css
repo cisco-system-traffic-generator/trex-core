@@ -1,0 +1,39 @@
+div.tableblock > table {
+  border: 1px solid gray;
+}
+
+div#header-pic {
+    background-image: url("images/bg4.jpg");
+    background-repeat: no-repeat;
+    background-color: #cccccc;
+}
+
+a:visited {
+  color: #8A2908;
+}
+
+
+div#header h1 {
+       background: url('images/trex_logo_64_64.png') no-repeat left center;
+       padding-left: 80px;
+       line-height: 80px;
+       height: 80px;
+}
+
+div.title, caption.title {
+	text-align: center;
+	margin-bottom: 0.2em;
+}
+
+div.tableblock > table th {
+	background-color: #F4F4F4;
+}
+
+h1, h2, h3, h4, h5, h6, span#author, div.title, caption.title, div.admonitionblock .icon, div#toctitle, div.sidebar-title, div.image-title {
+	color: #333;
+}
+
+body, div.sectionbody, div#toctitle {
+	font-family: 'Lucida Grande', Verdana, Arial, sans-serif;
+}
+

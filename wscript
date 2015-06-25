@@ -1,0 +1,180 @@
+#! /usr/bin/env python
+# encoding: utf-8
+# hhaim, 2014 (IL) base on WAF book
+
+"""
+call 'waf --targets=waf.pdf' or use 'waf list' to see the targets available
+"""
+
+VERSION='0.0.1'
+APPNAME='wafdocs'
+
+import os, re, shutil
+
+
+top = '.'
+out = 'build'
+
+re_xi = re.compile('''^(include|image)::([^.]*.(asciidoc|\\{PIC\\}))\[''', re.M)
+def ascii_doc_scan(self):
+	p = self.inputs[0].parent
+	node_lst = [self.inputs[0]]
+	seen = []
+	depnodes = []
+	while node_lst:
+		nd = node_lst.pop(0)
+		if nd in seen: continue
+		seen.append(nd)
+
+		code = nd.read()
+		for m in re_xi.finditer(code):
+			name = m.group(2)
+			if m.group(3) == '{PIC}':
+
+				ext = '.eps'
+				if self.generator.rule.rfind('A2X') > 0:
+					ext = '.png'
+
+				k = p.find_resource(name.replace('{PIC}', ext))
+				if k:
+					depnodes.append(k)
+			else:
+				k = p.find_resource(name)
+				if k:
+					depnodes.append(k)
+					node_lst.append(k)
+	return [depnodes, ()]
+        
+        
+
+import re
+def scansize(self):
+	name = 'image::%s\\{PIC\\}\\[.*,(width|height)=(\\d+)' % self.inputs[0].name[:-4]
+	re_src = re.compile(name)
+	lst = self.inputs[0].parent.get_src().ant_glob('*.txt')
+	for x in lst:
+		m = re_src.search(x.read())
+		if m:
+			val = str(int(1.6 * int(m.group(2))))
+			if m.group(1) == 'width':
+				w = val
+				h = "800"
+			else:
+				w = "800"
+				h = val
+
+			ext = self.inputs[0].name[-3:]
+			if ext == 'eps':
+				code = '-geometry %sx%s' % (w, h)
+			elif ext == 'dia':
+				if m.group(1) == 'width':
+					h = ''
+				else:
+					w = ''
+				code = '--size %sx%s' % (w, h)
+			else:
+				code = '-Gsize="%s,%s"' % (w, h)
+			break
+	else:
+		return ([], '')
+
+	return ([], code)
+
+def options(opt):
+	opt.add_option('--exe', action='store_true', default=False, help='Execute the program after it is compiled')
+
+def configure(conf):
+	conf.find_program('asciidoc', path='/usr/local/bin/', var='ASCIIDOC')
+	pass;
+
+def convert_to_pdf(task):
+    input_file = task.outputs[0].abspath()
+    out_dir = task.outputs[0].parent.get_bld().abspath()
+    os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
+    return (0)
+
+def convert_to_pdf_book(task):
+    input_file = task.outputs[0].abspath()
+    out_dir = task.outputs[0].parent.get_bld().abspath()
+    os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
+    return (0)
+
+
+def ensure_dir(f):
+    if not os.path.exists(f):
+        os.makedirs(f)
+	
+
+def my_copy(task):
+    input_file=task.outputs[0].abspath()
+    out_dir=task.outputs[0].parent.get_bld().abspath()
+    ensure_dir(out_dir)
+    shutil.copy2(input_file, out_dir+ os.sep+task.outputs[0].name)
+    return (0)
+
+
+def do_visio(bld):
+	for x in bld.path.ant_glob('visio\\*.vsd'):
+		tg = bld(rule='${VIS} -i ${SRC} -o ${TGT} ', source=x, target=x.change_ext('.png'))
+
+def build(bld):
+	bld(rule=my_copy, target='symbols.lang')
+
+	for x in bld.path.ant_glob('images\\**\**.png'):
+        	bld(rule=my_copy, target=x)
+                bld.add_group() 
+
+	for x in bld.path.ant_glob('video\\**\**.mp4'):
+        	bld(rule=my_copy, target=x)
+                bld.add_group() 
+
+
+	for x in bld.path.ant_glob('images\\**\**.jpg'):
+		bld(rule=my_copy, target=x)
+                bld.add_group() 
+
+	bld(rule=my_copy, target='my_chart.js')
+
+	bld.add_group() # separator, the documents may require any of the pictures from above
+
+	bld(rule='${ASCIIDOC}  -b deckjs -o ${TGT} ${SRC[0].abspath()}',
+		source='trex_config.asciidoc ', target='trex_config_guide.html', scan=ascii_doc_scan)
+
+
+	bld(rule='${ASCIIDOC}  -b deckjs -o ${TGT} ${SRC[0].abspath()}',
+		source='trex_preso.asciidoc ', target='trex_preso.html', scan=ascii_doc_scan)
+
+	bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+		source='release_notes.asciidoc waf.css', target='release_notes.html', scan=ascii_doc_scan)
+                
+
+	bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
+		source='trex_book.asciidoc waf.css', target='trex_manual.html', scan=ascii_doc_scan)
+
+        bld(rule=convert_to_pdf_book,
+		source='trex_book.asciidoc waf.css', target='trex_book.pdf', scan=ascii_doc_scan)
+                
+
+	bld(rule=convert_to_pdf_book,
+		source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.pdf', scan=ascii_doc_scan)
+
+	bld(rule=convert_to_pdf_book,
+		source='trex_control_plane_peek.asciidoc waf.css', target='trex_control_plane_peek.pdf', scan=ascii_doc_scan)
+	
+	bld(rule=convert_to_pdf_book,
+		source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.pdf', scan=ascii_doc_scan)
+
+	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+		source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html', scan=ascii_doc_scan)
+
+	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+		source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.html', scan=ascii_doc_scan)
+		
+	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+		source='trex_control_plane_peek.asciidoc waf.css', target='trex_control_plane_peek.html', scan=ascii_doc_scan)
+
+
+
+         
+               
+

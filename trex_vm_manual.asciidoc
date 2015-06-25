@@ -1,0 +1,324 @@
+T-Rex Virtual Machine setup and basic usage
+===========================================
+:author: Dan Klein 
+:email: <danklei@cisco.com> 
+:revnumber: 1.0
+:quotes.++:
+:numbered:
+
+
+== Introduction
+
+=== T-Rex traffic generator
+
+T-Rex traffic generator is a tool design the benchmark platforms with realistic traffic.
+This is a work-in-progress product, which is under constant developement, new features are added and support for more router's fuctionality is achieved.
+
+One of the innovative tools through which T-Rex can be learned and tested during development is a virtual machine instance, fully simulating T-Rex without the need of any additional hardware.
+
+
+==== T-Rex Virtual Machine
+
+The T-Rex Virtual Machine is based on Oracle's Virtual Box freeware.
+
+It is designed to enable T-Rex newbies to explore this tool without any special resources, and no single network cable attached. Moreover, is requires no internet or outer network connectivity.
+
+
+== Setup and Usage
+
+=== Setup
+
+In order to use T-Rex VM, there are several super-easy steps to follow:
+
+  . Download and install Oracle VM Virtual Box Manage https://www.virtualbox.org/wiki/Downloads[(VB download link)]. + 
+    During the installation you'll be asked to allow the installation of system devices component interactions. Allow it.
+  . Download the latest T-Rex VM by http://csi-wiki-01:8181/trex/T_Rex_162_VM_Fedora_21.ova[clicking on this link].
+  . Open Oracle VM Virtual Box application installed at step 1.
+  . Under 'File' tab, select 'Import Appliance' (`ctrl+I` shorthand can be used as well). The following screen will apear:
+
+ifdef::backend-docbook[]
+image::images/vm_import.png[title="VM import screen",align="center",width=400, link="images/vm_import.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/vm_import.png[title="VM import screen",align="center",width=900, link="images/vm_import.png"]
+endif::backend-xhtml11[]
+
+
+
+  . Browse and select the .ova file you have downloaded at step 2, and click 'continue'.
+  . Click 'Next, and then make sure that the 'Reinitialize the MAC address of all network cards' checkbox is **not selected**.
+  . Click 'import' and wait for the import process to finish.
+  . **That's it! you're all good and set to go!**
+
+
+=== Launching and logging into the machine
+
+Let's get started with running T-Rex!
+
+First, launch the virtual machine by selecting it in the VM's menu and hitting 'Start' button.
+
+ifdef::backend-docbook[]
+image::images/vm_selection_screen.png[title="T-Rex VM launching screen",align="center",width=400, link="images/vm_selection_screen.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/vm_selection_screen.png[title="T-Rex VM launching screen",align="center",width=900, link="images/vm_selection_screen.png"]
+endif::backend-xhtml11[]
+
+
+
+
+[IMPORTANT]
+====
+You may encounter with "VT-x is disabled" error, similar to the image below. +
+In that case, please refer to https://www.virtualbox.org/ticket/4130[this link] and follow the provided steps to overcome this issue.
+====
+
+ifdef::backend-docbook[]
+image::images/trex_vm_bios_err.png[title="VT-x disabled possible error message",align="center",width=400, link="images/trex_vm_bios_err.png"] 
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/trex_vm_bios_err.png[title="VT-x disabled possible error message",align="center",width=900, link="images/trex_vm_bios_err.png"] 
+endif::backend-xhtml11[]
+
+
+<<<<<
+
+Next, once the machine is finished booting, login to the machine using the following credentials:
+
+  - Username: `trex`
+
+  - Password: `trex`
+
+ifdef::backend-docbook[]
+image::images/trex_vm_login.png[title="T-Rex VM login",align="center",width=400, link="images/trex_vm_login.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/trex_vm_login.png[title="T-Rex VM login",align="center",width=900, link="images/trex_vm_login.png"]
+endif::backend-xhtml11[]
+
+
+TIP: a remote connection to the machine from anywhere in the hosting machine can be achieved by the following command: +
+ `ssh -p 3022 trex@127.0.0.1`
+
+=== Running T-Rex traffic generator
+
+Finally, we're ready to do some T-Rex magic. This is super easy and can be achived be the following steps:
+
+  1. Change dir to latest version supplied using: `cd /home/trex/v1.62/`.
+
+  2. Run your desired T-Rex command. 
+
+IMPORTANT: When launching a T-Rex command pay attention make sure that: +
+  1. use `sudo` prefix at the beggining of the command. +
+  2. Specify the `-f` argument first among all arguments.
+
+
+For example, let's run T-Rex with DNS traffic generation and no latency. The Runnning command is:
+
+----
+[trex@localhost v1.62]$ sudo ./t-rex-64 -f cap2/dns.yaml -d 100 -m 1 --nc
+Starting  T-Rex 1.62 please wait  ...
+found configuration file at /etc/trex_cfg.yaml
+zmq publisher at: tcp://*:4500
+
+...
+<1>
+...
+
+-Per port stats table
+      ports |               0 |               1
+ -----------------------------------------------------------------------------------------
+   opackets |              17 |              17
+     obytes |            1241 |            1513
+   ipackets |              17 |              17
+     ibytes |            1513 |            1241
+    ierrors |               0 |               0
+    oerrors |               0 |               0
+      Tx Bw |     582.35  bps |     709.99  bps
+
+-Global stats enabled
+ Cpu Utilization : 0.8  %  0.0 Gb/core
+ Platform_factor : 1.0
+ Total-Tx        :       1.29 Kbps
+ Total-Rx        :       1.29 Kbps
+ Total-PPS       :       1.99  pps
+ Total-CPS       :       1.00  cps
+
+ Expected-PPS    :       2.00  pps
+ Expected-CPS    :       1.00  cps
+ Expected-BPS    :       1.30 Kbps
+
+ Active-flows    :        0  Clients :      511   Socket-util : 0.0001 %
+ Open-flows      :       17  Servers :      255   Socket :       17 Socket/Clients :  0.0
+ drop-rate       :       0.00  bps
+ current time    : 18.7 sec
+ test duration   : 81.3 sec
+----
+<1> Output prompt continues (trimmed for reader's comfort).
+
+Now, lets review the generated packets as they observed footnoteref:[<1>,The given output represents the output begining.] by our promiscuous interface (interface #2):
+
+----
+[trex@localhost ~]$ sudo tcpdump -i enp0s8
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on enp0s8, link-type EN10MB (Ethernet), capture size 262144 bytes
+09:38:53.953651 IP 16.0.0.2.1024 > 48.0.0.2.domain: 48 A? www.cisco.com. (31)
+09:38:53.963969 IP 48.0.0.2.domain > 16.0.0.2.1024: 48* 1/0/0 A 100.100.100.100 (47)
+09:38:54.960361 IP 16.0.0.3.1024 > 48.0.0.3.domain: 48 A? www.cisco.com. (31)
+09:38:54.970358 IP 48.0.0.3.domain > 16.0.0.3.1024: 48* 1/0/0 A 100.100.100.100 (47)
+09:38:55.967200 IP 16.0.0.4.1024 > 48.0.0.4.domain: 48 A? www.cisco.com. (31)
+09:38:55.977222 IP 48.0.0.4.domain > 16.0.0.4.1024: 48* 1/0/0 A 100.100.100.100 (47)
+09:38:56.975355 IP 16.0.0.5.1024 > 48.0.0.5.domain: 48 A? www.cisco.com. (31)
+09:38:56.985379 IP 48.0.0.5.domain > 16.0.0.5.1024: 48* 1/0/0 A 100.100.100.100 (47)
+09:38:57.981659 IP 16.0.0.6.1024 > 48.0.0.6.domain: 48 A? www.cisco.com. (31)
+09:38:57.992358 IP 48.0.0.6.domain > 16.0.0.6.1024: 48* 1/0/0 A 100.100.100.100 (47)
+09:38:58.990979 IP 16.0.0.7.1024 > 48.0.0.7.domain: 48 A? www.cisco.com. (31)
+09:38:59.000952 IP 48.0.0.7.domain > 16.0.0.7.1024: 48* 1/0/0 A 100.100.100.100 (47)
+09:39:00.009403 IP 16.0.0.8.1024 > 48.0.0.8.domain: 48 A? www.cisco.com. (31)
+09:39:00.019456 IP 48.0.0.8.domain > 16.0.0.8.1024: 48* 1/0/0 A 100.100.100.100 (47)
+09:39:01.015810 IP 16.0.0.9.1024 > 48.0.0.9.domain: 48 A? www.cisco.com. (31)
+----
+
+
+Let's have a look at another example. +
+We want to run T-Rex with simple http traffic generation. The running command will look like this:
+
+----
+[trex@localhost v1.62]$ sudo ./t-rex-64 -f cap2/http_simple.yaml -d 100 -l 1000 -m 1 --nc
+Starting  T-Rex 1.62 please wait  ...
+found configuration file at /etc/trex_cfg.yaml
+zmq publisher at: tcp://*:4500
+
+...
+<1>
+...
+
+-Per port stats table
+      ports |               0 |               1
+ -----------------------------------------------------------------------------------------
+   opackets |           40983 |           41946
+     obytes |         2563951 |         6015664
+   ipackets |           41946 |           40983
+     ibytes |         6015664 |         2563951
+    ierrors |               0 |               0
+    oerrors |               0 |               0
+      Tx Bw |     520.83 Kbps |       1.27 Mbps
+
+-Global stats enabled
+ Cpu Utilization : 3.1  %  0.1 Gb/core
+ Platform_factor : 1.0
+ Total-Tx        :       1.79 Mbps
+ Total-Rx        :       1.79 Mbps
+ Total-PPS       :       2.11 Kpps
+ Total-CPS       :       2.84  cps
+
+ Expected-PPS    :     102.71  pps
+ Expected-CPS    :       2.78  cps
+ Expected-BPS    :     764.51 Kbps
+
+ Active-flows    :        0  Clients :      255   Socket-util : 0.0000 %
+ Open-flows      :      107  Servers :    65535   Socket :        0 Socket/Clients :  0.0
+ drop-rate       :       0.00  bps
+ current time    : 39.6 sec
+ test duration   : 60.4 sec
+
+-Latency stats enabled
+ Cpu Utilization : 1.0 %
+ if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window
+   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,
+ ----------------------------------------------------------------------------------------
+ 0 |  39490,  39489,      0,   0,       1276  ,  106714,      91      |  1737  1880  
+ 1 | 39490,   39490,      0,   0,        226  ,  107619,     203      |  1694  1041  
+
+----
+
+<1> Output prompt continues (trimmed for reader's comfort).
+
+Once again, lets review the generated packets as they observed footnoteref:[<1>] by our promiscuous interface (interface #2):
+
+----
+[trex@localhost ~]$ sudo tcpdump -a -i enp0s8
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on enp0s8, link-type EN10MB (Ethernet), capture size 262144 bytes
+19:31:46.650426 IP 16.0.0.1.1024 > 48.0.0.1.http: Flags [S], seq 404375002, win 32768, options [mss 1460], length 0
+19:31:46.650439 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:46.650442 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:46.650445 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:46.652458 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:46.652462 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:46.652465 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:47.152768 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:47.152788 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:47.153796 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:47.153801 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
+19:31:47.154803 IP 48.0.0.2.http > 16.0.0.2.1024: Flags [P.], seq 404419110:404420570, ack 404375252, win 32768, length 1460
+19:31:47.154823 IP 48.0.0.2.http > 16.0.0.2.1024: Flags [P.], seq 1460:2920, ack 1, win 32768, length 1460
+----
+
+[NOTE]
+See http://csi-wiki-01:8181/trex/doc/trex_book.pdf[T-Rex full manual] for a complete understading of the tool features and options.
+
+
+=== T-Rex Live monitoring
+
+Once we have T-Rex up and running, we can enjoy the benefit of having live monitoring on its performance, using TRexViewer application footnote:[Supported only on Windows OS]
+
+
+
+This can be easily done by following these steps:
+  0. Download the latest version of TrexViewer application and install it using http://csi-wiki-01:8080/display/bpsim/TrexViewer[this link].
+
+  1. Start the application and fill in the following: + 
+    - Trex ip: `127.0.0.1:4500`
+
+  2. Click the play button.
+
+ifdef::backend-docbook[]
+image::images/trex_motinor_config.png[title="T-Rex viewer start screen",align="center",width=400,link="images/trex_motinor_config.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/trex_motinor_config.png[title="T-Rex viewer start screen",align="center",width=900,link="images/trex_motinor_config.png"]
+endif::backend-xhtml11[]
+
+
+
+  3. **That's it!** +
+     Now the live data from T-Rex will be displayed on the screen.
+
+ifdef::backend-docbook[]
+image::images/trex_motinor_view.png[title="T-Rex viewer monitor screen",align="center",width=400,link="images/trex_motinor_view.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/trex_motinor_view.png[title="T-Rex viewer monitor screen",align="center",width=900,link="images/trex_motinor_view.png"]
+endif::backend-xhtml11[]
+
+
+[NOTE]
+Make sure T-Rex is running, otherwise data will not be available at TRexViewer.
+
+=== Architecture and network design
+
+Since no hardware is used, T-Rex simulates traffic using a virtual internal network, named 'trex_intnet'.
+
+The following figure describes the virtual "wiring" of the virtual machine to support T-Rex traffic simulation.
+
+ifdef::backend-docbook[]
+image::images/T-Rex_vm.png[title="T-Rex virtual connectivity",align="center",width=400, link="images/T-Rex_vm.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/T-Rex_vm.png[title="T-Rex virtual connectivity",align="center",width=900, link="images/T-Rex_vm.png"]
+endif::backend-xhtml11[]
+
+
+The VM runs T-Rex with single client and single server port. The traffic generated by each of those ports are switched over the 'trex_intnet' virtual network and received by the other side.
+
+T-Rex identifies only the packets which were dedicately sent by one of those traffic ports and receives them in the other port. Hence, packets generated by client port will be received by the server port and vice versa.
+
+Ontop, network adapter #4 used to [underline]#listen# to all traffic generated by both of T-Rex's ports, therefore it is very useful in providing live data of the generated flows over the network.

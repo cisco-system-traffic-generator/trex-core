@@ -1,0 +1,225 @@
+T-Rex Control Plane Design - Phase 1 peek
+=========================================
+:author: Dan Klein 
+:email: <danklei@cisco.com> 
+:revnumber: 1.0
+:quotes.++:
+:numbered:
+
+
+
+=== T-Rex traffic generator
+
+T-Rex traffic generator is a tool design the benchmark platforms with realistic traffic.
+This is a work-in-progress product, which is under constant developement, new features are added and support for more router's fuctionality is achieved.
+
+=== T-Rex Control
+
+T-Rex control plane is under developement, and a phase 1 is planned to be published soon (Apr 2015). +
+This document will shortly describe the planned control plane for T-Rex, which is planned to be more scalable and support automation more intuitively.
+
+==== T-Rex Control Plane - High Level
+
+T-Rex control plane is based on a JSON RPC transactions between clients and server. +
+Each T-Rex machine will have a server running on it, closely interacting with T-Rex (clients do not approach T-Rex directly). +
+As future feature, and as multiple T-Rexes might run on the same machine, single server shall serve all T-Rexes running a machine.
+
+The client is a Python based application that created `TRexClient` instances. +
+Using class methods, the client interacts with T-Rex server, and enable it to perform the following commands:
+
+  1. Start T-Rex run (custom parameters supported).
+
+  2. Stop  T-Rex run.
+
+  3. Check what is the T-Rex status (possible states: `Idle, Starting, Running`).
+
+  4. Poll (by customize sampling) the server and get live results from T-Rex **while still running**.
+
+  5. Get custom T-Rex stats based on a window of saved history of latest 'N' polling results.
+
+
+==== T-Rex Control Plane - Example crumbs
+
+  
+
+  - **Exmaple #1: Checking T-Rex status and Launching T-Rex**
+    The following program checks T-Rex status, and later on launches it, querying its status along different time slots.
+
+[source, python]
+----
+import time
+
+trex = CTRexClient('trex-name')  
+print "Before Running, T-Rex status is: ", trex.is_running()           # <1>
+print "Before Running, T-Rex status is: ", trex.get_running_status()   # <2>
+
+ret = trex.start_trex( c = 2, 										   # <3>	
+        m = 0.1,
+        d = 20,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+print "After Starting, T-Rex status is: ", trex.is_running(), trex.get_running_status()
+
+time.sleep(10)	# <4>
+
+print "Is T-Rex running? ", trex.is_running(), trex.get_running_status() # <5>
+----
+
+<1> `is_running()` returns a boolean and checks if T-Rex is running or not.
+
+<2> `get_running_status()` returns a Python dictionary with T-Rex state, along with a verbose field containing extra info, if available.
+
+<3> T-Rex lanching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
+
+<4> Going to sleep for few seconds, allowing T-Rex to start.
+
+<5> Checking out with T-Rex status again, printing both a boolean return value and a full status.
+
+This code will prompt the following output, assuming a server was launched on the T-Rex machine.
+
+----
+Connecting to T-Rex @ http://trex-dan:8090/ ...
+Before Running, T-Rex status is:  False
+Before Running, T-Rex status is:  {u'state': <TRexStatus.Idle: 1>, u'verbose': u'T-Rex is Idle'}
+                                                      <1>                             <1>
+
+After Starting, T-Rex status is:  False {u'state': <TRexStatus.Starting: 2>, u'verbose': u'T-Rex is starting'}
+                                                      <1>                             <1>
+Is T-Rex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex is Running'}
+                                                      <1>                             <1>
+----
+
+<1> When looking at T-Rex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
+
+
+  * **Exmaple #2: Checking T-Rex status and Launching T-Rex with 'BAD PARAMETERS'**
+    The following program checks T-Rex status, and later on launches it with wrong input ('mdf' is not legal option), hence T-Rex run will not start and a message will be available.
+
+[source, python]
+----
+import time
+
+trex = CTRexClient('trex-name')  
+print "Before Running, T-Rex status is: ", trex.is_running()           # <1>
+print "Before Running, T-Rex status is: ", trex.get_running_status()   # <2>
+
+ret = trex.start_trex( c = 2, 										   # <3>	
+#<4>     mdf = 0.1,
+        d = 20,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+print "After Starting, T-Rex status is: ", trex.is_running(), trex.get_running_status()
+
+time.sleep(10)	# <5>
+
+print "Is T-Rex running? ", trex.is_running(), trex.get_running_status() # <6>
+----
+
+<1> `is_running()` returns a boolean and checks if T-Rex is running or not.
+
+<2> `get_running_status()` returns a Python dictionary with T-Rex state, along with a verbose field containing extra info, if available.
+
+<3> T-Rex lanching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
+
+<4> Wrong parameter ('mdf') injected.
+
+<5> Going to sleep for few seconds, allowing T-Rex to start.
+
+<6> Checking out with T-Rex status again, printing both a boolean return value and a full status.
+
+This code will prompt the following output, assuming a server was launched on the T-Rex machine.
+----
+Connecting to T-Rex @ http://trex-dan:8090/ ...
+Before Running, T-Rex status is:  False
+Before Running, T-Rex status is:  {u'state': <TRexStatus.Idle: 1>, u'verbose': u'T-Rex is Idle'}
+                                                      <1>                             <1>
+
+After Starting, T-Rex status is:  False {u'state': <TRexStatus.Starting: 2>, u'verbose': u'T-Rex is starting'}
+                                                      <1>                             <1>
+Is T-Rex running?  False {u'state': <TRexStatus.Idle: 1>, u'verbose': u'T-Rex run failed due to wrong input parameters, or due to reachability issues.'}
+                                                      <2>                             <2>
+----
+
+<1> When looking at T-Rex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
+ 
+<2> After T-Rex lanuching failed, a message indicating the failure reason. However, T-Rex is back Idle, ready to handle another launching request.
+
+
+  * **Exmaple #3: Launching T-Rex, monitor live data and stopping on demand**
+    The following program will launch T-Rex, and while it runs poll the server (every 5 seconds) for running inforamtion, such as latency, drops, and other extractable parameters. +
+    Then, after some criteria was met, T-Rex execution is terminated, enabeling others to use the resource instead of waiting for the entire execution to finish.
+    
+[source, python]
+----
+print "Before Running, T-Rex status is: ", trex.get_running_status()
+
+    print "Starting T-Rex..."
+    ret = trex.start_trex( c = 2, 
+        mdf = 0.1,
+        d = 100,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+    print "After Starting, T-Rex status is: ", trex.is_running(), trex.get_running_status()
+    print "sleeping 20 secs.."
+    time.sleep(20)
+    for i in range(5):
+        print "Is T-Rex running? ", trex.is_running(), trex.get_running_status()	#<1>
+    #<2> received_info = trex.get_running_info()	
+    #<3> # Custom data processing is done here									
+    #<4> time.sleep(5)
+
+    print "Terminating T-Rex..."
+    #<5> ret = trex.stop_trex() 															
+    print "After stopping, T-Rex status is: ", trex.is_running(), trex.get_running_status() #<6>
+----
+
+<1> Running queries is still optional, although not mandatory in order to get stats.
+
+<2> `get_running_info()` will return the latest data dump available from T-Rex. + 
+    Some aditional data manipulation and queries are under developement, including manipulation over number of dumps, which is useful for avoiding "spikes" of singular behavior.
+
+<3> Data processing. This is fully customizable for the relevant test initiated.
+
+<4> The sampling rate is flexibale and can be configured depending on the desired output.
+
+<5> T-Rex termination.
+
+<6> Post-termination check for status.
+
+	
+This code will prompt the following output, assuming a server was launched on the T-Rex machine.
+----
+Connecting to T-Rex @ http://trex-dan:8090/ ...
+Before Running, T-Rex status is:  False
+Before Running, T-Rex status is:  {u'state': <TRexStatus.Idle: 1>, u'verbose': u'T-Rex is Idle'}
+Starting T-Rex...
+After Starting, T-Rex status is:  False {u'state': <TRexStatus.Starting: 2>, u'verbose': u'T-Rex is starting'}
+
+<1> Is T-Rex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex is Running'}
+
+<1> Is T-Rex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex is Running'}
+
+<1> Is T-Rex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex is Running'}
+
+<1> Is T-Rex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex is Running'}
+
+<1> Is T-Rex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex is Running'}
+
+Before terminating, T-Rex status is:  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex is Running'}
+Terminating T-Rex...
+#<2> After stopping, T-Rex status is:  False {u'state': <TRexStatus.Idle: 1>, u'verbose': u'T-Rex finished (terminated).'}
+
+----
+
+<1> Polling T-Rex status while in a data polling loop.
+
+<2> After termination, we can see that T-Rex is back idle, also the `verbose` field shows the stop reason

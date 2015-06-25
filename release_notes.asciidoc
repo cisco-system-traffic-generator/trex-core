@@ -1,0 +1,25 @@
+:author: hhaim 
+:email: <hhaim@cisco.com> 
+
+
+ifndef::backend-docbook[]
+++++++++++++++
+<div id="header-pic"   style="padding:50px;margin-top:0px;position:absolute;left:0px;width:100%;">
+    <img src="images/trex_logo.png" alt="Smiley face" height="80" width="270"/>
+</div>
+<br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
+++++++++++++++
+
+== TRex release notes ==
+endif::backend-docbook[]
+
+ifdef::backend-docbook[]
+
+== TRex release notes  ==
+:numbered:
+
+endif::backend-docbook[]
+
+== Release 1.72  ==
+
+
