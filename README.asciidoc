@@ -50,5 +50,10 @@ TRex addresses these problems through an innovative and extendable software impl
 * IPV6 inline replacement 
 * Some cross flow support (e.g RTSP/SIP)
 
+=== Contact Us
+Follow us on https://groups.google.com/forum/#!forum/trex-tgn[T-Rex traffic generator google group],
+
+Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@googlegroups.com)]
+
 *Cisco System Inc* 
 
