@@ -35,9 +35,8 @@ TRex addresses these problems through an innovative and extendable software impl
 * Low cost
 * Virtual interfaces support, enable TRex to be used in a fully virtual environment without physical NICs and the following example use cases:
 ** Amazon AWS
-** Cisco LaaS
 ** TRex on your laptop
-** Self-contained packaging that can be easily installed and deployed
+** Self-contained packaging 
 
 === Current TRex Feature sets 
 
