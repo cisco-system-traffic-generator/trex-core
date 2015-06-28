@@ -260,7 +260,7 @@ listening on enp0s8, link-type EN10MB (Ethernet), capture size 262144 bytes
 ----
 
 [NOTE]
-See http://csi-wiki-01:8181/trex/doc/trex_book.pdf[T-Rex full manual] for a complete understading of the tool features and options.
+See http://trex-tgn.cisco.com/trex/doc/trex_book.pdf[T-Rex full manual] for a complete understading of the tool features and options.
 
 
 === TRex Live monitoring
@@ -270,7 +270,7 @@ Once we have TRex up and running, we can enjoy the benefit of having live monito
 
 
 This can be easily done by following these steps:
-  0. Download the latest version of TrexViewer application and install it using http://csi-wiki-01:8080/display/bpsim/TrexViewer[this link].
+  0. Download the latest version of TrexViewer application and install it using http://trex-tgn.cisco.com/trex/client_gui/setup.exe[this link].
 
   1. Start the application and fill in the following: + 
     - Trex ip: `127.0.0.1:4500`
