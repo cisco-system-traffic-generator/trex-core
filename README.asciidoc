@@ -63,11 +63,11 @@ TRex addresses these problems through an innovative and extendable software impl
 
 === Presentation 
 
- link:https://http://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation] 
+ link::http://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation] 
 
 === Wiki
 
- Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki] 
+ Internal link::https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki] 
 
 === Client Windows GUI
 
