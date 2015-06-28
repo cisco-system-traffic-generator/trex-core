@@ -26,6 +26,7 @@ TRex addresses these problems through an innovative and extendable software impl
 
 === TRex in a Nutshell
 
+* Fueled by DPDK 
 * Generates and analyzes L4-7 traffic and able to provide in one tool capabilities provided by commercial L7 tools.
 * Stateful traffic generator based on pre-processing and smart replay of real traffic templates.
 * Generates and *amplifies* both client and server side traffic.
@@ -50,10 +51,33 @@ TRex addresses these problems through an innovative and extendable software impl
 * IPV6 inline replacement 
 * Some cross flow support (e.g RTSP/SIP)
 
+=== What it's not
+
+* It is not stateless IXIA/Ostinato/pktgen-dpdk like traffic generator. it has minimal stateless support
+* There is emulation support for example BGP/ISIS/ARP 
+* There is no TCP stack in this version
+
+=== What you can do with it
+
+* Beanchmark/Stress stateful features like NAT/DPI/FireWall
+
+
+=== Wiki
+
+ Internal https://github.com/cisco-system-traffic-generator/trex-core/wiki [Wiki] 
+
+=== Client Windows GUI
+
+image::http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png[title="",align="center",width=200, link="http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png"]
+  
+
 === Contact Us
-Follow us on https://groups.google.com/forum/#!forum/trex-tgn[T-Rex traffic generator google group],
+
+Follow us on https://groups.google.com/forum/#!forum/trex-tgn[TRex traffic generator google group],
 
 Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@googlegroups.com)]
 
-*Cisco System Inc* 
+* TRex team,Cisco System Inc* 
+
+
 
