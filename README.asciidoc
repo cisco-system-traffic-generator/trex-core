@@ -49,16 +49,25 @@ TRex addresses these problems through an innovative and extendable software impl
 * NAT, PAT dynamic translation learning
 * IPV6 inline replacement 
 * Some cross flow support (e.g RTSP/SIP)
+* Python automation API 
+* Windows GUI for real-time latency/jitter/flow order  
 
 === What it's not
 
-* It is not stateless IXIA/Ostinato/pktgen-dpdk like traffic generator. it has a minimal stateless support
-* There is no emulation support, for example, BGP/ISIS/ARP 
+* Stateless *IXIA*, *Ostinato* ,*pktgen-dpdk* like traffic generator. it has a minimal stateless support
+* There is no routing emulation support, for example, BGP/ISIS/ARP 
 * There is no TCP stack 
+* Client only or Server Only. 
 
 === What you can do with it
 
-* Beanchmark/Stress stateful features like NAT/DPI/FireWall
+* Beanchmark/Stress stateful features :
+** NAT
+** DPI
+** FireWall
+** IPS/IDS 
+* Mixing Application level traffic/profile (HTTP/SIP/Video) 
+* Unlimited concurent flows, limited only by memory 
 
 === Presentation 
 
@@ -68,11 +77,15 @@ link:http://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation]
 
 Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 
-=== Client Windows GUI
+=== Windows Client GUI
 
 image::http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png[title="",align="center",width=200, link="http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png"]
-  
 
+=== Other tools
+
+* EAST COAST - STG10G DPDK stateful Traffic Generator 
+* NetLoad Inc - Performer/Developer 
+  
 === Contact Us
 
 Follow us on https://groups.google.com/forum/#!forum/trex-tgn[TRex traffic generator google group],
@@ -80,6 +93,7 @@ Follow us on https://groups.google.com/forum/#!forum/trex-tgn[TRex traffic gener
 Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@googlegroups.com)]
 
 *TRex team,Cisco System Inc* 
+
 
 
 
