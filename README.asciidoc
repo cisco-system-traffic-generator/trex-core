@@ -53,18 +53,21 @@ TRex addresses these problems through an innovative and extendable software impl
 
 === What it's not
 
-* It is not stateless IXIA/Ostinato/pktgen-dpdk like traffic generator. it has minimal stateless support
-* There is emulation support for example BGP/ISIS/ARP 
-* There is no TCP stack in this version
+* It is not stateless IXIA/Ostinato/pktgen-dpdk like traffic generator. it has a minimal stateless support
+* There is no emulation support, for example, BGP/ISIS/ARP 
+* There is no TCP stack 
 
 === What you can do with it
 
 * Beanchmark/Stress stateful features like NAT/DPI/FireWall
 
+=== Presentation 
+
+ link:https://http://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation] 
 
 === Wiki
 
- Internal https://github.com/cisco-system-traffic-generator/trex-core/wiki [Wiki] 
+ Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki] 
 
 === Client Windows GUI
 
