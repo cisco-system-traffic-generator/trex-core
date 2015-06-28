@@ -63,11 +63,11 @@ TRex addresses these problems through an innovative and extendable software impl
 
 === Presentation 
 
- link::http://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation] 
+link:http://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation] 
 
 === Wiki
 
- Internal link::https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki] 
+Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 
 === Client Windows GUI
 
@@ -80,7 +80,7 @@ Follow us on https://groups.google.com/forum/#!forum/trex-tgn[TRex traffic gener
 
 Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@googlegroups.com)]
 
-* TRex team,Cisco System Inc* 
+*TRex team,Cisco System Inc* 
 
 
 
