@@ -56,7 +56,7 @@ TRex addresses these problems through an innovative and extendable software impl
 
 * Stateless *IXIA*, *Ostinato* ,*pktgen-dpdk* like traffic generator. it has a minimal stateless support
 * There is no routing emulation support, for example, BGP/ISIS/ARP 
-* There is no TCP stack 
+* There is no TCP stack.  
 * Client only or Server Only. 
 
 === What you can do with it
@@ -64,6 +64,8 @@ TRex addresses these problems through an innovative and extendable software impl
 * Beanchmark/Stress stateful features :
 ** NAT
 ** DPI
+** Load Balancer 
+** Network cache devices 
 ** FireWall
 ** IPS/IDS 
 * Mixing Application level traffic/profile (HTTP/SIP/Video) 
