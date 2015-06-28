@@ -9,7 +9,7 @@ T-Rex Virtual Machine setup and basic usage
 
 == Introduction
 
-=== T-Rex traffic generator
+=== TRex traffic generator
 
 TRex traffic generator is a tool design the benchmark platforms with realistic traffic.
 This is a work-in-progress product, which is under constant developement, new features are added and support for more router's fuctionality is achieved.
