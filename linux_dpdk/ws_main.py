@@ -11,6 +11,7 @@ import commands;
 import shutil;
 import copy;
 import re
+import uuid
 
 
 # these variables are mandatory ('/' are converted automatically)
@@ -19,6 +20,12 @@ out = 'build_dpdk'
 
 
 b_path ="./build/linux_dpdk/"
+
+C_VER_FILE      = "version.c"
+H_VER_FILE      = "version.h"
+
+BUILD_NUM_FILE  = "../VERSION" 
+
 
 #######################################
 # utility for group source code 
@@ -152,6 +159,13 @@ yaml_src = SrcGroup(dir='yaml-cpp/src/',
             'singledocparser.cpp',
             'stream.cpp',
             'tag.cpp']);
+
+
+version_src = SrcGroup(
+    dir='linux_dpdk',
+    src_list=[
+        'version.c',
+    ])
 
 
 dpdk_src = SrcGroup(dir='src/dpdk_lib18/',
@@ -306,8 +320,7 @@ bp =SrcGroups([
                 cmn_src ,
                 net_src ,
                 yaml_src,
-                #sw_mini_shell_grp_src
-                #dpdk_src
+                version_src
                 ]);
 
 l2fwd_main_src = SrcGroup(dir='src',
@@ -583,6 +596,7 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
+    bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
     for obj in build_types:
         build_type(bld,obj);
@@ -600,6 +614,194 @@ def install_single_system (bld, exec_p, build_obj):
         if not os.path.lexists(dest_file):
             relative_path = os.path.relpath(src_file, exec_p)
             os.symlink(relative_path, dest_file);
+
+
+def pre_build(bld):
+    print "update version files"
+    create_version_files ()
+
+
+def write_file (file_name,s):
+    f=open(file_name,'w')
+    f.write(s)
+    f.close()
+
+
+def get_build_num ():
+    s='';
+    if os.path.isfile(BUILD_NUM_FILE):
+        f=open(BUILD_NUM_FILE,'r');
+        s+=f.readline().rstrip();
+        f.close();
+    return s;
+
+def create_version_files ():
+    s =''
+    s +="#ifndef __TREX_VER_FILE__           \n"
+    s +="#define __TREX_VER_FILE__           \n"
+    s +="#ifdef __cplusplus                  \n"
+    s +=" extern \"C\" {                        \n"
+    s +=" #endif                             \n";
+    s +='#define  VERSION_USER  "%s"          \n' % os.environ.get('USER', 'unknown')
+    s +='extern char * get_build_date(void);  \n'
+    s +='extern char * get_build_time(void);  \n'
+    s +='#define VERSION_UIID      "%s"       \n' % uuid.uuid1()
+    s +='#define VERSION_BUILD_NUM "%s"       \n' % get_build_num()
+    s +="#ifdef __cplusplus                  \n"
+    s +=" }                        \n"
+    s +=" #endif                             \n";
+    s +="#endif \n"
+
+    write_file (H_VER_FILE ,s)
+
+    s ='#include "version.h"          \n'
+    s +='#define VERSION_UIID1      "%s"       \n' % uuid.uuid1()
+    s +="char * get_build_date(void){ \n"
+    s +="    return (__DATE__);       \n"
+    s +="   }      \n"
+    s +=" \n"
+    s +="char * get_build_time(void){ \n"
+    s +="    return (__TIME__ );       \n"
+    s +="   }      \n"
+
+    write_file (C_VER_FILE,s)
+
+def build_test(bld):
+    create_version_files ()
+
+def _copy_single_system (bld, exec_p, build_obj,o):
+    o='build_dpdk/linux_dpdk/';
+    src_file =  os.path.realpath(o+build_obj.get_target())
+    print src_file;
+    if os.path.exists(src_file):
+        dest_file = exec_p +build_obj.get_target()
+        print dest_file
+        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("chmod +x %s " %(dest_file));
+
+def copy_single_system (bld, exec_p, build_obj):
+    _copy_single_system (bld, exec_p, build_obj,'build_dpdk/linux_dpdk/')
+
+def copy_single_system1 (bld, exec_p, build_obj):
+    _copy_single_system (bld, exec_p, build_obj,'../scripts/')
+
+
+files_list=[
+            'libzmq.so.3.1.0',
+            'libzmq.so.3',
+            'trex-cfg',
+            'bp-sim-32',
+            'bp-sim-64',
+            'bp-sim-32-debug',
+            'bp-sim-64-debug',
+            'release_notes.pdf',
+            'dpdk_nic_bind.py',
+            'dpdk_setup_ports.py',
+            'doc_process.py',
+            'trex_daemon_server'
+            ];
+
+files_dir=['cap2','avl','cfg','ko','automation','python-lib']
+
+
+class Env(object):
+    @staticmethod
+    def get_env(name) :
+        s= os.environ.get(name);
+        if s == None:
+            print "You should define $",name
+            raise Exception("Env error");
+        return (s);
+    
+    @staticmethod
+    def get_release_path () :
+        s= Env().get_env('TREX_LOCAL_PUBLISH_PATH');
+        s +=get_build_num ()+"/"
+        return  s;
+
+    @staticmethod
+    def get_remote_release_path () :
+        s= Env().get_env('TREX_REMOTE_PUBLISH_PATH');
+        return  s;
+
+    @staticmethod
+    def get_local_web_server () :
+        s= Env().get_env('TREX_WEB_SERVER');
+        return  s;
+
+    # extral web 
+    @staticmethod
+    def get_trex_ex_web_key() :
+        s= Env().get_env('TREX_EX_WEB_KEY');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_path() :
+        s= Env().get_env('TREX_EX_WEB_PATH');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_user() :
+        s= Env().get_env('TREX_EX_WEB_USER');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_srv() :
+        s= Env().get_env('TREX_EX_WEB_SRV');
+        return  s;
+
+
+
+def release(bld):
+    """ release to local folder  """
+    print "copy images and libs"
+    exec_p =Env().get_release_path();
+    os.system(' mkdir -p '+exec_p);
+    
+    for obj in build_types:
+        copy_single_system (bld,exec_p,obj);
+        copy_single_system1 (bld,exec_p,obj)
+
+    for obj in files_list:
+        src_file =  '../scripts/'+obj
+        dest_file = exec_p +'/'+obj
+        os.system("cp %s %s " %(src_file,dest_file));
+
+    for obj in files_dir:
+        src_file =  '../scripts/'+obj+'/' 
+        dest_file = exec_p +'/'+obj+'/'
+        os.system("cp -rv %s %s " %(src_file,dest_file));
+        os.system("chmod 755 %s " %(dest_file));
+
+    rel=get_build_num ()
+    os.system('cd %s/..;tar --exclude="*.pyc" -zcvf %s/%s.tar.gz %s' %(exec_p,os.getcwd(),rel,rel))
+    os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),rel,exec_p));
+
+
+def publish(bld):
+    exec_p = Env().get_release_path()
+    rel=get_build_num ()
+
+    release_name ='%s.tar.gz' % (rel);
+    from_        = exec_p+'/'+release_name;
+    os.system("rsync -av %s %s:%s/%s " %(from_,Env().get_local_web_server(),Env().get_remote_release_path (), release_name))
+    os.system("ssh %s 'cd %s;rm be_latest; ln -P %s be_latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
+    os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
+
+
+def publish_ext(bld):
+    exec_p = Env().get_release_path()
+    rel=get_build_num ()
+
+    release_name ='%s.tar.gz' % (rel);
+    from_        = exec_p+'/'+release_name;
+    os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/release/%s' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ,release_name) )
+    os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
+    os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
+
+
+
+
 
 
 
