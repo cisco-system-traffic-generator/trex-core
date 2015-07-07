@@ -8,7 +8,10 @@
 *.so
 .lock*
 linux_dpdk*
+linux*
 scripts/_t-rex-*
+scripts/bp-sim-*
+
 *.pyc
 
  
