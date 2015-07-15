@@ -30,7 +30,7 @@ class InteractiveTRexClient(cmd.Cmd):
                                         d = 100,   
                                         f = 'avl/sfr_delay_10_1g.yaml',
                                         l = 1000)
-        self.run_params = self.DEFAULT_RUN_PARAMS
+        self.run_params = dict(self.DEFAULT_RUN_PARAMS)
         self.decoder = json.JSONDecoder()
 
 
@@ -112,7 +112,7 @@ class InteractiveTRexClient(cmd.Cmd):
 
     def do_restore_run_default (self, line):
         """Restores original T-Rex running configuration"""
-        self.run_params = self.DEFAULT_RUN_PARAMS
+        self.run_params = dict(self.DEFAULT_RUN_PARAMS)
         print termstyle.green("*** End of restoring default run parameters ***")
 
     def do_run_until_finish (self, sample_rate):
