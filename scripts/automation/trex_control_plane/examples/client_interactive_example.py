@@ -23,8 +23,7 @@ class InteractiveTRexClient(cmd.Cmd):
         cmd.Cmd.__init__(self)
         self.verbose = verbose_mode
         self.trex = CTRexClient(trex_host, max_history_size, trex_daemon_port = trex_port, verbose = verbose_mode)
-        self.DEFAULT_RUN_PARAMS = dict(c = 4,
-                                        m = 1.5,
+        self.DEFAULT_RUN_PARAMS = dict( m = 1.5,
                                         nc = True,
                                         p  = True,
                                         d = 100,   
