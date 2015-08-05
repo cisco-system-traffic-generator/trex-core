@@ -669,7 +669,7 @@ def create_version_files ():
 def build_test(bld):
     create_version_files ()
 
-def _copy_single_system (bld, exec_p, build_obj,o):
+def _copy_single_system (bld, exec_p, build_obj):
     o='build_dpdk/linux_dpdk/';
     src_file =  os.path.realpath(o+build_obj.get_target())
     print src_file;
@@ -679,11 +679,21 @@ def _copy_single_system (bld, exec_p, build_obj,o):
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
+def _copy_single_system1 (bld, exec_p, build_obj):
+    o='../scripts/';
+    src_file =  os.path.realpath(o+build_obj.get_target()[1:])
+    print src_file;
+    if os.path.exists(src_file):
+        dest_file = exec_p +build_obj.get_target()[1:]
+        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("chmod +x %s " %(dest_file));
+
+
 def copy_single_system (bld, exec_p, build_obj):
-    _copy_single_system (bld, exec_p, build_obj,'build_dpdk/linux_dpdk/')
+    _copy_single_system (bld, exec_p, build_obj)
 
 def copy_single_system1 (bld, exec_p, build_obj):
-    _copy_single_system (bld, exec_p, build_obj,'../scripts/')
+    _copy_single_system1 (bld, exec_p, build_obj)
 
 
 files_list=[
