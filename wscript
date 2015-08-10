@@ -188,6 +188,15 @@ def build(bld):
 	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
 		source='trex_control_plane_peek.asciidoc waf.css', target='trex_control_plane_peek.html', scan=ascii_doc_scan)
 
+    # generate control plane documentation
+    export_path = os.path.join(os.getcwd(), 'build')
+    trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
+    if trex_core_git_path: # there exists the desired ENV variable.
+       build_cp_docs(trex_core_git_path, dest_dir= export_path)
+    else:
+        raise NameError("Environment variable 'TREX_CORE_GIT' is not defined.")
+
+
 
 
          
