@@ -333,42 +333,39 @@ l2fwd =SrcGroups([
                 l2fwd_main_src]);
 
 
+# common flags for both new and old configurations
+common_flags = ['-DWIN_UCODE_SIM',
+                '-D_BYTE_ORDER',
+                '-D_LITTLE_ENDIAN',
+                '-DLINUX',
+                '-g',
+                '-Wno-format',
+                '-Wno-deprecated-declarations',
+                '-DRTE_DPDK',
+                '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
+               ]
 
-cxxflags_base =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-Wno-format',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-g',
-           '-DRTE_DPDK',
-           '-march=native',
-           '-DRTE_MACHINE_CPUFLAG_SSE',
-           '-DRTE_MACHINE_CPUFLAG_SSE2',
-           '-DRTE_MACHINE_CPUFLAG_SSE3',
-           '-DRTE_MACHINE_CPUFLAG_SSSE3',
-           '-DRTE_MACHINE_CPUFLAG_SSE4_1',
-           '-DRTE_MACHINE_CPUFLAG_SSE4_2',
-           '-DRTE_MACHINE_CPUFLAG_AES',
-           '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
-           '-DRTE_MACHINE_CPUFLAG_AVX',
-           '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
-           '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
-       ];
+common_flags_new = common_flags + [
+                    '-march=native',
+                    '-DRTE_MACHINE_CPUFLAG_SSE',
+                    '-DRTE_MACHINE_CPUFLAG_SSE2',
+                    '-DRTE_MACHINE_CPUFLAG_SSE3',
+                    '-DRTE_MACHINE_CPUFLAG_SSSE3',
+                    '-DRTE_MACHINE_CPUFLAG_SSE4_1',
+                    '-DRTE_MACHINE_CPUFLAG_SSE4_2',
+                    '-DRTE_MACHINE_CPUFLAG_AES',
+                    '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
+                    '-DRTE_MACHINE_CPUFLAG_AVX',
+                    '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
+                   ]
 
-cxxflags_base_old =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-Wno-format',
-           '-DUCS_210',
-           '-g',
-           '-DRTE_DPDK',
-           '-march=corei7',
-           '-mtune=generic',
-           '-DRTE_MACHINE_CPUFLAG_SSE',
-           '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
-           '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
-       ];
+common_flags_old = common_flags + [
+                      '-march=corei7',
+                      '-DUCS_210',
+                      '-mtune=generic',
+                      '-DRTE_MACHINE_CPUFLAG_SSE',
+                      '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
+                      ];
 
 
 
@@ -503,20 +500,6 @@ class build_option:
             trg += delimiter + "o"
         return trg;
 
-    def cxxcomp_flags (self,flags):
-        result = copy.copy(flags);
-        if self.is64Platform () :
-            result+=['-m64'];
-        else:
-            result+=['-m32'];
-
-        if self.isRelease () :
-            result+=['-O3'];
-        else:
-            result+=['-O0'];#'-DDEBUG','-D_DEBUG','-DSTILE_CPP_ASSERT','-DSTILE_SHIM_ASSERT'
-
-        return result;
-
     def get_target (self):
         return self.update_executable_name("_t-rex");
 
@@ -526,12 +509,37 @@ class build_option:
     def get_dpdk_target (self):
         return self.update_executable_name("dpdk");
 
-    def get_flags (self):
+    def get_common_flags (self):
         if self.isPIE():
-            return self.cxxcomp_flags(cxxflags_base_old);
+            flags = copy.copy(common_flags_old)
         else:
-            return self.cxxcomp_flags(cxxflags_base);
+            flags = copy.copy(common_flags_new);
 
+        if self.is64Platform () :
+            flags += ['-m64'];
+        else:
+            flags += ['-m32'];
+
+        if self.isRelease () :
+            flags += ['-O3'];
+        else:
+            flags += ['-O0'];
+
+        return (flags)
+
+    def get_cxx_flags (self):
+        flags = self.get_common_flags()
+
+        # support c++ 2011
+        flags += ['-std=c++0x']
+
+        return (flags)
+
+    def get_c_flags (self):
+        flags = self.get_common_flags()
+
+        # for C no special flags yet
+        return (flags)
 
     def get_link_flags(self):
         base_flags = [];
@@ -569,14 +577,14 @@ def build_prog (bld, build_obj):
       features='c ',
       includes = dpdk_includes_path,
       
-      cflags   = (build_obj.get_flags()+DPDK_WARNING ),
+      cflags   = (build_obj.get_c_flags()+DPDK_WARNING ),
       source   = bp_dpdk.file_list(top),
       target=build_obj.get_dpdk_target() 
       );
 
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
-                cxxflags =build_obj.get_flags(),
+                cxxflags =build_obj.get_cxx_flags(),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl'],
                 use =[build_obj.get_dpdk_target(),'zmq'],
