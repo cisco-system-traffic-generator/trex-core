@@ -71,8 +71,6 @@ extern "C" {
 #include "utl_term_io.h"
 #include "msg_manager.h"
 #include "platform_cfg.h"
-                       
-#define VERSION  "1.73"
 
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
@@ -4394,7 +4392,7 @@ int main_test(int argc , char * argv[]){
 
     int ret;
     unsigned lcore_id;
-    printf("Starting  TRex %s please wait  ... \n",VERSION);
+    printf("Starting  TRex %s please wait  ... \n",VERSION_BUILD_NUM);
 
     CGlobalInfo::m_options.preview.clean();
 
