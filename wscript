@@ -10,6 +10,8 @@ VERSION='0.0.1'
 APPNAME='wafdocs'
 
 import os, re, shutil
+import shlex
+import subprocess
 
 
 top = '.'
@@ -116,6 +118,19 @@ def my_copy(task):
 def do_visio(bld):
 	for x in bld.path.ant_glob('visio\\*.vsd'):
 		tg = bld(rule='${VIS} -i ${SRC} -o ${TGT} ', source=x, target=x.change_ext('.png'))
+
+def build_cp_docs (trex_src_dir, dest_dir = "_build", builder = "html"):
+    build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -b {bld} {src} {dst}".format(
+        bld= builder, 
+        src= ".", 
+        dst= dest_dir)
+        )
+    bld_path = os.path.abspath( os.path.join(trex_src_dir, 'automation', 'trex_control_plane', 'doc') )
+    ret_val = subprocess.call(build_doc_cmd, cwd = bld_path)
+    if ret_val:
+        raise RuntimeError("Build operation of control plain docs failed with return value {ret}".format(ret= ret_val))
+    return
+
 
 def build(bld):
 	bld(rule=my_copy, target='symbols.lang')
