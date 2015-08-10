@@ -125,7 +125,7 @@ def build_cp_docs (trex_src_dir, dest_dir = "_build", builder = "html"):
         src= ".", 
         dst= dest_dir)
         )
-    bld_path = os.path.abspath( os.path.join(trex_src_dir, 'automation', 'trex_control_plane', 'doc') )
+    bld_path = os.path.abspath( os.path.join(trex_src_dir, 'scripts', 'automation', 'trex_control_plane', 'doc') )
     ret_val = subprocess.call(build_doc_cmd, cwd = bld_path)
     if ret_val:
         raise RuntimeError("Build operation of control plain docs failed with return value {ret}".format(ret= ret_val))
