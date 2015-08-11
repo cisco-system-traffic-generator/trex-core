@@ -43,3 +43,9 @@ scripts/bp-sim-*
 ehthumbs.db
 Thumbs.db
 
+# slickedit files #
+###################
+*.vpj
+*.vpw
+*.vtg
+*.vpwhist
