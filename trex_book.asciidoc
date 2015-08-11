@@ -6,7 +6,7 @@ TRex
 :quotes.++:
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
-
+:local_web_server_url: csi-wiki-01:8181/trex
 
 
 
@@ -182,7 +182,7 @@ $[root@trex]lspci | grep Network
 
 Connect by ssh to the TRex machine and do the following:
 
-assuming *$WEB_URL* is *{web_server_url}*
+assuming *$WEB_URL* is *{web_server_url}* or *{local_web_server_url}* (cisco internal)
 
 [source,bash]
 ----

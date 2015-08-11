@@ -197,6 +197,79 @@ def build(bld):
 		raise NameError("Environment variable 'TREX_CORE_GIT' is not defined.")
 
 
+class Env(object):
+    @staticmethod
+    def get_env(name) :
+        s= os.environ.get(name);
+        if s == None:
+            print "You should define $",name
+            raise Exception("Env error");
+        return (s);
+    
+    @staticmethod
+    def get_release_path () :
+        s= Env().get_env('TREX_LOCAL_PUBLISH_PATH');
+        s +=get_build_num ()+"/"
+        return  s;
+
+    @staticmethod
+    def get_remote_release_path () :
+        s= Env().get_env('TREX_REMOTE_PUBLISH_PATH');
+        return  s;
+
+    @staticmethod
+    def get_local_web_server () :
+        s= Env().get_env('TREX_WEB_SERVER');
+        return  s;
+
+    # extral web 
+    @staticmethod
+    def get_trex_ex_web_key() :
+        s= Env().get_env('TREX_EX_WEB_KEY');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_path() :
+        s= Env().get_env('TREX_EX_WEB_PATH');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_user() :
+        s= Env().get_env('TREX_EX_WEB_USER');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_srv() :
+        s= Env().get_env('TREX_EX_WEB_SRV');
+        return  s;
+
+    @staticmethod
+    def get_trex_core() :
+        s= Env().get_env('TREX_CORE_GIT');
+        return  s;
+
+
+
+def release(bld):
+    # copy all the files to our web server 
+    core_dir = Env().get_trex_core()
+    release_dir = core_dir +"/scripts/doc/";
+    os.system('mkdir -p '+release_dir)
+    os.system('cp -rv build/release_notes.* '+ release_dir)
+
+
+def publish(bld):
+    # copy all the files to our web server 
+    remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../doc/')
+    os.system('rsync -av --rsh=ssh build/ %s' % (remote_dir))
+
+
+def publish_ext(bld):
+   from_ = 'build/'
+   os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/doc/' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ) )
+   
+
+
 
 
          
