@@ -7,15 +7,18 @@
 
 VERSION='0.0.1'
 APPNAME='cxx_test'
+
 import os;
 import commands;
 import shutil;
 import copy;
+from distutils.version import StrictVersion
 
 top = '../'
 out = 'build'
 b_path ="./build/linux/"
 
+REQUIRED_CC_VERSION = "4.7.0"
 
 class SrcGroup:
     ' group of source by directory '
@@ -68,8 +71,25 @@ class SrcGroups:
 def options(opt):
     opt.load('compiler_cxx')
 
+    
+def verify_cc_version (env):
+    ver = '.'.join(env['CC_VERSION'])
+
+    if StrictVersion(ver) < REQUIRED_CC_VERSION:
+        print "\nMachine GCC version too low '{0}' - required at least '{1}'".format(ver, REQUIRED_CC_VERSION)
+        print "\n*** please set a compiler using CXX / AR enviorment variables ***\n"
+        exit(-1)
+
+
 def configure(conf):
+    # start from clean
+    if 'RPATH' in os.environ:
+        conf.env.RPATH = os.environ['RPATH'].split(':')
+    else:
+        conf.env.RPATH = []
+
     conf.load('g++')
+    verify_cc_version(conf.env)
 
 
 main_src = SrcGroup(dir='src',
@@ -118,6 +138,12 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+        src_list=[
+            'jsoncpp.cpp'
+           ])
+
 yaml_src = SrcGroup(dir='yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
@@ -152,15 +178,18 @@ bp =SrcGroups([
                 main_src, 
                 cmn_src ,
                 net_src ,
-                yaml_src
+                yaml_src,
+                json_src
                 ]);
 
 
 cxxflags_base =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-g',
+                '-D_BYTE_ORDER',
+                '-D_LITTLE_ENDIAN',
+                '-DLINUX',
+                '-g',
+                '-Wno-deprecated-declarations',
+                '-std=c++0x',
        ];
 
 
@@ -268,9 +297,11 @@ class build_option:
         #platform depended flags
 
         if self.is64Platform():
-            base_flags += ['-m64'];
+            base_flags += ['-m64']
         else:
-            base_flags += ['-lrt'];
+            base_flags += ['-m32']
+            base_flags += ['-lrt']
+
         if self.isPIE():
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
 
@@ -293,9 +324,9 @@ def build_prog (bld, build_obj):
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =build_obj.get_flags(),
-                stlib = 'stdc++',
                 linkflags = build_obj.get_link_flags(),
                 source = bp.file_list(top),
+                rpath  = bld.env.RPATH,
                 target = build_obj.get_target())
 
 

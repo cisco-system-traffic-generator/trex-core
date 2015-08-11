@@ -130,6 +130,12 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+        src_list=[
+            'jsoncpp.cpp'
+           ])
+
 yaml_src = SrcGroup(dir='yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
@@ -320,6 +326,7 @@ bp =SrcGroups([
                 cmn_src ,
                 net_src ,
                 yaml_src,
+                json_src,
                 version_src
                 ]);
 
