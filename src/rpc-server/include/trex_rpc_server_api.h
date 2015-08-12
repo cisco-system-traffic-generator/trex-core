@@ -28,16 +28,7 @@ limitations under the License.
 #include <string>
 #include <stdexcept>
 
-/**
- * generic exception for RPC errors
- * 
- */
-class TrexRpcException : public std::runtime_error 
-{
-public:
-    TrexRpcException(const std::string &what) : std::runtime_error(what) {
-    }
-};
+#include <trex_rpc_exception_api.h>
 
 /* forward decl. of class */
 class TrexRpcServerInterface;

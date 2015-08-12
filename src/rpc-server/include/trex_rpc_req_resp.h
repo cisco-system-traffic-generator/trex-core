@@ -39,7 +39,7 @@ protected:
     void _stop_rpc_thread();
 
 private:
-    void handle_request(const uint8_t *msg, uint32_t size);
+    void handle_request(const std::string &request);
 
     static const int RPC_MAX_MSG_SIZE = 2048;
     void            *m_context;

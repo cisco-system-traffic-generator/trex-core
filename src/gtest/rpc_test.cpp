@@ -47,19 +47,19 @@ TEST_F(RpcTest, basic_rpc_test) {
     zmq_connect (requester, "tcp://localhost:5050");
 
     
-    char buffer[50];
+    char buffer[250];
     Json::Value request;
 
     int id = 1;
     request["jsonrpc"] = "2.0";
-    request["method"]  = "test_func";
+    //request["method"]  = "test_func";
 
     Json::Value &params = request["params"];
     params["num"] = 12;
     params["msg"] = "hello, method test_func";
 
-    for (int request_nbr = 0; request_nbr != 10; request_nbr++) {
-        request["id"] = id++;
+    for (int request_nbr = 0; request_nbr != 1; request_nbr++) {
+        //request["id"] = "itay_id";
 
         std::stringstream ss;
         ss << request;
@@ -68,8 +68,9 @@ TEST_F(RpcTest, basic_rpc_test) {
         
         zmq_send (requester, ss.str().c_str(), ss.str().size(), 0);
 
-        zmq_recv (requester, buffer, 50, 0);
-        printf ("Received ACK\n");
+        int len = zmq_recv (requester, buffer, 250, 0);
+        std::string resp(buffer, buffer + len);
+        std::cout << "Got: " << resp << "\n";
     }
     zmq_close (requester);
     zmq_ctx_destroy (context);

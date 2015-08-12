@@ -21,6 +21,7 @@ limitations under the License.
 
 #include <trex_rpc_server_api.h>
 #include <trex_rpc_req_resp.h>
+#include <trex_rpc_jsonrpc_v2.h>
 
 #include <unistd.h>
 #include <sstream>
@@ -71,7 +72,8 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
             }
         }
 
-        handle_request(m_msg_buffer, msg_size);
+        std::string request((const char *)m_msg_buffer, msg_size);
+        handle_request(request);
     }
 
     /* must be done from the same thread */
@@ -84,29 +86,18 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
 
 }
 
-void TrexRpcServerReqRes::handle_request(const uint8_t *msg, uint32_t msg_size) {
-    Json::Reader  reader;
-    Json::Value   request;
+void TrexRpcServerReqRes::handle_request(const std::string &request) {
     std::string   response;
 
-    /* parse the json request */
-    bool rc = reader.parse( (const char *)msg, (const char *)msg + msg_size, request, false);
-    if (!rc) {
-        throw TrexRpcException("Unable to decode JSON RPC request: " + std::string( (const char *)msg, msg_size));
-    }
+    /* debug */
     std::cout << request << std::endl;
 
-    #if 0
-    TrexJsonRpcRequest rpc_request(msg, msg_size);
+    TrexJsonRpcV2Parser rpc_request(request);
 
-    rpc_request->parse();
-    rpc_request->execute();
+    TrexJsonRpcV2Command *rpc_command = rpc_request.parse();
 
-    rpc_request->get_response(response);
+    rpc_command->execute(response);
 
-    zmq_send(m_socket, response, response.size(), 0);
-    #endif
-
-    zmq_send(m_socket, "ACK", 3 ,0);
+    zmq_send(m_socket, response.c_str(), response.size(), 0);
     
 }
