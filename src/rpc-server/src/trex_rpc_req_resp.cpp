@@ -85,14 +85,34 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
 }
 
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
-    std::string   response;
+    std::vector<TrexJsonRpcV2Command *> commands;
+    Json::FastWriter writer;
+    Json::Value response;
 
     TrexJsonRpcV2Parser rpc_request(request);
 
-    TrexJsonRpcV2Command *rpc_command = rpc_request.parse();
+    rpc_request.parse(commands);
 
-    rpc_command->execute(response);
+    int index = 0;
 
-    zmq_send(m_socket, response.c_str(), response.size(), 0);
+    for (auto command : commands) {
+        Json::Value single_response;
+
+        command->execute(single_response);
+
+        response[index++] = single_response;
+
+    }
+
+    /* write the JSON to string and sever on ZMQ */
+    std::string reponse_str;
+
+    if (response.size() == 1) {
+        reponse_str = writer.write(response[0]);
+    } else {
+        reponse_str = writer.write(response);
+    }
+    
+    zmq_send(m_socket, reponse_str.c_str(), reponse_str.size(), 0);
     
 }

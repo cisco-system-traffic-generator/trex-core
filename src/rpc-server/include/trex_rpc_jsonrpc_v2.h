@@ -23,6 +23,8 @@ limitations under the License.
 #define __TREX_RPC_JSONRPC_V2_H__
 
 #include <string>
+#include <vector>
+#include <json/json.h>
 
 /**
  * JSON RPC V2 command
@@ -31,7 +33,24 @@ limitations under the License.
  */
 class TrexJsonRpcV2Command {
 public:
-    virtual void execute(std::string &response) = 0;
+
+    TrexJsonRpcV2Command(const Json::Value &msg_id);
+
+    /**
+     * main function to execute the command
+     * 
+     */
+    void execute(Json::Value &response);
+
+protected:
+
+    /**
+     * instance private implementation
+     * 
+     */
+    virtual void _execute(Json::Value &response) = 0;
+
+    Json::Value   m_msg_id;
 };
 
 /**
@@ -53,13 +72,20 @@ public:
     TrexJsonRpcV2Parser(const std::string &msg);
 
     /**
-     * parses the string to a executable command
+     * parses the string to a executable commands vector
      * 
      * @author imarom (12-Aug-15)
      */
-    TrexJsonRpcV2Command * parse();
+    void parse(std::vector<TrexJsonRpcV2Command *> &commands);
 
 private:
+
+    /**
+     * handle a single request
+     * 
+     */
+    void parse_single_request(Json::Value &request, std::vector<TrexJsonRpcV2Command *> &commands);
+
     std::string m_msg;
 };
 

@@ -97,38 +97,37 @@ TEST_F(RpcTest, basic_rpc_test) {
     EXPECT_TRUE(response["id"] == 482);
     EXPECT_TRUE(response["error"]["code"] == -32600);
 
-    #if 0
-    
-    
-
-    int id = 1;
-    request["jsonrpc"] = "2.0";
-    //request["method"]  = "test_func";
-
-    Json::Value &params = request["params"];
-    params["num"] = 12;
-    params["msg"] = "hello, method test_func";
-
-    for (int request_nbr = 0; request_nbr != 1; request_nbr++) {
-        //request["id"] = "itay_id";
-
-        stringstream ss;
-        ss << request;
-
-        cout << "Sending : '" << ss.str() << "'\n";
-        
-        zmq_send (requester, ss.str().c_str(), ss.str().size(), 0);
-
-        int len = zmq_recv (requester, buffer, 250, 0);
-        string resp(buffer, buffer + len);
-        cout << "Got: " << resp << "\n";
-    }
-    zmq_close (requester);
-    zmq_ctx_destroy (context);
-
-    sleep(1);
-
-    rpc.stop();
-    #endif
 }
 
+TEST_F(RpcTest, batch_rpc_test) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    string req_str;
+    string resp_str;
+
+    req_str = "[ \
+            {\"jsonrpc\": \"2.0\", \"method\": \"sum\", \"params\": [1,2,4], \"id\": \"1\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"notify_hello\", \"params\": [7]}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"subtract\", \"params\": [42,23], \"id\": \"2\"}, \
+            {\"foo\": \"boo\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"foo.get\", \"params\": {\"name\": \"myself\"}, \"id\": \"5\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"get_data\", \"id\": \"9\"} \
+               ]";
+
+    resp_str = send_msg(req_str);
+    cout << resp_str;
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_TRUE(response.isArray());
+
+    // message 1
+    EXPECT_TRUE(response[0]["jsonrpc"] == "2.0");
+    EXPECT_TRUE(response[0]["id"] == "1");
+
+    // message 2
+    EXPECT_TRUE(response[1]["jsonrpc"] == "2.0");
+    EXPECT_TRUE(response[1]["id"] == "2");
+
+    return;
+}
