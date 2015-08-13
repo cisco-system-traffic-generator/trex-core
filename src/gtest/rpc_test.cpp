@@ -26,29 +26,80 @@ limitations under the License.
 #include <json/json.h>
 #include <sstream>
 
+using namespace std;
+
 class RpcTest : public testing::Test {
 
     virtual void SetUp() {
+        m_rpc = new TrexRpcServerArray(TrexRpcServerArray::RPC_PROT_TCP, 5050);
+        m_rpc->start();
+
+        m_context = zmq_ctx_new ();
+        m_socket = zmq_socket (m_context, ZMQ_REQ);
+        zmq_connect (m_socket, "tcp://localhost:5050");
     }
 
     virtual void TearDown() {
+        m_rpc->stop();
+
+        delete m_rpc;
+        zmq_close(m_socket);
+        zmq_term(m_context);
     }
+
+public:
+    string send_msg(const string &msg) {
+        char buffer[512];
+
+        zmq_send (m_socket, msg.c_str(), msg.size(), 0);
+        int len = zmq_recv(m_socket, buffer, sizeof(buffer), 0);
+
+        return string(buffer, len);
+    }
+
+    TrexRpcServerArray *m_rpc;
+    void *m_context;
+    void *m_socket;
 };
 
 TEST_F(RpcTest, basic_rpc_test) {
-    TrexRpcServerArray rpc(TrexRpcServerArray::RPC_PROT_TCP, 5050);
-    rpc.start();
-
-    sleep(1);
-
-    printf ("Connecting to hello world server…\n");
-    void *context = zmq_ctx_new ();
-    void *requester = zmq_socket (context, ZMQ_REQ);
-    zmq_connect (requester, "tcp://localhost:5050");
-
-    
-    char buffer[250];
     Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    string req_str;
+    string resp_str;
+
+    // check bad JSON format
+    req_str = "bad format message";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_TRUE(response["jsonrpc"] == "2.0");
+    EXPECT_TRUE(response["id"] == Json::Value::null);
+    EXPECT_TRUE(response["error"]["code"] == -32700);
+
+    // check bad version
+    req_str = "{\"jsonrpc\": \"1.5\", \"method\": \"foobar\", \"id\": \"1\"}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_TRUE(response["jsonrpc"] == "2.0");
+    EXPECT_TRUE(response["id"] == "1");
+    EXPECT_TRUE(response["error"]["code"] == -32600);
+
+    // no method name present
+    req_str = "{\"jsonrpc\": \"1.5\", \"id\": 482}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_TRUE(response["jsonrpc"] == "2.0");
+    EXPECT_TRUE(response["id"] == 482);
+    EXPECT_TRUE(response["error"]["code"] == -32600);
+
+    #if 0
+    
+    
 
     int id = 1;
     request["jsonrpc"] = "2.0";
@@ -61,16 +112,16 @@ TEST_F(RpcTest, basic_rpc_test) {
     for (int request_nbr = 0; request_nbr != 1; request_nbr++) {
         //request["id"] = "itay_id";
 
-        std::stringstream ss;
+        stringstream ss;
         ss << request;
 
-        std::cout << "Sending : '" << ss.str() << "'\n";
+        cout << "Sending : '" << ss.str() << "'\n";
         
         zmq_send (requester, ss.str().c_str(), ss.str().size(), 0);
 
         int len = zmq_recv (requester, buffer, 250, 0);
-        std::string resp(buffer, buffer + len);
-        std::cout << "Got: " << resp << "\n";
+        string resp(buffer, buffer + len);
+        cout << "Got: " << resp << "\n";
     }
     zmq_close (requester);
     zmq_ctx_destroy (context);
@@ -78,5 +129,6 @@ TEST_F(RpcTest, basic_rpc_test) {
     sleep(1);
 
     rpc.stop();
+    #endif
 }
 

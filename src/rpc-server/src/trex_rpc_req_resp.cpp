@@ -57,8 +57,6 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
         throw TrexRpcException("Unable to start ZMQ server at: " + ss.str());
     }
 
-    printf("listening on %s\n", ss.str().c_str());
-
     /* server main loop */
     while (m_is_running) {
         int msg_size = zmq_recv (m_socket, m_msg_buffer, sizeof(m_msg_buffer), 0);
@@ -88,9 +86,6 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
 
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
     std::string   response;
-
-    /* debug */
-    std::cout << request << std::endl;
 
     TrexJsonRpcV2Parser rpc_request(request);
 

@@ -25,6 +25,17 @@ limitations under the License.
 
 #include <iostream>
 
+/**
+ * error as described in the RFC
+ */
+enum {
+    JSONRPC_V2_ERR_PARSE              = -32700,
+    JSONRPC_V2_ERR_INVALID_REQ        = -32600,
+    JSONRPC_V2_ERR_METHOD_NOT_FOUND   = -32601,
+    JSONRPC_V2_ERR_INVALID_PARAMS     = -32602,
+    JSONRPC_V2_ERR_INTERNAL_ERROR     = -32603
+};
+
 /* dummy command */
 class DumymCommand : public TrexJsonRpcV2Command {
 public:
@@ -56,7 +67,6 @@ public:
 
         /* encode to string */
         response = writer.write(response_json);
-        
     }
 
 private:
@@ -77,23 +87,21 @@ TrexJsonRpcV2Command * TrexJsonRpcV2Parser::parse() {
     /* basic JSON parsing */
     bool rc = reader.parse(m_msg, request, false);
     if (!rc) {
-        return new JsonRpcError(Json::Value::null, -32700, "Bad JSON Format");
+        return new JsonRpcError(Json::Value::null, JSONRPC_V2_ERR_PARSE, "Bad JSON Format");
     }
 
     Json::Value msg_id = request["id"];
 
     /* check version */
     if (request["jsonrpc"] != "2.0") {
-        return new JsonRpcError(msg_id, -32600, "Invalid JSONRPC Version");
+        return new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, "Invalid JSONRPC Version");
     }
 
     /* check method name */
     std::string method_name = request["method"].asString();
     if (method_name == "") {
-        return new JsonRpcError(msg_id, -32600, "Missing Method Name");
+        return new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, "Missing Method Name");
     }
-
-    std::cout << "method name: " << method_name << "\n";
 
     TrexJsonRpcV2Command *command = new DumymCommand();
 
