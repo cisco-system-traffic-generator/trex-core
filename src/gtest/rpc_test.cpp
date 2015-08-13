@@ -75,28 +75,36 @@ TEST_F(RpcTest, basic_rpc_test) {
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_TRUE(response["jsonrpc"] == "2.0");
-    EXPECT_TRUE(response["id"] == Json::Value::null);
-    EXPECT_TRUE(response["error"]["code"] == -32700);
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], Json::Value::null);
+    EXPECT_EQ(response["error"]["code"], -32700);
 
     // check bad version
     req_str = "{\"jsonrpc\": \"1.5\", \"method\": \"foobar\", \"id\": \"1\"}";
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_TRUE(response["jsonrpc"] == "2.0");
-    EXPECT_TRUE(response["id"] == "1");
-    EXPECT_TRUE(response["error"]["code"] == -32600);
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], "1");
+    EXPECT_EQ(response["error"]["code"], -32600);
 
     // no method name present
-    req_str = "{\"jsonrpc\": \"1.5\", \"id\": 482}";
+    req_str = "{\"jsonrpc\": \"2.0\", \"id\": 482}";
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_TRUE(response["jsonrpc"] == "2.0");
-    EXPECT_TRUE(response["id"] == 482);
-    EXPECT_TRUE(response["error"]["code"] == -32600);
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 482);
+    EXPECT_EQ(response["error"]["code"], -32600);
 
+    /* method does not exist */
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"jfgldjlfds\", \"id\": 482}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 482);
+    EXPECT_EQ(response["error"]["code"], -32601);
 }
 
 TEST_F(RpcTest, batch_rpc_test) {

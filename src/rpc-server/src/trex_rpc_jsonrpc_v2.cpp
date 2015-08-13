@@ -20,6 +20,7 @@ limitations under the License.
 */
 #include <trex_rpc_exception_api.h>
 #include <trex_rpc_jsonrpc_v2.h>
+#include <trex_rpc_commands.h>
 
 #include <json/json.h>
 
@@ -128,6 +129,12 @@ void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request,
     std::string method_name = request["method"].asString();
     if (method_name == "") {
         commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, "Missing Method Name"));
+        return;
+    }
+
+    TrexRpcCommand * rpc_cmd = TrexRpcCommandsTable::get_instance().lookup(method_name);
+    if (!rpc_cmd) {
+        commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_METHOD_NOT_FOUND, "Method not registered"));
         return;
     }
 
