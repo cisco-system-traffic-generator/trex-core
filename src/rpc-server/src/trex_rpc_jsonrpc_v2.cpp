@@ -20,7 +20,8 @@ limitations under the License.
 */
 #include <trex_rpc_exception_api.h>
 #include <trex_rpc_jsonrpc_v2.h>
-#include <trex_rpc_commands.h>
+#include <trex_rpc_cmd_api.h>
+#include <trex_rpc_cmds_table.h>
 
 #include <json/json.h>
 
@@ -65,13 +66,13 @@ public:
     }
 
     virtual void _execute(Json::Value &response) {
-        std::string output;
+        Json::Value result;
 
-        TrexRpcCommand::rpc_cmd_rc_e rc = m_cmd->run(m_params, output);
+        TrexRpcCommand::rpc_cmd_rc_e rc = m_cmd->run(m_params, result);
 
         switch (rc) {
         case TrexRpcCommand::RPC_CMD_OK:
-            response["result"] = output;
+            response["result"] = result["result"];
             break;
 
         case TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR:
@@ -84,8 +85,8 @@ public:
     }
 
     virtual void _execute() {
-        std::string output;
-        m_cmd->run(m_params, output);
+        Json::Value result;
+        m_cmd->run(m_params, result);
     }
 
 private:

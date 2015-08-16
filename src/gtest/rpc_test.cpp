@@ -105,6 +105,71 @@ TEST_F(RpcTest, basic_rpc_test) {
     EXPECT_EQ(response["jsonrpc"], "2.0");
     EXPECT_EQ(response["id"], 482);
     EXPECT_EQ(response["error"]["code"], -32601);
+
+    /* error but as notification */
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"jfgldjlfds\"}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_TRUE(response == Json::Value::null);
+
+
+}
+
+TEST_F(RpcTest, test_add_command) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    string req_str;
+    string resp_str;
+
+    /* simple add - missing paramters */
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"id\": 488}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 488);
+    EXPECT_EQ(response["error"]["code"], -32602);
+
+    /* simple add that works */
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 17, \"y\": -13} , \"id\": \"itay\"}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], "itay");
+    EXPECT_EQ(response["result"], 4);
+
+    /* add with bad paratemers types */
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": \"blah\", \"y\": -13} , \"id\": 17}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 17);
+    EXPECT_EQ(response["error"]["code"], -32602);
+
+    /* add with invalid count of parameters */
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"y\": -13} , \"id\": 17}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 17);
+    EXPECT_EQ(response["error"]["code"], -32602);
+
+
+    /* big numbers */
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 4827371, \"y\": -39181273} , \"id\": \"itay\"}";
+    resp_str = send_msg(req_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], "itay");
+    EXPECT_EQ(response["result"], -34353902);
+
 }
 
 TEST_F(RpcTest, batch_rpc_test) {
@@ -116,26 +181,36 @@ TEST_F(RpcTest, batch_rpc_test) {
     string resp_str;
 
     req_str = "[ \
-            {\"jsonrpc\": \"2.0\", \"method\": \"sum\", \"params\": [1,2,4], \"id\": \"1\"}, \
-            {\"jsonrpc\": \"2.0\", \"method\": \"notify_hello\", \"params\": [7]}, \
-            {\"jsonrpc\": \"2.0\", \"method\": \"subtract\", \"params\": [42,23], \"id\": \"2\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 22, \"y\": 17}, \"id\": \"1\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_sub\", \"params\": {\"x\": 22, \"y\": 17}, \"id\": \"2\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 22, \"y\": \"itay\"}, \"id\": \"2\"}, \
             {\"foo\": \"boo\"}, \
             {\"jsonrpc\": \"2.0\", \"method\": \"foo.get\", \"params\": {\"name\": \"myself\"}, \"id\": \"5\"}, \
             {\"jsonrpc\": \"2.0\", \"method\": \"get_data\", \"id\": \"9\"} \
                ]";
 
     resp_str = send_msg(req_str);
-    cout << resp_str;
+
     EXPECT_TRUE(reader.parse(resp_str, response, false));
     EXPECT_TRUE(response.isArray());
 
     // message 1
     EXPECT_TRUE(response[0]["jsonrpc"] == "2.0");
     EXPECT_TRUE(response[0]["id"] == "1");
+    EXPECT_TRUE(response[0]["result"] == 39);
 
     // message 2
     EXPECT_TRUE(response[1]["jsonrpc"] == "2.0");
     EXPECT_TRUE(response[1]["id"] == "2");
+    EXPECT_TRUE(response[1]["result"] == 5);
+
+    // message 3
+    EXPECT_TRUE(response[2]["jsonrpc"] == "2.0");
+    EXPECT_TRUE(response[2]["id"] == "2");
+    EXPECT_TRUE(response[2]["error"]["code"] == -32602);
+
+    // message 4
+    EXPECT_TRUE(response[3] == Json::Value::null);
 
     return;
 }

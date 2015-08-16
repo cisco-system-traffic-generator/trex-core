@@ -99,6 +99,7 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
         Json::Value single_response;
 
         command->execute(single_response);
+        delete command;
 
         response[index++] = single_response;
 

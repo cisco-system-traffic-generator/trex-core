@@ -92,6 +92,7 @@ void TrexRpcServerInterface::stop() {
     
     /* hold until thread has joined */    
     m_thread->join();
+    delete m_thread;
 }
 
 bool TrexRpcServerInterface::is_running() {

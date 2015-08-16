@@ -37,6 +37,7 @@ class TrexJsonRpcV2ParsedObject {
 public:
 
     TrexJsonRpcV2ParsedObject(const Json::Value &msg_id, bool force);
+    virtual ~TrexJsonRpcV2ParsedObject() {}
 
     /**
      * main function to execute the command

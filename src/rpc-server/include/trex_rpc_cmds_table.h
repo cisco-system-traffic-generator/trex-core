@@ -19,52 +19,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef __TREX_RPC_COMMANDS_H__
-#define __TREX_RPC_COMMANDS_H__
+#ifndef __TREX_RPC_CMDS_TABLE_H__
+#define __TREX_RPC_CMDS_TABLE_H__
 
 #include <unordered_map>
 #include <string>
 #include <vector>
 #include <json/json.h>
 
-/**
- * interface for RPC command
- * 
- * @author imarom (13-Aug-15)
- */
-class TrexRpcCommand {
-public:
-
-    /**
-     * describe different types of rc for run()
-     */
-    enum rpc_cmd_rc_e {
-        RPC_CMD_OK,
-        RPC_CMD_PARAM_COUNT_ERR = 1,
-        RPC_CMD_PARAM_PARSE_ERR
-    };
-
-    /**
-     * method name and params
-     */
-    TrexRpcCommand(const std::string &method_name);
-
-    rpc_cmd_rc_e run(const Json::Value &params, std::string &output);
-
-    const std::string &get_name();
-
-    virtual ~TrexRpcCommand() {}
-
-protected:
-
-    /**
-     * implemented by the dervied class
-     * 
-     */
-    virtual rpc_cmd_rc_e _run(const Json::Value &params, std::string &output) = 0;
-
-    std::string m_name;
-};
+class TrexRpcCommand;
 
 /**
  * holds all the commands registered
@@ -86,6 +49,7 @@ public:
 
 private:
     TrexRpcCommandsTable();
+    ~TrexRpcCommandsTable();
 
     /* c++ 2011 style singleton */
     TrexRpcCommandsTable(TrexRpcCommandsTable const&)  = delete;  
@@ -98,4 +62,4 @@ private:
     std::unordered_map<std::string, TrexRpcCommand *> m_rpc_cmd_table;
 };
 
-#endif /* __TREX_RPC_COMMANDS_H__ */
+#endif /* __TREX_RPC_CMDS_TABLE_H__ */
