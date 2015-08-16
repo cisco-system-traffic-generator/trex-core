@@ -26,15 +26,17 @@ limitations under the License.
 #include <vector>
 #include <json/json.h>
 
+class TrexRpcCommand;
+
 /**
- * JSON RPC V2 command
+ * JSON RPC V2 parsed object
  * 
  * @author imarom (12-Aug-15)
  */
-class TrexJsonRpcV2Command {
+class TrexJsonRpcV2ParsedObject {
 public:
 
-    TrexJsonRpcV2Command(const Json::Value &msg_id);
+    TrexJsonRpcV2ParsedObject(const Json::Value &msg_id, bool force);
 
     /**
      * main function to execute the command
@@ -46,11 +48,14 @@ protected:
 
     /**
      * instance private implementation
-     * 
+     * should provide implementation with response 
+     * and without response value
      */
     virtual void _execute(Json::Value &response) = 0;
+    virtual void _execute() = 0;
 
     Json::Value   m_msg_id;
+    bool          m_respond;
 };
 
 /**
@@ -76,7 +81,7 @@ public:
      * 
      * @author imarom (12-Aug-15)
      */
-    void parse(std::vector<TrexJsonRpcV2Command *> &commands);
+    void parse(std::vector<TrexJsonRpcV2ParsedObject *> &commands);
 
 private:
 
@@ -84,7 +89,7 @@ private:
      * handle a single request
      * 
      */
-    void parse_single_request(Json::Value &request, std::vector<TrexJsonRpcV2Command *> &commands);
+    void parse_single_request(Json::Value &request, std::vector<TrexJsonRpcV2ParsedObject *> &commands);
 
     std::string m_msg;
 };

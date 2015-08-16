@@ -85,7 +85,7 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
 }
 
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
-    std::vector<TrexJsonRpcV2Command *> commands;
+    std::vector<TrexJsonRpcV2ParsedObject *> commands;
     Json::FastWriter writer;
     Json::Value response;
 

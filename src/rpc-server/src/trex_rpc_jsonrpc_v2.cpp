@@ -37,44 +37,82 @@ enum {
     JSONRPC_V2_ERR_INTERNAL_ERROR     = -32603
 };
 
-/* dummy command */
-class DumymCommand : public TrexJsonRpcV2Command {
-public:
-    virtual void _execute(Json::Value &response) {
+
+/*************** JSON RPC parsed object base type ************/
+
+TrexJsonRpcV2ParsedObject::TrexJsonRpcV2ParsedObject(const Json::Value &msg_id, bool force = false) : m_msg_id(msg_id) {
+    /* if we have msg_id or a force was issued - write resposne */
+    m_respond = (msg_id != Json::Value::null) || force;
+}
+
+void TrexJsonRpcV2ParsedObject::execute(Json::Value &response) {
+
+    /* common fields */
+    if (m_respond) {
+        response["jsonrpc"] = "2.0";
+        response["id"]      = m_msg_id;
+        _execute(response);
+    } else {
+        _execute();
     }
+}
+
+/****************** valid method return value **************/
+class JsonRpcMethod : public TrexJsonRpcV2ParsedObject {
+public:
+    JsonRpcMethod(const Json::Value &msg_id, TrexRpcCommand *cmd, const Json::Value &params) : TrexJsonRpcV2ParsedObject(msg_id), m_cmd(cmd), m_params(params) {
+
+    }
+
+    virtual void _execute(Json::Value &response) {
+        std::string output;
+
+        TrexRpcCommand::rpc_cmd_rc_e rc = m_cmd->run(m_params, output);
+
+        switch (rc) {
+        case TrexRpcCommand::RPC_CMD_OK:
+            response["result"] = output;
+            break;
+
+        case TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR:
+        case TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR:
+            response["error"]["code"]     = JSONRPC_V2_ERR_INVALID_PARAMS;
+            response["error"]["message"]  = "Bad paramters for method";
+            break;
+        }
+
+    }
+
+    virtual void _execute() {
+        std::string output;
+        m_cmd->run(m_params, output);
+    }
+
+private:
+    TrexRpcCommand *m_cmd;
+    Json::Value m_params;
 };
 
-/*************** JSON RPC command base type ************/
-
-TrexJsonRpcV2Command::TrexJsonRpcV2Command(const Json::Value &msg_id) : m_msg_id(msg_id) {
-
-}
-
-void TrexJsonRpcV2Command::execute(Json::Value &response) {
-    /* common fields */
-    response["jsonrpc"] = "2.0";
-    response["id"]      = m_msg_id;
-
-    /* call the underlying implementation to add the reset of the sections */
-    _execute(response);
-}
+/******************* RPC error **************/
 
 /**
  * describes the parser error 
  * 
  */
-class JsonRpcError : public TrexJsonRpcV2Command {
+class JsonRpcError : public TrexJsonRpcV2ParsedObject {
 public:
 
-    JsonRpcError(const Json::Value &msg_id, int code, const std::string &msg) : TrexJsonRpcV2Command(msg_id), m_code(code), m_msg(msg) {
+    JsonRpcError(const Json::Value &msg_id, int code, const std::string &msg, bool force = false) : TrexJsonRpcV2ParsedObject(msg_id, force), m_code(code), m_msg(msg) {
 
     }
 
     virtual void _execute(Json::Value &response) {
-
         response["error"]["code"]    = m_code;
         response["error"]["message"] = m_msg;
-        
+    }
+
+    virtual void _execute() {
+        /* nothing to do with no response */
     }
 
 private:
@@ -87,7 +125,7 @@ TrexJsonRpcV2Parser::TrexJsonRpcV2Parser(const std::string &msg) : m_msg(msg) {
 
 }
 
-void TrexJsonRpcV2Parser::parse(std::vector<TrexJsonRpcV2Command *> &commands) {
+void TrexJsonRpcV2Parser::parse(std::vector<TrexJsonRpcV2ParsedObject *> &commands) {
 
     Json::Reader reader;
     Json::Value  request;
@@ -95,7 +133,7 @@ void TrexJsonRpcV2Parser::parse(std::vector<TrexJsonRpcV2Command *> &commands) {
     /* basic JSON parsing */
     bool rc = reader.parse(m_msg, request, false);
     if (!rc) {
-        commands.push_back(new JsonRpcError(Json::Value::null, JSONRPC_V2_ERR_PARSE, "Bad JSON Format"));
+        commands.push_back(new JsonRpcError(Json::Value::null, JSONRPC_V2_ERR_PARSE, "Bad JSON Format", true));
         return;
     }
 
@@ -115,7 +153,7 @@ void TrexJsonRpcV2Parser::parse(std::vector<TrexJsonRpcV2Command *> &commands) {
 
 
 void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request, 
-                                               std::vector<TrexJsonRpcV2Command *> &commands) {
+                                               std::vector<TrexJsonRpcV2ParsedObject *> &commands) {
 
     Json::Value msg_id = request["id"];
 
@@ -132,12 +170,14 @@ void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request,
         return;
     }
 
+    /* lookup the method in the DB */
     TrexRpcCommand * rpc_cmd = TrexRpcCommandsTable::get_instance().lookup(method_name);
     if (!rpc_cmd) {
         commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_METHOD_NOT_FOUND, "Method not registered"));
         return;
     }
 
-    /* TODO - add commands */
+    /* create a method object */
+    commands.push_back(new JsonRpcMethod(msg_id, rpc_cmd, request["params"]));
 }
 

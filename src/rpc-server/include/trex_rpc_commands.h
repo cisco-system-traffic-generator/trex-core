@@ -25,6 +25,7 @@ limitations under the License.
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include <json/json.h>
 
 /**
  * interface for RPC command
@@ -33,17 +34,36 @@ limitations under the License.
  */
 class TrexRpcCommand {
 public:
-    TrexRpcCommand(const std::string &method_name, const std::vector<std::string> &params);
 
     /**
-     * implemented by the derived class
-     * 
-     * @author imarom (13-Aug-15)
+     * describe different types of rc for run()
      */
-    virtual void run() = 0;
+    enum rpc_cmd_rc_e {
+        RPC_CMD_OK,
+        RPC_CMD_PARAM_COUNT_ERR = 1,
+        RPC_CMD_PARAM_PARSE_ERR
+    };
+
+    /**
+     * method name and params
+     */
+    TrexRpcCommand(const std::string &method_name);
+
+    rpc_cmd_rc_e run(const Json::Value &params, std::string &output);
+
+    const std::string &get_name();
+
+    virtual ~TrexRpcCommand() {}
 
 protected:
-    std::vector<std::string> params;
+
+    /**
+     * implemented by the dervied class
+     * 
+     */
+    virtual rpc_cmd_rc_e _run(const Json::Value &params, std::string &output) = 0;
+
+    std::string m_name;
 };
 
 /**
@@ -60,7 +80,7 @@ public:
         return instance;
     }
 
-    void register_command(const TrexRpcCommand &command);
+    void register_command(TrexRpcCommand *command);
 
     TrexRpcCommand * lookup(const std::string &method_name);
 
