@@ -38,6 +38,11 @@ TrexRpcServerInterface::~TrexRpcServerInterface() {
     }
 }
 
+/**
+ * starts a RPC specific server
+ * 
+ * @author imarom (17-Aug-15)
+ */
 void TrexRpcServerInterface::start() {
     m_is_running = true;
 

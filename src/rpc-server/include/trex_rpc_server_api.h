@@ -105,6 +105,7 @@ protected:
 /**
  * TREX RPC server 
  * may contain serveral types of RPC servers 
+ * (request response, async and etc.) 
  * 
  * @author imarom (12-Aug-15)
  */
