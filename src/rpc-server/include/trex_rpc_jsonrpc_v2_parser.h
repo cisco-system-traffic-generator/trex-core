@@ -19,8 +19,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef __TREX_RPC_JSONRPC_V2_H__
-#define __TREX_RPC_JSONRPC_V2_H__
+#ifndef __TREX_RPC_JSONRPC_V2_PARSER_H__
+#define __TREX_RPC_JSONRPC_V2_PARSER_H__
 
 #include <string>
 #include <vector>
@@ -95,5 +95,5 @@ private:
     std::string m_msg;
 };
 
-#endif /* __TREX_RPC_JSONRPC_V2_H__ */
+#endif /* __TREX_RPC_JSONRPC_V2_PARSER_H__ */
 

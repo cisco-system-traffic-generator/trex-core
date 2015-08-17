@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include <trex_rpc_server_api.h>
-#include <trex_rpc_req_resp.h>
+#include <trex_rpc_req_resp_server.h>
 #include <unistd.h>
 #include <zmq.h>
 #include <sstream>

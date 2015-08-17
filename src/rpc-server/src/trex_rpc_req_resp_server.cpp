@@ -20,8 +20,8 @@ limitations under the License.
 */
 
 #include <trex_rpc_server_api.h>
-#include <trex_rpc_req_resp.h>
-#include <trex_rpc_jsonrpc_v2.h>
+#include <trex_rpc_req_resp_server.h>
+#include <trex_rpc_jsonrpc_v2_parser.h>
 
 #include <unistd.h>
 #include <sstream>
