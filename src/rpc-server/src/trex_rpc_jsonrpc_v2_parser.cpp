@@ -18,6 +18,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 #include <trex_rpc_exception_api.h>
 #include <trex_rpc_jsonrpc_v2_parser.h>
 #include <trex_rpc_cmd_api.h>
@@ -28,7 +29,8 @@ limitations under the License.
 #include <iostream>
 
 /**
- * error as described in the RFC
+ * error as described in the RFC 
+ * http://www.jsonrpc.org/specification 
  */
 enum {
     JSONRPC_V2_ERR_PARSE              = -32700,
@@ -54,7 +56,8 @@ void TrexJsonRpcV2ParsedObject::execute(Json::Value &response) {
         response["id"]      = m_msg_id;
         _execute(response);
     } else {
-        _execute();
+        Json::Value dummy;
+        _execute(dummy);
     }
 }
 
@@ -80,13 +83,13 @@ public:
             response["error"]["code"]     = JSONRPC_V2_ERR_INVALID_PARAMS;
             response["error"]["message"]  = "Bad paramters for method";
             break;
+
+        case TrexRpcCommand::RPC_CMD_INTERNAL_ERR:
+            response["error"]["code"]     = JSONRPC_V2_ERR_INTERNAL_ERROR;
+            response["error"]["message"]  = "Internal Server Error";
+            break;
         }
 
-    }
-
-    virtual void _execute() {
-        Json::Value result;
-        m_cmd->run(m_params, result);
     }
 
 private:
@@ -112,20 +115,25 @@ public:
         response["error"]["message"] = m_msg;
     }
 
-    virtual void _execute() {
-        /* nothing to do with no response */
-    }
-
 private:
     int           m_code;
     std::string   m_msg;
 };
 
 
+/************** JSON RPC V2 parser implementation *************/
+
 TrexJsonRpcV2Parser::TrexJsonRpcV2Parser(const std::string &msg) : m_msg(msg) {
 
 }
 
+/**
+ * parse a batch of commands
+ * 
+ * @author imarom (17-Aug-15)
+ * 
+ * @param commands 
+ */
 void TrexJsonRpcV2Parser::parse(std::vector<TrexJsonRpcV2ParsedObject *> &commands) {
 
     Json::Reader reader;

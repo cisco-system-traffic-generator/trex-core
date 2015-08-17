@@ -40,7 +40,8 @@ public:
     enum rpc_cmd_rc_e {
         RPC_CMD_OK,
         RPC_CMD_PARAM_COUNT_ERR = 1,
-        RPC_CMD_PARAM_PARSE_ERR
+        RPC_CMD_PARAM_PARSE_ERR,
+        RPC_CMD_INTERNAL_ERR
     };
 
     /**

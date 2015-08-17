@@ -187,8 +187,8 @@ TEST_F(RpcTest, batch_rpc_test) {
             {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_sub\", \"params\": {\"x\": 22, \"y\": 17}, \"id\": \"2\"}, \
             {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 22, \"y\": \"itay\"}, \"id\": \"2\"}, \
             {\"foo\": \"boo\"}, \
-            {\"jsonrpc\": \"2.0\", \"method\": \"foo.get\", \"params\": {\"name\": \"myself\"}, \"id\": \"5\"}, \
-            {\"jsonrpc\": \"2.0\", \"method\": \"get_data\", \"id\": \"9\"} \
+            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_sheker\", \"params\": {\"name\": \"myself\"}, \"id\": 5}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 22, \"y\": 17} } \
                ]";
 
     resp_str = send_msg(req_str);
@@ -213,6 +213,14 @@ TEST_F(RpcTest, batch_rpc_test) {
 
     // message 4
     EXPECT_TRUE(response[3] == Json::Value::null);
+
+    // message 5
+    EXPECT_TRUE(response[4]["jsonrpc"] == "2.0");
+    EXPECT_TRUE(response[4]["id"] == 5);
+    EXPECT_TRUE(response[4]["error"]["code"] == -32601);
+
+    // message 6 - no ID but a valid command
+    EXPECT_TRUE(response[5] == Json::Value::null);
 
     return;
 }

@@ -26,8 +26,6 @@ limitations under the License.
 #include <vector>
 #include <json/json.h>
 
-class TrexRpcCommand;
-
 /**
  * JSON RPC V2 parsed object
  * 
@@ -49,11 +47,8 @@ protected:
 
     /**
      * instance private implementation
-     * should provide implementation with response 
-     * and without response value
      */
     virtual void _execute(Json::Value &response) = 0;
-    virtual void _execute() = 0;
 
     Json::Value   m_msg_id;
     bool          m_respond;
