@@ -31,7 +31,7 @@ limitations under the License.
 #include <json/json.h>
 
 
-TrexRpcServerReqRes::TrexRpcServerReqRes(TrexRpcServerArray::protocol_type_e protocol, uint16_t port) : TrexRpcServerInterface(protocol, port) {
+TrexRpcServerReqRes::TrexRpcServerReqRes(const TrexRpcServerConfig &cfg) : TrexRpcServerInterface(cfg) {
     /* ZMQ is not thread safe - this should be outside */
     m_context = zmq_ctx_new();
 }
@@ -42,15 +42,15 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
     //  Socket to talk to clients
     m_socket  = zmq_socket (m_context, ZMQ_REP);
 
-    switch (m_protocol) {
-    case TrexRpcServerArray::RPC_PROT_TCP:
+    switch (m_cfg.get_protocol()) {
+    case TrexRpcServerConfig::RPC_PROT_TCP:
         ss << "tcp://*:";
         break;
     default:
         throw TrexRpcException("unknown protocol for RPC");
     }
 
-    ss << m_port;
+    ss << m_cfg.get_port();
 
     int rc = zmq_bind (m_socket, ss.str().c_str());
     if (rc != 0) {

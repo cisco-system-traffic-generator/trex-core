@@ -31,7 +31,9 @@ using namespace std;
 class RpcTest : public testing::Test {
 
     virtual void SetUp() {
-        m_rpc = new TrexRpcServerArray(TrexRpcServerArray::RPC_PROT_TCP, 5050);
+        TrexRpcServerConfig cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
+
+        m_rpc = new TrexRpcServer(cfg);
         m_rpc->start();
 
         m_context = zmq_ctx_new ();
@@ -57,7 +59,7 @@ public:
         return string(buffer, len);
     }
 
-    TrexRpcServerArray *m_rpc;
+    TrexRpcServer *m_rpc;
     void *m_context;
     void *m_socket;
 };

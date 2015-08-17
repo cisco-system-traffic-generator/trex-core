@@ -32,7 +32,7 @@ limitations under the License.
 class TrexRpcServerReqRes : public TrexRpcServerInterface  {
 public:
 
-    TrexRpcServerReqRes(TrexRpcServerArray::protocol_type_e protocol, uint16_t port);
+    TrexRpcServerReqRes(const TrexRpcServerConfig &cfg);
 
 protected:
     void _rpc_thread_cb();
@@ -41,10 +41,10 @@ protected:
 private:
     void handle_request(const std::string &request);
 
-    static const int RPC_MAX_MSG_SIZE = 2048;
-    void            *m_context;
-    void            *m_socket;
-    uint8_t          m_msg_buffer[RPC_MAX_MSG_SIZE];
+    static const int    RPC_MAX_MSG_SIZE = 2048;
+    void               *m_context;
+    void               *m_socket;
+    uint8_t             m_msg_buffer[RPC_MAX_MSG_SIZE];
 };
 
 

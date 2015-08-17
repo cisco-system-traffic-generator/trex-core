@@ -27,36 +27,37 @@ limitations under the License.
 #include <thread>
 #include <string>
 #include <stdexcept>
-
 #include <trex_rpc_exception_api.h>
 
-/* forward decl. of class */
 class TrexRpcServerInterface;
 
 /**
- * servers array
+ * defines a configuration of generic RPC server
  * 
- * @author imarom (12-Aug-15)
+ * @author imarom (17-Aug-15)
  */
-class TrexRpcServerArray {
+class TrexRpcServerConfig {
 public:
-   /**
-    * different types the RPC server supports
-    */
-    enum protocol_type_e {
+
+    enum rpc_prot_e {
         RPC_PROT_TCP
     };
 
-    TrexRpcServerArray(protocol_type_e protocol, uint16_t port);
-    ~TrexRpcServerArray();
+    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port) : m_protocol(protocol), m_port(port) {
 
-    void start();
-    void stop();
+    }
+
+    uint16_t get_port() {
+        return m_port;
+    }
+
+    rpc_prot_e get_protocol() {
+        return m_protocol;
+    }
 
 private:
-    std::vector<TrexRpcServerInterface *>  m_servers;
-    protocol_type_e                        m_protocol;
-    uint16_t                               m_port;
+    rpc_prot_e       m_protocol;
+    uint16_t         m_port;
 };
 
 /**
@@ -67,7 +68,7 @@ private:
 class TrexRpcServerInterface {
 public:
   
-    TrexRpcServerInterface(TrexRpcServerArray::protocol_type_e protocol, uint16_t port);
+    TrexRpcServerInterface(const TrexRpcServerConfig &cfg);
     virtual ~TrexRpcServerInterface();
 
     /**
@@ -93,13 +94,32 @@ protected:
      * instances implement this
      * 
      */
-    virtual void _rpc_thread_cb() = 0;
+    virtual void _rpc_thread_cb()    = 0;
     virtual void _stop_rpc_thread()  = 0;
 
-    TrexRpcServerArray::protocol_type_e  m_protocol;
-    uint16_t                             m_port;
+    TrexRpcServerConfig                  m_cfg;
     bool                                 m_is_running;
     std::thread                          *m_thread;
+};
+
+/**
+ * TREX RPC server 
+ * may contain serveral types of RPC servers 
+ * 
+ * @author imarom (12-Aug-15)
+ */
+class TrexRpcServer {
+public:
+  
+    /* currently only request response server config is required */
+    TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg);
+    ~TrexRpcServer();
+
+    void start();
+    void stop();
+
+private:
+    std::vector<TrexRpcServerInterface *>  m_servers;
 };
 
 #endif /* __TREX_RPC_SERVER_API_H__ */

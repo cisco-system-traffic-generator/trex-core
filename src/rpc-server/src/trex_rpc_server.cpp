@@ -25,54 +25,17 @@ limitations under the License.
 #include <zmq.h>
 #include <sstream>
 
-/************** RPC server array *************/
-
-TrexRpcServerArray::TrexRpcServerArray(protocol_type_e protocol, uint16_t prot) {
-
-    /* add the request response server */
-    m_servers.push_back(new TrexRpcServerReqRes(protocol, prot));
-}
-
-TrexRpcServerArray::~TrexRpcServerArray() {
-
-    /* make sure they are all stopped */
-    TrexRpcServerArray::stop();
-
-    for (auto server : m_servers) {
-        delete server;
-    }
-}
-
-/**
- * start the server array
- * 
- */
-void TrexRpcServerArray::start() {
-    for (auto server : m_servers) {
-        server->start();
-    }
-}
-
-/**
- * stop the server array
- * 
- */
-void TrexRpcServerArray::stop() {
-    for (auto server : m_servers) {
-        if (server->is_running()) {
-            server->stop();
-        }
-    }
-}
 
 /************** RPC server interface ***************/
 
-TrexRpcServerInterface::TrexRpcServerInterface(TrexRpcServerArray::protocol_type_e protocol, uint16_t port) : m_protocol(protocol), m_port(port) {
+TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg) : m_cfg(cfg)  {
     m_is_running = false;
 }
 
 TrexRpcServerInterface::~TrexRpcServerInterface() {
-
+    if (m_is_running) {
+        stop();
+    }
 }
 
 void TrexRpcServerInterface::start() {
@@ -97,5 +60,46 @@ void TrexRpcServerInterface::stop() {
 
 bool TrexRpcServerInterface::is_running() {
     return m_is_running;
+}
+
+
+/************** RPC server *************/
+
+TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg) {
+
+    /* add the request response server */
+    m_servers.push_back(new TrexRpcServerReqRes(req_resp_cfg));
+}
+
+TrexRpcServer::~TrexRpcServer() {
+
+    /* make sure they are all stopped */
+    stop();
+
+    for (auto server : m_servers) {
+        delete server;
+    }
+}
+
+/**
+ * start the server array
+ * 
+ */
+void TrexRpcServer::start() {
+    for (auto server : m_servers) {
+        server->start();
+    }
+}
+
+/**
+ * stop the server array
+ * 
+ */
+void TrexRpcServer::stop() {
+    for (auto server : m_servers) {
+        if (server->is_running()) {
+            server->stop();
+        }
+    }
 }
 
