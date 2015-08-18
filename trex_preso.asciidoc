@@ -14,9 +14,9 @@ TRex realistic traffic generator
 
 == What problem is being solved?
 
-* Network elements include complex statful features
-* Require testing with statful and real traffic mix
-* Traffic generators of statful/realistic traffic are:
+* Network elements include complex stateful features
+* Require testing with stateful and real traffic mix
+* Traffic generators of stateful/realistic traffic are:
 ** Expensive    ~$100-500K
 ** Not scalable for high rates 
 ** Not flexible 
