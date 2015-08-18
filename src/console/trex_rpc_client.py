@@ -5,6 +5,23 @@ from time import sleep
 
 class RpcClient():
 
+    def __init__ (self, server, port):
+        self.context = zmq.Context()
+        
+        self.port = port
+        self.server = server
+        #  Socket to talk to server
+        self.transport = "tcp://{0}:{1}".format(server, port)
+
+        self.verbose = False
+
+    def get_connection_details (self):
+        rc = {}
+        rc['server'] = self.server
+        rc['port']   = self.port
+
+        return rc
+
     def create_jsonrpc_v2 (self, method_name, params = {}, id = None):
         msg = {}
         msg["jsonrpc"] = "2.0"
@@ -79,13 +96,6 @@ class RpcClient():
     def query_rpc_server (self):
         return self.invoke_rpc_method("rpc_get_reg_cmds")
 
-    def __init__ (self, port):
-        self.context = zmq.Context()
-        
-        #  Socket to talk to server
-        self.transport = "tcp://localhost:{0}".format(port)
-
-        self.verbose = False
 
     def set_verbose (self, mode):
         self.verbose = mode

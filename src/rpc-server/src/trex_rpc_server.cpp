@@ -75,7 +75,7 @@ get_current_date_time() {
     struct tm  tstruct;
     char       buf[80];
     tstruct = *localtime(&now);
-    strftime(buf, sizeof(buf), "%d-%b-%Y / %X", &tstruct);
+    strftime(buf, sizeof(buf), "%b %d %Y @ %X", &tstruct);
 
     return buf;
 }

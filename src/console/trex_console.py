@@ -15,6 +15,7 @@ class TrexConsole(cmd.Cmd):
         self.intro  = "\n-=TRex Console V1.0=-\n" 
         self.rpc_client = rpc_client
         self.verbose = False
+        
         rc, msg = self.rpc_client.query_rpc_server()
 
         if rc:
@@ -96,7 +97,7 @@ class TrexConsole(cmd.Cmd):
 def main ():
     # RPC client
     try:
-        rpc_client = RpcClient(5050)
+        rpc_client = RpcClient("localhost", 5050)
         rpc_client.connect()
     except Exception as e:
         print "\n*** " + str(e) + "\n"

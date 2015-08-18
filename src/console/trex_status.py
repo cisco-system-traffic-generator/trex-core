@@ -91,11 +91,14 @@ class TrexStatus():
 
         self.info_panel.clear()
 
-        self.info_panel.getwin().addstr(3, 2, "{:<30} {:30}".format("Version:", self.server_status["general"]["version"]))
-        self.info_panel.getwin().addstr(4, 2, "{:<30} {:30}".format("Build:", 
+        connection_details = self.rpc_client.get_connection_details()
+
+        self.info_panel.getwin().addstr(3, 2, "{:<30} {:30}".format("Server:", connection_details['server'] + ":" + str(connection_details['port'])))
+        self.info_panel.getwin().addstr(4, 2, "{:<30} {:30}".format("Version:", self.server_status["general"]["version"]))
+        self.info_panel.getwin().addstr(5, 2, "{:<30} {:30}".format("Build:", 
                                                                     self.server_status["general"]["build_date"] + " @ " + self.server_status["general"]["build_time"] + " by " + self.server_status["general"]["version_user"]))
 
-        self.info_panel.getwin().addstr(5, 2, "{:<30} {:30}".format("Server Uptime:", self.server_status["general"]["uptime"]))
+        self.info_panel.getwin().addstr(6, 2, "{:<30} {:30}".format("Server Uptime:", self.server_status["general"]["uptime"]))
         #self.ft_panel.clear()
 
         #ft_section_y  = 3
@@ -250,7 +253,7 @@ class TrexStatus():
                     self.add_log_event("Pinging RPC server")
                     rc, msg = self.rpc_client.ping_rpc_server()
                     if rc:
-                        self.add_log_event("Server replied")
+                        self.add_log_event("Server replied: '{0}'".format(msg))
                     else:
                         self.add_log_event("Failed to get reply")
                     
@@ -268,7 +271,7 @@ class TrexStatus():
 
             panel.update_panels(); 
             self.stdscr.refresh()
-            sleep(0.2)
+            sleep(0.1)
 
 
 def show_trex_status_internal (stdscr, rpc_client):
