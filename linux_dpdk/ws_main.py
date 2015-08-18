@@ -136,6 +136,24 @@ json_src = SrcGroup(dir='external_libs/json',
             'jsoncpp.cpp'
            ])
 
+# RPC code
+rpc_server_src = SrcGroup(dir='src/rpc-server/src',
+                          src_list=[
+                              'trex_rpc_server.cpp',
+                              'trex_rpc_req_resp_server.cpp',
+                              'trex_rpc_jsonrpc_v2_parser.cpp',
+                              'trex_rpc_cmds_table.cpp',
+
+                              'commands/trex_rpc_cmd_test.cpp',
+                              'commands/trex_rpc_cmd_general.cpp',
+                          ])
+
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+                    src_list=[
+                        'jsoncpp.cpp'
+                        ])
+
 yaml_src = SrcGroup(dir='yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
@@ -325,8 +343,9 @@ bp =SrcGroups([
                 main_src, 
                 cmn_src ,
                 net_src ,
-                yaml_src,
+                rpc_server_src,
                 json_src,
+                yaml_src,
                 version_src
                 ]);
 
@@ -379,6 +398,8 @@ common_flags_old = common_flags + [
 
 includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
+                   ../external_libs/json/
+                   ../src/rpc-server/include
                    ../yaml-cpp/include/
                    ../src/zmq/include/
                         ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
@@ -658,8 +679,8 @@ def create_version_files ():
     s +=" extern \"C\" {                        \n"
     s +=" #endif                             \n";
     s +='#define  VERSION_USER  "%s"          \n' % os.environ.get('USER', 'unknown')
-    s +='extern char * get_build_date(void);  \n'
-    s +='extern char * get_build_time(void);  \n'
+    s +='extern const char * get_build_date(void);  \n'
+    s +='extern const char * get_build_time(void);  \n'
     s +='#define VERSION_UIID      "%s"       \n' % uuid.uuid1()
     s +='#define VERSION_BUILD_NUM "%s"       \n' % get_build_num()
     s +="#ifdef __cplusplus                  \n"
@@ -671,13 +692,13 @@ def create_version_files ():
 
     s ='#include "version.h"          \n'
     s +='#define VERSION_UIID1      "%s"       \n' % uuid.uuid1()
-    s +="char * get_build_date(void){ \n"
+    s +="const char * get_build_date(void){ \n"
     s +="    return (__DATE__);       \n"
-    s +="   }      \n"
+    s +="}      \n"
     s +=" \n"
-    s +="char * get_build_time(void){ \n"
+    s +="const char * get_build_time(void){ \n"
     s +="    return (__TIME__ );       \n"
-    s +="   }      \n"
+    s +="}      \n"
 
     write_file (C_VER_FILE,s)
 
