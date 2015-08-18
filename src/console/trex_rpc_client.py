@@ -50,13 +50,15 @@ class RpcClient():
         response_json = json.loads(response)
 
         if (response_json.get("jsonrpc") != "2.0"):
-            return False, "Bad Server Response: " + str(response)
+            return False, "Malfromed Response ({0})".format(str(response))
 
+        # error reported by server
         if ("error" in response_json):
-            return False, "Server Has Reported An Error: " + str(response)
+            return False, response_json["error"]["message"]
 
+        # if no error there should be a result
         if ("result" not in response_json):
-            return False, "Bad Server Response: " + str(response)
+            return False, "Malfromed Response ({0})".format(str(response))
 
         return True, response_json["result"]
 
@@ -97,5 +99,9 @@ class RpcClient():
         print "[SUCCESS]\n"
 
 
+    def __del__ (self):
+        print "Shutting down RPC client\n"
+        self.context.destroy(linger = 0)
+        
 
 

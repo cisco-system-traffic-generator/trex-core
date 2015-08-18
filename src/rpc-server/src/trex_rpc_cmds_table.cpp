@@ -32,6 +32,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdTestSub());
     register_command(new TrexRpcCmdPing());
     register_command(new TrexRpcCmdGetReg());
+    register_command(new TrexRpcCmdGetStatus());
 }
 
 TrexRpcCommandsTable::~TrexRpcCommandsTable() {
@@ -41,7 +42,13 @@ TrexRpcCommandsTable::~TrexRpcCommandsTable() {
 }
 
 TrexRpcCommand * TrexRpcCommandsTable::lookup(const string &method_name) {
-    return m_rpc_cmd_table[method_name];
+    auto search = m_rpc_cmd_table.find(method_name);
+
+    if (search != m_rpc_cmd_table.end()) {
+        return search->second;
+    } else {
+        return NULL;
+    }
 }
 
 

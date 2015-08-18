@@ -28,6 +28,11 @@ limitations under the License.
 /* all the RPC commands decl. goes here */
 
 /******************* test section ************/
+
+/**
+ * add
+ * 
+ */
 class TrexRpcCmdTestAdd : public TrexRpcCommand {
 public:
      TrexRpcCmdTestAdd() : TrexRpcCommand("rpc_test_add") {}
@@ -35,6 +40,10 @@ protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
+/**
+ * sub 
+ *  
+ */
 class TrexRpcCmdTestSub : public TrexRpcCommand {
 public:
      TrexRpcCmdTestSub() : TrexRpcCommand("rpc_test_sub") {} ;
@@ -42,6 +51,10 @@ protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
+/**
+ * ping
+ * 
+ */
 class TrexRpcCmdPing : public TrexRpcCommand {
 public:
      TrexRpcCmdPing() : TrexRpcCommand("rpc_ping") {};
@@ -49,12 +62,28 @@ protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
+/**
+ * get all registered commands
+ * 
+ */
 class TrexRpcCmdGetReg : public TrexRpcCommand {
 public:
      TrexRpcCmdGetReg() : TrexRpcCommand("rpc_get_reg_cmds") {};
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
+
+/**
+ * get status
+ * 
+ */
+class TrexRpcCmdGetStatus : public TrexRpcCommand {
+public:
+     TrexRpcCmdGetStatus() : TrexRpcCommand("rpc_get_status") {};
+protected:
+     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+};
+
 
 /**************** test section end *************/
 #endif /* __TREX_RPC_CMD_H__ */
