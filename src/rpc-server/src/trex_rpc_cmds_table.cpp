@@ -28,8 +28,10 @@ using namespace std;
 /************* table related methods ***********/
 TrexRpcCommandsTable::TrexRpcCommandsTable() {
     /* add the test command (for gtest) */
-    register_command(new TestRpcAddMethod());
-    register_command(new TestRpcSubMethod());
+    register_command(new TrexRpcCmdTestAdd());
+    register_command(new TrexRpcCmdTestSub());
+    register_command(new TrexRpcCmdPing());
+    register_command(new TrexRpcCmdGetReg());
 }
 
 TrexRpcCommandsTable::~TrexRpcCommandsTable() {
@@ -46,5 +48,11 @@ TrexRpcCommand * TrexRpcCommandsTable::lookup(const string &method_name) {
 void TrexRpcCommandsTable::register_command(TrexRpcCommand *command) {
 
     m_rpc_cmd_table[command->get_name()] = command;
+}
+
+void TrexRpcCommandsTable::query(vector<string> &cmds) {
+    for (auto cmd : m_rpc_cmd_table) {
+        cmds.push_back(cmd.first);
+    }
 }
 

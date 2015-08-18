@@ -43,9 +43,23 @@ public:
         return instance;
     }
 
+    /**
+     * register a new command
+     * 
+     */
     void register_command(TrexRpcCommand *command);
 
+    /**
+     * lookup for a command
+     * 
+     */
     TrexRpcCommand * lookup(const std::string &method_name);
+
+    /**
+     * query all commands registered
+     * 
+     */
+    void query(std::vector<std::string> &cmds);
 
 private:
     TrexRpcCommandsTable();

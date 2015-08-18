@@ -28,16 +28,30 @@ limitations under the License.
 /* all the RPC commands decl. goes here */
 
 /******************* test section ************/
-class TestRpcAddMethod : public TrexRpcCommand {
+class TrexRpcCmdTestAdd : public TrexRpcCommand {
 public:
-     TestRpcAddMethod();
+     TrexRpcCmdTestAdd() : TrexRpcCommand("rpc_test_add") {}
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
-class TestRpcSubMethod : public TrexRpcCommand {
+class TrexRpcCmdTestSub : public TrexRpcCommand {
 public:
-     TestRpcSubMethod();
+     TrexRpcCmdTestSub() : TrexRpcCommand("rpc_test_sub") {} ;
+protected:
+     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+};
+
+class TrexRpcCmdPing : public TrexRpcCommand {
+public:
+     TrexRpcCmdPing() : TrexRpcCommand("rpc_ping") {};
+protected:
+     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+};
+
+class TrexRpcCmdGetReg : public TrexRpcCommand {
+public:
+     TrexRpcCmdGetReg() : TrexRpcCommand("rpc_get_reg_cmds") {};
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
