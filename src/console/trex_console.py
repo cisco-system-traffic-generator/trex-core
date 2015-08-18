@@ -4,6 +4,7 @@ import cmd
 import json
 
 from trex_rpc_client import RpcClient
+import trex_status
 
 class TrexConsole(cmd.Cmd):
     """Trex Console"""
@@ -77,6 +78,10 @@ class TrexConsole(cmd.Cmd):
 
     def complete_rpc (self, text, line, begidx, endidx):
         return [x for x in self.supported_rpc if x.startswith(text)]
+
+    def do_status (self, line):
+        '''Shows a graphical console\n'''
+        trex_status.show_trex_status(self.rpc_client)
 
     def do_quit(self, line):
         '''\nexit the client\n'''

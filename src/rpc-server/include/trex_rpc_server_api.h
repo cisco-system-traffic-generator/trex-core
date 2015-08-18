@@ -119,8 +119,13 @@ public:
     void start();
     void stop();
 
+    static const std::string &get_server_uptime() {
+        return s_server_uptime;
+    }
+
 private:
     std::vector<TrexRpcServerInterface *>  m_servers;
+    static const std::string s_server_uptime;
 };
 
 #endif /* __TREX_RPC_SERVER_API_H__ */

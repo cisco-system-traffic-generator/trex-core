@@ -24,7 +24,13 @@ class RpcClient():
         if self.verbose:
             print "\nSending Request To Server: " + str(msg) + "\n"
 
-        self.socket.send(msg)
+        if block:
+            self.socket.send(msg)
+        else:
+            try:
+                self.socket.send(msg, flags = zmq.NOBLOCK)
+            except zmq.error.ZMQError:
+                return False, "Failed To Get Server Response"
 
         got_response = False
 
@@ -67,6 +73,8 @@ class RpcClient():
 
         return self.invoke_rpc_method("rpc_ping", block = False)
         
+    def get_rpc_server_status (self):
+        return self.invoke_rpc_method("rpc_get_status")
 
     def query_rpc_server (self):
         return self.invoke_rpc_method("rpc_get_reg_cmds")

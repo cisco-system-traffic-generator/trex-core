@@ -25,7 +25,6 @@ limitations under the License.
 #include <zmq.h>
 #include <sstream>
 
-
 /************** RPC server interface ***************/
 
 TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg) : m_cfg(cfg)  {
@@ -69,6 +68,19 @@ bool TrexRpcServerInterface::is_running() {
 
 
 /************** RPC server *************/
+
+static const std::string 
+get_current_date_time() {
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    strftime(buf, sizeof(buf), "%d-%b-%Y / %X", &tstruct);
+
+    return buf;
+}
+
+const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
 
 TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg) {
 

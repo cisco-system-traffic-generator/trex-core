@@ -20,6 +20,7 @@ limitations under the License.
 */
 #include "trex_rpc_cmds.h"
 #include <../linux_dpdk/version.h>
+#include <trex_rpc_server_api.h>
 
 using namespace std;
 
@@ -41,7 +42,7 @@ TrexRpcCmdGetStatus::_run(const Json::Value &params, Json::Value &result) {
     section["general"]["build_date"]    = get_build_date();
     section["general"]["build_time"]    = get_build_time();
     section["general"]["version_user"]  = VERSION_USER;
-
+    section["general"]["uptime"]        = TrexRpcServer::get_server_uptime();
     return (RPC_CMD_OK);
 }
 
