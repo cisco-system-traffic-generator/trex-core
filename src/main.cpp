@@ -32,11 +32,11 @@ limitations under the License.
  * (improved stub) 
  * 
  */
-extern "C" char * get_build_date(void){ 
+extern "C" const char * get_build_date(void){ 
     return (__DATE__);
 }      
  
-extern "C" char * get_build_time(void){ 
+extern "C" const char * get_build_time(void){ 
     return (__TIME__ );
 } 
 

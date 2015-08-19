@@ -111,6 +111,7 @@ main_src = SrcGroup(dir='src',
              'msg_manager.cpp',
              'gtest/tuple_gen_test.cpp',
              'gtest/nat_test.cpp',
+             'gtest/rpc_test.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -138,11 +139,35 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+# RPC code
+rpc_server_src = SrcGroup(dir='src/rpc-server/src',
+                          src_list=[
+                              'trex_rpc_server.cpp',
+                              'trex_rpc_req_resp_server.cpp',
+                              'trex_rpc_jsonrpc_v2_parser.cpp',
+                              'trex_rpc_cmds_table.cpp',
+
+                              'commands/trex_rpc_cmd_test.cpp',
+                              'commands/trex_rpc_cmd_general.cpp',
+
+                          ])
+
+# RPC mock server (test)
+rpc_server_mock_src = SrcGroup(dir='src/rpc-server/src',
+                          src_list=[
+                              'trex_rpc_server_mock.cpp'
+                          ])
+
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
-        src_list=[
-            'jsoncpp.cpp'
-           ])
+                    src_list=[
+                        'jsoncpp.cpp'
+                        ])
+
+rpc_server_mock = SrcGroups([rpc_server_src,
+                            rpc_server_mock_src,
+                            json_src
+                            ])
 
 yaml_src = SrcGroup(dir='yaml-cpp/src/',
         src_list=[
@@ -178,6 +203,7 @@ bp =SrcGroups([
                 main_src, 
                 cmn_src ,
                 net_src ,
+                rpc_server_src,
                 yaml_src,
                 json_src
                 ]);
@@ -196,7 +222,10 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 
 
 includes_path =''' ../src/pal/linux/
+                   ../src/zmq/include/
                    ../src/
+                   ../src/rpc-server/include
+                   ../external_libs/json/
                    ../yaml-cpp/include/
               ''';
 
@@ -212,10 +241,12 @@ PLATFORM_32 = "32"
 
 class build_option:
 
-    def __init__(self,platform,debug_mode,is_pie):
+    def __init__(self, name, src, platform, debug_mode, is_pie):
       self.mode     = debug_mode;   ##debug,release
       self.platform = platform; #['32','64'] 
       self.is_pie = is_pie
+      self.name = name
+      self.src = src
 
     def __str__(self):
        s=self.mode+","+self.platform;
@@ -283,10 +314,13 @@ class build_option:
         return result;
 
     def get_target (self):
-        return self.update_executable_name("bp-sim");
+        return self.update_executable_name(self.name);
 
     def get_flags (self):
         return self.cxxcomp_flags(cxxflags_base);
+
+    def get_src (self):
+        return self.src.file_list(top)
 
     def get_link_flags(self):
         # add here basic flags
@@ -307,25 +341,28 @@ class build_option:
 
         return base_flags;
 
-    def get_exe (self,full_path = True):
-        return self.toExe(self.get_target(),full_path);
-
 
 build_types = [
-               build_option(debug_mode= DEBUG_, platform = PLATFORM_32, is_pie = False),
-               build_option(debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
-               build_option(debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
-               build_option(debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
+               build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_32, is_pie = False),
+               build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
+               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
+               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
+
+               build_option(name = "mock-rpc-server", src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False),
               ]
 
 
 
 def build_prog (bld, build_obj):
+    zmq_lib_path='src/zmq/'
+    bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
+
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =build_obj.get_flags(),
                 linkflags = build_obj.get_link_flags(),
-                source = bp.file_list(top),
+                source = build_obj.get_src(),
+                use = ['zmq'],
                 rpath  = bld.env.RPATH,
                 target = build_obj.get_target())
 
@@ -336,15 +373,19 @@ def build_type(bld,build_obj):
 
 def post_build(bld):
     print "copy objects"
+
     exec_p ="../scripts/"
+
     for obj in build_types:
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
+
     bld.add_post_fun(post_build);
     for obj in build_types:
         build_type(bld,obj);
 
+    
 
 def build_info(bld):
     pass;

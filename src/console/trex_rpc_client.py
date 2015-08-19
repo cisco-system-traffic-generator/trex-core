@@ -39,7 +39,7 @@ class RpcClient():
         msg = self.create_jsonrpc_v2(method_name, params, id = 1)
 
         if self.verbose:
-            print "\nSending Request To Server: " + str(msg) + "\n"
+            print "\n[verbose] Sending Request To Server: " + str(msg) + "\n"
 
         if block:
             self.socket.send(msg)
@@ -67,7 +67,7 @@ class RpcClient():
             return False, "Failed To Get Server Response"
 
         if self.verbose:
-            print "Server Response: " + str(response) + "\n"
+            print "[verbose] Server Response: " + str(response)
 
         # decode
         response_json = json.loads(response)

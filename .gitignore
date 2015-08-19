@@ -11,6 +11,7 @@ linux_dpdk*
 linux*
 scripts/_t-rex-*
 scripts/bp-sim-*
+scripts/mock-*
 
 *.pyc
 
