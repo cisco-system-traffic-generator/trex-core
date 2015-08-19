@@ -38,7 +38,19 @@ extern "C" const char * get_build_time(void){
     return (__TIME__ );
 } 
 
-int main() {
+int gtest_main(int argc, char **argv);
+
+int main(int argc, char *argv[]) {
+
+    // gtest ?
+    if (argc > 1) {
+        if ( (string(argv[1]) != "--ut") || (argc != 2) ) {
+            cout << "\n[Usage] " << argv[0] << ": " << " [--ut]\n\n";
+            exit(-1);
+        }
+        return gtest_main(argc, argv);
+    }
+
     cout << "\n-= Starting RPC Server Mock =-\n\n";
     cout << "Listening on tcp://localhost:5050 [ZMQ]\n\n";
 

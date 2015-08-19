@@ -111,7 +111,6 @@ main_src = SrcGroup(dir='src',
              'msg_manager.cpp',
              'gtest/tuple_gen_test.cpp',
              'gtest/nat_test.cpp',
-             'gtest/rpc_test.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -155,7 +154,8 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/src',
 # RPC mock server (test)
 rpc_server_mock_src = SrcGroup(dir='src/rpc-server/src',
                           src_list=[
-                              'trex_rpc_server_mock.cpp'
+                              'trex_rpc_server_mock.cpp',
+                              '../../gtest/rpc_test.cpp',
                           ])
 
 # JSON package
@@ -164,10 +164,11 @@ json_src = SrcGroup(dir='external_libs/json',
                         'jsoncpp.cpp'
                         ])
 
-rpc_server_mock = SrcGroups([rpc_server_src,
-                            rpc_server_mock_src,
-                            json_src
-                            ])
+rpc_server_mock = SrcGroups([cmn_src,
+                             rpc_server_src,
+                             rpc_server_mock_src,
+                             json_src
+                             ])
 
 yaml_src = SrcGroup(dir='yaml-cpp/src/',
         src_list=[
@@ -203,9 +204,7 @@ bp =SrcGroups([
                 main_src, 
                 cmn_src ,
                 net_src ,
-                rpc_server_src,
                 yaml_src,
-                json_src
                 ]);
 
 
@@ -241,12 +240,13 @@ PLATFORM_32 = "32"
 
 class build_option:
 
-    def __init__(self, name, src, platform, debug_mode, is_pie):
+    def __init__(self, name, src, platform, debug_mode, is_pie, use = []):
       self.mode     = debug_mode;   ##debug,release
       self.platform = platform; #['32','64'] 
       self.is_pie = is_pie
       self.name = name
       self.src = src
+      self.use = use
 
     def __str__(self):
        s=self.mode+","+self.platform;
@@ -313,6 +313,9 @@ class build_option:
 
         return result;
 
+    def get_use_libs (self):
+        return self.use
+
     def get_target (self):
         return self.update_executable_name(self.name);
 
@@ -348,7 +351,7 @@ build_types = [
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
 
-               build_option(name = "mock-rpc-server", src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False),
+               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False),
               ]
 
 
@@ -362,7 +365,7 @@ def build_prog (bld, build_obj):
                 cxxflags =build_obj.get_flags(),
                 linkflags = build_obj.get_link_flags(),
                 source = build_obj.get_src(),
-                use = ['zmq'],
+                use = build_obj.get_use_libs(),
                 rpath  = bld.env.RPATH,
                 target = build_obj.get_target())
 

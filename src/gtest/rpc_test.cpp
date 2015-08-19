@@ -127,7 +127,7 @@ TEST_F(RpcTest, test_add_command) {
     string resp_str;
 
     /* simple add - missing paramters */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"id\": 488}";
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"id\": 488}";
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
@@ -136,7 +136,7 @@ TEST_F(RpcTest, test_add_command) {
     EXPECT_EQ(response["error"]["code"], -32602);
 
     /* simple add that works */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 17, \"y\": -13} , \"id\": \"itay\"}";
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"params\": {\"x\": 17, \"y\": -13} , \"id\": \"itay\"}";
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
@@ -145,7 +145,7 @@ TEST_F(RpcTest, test_add_command) {
     EXPECT_EQ(response["result"], 4);
 
     /* add with bad paratemers types */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": \"blah\", \"y\": -13} , \"id\": 17}";
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"params\": {\"x\": \"blah\", \"y\": -13} , \"id\": 17}";
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
@@ -154,7 +154,7 @@ TEST_F(RpcTest, test_add_command) {
     EXPECT_EQ(response["error"]["code"], -32602);
 
     /* add with invalid count of parameters */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"y\": -13} , \"id\": 17}";
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"params\": {\"y\": -13} , \"id\": 17}";
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
@@ -164,7 +164,7 @@ TEST_F(RpcTest, test_add_command) {
 
 
     /* big numbers */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 4827371, \"y\": -39181273} , \"id\": \"itay\"}";
+    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"params\": {\"x\": 4827371, \"y\": -39181273} , \"id\": \"itay\"}";
     resp_str = send_msg(req_str);
 
     EXPECT_TRUE(reader.parse(resp_str, response, false));
@@ -183,12 +183,12 @@ TEST_F(RpcTest, batch_rpc_test) {
     string resp_str;
 
     req_str = "[ \
-            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 22, \"y\": 17}, \"id\": \"1\"}, \
-            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_sub\", \"params\": {\"x\": 22, \"y\": 17}, \"id\": \"2\"}, \
-            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 22, \"y\": \"itay\"}, \"id\": \"2\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"params\": {\"x\": 22, \"y\": 17}, \"id\": \"1\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_sub\", \"params\": {\"x\": 22, \"y\": 17}, \"id\": \"2\"}, \
+            {\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"params\": {\"x\": 22, \"y\": \"itay\"}, \"id\": \"2\"}, \
             {\"foo\": \"boo\"}, \
             {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_sheker\", \"params\": {\"name\": \"myself\"}, \"id\": 5}, \
-            {\"jsonrpc\": \"2.0\", \"method\": \"test_rpc_add\", \"params\": {\"x\": 22, \"y\": 17} } \
+            {\"jsonrpc\": \"2.0\", \"method\": \"rpc_test_add\", \"params\": {\"x\": 22, \"y\": 17} } \
                ]";
 
     resp_str = send_msg(req_str);

@@ -27,19 +27,6 @@ limitations under the License.
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
 
-/**
- * on simulation this is not rebuild every version 
- * (improved stub) 
- * 
- */
-extern "C" const char * get_build_date(void){ 
-    return (__DATE__);
-}      
- 
-extern "C" const char * get_build_time(void){ 
-    return (__TIME__ );
-} 
-
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
           OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_MAC_FILE};
