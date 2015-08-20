@@ -13,24 +13,17 @@ class TrexConsole(cmd.Cmd):
     def __init__(self, rpc_client):
         cmd.Cmd.__init__(self)
 
-        rc, msg = rpc_client.connect()
-        if not rc:
-            print "\n*** " + msg
-            self.prompt = "Trex (offline) > "
-        else:
-            self.prompt = "TRex > "
+        self.rpc_client = rpc_client
+
+        self.do_connect("")
 
         self.intro  = "\n-=TRex Console V1.0=-\n"
         self.intro += "\nType 'help' or '?' for supported actions\n" 
 
-        self.rpc_client = rpc_client
         self.verbose = False
-        
-        # before starting query the RPC server and add the methods
-        rc, msg = self.rpc_client.query_rpc_server()
 
-        if rc:
-            self.supported_rpc = [str(x) for x in msg if x]
+        self.postcmd(False, "")
+      
 
     # a cool hack - i stole this function and added space
     def completenames(self, text, *ignored):
@@ -81,14 +74,21 @@ class TrexConsole(cmd.Cmd):
             print "[SUCCESS]\n"
         else:
             print "\n*** " + msg + "\n"
+            return
 
-    def do_reconnect (self, line):
-        '''Reconnects to the server\n'''
-        rc, msg = self.rpc_client.reconnect()
+    def do_connect (self, line):
+        '''Connects to the server\n'''
+        rc, msg = self.rpc_client.connect()
         if rc:
             print "[SUCCESS]\n"
         else:
             print "\n*** " + msg + "\n"
+            return
+
+        rc, msg = self.rpc_client.query_rpc_server()
+
+        if rc:
+            self.supported_rpc = [str(x) for x in msg if x]
 
     def do_rpc (self, line):
         '''Launches a RPC on the server\n'''
@@ -158,6 +158,7 @@ class TrexConsole(cmd.Cmd):
         if self.rpc_client.is_connected():
             self.prompt = "TRex > "
         else:
+            self.supported_rpc = None
             self.prompt = "TRex (offline) > "
 
         return stop
