@@ -33,6 +33,7 @@ TrexRpcCmdGetStatus::_run(const Json::Value &params, Json::Value &result) {
 
     /* validate count */
     if (params.size() != 0) {
+        generate_err_param_count(result, 0, params.size());
         return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
     }
 

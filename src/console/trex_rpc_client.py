@@ -6,15 +6,13 @@ import random
 
 class RpcClient():
 
-    def __init__ (self, server, port):
-        self.context = zmq.Context()
-        
-        self.port = port
-        self.server = server
-        #  Socket to talk to server
-        self.transport = "tcp://{0}:{1}".format(server, port)
-
+    def __init__ (self, default_server, default_port):
         self.verbose = False
+        self.connected = False
+
+        # default values
+        self.port   = default_port
+        self.server = default_server
 
     def get_connection_details (self):
         rc = {}
@@ -44,7 +42,17 @@ class RpcClient():
 
         return json.dumps(msg)
 
-    def invoke_rpc_method (self, method_name, params = {}, block = True):
+    def invoke_rpc_method (self, method_name, params = {}, block = False):
+        rc, msg = self._invoke_rpc_method(method_name, params, block)
+        if not rc:
+            self.disconnect()
+
+        return rc, msg
+
+    def _invoke_rpc_method (self, method_name, params = {}, block = False):
+        if not self.connected:
+            return False, "Not connected to server"
+
         id = random.randint(1, 1000)
         msg = self.create_jsonrpc_v2(method_name, params, id = id)
 
@@ -56,7 +64,7 @@ class RpcClient():
             try:
                 self.socket.send(msg, flags = zmq.NOBLOCK)
             except zmq.error.ZMQError:
-                return False, "Failed To Get Server Response"
+                return False, "Failed To Get Send Message"
 
         got_response = False
 
@@ -64,13 +72,13 @@ class RpcClient():
             response = self.socket.recv()
             got_response = True
         else:
-            for i in xrange(0 ,5):
+            for i in xrange(0 ,10):
                 try:
                     response = self.socket.recv(flags = zmq.NOBLOCK)
                     got_response = True
                     break
                 except zmq.error.Again:
-                    sleep(0.1)
+                    sleep(0.2)
 
         if not got_response:
             return False, "Failed To Get Server Response"
@@ -88,7 +96,7 @@ class RpcClient():
 
         # error reported by server
         if ("error" in response_json):
-            return False, response_json["error"]["message"]
+            return True, response_json["error"]["message"]
 
         # if no error there should be a result
         if ("result" not in response_json):
@@ -111,22 +119,54 @@ class RpcClient():
     def set_verbose (self, mode):
         self.verbose = mode
 
-    def connect (self):
+    def disconnect (self):
+        if self.connected:
+            self.socket.close(linger = 0)
+            self.context.destroy(linger = 0)
+            self.connected = False
+            return True, ""
+        else:
+            return False, "Not connected to server"
+
+    def connect (self, server = None, port = None):
+        if self.connected:
+            self.disconnect()
+
+        self.context = zmq.Context()
+        
+        self.server = (server if server else self.server)
+        self.port = (port if port else self.port)
+
+        #  Socket to talk to server
+        self.transport = "tcp://{0}:{1}".format(self.server, self.port)
 
         print "\nConnecting To RPC Server On {0}".format(self.transport)
 
         self.socket = self.context.socket(zmq.REQ)
         self.socket.connect(self.transport)
 
+        self.connected = True
+
         # ping the server
         rc, err = self.ping_rpc_server()
         if not rc:
-            self.context.destroy(linger = 0)
-            return False, err
+            self.disconnect()
+            return rc, err
 
-        #print "Connection Established !\n"
-        print "[SUCCESS]\n"
         return True, ""
+
+    def reconnect (self):
+        # connect using current values
+        return self.connect()
+
+        if not self.connected:
+            return False, "Not connected to server"
+
+        # reconnect
+        return self.connect(self.server, self.port)
+
+    def is_connected (self):
+        return self.connected
 
     def __del__ (self):
         print "Shutting down RPC client\n"
