@@ -2,6 +2,7 @@
 import zmq
 import json
 from time import sleep
+import random
 
 class RpcClient():
 
@@ -22,6 +23,16 @@ class RpcClient():
 
         return rc
 
+    def pretty_json (self, json_str):
+        return json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '))
+
+    def verbose_msg (self, msg):
+        if not self.verbose:
+            return
+
+        print "[verbose] " + msg
+
+
     def create_jsonrpc_v2 (self, method_name, params = {}, id = None):
         msg = {}
         msg["jsonrpc"] = "2.0"
@@ -36,10 +47,10 @@ class RpcClient():
         return json.dumps(msg)
 
     def invoke_rpc_method (self, method_name, params = {}, block = True):
-        msg = self.create_jsonrpc_v2(method_name, params, id = 1)
+        id = random.randint(1, 1000)
+        msg = self.create_jsonrpc_v2(method_name, params, id = id)
 
-        if self.verbose:
-            print "\n[verbose] Sending Request To Server: " + str(msg) + "\n"
+        self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
         if block:
             self.socket.send(msg)
@@ -66,14 +77,16 @@ class RpcClient():
         if not got_response:
             return False, "Failed To Get Server Response"
 
-        if self.verbose:
-            print "[verbose] Server Response: " + str(response)
+        self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
 
         # decode
         response_json = json.loads(response)
 
         if (response_json.get("jsonrpc") != "2.0"):
             return False, "Malfromed Response ({0})".format(str(response))
+
+        if (response_json.get("id") != id):
+            return False, "Server Replied With Bad ID ({0})".format(str(response))
 
         # error reported by server
         if ("error" in response_json):
@@ -111,11 +124,11 @@ class RpcClient():
         rc, err = self.ping_rpc_server()
         if not rc:
             self.context.destroy(linger = 0)
-            raise Exception(err)
+            return False, err
 
         #print "Connection Established !\n"
         print "[SUCCESS]\n"
-
+        return True, ""
 
     def __del__ (self):
         print "Shutting down RPC client\n"

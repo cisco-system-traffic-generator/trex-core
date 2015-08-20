@@ -24,17 +24,27 @@ limitations under the License.
 #include <unistd.h>
 #include <zmq.h>
 #include <sstream>
+#include <iostream>
 
 /************** RPC server interface ***************/
 
-TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg) : m_cfg(cfg)  {
+TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name) : m_cfg(cfg), m_name(name)  {
     m_is_running = false;
+    m_is_verbose = false;
 }
 
 TrexRpcServerInterface::~TrexRpcServerInterface() {
     if (m_is_running) {
         stop();
     }
+}
+
+void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
+    if (!m_is_verbose) {
+        return;
+    }
+
+    std::cout << "[verbose][" << m_name << "] " << msg << "\n";
 }
 
 /**
@@ -45,6 +55,8 @@ TrexRpcServerInterface::~TrexRpcServerInterface() {
 void TrexRpcServerInterface::start() {
     m_is_running = true;
 
+    verbose_msg("Starting RPC Server");
+
     m_thread = new std::thread(&TrexRpcServerInterface::_rpc_thread_cb, this);
     if (!m_thread) {
         throw TrexRpcException("unable to create RPC thread");
@@ -54,12 +66,25 @@ void TrexRpcServerInterface::start() {
 void TrexRpcServerInterface::stop() {
     m_is_running = false;
 
+    verbose_msg("Attempting To Stop RPC Server");
+
     /* call the dynamic type class stop */
     _stop_rpc_thread();
     
     /* hold until thread has joined */    
     m_thread->join();
+
+    verbose_msg("Server Stopped");
+
     delete m_thread;
+}
+
+void TrexRpcServerInterface::set_verbose(bool verbose) {
+    m_is_verbose = verbose;
+}
+
+bool TrexRpcServerInterface::is_verbose() {
+    return m_is_verbose;
 }
 
 bool TrexRpcServerInterface::is_running() {
@@ -117,6 +142,12 @@ void TrexRpcServer::stop() {
         if (server->is_running()) {
             server->stop();
         }
+    }
+}
+
+void TrexRpcServer::set_verbose(bool verbose) {
+    for (auto server : m_servers) {
+        server->set_verbose(verbose);
     }
 }
 

@@ -60,6 +60,9 @@ int main(int argc, char *argv[]) {
     /* init the RPC server */
     rpc.start();
 
+    cout << "Setting Server To Full Verbose\n\n";
+    rpc.set_verbose(true);
+
     cout << "Server Started\n\n";
 
     while (true) {

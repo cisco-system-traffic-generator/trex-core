@@ -34,7 +34,7 @@ limitations under the License.
  * ZMQ based request-response server
  * 
  */
-TrexRpcServerReqRes::TrexRpcServerReqRes(const TrexRpcServerConfig &cfg) : TrexRpcServerInterface(cfg) {
+TrexRpcServerReqRes::TrexRpcServerReqRes(const TrexRpcServerConfig &cfg) : TrexRpcServerInterface(cfg, "req resp") {
     /* ZMQ is not thread safe - this should be outside */
     m_context = zmq_ctx_new();
 }
@@ -84,6 +84,9 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
 
         /* transform it to a string */
         std::string request((const char *)m_msg_buffer, msg_size);
+
+        verbose_msg("Server Received: " + request);
+
         handle_request(request);
     }
 
@@ -128,14 +131,16 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
     }
 
     /* write the JSON to string and sever on ZMQ */
-    std::string reponse_str;
+    std::string response_str;
 
     if (response.size() == 1) {
-        reponse_str = writer.write(response[0]);
+        response_str = writer.write(response[0]);
     } else {
-        reponse_str = writer.write(response);
+        response_str = writer.write(response);
     }
     
-    zmq_send(m_socket, reponse_str.c_str(), reponse_str.size(), 0);
+    verbose_msg("Server Replied:  " + response_str);
+
+    zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
     
 }

@@ -68,7 +68,7 @@ private:
 class TrexRpcServerInterface {
 public:
   
-    TrexRpcServerInterface(const TrexRpcServerConfig &cfg);
+    TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name);
     virtual ~TrexRpcServerInterface();
 
     /**
@@ -84,22 +84,42 @@ public:
     void stop();
 
     /**
+     * set verbose on or off
+     * 
+     */
+    void set_verbose(bool verbose);
+
+    /**
      * return TRUE if server is active
      * 
      */
     bool is_running();
+
+    /**
+     * is the server verbose or not
+     * 
+     */
+    bool is_verbose();
 
 protected:
     /**
      * instances implement this
      * 
      */
-    virtual void _rpc_thread_cb()    = 0;
-    virtual void _stop_rpc_thread()  = 0;
+    virtual void _rpc_thread_cb()                   = 0;
+    virtual void _stop_rpc_thread()                 = 0;
+
+    /**
+     * prints a verbosed message (if enabled)
+     * 
+     */
+    void verbose_msg(const std::string &msg);
 
     TrexRpcServerConfig                  m_cfg;
     bool                                 m_is_running;
+    bool                                 m_is_verbose;
     std::thread                          *m_thread;
+    std::string                          m_name;
 };
 
 /**
@@ -116,16 +136,30 @@ public:
     TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg);
     ~TrexRpcServer();
 
+    /**
+     * starts the RPC server
+     * 
+     * @author imarom (19-Aug-15)
+     */
     void start();
+
+    /**
+     * stops the RPC server
+     * 
+     * @author imarom (19-Aug-15)
+     */
     void stop();
+
+    void set_verbose(bool verbose);
 
     static const std::string &get_server_uptime() {
         return s_server_uptime;
     }
 
 private:
-    std::vector<TrexRpcServerInterface *>  m_servers;
-    static const std::string s_server_uptime;
+    std::vector<TrexRpcServerInterface *>   m_servers;
+    bool                                    m_verbose;
+    static const std::string                s_server_uptime;
 };
 
 #endif /* __TREX_RPC_SERVER_API_H__ */

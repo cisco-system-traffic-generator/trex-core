@@ -95,7 +95,6 @@ TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 TrexRpcCommand::rpc_cmd_rc_e 
 TrexRpcCmdGetReg::_run(const Json::Value &params, Json::Value &result) {
     vector<string> cmds;
-    stringstream ss;
 
     /* validate count */
     if (params.size() != 0) {
@@ -104,11 +103,14 @@ TrexRpcCmdGetReg::_run(const Json::Value &params, Json::Value &result) {
 
 
     TrexRpcCommandsTable::get_instance().query(cmds);
+
+    Json::Value test = Json::arrayValue;
     for (auto cmd : cmds) {
-        ss << cmd << "\n";
+        test.append(cmd);
     }
 
-    result["result"] = ss.str();
+    result["result"] = test;
+
     return (RPC_CMD_OK);
 }
 

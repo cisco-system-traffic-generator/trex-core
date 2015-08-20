@@ -23,8 +23,7 @@ class TrexConsole(cmd.Cmd):
         rc, msg = self.rpc_client.query_rpc_server()
 
         if rc:
-            lst = msg.split('\n')
-            self.supported_rpc = [str(x) for x in lst if x]
+            self.supported_rpc = [str(x) for x in msg if x]
 
     # a cool hack - i stole this function and added space
     def completenames(self, text, *ignored):
@@ -57,7 +56,11 @@ class TrexConsole(cmd.Cmd):
         if not rc:
             print "\n*** Failed to query RPC server: " + str(msg)
 
-        print "\nRPC server supports the following commands: \n\n" + msg
+        print "\nRPC server supports the following commands: \n\n"
+        for func in msg:
+            if func:
+                print func
+        print "\n"
 
     def do_ping (self, line):
         '''\npings the RPC server\n'''
@@ -81,7 +84,6 @@ class TrexConsole(cmd.Cmd):
         else:
             print "[FAILED]\n"
 
-        print "Server Response:\n\n{0}\n".format(json.dumps(msg))
 
     def complete_rpc (self, text, line, begidx, endidx):
         return [x for x in self.supported_rpc if x.startswith(text)]
@@ -104,11 +106,10 @@ class TrexConsole(cmd.Cmd):
 
 def main ():
     # RPC client
-    try:
-        rpc_client = RpcClient("localhost", 5050)
-        rpc_client.connect()
-    except Exception as e:
-        print "\n*** " + str(e) + "\n"
+    rpc_client = RpcClient("localhost", 5050)
+    rc, msg = rpc_client.connect()
+    if not rc:
+        print "\n*** " + msg + "\n"
         exit(-1)
 
     # console
