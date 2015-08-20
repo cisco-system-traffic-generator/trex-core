@@ -35,7 +35,7 @@ limitations under the License.
  */
 class TrexRpcCmdTestAdd : public TrexRpcCommand {
 public:
-     TrexRpcCmdTestAdd() : TrexRpcCommand("rpc_test_add") {}
+     TrexRpcCmdTestAdd() : TrexRpcCommand("test_add") {}
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
@@ -46,7 +46,7 @@ protected:
  */
 class TrexRpcCmdTestSub : public TrexRpcCommand {
 public:
-     TrexRpcCmdTestSub() : TrexRpcCommand("rpc_test_sub") {} ;
+     TrexRpcCmdTestSub() : TrexRpcCommand("test_sub") {} ;
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
@@ -57,7 +57,7 @@ protected:
  */
 class TrexRpcCmdPing : public TrexRpcCommand {
 public:
-     TrexRpcCmdPing() : TrexRpcCommand("rpc_ping") {};
+     TrexRpcCmdPing() : TrexRpcCommand("ping") {};
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
@@ -68,7 +68,7 @@ protected:
  */
 class TrexRpcCmdGetReg : public TrexRpcCommand {
 public:
-     TrexRpcCmdGetReg() : TrexRpcCommand("rpc_get_reg_cmds") {};
+     TrexRpcCmdGetReg() : TrexRpcCommand("get_reg_cmds") {};
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
@@ -79,7 +79,7 @@ protected:
  */
 class TrexRpcCmdGetStatus : public TrexRpcCommand {
 public:
-     TrexRpcCmdGetStatus() : TrexRpcCommand("rpc_get_status") {};
+     TrexRpcCmdGetStatus() : TrexRpcCommand("get_status") {};
 protected:
      virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };

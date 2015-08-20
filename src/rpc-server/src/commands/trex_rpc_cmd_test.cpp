@@ -37,11 +37,18 @@ TrexRpcCmdTestAdd::_run(const Json::Value &params, Json::Value &result) {
         
     /* validate count */
     if (params.size() != 2) {
+        generate_err_param_count(result, 2, params.size());
         return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
     }
 
     /* check we have all the required paramters */
-    if (!x.isInt() || !y.isInt()) {
+    if (!x.isInt()) {
+        genernate_err(result, "'x' is either missing or not an integer");
+        return (TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR);
+    }
+
+    if (!y.isInt()) {
+        genernate_err(result, "'y' is either missing or not an integer");
         return (TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR);
     }
 
@@ -62,6 +69,7 @@ TrexRpcCmdTestSub::_run(const Json::Value &params, Json::Value &result) {
         
     /* validate count */
     if (params.size() != 2) {
+        generate_err_param_count(result, 2, params.size());
         return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
     }
 
@@ -82,6 +90,7 @@ TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 
     /* validate count */
     if (params.size() != 0) {
+        generate_err_param_count(result, 0, params.size());
         return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
     }
 
@@ -98,6 +107,7 @@ TrexRpcCmdGetReg::_run(const Json::Value &params, Json::Value &result) {
 
     /* validate count */
     if (params.size() != 0) {
+        generate_err_param_count(result, 0, params.size());
         return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
     }
 

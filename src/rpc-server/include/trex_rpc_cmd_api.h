@@ -69,6 +69,20 @@ protected:
      */
     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) = 0;
 
+    /**
+     * error generating functions
+     * 
+     */
+    void genernate_err(Json::Value &result, const std::string &msg) {
+        result["specific_err"] = msg;
+    }
+
+    void generate_err_param_count(Json::Value &result, int expected, int provided) {
+        std::stringstream ss;
+        ss << "method expects '" << expected << "' paramteres, '" << provided << "' provided";
+        genernate_err(result, ss.str());
+    }
+
     std::string m_name;
 };
 

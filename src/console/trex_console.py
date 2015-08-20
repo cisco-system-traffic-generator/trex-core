@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*- 
 import cmd
 import json
+import ast
 
 from trex_rpc_client import RpcClient
 import trex_status
@@ -75,10 +76,32 @@ class TrexConsole(cmd.Cmd):
     def do_rpc (self, line):
         '''\nLaunches a RPC on the server\n'''
         if line == "":
-            print "\nUsage: [method name] [param 1] ...\n"
+            print "\nUsage: [method name] [param dict as string]\n"
             return
 
-        rc, msg = self.rpc_client.invoke_rpc_method(line)
+        sp = line.split(' ', 1)
+        method = sp[0]
+
+        params = None
+        bad_parse = False
+        if len(sp) > 1:
+
+            try:
+                params = ast.literal_eval(sp[1])
+                if not isinstance(params, dict):
+                    bad_parse = True
+
+            except ValueError as e1:
+                bad_parse = True
+            except SyntaxError as e2:
+                bad_parse = True
+
+        if bad_parse:
+            print "\nValue should be a valid dict: '{0}'".format(sp[1])
+            print "\nUsage: [method name] [param dict as string]\n"
+            return
+
+        rc, msg = self.rpc_client.invoke_rpc_method(method, params)
         if rc:
             print "[SUCCESS]\n"
         else:

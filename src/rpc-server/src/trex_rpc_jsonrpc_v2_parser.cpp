@@ -80,13 +80,15 @@ public:
 
         case TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR:
         case TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR:
-            response["error"]["code"]     = JSONRPC_V2_ERR_INVALID_PARAMS;
-            response["error"]["message"]  = "Bad paramters for method";
+            response["error"]["code"]          = JSONRPC_V2_ERR_INVALID_PARAMS;
+            response["error"]["message"]       = "Bad paramters for method";
+            response["error"]["specific_err"]  = result["specific_err"];
             break;
 
         case TrexRpcCommand::RPC_CMD_INTERNAL_ERR:
-            response["error"]["code"]     = JSONRPC_V2_ERR_INTERNAL_ERROR;
-            response["error"]["message"]  = "Internal Server Error";
+            response["error"]["code"]          = JSONRPC_V2_ERR_INTERNAL_ERROR;
+            response["error"]["message"]       = "Internal Server Error";
+            response["error"]["specific_err"]  = result["specific_err"];
             break;
         }
 

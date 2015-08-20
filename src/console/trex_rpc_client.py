@@ -24,7 +24,7 @@ class RpcClient():
         return rc
 
     def pretty_json (self, json_str):
-        return json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '))
+        return json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
 
     def verbose_msg (self, msg):
         if not self.verbose:
@@ -38,9 +38,7 @@ class RpcClient():
         msg["jsonrpc"] = "2.0"
         msg["method"]  = method_name
 
-        msg["params"] = {}
-        for key, value in params.iteritems():
-            msg["params"][key] = value
+        msg["params"] = params
 
         msg["id"] = id
 
@@ -101,13 +99,13 @@ class RpcClient():
 
     def ping_rpc_server (self):
 
-        return self.invoke_rpc_method("rpc_ping", block = False)
+        return self.invoke_rpc_method("ping", block = False)
         
     def get_rpc_server_status (self):
-        return self.invoke_rpc_method("rpc_get_status")
+        return self.invoke_rpc_method("get_status")
 
     def query_rpc_server (self):
-        return self.invoke_rpc_method("rpc_get_reg_cmds")
+        return self.invoke_rpc_method("get_reg_cmds")
 
 
     def set_verbose (self, mode):
