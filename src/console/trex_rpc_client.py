@@ -143,7 +143,11 @@ class RpcClient():
         print "\nConnecting To RPC Server On {0}".format(self.transport)
 
         self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect(self.transport)
+        try:
+            self.socket.connect(self.transport)
+        except zmq.error.ZMQError as e:
+            return False, "ZMQ Error: Bad server or port name: " + str(e)
+
 
         self.connected = True
 

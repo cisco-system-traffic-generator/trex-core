@@ -1,0 +1,2 @@
+#!/bin/bash
+../src/console/trex_console.py $@

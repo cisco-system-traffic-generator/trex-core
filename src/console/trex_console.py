@@ -1,8 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*- 
 import cmd
 import json
 import ast
+import argparse
+import sys
 
 from trex_rpc_client import RpcClient
 import trex_status
@@ -78,7 +80,17 @@ class TrexConsole(cmd.Cmd):
 
     def do_connect (self, line):
         '''Connects to the server\n'''
-        rc, msg = self.rpc_client.connect()
+
+        if line == "":
+            rc, msg = self.rpc_client.connect()
+        else:
+            sp = line.split()
+            if (len(sp) != 2):
+                print "\n[usage] connect [server] [port] or without parameters\n"
+                return
+
+            rc, msg = self.rpc_client.connect(sp[0], sp[1])
+
         if rc:
             print "[SUCCESS]\n"
         else:
@@ -207,9 +219,25 @@ class TrexConsole(cmd.Cmd):
     # aliasing
     do_exit = do_EOF = do_q = do_quit
 
+def setParserOptions ():
+    parser = argparse.ArgumentParser(prog="trex_console.py")
+
+    parser.add_argument("-s", "--server", help = "T-Rex Server [default is localhost]",
+                        default = "localhost",
+                        type = str)
+
+    parser.add_argument("-p", "--port", help = "T-Rex Server Port  [default is 5050]\n",
+                        default = 5050,
+                        type = int)
+
+    return parser
+
 def main ():
+    parser = setParserOptions()
+    options = parser.parse_args(sys.argv[1:])
+
     # RPC client
-    rpc_client = RpcClient("localhost", 5050)
+    rpc_client = RpcClient(options.server, options.port)
 
     # console
     try:
