@@ -43,3 +43,6 @@ scripts/bp-sim-*
 ehthumbs.db
 Thumbs.db
 
+# IDE/ Editors files #
+######################
+.idea/
