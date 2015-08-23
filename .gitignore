@@ -12,6 +12,7 @@ linux*
 scripts/_t-rex-*
 scripts/bp-sim-*
 scripts/doc/*
+scripts/mock-*
 
 *.pyc
 
@@ -44,3 +45,9 @@ scripts/doc/*
 ehthumbs.db
 Thumbs.db
 
+# slickedit files #
+###################
+*.vpj
+*.vpw
+*.vtg
+*.vpwhist
