@@ -11,6 +11,8 @@ linux_dpdk*
 linux*
 scripts/_t-rex-*
 scripts/bp-sim-*
+scripts/doc/*
+scripts/mock-*
 
 *.pyc
 
@@ -43,6 +45,11 @@ scripts/bp-sim-*
 ehthumbs.db
 Thumbs.db
 
+
 # IDE/ Editors files #
 ######################
 .idea/
+*.vpj
+*.vpw
+*.vtg
+*.vpwhist

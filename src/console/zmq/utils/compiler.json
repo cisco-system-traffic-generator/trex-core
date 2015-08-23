@@ -1,0 +1,24 @@
+{
+  "extra_link_args": [], 
+  "define_macros": [
+    [
+      "HAVE_SYS_UN_H", 
+      1
+    ]
+  ], 
+  "runtime_library_dirs": [
+    "$ORIGIN/.."
+  ], 
+  "libraries": [
+    "zmq"
+  ], 
+  "library_dirs": [
+    "zmq"
+  ], 
+  "include_dirs": [
+    "/auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/bpsim/main/src/zmq/include", 
+    "zmq/utils", 
+    "zmq/backend/cython", 
+    "zmq/devices"
+  ]
+}

@@ -1,5 +1,8 @@
 #ifndef __RTE_CONFIG_H
 #define __RTE_CONFIG_H
+
+#define typeof __typeof__
+
 #undef RTE_EXEC_ENV
 #define RTE_EXEC_ENV "linuxapp"
 #undef RTE_EXEC_ENV_LINUXAPP
