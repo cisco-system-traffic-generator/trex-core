@@ -1,0 +1,220 @@
+
+== VM instructions
+
+=== instructions_type
+
+these are the instructions type
+
+
+==== fix_checksum_ipv4
+
+This command will fix ipv4 checksum header 
+
+[source,python]
+----
+{ 
+ins_name   :  string ,"fix_checksum_ipv4"  ## this command will recalculate the ipv4 checksum 
+pkt_offset : uint16_t, number,      ## the offset into the packet when the ipv4 header is located 
+}
+----
+
+
+==== flow_man_simple
+
+This command will allocate and manipulate flow object data 
+For example, allocate a flow variable and object from 10.0.0.1-10.0.0.10
+
+[source,python]
+----
+{ 
+ins_name: string, "flow_man_simple" ## increment a flow variable 
+flow_varible_name: string "name_of_varible" # internal software will allocate the object for this, the name should be unique
+object_size : uint16_t  #size of the variable 1,2,4,8   ( max uint64)
+Operation  : "inc","dec","random"  # the command could be inc from min-max start at init 
+                                   # decrement 
+                                   # random      
+split_by_core : true/false      ##do we want to split the range by cores
+init_value : number, size of object_size  (max uint64)
+min_value  : number, size of object_size (max uint64)
+max_value  :  number, size of object_size (max uint64)
+}
+----
+
+==== write_to_pkt 
+
+This command will copy flow varible into packet offset 
+
+[source,c]
+----
+tmp_pkt_data = (flow_var +add_value)
+
+if (big_edian){
+ (varible_size )pkt[pkt_offset] =swap(tmp_pkt_data);
+}
+----
+        
+
+[source,python]
+----
+{
+ins_name : string , "write_to_pkt" ## 
+flow_varible_name : string "name_of_varible" # flow varible value to copy from 
+pkt_offset        : uint16_t # the offset into the packet to copy the varible 
+add_value         : 0 (size_of_the_varible)# when writing add this value 
+big_edian         : bool  default true   # swap varible when copy yo packet 
+}
+----
+
+
+
+=== Examples
+
+=== Examples1
+
+an examples to a programs that change src_ip in specific range for one core
+range of src_ip 10.0.0.1-10.0.0.10 start from 10.0.0.7
+update ipv4 checksum 
+ip offset is in 14
+
+                      offset
+[ 6 - dest mac        0
+  6 - src  mac        6
+  2 network           12
+  
+  ip[0]               14
+  ip[4]               18
+  ip[8]-TTL,Protocol  22
+  ip[12]-src_ip       26
+  ip[12]-dest_ip      30
+  
+}
+ 
+The program 
+
+[source,python]
+----
+[ 
+
+{
+ins_name : "flow_data_inc" 
+flow_varible_name : "src_ip" 
+object_size :  1
+operaqtion : "inc"
+split_by_core : false  # one core 
+init_value : 7
+min_value  : 1
+max_value  : 10 
+} ,
+
+{
+ins_name : "write_to_pkt" 
+flow_varible_name : "src_ip" 
+pkt_offset        : 26,
+add_value         : 0 ,
+big_edian         : true
+},
+
+{ 
+ins_name : "fix_checksum_ipv4" 
+pkt_offset : 14
+}
+
+]
+----
+
+=== Examples2
+
+an examples to a programs that change src_ip and dest_ip in specific range for one core
+range of src_ip  10.0.0.1-10.0.0.10 start from 10.0.0.7
+range of dest_ip 48.0.0.1-48.0.0.10 start from 48.0.0.7
+
+update ipv4 checksum 
+ip offset is in 14
+
+                      offset
+[ 6 - dest mac        0
+  6 - src  mac        6
+  2 network           12
+  
+  ip[0]               14
+  ip[4]               18
+  ip[8]-TTL,Protocol  22
+  ip[12]-src_ip       26
+  ip[12]-dest_ip      30
+  
+}
+
+The program 
+
+[source,python]
+----
+
+[ 
+
+{
+ins_name : "flow_data_inc" 
+flow_varible_name : "src_ip" 
+object_size :  1
+operaqtion : "inc"
+split_by_core : false  # one core 
+init_value : 7
+min_value  : 1
+max_value  : 10 
+} ,
+
+{
+ins_name : "write_to_pkt" 
+flow_varible_name : "src_ip" 
+pkt_offset        : 26,
+add_value         : 0 ,
+big_edian         : true
+},
+
+{
+ins_name : "write_to_pkt" 
+flow_varible_name : "src_ip" 
+pkt_offset        : 30,
+add_value         : 0 ,
+big_edian         : true
+},
+
+
+{ 
+ins_name : "fix_checksum_ipv4" 
+pkt_offset : 14
+}
+]
+
+----
+
+
+=== Considerations
+
+
+==== Control-Plain check
+
+- Verify that packet offset into fix_checksum_ipv4 is less that pkt_size - min_ip_header 
+- There is no stream that are orphaned  (not started at startup and nobody call them)
+
+==== Data-Plain  check
+
+- Convert the commands to a VM compress command 
+- Allocate flow memory per flow for each stream (currently add the memory in each offset)
+- VM runner at startup/ each packet 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
+
