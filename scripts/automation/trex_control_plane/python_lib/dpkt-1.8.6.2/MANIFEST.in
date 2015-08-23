@@ -1,0 +1,7 @@
+
+include AUTHORS CHANGES README.rst LICENSE
+
+recursive-include docs *
+prune docs/_build
+
+global-exclude __pycache__/*

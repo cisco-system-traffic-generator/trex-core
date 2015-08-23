@@ -1,0 +1,3 @@
+mock >= 1.0
+Sphinx >= 1.0
+sphinxcontrib-napoleon

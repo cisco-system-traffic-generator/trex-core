@@ -9,10 +9,10 @@ PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, 'python_lib'))
 
 
 CLIENT_MODULES = ['enum34-1.0.4',
-            # 'jsonrpclib-0.1.3',
             'jsonrpclib-pelix-0.2.5',
             'termstyle',
-            'rpc_exceptions-0.1'
+            'rpc_exceptions-0.1',
+            'dpkt-1.8.6.2'
             ]
 
 def import_client_modules ():
