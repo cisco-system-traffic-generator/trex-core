@@ -29,31 +29,18 @@ using namespace std;
  * add command
  * 
  */
-TrexRpcCommand::rpc_cmd_rc_e 
+trex_rpc_cmd_rc_e 
 TrexRpcCmdTestAdd::_run(const Json::Value &params, Json::Value &result) {
 
     const Json::Value &x = params["x"];
     const Json::Value &y = params["y"];
-        
-    /* validate count */
-    if (params.size() != 2) {
-        generate_err_param_count(result, 2, params.size());
-        return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
-    }
-
-    /* check we have all the required paramters */
-    if (!x.isInt()) {
-        genernate_err(result, "'x' is either missing or not an integer");
-        return (TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR);
-    }
-
-    if (!y.isInt()) {
-        genernate_err(result, "'y' is either missing or not an integer");
-        return (TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR);
-    }
+    
+    check_param_count(params, 2, result);
+    check_field_type(params, "x", FIELD_TYPE_INT, result);
+    check_field_type(params, "y", FIELD_TYPE_INT, result);
 
     result["result"] = x.asInt() + y.asInt();
-    return (RPC_CMD_OK);
+    return (TREX_RPC_CMD_OK);
 }
 
 /**
@@ -61,56 +48,42 @@ TrexRpcCmdTestAdd::_run(const Json::Value &params, Json::Value &result) {
  * 
  * @author imarom (16-Aug-15)
  */
-TrexRpcCommand::rpc_cmd_rc_e 
+trex_rpc_cmd_rc_e 
 TrexRpcCmdTestSub::_run(const Json::Value &params, Json::Value &result) {
 
     const Json::Value &x = params["x"];
     const Json::Value &y = params["y"];
         
-    /* validate count */
-    if (params.size() != 2) {
-        generate_err_param_count(result, 2, params.size());
-        return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
-    }
-
-    /* check we have all the required paramters */
-    if (!x.isInt() || !y.isInt()) {
-        return (TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR);
-    }
+    check_param_count(params, 2, result);
+    check_field_type(params, "x", TrexRpcCommand::FIELD_TYPE_INT, result);
+    check_field_type(params, "y", TrexRpcCommand::FIELD_TYPE_INT, result);
 
     result["result"] = x.asInt() - y.asInt();
-    return (RPC_CMD_OK);
+    return (TREX_RPC_CMD_OK);
 }
 
 /**
  * ping command
  */
-TrexRpcCommand::rpc_cmd_rc_e 
+trex_rpc_cmd_rc_e 
 TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 
     /* validate count */
-    if (params.size() != 0) {
-        generate_err_param_count(result, 0, params.size());
-        return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
-    }
+    check_param_count(params, 0, result);
 
     result["result"] = "ACK";
-    return (RPC_CMD_OK);
+    return (TREX_RPC_CMD_OK);
 }
 
 /**
  * query command
  */
-TrexRpcCommand::rpc_cmd_rc_e 
+trex_rpc_cmd_rc_e 
 TrexRpcCmdGetReg::_run(const Json::Value &params, Json::Value &result) {
     vector<string> cmds;
 
     /* validate count */
-    if (params.size() != 0) {
-        generate_err_param_count(result, 0, params.size());
-        return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
-    }
-
+    check_param_count(params, 0, result);
 
     TrexRpcCommandsTable::get_instance().query(cmds);
 
@@ -121,6 +94,6 @@ TrexRpcCmdGetReg::_run(const Json::Value &params, Json::Value &result) {
 
     result["result"] = test;
 
-    return (RPC_CMD_OK);
+    return (TREX_RPC_CMD_OK);
 }
 

@@ -143,6 +143,7 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/src',
                               'trex_rpc_req_resp_server.cpp',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
+                              'trex_rpc_cmd.cpp',
 
                               'commands/trex_rpc_cmd_test.cpp',
                               'commands/trex_rpc_cmd_general.cpp',

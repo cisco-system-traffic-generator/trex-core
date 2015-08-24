@@ -32,6 +32,9 @@ limitations under the License.
 class TrexRpcException : public std::runtime_error 
 {
 public:
+    TrexRpcException() : std::runtime_error("") {
+
+    }
     TrexRpcException(const std::string &what) : std::runtime_error(what) {
     }
 };

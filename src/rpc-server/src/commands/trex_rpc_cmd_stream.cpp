@@ -25,23 +25,23 @@ limitations under the License.
 using namespace std;
 
 /**
- * get status
+ * add new stream
  * 
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetStatus::_run(const Json::Value &params, Json::Value &result) {
 
     /* validate count */
-    check_param_count(params, 0, result);
+    if (params.size() != 1) {
+        generate_err_param_count(result, 0, params.size());
+        return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
+    }
 
-    Json::Value &section = result["result"];
+    Json::Value &stream = result["stream"];
 
-    section["general"]["version"]       = VERSION_BUILD_NUM;
-    section["general"]["build_date"]    = get_build_date();
-    section["general"]["build_time"]    = get_build_time();
-    section["general"]["version_user"]  = VERSION_USER;
-    section["general"]["uptime"]        = TrexRpcServer::get_server_uptime();
-
-    return (TREX_RPC_CMD_OK);
+    if (stream == Json::Value::null) {
+        generate_err_param_count
+    }
+    return (RPC_CMD_OK);
 }
 

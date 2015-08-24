@@ -25,6 +25,37 @@ limitations under the License.
 #include <string>
 #include <vector>
 #include <json/json.h>
+#include <trex_rpc_exception_api.h>
+
+/**
+ * describe different types of rc for run()
+ */
+typedef enum trex_rpc_cmd_rc_ {
+    TREX_RPC_CMD_OK,
+    TREX_RPC_CMD_PARAM_COUNT_ERR = 1,
+    TREX_RPC_CMD_PARAM_PARSE_ERR,
+    TREX_RPC_CMD_INTERNAL_ERR
+} trex_rpc_cmd_rc_e;
+
+/**
+ * simple exception for RPC command processing
+ * 
+ * @author imarom (23-Aug-15)
+ */
+class TrexRpcCommandException : TrexRpcException {
+public:
+    TrexRpcCommandException(trex_rpc_cmd_rc_e rc) : m_rc(rc) {
+
+    }
+
+    trex_rpc_cmd_rc_e get_rc() {
+        return m_rc;
+
+    }
+
+protected:
+    trex_rpc_cmd_rc_e m_rc;
+};
 
 /**
  * interface for RPC command
@@ -35,25 +66,17 @@ class TrexRpcCommand {
 public:
 
     /**
-     * describe different types of rc for run()
-     */
-    enum rpc_cmd_rc_e {
-        RPC_CMD_OK,
-        RPC_CMD_PARAM_COUNT_ERR = 1,
-        RPC_CMD_PARAM_PARSE_ERR,
-        RPC_CMD_INTERNAL_ERR
-    };
-
-    /**
      * method name and params
      */
     TrexRpcCommand(const std::string &method_name) : m_name(method_name) {
 
     }
 
-    rpc_cmd_rc_e run(const Json::Value &params, Json::Value &result) {
-        return _run(params, result);
-    }
+    /**
+     * entry point for executing RPC command
+     * 
+     */
+    trex_rpc_cmd_rc_e run(const Json::Value &params, Json::Value &result);
 
     const std::string &get_name() {
         return m_name;
@@ -64,25 +87,53 @@ public:
 protected:
 
     /**
+     * different types of fields
+     */
+    enum field_type_e {
+        FIELD_TYPE_INT,
+        FIELD_TYPE_BOOL,
+        FIELD_TYPE_STR,
+        FIELD_TYPE_OBJ,
+        FILED_TYPE_ARRAY
+    };
+
+    /**
      * implemented by the dervied class
      * 
      */
-    virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) = 0;
+    virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) = 0;
+
+    /**
+     * check param count
+     */
+    void check_param_count(const Json::Value &params, int expected, Json::Value &result);
+
+    /**
+     * check field type
+     * 
+     */
+    //void check_field_type(const Json::Value &field, field_type_e type, Json::Value &result);
+    void check_field_type(const Json::Value &parent, const std::string &name, field_type_e type, Json::Value &result);
 
     /**
      * error generating functions
      * 
      */
-    void genernate_err(Json::Value &result, const std::string &msg) {
-        result["specific_err"] = msg;
-    }
+    void generate_err(Json::Value &result, const std::string &msg);
 
-    void generate_err_param_count(Json::Value &result, int expected, int provided) {
-        std::stringstream ss;
-        ss << "method expects '" << expected << "' paramteres, '" << provided << "' provided";
-        genernate_err(result, ss.str());
-    }
+    /**
+     * translate enum to string
+     * 
+     */
+    const char * type_to_str(field_type_e type);
 
+    /**
+     * translate JSON values to string
+     * 
+     */
+    const char * json_type_to_name(const Json::Value &value);
+
+    /* RPC command name */
     std::string m_name;
 };
 

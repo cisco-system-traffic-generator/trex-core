@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 
     // gtest ?
     if (argc > 1) {
-        if ( (string(argv[1]) != "--ut") || (argc != 2) ) {
+        if (string(argv[1]) != "--ut") {
             cout << "\n[Usage] " << argv[0] << ": " << " [--ut]\n\n";
             exit(-1);
         }

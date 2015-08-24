@@ -71,21 +71,21 @@ public:
     virtual void _execute(Json::Value &response) {
         Json::Value result;
 
-        TrexRpcCommand::rpc_cmd_rc_e rc = m_cmd->run(m_params, result);
+        trex_rpc_cmd_rc_e rc = m_cmd->run(m_params, result);
 
         switch (rc) {
-        case TrexRpcCommand::RPC_CMD_OK:
+        case TREX_RPC_CMD_OK:
             response["result"] = result["result"];
             break;
 
-        case TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR:
-        case TrexRpcCommand::RPC_CMD_PARAM_PARSE_ERR:
+        case TREX_RPC_CMD_PARAM_COUNT_ERR:
+        case TREX_RPC_CMD_PARAM_PARSE_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_INVALID_PARAMS;
             response["error"]["message"]       = "Bad paramters for method";
             response["error"]["specific_err"]  = result["specific_err"];
             break;
 
-        case TrexRpcCommand::RPC_CMD_INTERNAL_ERR:
+        case TREX_RPC_CMD_INTERNAL_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_INTERNAL_ERROR;
             response["error"]["message"]       = "Internal Server Error";
             response["error"]["specific_err"]  = result["specific_err"];

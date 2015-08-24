@@ -37,7 +37,7 @@ class TrexRpcCmdTestAdd : public TrexRpcCommand {
 public:
      TrexRpcCmdTestAdd() : TrexRpcCommand("test_add") {}
 protected:
-     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
 /**
@@ -48,7 +48,7 @@ class TrexRpcCmdTestSub : public TrexRpcCommand {
 public:
      TrexRpcCmdTestSub() : TrexRpcCommand("test_sub") {} ;
 protected:
-     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
 /**
@@ -59,7 +59,7 @@ class TrexRpcCmdPing : public TrexRpcCommand {
 public:
      TrexRpcCmdPing() : TrexRpcCommand("ping") {};
 protected:
-     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
 /**
@@ -70,7 +70,7 @@ class TrexRpcCmdGetReg : public TrexRpcCommand {
 public:
      TrexRpcCmdGetReg() : TrexRpcCommand("get_reg_cmds") {};
 protected:
-     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
 /**
@@ -81,7 +81,7 @@ class TrexRpcCmdGetStatus : public TrexRpcCommand {
 public:
      TrexRpcCmdGetStatus() : TrexRpcCommand("get_status") {};
 protected:
-     virtual rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
+     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
 };
 
 
