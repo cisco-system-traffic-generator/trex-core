@@ -137,7 +137,7 @@ json_src = SrcGroup(dir='external_libs/json',
            ])
 
 # RPC code
-rpc_server_src = SrcGroup(dir='src/rpc-server/src',
+rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
@@ -400,7 +400,7 @@ common_flags_old = common_flags + [
 includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
                    ../external_libs/json/
-                   ../src/rpc-server/include
+                   ../src/rpc-server/
                    ../yaml-cpp/include/
                    ../src/zmq/include/
                         ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/

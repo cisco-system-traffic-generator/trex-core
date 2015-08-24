@@ -139,7 +139,7 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'VLANHeader.cpp']);
 
 # RPC code
-rpc_server_src = SrcGroup(dir='src/rpc-server/src',
+rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
@@ -153,10 +153,10 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/src',
                           ])
 
 # RPC mock server (test)
-rpc_server_mock_src = SrcGroup(dir='src/rpc-server/src',
+rpc_server_mock_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server_mock.cpp',
-                              '../../gtest/rpc_test.cpp',
+                              '../gtest/rpc_test.cpp',
                           ])
 
 # JSON package
@@ -224,7 +224,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 includes_path =''' ../src/pal/linux/
                    ../src/zmq/include/
                    ../src/
-                   ../src/rpc-server/include
+                   ../src/rpc-server/
                    ../external_libs/json/
                    ../yaml-cpp/include/
               ''';
