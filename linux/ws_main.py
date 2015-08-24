@@ -159,7 +159,7 @@ rpc_server_mock_src = SrcGroup(dir='src/rpc-server/src',
                           ])
 
 # JSON package
-json_src = SrcGroup(dir='external_libs/json',
+json_src = SrcGroup(dir='external_libs/cpp/json',
                     src_list=[
                         'jsoncpp.cpp'
                         ])
@@ -170,7 +170,7 @@ rpc_server_mock = SrcGroups([cmn_src,
                              json_src
                              ])
 
-yaml_src = SrcGroup(dir='yaml-cpp/src/',
+yaml_src = SrcGroup(dir='external_libs/cpp/yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
             'binary.cpp',
@@ -221,11 +221,11 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 
 
 includes_path =''' ../src/pal/linux/
-                   ../src/zmq/include/
                    ../src/
                    ../src/rpc-server/include
-                   ../external_libs/json/
-                   ../yaml-cpp/include/
+                   ../external_libs/cpp/json/
+                   ../external_libs/cpp/zmq/include/
+                   ../external_libs/cpp/yaml-cpp/include/
               ''';
 
 
@@ -349,15 +349,15 @@ build_types = [
                build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_32, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
-               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False)
+               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
 
-               #build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False),
+               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False),
               ]
 
 
 
 def build_prog (bld, build_obj):
-    zmq_lib_path='src/zmq/'
+    zmq_lib_path='external_libs/cpp/zmq/'
     bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
     bld.program(features='cxx cxxprogram', 

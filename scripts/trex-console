@@ -1,2 +1,2 @@
 #!/bin/bash
-../src/console/trex_console.py $@
+../scripts/automation/trex_control_plane/console/trex_console.py $@

@@ -35,7 +35,7 @@ class CTRexClient(object):
 
     def __init__(self, trex_host, max_history_size = 100, trex_daemon_port = 8090, trex_zmq_port = 4500, verbose = False):
         """ 
-        Instatiate a T-Rex client object, and connecting it to listening deamon-server
+        Instantiate a T-Rex client object, and connecting it to listening daemon-server
 
         :parameters:
              trex_host : str
@@ -45,15 +45,15 @@ class CTRexClient(object):
 
                 default value : **100**
              trex_daemon_port : int
-                the port number on which the trex-deamon server can be reached
+                the port number on which the trex-daemon server can be reached
 
                 default value: **8090**
              trex_zmq_port : int
-                the port number on which trex's zmq module will interact with deamon server
+                the port number on which trex's zmq module will interact with daemon server
 
                 default value: **4500**
              verbose : bool
-                sets a verbose output on suported class method.
+                sets a verbose output on supported class method.
 
                 default value : **False**
 
@@ -153,7 +153,7 @@ class CTRexClient(object):
         """
         Request to stop a T-Rex run on server. 
 
-        The request is only valid if the stop intitiator is the same client as the T-Rex run intitiator.
+        The request is only valid if the stop initiator is the same client as the T-Rex run initiator.
                 
         :parameters:        
             None
@@ -223,7 +223,7 @@ class CTRexClient(object):
         """
         Block the client application until T-Rex changes state from 'Starting' to either 'Idle' or 'Running'
 
-        The request is only valid if the stop intitiator is the same client as the T-Rex run intitiator.
+        The request is only valid if the stop initiator is the same client as the T-Rex run initiator.
 
         :parameters:        
             timeout : int

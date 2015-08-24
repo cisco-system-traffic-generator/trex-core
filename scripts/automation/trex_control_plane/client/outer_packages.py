@@ -2,14 +2,12 @@
 
 import sys
 import site
-import platform
 import os
-
 
 CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
 ROOT_PATH           = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir))     # path to trex_control_plane directory
-PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, 'python_lib'))
-
+PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pardir,
+                                                   os.pardir, 'external_libs', 'python'))
 
 CLIENT_MODULES = ['enum34-1.0.4',
                   'jsonrpclib-pelix-0.2.5',

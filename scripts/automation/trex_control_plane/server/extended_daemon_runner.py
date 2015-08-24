@@ -8,18 +8,17 @@ import os, sys
 from argparse import ArgumentParser
 from trex_server import trex_parser
 try:
-    from python_lib.termstyle import termstyle
+    from termstyle import termstyle
 except ImportError:
     import termstyle
 
 
-
-def daemonize_parser (parser_obj, action_funcs, help_menu):
+def daemonize_parser(parser_obj, action_funcs, help_menu):
     """Update the regular process parser to deal with daemon process options"""
     parser_obj.description += " (as a daemon process)"
     parser_obj.usage = None
-    parser_obj.add_argument("action", choices = action_funcs, 
-        action="store", help = help_menu )
+    parser_obj.add_argument("action", choices=action_funcs,
+                            action="store", help=help_menu)
     return
 
 
@@ -42,7 +41,7 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
     (*) start-live : start the application in live mode (no daemon process).
     """
 
-    def __init__ (self, app, parser_obj):
+    def __init__(self, app, parser_obj):
         """ Set up the parameters of a new runner.
             THIS METHOD INTENTIONALLY DO NOT INVOKE SUPER __init__() METHOD
 
@@ -78,8 +77,8 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
         self.daemon_context = daemon.DaemonContext()
         self.daemon_context.stdin = open(app.stdin_path, 'rt')
         self.daemon_context.stdout = open(app.stdout_path, 'w+t')
-        self.daemon_context.stderr = open(                          
-                app.stderr_path, 'a+t', buffering=0)
+        self.daemon_context.stderr = open(app.stderr_path,
+                                          'a+t', buffering=0)
 
         self.pidfile = None
         if app.pidfile_path is not None:
@@ -87,23 +86,22 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
         self.daemon_context.pidfile = self.pidfile
 
         # mask out all arguments that aren't relevant to main app script
-        
 
-    def update_action_funcs (self):
+    def update_action_funcs(self):
         self.action_funcs.update({u'start-live': self._start_live, u'show': self._show})     # add key (=action), value (=desired func)
 
     @staticmethod
-    def _start_live (self):
+    def _start_live(self):
         self.app.run()
 
     @staticmethod
-    def _show (self):
+    def _show(self):
         if self.pidfile.is_locked():
             print termstyle.red("T-Rex server daemon is running")
         else:
             print termstyle.red("T-Rex server daemon is NOT running")
 
-    def do_action (self):
+    def do_action(self):
         self.__prevent_duplicate_runs()
         self.__prompt_init_msg()
         try:
@@ -117,7 +115,7 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
                 self.do_action()
 
     
-    def __prevent_duplicate_runs (self):
+    def __prevent_duplicate_runs(self):
         if self.action == 'start' and self.pidfile.is_locked():
             print termstyle.green("Server daemon is already running")
             exit(1)
@@ -125,13 +123,13 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
             print termstyle.green("Server daemon is not running")
             exit(1)
 
-    def __prompt_init_msg (self):
+    def __prompt_init_msg(self):
         if self.action == 'start':
             print termstyle.green("Starting daemon server...")
         elif self.action == 'stop':
             print termstyle.green("Stopping daemon server...")
 
-    def __verify_termination (self):
+    def __verify_termination(self):
         pass
 #       import time
 #       while self.pidfile.is_locked():

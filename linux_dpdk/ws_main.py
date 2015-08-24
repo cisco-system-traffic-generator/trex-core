@@ -131,7 +131,7 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'VLANHeader.cpp']);
 
 # JSON package
-json_src = SrcGroup(dir='external_libs/json',
+json_src = SrcGroup(dir='external_libs/cpp/json',
         src_list=[
             'jsoncpp.cpp'
            ])
@@ -149,12 +149,12 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/src',
                           ])
 
 # JSON package
-json_src = SrcGroup(dir='external_libs/json',
+json_src = SrcGroup(dir='external_libs/cpp/json',
                     src_list=[
                         'jsoncpp.cpp'
                         ])
 
-yaml_src = SrcGroup(dir='yaml-cpp/src/',
+yaml_src = SrcGroup(dir='external_libs/cpp/yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
             'binary.cpp',
@@ -398,10 +398,13 @@ common_flags_old = common_flags + [
 
 includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
-                   ../external_libs/json/
+                   
                    ../src/rpc-server/include
-                   ../yaml-cpp/include/
-                   ../src/zmq/include/
+
+                   ../external_libs/cpp/yaml-cpp/include/
+                   ../external_libs/cpp/zmq/include/
+                   ../external_libs/cpp/json/
+
                         ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
                         ../src/dpdk_lib18/librte_eal/common/include/
                         ../src/dpdk_lib18/librte_eal/common/
@@ -590,7 +593,7 @@ build_types = [
 
 def build_prog (bld, build_obj):
 
-    zmq_lib_path='src/zmq/'
+    zmq_lib_path='external_libs/cpp/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
 
     #rte_libs =[
