@@ -71,8 +71,6 @@ extern "C" {
 #include "utl_term_io.h"
 #include "msg_manager.h"
 #include "platform_cfg.h"
-                       
-#define VERSION  "1.73"
 
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
@@ -4394,7 +4392,7 @@ int main_test(int argc , char * argv[]){
 
     int ret;
     unsigned lcore_id;
-    printf("Starting  TRex %s please wait  ... \n",VERSION);
+    printf("Starting  TRex %s please wait  ... \n",VERSION_BUILD_NUM);
 
     CGlobalInfo::m_options.preview.clean();
 
@@ -4575,7 +4573,6 @@ void CTRexExtendedDriverBase1G::update_global_config_fdir(port_cfg_t * cfg){
     cfg->update_global_config_fdir_10g_1g();
 }
 
-
 int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
 
     uint16_t hops = get_rx_check_hops();
@@ -4587,15 +4584,15 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
         int i;
         // IPv4: bytes being compared are {TTL, Protocol}
         uint16_t ff_rules_v4[4]={
-            0xFF06 - v4_hops,
-            0xFE11 - v4_hops,
-            0xFF11 - v4_hops,
-            0xFE06 - v4_hops,
+            (uint16_t)(0xFF06 - v4_hops),
+            (uint16_t)(0xFE11 - v4_hops),
+            (uint16_t)(0xFF11 - v4_hops),
+            (uint16_t)(0xFE06 - v4_hops),
         }  ;
         // IPv6: bytes being compared are {NextHdr, HopLimit}
         uint16_t ff_rules_v6[2]={
-            0x3CFF - hops,
-            0x3CFE - hops,
+            (uint16_t)(0x3CFF - hops),
+            (uint16_t)(0x3CFE - hops),
         }  ;
         uint16_t *ff_rules;
         uint16_t num_rules;
@@ -4733,17 +4730,17 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
 
         // IPv4: bytes being compared are {TTL, Protocol}
         uint16_t ff_rules_v4[4]={
-            0xFF11 - v4_hops,
-            0xFE11 - v4_hops,
-            0xFF06 - v4_hops,
-            0xFE06 - v4_hops,
+            (uint16_t)(0xFF11 - v4_hops),
+            (uint16_t)(0xFE11 - v4_hops),
+            (uint16_t)(0xFF06 - v4_hops),
+            (uint16_t)(0xFE06 - v4_hops),
         }  ;
         // IPv6: bytes being compared are {NextHdr, HopLimit}
         uint16_t ff_rules_v6[4]={
-            0x3CFF - hops,
-            0x3CFE - hops,
-            0x3CFF - hops,
-            0x3CFE - hops,
+            (uint16_t)(0x3CFF - hops),
+            (uint16_t)(0x3CFE - hops),
+            (uint16_t)(0x3CFF - hops),
+            (uint16_t)(0x3CFE - hops),
         }  ;
         const rte_l4type ff_rules_type[4]={
             RTE_FDIR_L4TYPE_UDP,

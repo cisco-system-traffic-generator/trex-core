@@ -130,6 +130,30 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+        src_list=[
+            'jsoncpp.cpp'
+           ])
+
+# RPC code
+rpc_server_src = SrcGroup(dir='src/rpc-server/src',
+                          src_list=[
+                              'trex_rpc_server.cpp',
+                              'trex_rpc_req_resp_server.cpp',
+                              'trex_rpc_jsonrpc_v2_parser.cpp',
+                              'trex_rpc_cmds_table.cpp',
+
+                              'commands/trex_rpc_cmd_test.cpp',
+                              'commands/trex_rpc_cmd_general.cpp',
+                          ])
+
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+                    src_list=[
+                        'jsoncpp.cpp'
+                        ])
+
 yaml_src = SrcGroup(dir='yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
@@ -319,6 +343,8 @@ bp =SrcGroups([
                 main_src, 
                 cmn_src ,
                 net_src ,
+                rpc_server_src,
+                json_src,
                 yaml_src,
                 version_src
                 ]);
@@ -333,48 +359,47 @@ l2fwd =SrcGroups([
                 l2fwd_main_src]);
 
 
+# common flags for both new and old configurations
+common_flags = ['-DWIN_UCODE_SIM',
+                '-D_BYTE_ORDER',
+                '-D_LITTLE_ENDIAN',
+                '-DLINUX',
+                '-g',
+                '-Wno-format',
+                '-Wno-deprecated-declarations',
+                '-DRTE_DPDK',
+                '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
+               ]
 
-cxxflags_base =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-Wno-format',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-g',
-           '-DRTE_DPDK',
-           '-march=native',
-           '-DRTE_MACHINE_CPUFLAG_SSE',
-           '-DRTE_MACHINE_CPUFLAG_SSE2',
-           '-DRTE_MACHINE_CPUFLAG_SSE3',
-           '-DRTE_MACHINE_CPUFLAG_SSSE3',
-           '-DRTE_MACHINE_CPUFLAG_SSE4_1',
-           '-DRTE_MACHINE_CPUFLAG_SSE4_2',
-           '-DRTE_MACHINE_CPUFLAG_AES',
-           '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
-           '-DRTE_MACHINE_CPUFLAG_AVX',
-           '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
-           '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
-       ];
+common_flags_new = common_flags + [
+                    '-march=native',
+                    '-DRTE_MACHINE_CPUFLAG_SSE',
+                    '-DRTE_MACHINE_CPUFLAG_SSE2',
+                    '-DRTE_MACHINE_CPUFLAG_SSE3',
+                    '-DRTE_MACHINE_CPUFLAG_SSSE3',
+                    '-DRTE_MACHINE_CPUFLAG_SSE4_1',
+                    '-DRTE_MACHINE_CPUFLAG_SSE4_2',
+                    '-DRTE_MACHINE_CPUFLAG_AES',
+                    '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
+                    '-DRTE_MACHINE_CPUFLAG_AVX',
+                    '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
+                   ]
 
-cxxflags_base_old =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-Wno-format',
-           '-DUCS_210',
-           '-g',
-           '-DRTE_DPDK',
-           '-march=corei7',
-           '-mtune=generic',
-           '-DRTE_MACHINE_CPUFLAG_SSE',
-           '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
-           '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
-       ];
+common_flags_old = common_flags + [
+                      '-march=corei7',
+                      '-DUCS_210',
+                      '-mtune=generic',
+                      '-DRTE_MACHINE_CPUFLAG_SSE',
+                      '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
+                      ];
 
 
 
 
 includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
+                   ../external_libs/json/
+                   ../src/rpc-server/include
                    ../yaml-cpp/include/
                    ../src/zmq/include/
                         ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
@@ -503,20 +528,6 @@ class build_option:
             trg += delimiter + "o"
         return trg;
 
-    def cxxcomp_flags (self,flags):
-        result = copy.copy(flags);
-        if self.is64Platform () :
-            result+=['-m64'];
-        else:
-            result+=['-m32'];
-
-        if self.isRelease () :
-            result+=['-O3'];
-        else:
-            result+=['-O0'];#'-DDEBUG','-D_DEBUG','-DSTILE_CPP_ASSERT','-DSTILE_SHIM_ASSERT'
-
-        return result;
-
     def get_target (self):
         return self.update_executable_name("_t-rex");
 
@@ -526,12 +537,37 @@ class build_option:
     def get_dpdk_target (self):
         return self.update_executable_name("dpdk");
 
-    def get_flags (self):
+    def get_common_flags (self):
         if self.isPIE():
-            return self.cxxcomp_flags(cxxflags_base_old);
+            flags = copy.copy(common_flags_old)
         else:
-            return self.cxxcomp_flags(cxxflags_base);
+            flags = copy.copy(common_flags_new);
 
+        if self.is64Platform () :
+            flags += ['-m64'];
+        else:
+            flags += ['-m32'];
+
+        if self.isRelease () :
+            flags += ['-O3'];
+        else:
+            flags += ['-O0'];
+
+        return (flags)
+
+    def get_cxx_flags (self):
+        flags = self.get_common_flags()
+
+        # support c++ 2011
+        flags += ['-std=c++0x']
+
+        return (flags)
+
+    def get_c_flags (self):
+        flags = self.get_common_flags()
+
+        # for C no special flags yet
+        return (flags)
 
     def get_link_flags(self):
         base_flags = [];
@@ -569,14 +605,14 @@ def build_prog (bld, build_obj):
       features='c ',
       includes = dpdk_includes_path,
       
-      cflags   = (build_obj.get_flags()+DPDK_WARNING ),
+      cflags   = (build_obj.get_c_flags()+DPDK_WARNING ),
       source   = bp_dpdk.file_list(top),
       target=build_obj.get_dpdk_target() 
       );
 
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
-                cxxflags =build_obj.get_flags(),
+                cxxflags =build_obj.get_cxx_flags(),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl'],
                 use =[build_obj.get_dpdk_target(),'zmq'],
@@ -643,8 +679,8 @@ def create_version_files ():
     s +=" extern \"C\" {                        \n"
     s +=" #endif                             \n";
     s +='#define  VERSION_USER  "%s"          \n' % os.environ.get('USER', 'unknown')
-    s +='extern char * get_build_date(void);  \n'
-    s +='extern char * get_build_time(void);  \n'
+    s +='extern const char * get_build_date(void);  \n'
+    s +='extern const char * get_build_time(void);  \n'
     s +='#define VERSION_UIID      "%s"       \n' % uuid.uuid1()
     s +='#define VERSION_BUILD_NUM "%s"       \n' % get_build_num()
     s +="#ifdef __cplusplus                  \n"
@@ -656,20 +692,20 @@ def create_version_files ():
 
     s ='#include "version.h"          \n'
     s +='#define VERSION_UIID1      "%s"       \n' % uuid.uuid1()
-    s +="char * get_build_date(void){ \n"
+    s +="const char * get_build_date(void){ \n"
     s +="    return (__DATE__);       \n"
-    s +="   }      \n"
+    s +="}      \n"
     s +=" \n"
-    s +="char * get_build_time(void){ \n"
+    s +="const char * get_build_time(void){ \n"
     s +="    return (__TIME__ );       \n"
-    s +="   }      \n"
+    s +="}      \n"
 
     write_file (C_VER_FILE,s)
 
 def build_test(bld):
     create_version_files ()
 
-def _copy_single_system (bld, exec_p, build_obj,o):
+def _copy_single_system (bld, exec_p, build_obj):
     o='build_dpdk/linux_dpdk/';
     src_file =  os.path.realpath(o+build_obj.get_target())
     print src_file;
@@ -679,11 +715,21 @@ def _copy_single_system (bld, exec_p, build_obj,o):
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
+def _copy_single_system1 (bld, exec_p, build_obj):
+    o='../scripts/';
+    src_file =  os.path.realpath(o+build_obj.get_target()[1:])
+    print src_file;
+    if os.path.exists(src_file):
+        dest_file = exec_p +build_obj.get_target()[1:]
+        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("chmod +x %s " %(dest_file));
+
+
 def copy_single_system (bld, exec_p, build_obj):
-    _copy_single_system (bld, exec_p, build_obj,'build_dpdk/linux_dpdk/')
+    _copy_single_system (bld, exec_p, build_obj)
 
 def copy_single_system1 (bld, exec_p, build_obj):
-    _copy_single_system (bld, exec_p, build_obj,'../scripts/')
+    _copy_single_system1 (bld, exec_p, build_obj)
 
 
 files_list=[
