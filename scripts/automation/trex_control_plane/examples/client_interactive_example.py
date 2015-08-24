@@ -4,7 +4,7 @@ import trex_root_path
 from client.trex_client import *
 from common.trex_exceptions import *
 import cmd
-from python_lib.termstyle import termstyle
+import termstyle
 import os
 from argparse import ArgumentParser
 from pprint import pprint
