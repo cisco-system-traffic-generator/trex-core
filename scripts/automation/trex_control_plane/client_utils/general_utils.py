@@ -1,6 +1,9 @@
 #!/router/bin/python
 
-import sys,site
+import sys
+import site
+import string
+import random
 import os
 
 try:
@@ -50,7 +53,27 @@ def find_path_to_pardir (pardir, base_path = os.getcwd() ):
     """
     components = base_path.split(os.sep)
     return str.join(os.sep, components[:components.index(pardir)+1])
-    
+
+
+def random_id_gen(length=8):
+    """
+    A generator for creating a random chars id of specific length
+
+    :parameters:
+        length : int
+            the desired length of the generated id
+
+            default: 8
+
+    :return:
+        a random id with each next() request.
+    """
+    id_chars = string.ascii_lowercase + string.digits
+    while True:
+        return_id = ''
+        for i in range(length):
+            return_id += random.choice(id_chars)
+        yield return_id
 
 
 if __name__ == "__main__":
