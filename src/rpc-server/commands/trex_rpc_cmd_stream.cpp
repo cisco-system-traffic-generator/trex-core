@@ -29,19 +29,13 @@ using namespace std;
  * 
  */
 trex_rpc_cmd_rc_e
-TrexRpcCmdGetStatus::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
-    /* validate count */
-    if (params.size() != 1) {
-        generate_err_param_count(result, 0, params.size());
-        return (TrexRpcCommand::RPC_CMD_PARAM_COUNT_ERR);
-    }
+    check_param_count(params, 1, result);
+    check_field_type(params, "stream", FIELD_TYPE_OBJ, result);
 
     Json::Value &stream = result["stream"];
 
-    if (stream == Json::Value::null) {
-        generate_err_param_count
-    }
-    return (RPC_CMD_OK);
+    return (TREX_RPC_CMD_OK);
 }
 

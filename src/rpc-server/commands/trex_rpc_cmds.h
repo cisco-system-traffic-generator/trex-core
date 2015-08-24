@@ -30,60 +30,33 @@ limitations under the License.
 /******************* test section ************/
 
 /**
- * add
- * 
+ * syntactic sugar for creating a simple command
  */
-class TrexRpcCmdTestAdd : public TrexRpcCommand {
-public:
-     TrexRpcCmdTestAdd() : TrexRpcCommand("test_add") {}
-protected:
-     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
-};
+#define TREX_RPC_CMD_DEFINE(class_name, cmd_name)                                       \
+    class class_name : public TrexRpcCommand {                                          \
+    public:                                                                             \
+        class_name () : TrexRpcCommand(cmd_name) {}                                     \
+    protected:                                                                          \
+        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result); \
+    }
+
 
 /**
- * sub 
- *  
+ * test cmds
  */
-class TrexRpcCmdTestSub : public TrexRpcCommand {
-public:
-     TrexRpcCmdTestSub() : TrexRpcCommand("test_sub") {} ;
-protected:
-     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
-};
+TREX_RPC_CMD_DEFINE(TrexRpcCmdTestAdd,    "test_add");
+TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub");
 
 /**
- * ping
- * 
+ * general cmds
  */
-class TrexRpcCmdPing : public TrexRpcCommand {
-public:
-     TrexRpcCmdPing() : TrexRpcCommand("ping") {};
-protected:
-     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
-};
+TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping");
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetReg,     "get_reg_cmds");
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStatus,  "get_status");
 
 /**
- * get all registered commands
- * 
+ * stream cmds
  */
-class TrexRpcCmdGetReg : public TrexRpcCommand {
-public:
-     TrexRpcCmdGetReg() : TrexRpcCommand("get_reg_cmds") {};
-protected:
-     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
-};
+TREX_RPC_CMD_DEFINE(TrexRpcCmdAddStream,  "add_stream");
 
-/**
- * get status
- * 
- */
-class TrexRpcCmdGetStatus : public TrexRpcCommand {
-public:
-     TrexRpcCmdGetStatus() : TrexRpcCommand("get_status") {};
-protected:
-     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
-};
-
-
-/**************** test section end *************/
 #endif /* __TREX_RPC_CMD_H__ */

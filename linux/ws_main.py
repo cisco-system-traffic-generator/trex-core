@@ -149,6 +149,7 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
 
                               'commands/trex_rpc_cmd_test.cpp',
                               'commands/trex_rpc_cmd_general.cpp',
+                              'commands/trex_rpc_cmd_stream.cpp',
 
                           ])
 
