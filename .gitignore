@@ -1,9 +1,19 @@
 # Compiled source #
 ###################
-.lock-waf*
-.waf*
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+.lock*
+linux_dpdk*
 linux*
-build/
+scripts/_t-rex-*
+scripts/bp-sim-*
+scripts/doc/*
+scripts/mock-*
+
 *.pyc
 
  
@@ -19,5 +29,28 @@ build/
 *.rar
 *.tar
 *.zip
+  
+# Logs and databases #
+######################
+*.log
+*.sql
+*.sqlite
  
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Trashes
+ehthumbs.db
+Thumbs.db
 
+
+# IDE/ Editors files #
+######################
+.idea/
+*.vpj
+*.vpw
+*.vtg
+*.vpwhist
+   
