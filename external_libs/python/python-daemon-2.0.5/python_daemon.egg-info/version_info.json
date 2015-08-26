@@ -1,6 +1,0 @@
-{
-    "release_date": "2015-02-02",
-    "version": "2.0.5",
-    "maintainer": "Ben Finney <ben+python@benfinney.id.au>",
-    "body": "* Refine compatibility of exceptions for file operations.\n* Specify the text encoding when opening the changelog file.\n"
-}

@@ -1,7 +1,0 @@
-include MANIFEST.in
-include LICENSE.*
-include ChangeLog
-recursive-include doc *
-include version.py
-include test_version.py
-recursive-include test *.py

@@ -1,3 +1,0 @@
-setuptools
-docutils
-lockfile >=0.10
