@@ -34,16 +34,16 @@ class JsonRpcClient(object):
         print "[verbose] " + msg
 
 
-    def create_jsonrpc_v2 (self, method_name, params = {}, id = None):
+    def create_jsonrpc_v2 (self, method_name, params = {}):
         msg = {}
         msg["jsonrpc"] = "2.0"
         msg["method"]  = method_name
 
         msg["params"] = params
 
-        msg["id"] = id
+        msg["id"] = self.id_gen.next()
 
-        return json.dumps(msg)
+        return id, json.dumps(msg)
 
     def invoke_rpc_method (self, method_name, params = {}, block = False):
         rc, msg = self._invoke_rpc_method(method_name, params, block)
@@ -56,8 +56,7 @@ class JsonRpcClient(object):
         if not self.connected:
             return False, "Not connected to server"
 
-        id = self.id_gen.next()
-        msg = self.create_jsonrpc_v2(method_name, params, id = id)
+        id, msg = self.create_jsonrpc_v2(method_name, params)
 
         self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
@@ -180,7 +179,8 @@ class JsonRpcClient(object):
 
     def __del__(self):
         print "Shutting down RPC client\n"
-        self.context.destroy(linger=0)
+        if hasattr(self, "context"):
+            self.context.destroy(linger=0)
 
 if __name__ == "__main__":
     pass
