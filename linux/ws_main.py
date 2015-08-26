@@ -159,7 +159,7 @@ rpc_server_mock_src = SrcGroup(dir='src/rpc-server/src',
                           ])
 
 # JSON package
-json_src = SrcGroup(dir='external_libs/cpp/json',
+json_src = SrcGroup(dir='external_libs/json',
                     src_list=[
                         'jsoncpp.cpp'
                         ])
@@ -170,7 +170,7 @@ rpc_server_mock = SrcGroups([cmn_src,
                              json_src
                              ])
 
-yaml_src = SrcGroup(dir='external_libs/cpp/yaml-cpp/src/',
+yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
             'binary.cpp',
@@ -223,9 +223,9 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 includes_path =''' ../src/pal/linux/
                    ../src/
                    ../src/rpc-server/include
-                   ../external_libs/cpp/json/
-                   ../external_libs/cpp/zmq/include/
-                   ../external_libs/cpp/yaml-cpp/include/
+                   ../external_libs/json/
+                   ../external_libs/zmq/include/
+                   ../external_libs/yaml-cpp/include/
               ''';
 
 
@@ -357,7 +357,7 @@ build_types = [
 
 
 def build_prog (bld, build_obj):
-    zmq_lib_path='external_libs/cpp/zmq/'
+    zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
     bld.program(features='cxx cxxprogram', 

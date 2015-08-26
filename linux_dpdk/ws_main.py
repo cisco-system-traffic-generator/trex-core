@@ -131,7 +131,7 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'VLANHeader.cpp']);
 
 # JSON package
-json_src = SrcGroup(dir='external_libs/cpp/json',
+json_src = SrcGroup(dir='external_libs/json',
         src_list=[
             'jsoncpp.cpp'
            ])
@@ -149,12 +149,12 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/src',
                           ])
 
 # JSON package
-json_src = SrcGroup(dir='external_libs/cpp/json',
+json_src = SrcGroup(dir='external_libs/json',
                     src_list=[
                         'jsoncpp.cpp'
                         ])
 
-yaml_src = SrcGroup(dir='external_libs/cpp/yaml-cpp/src/',
+yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
             'binary.cpp',
@@ -401,9 +401,9 @@ includes_path =''' ../src/pal/linux_dpdk/
                    
                    ../src/rpc-server/include
 
-                   ../external_libs/cpp/yaml-cpp/include/
-                   ../external_libs/cpp/zmq/include/
-                   ../external_libs/cpp/json/
+                   ../external_libs/yaml-cpp/include/
+                   ../external_libs/zmq/include/
+                   ../external_libs/json/
 
                         ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
                         ../src/dpdk_lib18/librte_eal/common/include/
@@ -593,7 +593,7 @@ build_types = [
 
 def build_prog (bld, build_obj):
 
-    zmq_lib_path='external_libs/cpp/zmq/'
+    zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
 
     #rte_libs =[
@@ -750,7 +750,7 @@ files_list=[
             'trex_daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation','python-lib']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib']
 
 
 class Env(object):
