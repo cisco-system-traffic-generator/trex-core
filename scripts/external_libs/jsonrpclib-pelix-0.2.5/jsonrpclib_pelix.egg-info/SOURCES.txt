@@ -1,0 +1,17 @@
+LICENSE.txt
+MANIFEST.in
+README.rst
+setup.cfg
+setup.py
+jsonrpclib/SimpleJSONRPCServer.py
+jsonrpclib/__init__.py
+jsonrpclib/config.py
+jsonrpclib/history.py
+jsonrpclib/jsonclass.py
+jsonrpclib/jsonrpc.py
+jsonrpclib/threadpool.py
+jsonrpclib/utils.py
+jsonrpclib_pelix.egg-info/PKG-INFO
+jsonrpclib_pelix.egg-info/SOURCES.txt
+jsonrpclib_pelix.egg-info/dependency_links.txt
+jsonrpclib_pelix.egg-info/top_level.txt

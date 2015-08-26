@@ -1,0 +1,156 @@
+‘python-daemon’ Frequently Asked Questions
+##########################################
+
+:Author: Ben Finney <ben+python@benfinney.id.au>
+:Updated: 2015-01-10
+
+..  contents::
+..
+    1  General
+      1.1  What is the purpose of the ‘python-daemon’ library?
+      1.2  How can I run a service communicating with a separate daemon process?
+    2  Security
+      2.1  Why is the umask set to 0 by default?
+    3  File descriptors
+      3.1  Why does the output stop after opening the daemon context?
+      3.2  How can I preserve a ‘logging’ handler's file descriptor?
+
+General
+=======
+
+What is the purpose of the ‘python-daemon’ library?
+---------------------------------------------------
+
+The ‘python-daemon’ library has a deliberately narrow focus: that of
+being a reference implementation for `PEP 3143`_, “Standard daemon
+process library”.
+
+..  _`PEP 3143`: http://www.python.org/dev/peps/pep-3143
+
+How can I run a service communicating with a separate daemon process?
+---------------------------------------------------------------------
+
+As specified in `PEP 3143`_, the ‘python-daemon’ library is
+specifically focussed on the goal of having the *current running
+program* become a well-behaved Unix daemon process. This leaves open
+the question of how this program is started, or about multiple
+programs interacting. As detailed in PEP 3143:
+
+    A daemon is not a service
+
+    There is a related concept in many systems, called a “service”. A
+    service differs from the model in this PEP, in that rather than
+    having the *current* program continue to run as a daemon process,
+    a service starts an *additional* process to run in the background,
+    and the current process communicates with that additional process
+    via some defined channels.
+
+    The Unix-style daemon model in this PEP can be used, among other
+    things, to implement the background-process part of a service; but
+    this PEP does not address the other aspects of setting up and
+    managing a service.
+
+A possible starting point for such a “service” model of execution is
+in a `message from 2009-01-30`_ to the ``python-ideas`` forum.
+
+..  _`message from 2009-01-30`: http://mail.python.org/pipermail/python-ideas/2009-January/002606.html
+
+
+Security
+========
+
+Why is the umask set to 0 by default?
+-------------------------------------
+
+A daemon should not rely on the parent process's umask value, which is
+beyond its control and may prevent creating a file with the required
+access mode. So when the daemon context opens, the umask is set to an
+explicit known value.
+
+If the conventional value of 0 is too open, consider setting a value
+such as 0o022, 0o027, 0o077, or another specific value. Otherwise,
+ensure the daemon creates every file with an explicit access mode for
+the purpose.
+
+
+File descriptors
+================
+
+Why does the output stop after opening the daemon context?
+----------------------------------------------------------
+
+The specified behaviour in `PEP 3143`_ includes the requirement to
+detach the process from the controlling terminal (to allow the process
+to continue to run as a daemon), and to close all file descriptors not
+known to be safe once detached (to ensure any files that continue to
+be used are under the control of the daemon process).
+
+If you want the process to generate output via the system streams
+‘sys.stdout’ and ‘sys.stderr’, set the ‘DaemonContext’'s ‘stdout’
+and/or ‘stderr’ options to a file-like object (e.g. the ‘stream’
+attribute of a ‘logging.Handler’ instance). If these objects have file
+descriptors, they will be preserved when the daemon context opens.
+
+How can I preserve a ‘logging’ handler's file descriptor?
+---------------------------------------------------------
+
+The ‘DaemonContext.open’ method conforms to `PEP 3143`_ by closing all
+open file descriptors, but excluding those files specified in the
+‘files_preserve’ option. This option is a list of files or file
+descriptors.
+
+The Python standard library ‘logging’ module provides log handlers
+that write to streams, including to files via the ‘StreamHandler’
+class and its sub-classes. The documentation (both the online `logging
+module documentation`_ and the docstrings for the code) makes no
+mention of a way to get at the stream associated with a handler
+object.
+
+However, looking at the source code for ‘StreamHandler’, in Python 2.5
+as ``/usr/lib/python2.5/logging/__init__.py``, shows a ‘stream’
+attribute that is bound to the stream object. The attribute is not
+marked private (i.e. it is not named with a leading underscore), so we
+can presume it is part of the public API.
+
+That attribute can then be used to specify that a logging handler's
+file descriptor should, when the ‘DaemonContext’ opens, be excluded
+from closure::
+
+    import logging
+    import daemon
+
+    # any subclass of StreamHandler should provide the ‘stream’ attribute.
+    lh = logging.handlers.TimedRotatingFileHandler(
+            "/var/log/foo.log",
+            # …
+            )
+
+    # … do some logging and other activity …
+
+    daemon_context = daemon.DaemonContext()
+    daemon_context.files_preserve = [lh.stream]
+
+    daemon_context.open()
+
+    # … continue as a daemon process …
+
+..  _`logging module documentation`: http://docs.python.org/library/logging
+
+
+..
+    This is free software: you may copy, modify, and/or distribute this work
+    under the terms of the Apache License version 2.0 as published by the
+    Apache Software Foundation.
+    No warranty expressed or implied. See the file ‘LICENSE.ASF-2’ for details.
+
+..
+    Local variables:
+    coding: utf-8
+    mode: text
+    mode: rst
+    time-stamp-format: "%:y-%02m-%02d"
+    time-stamp-start: "^:Updated:[         ]+"
+    time-stamp-end: "$"
+    time-stamp-line-limit: 20
+    End:
+    vim: fileencoding=utf-8 filetype=rst :
