@@ -93,7 +93,7 @@ class InteractiveStatelessTRex(cmd.Cmd):
             print termstyle.magenta(inst)
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description=termstyle.cyan('Run T-Rex client API demos and scenarios.'),
+    parser = ArgumentParser(description=termstyle.cyan('Run TRex client stateless API demos and scenarios.'),
                             usage="client_interactive_example [options]")
 
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0 \t (C) Cisco Systems Inc.\n')
@@ -101,8 +101,8 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--trex-host", required = True, dest="trex_host",
         action="store", help="Specify the hostname or ip to connect with T-Rex server.",
         metavar="HOST" )
-    parser.add_argument("-p", "--trex-port", type=int, default = 8090, metavar="PORT", dest="trex_port",
-        help="Select port on which the T-Rex server listens. Default port is 8090.", action="store")
+    parser.add_argument("-p", "--trex-port", type=int, default = 5050, metavar="PORT", dest="trex_port",
+        help="Select port on which the T-Rex server listens. Default port is 5050.", action="store")
     # parser.add_argument("-m", "--maxhist", type=int, default = 100, metavar="SIZE", dest="hist_size",
     #     help="Specify maximum history size saved at client side. Default size is 100.", action="store")
     parser.add_argument("--virtual", dest="virtual",
