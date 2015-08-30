@@ -156,7 +156,7 @@ json_src = SrcGroup(dir='external_libs/json',
                         'jsoncpp.cpp'
                         ])
 
-yaml_src = SrcGroup(dir='yaml-cpp/src/',
+yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
             'binary.cpp',
@@ -400,10 +400,13 @@ common_flags_old = common_flags + [
 
 includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
-                   ../external_libs/json/
+                   
                    ../src/rpc-server/
-                   ../yaml-cpp/include/
-                   ../src/zmq/include/
+
+                   ../external_libs/yaml-cpp/include/
+                   ../external_libs/zmq/include/
+                   ../external_libs/json/
+
                         ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
                         ../src/dpdk_lib18/librte_eal/common/include/
                         ../src/dpdk_lib18/librte_eal/common/
@@ -592,7 +595,7 @@ build_types = [
 
 def build_prog (bld, build_obj):
 
-    zmq_lib_path='src/zmq/'
+    zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
 
     #rte_libs =[
@@ -749,7 +752,7 @@ files_list=[
             'trex_daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation','python-lib']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib']
 
 
 class Env(object):

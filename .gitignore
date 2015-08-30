@@ -45,8 +45,10 @@ scripts/mock-*
 ehthumbs.db
 Thumbs.db
 
-# slickedit files #
-###################
+
+# IDE/ Editors files #
+######################
+.idea/
 *.vpj
 *.vpw
 *.vtg
