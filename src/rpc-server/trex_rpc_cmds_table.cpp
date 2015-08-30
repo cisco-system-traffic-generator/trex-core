@@ -33,6 +33,9 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdPing());
     register_command(new TrexRpcCmdGetReg());
     register_command(new TrexRpcCmdGetStatus());
+
+    /* stream commands */
+    register_command(new TrexRpcCmdAddStream());
 }
 
 TrexRpcCommandsTable::~TrexRpcCommandsTable() {

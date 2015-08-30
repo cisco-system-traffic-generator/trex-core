@@ -224,3 +224,19 @@ TEST_F(RpcTest, batch_rpc_test) {
 
     return;
 }
+
+TEST_F(RpcTest, add_stream) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    string req_str;
+    string resp_str;
+
+    req_str = "{'stream':{'port_id':7,'stream_id':12,'enable':True,'start':True,'Is':10.0,'packet':[0,1,2,3,4],"
+              "'vm_data':[{'Name':'ip_cnt','Size':4,'big_edian':True,'type':'inc','core_mask':'split','init_val':'10.0.0.7','min':'10.0.0.1','max':'10.0.0.10',}],"
+              "'vm_program':[{'op_core':['read_to_reg_mem','write_reg_offet','write_rand_offset'],'read_name':'nameofopecodetoread','pkt_offset':20}],"
+              "'mode':{'type':'continues','pps':1000},'next_stream':17,'next_stream_loop':100,'rx_stats':{'enable':True,'rx_stream_id':71,'seq_enable':True,'latency':True}}}";
+
+    resp_str = send_msg(req_str);
+}

@@ -52,6 +52,8 @@ TrexRpcCommand::type_to_str(field_type_e type) {
         return "bool";
     case FIELD_TYPE_INT:
         return "int";
+    case FIELD_TYPE_DOUBLE:
+        return "double";
     case FIELD_TYPE_OBJ:
         return "object";
     case FIELD_TYPE_STR:
@@ -113,6 +115,12 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &n
 
     case FIELD_TYPE_INT:
         if (!field.isInt()) {
+            rc = false;
+        }
+        break;
+
+    case FIELD_TYPE_DOUBLE:
+        if (!field.isDouble()) {
             rc = false;
         }
         break;

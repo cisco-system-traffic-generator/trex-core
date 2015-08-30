@@ -91,6 +91,7 @@ protected:
      */
     enum field_type_e {
         FIELD_TYPE_INT,
+        FIELD_TYPE_DOUBLE,
         FIELD_TYPE_BOOL,
         FIELD_TYPE_STR,
         FIELD_TYPE_OBJ,
