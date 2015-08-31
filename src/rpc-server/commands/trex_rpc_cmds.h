@@ -25,6 +25,8 @@ limitations under the License.
 #include <trex_rpc_cmd_api.h>
 #include <json/json.h>
 
+class TrexStream;
+
 /* all the RPC commands decl. goes here */
 
 /******************* test section ************/
@@ -32,31 +34,43 @@ limitations under the License.
 /**
  * syntactic sugar for creating a simple command
  */
-#define TREX_RPC_CMD_DEFINE(class_name, cmd_name)                                       \
-    class class_name : public TrexRpcCommand {                                          \
-    public:                                                                             \
-        class_name () : TrexRpcCommand(cmd_name) {}                                     \
-    protected:                                                                          \
-        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result); \
+
+#define TREX_RPC_CMD_DEFINE_EXTENED(class_name, cmd_name, param_count, ext)                               \
+    class class_name : public TrexRpcCommand {                                                            \
+    public:                                                                                               \
+        class_name () : TrexRpcCommand(cmd_name, param_count) {}                                          \
+    protected:                                                                                            \
+        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);                   \
+        ext                                                                                               \
     }
 
+#define TREX_RPC_CMD_DEFINE(class_name, cmd_name, param_count) TREX_RPC_CMD_DEFINE_EXTENED(class_name, cmd_name, param_count, ;)
 
 /**
  * test cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdTestAdd,    "test_add");
-TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub");
+TREX_RPC_CMD_DEFINE(TrexRpcCmdTestAdd,    "test_add", 2);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub", 2);
 
 /**
  * general cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping");
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetReg,     "get_reg_cmds");
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStatus,  "get_status");
+TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping",            0);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetReg,     "get_reg_cmds",    0);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStatus,  "get_status",      0);
 
 /**
  * stream cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdAddStream,  "add_stream");
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveStream,   "remove_stream",   2);
+
+TREX_RPC_CMD_DEFINE_EXTENED(TrexRpcCmdAddStream, "add_stream", 1,
+
+/* extended part */
+TrexStream * allocate_new_stream(const Json::Value &section, Json::Value &result);
+void validate_stream(const TrexStream *stream, Json::Value &result);
+
+);
+
 
 #endif /* __TREX_RPC_CMD_H__ */

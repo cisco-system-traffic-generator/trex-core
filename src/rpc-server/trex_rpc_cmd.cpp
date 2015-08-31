@@ -26,6 +26,7 @@ TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
 
     /* the internal run can throw a parser error / other error */
     try {
+        check_param_count(params, m_param_count, result);
         rc = _run(params, result);
     } catch (TrexRpcCommandException &e) {
         return e.get_rc();
@@ -40,7 +41,7 @@ TrexRpcCommand::check_param_count(const Json::Value &params, int expected, Json:
     if (params.size() != expected) {
         std::stringstream ss;
         ss << "method expects '" << expected << "' paramteres, '" << params.size() << "' provided";
-        generate_err(result, ss.str());
+        generate_parse_err(result, ss.str());
     }
 }
 
@@ -177,7 +178,7 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
     /* first check if field exists */
     if (field == Json::Value::null) {
         ss << "field '" << name << "' is missing";
-        generate_err(result, ss.str());
+        generate_parse_err(result, ss.str());
     }
 
     bool rc = true;
@@ -232,20 +233,26 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
     }
     if (!rc) {
         ss << "error at offset: " << field.getOffsetStart() << " - '" << name << "' is '" << json_type_to_name(field) << "', expecting '" << type_to_str(type) << "'";
-        generate_err(result, ss.str());
+        generate_parse_err(result, ss.str());
     }
 
 }
 
 void 
-TrexRpcCommand::generate_err(Json::Value &result, const std::string &msg) {
+TrexRpcCommand::generate_parse_err(Json::Value &result, const std::string &msg) {
     result["specific_err"] = msg;
-    throw (TrexRpcCommandException(TREX_RPC_CMD_PARAM_PARSE_ERR));
+    throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR));
 }
 
 void 
 TrexRpcCommand::generate_internal_err(Json::Value &result, const std::string &msg) {
     result["specific_err"] = msg;
     throw (TrexRpcCommandException(TREX_RPC_CMD_INTERNAL_ERR));
+}
+
+void 
+TrexRpcCommand::generate_execute_err(Json::Value &result, const std::string &msg) {
+    result["specific_err"] = msg;
+    throw (TrexRpcCommandException(TREX_RPC_CMD_EXECUTE_ERR));
 }
 

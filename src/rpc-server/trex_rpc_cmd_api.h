@@ -32,8 +32,8 @@ limitations under the License.
  */
 typedef enum trex_rpc_cmd_rc_ {
     TREX_RPC_CMD_OK,
-    TREX_RPC_CMD_PARAM_COUNT_ERR = 1,
-    TREX_RPC_CMD_PARAM_PARSE_ERR,
+    TREX_RPC_CMD_PARSE_ERR,
+    TREX_RPC_CMD_EXECUTE_ERR,
     TREX_RPC_CMD_INTERNAL_ERR
 } trex_rpc_cmd_rc_e;
 
@@ -68,7 +68,7 @@ public:
     /**
      * method name and params
      */
-    TrexRpcCommand(const std::string &method_name) : m_name(method_name) {
+    TrexRpcCommand(const std::string &method_name, int param_count) : m_name(method_name), m_param_count(param_count) {
 
     }
 
@@ -142,14 +142,21 @@ protected:
      * error generating functions
      * 
      */
-    void generate_err(Json::Value &result, const std::string &msg);
+    void generate_parse_err(Json::Value &result, const std::string &msg);
 
+
+    /**
+     * method execute error
+     * 
+     */
+    void generate_execute_err(Json::Value &result, const std::string &msg);
 
     /**
      * internal error
      * 
      */
     void generate_internal_err(Json::Value &result, const std::string &msg);
+
 
     /**
      * translate enum to string
@@ -164,7 +171,8 @@ protected:
     const char * json_type_to_name(const Json::Value &value);
 
     /* RPC command name */
-    std::string m_name;
+    std::string   m_name;
+    int           m_param_count;
 };
 
 #endif /* __TREX_RPC_CMD_API_H__ */

@@ -34,9 +34,6 @@ using namespace std;
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetStatus::_run(const Json::Value &params, Json::Value &result) {
 
-    /* validate count */
-    check_param_count(params, 0, result);
-
     Json::Value &section = result["result"];
 
     #ifndef TREX_RPC_MOCK_SERVER

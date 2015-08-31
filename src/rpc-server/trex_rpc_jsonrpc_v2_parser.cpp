@@ -37,7 +37,10 @@ enum {
     JSONRPC_V2_ERR_INVALID_REQ        = -32600,
     JSONRPC_V2_ERR_METHOD_NOT_FOUND   = -32601,
     JSONRPC_V2_ERR_INVALID_PARAMS     = -32602,
-    JSONRPC_V2_ERR_INTERNAL_ERROR     = -32603
+    JSONRPC_V2_ERR_INTERNAL_ERROR     = -32603,
+
+    /* specific server errors */
+    JSONRPC_V2_ERR_EXECUTE_ERROR      = -32000,
 };
 
 
@@ -78,10 +81,15 @@ public:
             response["result"] = result["result"];
             break;
 
-        case TREX_RPC_CMD_PARAM_COUNT_ERR:
-        case TREX_RPC_CMD_PARAM_PARSE_ERR:
+        case TREX_RPC_CMD_PARSE_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_INVALID_PARAMS;
             response["error"]["message"]       = "Bad paramters for method";
+            response["error"]["specific_err"]  = result["specific_err"];
+            break;
+
+        case TREX_RPC_CMD_EXECUTE_ERR:
+            response["error"]["code"]          = JSONRPC_V2_ERR_EXECUTE_ERROR;
+            response["error"]["message"]       = "Failed To Execute Method";
             response["error"]["specific_err"]  = result["specific_err"];
             break;
 

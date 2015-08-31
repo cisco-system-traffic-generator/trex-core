@@ -35,8 +35,6 @@ TrexRpcCmdTestAdd::_run(const Json::Value &params, Json::Value &result) {
     const Json::Value &x = params["x"];
     const Json::Value &y = params["y"];
     
-    check_param_count(params, 2, result);
-
     result["result"] = parse_int(params, "x", result) + parse_int(params, "y", result);
 
     return (TREX_RPC_CMD_OK);
@@ -53,8 +51,6 @@ TrexRpcCmdTestSub::_run(const Json::Value &params, Json::Value &result) {
     const Json::Value &x = params["x"];
     const Json::Value &y = params["y"];
         
-    check_param_count(params, 2, result);
-
     result["result"] = parse_int(params, "x", result) - parse_int(params, "y", result);
 
     return (TREX_RPC_CMD_OK);
@@ -66,9 +62,6 @@ TrexRpcCmdTestSub::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e 
 TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 
-    /* validate count */
-    check_param_count(params, 0, result);
-
     result["result"] = "ACK";
     return (TREX_RPC_CMD_OK);
 }
@@ -79,9 +72,6 @@ TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e 
 TrexRpcCmdGetReg::_run(const Json::Value &params, Json::Value &result) {
     vector<string> cmds;
-
-    /* validate count */
-    check_param_count(params, 0, result);
 
     TrexRpcCommandsTable::get_instance().query(cmds);
 

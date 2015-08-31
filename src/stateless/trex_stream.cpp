@@ -24,13 +24,25 @@ limitations under the License.
 /**************************************
  * stream
  *************************************/
-TrexStream::TrexStream() {
-    pkt = NULL;
+TrexStream::TrexStream(uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) {
+
+    /* default values */
+    m_isg_usec = 0;
+    m_next_stream_id = -1;
+    m_loop_count = 0;
+    m_enable = false;
+    m_start = false;
+
+    m_pkt = NULL;
+    m_pkt_len = 0;
+
+    m_rx_check.m_enable = false;
+
 }
 
 TrexStream::~TrexStream() {
-    if (pkt) {
-        delete [] pkt;
+    if (m_pkt) {
+        delete [] m_pkt;
     }
 }
 
@@ -48,17 +60,17 @@ TrexStreamTable::~TrexStreamTable() {
 }
 
 void TrexStreamTable::add_stream(TrexStream *stream) {
-    TrexStream *old_stream = get_stream_by_id(stream->stream_id);
+    TrexStream *old_stream = get_stream_by_id(stream->m_stream_id);
     if (old_stream) {
         remove_stream(old_stream);
         delete old_stream;
     }
 
-    m_stream_table[stream->stream_id] = stream;
+    m_stream_table[stream->m_stream_id] = stream;
 }                                           
 
 void TrexStreamTable::remove_stream(TrexStream *stream) {
-    m_stream_table.erase(stream->stream_id);
+    m_stream_table.erase(stream->m_stream_id);
 }
 
 TrexStream * TrexStreamTable::get_stream_by_id(uint32_t stream_id) {
