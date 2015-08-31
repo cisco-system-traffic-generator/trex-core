@@ -402,6 +402,7 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
                    
                    ../src/rpc-server/
+                   ../src/stateless/
 
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq/include/

@@ -19,8 +19,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include "trex_rpc_cmds.h"
-#include <../linux_dpdk/version.h>
 #include <trex_rpc_server_api.h>
+
+#ifndef TREX_RPC_MOCK_SERVER
+    #include <../linux_dpdk/version.h>
+#endif
 
 using namespace std;
 
@@ -36,11 +39,23 @@ TrexRpcCmdGetStatus::_run(const Json::Value &params, Json::Value &result) {
 
     Json::Value &section = result["result"];
 
+    #ifndef TREX_RPC_MOCK_SERVER
+
     section["general"]["version"]       = VERSION_BUILD_NUM;
     section["general"]["build_date"]    = get_build_date();
     section["general"]["build_time"]    = get_build_time();
     section["general"]["version_user"]  = VERSION_USER;
     section["general"]["uptime"]        = TrexRpcServer::get_server_uptime();
+
+    #else
+
+    section["general"]["version"]       = "v0.0";
+    section["general"]["build_date"]    = __DATE__;
+    section["general"]["build_time"]    = __TIME__;
+    section["general"]["version_user"]  = "MOCK";
+    section["general"]["uptime"]        = TrexRpcServer::get_server_uptime();
+
+    #endif
 
     return (TREX_RPC_CMD_OK);
 }

@@ -21,110 +21,13 @@ limitations under the License.
 #include "trex_rpc_cmds.h"
 #include <../linux_dpdk/version.h>
 #include <trex_rpc_server_api.h>
+#include <trex_stream_api.h>
+#include <trex_stateless_api.h>
+
+#include <iostream>
 
 using namespace std;
 
-/**
- * Stateless stream mode
- * abstract class
- */
-class TrexStreamMode {
-public:
-    enum mode_e {
-        CONTINUOUS,
-        SINGLE_BURST,
-        MULTI_BURST
-    };
-
-    virtual mode_e get_runtime_type() = 0;
-    virtual ~TrexStreamMode() {}
-};
-
-/**
- * stream mode continuous
- * 
- * @author imarom (30-Aug-15)
- */
-class TrexStreamModeContinuous : public TrexStreamMode {
-public:
-    mode_e get_runtime_type() {
-        return (CONTINUOUS);
-    }
-private:
-    uint32_t pps;
-};
-
-/**
- * single burst mode
- * 
- */
-class TrexStreamModeSingleBurst : public TrexStreamMode {
-public:
-    mode_e get_runtime_type() {
-        return (SINGLE_BURST);
-    }
-private:
-
-    uint32_t packets;
-    uint32_t pps;
-};
-
-class TrexStreamModeMultiBurst : public TrexStreamMode {
-public:
-
-    mode_e get_runtime_type() {
-        return (MULTI_BURST);
-    }
-
-private:
-
-    uint32_t pps;
-    double   ibg_usec;
-    uint32_t number_of_bursts;
-    uint32_t pkts_per_burst;
-};
-
-
-/**
- * Stateless Stream
- * 
- */
-class TrexStatelessStream {
-    friend class TrexRpcCmdAddStream;
-
-public:
-
-private:
-    /* config */
-    uint32_t      stream_id;
-    uint8_t       port_id;
-    double        isg_usec;
-    uint32_t      next_stream_id;
-    uint32_t      loop_count;
-
-    /* indicators */
-    bool          enable;
-    bool          start;
-    
-    /* pkt */
-    uint8_t      *pkt;
-    uint16_t      pkt_len;
-
-    /* stream mode */
-    TrexStreamMode *mode;
-
-    /* VM */
-
-    /* RX check */
-    struct {
-        bool      enable;
-        bool      seq_enable;
-        bool      latency;
-        uint32_t  stream_id;
-
-    } rx_check;
-
-};
 /**
  * add new stream
  * 
@@ -132,23 +35,64 @@ private:
 trex_rpc_cmd_rc_e
 TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
-    TrexStatelessStream stream;
+    TrexStream *stream;
 
     check_param_count(params, 1, result);
-    check_field_type(params, "stream", FIELD_TYPE_OBJ, result);
 
-    Json::Value &section = result["stream"];
-    
+    const Json::Value &section = parse_object(params, "stream", result);
+
+    /* get the type of the stream */
+    const Json::Value &mode = parse_object(section, "mode", result);
+    string type = parse_string(mode, "type", result);
+
+    if (type == "continuous") {
+        stream = new TrexStreamContinuous();
+    } else if (type == "single_burst") {
+        stream = new TrexStreamSingleBurst();
+    } else if (type == "multi_burst") {
+        stream = new TrexStreamMultiBurst();
+    } else {
+        generate_err(result, "bad stream type provided: '" + type + "'");
+    }
+
+    if (!stream) {
+        generate_internal_err(result, "unable to allocate memory");
+    }
+
     /* create a new steram and populate it */
-    
-    check_field_type(section, "stream_id", FIELD_TYPE_INT, result);
-    stream.stream_id = section["stream_id"].asInt();
+    stream->stream_id = parse_int(section, "stream_id", result);
+    stream->port_id   = parse_int(section, "port_id", result);
+    stream->isg_usec  = parse_double(section, "Is", result);
 
-    check_field_type(section, "port_id", FIELD_TYPE_INT, result);
-    stream.port_id = section["port_id"].asInt();
+    stream->next_stream_id = parse_int(section, "next_stream_id", result);
+    stream->loop_count     = parse_int(section, "loop_count", result);
 
-    check_field_type(section, "Is", FIELD_TYPE_DOUBLE, result);
-    stream.isg_usec = section["Is"].asDouble();
+    const Json::Value &pkt = parse_array(section, "packet", result);
+
+    if ( (pkt.size() < TrexStream::MIN_PKT_SIZE_BYTES) || (pkt.size() > TrexStream::MAX_PKT_SIZE_BYTES) ) {
+        generate_err(result, "bad packet size provided: should be between 64B and 9K"); 
+    }
+
+    stream->pkt = new uint8_t[pkt.size()];
+    if (!stream->pkt) {
+        generate_internal_err(result, "unable to allocate memory");
+    }
+
+    for (int i = 0; i < pkt.size(); i++) {
+        stream->pkt[i] = parse_byte(pkt, i, result);
+    }
+
+    /* register the stream to the port */
+
+    /* port id should be between 0 and count - 1 */
+    if (stream->port_id >= get_trex_stateless()->get_port_count()) {
+        std::stringstream ss;
+        ss << "invalid port id - should be between 0 and " << get_trex_stateless()->get_port_count();
+        generate_err(result, ss.str());
+    }
+
+    TrexStatelessPort * port = get_trex_stateless()->get_port_by_id(stream->port_id);
+    port->get_stream_table()->add_stream(stream);
 
     return (TREX_RPC_CMD_OK);
 }

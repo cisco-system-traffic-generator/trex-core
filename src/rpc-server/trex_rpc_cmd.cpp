@@ -41,13 +41,14 @@ TrexRpcCommand::check_param_count(const Json::Value &params, int expected, Json:
         std::stringstream ss;
         ss << "method expects '" << expected << "' paramteres, '" << params.size() << "' provided";
         generate_err(result, ss.str());
-        throw TrexRpcCommandException(TREX_RPC_CMD_PARAM_COUNT_ERR);
     }
 }
 
 const char *
 TrexRpcCommand::type_to_str(field_type_e type) {
     switch (type) {
+    case FIELD_TYPE_BYTE:
+        return "byte";
     case FIELD_TYPE_BOOL:
         return "bool";
     case FIELD_TYPE_INT:
@@ -58,7 +59,7 @@ TrexRpcCommand::type_to_str(field_type_e type) {
         return "object";
     case FIELD_TYPE_STR:
         return "string";
-    case FILED_TYPE_ARRAY:
+    case FIELD_TYPE_ARRAY:
         return "array";
 
     default:
@@ -72,6 +73,8 @@ TrexRpcCommand::json_type_to_name(const Json::Value &value) {
     switch(value.type()) {
     case Json::nullValue:
         return "null";
+    case Json::intValue:
+        return "int";
     case Json::uintValue:
         return "uint";
     case Json::realValue:
@@ -90,23 +93,102 @@ TrexRpcCommand::json_type_to_name(const Json::Value &value) {
     }
 
 }
+
+uint8_t  
+TrexRpcCommand::parse_byte(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_BYTE, result);
+    return parent[name].asUInt();
+}
+
+uint8_t  
+TrexRpcCommand::parse_byte(const Json::Value &parent, int index, Json::Value &result) {
+    check_field_type(parent, index, FIELD_TYPE_BYTE, result);
+    return parent[index].asUInt();
+}
+
+int
+TrexRpcCommand::parse_int(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_INT, result);
+    return parent[name].asInt();
+}
+
+bool
+TrexRpcCommand::parse_bool(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_BOOL, result);
+    return parent[name].asBool();
+}
+
+double
+TrexRpcCommand::parse_double(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_DOUBLE, result);
+    return parent[name].asDouble();
+}
+
+const std::string
+TrexRpcCommand::parse_string(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_STR, result);
+    return parent[name].asString();
+}
+
+const Json::Value &
+TrexRpcCommand::parse_object(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_OBJ, result);
+    return parent[name];
+}
+
+const Json::Value &
+TrexRpcCommand::parse_array(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_ARRAY, result);
+    return parent[name];
+}
+
+/**
+ * for index element (array)
+ */
+void 
+TrexRpcCommand::check_field_type(const Json::Value &parent, int index, field_type_e type, Json::Value &result) {
+
+    /* should never get here without parent being array */
+    if (!parent.isArray()) {
+        throw TrexRpcException("internal parsing error");
+    }
+
+    const Json::Value &field = parent[index];
+
+    std::stringstream ss;
+    ss << "array element: " << (index + 1) << " ";
+    check_field_type_common(field, ss.str(), type, result);
+}
+
 void 
 TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &name, field_type_e type, Json::Value &result) {
-    std::stringstream ss;
+     /* should never get here without parent being object */
+    if (!parent.isObject()) {
+        throw TrexRpcException("internal parsing error");
+    }
 
-    /* check if field exists , does not add the field because its const */
     const Json::Value &field = parent[name];
+    check_field_type_common(field, name, type, result);
+}
+void 
+TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::string &name, field_type_e type, Json::Value &result) {
+    std::stringstream ss;
 
     /* first check if field exists */
     if (field == Json::Value::null) {
-        ss << "field '" << name << "' missing";
+        ss << "field '" << name << "' is missing";
         generate_err(result, ss.str());
-        throw (TrexRpcCommandException(TREX_RPC_CMD_PARAM_PARSE_ERR));
     }
 
     bool rc = true;
 
     switch (type) {
+    case FIELD_TYPE_BYTE:
+        if ( (!field.isUInt()) || (field.asInt() > 0xFF)) {
+            rc = false;
+        }
+        break;
+
     case FIELD_TYPE_BOOL:
         if (!field.isBool()) {
             rc = false;
@@ -136,12 +218,21 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &n
             rc = false;
         }
         break;
-    }
 
+    case FIELD_TYPE_ARRAY:
+        if (!field.isArray()) {
+            rc = false;
+        }
+        break;
+
+    default:
+        throw TrexRpcException("unhandled type");
+        break;
+
+    }
     if (!rc) {
         ss << "error at offset: " << field.getOffsetStart() << " - '" << name << "' is '" << json_type_to_name(field) << "', expecting '" << type_to_str(type) << "'";
         generate_err(result, ss.str());
-        throw (TrexRpcCommandException(TREX_RPC_CMD_PARAM_PARSE_ERR));
     }
 
 }
@@ -149,4 +240,12 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &n
 void 
 TrexRpcCommand::generate_err(Json::Value &result, const std::string &msg) {
     result["specific_err"] = msg;
+    throw (TrexRpcCommandException(TREX_RPC_CMD_PARAM_PARSE_ERR));
 }
+
+void 
+TrexRpcCommand::generate_internal_err(Json::Value &result, const std::string &msg) {
+    result["specific_err"] = msg;
+    throw (TrexRpcCommandException(TREX_RPC_CMD_INTERNAL_ERR));
+}
+

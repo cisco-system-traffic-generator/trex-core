@@ -36,10 +36,9 @@ TrexRpcCmdTestAdd::_run(const Json::Value &params, Json::Value &result) {
     const Json::Value &y = params["y"];
     
     check_param_count(params, 2, result);
-    check_field_type(params, "x", FIELD_TYPE_INT, result);
-    check_field_type(params, "y", FIELD_TYPE_INT, result);
 
-    result["result"] = x.asInt() + y.asInt();
+    result["result"] = parse_int(params, "x", result) + parse_int(params, "y", result);
+
     return (TREX_RPC_CMD_OK);
 }
 
@@ -55,10 +54,9 @@ TrexRpcCmdTestSub::_run(const Json::Value &params, Json::Value &result) {
     const Json::Value &y = params["y"];
         
     check_param_count(params, 2, result);
-    check_field_type(params, "x", TrexRpcCommand::FIELD_TYPE_INT, result);
-    check_field_type(params, "y", TrexRpcCommand::FIELD_TYPE_INT, result);
 
-    result["result"] = x.asInt() - y.asInt();
+    result["result"] = parse_int(params, "x", result) - parse_int(params, "y", result);
+
     return (TREX_RPC_CMD_OK);
 }
 

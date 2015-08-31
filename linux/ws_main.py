@@ -138,6 +138,11 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+# stateless code
+stateless_src = SrcGroup(dir='src/stateless/',
+                          src_list=['trex_stream.cpp',
+                                    'trex_stateless.cpp'
+                                    ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
@@ -169,6 +174,7 @@ json_src = SrcGroup(dir='external_libs/json',
 rpc_server_mock = SrcGroups([cmn_src,
                              rpc_server_src,
                              rpc_server_mock_src,
+                             stateless_src,
                              json_src
                              ])
 
@@ -225,6 +231,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 includes_path =''' ../src/pal/linux/
                    ../src/
                    ../src/rpc-server/
+                   ../src/stateless/
                    ../external_libs/json/
                    ../external_libs/zmq/include/
                    ../external_libs/yaml-cpp/include/
@@ -242,13 +249,14 @@ PLATFORM_32 = "32"
 
 class build_option:
 
-    def __init__(self, name, src, platform, debug_mode, is_pie, use = []):
+    def __init__(self, name, src, platform, debug_mode, is_pie, use = [], flags = []):
       self.mode     = debug_mode;   ##debug,release
       self.platform = platform; #['32','64'] 
       self.is_pie = is_pie
       self.name = name
       self.src = src
       self.use = use
+      self.flags = flags
 
     def __str__(self):
        s=self.mode+","+self.platform;
@@ -313,6 +321,8 @@ class build_option:
         if self.isPIE():
             result += ['-fPIE', '-DPATCH_FOR_PIE']
 
+        result += self.flags
+
         return result;
 
     def get_use_libs (self):
@@ -353,7 +363,7 @@ build_types = [
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
 
-               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False),
+               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, flags = ['-DTREX_RPC_MOCK_SERVER']),
               ]
 
 

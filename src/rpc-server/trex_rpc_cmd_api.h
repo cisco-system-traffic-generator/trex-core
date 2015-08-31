@@ -90,12 +90,13 @@ protected:
      * different types of fields
      */
     enum field_type_e {
+        FIELD_TYPE_BYTE,
         FIELD_TYPE_INT,
         FIELD_TYPE_DOUBLE,
         FIELD_TYPE_BOOL,
         FIELD_TYPE_STR,
         FIELD_TYPE_OBJ,
-        FILED_TYPE_ARRAY
+        FIELD_TYPE_ARRAY
     };
 
     /**
@@ -110,17 +111,45 @@ protected:
     void check_param_count(const Json::Value &params, int expected, Json::Value &result);
 
     /**
+     * parse functions
+     * 
+     */
+    uint8_t  parse_byte(const Json::Value &parent, const std::string &name, Json::Value &result);
+    int      parse_int(const Json::Value &parent, const std::string &name, Json::Value &result);
+    double   parse_double(const Json::Value &parent, const std::string &name, Json::Value &result);
+    bool     parse_bool(const Json::Value &parent, const std::string &name, Json::Value &result);
+    const std::string  parse_string(const Json::Value &parent, const std::string &name, Json::Value &result);
+    const Json::Value & parse_object(const Json::Value &parent, const std::string &name, Json::Value &result);
+    const Json::Value & parse_array(const Json::Value &parent, const std::string &name, Json::Value &result);
+
+    uint8_t  parse_byte(const Json::Value &parent, int index, Json::Value &result);
+    int      parse_int(const Json::Value &parent, int index, Json::Value &result);
+    double   parse_double(const Json::Value &parent, int index, Json::Value &result);
+    bool     parse_bool(const Json::Value &parent, int index, Json::Value &result);
+    const std::string  parse_string(const Json::Value &parent, int index, Json::Value &result);
+    const Json::Value & parse_object(const Json::Value &parent, int index, Json::Value &result);
+    const Json::Value & parse_array(const Json::Value &parent, int index, Json::Value &result);
+
+    /**
      * check field type
      * 
      */
-    //void check_field_type(const Json::Value &field, field_type_e type, Json::Value &result);
     void check_field_type(const Json::Value &parent, const std::string &name, field_type_e type, Json::Value &result);
+    void check_field_type(const Json::Value &parent, int index, field_type_e type, Json::Value &result);
+    void check_field_type_common(const Json::Value &field, const std::string &name, field_type_e type, Json::Value &result);
 
     /**
      * error generating functions
      * 
      */
     void generate_err(Json::Value &result, const std::string &msg);
+
+
+    /**
+     * internal error
+     * 
+     */
+    void generate_internal_err(Json::Value &result, const std::string &msg);
 
     /**
      * translate enum to string
