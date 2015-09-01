@@ -126,7 +126,7 @@ class TrexStatus():
         self.max_x = self.stdscr.getmaxyx()[1]
 
         # create cls panel
-        self.main_panel = TrexStatusPanel(int(self.max_y * 0.8), self.max_x / 2, 0,0, "Trex Activity:")
+        self.main_panel = TrexStatusPanel(int(self.max_y * 0.8), self.max_x / 2, 0,0, "Trex Ports:")
 
         self.general_panel = TrexStatusPanel(int(self.max_y * 0.6), self.max_x / 2, 0, self.max_x /2, "General Statistics:")
 

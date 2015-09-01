@@ -29,7 +29,7 @@ limitations under the License.
 
 /**
  * generic exception for errors
- * 
+ * TODO: move this to a better place
  */
 class TrexException : public std::runtime_error 
 {
@@ -42,7 +42,7 @@ public:
 };
 
 /**
- * 
+ * describes a stateless port
  * 
  * @author imarom (31-Aug-15)
  */
@@ -52,12 +52,15 @@ public:
     TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
     }
 
+    /**
+     * access the stream table
+     * 
+     */
     TrexStreamTable *get_stream_table() {
         return &m_stream_table;
     }
 
 private:
-    /* a stream table per port */
     TrexStreamTable  m_stream_table;
     uint8_t          m_port_id;
 };

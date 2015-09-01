@@ -39,6 +39,7 @@ public:
     TrexStream(uint8_t port_id, uint32_t stream_id);
     virtual ~TrexStream() = 0;
 
+    /* defines the min max per packet supported */
     static const uint32_t MIN_PKT_SIZE_BYTES = 1;
     static const uint32_t MAX_PKT_SIZE_BYTES = 9000;
 
@@ -51,11 +52,10 @@ private:
     /* config fields */
     double        m_isg_usec;
     uint32_t      m_next_stream_id;
-    uint32_t      m_loop_count;
 
     /* indicators */
-    bool          m_enable;
-    bool          m_start;
+    bool          m_enabled;
+    bool          m_self_start;
     
     /* pkt */
     uint8_t      *m_pkt;
@@ -90,35 +90,37 @@ protected:
  * single burst
  * 
  */
-class TrexStreamSingleBurst : public TrexStream {
+class TrexStreamBurst : public TrexStream {
 public:
-    TrexStreamSingleBurst(uint8_t port_id, uint32_t stream_id, uint32_t packets, uint32_t pps) : TrexStream(port_id, stream_id), m_pps(pps), m_packets(packets) {
+    TrexStreamBurst(uint8_t port_id, uint32_t stream_id, uint32_t total_pkts, uint32_t pps) : 
+        TrexStream(port_id, stream_id),
+        m_total_pkts(total_pkts),
+        m_pps(pps) {
     }
+
 protected:
-    uint32_t m_pps;
-    uint32_t m_packets;
-    
+    uint32_t   m_total_pkts;
+    uint32_t   m_pps;
 };
 
 /**
  * multi burst
  * 
  */
-class TrexStreamMultiBurst : public TrexStream {
+class TrexStreamMultiBurst : public TrexStreamBurst {
 public:
-    TrexStreamMultiBurst(uint8_t port_id,
+    TrexStreamMultiBurst(uint8_t  port_id,
                          uint32_t stream_id,
-                         uint32_t pps,
-                         double   ibg_usec,
                          uint32_t pkts_per_burst,
-                         uint32_t num_bursts) : TrexStream(port_id, stream_id), m_pps(pps), m_ibg_usec(ibg_usec), m_num_bursts(num_bursts), m_pkts_per_burst(pkts_per_burst) {
+                         uint32_t pps,
+                         uint32_t num_bursts,
+                         double   ibg_usec) : TrexStreamBurst(port_id, stream_id, pkts_per_burst, pps), m_num_bursts(num_bursts), m_ibg_usec(ibg_usec) {
 
     }
 protected:
-    uint32_t m_pps;
-    double   m_ibg_usec;
     uint32_t m_num_bursts;
-    uint32_t m_pkts_per_burst;
+    double   m_ibg_usec;
+    
 };
 
 /**

@@ -41,14 +41,17 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     const Json::Value &mode = parse_object(section, "mode", result);
     string type = parse_string(mode, "type", result);
 
+    /* allocate a new stream based on the type */
     TrexStream *stream = allocate_new_stream(section, result);
 
-    /* create a new steram and populate it */
-   
+    /* some fields */
+    stream->m_enabled         = parse_bool(section, "enabled", result);
+    stream->m_self_start      = parse_bool(section, "self_start", result);
+
+    /* inter stream gap */
     stream->m_isg_usec  = parse_double(section, "Is", result);
 
     stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
-    stream->m_loop_count     = parse_int(section, "loop_count", result);
 
     const Json::Value &pkt = parse_array(section, "packet", result);
 
@@ -95,19 +98,19 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, Json::Value
 
     } else if (type == "single_burst") {
 
-        uint32_t pps = parse_int(mode, "pps", result);
-        uint32_t packets = parse_int(type, "packets", result);
+        uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
+        uint32_t pps             = parse_int(mode, "pps", result);
 
-        stream = new TrexStreamSingleBurst(port_id, stream_id, pps, packets);
+        stream = new TrexStreamBurst(port_id, stream_id, total_pkts, pps);
 
     } else if (type == "multi_burst") {
 
-        uint32_t  pps           = parse_int(mode, "pps", result);
-        double    ibg_usec      = parse_double(mode, "ibg", result);
-        uint32_t  num_bursts    = parse_int(mode, "number_of_bursts", result);
-        uint32_t  pkt_per_burst = parse_int(mode, "pkt_per_burst", result);
+        uint32_t  pps              = parse_int(mode, "pps", result);
+        double    ibg_usec         = parse_double(mode, "ibg", result);
+        uint32_t  num_bursts       = parse_int(mode, "number_of_bursts", result);
+        uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
 
-        stream = new TrexStreamMultiBurst(port_id, stream_id, pps, ibg_usec, num_bursts, pkt_per_burst);
+        stream = new TrexStreamMultiBurst(port_id, stream_id, pkts_per_burst, pps, num_bursts, ibg_usec);
         
 
     } else {
