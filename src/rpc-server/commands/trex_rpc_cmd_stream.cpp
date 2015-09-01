@@ -19,7 +19,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include "trex_rpc_cmds.h"
-#include <../linux_dpdk/version.h>
 #include <trex_rpc_server_api.h>
 #include <trex_stream_api.h>
 #include <trex_stateless_api.h>

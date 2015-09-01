@@ -339,7 +339,7 @@ class build_option:
 
     def get_link_flags(self):
         # add here basic flags
-        base_flags = ['-lpthread'];
+        base_flags = ['-pthread'];
         if self.isPIE():
             base_flags.append('-lstdc++')
 
