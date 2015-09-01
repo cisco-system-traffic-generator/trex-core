@@ -4,7 +4,19 @@ import outer_packages
 import zmq
 import json
 import general_utils
+import re
 from time import sleep
+
+class bcolors:
+    BLUE = '\033[94m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[93m'
+    RED = '\033[31m'
+    MAGENTA = '\033[95m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 
 class JsonRpcClient(object):
 
@@ -24,8 +36,25 @@ class JsonRpcClient(object):
 
         return rc
 
-    def pretty_json (self, json_str):
-        return json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
+    def pretty_json (self, json_str, use_colors = True):
+        pretty_str = json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
+
+        if not use_colors:
+            return pretty_str
+
+        try:
+            # int numbers
+            pretty_str = re.sub(r'([ ]*:[ ]*)(\-?[1-9][0-9]*[^.])',r'\1{0}\2{1}'.format(bcolors.BLUE, bcolors.ENDC), pretty_str)
+            # float
+            pretty_str = re.sub(r'([ ]*:[ ]*)(\-?[1-9][0-9]*\.[0-9]+)',r'\1{0}\2{1}'.format(bcolors.MAGENTA, bcolors.ENDC), pretty_str)
+            # strings
+            
+            pretty_str = re.sub(r'([ ]*:[ ]*)("[^"]*")',r'\1{0}\2{1}'.format(bcolors.RED, bcolors.ENDC), pretty_str)
+            pretty_str = re.sub(r"('[^']*')", r'{0}\1{1}'.format(bcolors.MAGENTA, bcolors.RED), pretty_str)
+        except :
+            pass
+
+        return pretty_str
 
     def verbose_msg (self, msg):
         if not self.verbose:
