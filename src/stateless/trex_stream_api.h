@@ -66,7 +66,7 @@ private:
     /* RX check */
     struct {
         bool      m_enable;
-        bool      m_seq_enable;
+        bool      m_seq_enabled;
         bool      m_latency;
         uint32_t  m_stream_id;
 
@@ -141,9 +141,14 @@ public:
 
     /**
      * remove a stream
-     * 
      */
     void remove_stream(TrexStream *stream);
+
+    /**
+     * remove all streams on the table
+     * memory will be deleted
+     */
+    void remove_and_delete_all_streams();
 
     /**
      * fetch a stream if exists 

@@ -62,7 +62,8 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStatus,  "get_status",      0);
 /**
  * stream cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveStream,   "remove_stream",   2);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveAllStreams,   "remove_all_streams",   1);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveStream,       "remove_stream",        2);
 
 TREX_RPC_CMD_DEFINE_EXTENED(TrexRpcCmdAddStream, "add_stream", 1,
 

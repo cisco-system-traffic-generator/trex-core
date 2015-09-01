@@ -72,6 +72,16 @@ void TrexStreamTable::remove_stream(TrexStream *stream) {
     m_stream_table.erase(stream->m_stream_id);
 }
 
+
+void TrexStreamTable::remove_and_delete_all_streams() {
+
+    for (auto stream : m_stream_table) {
+        delete stream.second;
+    }
+
+    m_stream_table.clear();
+}
+
 TrexStream * TrexStreamTable::get_stream_by_id(uint32_t stream_id) {
     auto search = m_stream_table.find(stream_id);
 

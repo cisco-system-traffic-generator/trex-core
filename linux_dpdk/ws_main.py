@@ -345,8 +345,6 @@ bp =SrcGroups([
                 main_src, 
                 cmn_src ,
                 net_src ,
-                rpc_server_src,
-                json_src,
                 yaml_src,
                 version_src
                 ]);

@@ -28,10 +28,10 @@ limitations under the License.
 
 using namespace std;
 
-/**
+/***************************
  * add new stream
  * 
- */
+ **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
@@ -63,8 +63,21 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         generate_internal_err(result, "unable to allocate memory");
     }
 
+    /* parse the packet */
     for (int i = 0; i < pkt.size(); i++) {
         stream->m_pkt[i] = parse_byte(pkt, i, result);
+    }
+
+    /* parse RX info */
+    const Json::Value &rx = parse_object(section, "rx_stats", result);
+
+    stream->m_rx_check.m_enable = parse_bool(rx, "enabled", result);
+
+    /* if it is enabled - we need more fields */
+    if (stream->m_rx_check.m_enable) {
+        stream->m_rx_check.m_stream_id   = parse_int(rx, "stream_id", result);
+        stream->m_rx_check.m_seq_enabled = parse_bool(rx, "seq_enabled", result);
+        stream->m_rx_check.m_latency     = parse_bool(rx, "latency", result);
     }
 
     /* make sure this is a valid stream to add */
@@ -117,6 +130,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, Json::Value
         generate_parse_err(result, "bad stream type provided: '" + type + "'");
     }
 
+    /* make sure we were able to allocate the memory */
     if (!stream) {
         generate_internal_err(result, "unable to allocate memory");
     }
@@ -157,6 +171,10 @@ TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &resu
 
 }
 
+/***************************
+ * remove stream
+ * 
+ **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     uint8_t  port_id = parse_byte(params, "port_id", result);
@@ -170,7 +188,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     }
 
     TrexStatelessPort *port = get_trex_stateless()->get_port_by_id(port_id);
-    TrexStream *stream  = port->get_stream_table()->get_stream_by_id(stream_id);
+    TrexStream *stream = port->get_stream_table()->get_stream_by_id(stream_id);
 
     if (!stream) {
         std::stringstream ss;
@@ -181,5 +199,26 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     port->get_stream_table()->remove_stream(stream);
 
     result["result"] = "ACK";
+}
+
+/***************************
+ * remove all streams
+ * for a port
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t  port_id = parse_byte(params, "port_id", result);
+
+    if (port_id >= get_trex_stateless()->get_port_count()) {
+        std::stringstream ss;
+        ss << "invalid port id - should be between 0 and " << (int)get_trex_stateless()->get_port_count() - 1;
+        generate_execute_err(result, ss.str());
+    }
+
+       TrexStatelessPort *port = get_trex_stateless()->get_port_by_id(port_id);
+       port->get_stream_table()->remove_and_delete_all_streams();
+
+       result["result"] = "ACK";
 }
 
