@@ -4553,6 +4553,7 @@ void CCPortLatency::reset(){
     m_tx_pkt_err=0;
     m_tx_pkt_ok =0;
     m_pkt_ok=0;
+    m_rx_check=0;
     m_no_magic=0;
     m_unsup_prot=0;
     m_no_id=0;
