@@ -1,0 +1,121 @@
+
+== A file format for GUI packet builder 
+
+=== Introduction
+
+We would like a file that will be read by GUI and will give us the ability to build packets using GUI
+
+The format should be *YAML*
+
+
+=== High Level Requirement 
+
+* Define a YAML object format for dynamic building of packets and a program that change various fields 
+* Ability to *parse* back the same buffer that was created using this tool (reversibility)
+** Ability to load packet from a pcap file and parse it 
+* Ability to save the packet to a pcap file
+* Ability to save the packet and program in JSON format (same JSON-RPC format)
+* Set a value for any field of any protocol
+* Vary packet fields across packets at run time e.g. changing IP/MAC addresses
+* Stack protocols in any arbitrary order define in YAML format 
+
+=== Header that should be supported (first phase)
+
+==== L2
+
+* Ethernet
+* 802.3
+* LLC SNAP
+*VLAN (with QinQ) stack
+*MPLS stack
+
+==== L3
+
+* ARP 
+* IPv4 
+* IPv6 (4x header)
+* IP-in-IP a.k.a IP Tunnelling (6over4, 4over6, 4over4, 6over6)
+
+==== L4
+
+* TCP
+* UDP
+* ICMPv4 
+* ICMPv6
+* IGMP
+
+==== L7
+
+* Any text based protocol (HTTP, SIP, RTSP, NNTP etc.)
+** random string 
+** repeat string 
+
+* Pattern Binary 
+** repeat of value (e.g 0x55)
+** random 
+** seq (1,2,3,3,4)
+** User Hex Dump editor 
+
+
+=== YAML Format 
+
+
+==== Header section
+
+It describes objects like TCP/UDP/VLAN/MPLS/IPV6/IPv6 Headers/ICMPv4/ICMPv6/IGMP
+
+Tree line object description 
+
+[source,python]
+----
+ - name : object name  ( object )
+       -  Fields 
+        -- bits or bytes 
+        -- Array size of types (default 1)
+        -- Type (uint8, uint16_t, uint32_t, uint16_t, string, string_bl)
+        -- edit_type  [ipv4, ipv6, buffer,string , string_nl]
+        -- edian - can be default as big, 
+        -- Default value (buffer 0x00,0x12,0x13), format- 
+        -- Exception: ipv4_header_size (bitsx44, ipv4_checksum, tcp_udp_checsum, ipv4_total_length)
+        -- header_size_multi (this field represents the 
+        -- childes_field_list :  could be null in default TCP flags is an example of this
+        -- *Choice* on by one fields [ Sub Tree]  example    {01 : Object1 , 02: object2 , 03:Object5}
+        -- Fields that can't change without repeat from the start in the GUI for example ip_ength, protocol , 
+         -- Next protocol ( dict  value : name )
+	
+
+        PFP -fields
+        -- ipv4/ipv6 range  min-max
+                     random min-max
+        -- every    uint8,uint16_t, uint32_t could be create a range 
+----
+  
+
+==== Relations between object headers
+
+* Represents the order of the headers in the build process.
+* It is a tree like relation and could have a loop in the tree (ip inside ip)
+
+[source,python]
+----
+ 
+root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
+                |( by field )
+                |
+                  ------------------------------------- ( VLAN (with QinQ), MPLS , ipv4, ipv6,     ARP , ICMP )
+                                                                                  |   |               |     |
+                                                                                  |   ipv4/ipv6       -     -
+                                                                                  |     |
+                                                                                  |    |
+  [Possibility - Ethernet/802.3/LLC SNAP)                                          |    UDP/TCP/Pyload
+ Object                                                                            |     |
+  for each option there tree of all the option                                      --- -
+----
+
+
+=== Resource
+*  link:https://wireedit.com/[WireEdit]
+*  link:https://code.google.com/p/ostinato/[ostinato]
+*  link:http://www.slideshare.net/nlekh/ixiaexplorer[IxExplorer]
+
+
