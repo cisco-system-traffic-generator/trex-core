@@ -1294,7 +1294,9 @@ bool CPacketIndication::ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
 void CPacketIndication::ProcessPacket(CPacketParser *parser,
                                       CCapPktRaw * pkt){
     _ProcessPacket(parser,pkt);
-    UpdateOffsets(); /* update fast offsets */
+    if ( m_desc.IsValidPkt() ){
+        UpdateOffsets(); /* update fast offsets */
+    }
 }
 
 
@@ -2119,7 +2121,13 @@ int CCapFileFlowInfo::load_cap_file(std::string cap_file,uint16_t _id,uint8_t pl
 
                     }
                 }
+            }else{
+                printf("ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
+                exit(-1);
             }
+        }else{
+            printf("ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
+            exit(-1);
         }
     }
 
