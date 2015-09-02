@@ -4371,6 +4371,7 @@ int CErfIF::send_node(CGenNode * node){
 
     CFlowPktInfo * lp=node->m_pkt_info;
     rte_mbuf_t * m=lp->generate_new_mbuf(node);
+
     fill_pkt(m_raw,m);
     CPktNsecTimeStamp t_c(node->m_time);
     m_raw->time_nsec = t_c.m_time_nsec;
@@ -5363,10 +5364,11 @@ void on_node_last(uint8_t plugin_id,CGenNode *     node){
 }
 
 rte_mbuf_t * on_node_generate_mbuf(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info){
-    if (CPluginCallback::callback) {
-        CPluginCallback::callback->on_node_generate_mbuf(plugin_id,node,pkt_info);
-    }
-
+    rte_mbuf_t * m;
+    assert(CPluginCallback::callback);
+    m=CPluginCallback::callback->on_node_generate_mbuf(plugin_id,node,pkt_info);
+    assert(m);
+    return(m);
 }
 
 
@@ -6199,22 +6201,25 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
 /* replace the tuples */
 rte_mbuf_t * CPluginCallbackSimple::on_node_generate_mbuf(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info){
+
+    rte_mbuf_t * m=NULL;
     switch (plugin_id) {
     case mpRTSP:
-        rtsp_plugin(plugin_id,node,pkt_info);
+        m=rtsp_plugin(plugin_id,node,pkt_info);
         break;
     case mpSIP_VOICE:
-        sip_voice_plugin(plugin_id,node,pkt_info);
+        m=sip_voice_plugin(plugin_id,node,pkt_info);
         break;
     case  mpDYN_PYLOAD:
-        dyn_pyload_plugin(plugin_id,node,pkt_info);
+        m=dyn_pyload_plugin(plugin_id,node,pkt_info);
         break;
     case mpAVL_HTTP_BROWSIN:
-        http_plugin(plugin_id,node,pkt_info);
+        m=http_plugin(plugin_id,node,pkt_info);
         break;
     default:
         assert(0);
     }
+    return (m);
 }
 
 
