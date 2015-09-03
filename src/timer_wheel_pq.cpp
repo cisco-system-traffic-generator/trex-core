@@ -169,11 +169,14 @@ bool CTimerWheel::handle(){
                 assert(timer->m_flow);
                 CFlowTimerHandle *	flow =timer->m_flow;
                 m_st_handle++;
+
+                timer->m_flow=0;/* stop the timer */
+                flow->m_timer=0;
+
                 if ( flow->m_callback ){
                     flow->m_callback(flow);
                 }
-                timer->m_flow=0;/* stop the timer */
-                flow->m_timer=0;
+
                 m_pq.pop();
                 m_st_free++;
                 delete timer;

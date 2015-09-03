@@ -243,6 +243,11 @@ bool RxCheckManager::Create(){
     m_hist.Create();
 	m_cur_time=0.00000001;
     m_on_drain=false;
+
+    int i;
+    for (i=0; i<MAX_TEMPLATES_STATS;i++ ) {
+        m_template_info[i].reset();
+    }
 	return (true);
 
 }
@@ -277,11 +282,6 @@ void RxCheckManager::handle_packet(CRx_check_header * rxh){
     lf=m_ft.lookup(rxh->m_flow_id);
 	m_stats.m_lookup++;
 
-    if ((m_stats.m_lookup & 0xff)==0) {
-        /* handle aging from time to time */
-
-        tw_handle()  ;
-    }
 
     bool any_err=false;
     if ( rxh->is_fif_dir() ) {
@@ -393,6 +393,10 @@ void RxCheckManager::handle_packet(CRx_check_header * rxh){
             on_flow_end(lf);
     }
 
+    if ((m_stats.m_lookup & 0xff)==0) {
+        /* handle aging from time to time */
+        tw_handle()  ;
+    }
 }
 
 void RxCheckManager::update_template_err(uint8_t template_id){
