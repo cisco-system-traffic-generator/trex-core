@@ -249,7 +249,7 @@ PLATFORM_32 = "32"
 
 class build_option:
 
-    def __init__(self, name, src, platform, debug_mode, is_pie, use = [], flags = []):
+    def __init__(self, name, src, platform, debug_mode, is_pie, use = [], flags = [], rpath = []):
       self.mode     = debug_mode;   ##debug,release
       self.platform = platform; #['32','64'] 
       self.is_pie = is_pie
@@ -257,6 +257,7 @@ class build_option:
       self.src = src
       self.use = use
       self.flags = flags
+      self.rpath = rpath
 
     def __str__(self):
        s=self.mode+","+self.platform;
@@ -337,6 +338,9 @@ class build_option:
     def get_src (self):
         return self.src.file_list(top)
 
+    def get_rpath (self):
+        return self.rpath
+
     def get_link_flags(self):
         # add here basic flags
         base_flags = ['-pthread'];
@@ -363,7 +367,8 @@ build_types = [
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
 
-               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, flags = ['-DTREX_RPC_MOCK_SERVER']),
+               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, flags = ['-DTREX_RPC_MOCK_SERVER'],
+                            rpath = ['.']),
               ]
 
 
@@ -378,7 +383,7 @@ def build_prog (bld, build_obj):
                 linkflags = build_obj.get_link_flags(),
                 source = build_obj.get_src(),
                 use = build_obj.get_use_libs(),
-                rpath  = bld.env.RPATH,
+                rpath  = bld.env.RPATH + build_obj.get_rpath(),
                 target = build_obj.get_target())
 
 
