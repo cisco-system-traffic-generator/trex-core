@@ -1,0 +1,189 @@
+The TRex RPC Server
+===================
+:author: imarom
+:email: <imarom@cisco.com>
+:revnumber: 1.70-0.0
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+
+
+
+== RPC Support On TRex
+
+TRex implements a RPC protocol in order to config, view and
+in general execute remote calls on TRex
+
+In this document we will provide information on
+how a client can implement the protocol used to communicate with TRex
+
+In general, we will describe the following:
+
+* *Transport Layer* - The transport layer used to communicate with TRex server
+* *RPC Reprensentation Protocol* - The format in which remote procedures are carried
+
+=== Transport Layer
+
+TRex server transport layer is implemented using ZMQ.
+
+The default configuration is TCP on port 5555, however this is configurable.
+
+{zwsp} +
+The communication model is based on the request-reply ZMQ model:
+
+http://zguide.zeromq.org/page:all#Ask-and-Ye-Shall-Receive
+
+{zwsp} +
+
+for more on ZMQ and implementation please refer to:
+{zwsp} +
+http://zeromq.org/intro:read-the-manual
+
+=== RPC Reprensentation Protocol
+
+The RPC reprensentation protocol is JSON RPC v2.0.
+Every request and response will be encoded in a JSON RPC v2.0 format.
+
+{zwsp} +
+
+For more info on JSON RPC v2.0 spec please refer to:
+{zwsp} +
+
+http://www.jsonrpc.org/specification
+
+{zwsp} +
+
+Later on in the document we will describe all the supported commands.
+
+=== TRex RPC Mock Server
+Before we get into the commands, it's worth mentioning that TRex has a mock RPC server
+designed to allow playing around with the server in order to understand the response
+and perform adjustments to the request.
+
+TRex also provides a Python based console that can connect to the server (mock or real) and
+send various commands to the server.
+
+==== Building The Mock Server
+Building the mock server is performed like this:
+[source,bash]
+----
+trex-core/linux>  ./b configure
+trex-core/linux>  ./b --target=mock-rpc-server-64-debug
+----
+
+==== Running The Mock Server
+Launching the mock server is performed like this:
+
+[source,bash]
+----
+ 
+trex-core/scripts> ./mock-rpc-server-64-debug
+
+-= Starting RPC Server Mock =-
+
+Listening on tcp://localhost:5050 [ZMQ]
+
+Setting Server To Full Verbose
+
+Server Started
+
+----
+
+==== Using The TRex Console To Interact
+When the mock server is up, you can already send commands to the server.
+{zwsp} +
+{zwsp} +
+
+Let's demonstrate the operation with the Python based TRex console:
+
+{zwsp} +
+
+[source,bash]
+----
+trex-core/scripts> ./trex-console
+
+Connecting To RPC Server On tcp://localhost:5050
+[SUCCESS]
+
+
+-=TRex Console V1.0=-
+
+Type 'help' or '?' for supported actions
+
+TRex >
+
+----
+As we will see later on, a basic RPC command supported by the server is 'ping'.
+{zwsp} +
+Let's issue a ping command to the server and see what happens on both sides:
+
+{zwsp} +
+{zwsp} +
+
+On the 'client' side:
+
+[source,bash]
+----
+TRex > verbose on
+
+verbose set to on
+
+TRex > ping
+
+-> Pinging RPC server
+[verbose] Sending Request To Server:
+
+{
+    "id": "l0tog11a",
+    "jsonrpc": "2.0",
+    "method": "ping",
+    "params": {}
+}
+
+[verbose] Server Response:
+
+{
+    "id": "l0tog11a",
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+[SUCCESS]
+
+----
+On the 'server' side:
+
+[source,bash]
+----
+
+trex-core/scripts> ./mock-rpc-server-64-debug
+
+-= Starting RPC Server Mock =-
+
+Listening on tcp://localhost:5050 [ZMQ]
+
+Setting Server To Full Verbose
+
+Server Started
+
+
+[verbose][req resp] Server Received:
+
+{
+   "id" : "maa5a3g1",
+   "jsonrpc" : "2.0",
+   "method" : "ping",
+   "params" : {}
+}
+
+[verbose][req resp] Server Replied:
+
+{
+   "id" : "maa5a3g1",
+   "jsonrpc" : "2.0",
+   "result" : "ACK"
+}
+
+----
+

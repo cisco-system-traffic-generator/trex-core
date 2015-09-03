@@ -186,6 +186,10 @@ def build(bld):
 		source='vm_doc.asciidoc waf.css', target='vm_doc.html', scan=ascii_doc_scan)
 
 	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+		source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html', scan=ascii_doc_scan)
+
+
+	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
 		source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.html', scan=ascii_doc_scan)
 		
 	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
