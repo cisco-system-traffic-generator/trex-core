@@ -44,7 +44,7 @@ The format should be *YAML*
 * ICMPv6
 * IGMP
 
-==== L7
+==== L7  anchor:Payload[]
 
 * Any text based protocol (HTTP, SIP, RTSP, NNTP etc.)
 ** random string 
@@ -59,43 +59,141 @@ The format should be *YAML*
 
 === YAML Format 
 
-
 ==== Header section
 
-It describes objects like TCP/UDP/VLAN/MPLS/IPV6/IPv6 Headers/ICMPv4/ICMPv6/IGMP
+.Default Types  anchor:Types[]
+[options="header",cols="1,2,3"]
+|=================
+| Field Name |   meaning                           | size in bits 
+| bit        |  describe the header object e.g tcp |  1  
+| uint8      |  describe the header object e.g tcp |   8  
+| uint16     |  the name in the GUI                |   16  
+| uint32     |  sub fields of this header          |   32  
+| uint64     |  sub fields of this header          |   64  
+| Field_Type  | name of a field type that define   | The size of the field type "mac-addr"
+| Payload    |     xref:Payload[Payload]                               | total packet size - all header until now 
+| vlen       |  varible length field, take the reset of the field | total size of the object 
+|=================
 
-Tree line object description 
+
+.Default Edit_Types anchor:Edit_Types[]
+[options="header",cols="1,2"]
+|=================
+| Field Name |   meaning                           
+| none       |  use Hex Editor as Types
+| ipv4_t     |  should match uint32_t type          
+| mac_addr_t |  00:00:00:00:00:00 define a regexp here TODO
+| ipv4_mask_t|  should match uint32_t type          
+| ipv6_t       |  should have 16 bytes field size 8x16 
+| ipv6_mask_t  |  should have 16 bytes field size 8x16 
+| another header class     |  sub fields of this header          
+| char_t       | array of bytes , look into the array_size of cost string  
+| var_char_t   | array based on a field value look into                    
+| regexp_t     |  define a Java function that converts a reg exp string to a buffer see here  xref:GenRegExp[RegExp]
+|=================
+
+
+
+
+.Default Exec   anchor:Exec[]
+[options="header",cols="1,2"]
+|=================
+| Field Name |   meaning              
+| none        | nothing special 
+| ipv4_checksum | auto calculates checksum on this header Ipv4 type 
+| tcp_udp_checsum | calculate next TCP checksum 
+| ipv4_total_length | calculate ipv4 total length 
+| tlv_length        | the length of the field in bytes -1 for TLV
+|=================
+
+
+.Field_Type  anchor:Field_Type[]
+[options="header",cols="^1,^1,30,^1,^1,30"]
+|=================
+| Field Name | value type |  meaning                                           | Default Value | Link | Example 
+| class      | string     | describe the class type                            |   in case class is defined no need to have name and vise versa           |      | class : tcp 
+| name       | string     | describe the instance name                         |   in case class is defined no need to have name and vise versa          |      | class : tcp 
+| help       | string     | the name in the GUI                                |   no          |      |   class : TCP
+| array_size | integer    | how many objects of this type, default value is 1 |  1            |      | array_size : 6 in case of mac-addr   
+| type       | string     | type, see  Types  define the size                  |   "uint8_t"   |  xref:Types[Types]   | type : "uint32_t" type : "mac_addr"
+| edit_type  | string     | edit_type  Edit_Types                              |    "none"     |  xref:Edit_Types[Edit_Types]     | edit_type could get edit_type_regexp e.g edit_type = "ipv4" , edit_type = "regexp" edit_type_regexp = "string that define regexp and Java function"
+| edit_type_regexp  | string  | in case it is reg_exp  the name of the function  |"none"        | xref:GenRegExp[GenRegExp]       |       
+| edian             | bool    | big or little edian                             |  true        |        |  in default all fields are big 
+| default           | array of bytes | default value in the packets             | [0 ]x header size |   |   
+| exec              | string | exception processing by java checsum/length                             |  none        | xref:Exec[Exec] |
+| choice            | array  |   define the next protocol see                   |  none        | xref:Choice[Choice]  |
+| change_possible   | bool   | is it possible to change this field after we added next fields. in some cases we can't change field after we build next protocol | true | | 
+| fields        | array  | array of Field_Type                             |   []          |        | fields : [  ]
+| offset            | integer/string  |   offset into the packet in bits, in case of auto add base of prev fields    |   "auto"          |        |  |
+| option            | string  |   a java code that define a way to calculate varible size        |   "none"          |        |  |
+
+|=================
+
+
+.Choice anchor:Choice[]
+Example of Choice 
+[source,python]
+----
+                fields :
+                        - key  : 0x0800
+                          val  : "ip"      
+        
+                        - key  : 0x0860
+                          val  : "ipv6"      
+        
+                        - key  : 0x0810   # just an example don't realy remember the numbers 
+                          val  : "vlan"      
+        
+                        - key  : 0x0812
+                          val  : "mpls"
+                default : [ "payload" ,"ip","tcp","sip"] the number could be any value 
+----
+
+
+.Generic RegExp Edit Field anchor:GenRegExp[]
+
+This will define a regexp that match for user input and how to converts it to buffer of bytes 
 
 [source,python]
 ----
- - name : object name  ( object )
-       -  Fields 
-        -- bits or bytes 
-        -- Array size of types (default 1)
-        -- Type (uint8, uint16_t, uint32_t, uint16_t, string, string_bl)
-        -- edit_type  [ipv4, ipv6, buffer,string , string_nl]
-        -- edian - can be default as big, 
-        -- Default value (buffer 0x00,0x12,0x13), format- 
-        -- Exception: ipv4_header_size (bitsx44, ipv4_checksum, tcp_udp_checsum, ipv4_total_length)
-        -- header_size_multi (this field represents the 
-        -- childes_field_list :  could be null in default TCP flags is an example of this
-        -- *Choice* on by one fields [ Sub Tree]  example    {01 : Object1 , 02: object2 , 03:Object5}
-        -- Fields that can't change without repeat from the start in the GUI for example ip_ength, protocol , 
-         -- Next protocol ( dict  value : name )
-	
 
-        PFP -fields
-        -- ipv4/ipv6 range  min-max
-                     random min-max
-        -- every    uint8,uint16_t, uint32_t could be create a range 
-----
+class MyClass : public RegExpBase {
+  public:
   
+
+  string get_reg_exp_string( ) {
+    return ((\d){1-3})[.]((\d){1-3})[.]((\d){1-3})[.]((\d){1-3}))
+  }
+  
+  # in case of match      
+  buffer get_buffer(){
+     g= [get_group()[1].to_int()*256,get_group()[1].to_int()]
+     # return list 
+     return (g) 
+  }
+
+}
+
+----
+
+
 
 ==== Relations between object headers
 
-* Represents the order of the headers in the build process.
-* It is a tree like relation and could have a loop in the tree (ip inside ip)
+There would be a root object to point to possible choice
 
+
+[source,python]
+----
+
+-  class : "root"
+   help  : "Root"   
+   choice  :
+        default : [ "ethrenet" ,"llc","_802-3"] 
+----
+
+So in a way you could define a tree like this
+ 
 [source,python]
 ----
  
@@ -113,9 +211,239 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
 ----
 
 
+==== Rules 
+
+* The size of the header and offset is automatically defined in default by the order of the fields ( inc by type size multiply by array_size) 
+* It can be overrided by offset field ( put offset in the object ) and then an more advanced field can be shown earlier in the GUI
+* The packet size is defined before the headers.  Header Should not be allowed to be added if the size + header size is bigger than packet size
+* "Payload" is predefined Fields that take the reset of the packet and user can edit it ( see xref:Payload[Payload] )
+* There would be a spare field in the Stream object so GUI could add more metadata for reconstructing the builder types 
+  for example in this example Ethrenet/IP/TCP/IP/TCP  you can't extrac from buffer alone that Payload is IP/TCP only the builder known that in build time.  
+* Ip total length need to keep the total_pkt_size - this ip header . this should work for internal header too.
+
+
+
+=== Example TCP/IP
+
+
+[source,python]
+----
+
+ - class : "c-mac-addr"
+   help  : "Mac addrees"      
+   type : "uint8"
+   array_size : 6     
+   edit_type  : "mac-addr_t" # format (\d\d[:]){5}[:]\d\d
+   default_value : [0x00,0x00,0x01,0x00,0x00,0x00]
+        
+
+ - class : "c-ethr-l2"
+   help : "Ethernet-L2"
+   fields : 
+        - name : "Dst"
+          help : "destination mac"      
+          type : "c-mac-addr"
+          
+        - name : "Src"
+          help : "source mac"      
+          type : "c-mac-addr"
+          
+        - name : "ip_protocol"
+          type : "uint16_t"
+          default_value : [0x08,0x00]
+          choice : 
+                fields :
+                        - key  : 0x0800
+                          val  : "ip"      
+        
+                        - key  : 0x0860
+                          val  : "ipv6"      
+        
+                        - key  : 0x0810   # just an example don't realy remember the numbers 
+                          val  : "vlan"      
+        
+                        - key  : 0x0812
+                          val  : "mpls"
+                default : "payload"
+          
+
+ - class : "ipv4"
+   help : "Ipv4"
+   fields : 
+        - name : "ver"
+          help : "Version"
+          type : "bit"
+          array_size : 4     
+          default : [4]
+
+         - name : "ihl"
+          help : "IHL"
+          type : "bit"
+          array_size : 4     
+          default : [7]
+          exec : "ipv4_ihl"
+          change_possible : false
+
+          ..
+
+         - name : "hdr_chsum"
+          help : "Header Checksum"
+          default : [0x00,0x00]
+          exec : "ipv4_check_sum"
+          change_possible : false
+
+         - name : "total_len"
+          help : "Total Length"
+          default : [0x00,0x00]
+          exec : "ipv4_total_len" # auto calculate total_size-offset_header
+          
+         - name : "protocol"
+          help : "Protocol"
+          type : uint8_t
+          default_value : [0x06]
+          choice : 
+               fields: 
+                - key  : 0x06
+                  val  : "tcp"      
+
+                - key  : 0x11
+                  val  : "udp"      
+
+                - key  : 0x01   # just an example don't realy remember the numbers 
+                  val  : "ip"      
+
+                - key  : 0x0812
+                  val  : "gre"      
+                default : "payload"  
+
+         - name : "src_addr"
+          help : "Source Address"
+          type : uint32_t
+          default : [0x10,0x00,0x00,0x00]
+          edit_type  : "ipv4" # reserve
+
+         - name : "dst_addr"
+          help : "Destination Address"
+          default : [0x30,0x00,0x00,0x00]
+          type : uint32_t
+          edit_type  : "ipv4" # reserve
+
+
+ - class : "tcp"
+   help : "TCP"
+   fields : 
+         - name : "src_port"
+          help : "Source Port"
+          default : [0x30,0x00]
+          type : uint16_t
+
+         - name : "dest_port"
+          help : "Source Port"
+          default : [0x30,0x00]
+          type : uint16_t
+
+         - name : "seq"
+          help : "Seq Number"
+          type : uint32_t
+          default : [0x30,0x00,00,00]
+
+         - name : "ack"
+          help : "Ack Number"
+          type : uint32_t
+          default : [0x30,0x00,00,00]
+
+        ...
+        
+         - name : "flags"    # tree with leaf of bits
+          help : "Ack Number"
+          type : uint8_t
+          default : [0x30]
+          fields :
+                 - name : "urg"
+                  help : "URG"
+                  type  : bit
+                  default : [0x0]
+
+                 - name : "ack"
+                  help : "ACK"
+                  type  : bit
+                  default : [0x1]
+                  ..
+                
+         - name : "checksum"
+          help : "Checksum"
+          type : uint16_t
+          default : [0x00,0x00]
+          exec : "tcp_checksum" # auto calculate total_size-offset_header
+
+
+-  class : "root" # reserve
+   help  : "Root"   
+   choice  :
+        default : [ "ethrenet" ,"llc","_802-3"] 
+---------------------------                
+
+=== Example IP Option
+
+see here TLV 
+
+0 : END
+1 : Length 1
+other : Byte : Length ( +first) |option 
+
+ link:http://tools.ietf.org/html/rfc791[ip_option]
+
+
+[source,python]
+----
+
+ - class : "ip_option_131"
+   help  : "ip_option"      
+   fields : 
+         - name : "length"    # tree with leaf of bits
+           help : "length"
+           type : uint8_t
+           exec : "tlv_length"
+
+         - name : "pointer"    # tree with leaf of bits
+           type : uint8_t
+           
+         - name : "buffer"    # tree with leaf of bits
+           type : "tlv_reset"
+ 
+
+ - class : "ip_option"
+   help  : "ip_option"      
+   type : uint8_t
+   default_value : [0x01]
+   choice : 
+       fields: 
+         - key : 0x00
+           val  : "none"   # no next the parent has      
+
+        - key  : 0x01
+          val  : "ip_option"      
+
+        - key  : 0x131
+          val  : "ip_option_131"      
+
+        - key  : 0x01   # just an example don't realy remember the numbers 
+          val  : "ip"      
+
+        - key  : 0x0812
+          val  : "gre"      
+        default : "payload"  
+       
+
+----
+
+* case of varible length field ip_option example
+
+
+
+
 === Resource
 *  link:https://wireedit.com/[WireEdit]
-*  link:https://code.google.com/p/ostinato/[ostinato]
+*  link:http://ostinato.org/[ostinato]
 *  link:http://www.slideshare.net/nlekh/ixiaexplorer[IxExplorer]
-
 

@@ -19,5 +19,6 @@ build/
 *.rar
 *.tar
 *.zip
+*.vpj
  
 
