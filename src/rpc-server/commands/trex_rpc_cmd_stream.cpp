@@ -48,7 +48,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_self_start      = parse_bool(section, "self_start", result);
 
     /* inter stream gap */
-    stream->m_isg_usec  = parse_double(section, "Is", result);
+    stream->m_isg_usec  = parse_double(section, "isg", result);
 
     stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
 
