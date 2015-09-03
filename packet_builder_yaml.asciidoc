@@ -1,6 +1,9 @@
 
 == A file format for GUI packet builder 
 
+version : 0.01
+originator : hhaim
+
 === Introduction
 
 We would like a file that will be read by GUI and will give us the ability to build packets using GUI
