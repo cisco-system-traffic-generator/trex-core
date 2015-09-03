@@ -115,6 +115,13 @@ protected:
      */
     void verbose_msg(const std::string &msg);
 
+    /**
+     * prints a verbose message with a JSON to be converted to 
+     * string 
+     * 
+     */
+    void verbose_json(const std::string &msg, const std::string &json_str);
+
     TrexRpcServerConfig                  m_cfg;
     bool                                 m_is_running;
     bool                                 m_is_verbose;

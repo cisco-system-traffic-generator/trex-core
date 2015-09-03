@@ -79,6 +79,14 @@ public:
      */
     void parse(std::vector<TrexJsonRpcV2ParsedObject *> &commands);
 
+    /**
+     * *tries* to generate a pretty string from JSON 
+     * if json_str is not a valid JSON string 
+     * it will duplicate the source
+     * 
+     */
+    static std::string pretty_json_str(const std::string &json_str);
+
 private:
 
     /**
