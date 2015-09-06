@@ -74,4 +74,6 @@ void validate_stream(const TrexStream *stream, Json::Value &result);
 );
 
 
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1);
+
 #endif /* __TREX_RPC_CMD_H__ */

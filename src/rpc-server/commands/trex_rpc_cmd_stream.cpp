@@ -52,20 +52,24 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
     stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
 
-    const Json::Value &pkt = parse_array(section, "packet", result);
+    const Json::Value &pkt = parse_object(section, "packet", result);
+    const Json::Value &pkt_binary = parse_array(pkt, "binary", result);
 
     /* fetch the packet from the message */
 
-    stream->m_pkt_len = pkt.size();
-    stream->m_pkt = new uint8_t[pkt.size()];
-    if (!stream->m_pkt) {
+    stream->m_pkt.len    = pkt_binary.size();
+    stream->m_pkt.binary = new uint8_t[pkt_binary.size()];
+    if (!stream->m_pkt.binary) {
         generate_internal_err(result, "unable to allocate memory");
     }
 
     /* parse the packet */
-    for (int i = 0; i < pkt.size(); i++) {
-        stream->m_pkt[i] = parse_byte(pkt, i, result);
+    for (int i = 0; i < pkt_binary.size(); i++) {
+        stream->m_pkt.binary[i] = parse_byte(pkt_binary, i, result);
     }
+
+    /* meta data */
+    stream->m_pkt.meta = parse_string(pkt, "meta", result);
 
     /* parse RX info */
     const Json::Value &rx = parse_object(section, "rx_stats", result);
@@ -82,7 +86,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     /* make sure this is a valid stream to add */
     validate_stream(stream, result);
 
-    TrexStatelessPort *port = get_trex_stateless()->get_port_by_id(stream->m_port_id);
+    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(stream->m_port_id);
     port->get_stream_table()->add_stream(stream);
 
     result["result"] = "ACK";
@@ -142,7 +146,7 @@ void
 TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &result) {
 
     /* check packet size */
-    if ( (stream->m_pkt_len < TrexStream::MIN_PKT_SIZE_BYTES) || (stream->m_pkt_len > TrexStream::MAX_PKT_SIZE_BYTES) ) {
+    if ( (stream->m_pkt.len < TrexStream::MIN_PKT_SIZE_BYTES) || (stream->m_pkt.len > TrexStream::MAX_PKT_SIZE_BYTES) ) {
         std::stringstream ss;
         ss << "bad packet size provided: should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
         delete stream;
@@ -150,15 +154,15 @@ TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &resu
     }
 
     /* port id should be between 0 and count - 1 */
-    if (stream->m_port_id >= get_trex_stateless()->get_port_count()) {
+    if (stream->m_port_id >= TrexStateless::get_instance().get_port_count()) {
         std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)get_trex_stateless()->get_port_count() - 1;
+        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
         delete stream;
         generate_execute_err(result, ss.str());
     }
 
      /* add the stream to the port's stream table */
-    TrexStatelessPort * port = get_trex_stateless()->get_port_by_id(stream->m_port_id);
+    TrexStatelessPort * port = TrexStateless::get_instance().get_port_by_id(stream->m_port_id);
 
     /* does such a stream exists ? */
     if (port->get_stream_table()->get_stream_by_id(stream->m_stream_id)) {
@@ -180,13 +184,13 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     uint32_t stream_id = parse_int(params, "stream_id", result);
 
 
-    if (port_id >= get_trex_stateless()->get_port_count()) {
+    if (port_id >= TrexStateless::get_instance().get_port_count()) {
         std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)get_trex_stateless()->get_port_count() - 1;
+        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
         generate_execute_err(result, ss.str());
     }
 
-    TrexStatelessPort *port = get_trex_stateless()->get_port_by_id(port_id);
+    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
     TrexStream *stream = port->get_stream_table()->get_stream_by_id(stream_id);
 
     if (!stream) {
@@ -198,6 +202,8 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     port->get_stream_table()->remove_stream(stream);
 
     result["result"] = "ACK";
+
+    return (TREX_RPC_CMD_OK);
 }
 
 /***************************
@@ -209,15 +215,49 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result) {
     uint8_t  port_id = parse_byte(params, "port_id", result);
 
-    if (port_id >= get_trex_stateless()->get_port_count()) {
+    if (port_id >= TrexStateless::get_instance().get_port_count()) {
         std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)get_trex_stateless()->get_port_count() - 1;
+        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
         generate_execute_err(result, ss.str());
     }
 
-       TrexStatelessPort *port = get_trex_stateless()->get_port_by_id(port_id);
+       TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
        port->get_stream_table()->remove_and_delete_all_streams();
 
        result["result"] = "ACK";
+
+       return (TREX_RPC_CMD_OK);
+}
+
+/***************************
+ * get all streams configured 
+ * on specific port 
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
+    std::vector<uint32_t> stream_list;
+
+    uint8_t  port_id = parse_byte(params, "port_id", result);
+
+    if (port_id >= TrexStateless::get_instance().get_port_count()) {
+        std::stringstream ss;
+        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
+        generate_execute_err(result, ss.str());
+    }
+
+       TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+
+       port->get_stream_table()->get_stream_list(stream_list);
+
+       Json::Value json_list = Json::arrayValue;
+
+       for (auto stream_id : stream_list) {
+           json_list.append(stream_id);
+       }
+
+       result["result"] = json_list;
+
+       return (TREX_RPC_CMD_OK);
 }
 

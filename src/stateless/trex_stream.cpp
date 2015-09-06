@@ -32,16 +32,16 @@ TrexStream::TrexStream(uint8_t port_id, uint32_t stream_id) : m_port_id(port_id)
     m_enabled    = false;
     m_self_start = false;
 
-    m_pkt = NULL;
-    m_pkt_len = 0;
+    m_pkt.binary = NULL;
+    m_pkt.len    = 0;
 
     m_rx_check.m_enable = false;
 
 }
 
 TrexStream::~TrexStream() {
-    if (m_pkt) {
-        delete [] m_pkt;
+    if (m_pkt.binary) {
+        delete [] m_pkt.binary;
     }
 }
 
@@ -89,5 +89,13 @@ TrexStream * TrexStreamTable::get_stream_by_id(uint32_t stream_id) {
         return search->second;
     } else {
         return NULL;
+    }
+}
+
+void TrexStreamTable::get_stream_list(std::vector<uint32_t> &stream_list) {
+    stream_list.clear();
+
+    for (auto stream : m_stream_table) {
+        stream_list.push_back(stream.first);
     }
 }

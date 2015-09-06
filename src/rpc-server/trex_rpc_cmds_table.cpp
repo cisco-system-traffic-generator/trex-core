@@ -38,6 +38,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdAddStream());
     register_command(new TrexRpcCmdRemoveStream());
     register_command(new TrexRpcCmdRemoveAllStreams());
+    register_command(new TrexRpcCmdGetStreamList());
 }
 
 TrexRpcCommandsTable::~TrexRpcCommandsTable() {

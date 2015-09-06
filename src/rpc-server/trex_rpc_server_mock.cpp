@@ -20,6 +20,8 @@ limitations under the License.
 */
 
 #include <trex_rpc_server_api.h>
+#include <trex_stateless_api.h>
+
 #include <iostream>
 #include <unistd.h>
 
@@ -53,6 +55,9 @@ int main(int argc, char *argv[]) {
 
     cout << "\n-= Starting RPC Server Mock =-\n\n";
     cout << "Listening on tcp://localhost:5050 [ZMQ]\n\n";
+
+    /* configure the stateless object with 4 ports */
+    TrexStateless::configure(4);
 
     TrexRpcServerConfig rpc_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
     TrexRpcServer rpc(rpc_cfg);

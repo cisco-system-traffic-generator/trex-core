@@ -22,7 +22,9 @@ limitations under the License.
 #define __TREX_STREAM_API_H__
 
 #include <unordered_map>
+#include <vector>
 #include <stdint.h>
+#include <string>
 
 class TrexRpcCmdAddStream;
 
@@ -58,8 +60,11 @@ private:
     bool          m_self_start;
     
     /* pkt */
-    uint8_t      *m_pkt;
-    uint16_t      m_pkt_len;
+    struct {
+        uint8_t      *binary;
+        uint16_t      len;
+        std::string   meta;
+    } m_pkt;
 
     /* VM */
 
@@ -156,6 +161,15 @@ public:
      *  
      */
     TrexStream * get_stream_by_id(uint32_t stream_id);
+
+    /**
+     * populate a list with all the stream IDs
+     * 
+     * @author imarom (06-Sep-15)
+     * 
+     * @param stream_list 
+     */
+    void get_stream_list(std::vector<uint32_t> &stream_list);
 
 private:
     /**
