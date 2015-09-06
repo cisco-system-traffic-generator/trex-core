@@ -495,3 +495,160 @@ Describes rx stats for the stream
 
 
 ----
+
+=== Get Stream
+* *Name* - 'get_stream'
+* *Description* - get a specific stream object
+* *Paramters*
+** *port_id* - port for the associated stream
+** *stream_id* - the requested stream id
+
+* *Result* - object xref:stream_obj['stream']
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream",
+    "params": {
+        "port_id": 1,
+        "stream_id": 7
+    }
+}
+
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+        "stream": {
+            "enabled": true,
+            "isg": 4.3,
+            "mode": {
+                "pps": 3,
+                "type": "continuous"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": [
+                    4,
+                    1,
+                    255
+                ],
+                "meta": ""
+            },
+            "self_start": true
+        }
+    }
+}
+
+----
+
+
+=== Remove All Streams
+* *Name* - 'remove_all_streams'
+* *Description* - remove all streams from a port
+* *Paramters*
+** *port_id* - port for the associated stream
+
+* *Result* - "ACK" on success
+
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "remove_all_streams",
+    "params": {
+        "port_id": 2
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+
+=== Start Traffic
+* *Name* - 'start_traffic'
+* *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
+* *Paramters*
+** *port_id* - port for starting the traffic
+
+* *Result* - "ACK" on success
+
+[source,bash]
+----
+
+'Request':
+
+{   
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "method": "start_traffic",
+    "params": {
+        "port_id": 3
+    }
+
+'Response':
+
+{
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+=== Stop Traffic
+* *Name* - 'stop_traffic'
+* *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
+* *Paramters*
+** *port_id* - port for stopping the traffic
+
+* *Result* - "ACK" on success
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "method": "stop_traffic",
+    "params": {
+        "port_id": 3
+    }
+}
+
+'Response':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+
