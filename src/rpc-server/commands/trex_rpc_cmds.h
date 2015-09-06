@@ -65,15 +65,20 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStatus,  "get_status",      0);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveAllStreams,   "remove_all_streams",   1);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveStream,       "remove_stream",        2);
 
-TREX_RPC_CMD_DEFINE_EXTENED(TrexRpcCmdAddStream, "add_stream", 1,
+TREX_RPC_CMD_DEFINE_EXTENED(TrexRpcCmdAddStream, "add_stream", 3,
 
 /* extended part */
-TrexStream * allocate_new_stream(const Json::Value &section, Json::Value &result);
+TrexStream * allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result);
 void validate_stream(const TrexStream *stream, Json::Value &result);
 
 );
 
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1);
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 2);
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic, "start_traffic", 1);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic, "stop_traffic", 1);
 
 #endif /* __TREX_RPC_CMD_H__ */

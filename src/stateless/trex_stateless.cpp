@@ -55,7 +55,7 @@ TrexStateless::~TrexStateless() {
         delete m_ports[i];
     }
 
-    delete m_ports;
+    delete [] m_ports;
 }
 
 TrexStatelessPort * TrexStateless::get_port_by_id(uint8_t port_id) {
@@ -70,4 +70,48 @@ TrexStatelessPort * TrexStateless::get_port_by_id(uint8_t port_id) {
 uint8_t TrexStateless::get_port_count() {
     return m_port_count;
 }
+
+/***************************
+ * trex stateless port
+ * 
+ **************************/
+TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
+    m_started = false;
+}
+
+
+/**
+ * starts the traffic on the port
+ * 
+ */
+TrexStatelessPort::traffic_rc_e
+TrexStatelessPort::start_traffic(void) {
+    if (m_started) {
+        return (TRAFFIC_ERR_ALREADY_STARTED);
+    }
+
+    if (get_stream_table()->size() == 0) {
+        return (TRAFFIC_ERR_NO_STREAMS);
+    }
+
+    m_started = true;
+
+    return (TRAFFIC_OK);
+}
+
+void 
+TrexStatelessPort::stop_traffic(void) {
+    if (m_started) {
+        m_started = false;
+    }
+}
+
+/**
+* access the stream table
+* 
+*/
+TrexStreamTable * TrexStatelessPort::get_stream_table() {
+    return &m_stream_table;
+}
+
 

@@ -230,13 +230,81 @@ TEST_F(RpcTest, add_stream) {
     Json::Value response;
     Json::Reader reader;
 
-    string req_str;
     string resp_str;
 
-    req_str = "{'stream':{'port_id':7,'stream_id':12,'enable':True,'start':True,'Is':10.0,'packet':[0,1,2,3,4],"
-              "'vm_data':[{'Name':'ip_cnt','Size':4,'big_edian':True,'type':'inc','core_mask':'split','init_val':'10.0.0.7','min':'10.0.0.1','max':'10.0.0.10',}],"
-              "'vm_program':[{'op_core':['read_to_reg_mem','write_reg_offet','write_rand_offset'],'read_name':'nameofopecodetoread','pkt_offset':20}],"
-              "'mode':{'type':'continues','pps':1000},'next_stream':17,'next_stream_loop':100,'rx_stats':{'enable':True,'rx_stream_id':71,'seq_enable':True,'latency':True}}}";
+    // check the stream does not exists
+    string lookup_str = "{\"jsonrpc\":\"2.0\", \"id\":1, \"method\":\"get_stream\", \"params\":{\"port_id\":1, \"stream_id\":5}}";
+    resp_str = send_msg(lookup_str);
 
-    resp_str = send_msg(req_str);
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 1);
+
+    EXPECT_EQ(response["error"]["code"], -32000);
+
+    // add it
+
+    string add_str = "{\"jsonrpc\":\"2.0\", \"id\":1, \"method\":\"add_stream\", \"params\":"
+              "{\"port_id\":1, \"stream_id\":5, \"stream\":{"
+              "\"mode\": {\"type\":\"continuous\", \"pps\":3},"
+              "\"isg\":4.3, \"enabled\":true, \"self_start\":true,"
+              "\"next_stream_id\":-1,"
+              "\"packet\":{\"binary\":[4,1,255], \"meta\":\"dummy\"},"
+              "\"rx_stats\":{\"enabled\":false}}}}";
+
+    resp_str = send_msg(add_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 1);
+
+    EXPECT_EQ(response["result"], "ACK");
+
+    resp_str = send_msg(lookup_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 1);
+
+    const Json::Value &stream = response["result"]["stream"];
+
+    EXPECT_EQ(stream["enabled"], true);
+    EXPECT_EQ(stream["self_start"], true);
+
+    EXPECT_EQ(stream["packet"]["binary"][0], 4);
+    EXPECT_EQ(stream["packet"]["binary"][1], 1);
+    EXPECT_EQ(stream["packet"]["binary"][2], 255);
+
+    EXPECT_EQ(stream["packet"]["meta"], "dummy");
+    EXPECT_EQ(stream["next_stream_id"], -1);
+
+    double delta = stream["isg"].asDouble() - 4.3;
+    EXPECT_TRUE(delta < 0.0001);
+
+    EXPECT_EQ(stream["mode"]["type"], "continuous");
+    EXPECT_EQ(stream["mode"]["pps"], 3);
+
+    // remove it
+
+    string remove_str = "{\"jsonrpc\":\"2.0\", \"id\":1, \"method\":\"remove_stream\", \"params\":{\"port_id\":1, \"stream_id\":5}}";
+    resp_str = send_msg(remove_str);
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 1);
+
+    EXPECT_EQ(response["result"], "ACK");
+
+    resp_str = send_msg(remove_str);
+
+    // should not be present anymore
+
+    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    EXPECT_EQ(response["jsonrpc"], "2.0");
+    EXPECT_EQ(response["id"], 1);
+
+    EXPECT_EQ(response["error"]["code"], -32000);
+
 }
+
+

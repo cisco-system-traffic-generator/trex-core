@@ -49,20 +49,32 @@ public:
 class TrexStatelessPort {
 public:
 
-    TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
-    }
+    /**
+     * describess error codes for starting traffic
+     */
+    enum traffic_rc_e {
+        TRAFFIC_OK,
+        TRAFFIC_ERR_ALREADY_STARTED,
+        TRAFFIC_ERR_NO_STREAMS,
+        TRAFFIC_ERR_FAILED_TO_COMPILE_STREAMS
+    };
+
+    TrexStatelessPort(uint8_t port_id);
+
+    traffic_rc_e start_traffic(void);
+
+    void stop_traffic(void);
 
     /**
      * access the stream table
      * 
      */
-    TrexStreamTable *get_stream_table() {
-        return &m_stream_table;
-    }
+    TrexStreamTable *get_stream_table();
 
 private:
     TrexStreamTable  m_stream_table;
     uint8_t          m_port_id;
+    bool             m_started;
 };
 
 /**

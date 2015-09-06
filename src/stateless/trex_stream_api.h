@@ -35,6 +35,7 @@ class TrexRpcCmdAddStream;
 class TrexStream {
     /* provide the RPC parser a way to access private fields */
     friend class TrexRpcCmdAddStream;
+    friend class TrexRpcCmdGetStream;
     friend class TrexStreamTable;
 
 public:
@@ -53,7 +54,7 @@ private:
 
     /* config fields */
     double        m_isg_usec;
-    uint32_t      m_next_stream_id;
+    int           m_next_stream_id;
 
     /* indicators */
     bool          m_enabled;
@@ -87,6 +88,11 @@ class TrexStreamContinuous : public TrexStream {
 public:
     TrexStreamContinuous(uint8_t port_id, uint32_t stream_id, uint32_t pps) : TrexStream(port_id, stream_id), m_pps(pps) {
     }
+
+    uint32_t get_pps() {
+        return m_pps;
+    }
+
 protected:
     uint32_t m_pps;
 };
@@ -170,6 +176,12 @@ public:
      * @param stream_list 
      */
     void get_stream_list(std::vector<uint32_t> &stream_list);
+
+    /**
+     * get the table size
+     * 
+     */
+    int size();
 
 private:
     /**

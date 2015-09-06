@@ -99,3 +99,7 @@ void TrexStreamTable::get_stream_list(std::vector<uint32_t> &stream_list) {
         stream_list.push_back(stream.first);
     }
 }
+
+int TrexStreamTable::size() {
+    return m_stream_table.size();
+}
