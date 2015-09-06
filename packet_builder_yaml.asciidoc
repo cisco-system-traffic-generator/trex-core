@@ -8,13 +8,13 @@ Packet Builder Language
 
 == change log
 
-[options="header",cols="1,10"]
+[options="header",cols="^1,^h,a"]
 |=================
-| Version |   meaning                           
-| 0.01        |  first version 
-| 0.02 
+| Version |   meaning    | name 
+| 0.01    |  hhaim |
+- first version 
+| 0.02    | hhaim 
 |
-
 - change the bool fields to properties 
 - add external/internal  property      
 - add const property  ( instead cant_change)
