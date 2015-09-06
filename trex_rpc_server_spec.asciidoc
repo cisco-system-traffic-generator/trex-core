@@ -1,6 +1,6 @@
 The TRex RPC Server
 ===================
-:author: imarom
+:author: Itay Marom
 :email: <imarom@cisco.com>
 :revnumber: 1.70-0.0
 :quotes.++:
@@ -286,10 +286,13 @@ e.g.: user owning the device, number of ports configured
 === Add Stream
 * *Name* - 'add_stream'
 * *Description* - Adds a stream to a port
-* *Paramters* - Object of type 'stream' - see below
+* *Paramters* 
+** *port_id* - port id associated with this stream
+** *stream_id* - stream id associated with the stream object
+** *stream* - object of type xref:stream_obj['stream']
 * *Result* - ACK in case of success
 
-==== Object type 'stream'
+==== Object type 'stream' anchor:stream_obj[]
 
 Add_stream gets a single parameter of type object.
 
@@ -299,11 +302,9 @@ The format of that object is as follows:
 [options="header",cols="1,1,3"]
 |=================
 | Field       | Type    | Description 
-| port_id     | int     | The port that this stream will be assoiciated with. Valid number is in the range got from get_status : 'ports.count'
-| stream_id   | int     | unique (per port) identifier for this stream
-| enabled     | boolean | is this stream enabled ?
-| self_start  | boolean | is this stream triggered by starting injection or triggered by another stream ?
-| isg         | double  | inter stream gap - delay time until the stream is started
+| enabled     | boolean | is this stream enabled
+| self_start  | boolean | is this stream triggered by starting injection or triggered by another stream
+| isg         | double  | ['usec'] inter stream gap - delay time in usec until the stream is started
 | next_stream | int     | next stream to start after this stream. -1 means stop after this stream
 | packet      | object  | object of type xref:packet_obj['packet']
 | mode        | object  | object of type xref:mode_obj['mode']
@@ -323,7 +324,7 @@ packet contains binary and meta data
 |=================
 
 ===== Object type 'mode' anchor:mode_obj[]
-mode object can be one of the following objects:
+mode object can be 'one' of the following objects:
 
 .Object type 'mode - continuous' 
 [options="header",cols="1,1,3"]
@@ -349,7 +350,148 @@ mode object can be one of the following objects:
 | type           | string      | ''multi_burst''
 | pps            | int         | rate in packets per second 
 | pkts_per_burst | int         | packets in a single burst
-| ibg            | double      | inter burst gap. delay between bursts
+| ibg            | double      | ['usec'] inter burst gap. delay between bursts in usec
 | count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
 |=================
 
+===== Object type 'vm' anchor:vm_obj[]
+Describes the VM instructions to be used with this stream
+
+.Object type 'vm'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+|=================
+
+===== Object type 'rx_stats' anchor:rx_stats_obj[]
+Describes rx stats for the stream
+
+.Object type 'rx_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field            | Type        | Description
+| enabled          | boolean     | is rx_stats enabled for this stream
+| rx_stream_id     | int         | 
+| seq_enabled      | boolean     | should write 32 bit sequence
+| latency_enabled  | boolean     | should write 32 bit latency
+|=================
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "add_stream",
+    "params": {
+        "port_id": 1,
+	"stream_id": 502
+        "stream": {
+            "enabled": true,
+            "isg": 4.3,
+            "mode": {
+                "pps": 3,
+                "total_pkts": 5000,
+                "type": "single_burst"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": [
+                    4,
+                    1,
+                    255
+                ],
+                "meta": ""
+            },
+            "rx_stats": {
+                "enabled": false
+            },
+            "self_start": true,
+        }
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+
+=== Remove Stream
+* *Name* - 'remove_stream'
+* *Description* - Removes a stream from a port
+* *Paramters*
+** *port_id* - port assosicated with the stream.
+** *stream_id* - stream to remove
+
+* *Result* - ACK in case of success
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "method": "remove_stream",
+    "params": {
+        "port_id": 1,
+        "stream_id": 502
+    }
+}
+
+
+'Response':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+----
+
+=== Get Stream ID List
+* *Name* - 'get_stream_list'
+* *Description* - fetch all the assoicated streams for a port
+* *Paramters*
+** *port_id* - port to query for registered streams
+
+* *Result* - array of 'stream_id'
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream_list",
+    "params": {
+        "port_id": 1
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": [
+        502,
+        18
+    ]
+}
+
+
+----
