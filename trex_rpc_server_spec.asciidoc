@@ -187,3 +187,169 @@ Server Started
 
 ----
 
+== RPC Commands
+The following RPC commands are supported
+
+=== Ping
+* *Name* - 'ping'
+* *Description* - Pings the TRex server
+* *Paramters* - None
+* *Result* - "ACK" On Sucess
+
+Example:
+
+[source,bash]
+----
+'Request':
+
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "ping",
+    "params": null
+}
+
+'Response':
+
+{
+   "jsonrpc" : "2.0",
+   "id" : 1,
+   "result" : "ACK"
+}
+
+----
+
+=== Get Registered Commands
+* *Name* - 'get_reg_cmds'
+* *Description* - Queries the server for all the registered commands
+* *Paramters* - None
+* *Result* - A list of all the supported commands by the server
+
+Example:
+
+[source,bash]
+----
+'Request':
+
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "get_reg_cmds",
+    "params": null
+}
+
+
+'Response':
+
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": [
+        "remove_all_streams",
+        "remove_stream",
+        "add_stream",
+        "get_reg_cmds",
+        "ping",
+        "test_sub",
+        "get_status",
+        "test_add"
+    ]
+}
+
+----
+
+
+=== Get Status
+* *Name* - 'get_status'
+* *Description* - Queries the server for general information
+e.g.: user owning the device, number of ports configured
+* *Paramters* - None
+* *Result* - An object of all the supported commands by the server.
+
++++<u>Result Details:</u>+++
+
+'general.version' - TRex version.
+
+'general.build_date' - build date.
+
+'general.build_time' - build time.
+
+'general.built_by'   - who built this version
+
+'general.uptime' - uptime of the server
+
+'general.owner' - user currently owning the device or 'none' if no one has taken ownership.
+
+{zwsp} +
+'ports.count' - number of ports available on the server.
+
+=== Add Stream
+* *Name* - 'add_stream'
+* *Description* - Adds a stream to a port
+* *Paramters* - Object of type 'stream' - see below
+* *Result* - ACK in case of success
+
+==== Object type 'stream'
+
+Add_stream gets a single parameter of type object.
+
+The format of that object is as follows:
+
+.Object type 'stream' 
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type    | Description 
+| port_id     | int     | The port that this stream will be assoiciated with. Valid number is in the range got from get_status : 'ports.count'
+| stream_id   | int     | unique (per port) identifier for this stream
+| enabled     | boolean | is this stream enabled ?
+| self_start  | boolean | is this stream triggered by starting injection or triggered by another stream ?
+| isg         | double  | inter stream gap - delay time until the stream is started
+| next_stream | int     | next stream to start after this stream. -1 means stop after this stream
+| packet      | object  | object of type xref:packet_obj['packet']
+| mode        | object  | object of type xref:mode_obj['mode']
+| vm          | object  | object of type xref:vm_obj['vm']
+| rx_stats    | object  | object of type xref:rx_stats_obj['rx_stats']
+|=================
+
+===== Object type 'packet' anchor:packet_obj[]
+packet contains binary and meta data
+
+.Object type 'packet'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| binary      | byte array  | binary dump of the packet to be used in the stream as array of bytes
+| meta        | string      | meta data object. opaque to the RPC server. will be passed on queries
+|=================
+
+===== Object type 'mode' anchor:mode_obj[]
+mode object can be one of the following objects:
+
+.Object type 'mode - continuous' 
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | ''continuous''
+| pps         | int         | rate in packets per second 
+|=================
+
+.Object type 'mode - single_burst' 
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type        | Description
+| type          | string      | ''single_burst''
+| pps           | int         | rate in packets per second 
+| total pkts    | int         | total packets in the burst
+|=================
+
+.Object type 'mode - multi_burst' 
+[options="header",cols="1,1,3"]
+|=================
+| Field          | Type        | Description
+| type           | string      | ''multi_burst''
+| pps            | int         | rate in packets per second 
+| pkts_per_burst | int         | packets in a single burst
+| ibg            | double      | inter burst gap. delay between bursts
+| count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
+|=================
+
