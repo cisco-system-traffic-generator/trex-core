@@ -10,7 +10,7 @@ Packet Builder Language
 
 [options="header",cols="^1,^h,a"]
 |=================
-| Version |   meaning    | name 
+| Version |  name   |  meaning  
 | 0.01    |  hhaim |
 - first version 
 | 0.02    | hhaim 
@@ -164,8 +164,7 @@ The format should be *YAML*
 | "payload   | the rest of the packets as buffer/string etc
 |=================
 
-
-
+ 
 .Next_headers anchor:Next_headers[]
 Example of Next_headers
 [source,python]
