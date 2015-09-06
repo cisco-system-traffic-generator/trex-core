@@ -1,8 +1,29 @@
+Packet Builder Language
+=======================
+:author: hhaim
+:email: <hhaim@cisco.com> 
+:revnumber: 0.02
+:quotes.++:
+:numbered:
+
+== change log
+
+[options="header",cols="^1,^h,a"]
+|=================
+| Version |   meaning    | name 
+| 0.01    |  hhaim |
+- first version 
+| 0.02    | hhaim 
+|
+- change the bool fields to properties 
+- add external/internal  property      
+- add const property  ( instead cant_change)
+- change  TLV property - now learn the prev header
+- add choice that is not base on a field ( TCP->IP->TCP)
+|=================
+
 
 == A file format for GUI packet builder 
-
-version : 0.01
-originator : hhaim
 
 === Introduction
 
@@ -75,7 +96,7 @@ The format should be *YAML*
 | uint64     |  sub fields of this header          |   64  
 | Field_Type  | name of a field type that define   | The size of the field type "mac-addr"
 | Payload    |     xref:Payload[Payload]                               | total packet size - all header until now 
-| vlen       |  varible length field, take the reset of the field | total size of the object 
+| vlen_t  | in case of varible size header this include the size to the end of varible size header see example xref:IpvOption[Ipv4Option] |total size of the object 
 |=================
 
 
@@ -96,22 +117,22 @@ The format should be *YAML*
 |=================
 
 
-
-
-.Default Exec   anchor:Exec[]
+.Default Properties    anchor:Properties[]
 [options="header",cols="1,2"]
 |=================
 | Field Name |   meaning              
-| none        | nothing special 
 | ipv4_checksum | auto calculates checksum on this header Ipv4 type 
 | tcp_udp_checsum | calculate next TCP checksum 
-| ipv4_total_length | calculate ipv4 total length 
-| tlv_length        | the length of the field in bytes -1 for TLV
+| ipv4_total_length | calculate ipv4 total length this pkt_size = header  + reset of packet 
+| tlv         | TLV length of the header (inlcudes the prev field length) example ip-option, tcp-option
+| le       | little edian. deault is big 
+| const   | const field for example the 4 version of ipv4 header   - this GUI won't give option to change this field
+| external   | marks the header as an external header for the GUI. for example IPv4 is external header and mac-addr is internal header ( compose external header)
 |=================
 
 
 .Field_Type  anchor:Field_Type[]
-[options="header",cols="^1,^1,30,^1,^1,30"]
+[options="header",cols="1,^1,30,^1,^1,30"]
 |=================
 | Field Name | value type |  meaning                                           | Default Value | Link | Example 
 | class      | string     | describe the class type                            |   in case class is defined no need to have name and vise versa           |      | class : tcp 
@@ -121,16 +142,55 @@ The format should be *YAML*
 | type       | string     | type, see  Types  define the size                  |   "uint8_t"   |  xref:Types[Types]   | type : "uint32_t" type : "mac_addr"
 | edit_type  | string     | edit_type  Edit_Types                              |    "none"     |  xref:Edit_Types[Edit_Types]     | edit_type could get edit_type_regexp e.g edit_type = "ipv4" , edit_type = "regexp" edit_type_regexp = "string that define regexp and Java function"
 | edit_type_regexp  | string  | in case it is reg_exp  the name of the function  |"none"        | xref:GenRegExp[GenRegExp]       |       
-| edian             | bool    | big or little edian                             |  true        |        |  in default all fields are big 
-| default           | array of bytes | default value in the packets             | [0 ]x header size |   |   
-| exec              | string | exception processing by java checsum/length                             |  none        | xref:Exec[Exec] |
-| choice            | array  |   define the next protocol see                   |  none        | xref:Choice[Choice]  |
-| change_possible   | bool   | is it possible to change this field after we added next fields. in some cases we can't change field after we build next protocol | true | | 
-| fields        | array  | array of Field_Type                             |   []          |        | fields : [  ]
-| offset            | integer/string  |   offset into the packet in bits, in case of auto add base of prev fields    |   "auto"          |        |  |
-| option            | string  |   a java code that define a way to calculate varible size        |   "none"          |        |  |
+| default           | array of bytes | default value in the packets , you can override value for subfields in parent see example             
+| [0 ]x header size |   |   
+| properies         | array of string like masks   
+| properies of this fields                         |  []        | xref:Properties[Properties] | ["le","external"] , ["tlv","le","const"]
 
+| choice            | array  |   define the next protocol base on a field   |  none        | xref:Choice[Choice]  |
+| next_headers       | string or type  |   a name of class that define the next or just an array     |  "none"     | xref:Choice[Next_headers]  |
+| fields        | array  | array of Field_Type                             |   []          |        | fields : [  ]
+| offset            | integer/string  |   offset into the packet in bits, in case of auto add base of prev fields    |   "auto"          |        |  
+| option            | string  |   a java code that define a way to calculate varible size        |   "none"          |        |  |
 |=================
+
+
+.Field_Type  anchor:ConstHeadesClass[]
+[options="header",cols="^1,^10"]
+|=================
+| Field Name | value type  
+| "root"     | the root pointer to the start of blocks L2/802.3 etc
+| "end"      | end TLV headers
+| "payload   | the rest of the packets as buffer/string etc
+|=================
+
+
+
+.Next_headers anchor:Next_headers[]
+Example of Next_headers
+[source,python]
+----
+
+ - class : "next-example-t-1"
+   help : "next-example-t-1"
+   next_headers : ["ip","ipv6,"tcp"]
+
+# option 1 define in the header itself
+ - class : "tcp"
+   help : "TCP header"
+   properies : ["external"]
+   next_headers : ["ip","ipv6,"tcp"]
+   fields : 
+        - name : "ver"
+
+# option 2 define throw a class 
+ - class : "tcp"
+   help : "TCP header"
+   properies : ["external"]
+   next_headers : "next-example-t-1" # 
+   fields : 
+        - name : "ver"
+----
 
 
 .Choice anchor:Choice[]
@@ -139,7 +199,7 @@ Example of Choice
 ----
                 fields :
                         - key  : 0x0800
-                          val  : "ip"      
+                          val  : "ip"  # name of an external or internal class , the GUI should distinct betwean internal and external  
         
                         - key  : 0x0860
                           val  : "ipv6"      
@@ -223,10 +283,81 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
 * There would be a spare field in the Stream object so GUI could add more metadata for reconstructing the builder types 
   for example in this example Ethrenet/IP/TCP/IP/TCP  you can't extrac from buffer alone that Payload is IP/TCP only the builder known that in build time.  
 * Ip total length need to keep the total_pkt_size - this ip header . this should work for internal header too.
+* When GUI add header ("external") the total size of this header should be calculated ( varible size should be given a default - ipv4) 
+
+
+=== Examples  
+
+
+==== TLV (Ip option) anchor:IpvOption[]
+
+
+IP-option see link:http://tools.ietf.org/html/rfc791[ip_option]
+
+0 : END
+1 : Length 1
+other : Byte : Length ( +first) |option 
+
+ 
+
+
+[source,python]
+----
+
+ - class : "ip_option_131"
+   help  : "ip_option"      
+   fields : 
+         - name : "length"    # tree with leaf of bits
+           help : "length"
+           type : uint8_t
+           properties : ["tlv"] # the length include the prev field size (8 byte)
+
+         - name : "pointer"    # tree with leaf of bits
+           type : uint8_t
+           
+         - name : "buffer"    # tree with leaf of bits
+           type : "tlv_reset"
+
+ - class : "default_ip4_option_tlv"
+   help  : "ip_option"      
+   fields : 
+         - name : "length"    # tree with leaf of bits
+           help : "length"
+           type : uint8_t
+           properties : "tlv" # the length include the prev field size (8 byte)
+           
+         - name : "buffer"    # tree with leaf of bits
+           type : "vlen_t"
+ 
+
+ - class : "ip_option"
+   help  : "ip_option"      
+   type : uint8_t
+   default : [0x01]
+   choice : 
+       fields: 
+         - key : 0x00
+           val  : "end"   # reserve name for ending the loop
+
+        - key  : 0x01
+          val  : "ip_option"   # back to this header    
+
+        - key  : 0x131
+          val  : "ip_option_131"      
+
+        - key  : 0x0812
+          val  : "gre"      
+
+      default : "default_ip4_option_tlv"  
+       
+
+----
+
+* case of varible length field ip_option example
 
 
 
-=== Example TCP/IP
+==== Example TCP/IP
 
 
 [source,python]
@@ -237,7 +368,7 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
    type : "uint8"
    array_size : 6     
    edit_type  : "mac-addr_t" # format (\d\d[:]){5}[:]\d\d
-   default_value : [0x00,0x00,0x01,0x00,0x00,0x00]
+   default : [0x00,0x00,0x01,0x00,0x00,0x00]
         
 
  - class : "c-ethr-l2"
@@ -253,7 +384,7 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
           
         - name : "ip_protocol"
           type : "uint16_t"
-          default_value : [0x08,0x00]
+          default : [0x08,0x00]
           choice : 
                 fields :
                         - key  : 0x0800
@@ -284,26 +415,24 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
           type : "bit"
           array_size : 4     
           default : [7]
-          exec : "ipv4_ihl"
-          change_possible : false
+          properties : ["ipv4_ihl","const"]
 
           ..
 
          - name : "hdr_chsum"
           help : "Header Checksum"
           default : [0x00,0x00]
-          exec : "ipv4_check_sum"
-          change_possible : false
+          properties : ["ipv4_check_sum"]
 
          - name : "total_len"
           help : "Total Length"
           default : [0x00,0x00]
-          exec : "ipv4_total_len" # auto calculate total_size-offset_header
+          properties : ["ipv4_total_len"] # auto calculate total_size-offset_header
           
          - name : "protocol"
           help : "Protocol"
           type : uint8_t
-          default_value : [0x06]
+          default : [0x06]
           choice : 
                fields: 
                 - key  : 0x06
@@ -313,7 +442,7 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
                   val  : "udp"      
 
                 - key  : 0x01   # just an example don't realy remember the numbers 
-                  val  : "ip"      
+                  val  : "ip" # class name      
 
                 - key  : 0x0812
                   val  : "gre"      
@@ -334,6 +463,7 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
 
  - class : "tcp"
    help : "TCP"
+   properties : ["external"] 
    fields : 
          - name : "src_port"
           help : "Source Port"
@@ -377,7 +507,7 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
           help : "Checksum"
           type : uint16_t
           default : [0x00,0x00]
-          exec : "tcp_checksum" # auto calculate total_size-offset_header
+          properties : ["tcp_checksum"] # auto calculate total_size-offset_header
 
 
 -  class : "root" # reserve
@@ -386,62 +516,58 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
         default : [ "ethrenet" ,"llc","_802-3"] 
 ---------------------------                
 
-=== Example IP Option
 
-see here TLV 
+==== Overide subfields
 
-0 : END
-1 : Length 1
-other : Byte : Length ( +first) |option 
-
- link:http://tools.ietf.org/html/rfc791[ip_option]
-
+In this example parent class default value override default value of sub-fields ( 2 diffrent mac-addr)
 
 [source,python]
 ----
 
- - class : "ip_option_131"
-   help  : "ip_option"      
+ - class : "c-mac-addr"
+   help  : "Mac addrees"      
+   type : "uint8"
+   array_size : 6     
+   edit_type  : "mac-addr_t" # format (\d\d[:]){5}[:]\d\d
+   default : [0x00,0x00,0x01,0x00,0x00,0x00]
+        
+
+ - class : "c-ethr-l2"
+   help : "Ethernet-L2"
+   properties : ["external"] 
+   default : [0x00,0x01,0x01,0x00,0x00,0x00, 0x00,0x02,0x02,0x00,0x00,0x00 ,0x08,00] # change the default of sub-fields . it is const size
    fields : 
-         - name : "length"    # tree with leaf of bits
-           help : "length"
-           type : uint8_t
-           exec : "tlv_length"
-
-         - name : "pointer"    # tree with leaf of bits
-           type : uint8_t
-           
-         - name : "buffer"    # tree with leaf of bits
-           type : "tlv_reset"
- 
-
- - class : "ip_option"
-   help  : "ip_option"      
-   type : uint8_t
-   default_value : [0x01]
-   choice : 
-       fields: 
-         - key : 0x00
-           val  : "none"   # no next the parent has      
-
-        - key  : 0x01
-          val  : "ip_option"      
-
-        - key  : 0x131
-          val  : "ip_option_131"      
-
-        - key  : 0x01   # just an example don't realy remember the numbers 
-          val  : "ip"      
-
-        - key  : 0x0812
-          val  : "gre"      
-        default : "payload"  
-       
-
+        - name : "Dst"
+          help : "destination mac"      
+          type : "c-mac-addr"
+          
+        - name : "Src"
+          help : "source mac"      
+          type : "c-mac-addr"
+          
+        - name : "ip_protocol"
+          type : "uint16_t"
+          default : [0x08,0x00]
+          choice : 
+                fields :
+                        - key  : 0x0800
+                          val  : "ip"      
+        
+                        - key  : 0x0860
+                          val  : "ipv6"      
+        
+                        - key  : 0x0810   # just an example don't realy remember the numbers 
+                          val  : "vlan"      
+        
+                        - key  : 0x0812
+                          val  : "mpls"
+                default : "payload"
 ----
 
-* case of varible length field ip_option example
 
+==== Union base 
+
+TBD
 
 
 
