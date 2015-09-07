@@ -70,7 +70,10 @@ TREX_RPC_CMD_DEFINE_EXTENED(TrexRpcCmdAddStream, "add_stream", 3,
 /* extended part */
 TrexStream * allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result);
 void validate_stream(const TrexStream *stream, Json::Value &result);
-
+void parse_vm(const Json::Value &vm, TrexStream *stream, Json::Value &result);
+void parse_vm_instr_checksum(const Json::Value &inst, TrexStream *stream, Json::Value &result);
+void parse_vm_instr_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
+void parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
 );
 
 

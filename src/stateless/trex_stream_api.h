@@ -26,6 +26,8 @@ limitations under the License.
 #include <stdint.h>
 #include <string>
 
+#include <trex_stream_vm.h>
+
 class TrexRpcCmdAddStream;
 
 /**
@@ -68,6 +70,7 @@ private:
     } m_pkt;
 
     /* VM */
+    StreamVm m_vm;
 
     /* RX check */
     struct {
@@ -77,6 +80,7 @@ private:
         uint32_t  m_stream_id;
 
     } m_rx_check;
+
 
 };
 

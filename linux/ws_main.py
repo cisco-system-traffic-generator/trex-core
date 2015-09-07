@@ -141,7 +141,8 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
 # stateless code
 stateless_src = SrcGroup(dir='src/stateless/',
                           src_list=['trex_stream.cpp',
-                                    'trex_stateless.cpp'
+                                    'trex_stream_vm.cpp',
+                                    'trex_stateless.cpp',
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',

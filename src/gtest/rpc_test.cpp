@@ -250,6 +250,7 @@ TEST_F(RpcTest, add_stream) {
               "\"isg\":4.3, \"enabled\":true, \"self_start\":true,"
               "\"next_stream_id\":-1,"
               "\"packet\":{\"binary\":[4,1,255], \"meta\":\"dummy\"},"
+              "\"vm\":[],"
               "\"rx_stats\":{\"enabled\":false}}}}";
 
     resp_str = send_msg(add_str);

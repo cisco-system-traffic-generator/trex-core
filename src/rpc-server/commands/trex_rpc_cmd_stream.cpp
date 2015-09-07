@@ -27,6 +27,23 @@ limitations under the License.
 
 using namespace std;
 
+/**
+ * simple parser of string to number 
+ * only difference is that it enforces whole number 
+ * and not partial 
+ * 
+ */
+static uint64_t str2num(const string &str) {
+    size_t index;
+
+    uint64_t num = std::stoull(str, &index, 0);
+    if (index != str.size()) {
+        throw invalid_argument("could not parse string to number");
+    }
+
+    return (num);
+}
+
 /***************************
  * add new stream
  * 
@@ -73,6 +90,10 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
     /* meta data */
     stream->m_pkt.meta = parse_string(pkt, "meta", result);
+
+    /* parse VM */
+    const Json::Value &vm =  parse_array(section ,"vm", result);
+    parse_vm(vm, stream, result);
 
     /* parse RX info */
     const Json::Value &rx = parse_object(section, "rx_stats", result);
@@ -140,6 +161,109 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
     return (stream);
 
+}
+
+void 
+TrexRpcCmdAddStream::parse_vm_instr_checksum(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+
+    uint16_t pkt_offset = parse_uint16(inst, "pkt_offset", result); 
+    stream->m_vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(pkt_offset));
+}
+
+void 
+TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+    std::string  flow_var_name = parse_string(inst, "name", result);
+
+    auto sizes = {1, 2, 4, 8};
+    uint8_t      flow_var_size = parse_choice(inst, "size", sizes, result);
+
+    auto ops = {"inc", "dec", "random"};
+    std::string  op_type_str = parse_choice(inst, "op", ops, result);
+
+    StreamVmInstructionFlowMan::flow_var_op_e op_type;
+
+    if (op_type_str == "inc") {
+        op_type = StreamVmInstructionFlowMan::FLOW_VAR_OP_INC;
+    } else if (op_type_str == "dec") {
+        op_type = StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC;
+    } else if (op_type_str == "random") {
+        op_type = StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM;
+    } else {
+        throw TrexRpcException("internal error");
+    }
+
+    std::string  init_value_str    = parse_string(inst, "init_value", result);
+    std::string  min_value_str     = parse_string(inst, "min_value", result);
+    std::string  max_value_str     = parse_string(inst, "max_value", result);
+
+    uint64_t init_value;
+    uint64_t min_value;
+    uint64_t max_value;
+
+    try {
+        init_value = str2num(init_value_str);
+    } catch (invalid_argument) {
+        generate_parse_err(result, "failed to parse 'init_value' as a number");
+    }
+
+    try {
+        min_value = str2num(min_value_str);
+    } catch (invalid_argument) {
+        generate_parse_err(result, "failed to parse 'min_value' as a number");
+    }
+
+    try {
+        max_value = str2num(max_value_str);
+    } catch (invalid_argument) {
+        generate_parse_err(result, "failed to parse 'max_value' as a number");
+    }
+
+    stream->m_vm.add_instruction(new StreamVmInstructionFlowMan(flow_var_name,
+                                                                flow_var_size,
+                                                                op_type,
+                                                                init_value,
+                                                                min_value,
+                                                                max_value
+                                                                ));
+}
+
+void 
+TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+    std::string  flow_var_name = parse_string(inst, "flow_var_name", result);
+    uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
+    int          add_value     = parse_int(inst,    "add_value", result);
+    bool         is_big_endian = parse_bool(inst,   "is_big_endian", result);
+
+    stream->m_vm.add_instruction(new StreamVmInstructionWriteToPkt(flow_var_name,
+                                                                   pkt_offset,
+                                                                   add_value,
+                                                                   is_big_endian));
+}
+
+void 
+TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::Value &result) {
+    /* array of VM instructions on vm */
+    for (int i = 0; i < vm.size(); i++) {
+        const Json::Value & inst = vm[i];
+
+        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var"};
+        std::string vm_type = parse_choice(inst, "type", vm_types, result);
+
+        // checksum instruction
+        if (vm_type == "fix_checksum_ipv4") {
+            parse_vm_instr_checksum(inst, stream, result);
+
+        } else if (vm_type == "flow_var") {
+            parse_vm_instr_flow_var(inst, stream, result);
+
+        } else if (vm_type == "write_flow_var") {
+            parse_vm_instr_write_flow_var(inst, stream, result);
+
+        } else {
+            /* internal error */
+            throw TrexRpcException("internal error");
+        }
+    }
 }
 
 void
