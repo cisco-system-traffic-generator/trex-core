@@ -616,7 +616,7 @@ def build_prog (bld, build_obj):
 
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
-                cxxflags =(build_obj.get_flags()+['-std=gnu++11',]),
+                cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl'],
                 use =[build_obj.get_dpdk_target(),'zmq'],
