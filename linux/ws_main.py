@@ -12,6 +12,7 @@ import os;
 import commands;
 import shutil;
 import copy;
+from distutils.version import StrictVersion
 
 top = '../'
 out = 'build'
