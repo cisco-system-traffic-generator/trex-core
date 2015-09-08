@@ -223,10 +223,10 @@ public:
 
         if ( m_req_ports ){
             int i;
-            fl.m_threads_info[0]->m_smart_gen.FreePort(tuple.getClient(),tuple.getClientPort());
+            fl.m_threads_info[0]->m_smart_gen.FreePort(0, tuple.getClientId(),tuple.getClientPort());
 
             for (i=0 ; i<m_req_ports;i++) {
-                fl.m_threads_info[0]->m_smart_gen.FreePort(tuple.getClient(),ports[i]);
+                fl.m_threads_info[0]->m_smart_gen.FreePort(0,tuple.getClientId(),ports[i]);
             }
             delete []ports;
         }
@@ -526,6 +526,44 @@ TEST_F(basic, sfr4) {
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
+
+TEST_F(basic, per_template_gen1) {
+
+     CTestBasic t1;
+     CParserOption * po =&CGlobalInfo::m_options;
+     po->preview.setVMode(0);
+     po->preview.setFileWrite(true);
+     po->cfg_file ="cap2/per_template_gen1.yaml";
+     po->out_file ="exp/sfr_4";
+     bool res=t1.init();
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+TEST_F(basic, per_template_gen2) {
+
+     CTestBasic t1;
+     CParserOption * po =&CGlobalInfo::m_options;
+     po->preview.setVMode(0);
+     po->preview.setFileWrite(true);
+     po->cfg_file ="cap2/per_template_gen2.yaml";
+     po->out_file ="exp/sfr_4";
+     bool res=t1.init();
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+/*
+TEST_F(basic, sfr5) {
+
+     CTestBasic t1;
+     CParserOption * po =&CGlobalInfo::m_options;
+     po->preview.setVMode(0);
+     po->preview.setFileWrite(true);
+     po->cfg_file ="cap2/sfr5.yaml";
+     po->out_file ="exp/sfr_5";
+     bool res=t1.init();
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+*/
 
 
 TEST_F(basic, ipv6_convert) {

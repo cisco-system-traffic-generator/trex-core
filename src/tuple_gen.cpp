@@ -1,6 +1,6 @@
 /*
 
- Wenxian Li 
+ Wenxian Li
  Hanoh Haim
  Cisco Systems, Inc.
 */
@@ -21,287 +21,362 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+
 #include "tuple_gen.h"
 #include <string.h>
 #include "utl_yaml.h"
 
+void CServerPool::Create(IP_DIST_t  dist_value,
+            uint32_t min_ip,
+            uint32_t max_ip,
+            double l_flow,
+            double t_cps) {
+    gen = new CIpPool();
+    gen->set_dist(dist_value);
+    uint32_t total_ip = max_ip - min_ip +1;
+    gen->m_ip_info.resize(total_ip);
 
-
-              
-/* simple tuple genertion for one low*/
-void CTupleGeneratorSmart::GenerateTuple(CTupleBase & tuple) {
-    BP_ASSERT(m_was_init);
-    Generate_client_server();
-    m_was_generated = true;
-    m_result_client_port = GenerateOneClientPort(m_client_ip);
-    tuple.setClient(m_result_client_ip);
-    tuple.setServer(m_result_server_ip);
-    tuple.setClientPort(m_result_client_port);
-    tuple.setClientMac(&m_result_client_mac);
-//    printf(" alloc  %x %d mac:%x,%x\n",m_result_client_ip,m_result_client_port, m_result_client_mac.mac[0], m_result_client_mac.mac[1]);
-}
-
-
-
-
-/*
- * allocate base tuple with n exta ports, used by bundels SIP
- * for example need to allocat 3 ports for this C/S
- */
-void CTupleGeneratorSmart::GenerateTupleEx(CTupleBase & tuple,
-                                              uint8_t extra_ports_no,
-                                              uint16_t * extra_ports) {
-    GenerateTuple(tuple) ;
-    for (int idx=0;idx<extra_ports_no;idx++) {
-        extra_ports[idx] = GenerateOneClientPort(m_client_ip);
+    if (total_ip > ((l_flow*t_cps/MAX_PORT))) {
+        for(int idx=0;idx<total_ip;idx++){
+            gen->m_ip_info[idx] = new CServerInfoL();
+            gen->m_ip_info[idx]->set_ip(min_ip+idx);
+        }
+    } else {
+        for(int idx=0;idx<total_ip;idx++){
+            gen->m_ip_info[idx] = new CServerInfo();
+            gen->m_ip_info[idx]->set_ip(min_ip+idx);
+        }
     }
+    gen->CreateBase();
 }
 
-void CTupleGeneratorSmart::Dump(FILE  *fd){
-    fprintf(fd," id: %x,  %x:%x -  %x \n client:%x - %x, server:%x-%x\n",m_id,m_result_client_ip,m_result_server_ip,m_result_client_port,m_min_client_ip, m_max_client_ip, m_min_server_ip, m_max_server_ip);
-}
 
+
+void CClientPool::Create(IP_DIST_t  dist_value,
+            uint32_t min_ip,
+            uint32_t max_ip,
+            double l_flow,
+            double t_cps,
+            CFlowGenList* fl_list,
+            bool has_mac_map,
+            uint16_t tcp_aging, 
+            uint16_t udp_aging) {
+    assert(max_ip>=min_ip);
+    set_dist(dist_value);
+    uint32_t total_ip = max_ip - min_ip +1;
+    uint32_t avail_ip = total_ip;
+    if (has_mac_map && (fl_list!=NULL)) {
+        for(int idx=0;idx<total_ip;idx++){
+            mac_addr_align_t *mac_adr = NULL;
+            mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+            if (mac_adr == NULL) {
+                avail_ip--;
+            }
+        }
+    }
+    if (avail_ip!=0) {
+        m_ip_info.resize(avail_ip);
+    } else {
+        printf("\n Error, empty mac file is configured.\n"
+               "Will ignore the mac file configuration.\n");
+        m_ip_info.resize(total_ip);
+    }
+
+    if (total_ip > ((l_flow*t_cps/MAX_PORT))) {
+        if (has_mac_map) {
+            for(int idx=0;idx<total_ip;idx++){
+                mac_addr_align_t *mac_adr = NULL;
+                mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+                if (mac_adr != NULL) {
+                    m_ip_info[idx] = new CClientInfoL(has_mac_map);
+                    m_ip_info[idx]->set_ip(min_ip+idx);
+                    m_ip_info[idx]->set_mac(mac_adr);
+                }
+            }
+        } else {
+            for(int idx=0;idx<total_ip;idx++){
+                m_ip_info[idx] = new CClientInfoL(has_mac_map);
+                m_ip_info[idx]->set_ip(min_ip+idx);
+            }
+        } 
+    } else {
+        if (has_mac_map) {
+            for(int idx=0;idx<total_ip;idx++){
+                mac_addr_align_t *mac_adr = NULL;
+                mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+                if (mac_adr != NULL) {
+                    m_ip_info[idx] = new CClientInfo(has_mac_map);
+                    m_ip_info[idx]->set_ip(min_ip+idx);
+                    m_ip_info[idx]->set_mac(mac_adr);
+                }
+            }
+        } else {
+            for(int idx=0;idx<total_ip;idx++){
+                m_ip_info[idx] = new CClientInfo(has_mac_map);
+                m_ip_info[idx]->set_ip(min_ip+idx);
+            }
+        } 
+ 
+    }
+    m_tcp_aging = tcp_aging;
+    m_udp_aging = udp_aging;
+    CreateBase();
+}
 
 void delay(int msec);
 
+bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
+                                          uint32_t min_client,
+                                          uint32_t max_client,
+                                          double l_flow,
+                                          double t_cps,
+                                          CFlowGenList* fl_list, 
+                                          uint16_t tcp_aging,
+                                          uint16_t udp_aging){
+    assert(max_client>=min_client);
+    CClientPool* pool = new CClientPool();
+    pool->Create(client_dist, min_client, max_client,
+                 l_flow, t_cps, fl_list, has_mac_mapping,
+                 tcp_aging, udp_aging);
+
+    m_client_pool.push_back(pool);
+    return(true);
+}
+
+bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
+                                          uint32_t min_server,
+                                          uint32_t max_server,
+                                          double l_flow,
+                                          double t_cps,
+                                          bool is_bundling){
+    assert(max_server>=min_server);
+    CServerPoolBase* pool;
+    if (is_bundling) 
+        pool = new CServerPool();
+    else
+        pool = new CServerPoolSimple();
+    // we currently only supports mac mapping file for client
+    pool->Create(server_dist, min_server, max_server,
+                 l_flow, t_cps);
+    m_server_pool.push_back(pool);
+    return(true);
+}
+
+
+
 bool CTupleGeneratorSmart::Create(uint32_t _id,
-                                     uint32_t thread_id,
-                                     IP_DIST_t  dist,
-                                     uint32_t min_client,
-                                     uint32_t max_client,
-                                     uint32_t min_server,
-                                     uint32_t max_server,
-                                     double l_flow,
-                                     double t_cps,
-                                     CFlowGenList* fl_list){
-
-    m_active_alloc=0;
-    if (dist>=cdMAX_DIST) {
-        m_client_dist = cdSEQ_DIST;
-    } else {
-        m_client_dist = dist;
-    }
-    m_min_client_ip = min_client;
-    m_max_client_ip = max_client;
-    m_min_server_ip = min_server;
-    m_max_server_ip = max_server;
-    assert(m_max_client_ip>=m_min_client_ip);
-    assert(m_max_server_ip>=m_min_server_ip);
-    assert((m_max_client_ip- m_min_client_ip)<50000);
-
-    uint32_t total_clients = getTotalClients();
-    /*printf("\ntotal_clients:%d, longest_flow:%f sec, total_cps:%f\n",
-            total_clients, l_flow, t_cps);*/
-    m_client.resize(m_max_client_ip-m_min_client_ip+1);
-    if (fl_list == NULL || !is_mac_info_conf(fl_list)) {
-        if (total_clients > ((l_flow*t_cps/MAX_PORT))) {
-            for (int idx=0;idx<m_client.size();idx++) 
-                m_client[idx] = new CClientInfoL();
-        } else {
-            for (int idx=0;idx<m_client.size();idx++) 
-                m_client[idx] = new CClientInfo();
-        }
-    } else {
-        if (total_clients > ((l_flow*t_cps/MAX_PORT))) {
-            for (int idx=0;idx<m_client.size();idx++) {
-                m_client[idx] = new CClientInfoL(
-                           get_mac_addr_by_ip(fl_list, min_client+idx)); 
-            }
-        } else {
-            for (int idx=0;idx<m_client.size();idx++) 
-                m_client[idx] = new CClientInfo(
-                           get_mac_addr_by_ip(fl_list, min_client+idx)); 
-        }
-    }
-    m_was_generated = false;
+                                  uint32_t thread_id,
+                                  bool has_mac)
+{
     m_thread_id     = thread_id;
-
     m_id = _id;
     m_was_init=true;
-    m_port_allocation_error=0;
+    has_mac_mapping = has_mac;
     return(true);
 }
 
 void CTupleGeneratorSmart::Delete(){
-    m_was_generated = false;
     m_was_init=false;
-    m_client_dist = cdSEQ_DIST;
+    has_mac_mapping = false;
 
-    for (int idx=0;idx<m_client.size();idx++){
-        delete m_client[idx];
+    for (int idx=0;idx<m_client_pool.size();idx++) {
+        m_client_pool[idx]->Delete();
+        delete m_client_pool[idx];
     }
-    m_client.clear();
+    m_client_pool.clear();
+
+    for (int idx=0;idx<m_server_pool.size();idx++) {
+        m_server_pool[idx]->Delete();
+        delete m_server_pool[idx];
+    }
+    m_server_pool.clear();
 }
 
-void CTupleGeneratorSmart::Generate_client_server(){
-    if (m_was_generated == false) {
-        /*first time */
-        m_was_generated = true;
-        m_cur_client_ip = m_min_client_ip;
-        m_cur_server_ip = m_min_server_ip;
-    }
-
-    uint32_t client_ip;
-    int i=0;
-    for (;i<100;i++) {
-        if (is_client_available(m_cur_client_ip)) {
-            break;
-        }
-        if (m_cur_client_ip >= m_max_client_ip) {
-            m_cur_client_ip = m_min_client_ip;
-        } else {
-            m_cur_client_ip++;
-        }
-    }
-    if (i>=100) {
-        printf(" ERROR ! sparse mac-ip files is not supported yet !\n"); 
-        exit(-1);
-    }
-
-    m_client_ip = m_cur_client_ip;
-    CClientInfoBase* client = get_client_by_ip(m_client_ip);
-    memcpy(&m_result_client_mac, 
-           client->get_mac_addr(),
-           sizeof(mac_addr_align_t));
-    m_result_client_ip = m_client_ip;
-    m_result_server_ip = m_cur_server_ip ;
-/*
-printf("ip:%x,mac:%x,%x,%x,%x,%x,%x, inused:%x\n",m_client_ip,
-       m_result_client_mac.mac[0],
-       m_result_client_mac.mac[1],
-       m_result_client_mac.mac[2],
-       m_result_client_mac.mac[3],
-       m_result_client_mac.mac[4],
-       m_result_client_mac.mac[5],
-       m_result_client_mac.inused);
-*/
-    m_cur_client_ip ++;
-    m_cur_server_ip ++;
-    if (m_cur_client_ip > m_max_client_ip) {
-        m_cur_client_ip = m_min_client_ip;
-    }
-    if (m_cur_server_ip > m_max_server_ip) {
-        m_cur_server_ip = m_min_server_ip;
-    }
-}
-
-void CTupleGeneratorSmart::return_all_client_ports() {
-    for(int idx=0;idx<m_client.size();++idx) {
-        m_client.at(idx)->return_all_ports();
-    }
-}
-
-
-void CTupleGenYamlInfo::Dump(FILE *fd){
-    fprintf(fd,"  dist            : %d \n",m_client_dist);
-    fprintf(fd,"  clients         : %08x -%08x \n",m_clients_ip_start,m_clients_ip_end);
-    fprintf(fd,"  servers         : %08x -%08x \n",m_servers_ip_start,m_servers_ip_end);
+void CTupleGenPoolYaml::Dump(FILE *fd){
+    fprintf(fd,"  dist            : %d \n",m_dist);
+    fprintf(fd,"  IPs         : %08x -%08x \n",m_ip_start,m_ip_end);
     fprintf(fd,"  clients per gb  : %d  \n",m_number_of_clients_per_gb);
     fprintf(fd,"  min clients     : %d  \n",m_min_clients);
     fprintf(fd,"  tcp aging       : %d sec \n",m_tcp_aging_sec);
     fprintf(fd,"  udp aging       : %d sec \n",m_udp_aging_sec);
 }
 
+bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
+    if ( m_ip_start > m_ip_end ){
+        printf(" ERROR The ip_start must be bigger than ip_end \n");
+        return(false);
+    }
+    
+    uint32_t ips= (m_ip_end - m_ip_start +1);
+    if ( ips < num_threads ) {
+        printf(" ERROR The number of ips should be at least number of threads %d \n",num_threads);
+        return (false);
+    }
+
+    if (ips > 1000000) {
+        printf("  The number of clients requested is %d maximum supported : %d \n",ips,1000000);
+        return (false);
+    }
+    return (true);
+}
 
 
+
+
+
+
+
+void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
+    std::string tmp;
+    node["name"] >> fi.m_name;
+    node["distribution"] >> tmp ;
+    if (tmp == "random") {
+        fi.m_dist=cdRANDOM_DIST;
+    }else if (tmp == "normal") {
+        fi.m_dist=cdNORMAL_DIST;
+    } else {
+        printf("\ndist,seq\n");
+        fi.m_dist=cdSEQ_DIST;
+    }
+    utl_yaml_read_ip_addr(node,"ip_start",fi.m_ip_start);
+    utl_yaml_read_ip_addr(node,"ip_end",fi.m_ip_end);
+    try {
+        utl_yaml_read_uint32(node,"clients_per_gb",fi.m_number_of_clients_per_gb);
+    } catch ( const std::exception& e ) {
+        fi.m_number_of_clients_per_gb = 0;
+    }
+    try {
+        utl_yaml_read_uint32(node,"min_clients",fi.m_min_clients);
+    } catch ( const std::exception& e ) {
+        fi.m_min_clients = 0;
+    }
+    try {
+        utl_yaml_read_ip_addr(node,"dual_port_mask",fi.m_dual_interface_mask);
+    } catch ( const std::exception& e ) {
+        fi.m_dual_interface_mask = 0;
+    }
+    try {
+        utl_yaml_read_uint16(node,"tcp_aging",fi.m_tcp_aging_sec);
+    } catch ( const std::exception& e ) {
+        fi.m_tcp_aging_sec = 0;
+    }
+    try {
+        utl_yaml_read_uint16(node,"udp_aging",fi.m_udp_aging_sec);
+    } catch ( const std::exception& e ) {
+        fi.m_udp_aging_sec = 0;
+    }
+    try {
+        node["track_ports"] >> fi.m_is_bundling;
+    } catch ( const std::exception& e ) {
+        fi.m_is_bundling = false;
+    }
+}
+void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
+    if (src.m_number_of_clients_per_gb == 0)
+        src.m_number_of_clients_per_gb = dst.m_number_of_clients_per_gb;
+    if (src.m_min_clients == 0)
+        src.m_min_clients = dst.m_min_clients;
+    if (src.m_dual_interface_mask == 0)
+        src.m_dual_interface_mask = dst.m_dual_interface_mask;
+    if (src.m_tcp_aging_sec == 0)
+        src.m_tcp_aging_sec = dst.m_tcp_aging_sec;
+    if (src.m_udp_aging_sec == 0)
+        src.m_udp_aging_sec = dst.m_udp_aging_sec;
+}
 void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
     std::string tmp;
 
     try {
-     node["distribution"] >> tmp ;
-      if (tmp == "seq" ) {
-          fi.m_client_dist=cdSEQ_DIST;
-      }else{
-          if (tmp == "random") {
-              fi.m_client_dist=cdRANDOM_DIST;
-          }else{
-              if (tmp == "normal") {
-                  fi.m_client_dist=cdNORMAL_DIST;
-              }
-          }
-      }
+        CTupleGenPoolYaml c_pool;
+        CTupleGenPoolYaml s_pool;
+        node["distribution"] >> tmp ;
+        if (tmp == "random") {
+            c_pool.m_dist=cdRANDOM_DIST;
+        }else if (tmp == "normal") {
+            c_pool.m_dist=cdNORMAL_DIST;
+        } else {
+            c_pool.m_dist=cdSEQ_DIST;
+        }
+        s_pool.m_dist = c_pool.m_dist;
+        utl_yaml_read_ip_addr(node,"clients_start",c_pool.m_ip_start);
+        utl_yaml_read_ip_addr(node,"clients_end",c_pool.m_ip_end);
+        utl_yaml_read_ip_addr(node,"servers_start",s_pool.m_ip_start);
+        utl_yaml_read_ip_addr(node,"servers_end",s_pool.m_ip_end);
+        utl_yaml_read_uint32(node,"clients_per_gb",c_pool.m_number_of_clients_per_gb);
+        utl_yaml_read_uint32(node,"min_clients",c_pool.m_min_clients);
+        utl_yaml_read_ip_addr(node,"dual_port_mask",c_pool.m_dual_interface_mask);
+        utl_yaml_read_uint16(node,"tcp_aging",c_pool.m_tcp_aging_sec);
+        utl_yaml_read_uint16(node,"udp_aging",c_pool.m_udp_aging_sec);
+        s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
+        fi.m_client_pool.push_back(c_pool);
+        fi.m_server_pool.push_back(s_pool);
     }catch ( const std::exception& e ) {
-        fi.m_client_dist=cdSEQ_DIST;
+        printf("No default generator defined.\n");
     }
-   utl_yaml_read_ip_addr(node,"clients_start",fi.m_clients_ip_start);
-   utl_yaml_read_ip_addr(node,"clients_end",fi.m_clients_ip_end);
-   utl_yaml_read_ip_addr(node,"servers_start",fi.m_servers_ip_start);
-   utl_yaml_read_ip_addr(node,"servers_end",fi.m_servers_ip_end);
-   utl_yaml_read_uint32(node,"clients_per_gb",fi.m_number_of_clients_per_gb);
-   utl_yaml_read_uint32(node,"min_clients",fi.m_min_clients);
-   utl_yaml_read_ip_addr(node,"dual_port_mask",fi.m_dual_interface_mask);
-   utl_yaml_read_uint16(node,"tcp_aging",fi.m_tcp_aging_sec);
-   utl_yaml_read_uint16(node,"udp_aging",fi.m_udp_aging_sec);
-
+    try{
+        const YAML::Node& c_pool_info = node["generator_clients"];
+        for (uint16_t idx=0;idx<c_pool_info.size();idx++) {
+            CTupleGenPoolYaml pool;
+            try {
+                c_pool_info[idx] >> pool;
+            } catch ( const std::exception& e ) {
+                printf("client pool in YAML is wrong\n");
+            }
+            if (fi.m_client_pool.size()>0) {
+                copy_global_pool_para(pool, fi.m_client_pool[0]);
+            }
+            fi.m_client_pool.push_back(pool);
+        }
+    }catch ( const std::exception& e ) {
+        printf("no client generator pool configured, using default pool\n");
+    } 
+    try {
+        const YAML::Node& s_pool_info = node["generator_servers"];
+        for (uint16_t idx=0;idx<s_pool_info.size();idx++) {
+            CTupleGenPoolYaml pool;
+            try {
+                s_pool_info[idx] >> pool;
+            } catch ( const std::exception& e ) {
+                printf("server pool in YAML is wrong\n");
+            }
+            if (fi.m_server_pool.size()>0) {
+                copy_global_pool_para(pool, fi.m_server_pool[0]);
+            }
+            fi.m_server_pool.push_back(pool);
+        }
+    }catch ( const std::exception& e ) {
+        printf("no server generator pool configured, using default pool\n");
+    } 
 }
 
 bool CTupleGenYamlInfo::is_valid(uint32_t num_threads,bool is_plugins){
-    if ( m_servers_ip_start > m_servers_ip_end ){
-        printf(" ERROR The servers_ip_start must be bigger than servers_ip_end \n");
-        return(false);
+    for (int i=0;i<m_client_pool.size();i++) {
+        if (m_client_pool[i].is_valid(num_threads, is_plugins)==false) 
+            return false;
     }
-
-    if ( m_clients_ip_start > m_clients_ip_end ){
-        printf(" ERROR The clients_ip_start must be bigger than clients_ip_end \n");
-        return(false);
+    for (int i=0;i<m_server_pool.size();i++) {
+        if (m_server_pool[i].is_valid(num_threads, is_plugins)==false) 
+            return false;
     }
-    uint32_t servers= (m_servers_ip_end - m_servers_ip_start +1);
-    if ( servers < num_threads ) {
-        printf(" ERROR The number of servers should be at least number of threads %d \n",num_threads);
-        return (false);
-    }
-
-    uint32_t clients= (m_clients_ip_end - m_clients_ip_start +1);
-    if ( clients < num_threads ) {
-        printf(" ERROR The number of clients should be at least number of threads %d \n",num_threads);
-        return (false);
-    }
-
-    /* defect for plugin  */
-    if (is_plugins) {
-        if ( getTotalServers() < getTotalClients() ){
-            printf(" Plugin is configured. in that case due to a limitation ( defect trex-54 ) \n");
-            printf(" the number of servers should be bigger than number of clients  \n");
-            return (false);
-        }
-
-        /* update number of servers in a way that it would be exact multiplication */
-        uint32_t mul=getTotalServers() / getTotalClients();
-        uint32_t new_server_num=mul*getTotalClients();
-        m_servers_ip_end = m_servers_ip_start + new_server_num-1 ;
-
-        assert(getTotalServers() %getTotalClients() ==0);
-    }
-
-/*    if (clients > 00000) {
-        printf("  The number of clients requested is %d maximum supported : %d \n",clients,100000);
-        return (false);
-    }
- */   return (true);
+    return true;
 }
 
 
 /* split the clients and server by dual_port_id and thread_id ,
   clients is splited by threads and dual_port_id
   servers is spliteed by dual_port_id */
-void split_clients(uint32_t thread_id, 
-                   uint32_t total_threads, 
-                   uint32_t dual_port_id,
-                   CTupleGenYamlInfo & fi,
-                   CClientPortion & portion){
+void split_ips(uint32_t thread_id, 
+               uint32_t total_threads, 
+               uint32_t dual_port_id,
+               CTupleGenPoolYaml& poolinfo,
+               CIpPortion & portion){
 
-    uint32_t clients_chunk = fi.getTotalClients()/total_threads;
-    // FIXME need to fix this when fixing the server 
-    uint32_t servers_chunk = fi.getTotalServers()/total_threads;
+    uint32_t chunks = poolinfo.getTotalIps()/total_threads;
 
-    assert(clients_chunk>0);
-    assert(servers_chunk>0);
+    assert(chunks>0);
 
-    uint32_t dual_if_mask=(dual_port_id*fi.m_dual_interface_mask);
-
-    portion.m_client_start  = fi.m_clients_ip_start  + thread_id*clients_chunk + dual_if_mask;
-    portion.m_client_end    = portion.m_client_start + clients_chunk -1 ;
-
-    portion.m_server_start  = fi.m_servers_ip_start  + thread_id*servers_chunk +dual_if_mask;
-    portion.m_server_end    = portion.m_server_start   + servers_chunk -1;
+    uint32_t dual_if_mask=(dual_port_id*poolinfo.getDualMask());
+    
+    portion.m_ip_start  = poolinfo.get_ip_start()  + thread_id*chunks + dual_if_mask;
+    portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
 }
