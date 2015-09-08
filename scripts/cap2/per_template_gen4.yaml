@@ -33,7 +33,7 @@
   mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
   cap_info : 
      - name: cap2/http_get.pcap
-       client_pool: "c1"
+       client_pool: "c2"
        server_pool: "s1"
        cps : 1.0
        ipg : 100
