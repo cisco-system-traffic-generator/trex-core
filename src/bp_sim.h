@@ -716,8 +716,6 @@ public:
     uint16_t		m_vlan_port[2]; /* vlan value */
     uint16_t		m_src_ipv6[6];  /* Most signficant 96-bits */
     uint16_t		m_dst_ipv6[6];  /* Most signficant 96-bits */
-    uint16_t        m_tcp_aging;
-    uint16_t        m_udp_aging;
 
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
     uint32_t        m_latency_mask;
@@ -1249,9 +1247,13 @@ struct CFlowYamlInfo {
     CFlowYamlInfo(){
         m_dpPkt=0;
         m_server_addr=0;
+        m_client_pool_idx = 0;
+        m_server_pool_idx = 0;
     }
     
     std::string     m_name;
+    std::string     m_client_pool_name;
+    std::string     m_server_pool_name;
     double          m_k_cps;    //k CPS 
 	double          m_restart_time; /* restart time of this template */
     dsec_t          m_ipg_sec;   // ipg in sec 
@@ -1261,6 +1263,8 @@ struct CFlowYamlInfo {
     uint32_t        m_limit;
     uint32_t        m_flowcnt;
     uint8_t         m_plugin_id; /* 0 - default , 1 - RTSP160 , 2- RTSP250 */       
+    uint8_t         m_client_pool_idx;
+    uint8_t         m_server_pool_idx;
     bool            m_one_app_server;
     uint32_t        m_server_addr;
     bool            m_one_app_server_was_set;
@@ -1378,7 +1382,10 @@ public:
 
     uint16_t            m_nat_pad;
     mac_addr_align_t    m_src_mac;
-    uint32_t            m_end_of_cache_line[11];
+    CTupleGeneratorSmart *m_tuple_gen;
+    uint32_t            m_src_idx;
+    uint32_t            m_dest_idx;
+    uint32_t            m_end_of_cache_line[10];
 
 public:
     bool operator <(const CGenNode * rsh ) const {
@@ -1600,6 +1607,7 @@ struct CGenNodeDeferPort  {
 
     uint32_t            m_clients[DEFER_CLIENTS_NUM];
     uint16_t            m_ports[DEFER_CLIENTS_NUM];
+    uint8_t             m_pool_idx[DEFER_CLIENTS_NUM];
 public:
     void init(void){ 
         m_type=CGenNode::FLOW_DEFER_PORT_RELEASE;
@@ -1607,10 +1615,11 @@ public:
     }
 
     /* return true if object is full */
-    bool add_client(uint32_t client,
+    bool add_client(uint8_t pool_idx, uint32_t client,
                    uint16_t port){
         m_clients[m_cnt]=client;
         m_ports[m_cnt]=port;
+        m_pool_idx[m_cnt] = pool_idx;
         m_cnt++;
         if ( m_cnt == DEFER_CLIENTS_NUM ) {
             return (true);
@@ -3154,6 +3163,7 @@ public:
     CPolicer                m_policer;   
     uint16_t                m_id ;
     uint32_t                m_thread_id;
+    bool                    m_tuple_gen_was_set;
 } __rte_cache_aligned; 
 
 
@@ -3286,8 +3296,10 @@ public:
     uint32_t getDualPortId();
 public :
     double get_total_kcps();
+    double get_total_kcps(uint8_t pool_idx, bool is_client);
     double get_delta_flow_is_sec();
     double get_longest_flow(); 
+    double get_longest_flow(uint8_t pool_idx, bool is_client); 
     void inc_current_template(void);
     int generate_flows_roundrobin(bool *done);
     int reschedule_flow(CGenNode *node);
@@ -3319,9 +3331,10 @@ private:
     void terminate_nat_flows(CGenNode *node);
 
 
-    void init_from_global(CClientPortion &);
+    void init_from_global(CIpPortion &);
     void defer_client_port_free(CGenNode *p);
-    void defer_client_port_free(bool is_tcp,uint32_t c_ip,uint16_t port);
+    void defer_client_port_free(bool is_tcp,uint32_t c_ip,uint16_t port,
+                                uint8_t pool_idx, CTupleGeneratorSmart*gen);
 
 
     FORCE_NO_INLINE void   handler_defer_job(CGenNode *p);
@@ -3416,12 +3429,6 @@ inline void CFlowGenListPerThread::free_last_flow_node(CGenNode *p){
     free_node( p);
 }
 
-
-typedef struct mac_mapping_ {
-    mac_addr_align_t mac;
-    uint32_t         ip;
-} mac_mapping_t;
-
 class CFlowGenList {
 
 public:
@@ -3448,10 +3455,6 @@ public:
     double get_total_pps();
     double get_total_tx_bps();
     uint32_t get_total_repeat_flows();
-    bool is_ip_legal(uint32_t ip) {
-        return (ip >= m_yaml_info.m_tuple_gen.m_clients_ip_start && 
-            ip <= m_yaml_info.m_tuple_gen.m_clients_ip_end );
-    }
     double get_delta_flow_is_sec();
 public:
     std::vector<CFlowGeneratorRec *> m_cap_gen;   /* global info */
@@ -3492,8 +3495,11 @@ inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tup
     node->m_flow_info = this;
     node->m_flags=0;
     node->m_template_info =template_info;
+    node->m_tuple_gen = tuple_gen->get_gen(); 
     node->m_src_ip= tuple.getClient();
     node->m_dest_ip = tuple.getServer();
+    node->m_src_idx = tuple.getClientId();
+    node->m_dest_idx = tuple.getServerId();
     node->m_src_port = tuple.getClientPort();
     memcpy(&node->m_src_mac, 
            tuple.getClientMac(), 

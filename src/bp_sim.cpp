@@ -2362,6 +2362,18 @@ void operator >> (const YAML::Node& node, CVlanYamlInfo & fi) {
 
 void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
    node["name"] >> fi.m_name;
+    
+   try {
+       node["client_pool"] >> fi.m_client_pool_name;
+   } catch ( const std::exception& e ) {
+       fi.m_client_pool_name = "default"; 
+   }
+   try {
+       node["server_pool"] >> fi.m_server_pool_name;
+   } catch ( const std::exception& e ) {
+       fi.m_server_pool_name = "default"; 
+   }
+ 
    node["cps"] >>  fi.m_k_cps;
    fi.m_k_cps = fi.m_k_cps/1000.0;
    double t;
@@ -2460,7 +2472,7 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
      node["generator"] >> flows_info.m_tuple_gen;
      flows_info.m_tuple_gen_was_set =true;
    } catch ( const std::exception& e ) {
-       flows_info.m_tuple_gen_was_set =false;
+     flows_info.m_tuple_gen_was_set =false;
    }
 
    
@@ -2577,6 +2589,10 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
    for(unsigned i=0;i<cap_info.size();i++) {
        CFlowYamlInfo fi;
        cap_info[i] >> fi;
+       fi.m_client_pool_idx = 
+           flows_info.m_tuple_gen.get_client_pool_id(fi.m_client_pool_name);
+       fi.m_server_pool_idx = 
+           flows_info.m_tuple_gen.get_server_pool_id(fi.m_server_pool_name);
        flows_info.m_vec.push_back(fi);
    }
 }
@@ -2589,7 +2605,6 @@ void CVlanYamlInfo::Dump(FILE *fd){
 
 void CFlowsYamlInfo::Dump(FILE *fd){
     fprintf(fd," duration : %f sec \n",m_duration_sec);
-    m_tuple_gen.Dump(fd);
 
     fprintf(fd,"\n");
     if (CGlobalInfo::is_ipv6_enable()) {
@@ -2805,18 +2820,20 @@ bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen,
                                         CFlowsYamlInfo *        yaml_flow_info,
                                         CCapFileFlowInfo *      flow_info,
                                         uint16_t _id,
-                                        uint32_t thread_id ){
+                                        uint32_t thread_id){
 
     BP_ASSERT(info);
     m_thread_id =thread_id ;
 
-    tuple_gen.Create(global_gen);
-    CTupleGenYamlInfo * lpt=&yaml_flow_info->m_tuple_gen;
+    tuple_gen.Create(global_gen, info->m_client_pool_idx, 
+                     info->m_server_pool_idx);
+    CTupleGenYamlInfo * lpt;
+    lpt = &yaml_flow_info->m_tuple_gen;
 
     tuple_gen.SetSingleServer(info->m_one_app_server,
                               info->m_server_addr,
                               getDualPortId(thread_id),
-                              lpt->m_dual_interface_mask
+                              lpt->m_client_pool[info->m_client_pool_idx].getDualMask()
                               );
 
     tuple_gen.SetW(info->m_w);
@@ -3118,25 +3135,39 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     /* split the clients to threads */
     CTupleGenYamlInfo * tuple_gen = &m_flow_list->m_yaml_info.m_tuple_gen;
 
+    m_smart_gen.Create(0,m_thread_id,m_flow_list->is_mac_info_configured);
+
     /* split the clients to threads using the mask */
-    CClientPortion  portion;
-    split_clients(m_thread_id, 
-                  m_max_threads,
-                  getDualPortId(),
-                  *tuple_gen,
+    CIpPortion  portion;
+    for (int i=0;i<tuple_gen->m_client_pool.size();i++) {
+        split_ips(m_thread_id, m_max_threads, getDualPortId(),
+                  tuple_gen->m_client_pool[i],
                   portion);
 
-    init_from_global(portion);
-    m_smart_gen.Create(0,m_thread_id,
-                       cdSEQ_DIST,
-                       portion.m_client_start,
-                       portion.m_client_end,
-                       portion.m_server_start,
-                       portion.m_server_end, 
-                       get_longest_flow(),
-                       get_total_kcps()*1000,
-                       m_flow_list);
+        m_smart_gen.add_client_pool(tuple_gen->m_client_pool[i].m_dist,
+                        portion.m_ip_start,
+                        portion.m_ip_end,
+                        get_longest_flow(i,true),
+                        get_total_kcps(i,true)*1000,
+                        m_flow_list,
+                        tuple_gen->m_client_pool[i].m_tcp_aging_sec,
+                        tuple_gen->m_client_pool[i].m_udp_aging_sec
+                        );
+    }
+    for (int i=0;i<tuple_gen->m_server_pool.size();i++) {
+        split_ips(m_thread_id, m_max_threads, getDualPortId(),
+                  tuple_gen->m_server_pool[i],
+                  portion);
+        m_smart_gen.add_server_pool(tuple_gen->m_server_pool[i].m_dist,
+                        portion.m_ip_start,
+                        portion.m_ip_end,
+                        get_longest_flow(i,false),
+                        get_total_kcps(i,false)*1000,
+                        tuple_gen->m_server_pool[i].m_is_bundling);
+    }
+ 
 
+    init_from_global(portion);
 
     CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
 
@@ -3153,7 +3184,8 @@ FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job(CGenNode *p){
     CGenNodeDeferPort     *   defer=(CGenNodeDeferPort     *)p;
     int i;
     for (i=0; i<defer->m_cnt; i++) {
-        m_smart_gen.FreePort(defer->m_clients[i],defer->m_ports[i]);
+        m_smart_gen.FreePort(defer->m_pool_idx[i],
+                                 defer->m_clients[i],defer->m_ports[i]);
     }
 }
 
@@ -3173,32 +3205,34 @@ FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job_flush(void){
 
 
 void CFlowGenListPerThread::defer_client_port_free(bool is_tcp,
-                                                   uint32_t c_ip,
-                                                   uint16_t port){
-        /* free is not required in this case */
-    if (!m_smart_gen.IsFreePortRequired() ){
+                                                   uint32_t c_idx,
+                                                   uint16_t port,
+                                                   uint8_t c_pool_idx,
+                                                   CTupleGeneratorSmart * gen){
+    /* free is not required in this case */
+    if (!gen->IsFreePortRequired(c_pool_idx) ){
         return;
     }
     CGenNodeDeferPort     *   defer;
     if (is_tcp) {
-        if (CGlobalInfo::m_options.m_tcp_aging==0) {
-            m_smart_gen.FreePort(c_ip,port);
+        if (gen->get_tcp_aging(c_pool_idx)==0) {
+            gen->FreePort(c_pool_idx,c_idx,port);
             return;
         }
         defer=get_tcp_defer();
     }else{
-        if (CGlobalInfo::m_options.m_udp_aging==0) {
-            m_smart_gen.FreePort(c_ip,port);
+        if (gen->get_udp_aging(c_pool_idx)==0) {
+            gen->FreePort(c_pool_idx, c_idx,port);
             return;
         }
         defer=get_udp_defer();
     }
-    if ( defer->add_client(c_ip,port) ){
+    if ( defer->add_client(c_pool_idx, c_idx,port) ){
         if (is_tcp) {
-            m_node_gen.schedule_node((CGenNode *)defer,CGlobalInfo::m_options.m_tcp_aging);
+            m_node_gen.schedule_node((CGenNode *)defer,gen->get_tcp_aging(c_pool_idx));
             m_tcp_dpc=0;
         }else{
-            m_node_gen.schedule_node((CGenNode *)defer,CGlobalInfo::m_options.m_udp_aging);
+            m_node_gen.schedule_node((CGenNode *)defer,gen->get_udp_aging(c_pool_idx));
             m_udp_dpc=0;
         }
     }
@@ -3206,13 +3240,15 @@ void CFlowGenListPerThread::defer_client_port_free(bool is_tcp,
 
 
 void CFlowGenListPerThread::defer_client_port_free(CGenNode *p){
-    defer_client_port_free(p->m_pkt_info->m_pkt_indication.m_desc.IsTcp(),p->m_src_ip,p->m_src_port);
+    defer_client_port_free(p->m_pkt_info->m_pkt_indication.m_desc.IsTcp(),
+                           p->m_src_idx,p->m_src_port,p->m_template_info->m_client_pool_idx,
+                           p->m_tuple_gen);
 }
 
 
 
 /* copy all info from global and div by num of threads */
-void CFlowGenListPerThread::init_from_global(CClientPortion& portion){
+void CFlowGenListPerThread::init_from_global(CIpPortion& portion){
     /* copy generator , it is the same */
     m_yaml_info =m_flow_list->m_yaml_info;
     
@@ -3235,7 +3271,10 @@ void CFlowGenListPerThread::init_from_global(CClientPortion& portion){
         yaml_info->m_one_app_server = lp->m_info->m_one_app_server;
         yaml_info->m_server_addr = lp->m_info->m_server_addr;
         yaml_info->m_dpPkt          =lp->m_info->m_dpPkt;
-
+        yaml_info->m_server_pool_idx=lp->m_info->m_server_pool_idx;
+        yaml_info->m_client_pool_idx=lp->m_info->m_client_pool_idx;
+        yaml_info->m_server_pool_name=lp->m_info->m_server_pool_name;
+        yaml_info->m_client_pool_name=lp->m_info->m_client_pool_name;
         /* fix this */
         assert(m_max_threads>0);
         if ( m_max_threads == 1 ) {
@@ -3257,8 +3296,7 @@ void CFlowGenListPerThread::init_from_global(CClientPortion& portion){
         yaml_info->m_restart_time = ( yaml_info->m_limit_was_set ) ?
             (yaml_info->m_limit / (yaml_info->m_k_cps * 1000.0)) : 0;
 
-
-        lp_thread->Create( &m_smart_gen,
+        lp_thread->Create(&m_smart_gen,
                            yaml_info,
                            lp->m_flows_info,
                            &lp->m_flow_info,
@@ -3293,6 +3331,12 @@ void CFlowGenListPerThread::Clean(){
     int i;
     for (i=0; i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRecPerThread * lp=m_cap_gen[i];
+        if (lp->m_tuple_gen_was_set) {
+            CTupleGeneratorSmart *gen;
+            gen = lp->tuple_gen.get_gen();
+            gen->Delete();
+            delete gen;
+        }
         lp->Delete();
         delete lp;
     }
@@ -3549,6 +3593,27 @@ uint32_t CFlowGenListPerThread::getDualPortId(){
     return ( ::getDualPortId(m_thread_id) );
 }
 
+double CFlowGenListPerThread::get_longest_flow(uint8_t pool_idx, bool is_client){
+    int i;
+    double longest_flow = 0.0;
+    for (i=0;i<(int)m_cap_gen.size(); i++) {
+        CFlowGeneratorRecPerThread * lp=m_cap_gen[i];
+        if (is_client && 
+            lp->m_info->m_client_pool_idx != pool_idx)
+            continue;
+        if (!is_client && 
+            lp->m_info->m_server_pool_idx != pool_idx)
+            continue;
+        double tmp_len;
+        tmp_len = lp->m_flow_info->get_cap_file_length_sec();
+        if (longest_flow < tmp_len ) {
+            longest_flow = tmp_len;
+        }
+    }
+    return longest_flow;
+}
+
+
 double CFlowGenListPerThread::get_longest_flow(){
     int i;
     double longest_flow = 0.0;
@@ -3561,6 +3626,22 @@ double CFlowGenListPerThread::get_longest_flow(){
         }
     }
     return longest_flow;
+}
+
+double CFlowGenListPerThread::get_total_kcps(uint8_t pool_idx, bool is_client){
+    int i;
+    double total=0.0;
+    for (i=0; i<(int)m_cap_gen.size(); i++) {
+        CFlowGeneratorRecPerThread * lp=m_cap_gen[i];
+        if (is_client && 
+            lp->m_info->m_client_pool_idx != pool_idx)
+            continue;
+        if (!is_client && 
+            lp->m_info->m_server_pool_idx != pool_idx)
+            continue;
+        total +=lp->m_info->m_k_cps;
+    }
+    return (total);
 }
 
 double CFlowGenListPerThread::get_total_kcps(){
@@ -3871,9 +3952,6 @@ int CFlowGenList::load_from_yaml(std::string file_name,
     CGlobalInfo::m_options.m_vlan_port[0] =   m_yaml_info.m_vlan_info.m_vlan_per_port[0];
     CGlobalInfo::m_options.m_vlan_port[1] =   m_yaml_info.m_vlan_info.m_vlan_per_port[1];
     CGlobalInfo::m_options.preview.set_mac_ip_overide_enable(m_yaml_info.m_mac_replace_by_ip);
-    CGlobalInfo::m_options.m_tcp_aging = m_yaml_info.m_tuple_gen.m_tcp_aging_sec;
-    CGlobalInfo::m_options.m_udp_aging = m_yaml_info.m_tuple_gen.m_udp_aging_sec;
-
 
     if ( m_yaml_info.m_mac_base.size() != 6 ){
         printf(" mac addr is not valid \n");
@@ -5418,8 +5496,11 @@ void CPluginCallbackSimple::on_node_last(uint8_t plugin_id,CGenNode *     node){
         /* free the ports */
         CFlowGenListPerThread  * flow_gen=(CFlowGenListPerThread  *) lpP->m_gen;
         bool is_tcp=node->m_pkt_info->m_pkt_indication.m_desc.IsTcp();
-        flow_gen->defer_client_port_free(is_tcp,node->m_src_ip,lpP->rtp_client_0);
-        flow_gen->defer_client_port_free(is_tcp,node->m_src_ip,lpP->rtp_client_1);
+        flow_gen->defer_client_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_0,
+                                node->m_template_info->m_client_pool_idx,node->m_tuple_gen);
+        flow_gen->defer_client_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_1,
+                                node->m_template_info->m_client_pool_idx,  node->m_tuple_gen);
+ 
         assert(lpP);
         delete lpP;
         node->m_plugin_info=0;

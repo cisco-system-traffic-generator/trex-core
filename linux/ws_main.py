@@ -479,7 +479,7 @@ build_types = [
 def build_prog (bld, build_obj):
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
-                cxxflags =build_obj.get_flags(),
+                cxxflags =(build_obj.get_flags()+['-std=gnu++11',]),
                 stlib = 'stdc++',
                 linkflags = build_obj.get_link_flags(),
                 source = bp.file_list(top),

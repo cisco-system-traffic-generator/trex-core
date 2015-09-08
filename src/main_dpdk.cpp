@@ -4094,11 +4094,10 @@ int CGlobalPortCfg::start_send_master(){
 
     CTupleGenYamlInfo * tg=&m_fl.m_yaml_info.m_tuple_gen;
 
-    m_mg.set_ip( tg->m_clients_ip_start,
-                 tg->m_servers_ip_start,
-                 tg->m_dual_interface_mask
-                  );
-
+    m_mg.set_ip( tg->m_client_pool[0].get_ip_start(),
+                 tg->m_server_pool[0].get_ip_start(),
+                 tg->m_client_pool[0].getDualMask()
+               );
 
     if (  CGlobalInfo::m_options.preview.getVMode() >0 ) {
       m_fl.DumpCsv(stdout);
