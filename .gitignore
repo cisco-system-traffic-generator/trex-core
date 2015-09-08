@@ -1,0 +1,55 @@
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+.lock*
+linux_dpdk*
+linux*
+scripts/_t-rex-*
+scripts/bp-sim-*
+scripts/doc/*
+scripts/mock-*
+
+*.pyc
+
+ 
+# Packages #
+############
+# it's better to unpack these files and commit the raw source
+# git has its own built in compression methods
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+ 
+# Logs and databases #
+######################
+*.log
+*.sql
+*.sqlite
+ 
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+
+# IDE/ Editors files #
+######################
+.idea/
+*.vpj
+*.vpw
+*.vtg
+*.vpwhist

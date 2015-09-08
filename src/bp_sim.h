@@ -1249,6 +1249,7 @@ struct CFlowYamlInfo {
         m_server_addr=0;
         m_client_pool_idx = 0;
         m_server_pool_idx = 0;
+        m_cap_mode=false;
     }
     
     std::string     m_name;

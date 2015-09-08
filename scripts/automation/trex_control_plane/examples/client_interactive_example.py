@@ -4,7 +4,7 @@ import trex_root_path
 from client.trex_client import *
 from common.trex_exceptions import *
 import cmd
-from python_lib.termstyle import termstyle
+import termstyle
 import os
 from argparse import ArgumentParser
 from pprint import pprint
@@ -23,14 +23,13 @@ class InteractiveTRexClient(cmd.Cmd):
         cmd.Cmd.__init__(self)
         self.verbose = verbose_mode
         self.trex = CTRexClient(trex_host, max_history_size, trex_daemon_port = trex_port, verbose = verbose_mode)
-        self.DEFAULT_RUN_PARAMS = dict(c = 4,
-                                        m = 1.5,
+        self.DEFAULT_RUN_PARAMS = dict( m = 1.5,
                                         nc = True,
                                         p  = True,
                                         d = 100,   
                                         f = 'avl/sfr_delay_10_1g.yaml',
                                         l = 1000)
-        self.run_params = self.DEFAULT_RUN_PARAMS
+        self.run_params = dict(self.DEFAULT_RUN_PARAMS)
         self.decoder = json.JSONDecoder()
 
 
@@ -112,7 +111,7 @@ class InteractiveTRexClient(cmd.Cmd):
 
     def do_restore_run_default (self, line):
         """Restores original T-Rex running configuration"""
-        self.run_params = self.DEFAULT_RUN_PARAMS
+        self.run_params = dict(self.DEFAULT_RUN_PARAMS)
         print termstyle.green("*** End of restoring default run parameters ***")
 
     def do_run_until_finish (self, sample_rate):

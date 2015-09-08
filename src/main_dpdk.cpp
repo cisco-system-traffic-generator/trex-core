@@ -55,6 +55,7 @@ limitations under the License.
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
 #include <common/basic_utils.h>
+#include <../linux_dpdk/version.h>
 
 extern "C" {
   #include <dpdk_lib18/librte_pmd_ixgbe/ixgbe/ixgbe_type.h>
@@ -70,8 +71,6 @@ extern "C" {
 #include "utl_term_io.h"
 #include "msg_manager.h"
 #include "platform_cfg.h"
-                       
-#define VERSION  "1.73"
 
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
@@ -637,9 +636,31 @@ static int usage(){
 
     printf("\n");
     printf("\n");
-    printf(" Copyright (C) 2012 by hhaim Cisco-System POC for Israel dev-test \n");
-    printf(" version : %s   \n",VERSION);
-
+    printf(" Copyright (c) 2015-2015 Cisco Systems, Inc.    \n");
+    printf("                                                                  \n");
+    printf(" Licensed under the Apache License, Version 2.0 (the 'License') \n");
+    printf(" you may not use this file except in compliance with the License. \n");
+    printf(" You may obtain a copy of the License at                          \n");
+    printf("                                                                  \n");
+    printf("    http://www.apache.org/licenses/LICENSE-2.0                    \n");
+    printf("                                                                  \n");
+    printf(" Unless required by applicable law or agreed to in writing, software \n");
+    printf(" distributed under the License is distributed on an \"AS IS\" BASIS,   \n");
+    printf(" WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. \n");
+    printf(" See the License for the specific language governing permissions and      \n");
+    printf(" limitations under the License.                                           \n");
+    printf(" \n");
+    printf(" Open Source Components / Libraries \n");
+    printf(" DPDK       (BSD)         \n");
+    printf(" YAML-CPP   (BSD)       \n");
+    printf(" \n");
+    printf(" Open Source Binaries \n");
+    printf(" ZMQ        (LGPL v3plus) \n");
+    printf(" \n");
+    printf(" Version : %s   \n",VERSION_BUILD_NUM);
+    printf(" User    : %s   \n",VERSION_USER);
+    printf(" Date    : %s , %s \n",get_build_date(),get_build_time());
+    printf(" Uuid    : %s    \n",VERSION_UIID);
     return (0);
 }
 
@@ -4370,7 +4391,7 @@ int main_test(int argc , char * argv[]){
 
     int ret;
     unsigned lcore_id;
-    printf("Starting  T-Rex %s please wait  ... \n",VERSION);
+    printf("Starting  TRex %s please wait  ... \n",VERSION_BUILD_NUM);
 
     CGlobalInfo::m_options.preview.clean();
 
@@ -4551,7 +4572,6 @@ void CTRexExtendedDriverBase1G::update_global_config_fdir(port_cfg_t * cfg){
     cfg->update_global_config_fdir_10g_1g();
 }
 
-
 int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
 
     uint16_t hops = get_rx_check_hops();
@@ -4563,15 +4583,15 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
         int i;
         // IPv4: bytes being compared are {TTL, Protocol}
         uint16_t ff_rules_v4[4]={
-            0xFF06 - v4_hops,
-            0xFE11 - v4_hops,
-            0xFF11 - v4_hops,
-            0xFE06 - v4_hops,
+            (uint16_t)(0xFF06 - v4_hops),
+            (uint16_t)(0xFE11 - v4_hops),
+            (uint16_t)(0xFF11 - v4_hops),
+            (uint16_t)(0xFE06 - v4_hops),
         }  ;
         // IPv6: bytes being compared are {NextHdr, HopLimit}
         uint16_t ff_rules_v6[2]={
-            0x3CFF - hops,
-            0x3CFE - hops,
+            (uint16_t)(0x3CFF - hops),
+            (uint16_t)(0x3CFE - hops),
         }  ;
         uint16_t *ff_rules;
         uint16_t num_rules;
@@ -4709,17 +4729,17 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
 
         // IPv4: bytes being compared are {TTL, Protocol}
         uint16_t ff_rules_v4[4]={
-            0xFF11 - v4_hops,
-            0xFE11 - v4_hops,
-            0xFF06 - v4_hops,
-            0xFE06 - v4_hops,
+            (uint16_t)(0xFF11 - v4_hops),
+            (uint16_t)(0xFE11 - v4_hops),
+            (uint16_t)(0xFF06 - v4_hops),
+            (uint16_t)(0xFE06 - v4_hops),
         }  ;
         // IPv6: bytes being compared are {NextHdr, HopLimit}
         uint16_t ff_rules_v6[4]={
-            0x3CFF - hops,
-            0x3CFE - hops,
-            0x3CFF - hops,
-            0x3CFE - hops,
+            (uint16_t)(0x3CFF - hops),
+            (uint16_t)(0x3CFE - hops),
+            (uint16_t)(0x3CFF - hops),
+            (uint16_t)(0x3CFE - hops),
         }  ;
         const rte_l4type ff_rules_type[4]={
             RTE_FDIR_L4TYPE_UDP,

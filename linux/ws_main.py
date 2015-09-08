@@ -1,37 +1,23 @@
 #!/usr/bin/env python
 # encoding: utf-8
-# Thomas Nagy, 2006-2012 (ita)
-#/******                         
-# * NAME
-# *   stile_main.cpp
-# *   
-# * AUTHOR
-# *   Thomas Nagy, 2006-2012 (ita)
-# *   
-# * COPYRIGHT
-# *   Copyright (c) 2006-2012 by cisco Systems, Inc.
-# *   All rights reserved.
-# *   
-# * DESCRIPTION
-# *   
-# ****/
-# the following two variables are used by the target "waf dist"
+
+# Hanoh Haim
+# Cisco Systems, Inc.
+
+
 VERSION='0.0.1'
 APPNAME='cxx_test'
+
 import os;
 import commands;
 import shutil;
 import copy;
 
-
-# these variables are mandatory ('/' are converted automatically)
 top = '../'
 out = 'build'
 b_path ="./build/linux/"
 
-#######################################
-# utility for group source code 
-###################################
+REQUIRED_CC_VERSION = "4.7.0"
 
 class SrcGroup:
     ' group of source by directory '
@@ -42,8 +28,6 @@ class SrcGroup:
       self.group_list = None;
       assert (type(src_list)==list)
       assert (type(dir)==str)
-
-
 
     def file_list (self,top):
         ' return  the long list of the files '
@@ -83,19 +67,28 @@ class SrcGroups:
           return (self.file_list(''));
 
 
-#######################################
-
-
-
-
-
-#I put v3 as v4 contain temp fix for falcon
-
 def options(opt):
     opt.load('compiler_cxx')
 
+    
+def verify_cc_version (env):
+    ver = '.'.join(env['CC_VERSION'])
+
+    if StrictVersion(ver) < REQUIRED_CC_VERSION:
+        print "\nMachine GCC version too low '{0}' - required at least '{1}'".format(ver, REQUIRED_CC_VERSION)
+        print "\n*** please set a compiler using CXX / AR enviorment variables ***\n"
+        exit(-1)
+
+
 def configure(conf):
+    # start from clean
+    if 'RPATH' in os.environ:
+        conf.env.RPATH = os.environ['RPATH'].split(':')
+    else:
+        conf.env.RPATH = []
+
     conf.load('g++')
+    verify_cc_version(conf.env)
 
 
 main_src = SrcGroup(dir='src',
@@ -133,8 +126,6 @@ cmn_src = SrcGroup(dir='src/common',
         ]);
 
          
-
-# CFT core files
 net_src = SrcGroup(dir='src/common/Network/Packet',
         src_list=[
            'CPktCmn.cpp',
@@ -146,7 +137,47 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
-yaml_src = SrcGroup(dir='yaml-cpp/src/',
+# stateless code
+stateless_src = SrcGroup(dir='src/stateless/',
+                          src_list=['trex_stream.cpp',
+                                    'trex_stateless.cpp'
+                                    ])
+# RPC code
+rpc_server_src = SrcGroup(dir='src/rpc-server/',
+                          src_list=[
+                              'trex_rpc_server.cpp',
+                              'trex_rpc_req_resp_server.cpp',
+                              'trex_rpc_jsonrpc_v2_parser.cpp',
+                              'trex_rpc_cmds_table.cpp',
+                              'trex_rpc_cmd.cpp',
+
+                              'commands/trex_rpc_cmd_test.cpp',
+                              'commands/trex_rpc_cmd_general.cpp',
+                              'commands/trex_rpc_cmd_stream.cpp',
+
+                          ])
+
+# RPC mock server (test)
+rpc_server_mock_src = SrcGroup(dir='src/rpc-server/',
+                          src_list=[
+                              'trex_rpc_server_mock.cpp',
+                              '../gtest/rpc_test.cpp',
+                          ])
+
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+                    src_list=[
+                        'jsoncpp.cpp'
+                        ])
+
+rpc_server_mock = SrcGroups([cmn_src,
+                             rpc_server_src,
+                             rpc_server_mock_src,
+                             stateless_src,
+                             json_src
+                             ])
+
+yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
             'binary.cpp',
@@ -176,23 +207,21 @@ yaml_src = SrcGroup(dir='yaml-cpp/src/',
             'stream.cpp',
             'tag.cpp']);
 
-# this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
                 main_src, 
                 cmn_src ,
                 net_src ,
-                yaml_src
+                yaml_src,
                 ]);
 
 
-
-
-
 cxxflags_base =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-g',
+                '-D_BYTE_ORDER',
+                '-D_LITTLE_ENDIAN',
+                '-DLINUX',
+                '-g',
+                '-Wno-deprecated-declarations',
+                '-std=c++0x',
        ];
 
 
@@ -200,7 +229,11 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 
 includes_path =''' ../src/pal/linux/
                    ../src/
-                   ../yaml-cpp/include/
+                   ../src/rpc-server/
+                   ../src/stateless/
+                   ../external_libs/json/
+                   ../external_libs/zmq/include/
+                   ../external_libs/yaml-cpp/include/
               ''';
 
 
@@ -215,10 +248,15 @@ PLATFORM_32 = "32"
 
 class build_option:
 
-    def __init__(self,platform,debug_mode,is_pie):
+    def __init__(self, name, src, platform, debug_mode, is_pie, use = [], flags = [], rpath = []):
       self.mode     = debug_mode;   ##debug,release
       self.platform = platform; #['32','64'] 
       self.is_pie = is_pie
+      self.name = name
+      self.src = src
+      self.use = use
+      self.flags = flags
+      self.rpath = rpath
 
     def __str__(self):
        s=self.mode+","+self.platform;
@@ -283,206 +321,68 @@ class build_option:
         if self.isPIE():
             result += ['-fPIE', '-DPATCH_FOR_PIE']
 
+        result += self.flags
+
         return result;
 
-    # handles shim options
-    def get_target_shim (self):
-        trg = "mcpshim";
-        return self.update_non_exe_name(trg);
+    def get_use_libs (self):
+        return self.use
 
-    def get_flags_shim (self):
-        flags = ['-DWIN_UCODE_SIM', '-DLINUX' ,'-g'];
-        return self.cxxcomp_flags(flags);
-
-
-    def get_lib_shim(self,full_path = True):
-        return self.toLib(self.get_target_shim(),full_path);
-
-    def shim_print (self):
-        print "\tshim: target name is "+self.get_target_shim();
-        print "\tshim: compile flags are "+str(self.get_flags_shim());
-        print "\tshim: lib full pathname is " +self.get_lib_shim();
-        print "\n";
-
-    # handle falcon stub options
-    def get_target_falcon_stub (self):
-        trg = "falcon_stub";
-        return self.update_non_exe_name(trg);
-
-    def get_flags_falcon_stub (self):
-        return self.cxxcomp_flags(cxxflags_base);
-
-    def get_lib_falcon_stub (self):
-        return self.toLib(self.get_target_falcon_stub());
-
-    def falcon_stub_print (self):
-        
-        print "\tfalcon_stub: target name is "+self.get_target_falcon_stub();
-        print "\tfalcon_stub: compile flags are "+str(self.get_flags_falcon_stub());
-        print "\tfalcon_stub: lib full pathname is " +self.get_lib_falcon_stub();
-        print "\n";
-
-    # handle stile-dp options
-    def get_target_stile_dp (self):
-        trg = "stile_dp";
-        return self.update_non_exe_name(trg);
-
-    def get_flags_stile_dp (self):
-        return self.cxxcomp_flags(cxxflags_base);
-
-    def get_lib_stile_dp(self, full_path = True):
-        return self.toLib(self.get_target_stile_dp(),full_path);
-
-    def stile_dp_print (self):
-       
-        print "\tstile_dp: target name is "+self.get_target_stile_dp();
-        print "\tstile_dp: compile flags are "+str(self.get_flags_stile_dp());
-        print "\tstile_dp: lib full pathname is " +self.get_lib_stile_dp();
-        print "\n";
-
-    # handle stile-away main program options
     def get_target (self):
-        return self.update_executable_name("bp-sim");
+        return self.update_executable_name(self.name);
 
     def get_flags (self):
         return self.cxxcomp_flags(cxxflags_base);
 
+    def get_src (self):
+        return self.src.file_list(top)
+
+    def get_rpath (self):
+        return self.rpath
+
     def get_link_flags(self):
         # add here basic flags
-        base_flags = ['-lpthread'];
+        base_flags = ['-pthread'];
         if self.isPIE():
             base_flags.append('-lstdc++')
 
         #platform depended flags
 
         if self.is64Platform():
-            base_flags += ['-m64'];
+            base_flags += ['-m64']
         else:
-            base_flags += ['-lrt'];
+            base_flags += ['-m32']
+            base_flags += ['-lrt']
+
         if self.isPIE():
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
 
         return base_flags;
 
-    def get_exe (self,full_path = True):
-        return self.toExe(self.get_target(),full_path);
-
-    def stileaway_print (self):
-       
-        print "\ttarget name is "+self.get_target();
-        print "\tcompile flags are "+str(self.get_flags());
-        print "\tlink flags are " + str(self.get_link_flags());
-        print "\texe full pathname is " +self.get_exe();
-        print "\n";
-
-    # handle pi options
-    def get_target_pi(self):
-        if self.is64Platform():
-            return "stile64";
-        else:
-            return "stile32";
-        
-    def get_lib_pi_path(self):
-        if self.isPIE():
-            return cntrl_lib64bit_pie_path
-
-        if self.is64Platform():
-            return cntrl_lib64bit_path;
-        else:
-            return cntrl_lib32bit_path;
-
-    def get_lib_pi(self,full_path = True):
-        lib_name_p = "lib"+self.get_target_pi()+".a"
-        if full_path:
-            return self.get_lib_pi_path() + lib_name_p;
-        else:
-            return lib_name_p;
-
-    def stile_pi_print(self):
-
-        print "\tstile_cp: target name is " + self.get_target_pi();
-        print "\tstile_cp: lib full pathname is " +self.get_lib_pi();
-        print "\n";
-
-
-    def get_target_stile_cp (self):
-         if self.is64Platform():
-            cp = "stile_cp_64";
-         else:
-            cp = "stile_cp_32";
-	 
-	 if self.isPIE():
-	    cp += "_pie"
-	 return cp
-
-    # handle release options
-
-    def get_flags_release(self):
-        return self.cxxcomp_flags(cxxflags_base);
-
-    def get_release_link_flags(self,include_lib=True):
-        # add here basic flags
-        base_flags = ['-lpthread'];
-        if self.isPIE():
-            base_flags += ['-lstdc++']
-
-        if include_lib:
-            #those are the linked libraries
-            base_flags += ["-L"+release_lib,
-                           "-l"+self.get_target_stile_dp(),
-                           "-l"+self.get_target_stile_cp(),
-                           "-l"+self.get_target_shim(),
-                           "-l"+self.get_target_falcon_stub(),
-                           ];
-
-        #platform depended flags
-        if self.is64Platform():
-            base_flags += ['-m64'];
-        else:
-            base_flags += ['-lrt'];
-        return base_flags;
-
-    def get_target_release (self):
-        return self.update_non_exe_name("stile-away-pkg");
-    def get_target_falcon_test(self):
-        return self.update_non_exe_name("stile-away-falcon-stand-alone");
-
-    def release_print(self):
-
-        print "\trelease: target name is " + self.get_target_release();
-        print "\trelease: link flags are " + str(self.get_release_link_flags());
-        print "\n";
-    cp_output_lib   = ['libstile_cp_32.a', 'libstile_cp_64.a', 'libstile_cp_32.a', 'libstile_cp_64.a', 'libstile_cp_64_pie.a'];
-    
-    def calculate_index (self):
-        index = 0;
-        if self.isRelease():
-           index += 2;
-        if self.is64Platform():
-            index += 1;
-	if self.isPIE():
-	    index += 1;
-        return index;
-    def get_install_cp(self):
-        return self.cp_output_lib[self.calculate_index()];
-
 
 build_types = [
-               build_option(debug_mode= DEBUG_, platform = PLATFORM_32, is_pie = False),
-               build_option(debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
-               build_option(debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
-               build_option(debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
+               #build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_32, is_pie = False),
+               build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
+               #build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
+               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
+
+               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, flags = ['-DTREX_RPC_MOCK_SERVER'],
+                            rpath = ['.']),
               ]
 
 
 
 def build_prog (bld, build_obj):
+    zmq_lib_path='external_libs/zmq/'
+    bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
+
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =(build_obj.get_flags()+['-std=gnu++11',]),
-                stlib = 'stdc++',
                 linkflags = build_obj.get_link_flags(),
-                source = bp.file_list(top),
+                source = build_obj.get_src(),
+                use = build_obj.get_use_libs(),
+                rpath  = bld.env.RPATH + build_obj.get_rpath(),
                 target = build_obj.get_target())
 
 
@@ -492,22 +392,22 @@ def build_type(bld,build_obj):
 
 def post_build(bld):
     print "copy objects"
+
     exec_p ="../scripts/"
+
     for obj in build_types:
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
+
     bld.add_post_fun(post_build);
     for obj in build_types:
         build_type(bld,obj);
 
+    
 
 def build_info(bld):
-    for obj in build_types:
-        print str(obj);
-        obj.stileaway_print();
-
-
+    pass;
       
 def install_single_system (bld, exec_p, build_obj):
     o='build/linux/';

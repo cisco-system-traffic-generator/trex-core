@@ -85,6 +85,9 @@ public:
     int get_dir(void){
         return (btGetMaskBit8(m_flags,0,0) ? 1:0);
     }
+    void clean(){
+        memset(this,0,sizeof(CRx_check_header));
+    }
 
     /* need to mark if we expect to see both sides of the flow, this is know offline  */
     void set_both_dir(int both){

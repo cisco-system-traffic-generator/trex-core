@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
-
 #
 # Hanoh Haim
 # Cisco Systems, Inc.
-
-
 
 VERSION='0.0.1'
 APPNAME='cxx_test'
@@ -14,6 +11,7 @@ import commands;
 import shutil;
 import copy;
 import re
+import uuid
 
 
 # these variables are mandatory ('/' are converted automatically)
@@ -22,6 +20,12 @@ out = 'build_dpdk'
 
 
 b_path ="./build/linux_dpdk/"
+
+C_VER_FILE      = "version.c"
+H_VER_FILE      = "version.h"
+
+BUILD_NUM_FILE  = "../VERSION" 
+
 
 #######################################
 # utility for group source code 
@@ -69,20 +73,12 @@ class SrcGroups:
               res += o.file_list(top);
           return res;
 
-
     def __str__ (self):
           return (self.file_list(''));
 
     def __repr__ (self):
           return (self.file_list(''));
 
-
-#######################################
-
-
-
-
-#I put v3 as v4 contain temp fix for falcon
 
 def options(opt):
     opt.load('compiler_cxx')
@@ -123,9 +119,6 @@ cmn_src = SrcGroup(dir='src/common',
         'pcap.cpp',
         ]);
 
-         
-
-# CFT core files
 net_src = SrcGroup(dir='src/common/Network/Packet',
         src_list=[
            'CPktCmn.cpp',
@@ -137,7 +130,33 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
-yaml_src = SrcGroup(dir='yaml-cpp/src/',
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+        src_list=[
+            'jsoncpp.cpp'
+           ])
+
+# RPC code
+rpc_server_src = SrcGroup(dir='src/rpc-server/',
+                          src_list=[
+                              'trex_rpc_server.cpp',
+                              'trex_rpc_req_resp_server.cpp',
+                              'trex_rpc_jsonrpc_v2_parser.cpp',
+                              'trex_rpc_cmds_table.cpp',
+                              'trex_rpc_cmd.cpp',
+
+                              'commands/trex_rpc_cmd_test.cpp',
+                              'commands/trex_rpc_cmd_general.cpp',
+                              'commands/trex_rpc_cmd_stream.cpp',
+                          ])
+
+# JSON package
+json_src = SrcGroup(dir='external_libs/json',
+                    src_list=[
+                        'jsoncpp.cpp'
+                        ])
+
+yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
             'aliasmanager.cpp',
             'binary.cpp',
@@ -167,12 +186,18 @@ yaml_src = SrcGroup(dir='yaml-cpp/src/',
             'stream.cpp',
             'tag.cpp']);
 
+
+version_src = SrcGroup(
+    dir='linux_dpdk',
+    src_list=[
+        'version.c',
+    ])
+
+
 dpdk_src = SrcGroup(dir='src/dpdk_lib18/',
                 src_list=[
                  'librte_ring/rte_ring.c',
                  'librte_timer/rte_timer.c',
-
-
                 #'librte_pmd_ixgbe/ixgbe_82599_bypass.c',
                 #'librte_pmd_ixgbe/ixgbe_bypass.c',
                 'librte_pmd_ixgbe/ixgbe_ethdev.c',
@@ -321,8 +346,7 @@ bp =SrcGroups([
                 cmn_src ,
                 net_src ,
                 yaml_src,
-                #sw_mini_shell_grp_src
-                #dpdk_src
+                version_src
                 ]);
 
 l2fwd_main_src = SrcGroup(dir='src',
@@ -335,50 +359,53 @@ l2fwd =SrcGroups([
                 l2fwd_main_src]);
 
 
+# common flags for both new and old configurations
+common_flags = ['-DWIN_UCODE_SIM',
+                '-D_BYTE_ORDER',
+                '-D_LITTLE_ENDIAN',
+                '-DLINUX',
+                '-g',
+                '-Wno-format',
+                '-Wno-deprecated-declarations',
+                '-DRTE_DPDK',
+                '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
+               ]
 
-cxxflags_base =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-Wno-format',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-g',
-           '-DRTE_DPDK',
-           '-march=native',
-           '-DRTE_MACHINE_CPUFLAG_SSE',
-           '-DRTE_MACHINE_CPUFLAG_SSE2',
-           '-DRTE_MACHINE_CPUFLAG_SSE3',
-           '-DRTE_MACHINE_CPUFLAG_SSSE3',
-           '-DRTE_MACHINE_CPUFLAG_SSE4_1',
-           '-DRTE_MACHINE_CPUFLAG_SSE4_2',
-           '-DRTE_MACHINE_CPUFLAG_AES',
-           '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
-           '-DRTE_MACHINE_CPUFLAG_AVX',
-           '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
-           '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
-       ];
+common_flags_new = common_flags + [
+                    '-march=native',
+                    '-DRTE_MACHINE_CPUFLAG_SSE',
+                    '-DRTE_MACHINE_CPUFLAG_SSE2',
+                    '-DRTE_MACHINE_CPUFLAG_SSE3',
+                    '-DRTE_MACHINE_CPUFLAG_SSSE3',
+                    '-DRTE_MACHINE_CPUFLAG_SSE4_1',
+                    '-DRTE_MACHINE_CPUFLAG_SSE4_2',
+                    '-DRTE_MACHINE_CPUFLAG_AES',
+                    '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
+                    '-DRTE_MACHINE_CPUFLAG_AVX',
+                    '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
+                   ]
 
-cxxflags_base_old =['-DWIN_UCODE_SIM',
-           '-D_BYTE_ORDER',
-           '-D_LITTLE_ENDIAN',
-           '-DLINUX',
-           '-Wno-format',
-           '-DUCS_210',
-           '-g',
-           '-DRTE_DPDK',
-           '-march=corei7',
-           '-mtune=generic',
-           '-DRTE_MACHINE_CPUFLAG_SSE',
-           '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
-           '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
-       ];
+common_flags_old = common_flags + [
+                      '-march=corei7',
+                      '-DUCS_210',
+                      '-mtune=generic',
+                      '-DRTE_MACHINE_CPUFLAG_SSE',
+                      '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
+                      ];
 
 
 
 
 includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
-                   ../yaml-cpp/include/
-                   ../src/zmq/include/
+                   
+                   ../src/rpc-server/
+                   ../src/stateless/
+
+                   ../external_libs/yaml-cpp/include/
+                   ../external_libs/zmq/include/
+                   ../external_libs/json/
+
                         ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
                         ../src/dpdk_lib18/librte_eal/common/include/
                         ../src/dpdk_lib18/librte_eal/common/
@@ -505,76 +532,6 @@ class build_option:
             trg += delimiter + "o"
         return trg;
 
-    def cxxcomp_flags (self,flags):
-        result = copy.copy(flags);
-        if self.is64Platform () :
-            result+=['-m64'];
-        else:
-            result+=['-m32'];
-
-        if self.isRelease () :
-            result+=['-O3'];
-        else:
-            result+=['-O0'];#'-DDEBUG','-D_DEBUG','-DSTILE_CPP_ASSERT','-DSTILE_SHIM_ASSERT'
-
-        return result;
-
-    # handles shim options
-    def get_target_shim (self):
-        trg = "mcpshim";
-        return self.update_non_exe_name(trg);
-
-    def get_flags_shim (self):
-        flags = ['-DWIN_UCODE_SIM', '-DLINUX' ,'-g'];
-        return self.cxxcomp_flags(flags);
-
-
-    def get_lib_shim(self,full_path = True):
-        return self.toLib(self.get_target_shim(),full_path);
-
-    def shim_print (self):
-        print "\tshim: target name is "+self.get_target_shim();
-        print "\tshim: compile flags are "+str(self.get_flags_shim());
-        print "\tshim: lib full pathname is " +self.get_lib_shim();
-        print "\n";
-
-    # handle falcon stub options
-    def get_target_falcon_stub (self):
-        trg = "falcon_stub";
-        return self.update_non_exe_name(trg);
-
-    def get_flags_falcon_stub (self):
-        return self.cxxcomp_flags(cxxflags_base);
-
-    def get_lib_falcon_stub (self):
-        return self.toLib(self.get_target_falcon_stub());
-
-    def falcon_stub_print (self):
-        
-        print "\tfalcon_stub: target name is "+self.get_target_falcon_stub();
-        print "\tfalcon_stub: compile flags are "+str(self.get_flags_falcon_stub());
-        print "\tfalcon_stub: lib full pathname is " +self.get_lib_falcon_stub();
-        print "\n";
-
-    # handle stile-dp options
-    def get_target_stile_dp (self):
-        trg = "stile_dp";
-        return self.update_non_exe_name(trg);
-
-    def get_flags_stile_dp (self):
-        return self.cxxcomp_flags(cxxflags_base);
-
-    def get_lib_stile_dp(self, full_path = True):
-        return self.toLib(self.get_target_stile_dp(),full_path);
-
-    def stile_dp_print (self):
-       
-        print "\tstile_dp: target name is "+self.get_target_stile_dp();
-        print "\tstile_dp: compile flags are "+str(self.get_flags_stile_dp());
-        print "\tstile_dp: lib full pathname is " +self.get_lib_stile_dp();
-        print "\n";
-
-    # handle stile-away main program options
     def get_target (self):
         return self.update_executable_name("_t-rex");
 
@@ -584,22 +541,40 @@ class build_option:
     def get_dpdk_target (self):
         return self.update_executable_name("dpdk");
 
-    def get_flags (self):
+    def get_common_flags (self):
         if self.isPIE():
-            return self.cxxcomp_flags(cxxflags_base_old);
+            flags = copy.copy(common_flags_old)
         else:
-            return self.cxxcomp_flags(cxxflags_base);
+            flags = copy.copy(common_flags_new);
 
+        if self.is64Platform () :
+            flags += ['-m64'];
+        else:
+            flags += ['-m32'];
 
+        if self.isRelease () :
+            flags += ['-O3'];
+        else:
+            flags += ['-O0'];
+
+        return (flags)
+
+    def get_cxx_flags (self):
+        flags = self.get_common_flags()
+
+        # support c++ 2011
+        flags += ['-std=c++0x']
+
+        return (flags)
+
+    def get_c_flags (self):
+        flags = self.get_common_flags()
+
+        # for C no special flags yet
+        return (flags)
 
     def get_link_flags(self):
-        # add here basic flags
-        base_flags = ['-L/lib64', '-lpthread','-ldl'];
-        #if self.isPIE():
-        #    base_flags.append('-lstdc++')
-
-        #platform depended flags
-
+        base_flags = [];
         if self.is64Platform():
             base_flags += ['-m64'];
         else:
@@ -607,120 +582,19 @@ class build_option:
 
         return base_flags;
 
-    def get_exe (self,full_path = True):
-        return self.toExe(self.get_target(),full_path);
-
-    def stileaway_print (self):
-       
-        print "\ttarget name is "+self.get_target();
-        print "\tcompile flags are "+str(self.get_flags());
-        print "\tlink flags are " + str(self.get_link_flags());
-        print "\texe full pathname is " +self.get_exe();
-        print "\n";
-
-    # handle pi options
-    def get_target_pi(self):
-        if self.is64Platform():
-            return "stile64";
-        else:
-            return "stile32";
-        
-    def get_lib_pi_path(self):
-
-        if self.is64Platform():
-            return cntrl_lib64bit_path;
-        else:
-            return cntrl_lib32bit_path;
-
-    def get_lib_pi(self,full_path = True):
-        lib_name_p = "lib"+self.get_target_pi()+".a"
-        if full_path:
-            return self.get_lib_pi_path() + lib_name_p;
-        else:
-            return lib_name_p;
-
-    def stile_pi_print(self):
-
-        print "\tstile_cp: target name is " + self.get_target_pi();
-        print "\tstile_cp: lib full pathname is " +self.get_lib_pi();
-        print "\n";
-
-
-    def get_target_stile_cp (self):
-         if self.is64Platform():
-            cp = "stile_cp_64";
-         else:
-            cp = "stile_cp_32";
-	 
-	 return cp
-
-    # handle release options
-
-    def get_flags_release(self):
-        return self.cxxcomp_flags(cxxflags_base);
-
-    def get_release_link_flags(self,include_lib=True):
-        # add here basic flags
-        base_flags = ['-lpthread'];
-        #if self.isPIE():
-        #   base_flags += ['-lstdc++']
-
-        if include_lib:
-            #those are the linked libraries
-            base_flags += ["-L"+release_lib,
-                           "-l"+self.get_target_stile_dp(),
-                           "-l"+self.get_target_stile_cp(),
-                           "-l"+self.get_target_shim(),
-                           "-l"+self.get_target_falcon_stub(),
-                           ];
-
-        #platform depended flags
-        if self.is64Platform():
-            base_flags += ['-m64'];
-        else:
-            base_flags += ['-lrt'];
-        return base_flags;
-
-    def get_target_release (self):
-        return self.update_non_exe_name("stile-away-pkg");
-    def get_target_falcon_test(self):
-        return self.update_non_exe_name("stile-away-falcon-stand-alone");
-
-    def release_print(self):
-
-        print "\trelease: target name is " + self.get_target_release();
-        print "\trelease: link flags are " + str(self.get_release_link_flags());
-        print "\n";
-    cp_output_lib   = ['libstile_cp_32.a', 'libstile_cp_64.a', 'libstile_cp_32.a', 'libstile_cp_64.a', 'libstile_cp_64_pie.a'];
-    
-    def calculate_index (self):
-        index = 0;
-        if self.isRelease():
-           index += 2;
-        if self.is64Platform():
-            index += 1;
-	if self.isPIE():
-	    index += 1;
-        return index;
-    def get_install_cp(self):
-        return self.cp_output_lib[self.calculate_index()];
 
 
 build_types = [
                build_option(debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
-
                build_option(debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
-
                build_option(debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = True),
                build_option(debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = True),
-
               ]
-
 
 
 def build_prog (bld, build_obj):
 
-    zmq_lib_path='src/zmq/'
+    zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
 
     #rte_libs =[
@@ -735,7 +609,7 @@ def build_prog (bld, build_obj):
       features='c ',
       includes = dpdk_includes_path,
       
-      cflags   = (build_obj.get_flags()+DPDK_WARNING ),
+      cflags   = (build_obj.get_c_flags()+DPDK_WARNING ),
       source   = bp_dpdk.file_list(top),
       target=build_obj.get_dpdk_target() 
       );
@@ -762,17 +636,14 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
+    bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
     for obj in build_types:
         build_type(bld,obj);
 
 
 def build_info(bld):
-    for obj in build_types:
-        print str(obj);
-        obj.stileaway_print();
-
-
+    pass;
       
 def install_single_system (bld, exec_p, build_obj):
     o='build_dpdk/linux_dpdk/';
@@ -784,16 +655,61 @@ def install_single_system (bld, exec_p, build_obj):
             relative_path = os.path.relpath(src_file, exec_p)
             os.symlink(relative_path, dest_file);
 
-#
-# need to fix this
-def install1(bld):
-    print "copy images and libs"
-    exec_p ="./"
- 
-    for obj in build_types:
-        install_single_system(bld,exec_p,obj);
 
-def copy_single_system (bld, exec_p, build_obj):
+def pre_build(bld):
+    print "update version files"
+    create_version_files ()
+
+
+def write_file (file_name,s):
+    f=open(file_name,'w')
+    f.write(s)
+    f.close()
+
+
+def get_build_num ():
+    s='';
+    if os.path.isfile(BUILD_NUM_FILE):
+        f=open(BUILD_NUM_FILE,'r');
+        s+=f.readline().rstrip();
+        f.close();
+    return s;
+
+def create_version_files ():
+    s =''
+    s +="#ifndef __TREX_VER_FILE__           \n"
+    s +="#define __TREX_VER_FILE__           \n"
+    s +="#ifdef __cplusplus                  \n"
+    s +=" extern \"C\" {                        \n"
+    s +=" #endif                             \n";
+    s +='#define  VERSION_USER  "%s"          \n' % os.environ.get('USER', 'unknown')
+    s +='extern const char * get_build_date(void);  \n'
+    s +='extern const char * get_build_time(void);  \n'
+    s +='#define VERSION_UIID      "%s"       \n' % uuid.uuid1()
+    s +='#define VERSION_BUILD_NUM "%s"       \n' % get_build_num()
+    s +="#ifdef __cplusplus                  \n"
+    s +=" }                        \n"
+    s +=" #endif                             \n";
+    s +="#endif \n"
+
+    write_file (H_VER_FILE ,s)
+
+    s ='#include "version.h"          \n'
+    s +='#define VERSION_UIID1      "%s"       \n' % uuid.uuid1()
+    s +="const char * get_build_date(void){ \n"
+    s +="    return (__DATE__);       \n"
+    s +="}      \n"
+    s +=" \n"
+    s +="const char * get_build_time(void){ \n"
+    s +="    return (__TIME__ );       \n"
+    s +="}      \n"
+
+    write_file (C_VER_FILE,s)
+
+def build_test(bld):
+    create_version_files ()
+
+def _copy_single_system (bld, exec_p, build_obj):
     o='build_dpdk/linux_dpdk/';
     src_file =  os.path.realpath(o+build_obj.get_target())
     print src_file;
@@ -803,7 +719,7 @@ def copy_single_system (bld, exec_p, build_obj):
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
-def copy_single_system1 (bld, exec_p, build_obj):
+def _copy_single_system1 (bld, exec_p, build_obj):
     o='../scripts/';
     src_file =  os.path.realpath(o+build_obj.get_target()[1:])
     print src_file;
@@ -813,14 +729,20 @@ def copy_single_system1 (bld, exec_p, build_obj):
         os.system("chmod +x %s " %(dest_file));
 
 
+def copy_single_system (bld, exec_p, build_obj):
+    _copy_single_system (bld, exec_p, build_obj)
+
+def copy_single_system1 (bld, exec_p, build_obj):
+    _copy_single_system1 (bld, exec_p, build_obj)
+
+
 files_list=[
             'libzmq.so.3.1.0',
             'libzmq.so.3',
             'trex-cfg',
-            'bp-sim-32',
             'bp-sim-64',
-            'bp-sim-32-debug',
             'bp-sim-64-debug',
+            'mock-rpc-server-64-debug',
             'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
@@ -828,7 +750,104 @@ files_list=[
             'trex_daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation','python-lib']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib']
+
+
+class Env(object):
+    @staticmethod
+    def get_env(name) :
+        s= os.environ.get(name);
+        if s == None:
+            print "You should define $",name
+            raise Exception("Env error");
+        return (s);
+    
+    @staticmethod
+    def get_release_path () :
+        s= Env().get_env('TREX_LOCAL_PUBLISH_PATH');
+        s +=get_build_num ()+"/"
+        return  s;
+
+    @staticmethod
+    def get_remote_release_path () :
+        s= Env().get_env('TREX_REMOTE_PUBLISH_PATH');
+        return  s;
+
+    @staticmethod
+    def get_local_web_server () :
+        s= Env().get_env('TREX_WEB_SERVER');
+        return  s;
+
+    # extral web 
+    @staticmethod
+    def get_trex_ex_web_key() :
+        s= Env().get_env('TREX_EX_WEB_KEY');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_path() :
+        s= Env().get_env('TREX_EX_WEB_PATH');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_user() :
+        s= Env().get_env('TREX_EX_WEB_USER');
+        return  s;
+
+    @staticmethod
+    def get_trex_ex_web_srv() :
+        s= Env().get_env('TREX_EX_WEB_SRV');
+        return  s;
+
+
+
+def release(bld):
+    """ release to local folder  """
+    print "copy images and libs"
+    exec_p =Env().get_release_path();
+    os.system(' mkdir -p '+exec_p);
+    
+    for obj in build_types:
+        copy_single_system (bld,exec_p,obj);
+        copy_single_system1 (bld,exec_p,obj)
+
+    for obj in files_list:
+        src_file =  '../scripts/'+obj
+        dest_file = exec_p +'/'+obj
+        os.system("cp %s %s " %(src_file,dest_file));
+
+    for obj in files_dir:
+        src_file =  '../scripts/'+obj+'/' 
+        dest_file = exec_p +'/'+obj+'/'
+        os.system("cp -rv %s %s " %(src_file,dest_file));
+        os.system("chmod 755 %s " %(dest_file));
+
+    rel=get_build_num ()
+    os.system('cd %s/..;tar --exclude="*.pyc" -zcvf %s/%s.tar.gz %s' %(exec_p,os.getcwd(),rel,rel))
+    os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),rel,exec_p));
+
+
+def publish(bld):
+    exec_p = Env().get_release_path()
+    rel=get_build_num ()
+
+    release_name ='%s.tar.gz' % (rel);
+    from_        = exec_p+'/'+release_name;
+    os.system("rsync -av %s %s:%s/%s " %(from_,Env().get_local_web_server(),Env().get_remote_release_path (), release_name))
+    os.system("ssh %s 'cd %s;rm be_latest; ln -P %s be_latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
+    os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
+
+
+def publish_ext(bld):
+    exec_p = Env().get_release_path()
+    rel=get_build_num ()
+
+    release_name ='%s.tar.gz' % (rel);
+    from_        = exec_p+'/'+release_name;
+    os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/release/%s' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ,release_name) )
+    os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
+    os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
+
 
 
 

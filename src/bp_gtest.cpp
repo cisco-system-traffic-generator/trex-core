@@ -1464,6 +1464,8 @@ TEST_F(rx_check, rx_check_normal) {
 
     for (i=0; i<10; i++) {
         CRx_check_header rxh;
+        rxh.clean();
+
         rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
         rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
         rxh.m_time_stamp=0;
@@ -1492,6 +1494,8 @@ TEST_F(rx_check, rx_check_drop) {
 
     for (i=0; i<10; i++) {
         CRx_check_header rxh;
+        rxh.clean();
+
         rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
         rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
         rxh.m_time_stamp=0;
@@ -1528,8 +1532,10 @@ TEST_F(rx_check, rx_check_ooo) {
 
 	for (i=0; i<10; i++) {
 		CRx_check_header rxh;
-                rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
-                rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
+        rxh.clean();
+
+        rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
+        rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
 		rxh.m_time_stamp=0;
 		rxh.m_magic=RX_CHECK_MAGIC;
         rxh.m_aging_sec=10;
@@ -1569,8 +1575,9 @@ TEST_F(rx_check, rx_check_ooo_1) {
 
 	for (i=0; i<10; i++) {
 		CRx_check_header rxh;
-                rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
-                rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
+        rxh.clean();
+        rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
+        rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
 		rxh.m_time_stamp=0;
         rxh.set_dir(0);
         rxh.set_both_dir(0);
@@ -1606,8 +1613,9 @@ TEST_F(rx_check, rx_check_ooo_2) {
 
 	for (i=0; i<10; i++) {
 		CRx_check_header rxh;
-                rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
-                rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
+        rxh.clean();
+        rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
+        rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
 		rxh.m_time_stamp=0;
 		rxh.m_magic=RX_CHECK_MAGIC;
         rxh.m_aging_sec=10;
@@ -1644,6 +1652,7 @@ TEST_F(rx_check, rx_check_normal_two_dir) {
 
     for (i=0; i<10; i++) {
         CRx_check_header rxh;
+        rxh.clean();
         rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
         rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
         rxh.m_time_stamp=0;
@@ -1673,6 +1682,7 @@ TEST_F(rx_check, rx_check_normal_two_dir_fails) {
 
     for (i=0; i<10; i++) {
         CRx_check_header rxh;
+        rxh.clean();
         rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
         rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
         rxh.m_time_stamp=0;
@@ -1699,6 +1709,8 @@ TEST_F(rx_check, rx_check_normal_two_dir_ok) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
+
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_time_stamp=0;
@@ -1733,6 +1745,8 @@ TEST_F(rx_check, rx_check_normal_one_pkt_one_dir) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
+
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_time_stamp=0;
@@ -1759,6 +1773,8 @@ TEST_F(rx_check, rx_check_normal_one_pkt_one_dir_0) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
+
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_time_stamp=0;
@@ -1784,6 +1800,8 @@ TEST_F(rx_check, rx_check_normal_one_pkt_two_dir_0) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
+
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_time_stamp=0;
@@ -1816,6 +1834,8 @@ TEST_F(rx_check, rx_check_normal_one_pkt_two_dir_err1) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
+
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_time_stamp=0;
@@ -1859,6 +1879,8 @@ TEST_F(rx_check, rx_check_normal_two_dir_oo) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
+
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_time_stamp=0;
@@ -1903,6 +1925,8 @@ TEST_F(rx_check, rx_check_normal_aging) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
+
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_magic=RX_CHECK_MAGIC;
@@ -1937,6 +1961,7 @@ TEST_F(rx_check, rx_check_normal_no_aging) {
     int i;
 
     CRx_check_header rxh;
+    rxh.clean();
     rxh.m_option_type=RX_CHECK_V4_OPT_TYPE;
     rxh.m_option_len=RX_CHECK_V4_OPT_LEN;
     rxh.m_magic=RX_CHECK_MAGIC;
