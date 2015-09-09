@@ -13,8 +13,8 @@
           generator_clients :
               - name : "c1"
                 distribution : "seq"
-                ip_start : "26.0.0.1"
-                ip_end : "26.0.1.255"
+                ip_start : "16.0.0.1"
+                ip_end : "16.0.1.255"
               - name : "c2"
                 distribution : "seq"
                 ip_start : "36.0.0.1"
@@ -22,8 +22,8 @@
           generator_servers :
               - name : "s1"
                 distribution : "seq"
-                ip_start : "28.0.0.1"
-                ip_end : "28.0.1.255"
+                ip_start : "48.0.0.1"
+                ip_end : "48.0.1.255"
                 track_ports : false
               - name : "s2"
                 distribution : "seq"
