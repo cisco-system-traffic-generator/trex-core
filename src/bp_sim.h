@@ -1376,17 +1376,17 @@ public:
 
 //private:
 
+    CTupleGeneratorSmart *m_tuple_gen;
     // cache line 1 - 64bytes waste of space !
     uint32_t            m_nat_external_ipv4; /* client */
     uint32_t            m_nat_external_ipv4_server;
     uint16_t            m_nat_external_port;
 
-    uint16_t            m_nat_pad;
+    uint16_t            m_nat_pad[3];
     mac_addr_align_t    m_src_mac;
-    CTupleGeneratorSmart *m_tuple_gen;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
-    uint32_t            m_end_of_cache_line[10];
+    uint32_t            m_end_of_cache_line[6];
 
 public:
     bool operator <(const CGenNode * rsh ) const {
@@ -1592,7 +1592,7 @@ public:
 
 #if __x86_64__
 /* size of 64 bytes */
-    #define DEFER_CLIENTS_NUM (18)
+    #define DEFER_CLIENTS_NUM (16)
 #else
     #define DEFER_CLIENTS_NUM (16)
 #endif
