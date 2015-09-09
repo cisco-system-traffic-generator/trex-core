@@ -30,6 +30,32 @@ using namespace std;
 
 class RpcTest : public testing::Test {
 
+    void take_ownership(void) {
+        Json::Value request;
+        Json::Value response;
+
+        create_request(request, "aquire", 1 , false);
+
+        request["params"]["user"] = "test";
+        request["params"]["force"] = true;
+
+        send_request(request, response);
+
+        EXPECT_TRUE(response["result"] != Json::nullValue);
+        m_ownership_handler = response["result"].asString();
+    }
+
+    void release_ownership() {
+        Json::Value request;
+        Json::Value response;
+
+        create_request(request, "release", 1 , false);
+        request["params"]["handler"] = m_ownership_handler;
+
+        send_request(request, response);
+        EXPECT_TRUE(response["result"] == "ACK");
+    }
+
     virtual void SetUp() {
         TrexRpcServerConfig cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
 
@@ -39,6 +65,8 @@ class RpcTest : public testing::Test {
         m_context = zmq_ctx_new ();
         m_socket = zmq_socket (m_context, ZMQ_REQ);
         zmq_connect (m_socket, "tcp://localhost:5050");
+
+        take_ownership();
     }
 
     virtual void TearDown() {
@@ -50,6 +78,33 @@ class RpcTest : public testing::Test {
     }
 
 public:
+
+    void create_request(Json::Value &request, const string &method, int id = 1, bool ownership = false) {
+        request.clear();
+
+        request["jsonrpc"] = "2.0";
+        request["id"] = id;
+        request["method"] = method;
+
+        if (ownership) {
+            request["params"]["handler"] = m_ownership_handler; 
+        }
+    }
+
+    void send_request(const Json::Value &request, Json::Value &response) {
+        Json::FastWriter writer;
+        Json::Reader reader;
+
+        response.clear();
+
+        string request_str = writer.write(request);
+        string ret = send_msg(request_str);
+
+        EXPECT_TRUE(reader.parse(ret, response, false));
+        EXPECT_EQ(response["jsonrpc"], "2.0");
+        EXPECT_EQ(response["id"], request["id"]);
+    }
+
     string send_msg(const string &msg) {
         char buffer[512];
 
@@ -62,6 +117,7 @@ public:
     TrexRpcServer *m_rpc;
     void *m_context;
     void *m_socket;
+    string m_ownership_handler;
 };
 
 TEST_F(RpcTest, basic_rpc_test) {
@@ -230,42 +286,48 @@ TEST_F(RpcTest, add_stream) {
     Json::Value response;
     Json::Reader reader;
 
-    string resp_str;
+    create_request(request, "get_stream", 1, true);
 
-    // check the stream does not exists
-    string lookup_str = "{\"jsonrpc\":\"2.0\", \"id\":1, \"method\":\"get_stream\", \"params\":{\"port_id\":1, \"stream_id\":5}}";
-    resp_str = send_msg(lookup_str);
+    request["params"]["port_id"] = 1;
+    request["params"]["stream_id"] = 5;
 
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
+    send_request(request, response);
+
     EXPECT_EQ(response["jsonrpc"], "2.0");
     EXPECT_EQ(response["id"], 1);
-
     EXPECT_EQ(response["error"]["code"], -32000);
 
     // add it
+    create_request(request, "add_stream", 1, true);
+    request["params"]["port_id"] = 1;
+    request["params"]["stream_id"] = 5;
+    request["params"]["stream"]["mode"]["type"] = "continuous";
+    request["params"]["stream"]["mode"]["pps"] = 3; 
+    request["params"]["stream"]["isg"] = 4.3;
+    request["params"]["stream"]["enabled"] = true;
+    request["params"]["stream"]["self_start"] = true;
+    request["params"]["stream"]["next_stream_id"] = -1;
 
-    string add_str = "{\"jsonrpc\":\"2.0\", \"id\":1, \"method\":\"add_stream\", \"params\":"
-              "{\"port_id\":1, \"stream_id\":5, \"stream\":{"
-              "\"mode\": {\"type\":\"continuous\", \"pps\":3},"
-              "\"isg\":4.3, \"enabled\":true, \"self_start\":true,"
-              "\"next_stream_id\":-1,"
-              "\"packet\":{\"binary\":[4,1,255], \"meta\":\"dummy\"},"
-              "\"vm\":[],"
-              "\"rx_stats\":{\"enabled\":false}}}}";
+    request["params"]["stream"]["packet"]["meta"] = "dummy";
+    request["params"]["stream"]["packet"]["binary"][0] = 4;
+    request["params"]["stream"]["packet"]["binary"][1] = 1;
+    request["params"]["stream"]["packet"]["binary"][2] = 255;
 
-    resp_str = send_msg(add_str);
+    request["params"]["stream"]["vm"] = Json::arrayValue;
+    request["params"]["stream"]["rx_stats"]["enabled"] = false;
 
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], 1);
+    send_request(request, response);
 
     EXPECT_EQ(response["result"], "ACK");
 
-    resp_str = send_msg(lookup_str);
+    /* get it */
 
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], 1);
+    create_request(request, "get_stream", 1, true);
+
+    request["params"]["port_id"] = 1;
+    request["params"]["stream_id"] = 5;
+
+    send_request(request, response);
 
     const Json::Value &stream = response["result"]["stream"];
 
@@ -286,23 +348,17 @@ TEST_F(RpcTest, add_stream) {
     EXPECT_EQ(stream["mode"]["pps"], 3);
 
     // remove it
+    create_request(request, "remove_stream", 1, true);
 
-    string remove_str = "{\"jsonrpc\":\"2.0\", \"id\":1, \"method\":\"remove_stream\", \"params\":{\"port_id\":1, \"stream_id\":5}}";
-    resp_str = send_msg(remove_str);
+    request["params"]["port_id"] = 1;
+    request["params"]["stream_id"] = 5;
 
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], 1);
+    send_request(request, response);
 
     EXPECT_EQ(response["result"], "ACK");
 
-    resp_str = send_msg(remove_str);
-
     // should not be present anymore
-
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], 1);
+    send_request(request, response);
 
     EXPECT_EQ(response["error"]["code"], -32000);
 

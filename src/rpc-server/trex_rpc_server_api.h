@@ -173,24 +173,50 @@ public:
     }
 
     /**
+     * owner handler 
+     * for the connection 
+     * 
+     */
+    static const std::string &get_owner_handler() {
+        return s_owner_handler;
+    }
+
+    static bool is_free_to_aquire() {
+        return (s_owner == "none");
+    }
+
+    /**
     * take ownership of the server array 
     * this is static 
     * ownership is total 
     * 
     */
-    static void set_owner(const std::string &owner) {
+    static std::string set_owner(const std::string &owner) {
         s_owner = owner;
+        s_owner_handler = generate_handler();
+        return (s_owner_handler);
     }
 
     static void clear_owner() {
         s_owner = "none";
+        s_owner_handler = "";
+    }
+
+    static bool verify_owner_handler(const std::string &handler) {
+
+        return ( (s_owner != "none") && (s_owner_handler == handler) );
+
     }
 
 private:
+    static std::string generate_handler();
+
     std::vector<TrexRpcServerInterface *>   m_servers;
     bool                                    m_verbose;
     static const std::string                s_server_uptime;
+
     static std::string                      s_owner;
+    static std::string                      s_owner_handler;
 };
 
 #endif /* __TREX_RPC_SERVER_API_H__ */

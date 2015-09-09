@@ -68,8 +68,15 @@ public:
     /**
      * method name and params
      */
-    TrexRpcCommand(const std::string &method_name, int param_count) : m_name(method_name), m_param_count(param_count) {
+    TrexRpcCommand(const std::string &method_name, int param_count, bool needs_ownership) : 
+                                                                    m_name(method_name),
+                                                                    m_param_count(param_count),
+                                                                    m_needs_ownership(needs_ownership) {
 
+        /* if needs ownership - another field is needed (handler) */
+        if (m_needs_ownership) {
+            m_param_count++;
+        }
     }
 
     /**
@@ -110,6 +117,12 @@ protected:
      * check param count
      */
     void check_param_count(const Json::Value &params, int expected, Json::Value &result);
+
+    /**
+     * verify ownership
+     * 
+     */
+    void verify_ownership(const Json::Value &params, Json::Value &result);
 
     /**
      * parse functions
@@ -209,6 +222,7 @@ protected:
     /* RPC command name */
     std::string   m_name;
     int           m_param_count;
+    bool          m_needs_ownership;
 };
 
 #endif /* __TREX_RPC_CMD_API_H__ */

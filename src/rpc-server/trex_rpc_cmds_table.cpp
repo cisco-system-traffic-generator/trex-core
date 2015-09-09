@@ -30,9 +30,15 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     /* add the test command (for gtest) */
     register_command(new TrexRpcCmdTestAdd());
     register_command(new TrexRpcCmdTestSub());
+    
+
+    /* general */
     register_command(new TrexRpcCmdPing());
     register_command(new TrexRpcCmdGetReg());
     register_command(new TrexRpcCmdGetStatus());
+    register_command(new TrexRpcCmdGetOwner());
+    register_command(new TrexRpcCmdAcquire());
+    register_command(new TrexRpcCmdRelease());
 
     /* stream commands */
     register_command(new TrexRpcCmdAddStream());

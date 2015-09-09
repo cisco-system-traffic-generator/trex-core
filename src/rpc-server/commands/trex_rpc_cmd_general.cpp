@@ -63,3 +63,56 @@ TrexRpcCmdGetStatus::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+/**
+ * returns the current owner of the device
+ * 
+ * @author imarom (08-Sep-15)
+ * 
+ * @param params 
+ * @param result 
+ * 
+ * @return trex_rpc_cmd_rc_e 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetOwner::_run(const Json::Value &params, Json::Value &result) {
+    Json::Value &section = result["result"];
+
+    section["owner"] = TrexRpcServer::get_owner();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
+ * acquire device
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
+
+    const string &new_owner = parse_string(params, "user", result);
+    bool force = parse_bool(params, "force", result);
+
+    /* if not free and not you and not force - fail */
+    if ( (!TrexRpcServer::is_free_to_aquire()) && (TrexRpcServer::get_owner() != new_owner) && (!force)) {
+        generate_execute_err(result, "device is already taken by '" + TrexRpcServer::get_owner() + "'");
+    }
+
+    string handle = TrexRpcServer::set_owner(new_owner);
+
+    result["result"] = handle;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
+ * release device
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
+    TrexRpcServer::clear_owner();
+
+    result["result"] = "ACK";
+
+    return (TREX_RPC_CMD_OK);
+}
