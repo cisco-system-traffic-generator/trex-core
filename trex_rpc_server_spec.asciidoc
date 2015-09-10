@@ -876,4 +876,119 @@ if both are enabled then 10 bytes will be used.
 
 ----
 
+=== Get Global Stats
+* *Name* - 'get_global_stats'
+* *Valid States* - 'owned', 'active'
+* *Description* - Get machine global stats
+* *Paramters* - None
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_global_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| state             | string      | server state: can be 'unowned', 'owned' or 'active'
+| cpu_util          | double      | DP CPU util. in %
+| tx_bps            | double      | total TX bits per second
+| rx_bps            | double      | total RX bits per second
+| tx_pps            | double      | total TX packets per second
+| rx_pps            | double      | total RX packets per second
+| tx_cps            | double      | total TX connection per second
+| tx_expected_bps   | double      | expected TX bits per second
+| tx_expected_pps   | double      | expected TX packets per second
+| tx_expected_cps   | double      | expected TX connections per second
+| rx_drop_bps       | double      | drop rate in bits per second
+| total_tx_pkts     | int         | total TX packets
+| total_rx_pkts     | int         | total RX packets
+| total_rx_bytes    | int         | total TX bytes
+| total_tx_bytes    | int         | total RX bytes
+|=================
+
+=== Get Port Stats
+* *Name* - 'get_port_stats'
+* *Valid States* - 'owned', 'active'
+* *Description* - Get port stats
+* *Paramters*
+** *port_id* [int] - The port id for query
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_port_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| active            | boolean     | 'true' if the port is in transmitting phase
+| opackets          | int         | total output packets
+| ipackets          | int         | total input packets
+| obytes            | int         | total output bytes
+| ibytes            | int         | total input bytes
+| oerrors           | int         | total output errors
+| ierrors           | int         | total input errors
+|=================
+
+=== Get Stream Stats
+* *Name* - 'get_steram_stats'
+* *Valid States* - 'owned', 'active'
+* *Description* - Get port stats
+* *Paramters*
+** *port_id* [int] - The port id for query
+** *stream_id* [int] - The stream id for query
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_stream_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| tx_pkts           | int         | total TX packets
+| rx_pkts           | int         | total RX packets [only if 'rx_stats' is enabled], o.w always zero
+|=================
+
+
+== Typical Transactions Examples
+the following examples represents common scenarios.
+commands in [...] represents 'meta commands'
+and not real RPC commands such as 'repeat', 'wait' and etc.
+
+=== Init/Boot
+This sequence represents a client implementing the protocol taking ownership
+over the server and preparing to perform work
+
+==== Commands Flow
+* *ping* - Ping the server to verify the server is up
+* *get_owner* - if owner is not me or 'none' prompt to the user if he wants to force it
+* *acquire* - Ask or force for exclusive control over the server. save the 'handler' given for future commands
+* *get_version* - Verify the server is compatible with the GUI
+* *get_system_info* - Get the installed ports and cores
+* *get_stream_list* - for every port, get the list and sync the GUI
+* *get_stream* - for every stream in a port list, get the stream info and sync the GUI
+
+=== Simple Traffic With Adding / Editing Streams
+
+describes a simple scenario where a user wants to
+add or edit one or more streams to one or more ports
+
+==== Commands Flow
+* *[init]* - perform the init procedure from above
+* *[GUI add/edit streams]* - GUI provides the user a way to add or edit streams and sync them
+* *remove_all_streams* ['optional'] - remove all previous streams to start from scratch
+* *add_stream* - configure a specific port with a stream. 
+* *['repeat previous']* - 'repeat' the above for how many ports and streams desired 
+* *get_stream_list* ['optional'] - sanity - verify the server is synced with the GUI 
+* *start_traffic* - start traffic on the specific port / all the ports
+* *get_global_stats* ['optional'] - make sure the machine is transmiting traffic
+* *['wait']* - 'wait' for the time of the test
+* *stop_traffic* - when done, stop the traffic on the specific port / all the ports
+* *get_global_stats* ['optional'] - make sure the machine has stopped
+
+=== Logout
+
+Describes the log off from the machine
+
+==== Commands Flow
+* *stop_traffic* ['optional'] - if traffic has started - stop it
+* *get_global_stats* ['optional'] - make sure the machine has stopped
+* *remove_all_streams* ['optional'] - if you want to clear all the previous streams - use this
+* *release* - release the ownership over the device
 
