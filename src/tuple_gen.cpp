@@ -308,6 +308,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         utl_yaml_read_uint16(node,"tcp_aging",c_pool.m_tcp_aging_sec);
         utl_yaml_read_uint16(node,"udp_aging",c_pool.m_udp_aging_sec);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
+        s_pool.m_is_bundling = false;
         fi.m_client_pool.push_back(c_pool);
         fi.m_server_pool.push_back(s_pool);
     }catch ( const std::exception& e ) {
