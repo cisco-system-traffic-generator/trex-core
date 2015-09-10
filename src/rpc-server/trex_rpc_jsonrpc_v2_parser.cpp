@@ -200,3 +200,28 @@ void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request,
     commands.push_back(new JsonRpcMethod(msg_id, rpc_cmd, request["params"]));
 }
 
+/**
+ * tries to pretty a JSON str
+ * 
+ * @author imarom (03-Sep-15)
+ * 
+ * @param json_str 
+ * 
+ * @return std::string 
+ */
+std::string TrexJsonRpcV2Parser::pretty_json_str(const std::string &json_str) {
+    Json::Reader reader;
+    Json::Value  value;
+
+    /* basic JSON parsing */
+    bool rc = reader.parse(json_str, value, false);
+    if (!rc) {
+        /* duplicate the soruce */
+        return json_str;
+    }
+
+    /* successfully parsed */
+    Json::StyledWriter writer;
+    return writer.write(value);
+}
+

@@ -50,6 +50,8 @@ TrexRpcCommand::type_to_str(field_type_e type) {
     switch (type) {
     case FIELD_TYPE_BYTE:
         return "byte";
+    case FIELD_TYPE_UINT16:
+        return "uint16";
     case FIELD_TYPE_BOOL:
         return "bool";
     case FIELD_TYPE_INT:
@@ -104,6 +106,18 @@ TrexRpcCommand::parse_byte(const Json::Value &parent, const std::string &name, J
 uint8_t  
 TrexRpcCommand::parse_byte(const Json::Value &parent, int index, Json::Value &result) {
     check_field_type(parent, index, FIELD_TYPE_BYTE, result);
+    return parent[index].asUInt();
+}
+
+uint16_t 
+TrexRpcCommand::parse_uint16(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_UINT16, result);
+    return parent[name].asUInt();
+}
+
+uint16_t  
+TrexRpcCommand::parse_uint16(const Json::Value &parent, int index, Json::Value &result) {
+    check_field_type(parent, index, FIELD_TYPE_UINT16, result);
     return parent[index].asUInt();
 }
 
@@ -186,6 +200,12 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
     switch (type) {
     case FIELD_TYPE_BYTE:
         if ( (!field.isUInt()) || (field.asInt() > 0xFF)) {
+            rc = false;
+        }
+        break;
+
+    case FIELD_TYPE_UINT16:
+        if ( (!field.isUInt()) || (field.asInt() > 0xFFFF)) {
             rc = false;
         }
         break;

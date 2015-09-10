@@ -91,6 +91,7 @@ protected:
      */
     enum field_type_e {
         FIELD_TYPE_BYTE,
+        FIELD_TYPE_UINT16,
         FIELD_TYPE_INT,
         FIELD_TYPE_DOUBLE,
         FIELD_TYPE_BOOL,
@@ -115,6 +116,7 @@ protected:
      * 
      */
     uint8_t  parse_byte(const Json::Value &parent, const std::string &name, Json::Value &result);
+    uint16_t parse_uint16(const Json::Value &parent, const std::string &name, Json::Value &result);
     int      parse_int(const Json::Value &parent, const std::string &name, Json::Value &result);
     double   parse_double(const Json::Value &parent, const std::string &name, Json::Value &result);
     bool     parse_bool(const Json::Value &parent, const std::string &name, Json::Value &result);
@@ -123,12 +125,46 @@ protected:
     const Json::Value & parse_array(const Json::Value &parent, const std::string &name, Json::Value &result);
 
     uint8_t  parse_byte(const Json::Value &parent, int index, Json::Value &result);
+    uint16_t parse_uint16(const Json::Value &parent, int index, Json::Value &result);
     int      parse_int(const Json::Value &parent, int index, Json::Value &result);
     double   parse_double(const Json::Value &parent, int index, Json::Value &result);
     bool     parse_bool(const Json::Value &parent, int index, Json::Value &result);
     const std::string  parse_string(const Json::Value &parent, int index, Json::Value &result);
     const Json::Value & parse_object(const Json::Value &parent, int index, Json::Value &result);
     const Json::Value & parse_array(const Json::Value &parent, int index, Json::Value &result);
+
+    /**
+     * parse a field from choices 
+     * 
+     */
+    template<typename T> T parse_choice(const Json::Value &params, const std::string &name, std::initializer_list<T> choices, Json::Value &result) {
+        const Json::Value &field = params[name];
+
+        if (field == Json::Value::null) {
+            std::stringstream ss;
+            ss << "field '" << name << "' is missing";
+            generate_parse_err(result, ss.str());
+        }
+
+        for (auto x : choices) {
+            if (field == x) {
+                return (x);
+            }
+        }
+
+        std::stringstream ss;
+
+        ss << "field '" << name << "' can only be one of [";
+        for (auto x : choices) {
+            ss << "'" << x << "' ,";
+        }
+
+        std::string s = ss.str();
+        s.pop_back();
+        s.pop_back();
+        s += "]";
+        generate_parse_err(result, s);
+    }
 
     /**
      * check field type

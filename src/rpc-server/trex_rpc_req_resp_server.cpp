@@ -85,7 +85,7 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
         /* transform it to a string */
         std::string request((const char *)m_msg_buffer, msg_size);
 
-        verbose_msg("Server Received: " + request);
+        verbose_json("Server Received: ", TrexJsonRpcV2Parser::pretty_json_str(request));
 
         handle_request(request);
     }
@@ -110,6 +110,7 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
  */
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
     std::vector<TrexJsonRpcV2ParsedObject *> commands;
+
     Json::FastWriter writer;
     Json::Value response;
 
@@ -139,7 +140,7 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
         response_str = writer.write(response);
     }
     
-    verbose_msg("Server Replied:  " + response_str);
+    verbose_json("Server Replied:  ", response_str);
 
     zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
     

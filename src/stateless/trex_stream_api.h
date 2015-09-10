@@ -22,7 +22,11 @@ limitations under the License.
 #define __TREX_STREAM_API_H__
 
 #include <unordered_map>
+#include <vector>
 #include <stdint.h>
+#include <string>
+
+#include <trex_stream_vm.h>
 
 class TrexRpcCmdAddStream;
 
@@ -33,6 +37,7 @@ class TrexRpcCmdAddStream;
 class TrexStream {
     /* provide the RPC parser a way to access private fields */
     friend class TrexRpcCmdAddStream;
+    friend class TrexRpcCmdGetStream;
     friend class TrexStreamTable;
 
 public:
@@ -51,17 +56,21 @@ private:
 
     /* config fields */
     double        m_isg_usec;
-    uint32_t      m_next_stream_id;
+    int           m_next_stream_id;
 
     /* indicators */
     bool          m_enabled;
     bool          m_self_start;
     
     /* pkt */
-    uint8_t      *m_pkt;
-    uint16_t      m_pkt_len;
+    struct {
+        uint8_t      *binary;
+        uint16_t      len;
+        std::string   meta;
+    } m_pkt;
 
     /* VM */
+    StreamVm m_vm;
 
     /* RX check */
     struct {
@@ -71,6 +80,7 @@ private:
         uint32_t  m_stream_id;
 
     } m_rx_check;
+
 
 };
 
@@ -82,6 +92,11 @@ class TrexStreamContinuous : public TrexStream {
 public:
     TrexStreamContinuous(uint8_t port_id, uint32_t stream_id, uint32_t pps) : TrexStream(port_id, stream_id), m_pps(pps) {
     }
+
+    uint32_t get_pps() {
+        return m_pps;
+    }
+
 protected:
     uint32_t m_pps;
 };
@@ -156,6 +171,21 @@ public:
      *  
      */
     TrexStream * get_stream_by_id(uint32_t stream_id);
+
+    /**
+     * populate a list with all the stream IDs
+     * 
+     * @author imarom (06-Sep-15)
+     * 
+     * @param stream_list 
+     */
+    void get_stream_list(std::vector<uint32_t> &stream_list);
+
+    /**
+     * get the table size
+     * 
+     */
+    int size();
 
 private:
     /**

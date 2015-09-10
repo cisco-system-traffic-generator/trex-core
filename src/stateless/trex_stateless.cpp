@@ -24,13 +24,30 @@ limitations under the License.
  * Trex stateless object
  * 
  **********************************************************/
-TrexStateless::TrexStateless(uint8_t port_count) : m_port_count(port_count) {
+TrexStateless::TrexStateless() {
+    m_is_configured = false;
+}
 
-    m_ports = new TrexStatelessPort*[port_count];
+/**
+ * one time configuration of the stateless object
+ * 
+ */
+void TrexStateless::configure(uint8_t port_count) {
 
-    for (int i = 0; i < m_port_count; i++) {
-        m_ports[i] = new TrexStatelessPort(i);
+    TrexStateless& instance = get_instance_internal();
+
+    if (instance.m_is_configured) {
+        throw TrexException("re-configuration of stateless object is not allowed");
     }
+
+    instance.m_port_count = port_count;
+    instance.m_ports = new TrexStatelessPort*[port_count];
+
+    for (int i = 0; i < instance.m_port_count; i++) {
+        instance.m_ports[i] = new TrexStatelessPort(i);
+    }
+
+    instance.m_is_configured = true;
 }
 
 TrexStateless::~TrexStateless() {
@@ -38,7 +55,7 @@ TrexStateless::~TrexStateless() {
         delete m_ports[i];
     }
 
-    delete m_ports;
+    delete [] m_ports;
 }
 
 TrexStatelessPort * TrexStateless::get_port_by_id(uint8_t port_id) {
@@ -54,10 +71,47 @@ uint8_t TrexStateless::get_port_count() {
     return m_port_count;
 }
 
-/******** HACK - REMOVE ME ***********/
-TrexStateless * get_trex_stateless() {
-    static TrexStateless trex_stateless(8);
-    return &trex_stateless;
-
+/***************************
+ * trex stateless port
+ * 
+ **************************/
+TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
+    m_started = false;
 }
+
+
+/**
+ * starts the traffic on the port
+ * 
+ */
+TrexStatelessPort::traffic_rc_e
+TrexStatelessPort::start_traffic(void) {
+    if (m_started) {
+        return (TRAFFIC_ERR_ALREADY_STARTED);
+    }
+
+    if (get_stream_table()->size() == 0) {
+        return (TRAFFIC_ERR_NO_STREAMS);
+    }
+
+    m_started = true;
+
+    return (TRAFFIC_OK);
+}
+
+void 
+TrexStatelessPort::stop_traffic(void) {
+    if (m_started) {
+        m_started = false;
+    }
+}
+
+/**
+* access the stream table
+* 
+*/
+TrexStreamTable * TrexStatelessPort::get_stream_table() {
+    return &m_stream_table;
+}
+
 

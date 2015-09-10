@@ -115,6 +115,13 @@ protected:
      */
     void verbose_msg(const std::string &msg);
 
+    /**
+     * prints a verbose message with a JSON to be converted to 
+     * string 
+     * 
+     */
+    void verbose_json(const std::string &msg, const std::string &json_str);
+
     TrexRpcServerConfig                  m_cfg;
     bool                                 m_is_running;
     bool                                 m_is_verbose;
@@ -156,10 +163,34 @@ public:
         return s_server_uptime;
     }
 
+
+    /**
+     * query for ownership
+     * 
+     */
+    static const std::string &get_owner() {
+        return s_owner;
+    }
+
+    /**
+    * take ownership of the server array 
+    * this is static 
+    * ownership is total 
+    * 
+    */
+    static void set_owner(const std::string &owner) {
+        s_owner = owner;
+    }
+
+    static void clear_owner() {
+        s_owner = "none";
+    }
+
 private:
     std::vector<TrexRpcServerInterface *>   m_servers;
     bool                                    m_verbose;
     static const std::string                s_server_uptime;
+    static std::string                      s_owner;
 };
 
 #endif /* __TREX_RPC_SERVER_API_H__ */

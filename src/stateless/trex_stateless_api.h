@@ -49,20 +49,32 @@ public:
 class TrexStatelessPort {
 public:
 
-    TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
-    }
+    /**
+     * describess error codes for starting traffic
+     */
+    enum traffic_rc_e {
+        TRAFFIC_OK,
+        TRAFFIC_ERR_ALREADY_STARTED,
+        TRAFFIC_ERR_NO_STREAMS,
+        TRAFFIC_ERR_FAILED_TO_COMPILE_STREAMS
+    };
+
+    TrexStatelessPort(uint8_t port_id);
+
+    traffic_rc_e start_traffic(void);
+
+    void stop_traffic(void);
 
     /**
      * access the stream table
      * 
      */
-    TrexStreamTable *get_stream_table() {
-        return &m_stream_table;
-    }
+    TrexStreamTable *get_stream_table();
 
 private:
     TrexStreamTable  m_stream_table;
     uint8_t          m_port_id;
+    bool             m_started;
 };
 
 /**
@@ -71,26 +83,48 @@ private:
  */
 class TrexStateless {
 public:
+
     /**
-     * create a T-Rex stateless object
-     * 
-     * @author imarom (31-Aug-15)
-     * 
-     * @param port_count 
+     * configure the stateless object singelton 
+     * reconfiguration is not allowed
+     * an exception will be thrown
      */
-    TrexStateless(uint8_t port_count);
-    ~TrexStateless();
+    static void configure(uint8_t port_count);
+
+    /**
+     * singleton public get instance
+     * 
+     */
+    static TrexStateless& get_instance() {
+        TrexStateless& instance = get_instance_internal();
+
+        if (!instance.m_is_configured) {
+            throw TrexException("object is not configured");
+        }
+
+        return instance;
+    }
 
     TrexStatelessPort *get_port_by_id(uint8_t port_id);
     uint8_t            get_port_count();
 
 protected:
+    TrexStateless();
+    ~TrexStateless();
+
+    static TrexStateless& get_instance_internal () {
+        static TrexStateless instance;
+        return instance;
+    }
+
+     /* c++ 2011 style singleton */
+    TrexStateless(TrexStateless const&)      = delete;  
+    void operator=(TrexStateless const&)     = delete;
+
+    bool                m_is_configured;
     TrexStatelessPort  **m_ports;
     uint8_t             m_port_count;
 };
-
-/****** HACK *******/
-TrexStateless *get_trex_stateless();
 
 #endif /* __TREX_STATELESS_API_H__ */
 

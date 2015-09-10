@@ -20,6 +20,8 @@ limitations under the License.
 */
 
 #include <trex_rpc_server_api.h>
+#include <trex_stateless_api.h>
+
 #include <iostream>
 #include <unistd.h>
 
@@ -41,6 +43,9 @@ extern "C" const char * get_build_time(void){
 int gtest_main(int argc, char **argv);
 
 int main(int argc, char *argv[]) {
+
+    /* configure the stateless object with 4 ports */
+    TrexStateless::configure(4);
 
     // gtest ?
     if (argc > 1) {
