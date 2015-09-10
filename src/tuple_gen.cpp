@@ -272,19 +272,14 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     ;}
 }
 void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
-    printf("src.m_number_of_clients_per_gb:%d\n",src.m_number_of_clients_per_gb);
     if (src.m_number_of_clients_per_gb == 0)
         src.m_number_of_clients_per_gb = dst.m_number_of_clients_per_gb;
-    printf("src.m_min_clients:%d\n",src.m_min_clients);
     if (src.m_min_clients == 0)
         src.m_min_clients = dst.m_min_clients;
-    printf("src.m_dual_interface_mask:%d\n",src.m_dual_interface_mask);
     if (src.m_dual_interface_mask == 0)
         src.m_dual_interface_mask = dst.m_dual_interface_mask;
-    printf("src.m_tcp_aging_sec:%d\n",src.m_tcp_aging_sec);
     if (src.m_tcp_aging_sec == 0)
         src.m_tcp_aging_sec = dst.m_tcp_aging_sec;
-    printf("src.m_udp_aging_sec:%d\n",src.m_udp_aging_sec);
     if (src.m_udp_aging_sec == 0)
         src.m_udp_aging_sec = dst.m_udp_aging_sec;
 }
