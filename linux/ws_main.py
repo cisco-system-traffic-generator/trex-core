@@ -109,8 +109,10 @@ main_src = SrcGroup(dir='src',
              'utl_json.cpp',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
+
              'gtest/tuple_gen_test.cpp',
              'gtest/nat_test.cpp',
+             'gtest/trex_stateless_gtest.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -141,7 +143,7 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
 # stateless code
 stateless_src = SrcGroup(dir='src/stateless/',
                           src_list=['trex_stream.cpp',
-                                    'trex_stateless.cpp'
+                                    'trex_stateless.cpp',
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
