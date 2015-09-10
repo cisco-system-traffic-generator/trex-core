@@ -292,7 +292,7 @@ private:
 // - object that include the stream /scheduler/ packet allocation / need to create an object for one thread that works for test
 // generate pcap file and compare it 
 
-
+#if 0
 void CTRexDpStatelessStream::dump(FILE *fd){
 
     fprintf(fd,"  enabled     : %d \n",get_enabled()?1:0);
@@ -336,6 +336,7 @@ public:
 };
 
 
+
 TEST_F(dp_sl_basic, test1) {
     CTRexDpStatelessStream s1;
     s1.set_enable(true);
@@ -349,4 +350,4 @@ TEST_F(dp_sl_basic, test1) {
 
 
 
-
+#endif
