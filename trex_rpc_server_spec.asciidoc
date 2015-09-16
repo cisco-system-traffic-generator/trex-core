@@ -209,9 +209,9 @@ For commands valid only on 'owned' or 'active', a field called ''handler'' 'MUST
 along with the rest of the parameters.
 
 
-This will identify the connection.
+This will identify the connection:
 
-image::images/rpc_states.png[title="RPC Server States",align="left",width=200, link="images/rpc_states.png"]
+image::images/rpc_states.png[title="RPC Server States",align="left",width=150, link="images/rpc_states.png"]
 
 == RPC Commands
 The following RPC commands are supported
@@ -246,10 +246,10 @@ Example:
 
 ----
 
-=== Get Registered Commands
-* *Name* - 'get_reg_cmds'
+=== Get Server Supported Commands
+* *Name* - 'get_supported_cmds'
 * *Valid States* - 'all'
-* *Description* - Queries the server for all the registered commands
+* *Description* - Queries the server for all the supported commands
 * *Paramters* - None
 * *Result* ['array'] - A list of all the supported commands by the server
 
@@ -262,7 +262,7 @@ Example:
 {
     "jsonrpc": "2.0",
     "id": 1,
-    "method": "get_reg_cmds",
+    "method": "get_supported_cmds",
     "params": null
 }
 
@@ -304,6 +304,34 @@ Example:
 | built_by      | string   | who built this version
 |=================
 
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "wapkk8m6",
+    "jsonrpc": "2.0",
+    "method": "get_version",
+    "params": null
+}
+
+
+'Response':
+
+{
+    "id": "wapkk8m6",
+    "jsonrpc": "2.0",
+    "result": {
+        "build_date": "Sep 16 2015",
+        "build_time": "12:33:01",
+        "built_by": "imarom",
+        "version": "v0.0"
+    }
+}
+
+----
+
 === Get System Info
 * *Name* - 'get_system_info'
 * *Description* - Queries the server for system properties
@@ -317,7 +345,6 @@ Example:
 | dp_core_count  | int      | DP core count
 | core_type      | string   | DP core type
 | hostname       | string   | machine host name
-| ip             | string   | machine IP
 | uptime         | string   | uptime of the server
 | port_count     | int      | number of ports on the machine
 | ports          | array    | arary of object ''port'' - see below
@@ -329,9 +356,62 @@ Example:
 | Field          | Type     | Description 
 | driver         | string   | driver type
 | speed          | string   | speed of the port (1g, 10g, 40g, 100g)
-| status         | string   | up / down
+| status         | string   | 'down', 'idle' or 'transmitting'
 |=================
 
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "zweuldlh",
+    "jsonrpc": "2.0",
+    "method": "get_system_info",
+    "params": null
+}
+
+'Response':
+
+{
+    "id": "zweuldlh",
+    "jsonrpc": "2.0",
+    "result": {
+        "core_type": "Intel(R) Xeon(R) CPU E5-2650 0 @ 2.00GHz",
+        "dp_core_count": 1,
+        "hostname": "csi-kiwi-03.cisco.com",
+        "port_count": 4,
+        "ports": [
+            {
+                "driver": "E1000",
+                "index": 0,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 1,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 2,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 3,
+                "speed": "1g",
+                "status": "down"
+            }
+        ]
+    }
+}
+
+----
 
 === Get Owner
 * *Name* - 'get_owner'
@@ -548,11 +628,8 @@ Describes rx stats for the stream
 
 {zwsp} +
 
-'IMPORTANT':
-
-In case rx_stats is enabled, meta data will be written in the end of the packet.
-
-please consider the following:
+IMPORTANT: In case rx_stats is enabled, meta data will be written in the end of the packet.
+please also consider the following constraints:
 
 ==== Constrains
 * *performance* - this will have performance impact as rx packets will be examined
@@ -894,11 +971,6 @@ if both are enabled then 10 bytes will be used.
 | rx_bps            | double      | total RX bits per second
 | tx_pps            | double      | total TX packets per second
 | rx_pps            | double      | total RX packets per second
-| tx_cps            | double      | total TX connection per second
-| tx_expected_bps   | double      | expected TX bits per second
-| tx_expected_pps   | double      | expected TX packets per second
-| tx_expected_cps   | double      | expected TX connections per second
-| rx_drop_bps       | double      | drop rate in bits per second
 | total_tx_pkts     | int         | total TX packets
 | total_rx_pkts     | int         | total RX packets
 | total_rx_bytes    | int         | total TX bytes
@@ -923,8 +995,7 @@ if both are enabled then 10 bytes will be used.
 | ipackets          | int         | total input packets
 | obytes            | int         | total output bytes
 | ibytes            | int         | total input bytes
-| oerrors           | int         | total output errors
-| ierrors           | int         | total input errors
+| tx-rx-error       | int         | total Tx/Rx errors
 |=================
 
 === Get Stream Stats
@@ -978,7 +1049,7 @@ add or edit one or more streams to one or more ports
 * *get_stream_list* ['optional'] - sanity - verify the server is synced with the GUI 
 * *start_traffic* - start traffic on the specific port / all the ports
 * *get_global_stats* ['optional'] - make sure the machine is transmiting traffic
-* *['wait']* - 'wait' for the time of the test
+* *['perfrom test']* - perform the required test
 * *stop_traffic* - when done, stop the traffic on the specific port / all the ports
 * *get_global_stats* ['optional'] - make sure the machine has stopped
 
