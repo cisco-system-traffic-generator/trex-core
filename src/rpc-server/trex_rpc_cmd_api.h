@@ -177,6 +177,9 @@ protected:
         s.pop_back();
         s += "]";
         generate_parse_err(result, s);
+
+        /* dummy return value - does not matter, the above will throw exception */
+        return (*choices.begin());
     }
 
     /**

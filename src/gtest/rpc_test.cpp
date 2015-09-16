@@ -25,6 +25,8 @@ limitations under the License.
 #include <zmq.h>
 #include <json/json.h>
 #include <sstream>
+#include <vector>
+#include <algorithm>
 
 using namespace std;
 
@@ -518,3 +520,62 @@ TEST_F(RpcTestOwned, add_remove_stream) {
 }
 
 
+TEST_F(RpcTestOwned, get_stream_id_list) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    
+     /* add stream 1 */
+    create_request(request, "add_stream");
+    request["params"]["port_id"] = 1;
+
+
+    Json::Value stream;
+    create_simple_stream(stream);
+
+    request["params"]["stream"] = stream;
+
+    request["params"]["stream_id"] = 5;
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    request["params"]["stream_id"] = 12;
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    request["params"]["stream_id"] = 19;
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+
+    create_request(request, "get_stream_list");
+    request["params"]["port_id"] = 1;
+    send_request(request, response);
+
+    EXPECT_TRUE(response["result"].isArray());
+    vector<int> vec;
+    for (auto x : response["result"]) {
+        vec.push_back(x.asInt());
+    }
+
+    sort(vec.begin(), vec.end());
+
+    EXPECT_EQ(vec[0], 5);
+    EXPECT_EQ(vec[1], 12);
+    EXPECT_EQ(vec[2], 19);
+
+    create_request(request, "remove_all_streams");
+    request["params"]["port_id"] = 1;
+    send_request(request, response);
+
+    EXPECT_TRUE(response["result"] == "ACK");
+
+    /* make sure the lights are off ... */
+    create_request(request, "get_stream_list");
+    request["params"]["port_id"] = 1;
+    send_request(request, response);
+
+    EXPECT_TRUE(response["result"].isArray());
+    EXPECT_TRUE(response["result"].size() == 0);
+}

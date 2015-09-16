@@ -28,8 +28,6 @@ limitations under the License.
 #include <iostream>
 #include <unistd.h>
 
-//#include <netdb.h>
-
 #ifndef TREX_RPC_MOCK_SERVER
     #include <../linux_dpdk/version.h>
 #endif

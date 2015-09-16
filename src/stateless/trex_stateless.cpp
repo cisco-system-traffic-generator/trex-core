@@ -107,7 +107,7 @@ void
 TrexStatelessPort::stop_traffic(void) {
 
     /* real code goes here */
-    if (m_port_state = PORT_STATE_TRANSMITTING) {
+    if (m_port_state == PORT_STATE_TRANSMITTING) {
         m_port_state = PORT_STATE_UP_IDLE;
     }
 }
