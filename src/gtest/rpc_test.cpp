@@ -30,11 +30,105 @@ using namespace std;
 
 class RpcTest : public testing::Test {
 
+protected:
+
+    void set_verbose(bool verbose) {
+        m_verbose = verbose;
+    }
+    
+    virtual void SetUp() {
+
+        m_verbose = false;
+         
+        TrexRpcServerConfig cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
+
+        m_rpc = new TrexRpcServer(cfg);
+        m_rpc->start();
+
+        m_context = zmq_ctx_new ();
+        m_socket = zmq_socket (m_context, ZMQ_REQ);
+        zmq_connect (m_socket, "tcp://localhost:5050");
+
+    }
+
+    virtual void TearDown() {
+        m_rpc->stop();
+
+        delete m_rpc;
+        zmq_close(m_socket);
+        zmq_term(m_context);
+    }
+
+public:
+
+    void create_request(Json::Value &request, const string &method, int id = 1) {
+        request.clear();
+
+        request["jsonrpc"] = "2.0";
+        request["id"] = id;
+        request["method"] = method;
+
+    }
+
+    void send_request(const Json::Value &request, Json::Value &response) {
+        Json::FastWriter writer;
+        Json::Reader reader;
+
+        response.clear();
+
+        string request_str = writer.write(request);
+
+        if (m_verbose) {
+            cout << "\n" << request_str << "\n";
+        }
+
+        string ret = send_msg(request_str);
+
+        if (m_verbose) {
+            cout << "\n" << ret << "\n";
+        }
+
+        EXPECT_TRUE(reader.parse(ret, response, false));
+        EXPECT_EQ(response["jsonrpc"], "2.0");
+        EXPECT_EQ(response["id"], request["id"]);
+    }
+
+    string send_msg(const string &msg) {
+        char buffer[1024 * 20];
+
+        zmq_send (m_socket, msg.c_str(), msg.size(), 0);
+        int len = zmq_recv(m_socket, buffer, sizeof(buffer), 0);
+
+        return string(buffer, len);
+    }
+
+    TrexRpcServer *m_rpc;
+    void *m_context;
+    void *m_socket;
+    bool m_verbose;
+};
+
+class RpcTestOwned : public RpcTest {
+public:
+
+    void create_request(Json::Value &request, const string &method, int id = 1)  {
+        RpcTest::create_request(request, method, id);
+        request["params"]["handler"] = m_ownership_handler; 
+    }
+
+protected:
+
+    virtual void SetUp() {
+        RpcTest::SetUp();
+        take_ownership();
+    }
+
+
     void take_ownership(void) {
         Json::Value request;
         Json::Value response;
 
-        create_request(request, "aquire", 1 , false);
+        RpcTest::create_request(request, "acquire", 1);
 
         request["params"]["user"] = "test";
         request["params"]["force"] = true;
@@ -49,78 +143,17 @@ class RpcTest : public testing::Test {
         Json::Value request;
         Json::Value response;
 
-        create_request(request, "release", 1 , false);
+        RpcTest::create_request(request, "release", 1);
         request["params"]["handler"] = m_ownership_handler;
 
         send_request(request, response);
         EXPECT_TRUE(response["result"] == "ACK");
     }
 
-    virtual void SetUp() {
-        TrexRpcServerConfig cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
-
-        m_rpc = new TrexRpcServer(cfg);
-        m_rpc->start();
-
-        m_context = zmq_ctx_new ();
-        m_socket = zmq_socket (m_context, ZMQ_REQ);
-        zmq_connect (m_socket, "tcp://localhost:5050");
-
-        take_ownership();
-    }
-
-    virtual void TearDown() {
-        m_rpc->stop();
-
-        delete m_rpc;
-        zmq_close(m_socket);
-        zmq_term(m_context);
-    }
-
-public:
-
-    void create_request(Json::Value &request, const string &method, int id = 1, bool ownership = false) {
-        request.clear();
-
-        request["jsonrpc"] = "2.0";
-        request["id"] = id;
-        request["method"] = method;
-
-        if (ownership) {
-            request["params"]["handler"] = m_ownership_handler; 
-        }
-    }
-
-    void send_request(const Json::Value &request, Json::Value &response) {
-        Json::FastWriter writer;
-        Json::Reader reader;
-
-        response.clear();
-
-        string request_str = writer.write(request);
-        string ret = send_msg(request_str);
-
-        EXPECT_TRUE(reader.parse(ret, response, false));
-        EXPECT_EQ(response["jsonrpc"], "2.0");
-        EXPECT_EQ(response["id"], request["id"]);
-    }
-
-    string send_msg(const string &msg) {
-        char buffer[512];
-
-        zmq_send (m_socket, msg.c_str(), msg.size(), 0);
-        int len = zmq_recv(m_socket, buffer, sizeof(buffer), 0);
-
-        return string(buffer, len);
-    }
-
-    TrexRpcServer *m_rpc;
-    void *m_context;
-    void *m_socket;
     string m_ownership_handler;
 };
 
-TEST_F(RpcTest, basic_rpc_test) {
+TEST_F(RpcTest, basic_rpc_negative_cases) {
     Json::Value request;
     Json::Value response;
     Json::Reader reader;
@@ -179,53 +212,38 @@ TEST_F(RpcTest, test_add_command) {
     Json::Value response;
     Json::Reader reader;
 
-    string req_str;
-    string resp_str;
+    /* missing parameters */
+    create_request(request, "test_add");
+    send_request(request, response);
 
-    /* simple add - missing paramters */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_add\", \"id\": 488}";
-    resp_str = send_msg(req_str);
-
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
     EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], 488);
+    EXPECT_EQ(response["error"]["code"], -32602);
+
+    /* bad paramters */
+    create_request(request, "test_add");
+    request["params"]["x"] = 5;
+    request["params"]["y"] = "itay";
+    send_request(request, response);
+
+    EXPECT_EQ(response["jsonrpc"], "2.0");
     EXPECT_EQ(response["error"]["code"], -32602);
 
     /* simple add that works */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_add\", \"params\": {\"x\": 17, \"y\": -13} , \"id\": \"itay\"}";
-    resp_str = send_msg(req_str);
+    create_request(request, "test_add");
+    request["params"]["x"] = 5;
+    request["params"]["y"] = -13;
+    send_request(request, response);
 
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
     EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], "itay");
-    EXPECT_EQ(response["result"], 4);
-
-    /* add with bad paratemers types */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_add\", \"params\": {\"x\": \"blah\", \"y\": -13} , \"id\": 17}";
-    resp_str = send_msg(req_str);
-
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], 17);
-    EXPECT_EQ(response["error"]["code"], -32602);
-
-    /* add with invalid count of parameters */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_add\", \"params\": {\"y\": -13} , \"id\": 17}";
-    resp_str = send_msg(req_str);
-
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
-    EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], 17);
-    EXPECT_EQ(response["error"]["code"], -32602);
-
+    EXPECT_EQ(response["result"], -8);
 
     /* big numbers */
-    req_str = "{\"jsonrpc\": \"2.0\", \"method\": \"test_add\", \"params\": {\"x\": 4827371, \"y\": -39181273} , \"id\": \"itay\"}";
-    resp_str = send_msg(req_str);
+    create_request(request, "test_add");
+    request["params"]["x"] = 4827371;
+    request["params"]["y"] = -39181273;
+    send_request(request, response);
 
-    EXPECT_TRUE(reader.parse(resp_str, response, false));
     EXPECT_EQ(response["jsonrpc"], "2.0");
-    EXPECT_EQ(response["id"], "itay");
     EXPECT_EQ(response["result"], -34353902);
 
 }
@@ -281,12 +299,174 @@ TEST_F(RpcTest, batch_rpc_test) {
     return;
 }
 
-TEST_F(RpcTest, add_stream) {
+/* ping command */
+TEST_F(RpcTest, ping) {
     Json::Value request;
     Json::Value response;
     Json::Reader reader;
 
-    create_request(request, "get_stream", 1, true);
+    create_request(request, "ping");
+    send_request(request, response);
+    EXPECT_TRUE(response["result"] == "ACK");
+}
+
+static bool 
+find_member_in_array(const Json::Value &array, const string &member) {
+    for (auto x : array) {
+        if (x == member) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* get registered commands */
+TEST_F(RpcTest, get_supported_cmds) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    create_request(request, "get_supported_cmds");
+    send_request(request, response);
+    EXPECT_TRUE(response["result"].size() > 0);
+
+    EXPECT_TRUE(find_member_in_array(response["result"], "ping"));
+    EXPECT_TRUE(find_member_in_array(response["result"], "get_supported_cmds"));
+}
+
+/* get version */
+TEST_F(RpcTest, get_version) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    create_request(request, "get_version");
+    send_request(request, response);
+
+    EXPECT_TRUE(response["result"] != Json::nullValue);
+    EXPECT_TRUE(response["result"]["built_by"] == "MOCK");
+    EXPECT_TRUE(response["result"]["version"] == "v0.0");
+}
+
+/* get system info */
+TEST_F(RpcTest, get_system_info) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    create_request(request, "get_system_info");
+    send_request(request, response);
+
+    EXPECT_TRUE(response["result"] != Json::nullValue);
+    EXPECT_TRUE(response["result"]["core_type"].isString());
+    EXPECT_TRUE(response["result"]["hostname"].isString());
+    EXPECT_TRUE(response["result"]["uptime"].isString());
+    EXPECT_TRUE(response["result"]["dp_core_count"] > 0);
+    EXPECT_TRUE(response["result"]["port_count"] > 0);
+
+    EXPECT_TRUE(response["result"]["ports"].isArray());
+
+    const Json::Value &ports = response["result"]["ports"];
+
+
+    for (int i = 0; i < ports.size(); i++) {
+        EXPECT_TRUE(ports[i]["index"] == i);
+        EXPECT_TRUE(ports[i]["driver"].isString());
+        EXPECT_TRUE(ports[i]["speed"].isString());
+    }
+}
+
+/* get owner, acquire and release */
+TEST_F(RpcTest, get_owner_acquire_release) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    /* no user before acquring */
+    create_request(request, "get_owner");
+    send_request(request, response);
+    EXPECT_TRUE(response["result"] != Json::nullValue);
+
+    EXPECT_TRUE(response["result"]["owner"] == "none");
+
+    /* soft acquire */
+    create_request(request, "acquire");
+    request["params"]["user"] = "itay";
+    request["params"]["force"] = false;
+
+    send_request(request, response);
+    EXPECT_TRUE(response["result"] != Json::nullValue);
+
+    create_request(request, "get_owner");
+    send_request(request, response);
+    EXPECT_TRUE(response["result"] != Json::nullValue);
+
+    EXPECT_TRUE(response["result"]["owner"] == "itay");
+
+    /* hard acquire */
+    create_request(request, "acquire");
+    request["params"]["user"] = "moshe";
+    request["params"]["force"] = false;
+
+    send_request(request, response);
+    EXPECT_TRUE(response["result"] == Json::nullValue);
+
+    request["params"]["force"] = true;
+
+    send_request(request, response);
+    EXPECT_TRUE(response["result"] != Json::nullValue);
+
+    string handler = response["result"].asString();
+
+    /* make sure */
+    create_request(request, "get_owner");
+    send_request(request, response);
+    EXPECT_TRUE(response["result"] != Json::nullValue);
+
+    EXPECT_TRUE(response["result"]["owner"] == "moshe");
+
+    /* release */
+    create_request(request, "release");
+    request["params"]["handler"] = handler;
+    send_request(request, response);
+
+    EXPECT_TRUE(response["result"] == "ACK");
+}
+
+
+static void
+create_simple_stream(Json::Value &obj) {
+    obj["mode"]["type"] = "continuous";
+    obj["mode"]["pps"] = (rand() % 1000 + 1) * 0.99;
+    obj["isg"] = (rand() % 100 + 1) * 0.99;;
+    obj["enabled"] = true;
+    obj["self_start"] = true;
+    obj["next_stream_id"] = -1;
+
+    obj["packet"]["meta"] = "dummy";
+
+    int packet_size = (rand() % 1500 + 1);
+    for (int i = 0; i < packet_size; i++) {
+        obj["packet"]["binary"][i] = (rand() % 0xff);
+    }
+
+    obj["vm"] = Json::arrayValue;
+    obj["rx_stats"]["enabled"] = false;
+}
+
+static bool
+compare_streams(const Json::Value &s1, const Json::Value &s2) {
+    return s1 == s2;
+}
+
+TEST_F(RpcTestOwned, add_remove_stream) {
+    Json::Value request;
+    Json::Value response;
+    Json::Reader reader;
+
+    /* verify no such stream */
+    create_request(request, "get_stream", 1);
 
     request["params"]["port_id"] = 1;
     request["params"]["stream_id"] = 5;
@@ -297,58 +477,31 @@ TEST_F(RpcTest, add_stream) {
     EXPECT_EQ(response["id"], 1);
     EXPECT_EQ(response["error"]["code"], -32000);
 
-    // add it
-    create_request(request, "add_stream", 1, true);
+    /* add it */
+    create_request(request, "add_stream", 1);
     request["params"]["port_id"] = 1;
     request["params"]["stream_id"] = 5;
-    request["params"]["stream"]["mode"]["type"] = "continuous";
-    request["params"]["stream"]["mode"]["pps"] = 3; 
-    request["params"]["stream"]["isg"] = 4.3;
-    request["params"]["stream"]["enabled"] = true;
-    request["params"]["stream"]["self_start"] = true;
-    request["params"]["stream"]["next_stream_id"] = -1;
 
-    request["params"]["stream"]["packet"]["meta"] = "dummy";
-    request["params"]["stream"]["packet"]["binary"][0] = 4;
-    request["params"]["stream"]["packet"]["binary"][1] = 1;
-    request["params"]["stream"]["packet"]["binary"][2] = 255;
+    Json::Value stream;
+    create_simple_stream(stream);
 
-    request["params"]["stream"]["vm"] = Json::arrayValue;
-    request["params"]["stream"]["rx_stats"]["enabled"] = false;
-
+    request["params"]["stream"] = stream;
     send_request(request, response);
 
     EXPECT_EQ(response["result"], "ACK");
 
     /* get it */
-
-    create_request(request, "get_stream", 1, true);
+    create_request(request, "get_stream", 1);
 
     request["params"]["port_id"] = 1;
     request["params"]["stream_id"] = 5;
 
     send_request(request, response);
 
-    const Json::Value &stream = response["result"]["stream"];
-
-    EXPECT_EQ(stream["enabled"], true);
-    EXPECT_EQ(stream["self_start"], true);
-
-    EXPECT_EQ(stream["packet"]["binary"][0], 4);
-    EXPECT_EQ(stream["packet"]["binary"][1], 1);
-    EXPECT_EQ(stream["packet"]["binary"][2], 255);
-
-    EXPECT_EQ(stream["packet"]["meta"], "dummy");
-    EXPECT_EQ(stream["next_stream_id"], -1);
-
-    double delta = stream["isg"].asDouble() - 4.3;
-    EXPECT_TRUE(delta < 0.0001);
-
-    EXPECT_EQ(stream["mode"]["type"], "continuous");
-    EXPECT_EQ(stream["mode"]["pps"], 3);
+    EXPECT_TRUE(compare_streams(stream, response["result"]["stream"]));
 
     // remove it
-    create_request(request, "remove_stream", 1, true);
+    create_request(request, "remove_stream", 1);
 
     request["params"]["port_id"] = 1;
     request["params"]["stream_id"] = 5;

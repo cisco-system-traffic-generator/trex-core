@@ -26,6 +26,8 @@ limitations under the License.
 #include <stdint.h>
 #include <string>
 
+#include <json/json.h>
+
 #include <trex_stream_vm.h>
 
 class TrexRpcCmdAddStream;
@@ -48,7 +50,13 @@ public:
     static const uint32_t MIN_PKT_SIZE_BYTES = 1;
     static const uint32_t MAX_PKT_SIZE_BYTES = 9000;
 
-private:
+    /* provides storage for the stream json*/
+    void store_stream_json(const Json::Value &stream_json);
+
+    /* access the stream json */
+    const Json::Value & get_stream_json();
+
+protected:
     /* basic */
     uint8_t       m_port_id;
     uint32_t      m_stream_id;
@@ -82,6 +90,8 @@ private:
     } m_rx_check;
 
 
+    /* original template provided by requester */
+    Json::Value m_stream_json;
 };
 
 /**

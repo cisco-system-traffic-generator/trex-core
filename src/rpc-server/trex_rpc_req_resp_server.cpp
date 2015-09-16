@@ -82,6 +82,13 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
             }
         }
 
+        if (msg_size >= sizeof(m_msg_buffer)) {
+            std::stringstream ss;
+            ss << "RPC request of '" << msg_size << "' exceeds maximum message size which is '" << sizeof(m_msg_buffer) << "'";
+            handle_server_error(ss.str());
+            continue;
+        }
+
         /* transform it to a string */
         std::string request((const char *)m_msg_buffer, msg_size);
 
@@ -144,4 +151,24 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
 
     zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
     
+}
+
+/**
+ * handles a server error
+ * 
+ */
+void 
+TrexRpcServerReqRes::handle_server_error(const std::string &specific_err) {
+    Json::FastWriter writer;
+    Json::Value response;
+
+    /* generate error */
+    TrexJsonRpcV2Parser::generate_common_error(response, specific_err);
+
+     /* write the JSON to string and sever on ZMQ */
+    std::string response_str = writer.write(response);
+    
+    verbose_json("Server Replied:  ", response_str);
+
+    zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
 }

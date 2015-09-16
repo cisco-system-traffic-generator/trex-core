@@ -50,19 +50,36 @@ class TrexStatelessPort {
 public:
 
     /**
-     * describess error codes for starting traffic
+     * port state
      */
-    enum traffic_rc_e {
-        TRAFFIC_OK,
-        TRAFFIC_ERR_ALREADY_STARTED,
-        TRAFFIC_ERR_NO_STREAMS,
-        TRAFFIC_ERR_FAILED_TO_COMPILE_STREAMS
+    enum port_state_e {
+        PORT_STATE_DOWN,
+        PORT_STATE_UP_IDLE,
+        PORT_STATE_TRANSMITTING
+    };
+
+    /**
+     * describess different error codes for port operations
+     */
+    enum rc_e {
+        RC_OK,
+        RC_ERR_BAD_STATE_FOR_OP,
+        RC_ERR_NO_STREAMS,
+        RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
     TrexStatelessPort(uint8_t port_id);
 
-    traffic_rc_e start_traffic(void);
+    /**
+     * start traffic
+     * 
+     */
+    rc_e start_traffic(void);
 
+    /**
+     * stop traffic
+     * 
+     */
     void stop_traffic(void);
 
     /**
@@ -71,10 +88,28 @@ public:
      */
     TrexStreamTable *get_stream_table();
 
+    /**
+     * get the port state
+     * 
+     */
+    port_state_e get_state() {
+        return m_port_state;
+    }
+
+    /**
+     * fill up properties of the port
+     * 
+     * @author imarom (16-Sep-15)
+     * 
+     * @param driver 
+     * @param speed 
+     */
+    void get_properties(std::string &driver, std::string &speed);
+
 private:
     TrexStreamTable  m_stream_table;
     uint8_t          m_port_id;
-    bool             m_started;
+    port_state_e     m_port_state;
 };
 
 /**

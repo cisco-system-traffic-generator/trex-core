@@ -35,7 +35,7 @@ class TrexStream;
  * syntactic sugar for creating a simple command
  */
 
-#define TREX_RPC_CMD_DEFINE_EXTENED(class_name, cmd_name, param_count, needs_ownership, ext)              \
+#define TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, param_count, needs_ownership, ext)              \
     class class_name : public TrexRpcCommand {                                                            \
     public:                                                                                               \
         class_name () : TrexRpcCommand(cmd_name, param_count, needs_ownership) {}                         \
@@ -44,7 +44,7 @@ class TrexStream;
         ext                                                                                               \
     }
 
-#define TREX_RPC_CMD_DEFINE(class_name, cmd_name, param_count, needs_ownership) TREX_RPC_CMD_DEFINE_EXTENED(class_name, cmd_name, param_count, needs_ownership, ;)
+#define TREX_RPC_CMD_DEFINE(class_name, cmd_name, param_count, needs_ownership) TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, param_count, needs_ownership, ;)
 
 /**
  * test cmds
@@ -55,9 +55,16 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub", 2, false);
 /**
  * general cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping",            0, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetReg,     "get_reg_cmds",    0, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStatus,  "get_status",      0, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping",                 0, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCmds,    "get_supported_cmds",   0, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetVersion, "get_version",          0, false);
+
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdGetSysInfo, "get_system_info", 0, false,
+
+std::string get_cpu_model();
+void get_hostname(std::string &hostname);
+
+);
 
 /**
  * ownership
@@ -73,7 +80,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         0, true);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveAllStreams,   "remove_all_streams",   1, true);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveStream,       "remove_stream",        2, true);
 
-TREX_RPC_CMD_DEFINE_EXTENED(TrexRpcCmdAddStream, "add_stream", 3, true, 
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdAddStream, "add_stream", 3, true, 
 
 /* extended part */
 TrexStream * allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result);
@@ -91,5 +98,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 2, true);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic, "start_traffic", 1, true);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic, "stop_traffic", 1, true);
+
+
 
 #endif /* __TREX_RPC_CMD_H__ */

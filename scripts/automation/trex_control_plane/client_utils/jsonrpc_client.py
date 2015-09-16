@@ -145,7 +145,7 @@ class JsonRpcClient(object):
         return self.invoke_rpc_method("get_status")
 
     def query_rpc_server(self):
-        return self.invoke_rpc_method("get_reg_cmds")
+        return self.invoke_rpc_method("get_supported_cmds")
 
 
     def set_verbose(self, mode):
