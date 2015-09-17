@@ -45,6 +45,9 @@ class CTRexPktBuilder(object):
             pkt_layer : dpkt.Packet obj
                 a dpkt object, generally from higher layer, that will be added on top of existing layer.
 
+        :raises:
+            + :exc:`ValueError`, in case the desired layer_name already exists.
+
         """
         assert isinstance(pkt_layer, dpkt.Packet)
         if layer_name in self._pkt_by_hdr:
@@ -71,7 +74,7 @@ class CTRexPktBuilder(object):
             raise KeyError("Specified layer '{0}' doesn't exist on packet.".format(layer_name))
 
     def set_ipv6_layer_addr(self, layer_name, attr, ip_addr):
-        self.set_ip_layer_addr(self, layer_name, attr, ip_addr, ip_type="ipv6")
+        self.set_ip_layer_addr(layer_name, attr, ip_addr, ip_type="ipv6")
 
     def set_eth_layer_addr(self, layer_name, attr, mac_addr):
         try:
@@ -84,7 +87,7 @@ class CTRexPktBuilder(object):
         except KeyError:
             raise KeyError("Specified layer '{0}' doesn't exist on packet.".format(layer_name))
 
-    def set_layer_attr(self, layer_name, attr, val):
+    def set_layer_attr(self, layer_name, attr, val, toggle_bit=False):
         """
         This method enables the user to change a value of a previously defined packet layer.
         This method isn't to be used to set the data attribute of a packet with payload.
@@ -101,6 +104,11 @@ class CTRexPktBuilder(object):
             val :
                 value of attribute.
 
+            toggle_bit : bool
+                Indicating if trying to set a specific bit of a field, such as "do not fragment" bit of IP layer.
+
+                Default: **False**
+
         :raises:
             + :exc:`KeyError`, in case of missing layer (the desired layer isn't part of packet)
             + :exc:`ValueError`, in case invalid attribute to the specified layer.
@@ -110,18 +118,24 @@ class CTRexPktBuilder(object):
             layer = self._pkt_by_hdr[layer_name.lower()]
             if attr == 'data' and not isinstance(val, dpkt.Packet):
                 # Don't allow setting 'data' attribute
-                raise ValueError("Set a data attribute with obejct that is not dpkt.Packet is not allowed using "
+                raise ValueError("Set a data attribute with object that is not dpkt.Packet is not allowed using "
                                  "set_layer_attr method.\nUse set_payload method instead.")
             if hasattr(layer, attr):
-                setattr(layer, attr, val)
-                if attr == 'data':
-                    # re-evaluate packet from the start, possible broken link between layers
-                    self._reevaluate_packet(layer_name.lower())
+                if toggle_bit:
+                    setattr(layer, attr, val | getattr(layer, attr, 0))
+                else:
+                    setattr(layer, attr, val)
+                    if attr == 'data':
+                        # re-evaluate packet from the start, possible broken link between layers
+                        self._reevaluate_packet(layer_name.lower())
             else:
                 raise ValueError("Given attr name '{0}' doesn't exists on specified layer ({1}).".format(layer_name,
                                                                                                          attr))
         except KeyError:
             raise KeyError("Specified layer '{0}' doesn't exist on packet.".format(layer_name))
+
+    def set_layer_bit_attr(self, layer_name, attr, val):
+        return self.set_layer_attr(layer_name, attr, val, True)
 
     def set_pkt_payload(self, payload):
         """
@@ -185,7 +199,7 @@ class CTRexPktBuilder(object):
 
     def get_packet(self, get_ptr=False):
         """
-        This method enables the user to change a value of a previously defined packet layer.
+        This method provides access to the built packet, as an instance or as a pointer to packet itself.
 
         :parameters:
             get_ptr : bool
@@ -196,16 +210,32 @@ class CTRexPktBuilder(object):
                 default value : False
 
         :return:
-                the current packet built by CTRexPktBuilder object.
+            + the current packet built by CTRexPktBuilder object.
+            + None if packet is empty
 
         """
         if get_ptr:
             self._pkt_by_hdr = {}
             self._pkt_top_layer = None
             return self._packet
-
         else:
             return copy.copy(self._packet)
+
+    def get_layer(self, layer_name):
+        """
+        This method provides access to a specific layer of the packet, as a **copy of the layer instance**.
+
+        :parameters:
+            layer_name : str
+                the name given to desired layer
+
+        :return:
+            + a copy of the desired layer of the current packet if exists.
+            + None if no such layer
+
+        """
+        layer = self._pkt_by_hdr.get(layer_name)
+        return copy.copy(layer) if layer else None
 
     # VM access methods
     def set_vm_ip_range(self, ip_start, ip_end, ip_type="ipv4"):
@@ -221,8 +251,57 @@ class CTRexPktBuilder(object):
         pass
 
     def dump_pkt(self):
+        """
+        Dumps the packet as a decimal array of bytes (each item x gets value between 0-255)
+
+        :parameters:
+            None
+
+        :return:
+            + packet representation as array of bytes
+
+        :raises:
+            + :exc:`CTRexPktBuilder.EmptyPacketError`, in case packet is empty.
+
+        """
+        if self._packet is None:
+            raise CTRexPktBuilder.EmptyPacketError()
         pkt_in_hex = binascii.hexlify(str(self._packet))
-        return [pkt_in_hex[i:i+2] for i in range(0, len(pkt_in_hex), 2)]
+        return [int(pkt_in_hex[i:i+2], 16)
+                for i in range(0, len(pkt_in_hex), 2)]
+        # return [pkt_in_hex[i:i+2] for i in range(0, len(pkt_in_hex), 2)]
+
+    def dump_pkt_to_pcap(self, file_path, ts=None):
+        """
+        Dumps the packet as a decimal array of bytes (each item x gets value between 0-255)
+
+        :parameters:
+            file_path : str
+                a path (including filename) to which to write to pcap file to.
+
+            ts : int
+                a timestamp to attach to the packet when dumped to pcap file.
+                if ts in None, then time.time() is used to set the timestamp.
+
+                Default: **None**
+
+        :return:
+            None
+
+        :raises:
+            + :exc:`CTRexPktBuilder.EmptyPacketError`, in case packet is empty.
+
+        """
+        if self._packet is None:
+            raise CTRexPktBuilder.EmptyPacketError()
+        try:
+            with open(file_path, 'wb') as f:
+                pcap_wr = dpkt.pcap.Writer(f)
+                pcap_wr.writepkt(self._packet, ts)
+                return
+        except IOError:
+            raise IOError(2, "The provided path could not be accessed")
+
 
     # ----- useful shortcut methods ----- #
     def gen_dns_packet(self):
@@ -567,6 +646,15 @@ class CTRexPktBuilder(object):
 
         def __repr__(self):
             return u"[errcode:%r] %r" % (self.code, self.message)
+
+    class EmptyPacketError(CPacketBuildException):
+        """
+        This exception is used to indicate an error caused by operation performed on an empty packet.
+        """
+        def __init__(self, message=''):
+            self._default_message = 'Illegal operation on empty packet.'
+            self.message = message or self._default_message
+            super(CTRexPktBuilder.EmptyPacketError, self).__init__(-10, self.message)
 
     class IPAddressError(CPacketBuildException):
         """
