@@ -241,6 +241,7 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
+
     TrexRpcServer::clear_owner();
 
     result["result"] = "ACK";

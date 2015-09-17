@@ -78,7 +78,7 @@ uint8_t TrexStateless::get_port_count() {
  * 
  **************************/
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
-    m_port_state = PORT_STATE_DOWN;
+    m_port_state = PORT_STATE_UP_IDLE;
 }
 
 

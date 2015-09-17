@@ -429,7 +429,8 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t  port_id = parse_byte(params, "port_id", result);
+
+    uint8_t port_id = parse_byte(params, "port_id", result);
 
     if (port_id >= TrexStateless::get_instance().get_port_count()) {
         std::stringstream ss;
