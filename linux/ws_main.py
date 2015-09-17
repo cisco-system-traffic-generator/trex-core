@@ -109,8 +109,10 @@ main_src = SrcGroup(dir='src',
              'utl_json.cpp',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
+
              'gtest/tuple_gen_test.cpp',
              'gtest/nat_test.cpp',
+             'gtest/trex_stateless_gtest.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
