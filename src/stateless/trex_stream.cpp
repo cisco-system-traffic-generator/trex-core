@@ -45,6 +45,17 @@ TrexStream::~TrexStream() {
     }
 }
 
+void
+TrexStream::store_stream_json(const Json::Value &stream_json) {
+    /* deep copy */
+    m_stream_json = stream_json;
+}
+
+const Json::Value &
+TrexStream::get_stream_json() {
+    return m_stream_json;
+}
+
 /**************************************
  * stream table
  *************************************/

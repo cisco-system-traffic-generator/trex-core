@@ -164,33 +164,17 @@ public:
     }
 
 
-    /**
-     * query for ownership
-     * 
-     */
-    static const std::string &get_owner() {
-        return s_owner;
-    }
-
-    /**
-    * take ownership of the server array 
-    * this is static 
-    * ownership is total 
-    * 
-    */
-    static void set_owner(const std::string &owner) {
-        s_owner = owner;
-    }
-
-    static void clear_owner() {
-        s_owner = "none";
-    }
+   
 
 private:
+    static std::string generate_handler();
+
     std::vector<TrexRpcServerInterface *>   m_servers;
     bool                                    m_verbose;
     static const std::string                s_server_uptime;
+
     static std::string                      s_owner;
+    static std::string                      s_owner_handler;
 };
 
 #endif /* __TREX_RPC_SERVER_API_H__ */

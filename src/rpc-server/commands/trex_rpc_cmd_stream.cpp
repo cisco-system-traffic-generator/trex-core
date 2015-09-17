@@ -63,6 +63,9 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     /* allocate a new stream based on the type */
     TrexStream *stream = allocate_new_stream(section, port_id, stream_id, result);
 
+    /* save this for future queries */
+    stream->store_stream_json(section);
+
     /* some fields */
     stream->m_enabled         = parse_bool(section, "enabled", result);
     stream->m_self_start      = parse_bool(section, "self_start", result);
@@ -130,19 +133,19 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
     if (type == "continuous") {
 
-        uint32_t pps = parse_int(mode, "pps", result);
+        double pps = parse_double(mode, "pps", result);
         stream = new TrexStreamContinuous(port_id, stream_id, pps);
 
     } else if (type == "single_burst") {
 
         uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
-        uint32_t pps             = parse_int(mode, "pps", result);
+        double pps               = parse_double(mode, "pps", result);
 
         stream = new TrexStreamBurst(port_id, stream_id, total_pkts, pps);
 
     } else if (type == "multi_burst") {
 
-        uint32_t  pps              = parse_int(mode, "pps", result);
+        double    pps              = parse_double(mode, "pps", result);
         double    ibg_usec         = parse_double(mode, "ibg", result);
         uint32_t  num_bursts       = parse_int(mode, "number_of_bursts", result);
         uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
@@ -413,30 +416,11 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ss.str());
     }
 
-    Json::Value stream_json;
-
-    stream_json["enabled"]     = stream->m_enabled;
-    stream_json["self_start"]  = stream->m_self_start;
-
-    stream_json["isg"]            = stream->m_isg_usec;
-    stream_json["next_stream_id"] = stream->m_next_stream_id;
-
-    stream_json["packet"]["binary"]      = Json::arrayValue;
-    for (int i = 0; i < stream->m_pkt.len; i++) {
-        stream_json["packet"]["binary"].append(stream->m_pkt.binary[i]);
-    }
-
-    stream_json["packet"]["meta"] = stream->m_pkt.meta;
-
-    if (TrexStreamContinuous *cont = dynamic_cast<TrexStreamContinuous *>(stream)) {
-        stream_json["mode"]["type"] = "continuous";
-        stream_json["mode"]["pps"]  = cont->get_pps();
-
-    }
-
-    result["result"]["stream"] = stream_json;
+    /* return the stored stream json (instead of decoding it all over again) */
+    result["result"]["stream"] = stream->get_stream_json();
 
     return (TREX_RPC_CMD_OK);
+
 }
 
 /***************************
@@ -445,7 +429,8 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t  port_id = parse_byte(params, "port_id", result);
+
+    uint8_t port_id = parse_byte(params, "port_id", result);
 
     if (port_id >= TrexStateless::get_instance().get_port_count()) {
         std::stringstream ss;
@@ -455,17 +440,17 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
 
-    TrexStatelessPort::traffic_rc_e rc = port->start_traffic();
+    TrexStatelessPort::rc_e rc = port->start_traffic();
 
-    if (rc == TrexStatelessPort::TRAFFIC_OK) {
+    if (rc == TrexStatelessPort::RC_OK) {
         result["result"] = "ACK";
     } else {
         std::stringstream ss;
         switch (rc) {
-        case TrexStatelessPort::TRAFFIC_ERR_ALREADY_STARTED:
-            ss << "traffic has already started on that port";
+        case TrexStatelessPort::RC_ERR_BAD_STATE_FOR_OP:
+            ss << "bad state for operations: port is either transmitting traffic or down";
             break;
-        case TrexStatelessPort::TRAFFIC_ERR_NO_STREAMS:
+        case TrexStatelessPort::RC_ERR_NO_STREAMS:
             ss << "no active streams on that port";
             break;
         default:

@@ -225,3 +225,11 @@ std::string TrexJsonRpcV2Parser::pretty_json_str(const std::string &json_str) {
     return writer.write(value);
 }
 
+void
+TrexJsonRpcV2Parser::generate_common_error(Json::Value &json, const std::string &specific_err) {
+    JsonRpcError err(Json::Value::null, JSONRPC_V2_ERR_INTERNAL_ERROR, specific_err, true);
+
+    err.execute(json);
+
+}
+

@@ -20,6 +20,8 @@ limitations under the License.
 */
 #include <trex_stateless_api.h>
 
+using namespace std;
+
 /***********************************************************
  * Trex stateless object
  * 
@@ -76,7 +78,8 @@ uint8_t TrexStateless::get_port_count() {
  * 
  **************************/
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
-    m_started = false;
+    m_port_state = PORT_STATE_UP_IDLE;
+    clear_owner();
 }
 
 
@@ -84,25 +87,29 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
  * starts the traffic on the port
  * 
  */
-TrexStatelessPort::traffic_rc_e
+TrexStatelessPort::rc_e
 TrexStatelessPort::start_traffic(void) {
-    if (m_started) {
-        return (TRAFFIC_ERR_ALREADY_STARTED);
+
+    if (m_port_state != PORT_STATE_UP_IDLE) {
+        return (RC_ERR_BAD_STATE_FOR_OP);
     }
 
     if (get_stream_table()->size() == 0) {
-        return (TRAFFIC_ERR_NO_STREAMS);
+        return (RC_ERR_NO_STREAMS);
     }
 
-    m_started = true;
+    m_port_state = PORT_STATE_TRANSMITTING;
 
-    return (TRAFFIC_OK);
+    /* real code goes here */
+    return (RC_OK);
 }
 
 void 
 TrexStatelessPort::stop_traffic(void) {
-    if (m_started) {
-        m_started = false;
+
+    /* real code goes here */
+    if (m_port_state == PORT_STATE_TRANSMITTING) {
+        m_port_state = PORT_STATE_UP_IDLE;
     }
 }
 
@@ -114,4 +121,32 @@ TrexStreamTable * TrexStatelessPort::get_stream_table() {
     return &m_stream_table;
 }
 
+void
+TrexStatelessPort::get_properties(string &driver, string &speed) {
 
+    /* take this from DPDK */
+    driver = "Unknown Driver";
+    speed  = "Unknown Speed";
+}
+
+
+/**
+ * generate a random connection handler
+ * 
+ */
+std::string 
+TrexStatelessPort::generate_handler() {
+    std::stringstream ss;
+
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+
+    /* generate 8 bytes of random handler */
+    for (int i = 0; i < 8; ++i) {
+        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    return (ss.str());
+}

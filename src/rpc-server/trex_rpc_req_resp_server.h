@@ -39,9 +39,11 @@ protected:
     void _stop_rpc_thread();
 
 private:
-    void handle_request(const std::string &request);
 
-    static const int    RPC_MAX_MSG_SIZE = 2048;
+    void handle_request(const std::string &request);
+    void handle_server_error(const std::string &specific_err);
+
+    static const int    RPC_MAX_MSG_SIZE = (20 * 1024);
     void               *m_context;
     void               *m_socket;
     uint8_t             m_msg_buffer[RPC_MAX_MSG_SIZE];

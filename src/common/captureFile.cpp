@@ -110,7 +110,7 @@ void CCapPktRaw::CloneShalow(CCapPktRaw  *obj){
 }
 
 void CCapPktRaw::Dump(FILE *fd,int verbose){
-	fprintf(fd," =>pkt (%p) %llu , len %d, time [%x:%x] \n",raw,pkt_cnt,pkt_len,time_sec,time_nsec);
+	fprintf(fd," =>pkt (%p) %llu , len %d, time [%x:%x] \n",raw, (unsigned long long)pkt_cnt,pkt_len,time_sec,time_nsec);
 	if (verbose) {
 		utl_DumpBuffer(fd,raw,pkt_len,0);
 	}

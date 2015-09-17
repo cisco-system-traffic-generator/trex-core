@@ -80,6 +80,15 @@ public:
     void parse(std::vector<TrexJsonRpcV2ParsedObject *> &commands);
 
     /**
+     * will generate a valid JSON RPC v2 error message with 
+     * generic error code and message 
+     * 
+     * @author imarom (16-Sep-15)
+     * 
+     */
+    static void generate_common_error(Json::Value &json, const std::string &specific_err);
+
+    /**
      * *tries* to generate a pretty string from JSON 
      * if json_str is not a valid JSON string 
      * it will duplicate the source
