@@ -111,8 +111,6 @@ get_current_date_time() {
 }
 
 const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
-std::string TrexRpcServer::s_owner = "none";
-std::string TrexRpcServer::s_owner_handler = "";
 
 TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg) {
 
@@ -158,22 +156,3 @@ void TrexRpcServer::set_verbose(bool verbose) {
     }
 }
 
-/**
- * generate a random connection handler
- * 
- */
-std::string TrexRpcServer::generate_handler() {
-    std::stringstream ss;
-
-    static const char alphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
-
-    /* generate 8 bytes of random handler */
-    for (int i = 0; i < 8; ++i) {
-        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
-    }
-
-    return (ss.str());
-}

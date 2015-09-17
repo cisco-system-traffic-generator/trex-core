@@ -79,6 +79,7 @@ uint8_t TrexStateless::get_port_count() {
  **************************/
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
     m_port_state = PORT_STATE_UP_IDLE;
+    clear_owner();
 }
 
 
@@ -126,4 +127,26 @@ TrexStatelessPort::get_properties(string &driver, string &speed) {
     /* take this from DPDK */
     driver = "Unknown Driver";
     speed  = "Unknown Speed";
+}
+
+
+/**
+ * generate a random connection handler
+ * 
+ */
+std::string 
+TrexStatelessPort::generate_handler() {
+    std::stringstream ss;
+
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+
+    /* generate 8 bytes of random handler */
+    for (int i = 0; i < 8; ++i) {
+        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    return (ss.str());
 }

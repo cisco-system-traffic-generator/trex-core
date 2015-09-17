@@ -164,49 +164,7 @@ public:
     }
 
 
-    /**
-     * query for ownership
-     * 
-     */
-    static const std::string &get_owner() {
-        return s_owner;
-    }
-
-    /**
-     * owner handler 
-     * for the connection 
-     * 
-     */
-    static const std::string &get_owner_handler() {
-        return s_owner_handler;
-    }
-
-    static bool is_free_to_aquire() {
-        return (s_owner == "none");
-    }
-
-    /**
-    * take ownership of the server array 
-    * this is static 
-    * ownership is total 
-    * 
-    */
-    static std::string set_owner(const std::string &owner) {
-        s_owner = owner;
-        s_owner_handler = generate_handler();
-        return (s_owner_handler);
-    }
-
-    static void clear_owner() {
-        s_owner = "none";
-        s_owner_handler = "";
-    }
-
-    static bool verify_owner_handler(const std::string &handler) {
-
-        return ( (s_owner != "none") && (s_owner_handler == handler) );
-
-    }
+   
 
 private:
     static std::string generate_handler();

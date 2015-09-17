@@ -20,6 +20,7 @@ limitations under the License.
 */
 #include <trex_rpc_cmd_api.h>
 #include <trex_rpc_server_api.h>
+#include <trex_stateless_api.h>
 
 trex_rpc_cmd_rc_e 
 TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
@@ -57,9 +58,29 @@ TrexRpcCommand::check_param_count(const Json::Value &params, int expected, Json:
 void
 TrexRpcCommand::verify_ownership(const Json::Value &params, Json::Value &result) {
     std::string handler = parse_string(params, "handler", result);
+    uint8_t port_id = parse_port(params, result);
 
-    if (!TrexRpcServer::verify_owner_handler(handler)) {
+    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+
+    if (!port->verify_owner_handler(handler)) {
         generate_execute_err(result, "invalid handler provided. please pass the handler given when calling 'acquire' or take ownership");
+    }
+}
+
+uint8_t 
+TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_byte(params, "port_id", result);
+    validate_port_id(port_id, result);
+
+    return (port_id);
+}
+
+void 
+TrexRpcCommand::validate_port_id(uint8_t port_id, Json::Value &result) {
+    if (port_id >= TrexStateless::get_instance().get_port_count()) {
+        std::stringstream ss;
+        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
+        generate_execute_err(result, ss.str());
     }
 }
 

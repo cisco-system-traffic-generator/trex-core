@@ -106,10 +106,58 @@ public:
      */
     void get_properties(std::string &driver, std::string &speed);
 
+    /**
+    * query for ownership
+    * 
+    */
+    const std::string &get_owner() {
+        return m_owner;
+    }
+
+    /**
+     * owner handler 
+     * for the connection 
+     * 
+     */
+    const std::string &get_owner_handler() {
+        return m_owner_handler;
+    }
+
+    bool is_free_to_aquire() {
+        return (m_owner == "none");
+    }
+
+    /**
+    * take ownership of the server array 
+    * this is static 
+    * ownership is total 
+    * 
+    */
+    void set_owner(const std::string &owner) {
+        m_owner = owner;
+        m_owner_handler = generate_handler();
+    }
+
+    void clear_owner() {
+        m_owner = "none";
+        m_owner_handler = "";
+    }
+
+    bool verify_owner_handler(const std::string &handler) {
+
+        return ( (m_owner != "none") && (m_owner_handler == handler) );
+
+    }
+
 private:
+
+    std::string generate_handler();
+
     TrexStreamTable  m_stream_table;
     uint8_t          m_port_id;
     port_state_e     m_port_state;
+    std::string      m_owner;
+    std::string      m_owner_handler;
 };
 
 /**

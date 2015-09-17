@@ -175,6 +175,8 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         section["ports"][i]["driver"]  = driver;
         section["ports"][i]["speed"]   = speed;
 
+        section["ports"][i]["owner"] = port->get_owner();
+
         switch (port->get_state()) {
         case TrexStatelessPort::PORT_STATE_DOWN:
             section["ports"][i]["status"] = "down";
@@ -208,7 +210,10 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdGetOwner::_run(const Json::Value &params, Json::Value &result) {
     Json::Value &section = result["result"];
 
-    section["owner"] = TrexRpcServer::get_owner();
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    section["owner"] = port->get_owner();
 
     return (TREX_RPC_CMD_OK);
 }
@@ -220,17 +225,21 @@ TrexRpcCmdGetOwner::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
 
+    uint8_t port_id = parse_port(params, result);
+
     const string &new_owner = parse_string(params, "user", result);
     bool force = parse_bool(params, "force", result);
 
     /* if not free and not you and not force - fail */
-    if ( (!TrexRpcServer::is_free_to_aquire()) && (TrexRpcServer::get_owner() != new_owner) && (!force)) {
-        generate_execute_err(result, "device is already taken by '" + TrexRpcServer::get_owner() + "'");
+    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+
+    if ( (!port->is_free_to_aquire()) && (port->get_owner() != new_owner) && (!force)) {
+        generate_execute_err(result, "device is already taken by '" + port->get_owner() + "'");
     }
 
-    string handle = TrexRpcServer::set_owner(new_owner);
+    port->set_owner(new_owner);
 
-    result["result"] = handle;
+    result["result"] = port->get_owner_handler();
 
     return (TREX_RPC_CMD_OK);
 }
@@ -242,7 +251,15 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 
-    TrexRpcServer::clear_owner();
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+
+    if (port->get_state() == TrexStatelessPort::PORT_STATE_TRANSMITTING) {
+        generate_execute_err(result, "cannot release a port during transmission");
+    }
+
+    port->clear_owner();
 
     result["result"] = "ACK";
 

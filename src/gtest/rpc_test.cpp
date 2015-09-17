@@ -113,10 +113,11 @@ public:
 class RpcTestOwned : public RpcTest {
 public:
 
-    void create_request(Json::Value &request, const string &method, int id = 1, bool owned = true)  {
+    void create_request(Json::Value &request, const string &method, int id = 1, int port_id = 1, bool owned = true)  {
         RpcTest::create_request(request, method, id);
         if (owned) {
-            request["params"]["handler"] = m_ownership_handler; 
+            request["params"]["port_id"] = port_id;
+            request["params"]["handler"] = m_ownership_handler[port_id];
         }
     }
 
@@ -124,37 +125,43 @@ protected:
 
     virtual void SetUp() {
         RpcTest::SetUp();
-        take_ownership();
+
+        for (int i = 0 ; i < 4; i++) {
+            m_ownership_handler[i] = take_ownership(i);
+        }
     }
 
 
-    void take_ownership(void) {
+    string take_ownership(uint8_t port_id) {
         Json::Value request;
         Json::Value response;
 
         RpcTest::create_request(request, "acquire", 1);
 
+        request["params"]["port_id"] = port_id;
         request["params"]["user"] = "test";
         request["params"]["force"] = true;
 
         send_request(request, response);
 
         EXPECT_TRUE(response["result"] != Json::nullValue);
-        m_ownership_handler = response["result"].asString();
+        return response["result"].asString();
     }
 
-    void release_ownership() {
+    void release_ownership(uint8_t port_id) {
         Json::Value request;
         Json::Value response;
 
         RpcTest::create_request(request, "release", 1);
+
         request["params"]["handler"] = m_ownership_handler;
+        request["params"]["port_id"] = port_id;
 
         send_request(request, response);
         EXPECT_TRUE(response["result"] == "ACK");
     }
 
-    string m_ownership_handler;
+    string m_ownership_handler[4];
 };
 
 TEST_F(RpcTest, basic_rpc_negative_cases) {
@@ -383,6 +390,7 @@ TEST_F(RpcTest, get_owner_acquire_release) {
 
     /* no user before acquring */
     create_request(request, "get_owner");
+    request["params"]["port_id"] = 1;
     send_request(request, response);
     EXPECT_TRUE(response["result"] != Json::nullValue);
 
@@ -390,6 +398,7 @@ TEST_F(RpcTest, get_owner_acquire_release) {
 
     /* soft acquire */
     create_request(request, "acquire");
+    request["params"]["port_id"] = 1;
     request["params"]["user"] = "itay";
     request["params"]["force"] = false;
 
@@ -397,6 +406,7 @@ TEST_F(RpcTest, get_owner_acquire_release) {
     EXPECT_TRUE(response["result"] != Json::nullValue);
 
     create_request(request, "get_owner");
+    request["params"]["port_id"] = 1;
     send_request(request, response);
     EXPECT_TRUE(response["result"] != Json::nullValue);
 
@@ -404,6 +414,7 @@ TEST_F(RpcTest, get_owner_acquire_release) {
 
     /* hard acquire */
     create_request(request, "acquire");
+    request["params"]["port_id"] = 1;
     request["params"]["user"] = "moshe";
     request["params"]["force"] = false;
 
@@ -419,6 +430,7 @@ TEST_F(RpcTest, get_owner_acquire_release) {
 
     /* make sure */
     create_request(request, "get_owner");
+    request["params"]["port_id"] = 1;
     send_request(request, response);
     EXPECT_TRUE(response["result"] != Json::nullValue);
 
@@ -426,6 +438,7 @@ TEST_F(RpcTest, get_owner_acquire_release) {
 
     /* release */
     create_request(request, "release");
+    request["params"]["port_id"] = 1;
     request["params"]["handler"] = handler;
     send_request(request, response);
 
@@ -463,9 +476,8 @@ TEST_F(RpcTestOwned, add_remove_stream) {
     Json::Value response;
 
     /* verify no such stream */
-    create_request(request, "get_stream", 1);
+    create_request(request, "get_stream", 1, 1);
 
-    request["params"]["port_id"] = 1;
     request["params"]["stream_id"] = 5;
 
     send_request(request, response);
@@ -475,8 +487,7 @@ TEST_F(RpcTestOwned, add_remove_stream) {
     EXPECT_EQ(response["error"]["code"], -32000);
 
     /* add it */
-    create_request(request, "add_stream", 1);
-    request["params"]["port_id"] = 1;
+    create_request(request, "add_stream", 1, 1);
     request["params"]["stream_id"] = 5;
 
     Json::Value stream;
@@ -488,9 +499,8 @@ TEST_F(RpcTestOwned, add_remove_stream) {
     EXPECT_EQ(response["result"], "ACK");
 
     /* get it */
-    create_request(request, "get_stream", 1);
+    create_request(request, "get_stream", 1, 1);
 
-    request["params"]["port_id"] = 1;
     request["params"]["stream_id"] = 5;
 
     send_request(request, response);
@@ -498,9 +508,8 @@ TEST_F(RpcTestOwned, add_remove_stream) {
     EXPECT_TRUE(compare_streams(stream, response["result"]["stream"]));
 
     // remove it
-    create_request(request, "remove_stream", 1);
+    create_request(request, "remove_stream", 1, 1);
 
-    request["params"]["port_id"] = 1;
     request["params"]["stream_id"] = 5;
 
     send_request(request, response);
@@ -520,7 +529,7 @@ TEST_F(RpcTestOwned, get_stream_id_list) {
     Json::Value response;
     
      /* add stream 1 */
-    create_request(request, "add_stream");
+    create_request(request, "add_stream", 1);
     request["params"]["port_id"] = 1;
 
     Json::Value stream;
@@ -578,8 +587,7 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
     Json::Value response;
 
     /* add stream #1 */
-    create_request(request, "add_stream");
-    request["params"]["port_id"] = 1;
+    create_request(request, "add_stream", 1, 1);
     request["params"]["stream_id"] = 5;
 
     Json::Value stream;
@@ -590,9 +598,8 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
-      /* add stream #1 */
-    create_request(request, "add_stream");
-    request["params"]["port_id"] = 3;
+    /* add stream #1 */
+    create_request(request, "add_stream", 1, 3);
     request["params"]["stream_id"] = 12;
     request["params"]["stream"] = stream;
     
@@ -600,52 +607,53 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
     EXPECT_EQ(response["result"], "ACK");
 
     /* start port 1 */
-    create_request(request, "start_traffic");
-    request["params"]["port_id"] = 1;
+    create_request(request, "start_traffic", 1, 1);
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
 
     /* start port 3 */
-    request["params"]["port_id"] = 3;
+    create_request(request, "start_traffic", 1, 3);
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
     /* start not configured port */
-
-    request["params"]["port_id"] = 2;
+    create_request(request, "start_traffic", 1, 2);
     send_request(request, response);
     EXPECT_EQ(response["error"]["code"], -32000);
 
     /* stop port 1 */
-    create_request(request, "stop_traffic");
-    request["params"]["port_id"] = 1;
+    create_request(request, "stop_traffic", 1, 1);
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
     /* stop port 3 */
-    request["params"]["port_id"] = 3;
+    create_request(request, "stop_traffic", 1, 3);
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
     /* start 1 again */
-    create_request(request, "start_traffic");
-    request["params"]["port_id"] = 1;
+    create_request(request, "start_traffic", 1, 1);
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
     /* start 1 twice (error) */
+    create_request(request, "start_traffic", 1, 1);
     send_request(request, response);
     EXPECT_EQ(response["error"]["code"], -32000);
 
     /* make sure you cannot release while traffic is active */
-    //create_request(request, "release");
-    //send_request(request, response);
-    //EXPECT_EQ(response["error"]["code"], -32000);
+    create_request(request, "release", 1, 1);
+    send_request(request, response);
+    EXPECT_EQ(response["error"]["code"], -32000);
 
-    /* done */
-    create_request(request, "stop_traffic");
-    request["params"]["port_id"] = 1;
+    /* stop traffic on port #1 */
+    create_request(request, "stop_traffic",1 ,1);
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    /* release */
+    create_request(request, "release", 1, 1);
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 }

@@ -125,6 +125,12 @@ protected:
     void verify_ownership(const Json::Value &params, Json::Value &result);
 
     /**
+     * validate port id
+     * 
+     */
+    void validate_port_id(uint8_t port_id, Json::Value &result);
+
+    /**
      * parse functions
      * 
      */
@@ -145,6 +151,9 @@ protected:
     const std::string  parse_string(const Json::Value &parent, int index, Json::Value &result);
     const Json::Value & parse_object(const Json::Value &parent, int index, Json::Value &result);
     const Json::Value & parse_array(const Json::Value &parent, int index, Json::Value &result);
+
+    /* shortcut for parsing port id */
+    uint8_t parse_port(const Json::Value &params, Json::Value &result);
 
     /**
      * parse a field from choices 

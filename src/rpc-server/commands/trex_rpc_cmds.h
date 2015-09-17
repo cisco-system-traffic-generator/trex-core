@@ -69,9 +69,9 @@ void get_hostname(std::string &hostname);
 /**
  * ownership
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetOwner,   "get_owner",       0, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdAcquire,    "acquire",         2, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         0, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetOwner,   "get_owner",       1, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdAcquire,    "acquire",         3, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true);
 
 
 /**
