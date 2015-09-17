@@ -20,6 +20,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.76  ==
+
+=== fix issues: ===
+
+* minor pcap loader issues  
+* plugin cleanup 
+                 
+
 == Release 1.75  ==
 
 === fix issues: ===
