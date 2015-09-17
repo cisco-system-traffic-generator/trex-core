@@ -193,32 +193,32 @@ The following diagram illustres the RPC server component's place:
 
 image::images/rpc_server_big_picture.png[title="RPC Server Position",align="left",width=800, link="images/rpc_server_big_picture.png"]
 
-== RPC Server State Machine
-The RPC server can be in numbered of states, each state provides other subset of the commands
+== RPC Server Port State Machine
+Any port on the server can be in numbered of states, each state provides other subset of the commands
 that are allowed to be executed.
 
 We define the following possible states:
 
-* *unowned* - The server is either unowned or another user is owning the device
-* *owned* - The server has been acquired by the client
-* *active* - The server is in the middle of injecting traffic - currently active
+* *unowned* - The specific port is either unowned or another user is owning the port
+* *owned* - The specific port has been acquired by the client
+* *active* - The specific port is in the middle of injecting traffic - currently active
 
-Each command will specify on which states it is possible to execute it.
+Each port command will specify on which states it is possible to execute it.
 
-For commands valid only on 'owned' or 'active', a field called ''handler'' 'MUST' be passed
+For port related commands valid only on 'owned' or 'active', a field called ''handler'' 'MUST' be passed
 along with the rest of the parameters.
 
 
-This will identify the connection.
+This will identify the connection:
 
-image::images/rpc_states.png[title="RPC Server States",align="left",width=200, link="images/rpc_states.png"]
+image::images/rpc_states.png[title="Port States",align="left",width=150, link="images/rpc_states.png"]
 
 == RPC Commands
 The following RPC commands are supported
 
 === Ping
 * *Name* - 'ping'
-* *Valid States* - 'all'
+* *Valid States* - 'not relevant'
 * *Description* - Pings the TRex server
 * *Paramters* - None
 * *Result* ['string'] - "ACK" On Sucess
@@ -246,10 +246,10 @@ Example:
 
 ----
 
-=== Get Registered Commands
-* *Name* - 'get_reg_cmds'
-* *Valid States* - 'all'
-* *Description* - Queries the server for all the registered commands
+=== Get Server Supported Commands
+* *Name* - 'get_supported_cmds'
+* *Valid States* - 'not relevant'
+* *Description* - Queries the server for all the supported commands
 * *Paramters* - None
 * *Result* ['array'] - A list of all the supported commands by the server
 
@@ -262,7 +262,7 @@ Example:
 {
     "jsonrpc": "2.0",
     "id": 1,
-    "method": "get_reg_cmds",
+    "method": "get_supported_cmds",
     "params": null
 }
 
@@ -289,7 +289,7 @@ Example:
 
 === Get Version
 * *Name* - 'get_version'
-* *Valid States* - 'all'
+* *Valid States* - 'not relevant'
 * *Description* - Queries the server for version information
 * *Paramters* - None
 * *Result* ['object'] - See table below
@@ -304,6 +304,34 @@ Example:
 | built_by      | string   | who built this version
 |=================
 
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "wapkk8m6",
+    "jsonrpc": "2.0",
+    "method": "get_version",
+    "params": null
+}
+
+
+'Response':
+
+{
+    "id": "wapkk8m6",
+    "jsonrpc": "2.0",
+    "result": {
+        "build_date": "Sep 16 2015",
+        "build_time": "12:33:01",
+        "built_by": "imarom",
+        "version": "v0.0"
+    }
+}
+
+----
+
 === Get System Info
 * *Name* - 'get_system_info'
 * *Description* - Queries the server for system properties
@@ -317,7 +345,6 @@ Example:
 | dp_core_count  | int      | DP core count
 | core_type      | string   | DP core type
 | hostname       | string   | machine host name
-| ip             | string   | machine IP
 | uptime         | string   | uptime of the server
 | port_count     | int      | number of ports on the machine
 | ports          | array    | arary of object ''port'' - see below
@@ -329,15 +356,69 @@ Example:
 | Field          | Type     | Description 
 | driver         | string   | driver type
 | speed          | string   | speed of the port (1g, 10g, 40g, 100g)
-| status         | string   | up / down
+| status         | string   | 'down', 'idle' or 'transmitting'
 |=================
 
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "zweuldlh",
+    "jsonrpc": "2.0",
+    "method": "get_system_info",
+    "params": null
+}
+
+'Response':
+
+{
+    "id": "zweuldlh",
+    "jsonrpc": "2.0",
+    "result": {
+        "core_type": "Intel(R) Xeon(R) CPU E5-2650 0 @ 2.00GHz",
+        "dp_core_count": 1,
+        "hostname": "csi-kiwi-03.cisco.com",
+        "port_count": 4,
+        "ports": [
+            {
+                "driver": "E1000",
+                "index": 0,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 1,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 2,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 3,
+                "speed": "1g",
+                "status": "down"
+            }
+        ]
+    }
+}
+
+----
 
 === Get Owner
 * *Name* - 'get_owner'
 * *Valid States* - 'all'
-* *Description* - Queries the server for current owner
-* *Paramters* - None
+* *Description* - Queries the server for a specific port current owner
+* *Paramters* -
+** *port_id* ['int'] - port id to query for owner
 * *Result* ['string'] - owner name if exists, otherwise 'none'
 
 [source,bash]
@@ -349,7 +430,9 @@ Example:
     "id": "hxjkuwj9",
     "jsonrpc": "2.0",
     "method": "get_owner",
-    "params": null
+    "params": {
+	"port_id": 1
+    }
 }
 
 'Response':
@@ -367,11 +450,12 @@ Example:
 === Acquire
 * *Name* - 'Acquire'
 * *Valid States* - 'all'
-* *Description* - Takes ownership on the device.
+* *Description* - Takes ownership over the port
 * *Paramters* -
+** *port_id* ['int'] - port id to take ownership
 ** *user* ['string'] - User name aquiring the system
-** *force* ['boolean'] - force action even if another user is holding the device
-* *Result* ['string'] - 'unique' connection handler for future requests
+** *force* ['boolean'] - force action even if another user is holding the port
+* *Result* ['string'] - 'unique' connection handler for future requests for that port
 
 [source,bash]
 ----
@@ -383,8 +467,9 @@ Example:
     "jsonrpc": "2.0",
     "method": "Acquire",
     "params": {
+	"user": "itay"
+	"port_id": 1
         "force": false,
-        "user": "itay"
     }
 }
 
@@ -405,6 +490,7 @@ Example:
 * *Description* - Release owernship over the device
 * *Paramters* -
 ** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id to release
 * *Result* ['string'] - "ACK" on success
 
 [source,bash]
@@ -418,6 +504,7 @@ Example:
     "method": "release",
     "params": {
         "handler": "37JncCHr"
+	"port_id": 1
     }
 }
 
@@ -542,17 +629,16 @@ Any element in the array can be one of the following object types:
 | is_big_endian | boolean     | should write as big endian or little 
 |=================
 
+TIP: For more information and examples on VM objects please refer to:
+link:vm_doc.html[VM examples]
 
 ===== Object type 'rx_stats' anchor:rx_stats_obj[]
 Describes rx stats for the stream
 
 {zwsp} +
 
-'IMPORTANT':
-
-In case rx_stats is enabled, meta data will be written in the end of the packet.
-
-please consider the following:
+IMPORTANT: In case rx_stats is enabled, meta data will be written in the end of the packet.
+please also consider the following constraints:
 
 ==== Constrains
 * *performance* - this will have performance impact as rx packets will be examined
@@ -811,7 +897,7 @@ if both are enabled then 10 bytes will be used.
 * *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
 * *Paramters*
 ** *handler* ['string'] - unique connection handler
-** *port_id* ['array'] - array of port id on which to start traffic
+** *port_id* ['int'] - port id on which to start traffic
 
 * *Result* ['string'] - "ACK" on success
 
@@ -826,7 +912,7 @@ if both are enabled then 10 bytes will be used.
     "method": "start_traffic",
     "params": {
         "handler": "37JncCHr",
-        "port_id": [3, 4]
+        "port_id": 3
     }
 
 'Response':
@@ -846,7 +932,7 @@ if both are enabled then 10 bytes will be used.
 * *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
 * *Paramters*
 ** *handler* ['string'] - unique connection handler
-** *port_id* ['array'] - array of port id on which to stop traffic
+** *port_id* ['int'] - port id on which to stop traffic
 
 * *Result* ['string'] - "ACK" on success
 
@@ -861,7 +947,7 @@ if both are enabled then 10 bytes will be used.
     "method": "stop_traffic",
     "params": {
         "handler": "37JncCHr",
-        "port_id": [3, 4]
+        "port_id": 3
     }
 }
 
@@ -894,15 +980,11 @@ if both are enabled then 10 bytes will be used.
 | rx_bps            | double      | total RX bits per second
 | tx_pps            | double      | total TX packets per second
 | rx_pps            | double      | total RX packets per second
-| tx_cps            | double      | total TX connection per second
-| tx_expected_bps   | double      | expected TX bits per second
-| tx_expected_pps   | double      | expected TX packets per second
-| tx_expected_cps   | double      | expected TX connections per second
-| rx_drop_bps       | double      | drop rate in bits per second
 | total_tx_pkts     | int         | total TX packets
 | total_rx_pkts     | int         | total RX packets
 | total_rx_bytes    | int         | total TX bytes
 | total_tx_bytes    | int         | total RX bytes
+| tx-rx-error       | int         | total Tx/Rx errors
 |=================
 
 === Get Port Stats
@@ -918,13 +1000,16 @@ if both are enabled then 10 bytes will be used.
 [options="header",cols="1,1,3"]
 |=================
 | Field             | Type        | Description
-| active            | boolean     | 'true' if the port is in transmitting phase
-| opackets          | int         | total output packets
-| ipackets          | int         | total input packets
-| obytes            | int         | total output bytes
-| ibytes            | int         | total input bytes
-| oerrors           | int         | total output errors
-| ierrors           | int         | total input errors
+| status            | string      | 'down', 'idle' or 'transmitting'
+| tx_bps            | double      | total TX bits per second
+| rx_bps            | double      | total RX bits per second
+| tx_pps            | double      | total TX packets per second
+| rx_pps            | double      | total RX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_rx_pkts     | int         | total RX packets
+| total_rx_bytes    | int         | total TX bytes
+| total_tx_bytes    | int         | total RX bytes
+| tx-rx-error       | int         | total Tx/Rx errors
 |=================
 
 === Get Stream Stats
@@ -941,8 +1026,15 @@ if both are enabled then 10 bytes will be used.
 [options="header",cols="1,1,3"]
 |=================
 | Field             | Type        | Description
-| tx_pkts           | int         | total TX packets
-| rx_pkts           | int         | total RX packets [only if 'rx_stats' is enabled], o.w always zero
+| tx_bps            | double      | total TX bits per second
+| tx_pps            | double      | total TX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_tx_bytes    | int         | total TX bytes
+| rx_bps            | double      | total RX bits per second (if 'rx_stats' enabled)
+| rx_pps            | double      | total RX packets per second (if 'rx_stats' enabled)
+| total_rx_pkts     | int         | total RX packets (if 'rx_stats' enabled)
+| total_rx_bytes    | int         | total RX bytes (if 'rx_stats' enabled)
+| latency           | array       | array of 2 ordered elements average, maximum (if 'rx_stats' enabled)
 |=================
 
 
@@ -978,7 +1070,7 @@ add or edit one or more streams to one or more ports
 * *get_stream_list* ['optional'] - sanity - verify the server is synced with the GUI 
 * *start_traffic* - start traffic on the specific port / all the ports
 * *get_global_stats* ['optional'] - make sure the machine is transmiting traffic
-* *['wait']* - 'wait' for the time of the test
+* *['perfrom test']* - perform the required test
 * *stop_traffic* - when done, stop the traffic on the specific port / all the ports
 * *get_global_stats* ['optional'] - make sure the machine has stopped
 
