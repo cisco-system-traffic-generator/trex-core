@@ -3190,7 +3190,7 @@ So if the m is set as 1, the total PPS is : 102*2+50*20 = 1204 PPS.
 
 The BPS depends on the packet size. You can refer to your packet size and get the BPS = PPS*Packet_size. 
 
-==== Roadmap of Client/Server IP allocation
+==== Client/Server IP allocation
 
 We have several features under development for IP allocation. 
  
@@ -3247,7 +3247,7 @@ The YAML configuration is something like this:
 
 - *2) More distributions will be supported (normal distribution, random distribution, etc)*
 
-Currently, only sequcence is supported. 
+Currently, only sequcence and random are supported. 
 
 - *3) Histogram of tuple pool will be supported* 
 
