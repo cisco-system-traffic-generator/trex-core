@@ -359,6 +359,7 @@ bool CTupleGenYamlInfo::is_valid(uint32_t num_threads,bool is_plugins){
         if (m_server_pool[i].is_valid(num_threads, is_plugins)==false) 
             return false;
     }
+
     return true;
 }
 

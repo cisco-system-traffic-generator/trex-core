@@ -4,7 +4,7 @@
           clients_start : "16.0.0.1"
           clients_end   : "16.0.1.255"
           servers_start : "48.0.0.1"
-          servers_end   : "48.0.20.255"
+          servers_end   : "48.0.21.245"
           clients_per_gb : 201
           min_clients    : 101
           dual_port_mask : "1.0.0.0" 

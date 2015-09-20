@@ -2716,6 +2716,38 @@ bool CFlowsYamlInfo::verify_correctness(uint32_t num_threads) {
     if ( !m_tuple_gen.is_valid(num_threads,is_any_plugin_configured()) ){
         return (false);
     }
+    /* patch defect trex-54 */
+    if ( is_any_plugin_configured() ){
+         /*Plugin is configured. in that case due to a limitation ( defect trex-54 )
+          the number of servers should be bigger than number of clients   */
+
+        int i;
+        for (i=0; i<(int)m_vec.size(); i++) {
+            CFlowYamlInfo * lp=&m_vec[i];
+            if ( lp->m_plugin_id ){
+                uint8_t c_idx = lp->m_client_pool_idx;
+                uint8_t s_idx = lp->m_server_pool_idx;
+                uint32_t total_clients = m_tuple_gen.m_client_pool[c_idx].getTotalIps();
+                uint32_t total_servers = m_tuple_gen.m_server_pool[s_idx].getTotalIps();
+                if ( total_servers < total_clients ){
+                    printf(" Plugin is configured. in that case due to a limitation ( defect trex-54 ) \n");
+                    printf(" the number of servers should be bigger than number of clients  \n");
+                    printf(" client_pool_name : %s \n", lp->m_client_pool_name.c_str());
+                    printf(" server_pool_name : %s \n", lp->m_server_pool_name.c_str());
+                    return (false);
+                }
+            uint32_t mul = total_servers / total_clients;
+            uint32_t new_server_num = mul * total_clients;
+            if ( new_server_num != total_servers ) {
+                printf(" Plugin is configured. in that case due to a limitation ( defect trex-54 ) \n");
+                printf(" the number of servers should be exact multiplication of the number of clients  \n");
+                printf(" client_pool_name : %s  clients %d \n", lp->m_client_pool_name.c_str(),total_clients);
+                printf(" server_pool_name : %s  servers %d should be %d \n", lp->m_server_pool_name.c_str(),total_servers,new_server_num);
+                return (false);
+            }
+          }
+        }
+    }
 
     return(true);
 }
