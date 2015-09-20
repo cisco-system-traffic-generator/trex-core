@@ -302,7 +302,6 @@ class CTRexPktBuilder(object):
         except IOError:
             raise IOError(2, "The provided path could not be accessed")
 
-
     # ----- useful shortcut methods ----- #
     def gen_dns_packet(self):
         pass
