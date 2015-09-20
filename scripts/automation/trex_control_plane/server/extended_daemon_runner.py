@@ -35,7 +35,7 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
 
     help_menu = """Specify action command to be applied on server.
     (*) start      : start the application in as a daemon process.
-    (*) show       : prompt a updated status of daemon process (running/ not running).
+    (*) show       : prompt an updated status of daemon process (running/ not running).
     (*) stop       : exit the daemon process.
     (*) restart    : stop, then start again the application as daemon process
     (*) start-live : start the application in live mode (no daemon process).

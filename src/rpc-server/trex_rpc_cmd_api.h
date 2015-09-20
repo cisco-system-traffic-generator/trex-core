@@ -68,8 +68,15 @@ public:
     /**
      * method name and params
      */
-    TrexRpcCommand(const std::string &method_name, int param_count) : m_name(method_name), m_param_count(param_count) {
+    TrexRpcCommand(const std::string &method_name, int param_count, bool needs_ownership) : 
+                                                                    m_name(method_name),
+                                                                    m_param_count(param_count),
+                                                                    m_needs_ownership(needs_ownership) {
 
+        /* if needs ownership - another field is needed (handler) */
+        if (m_needs_ownership) {
+            m_param_count++;
+        }
     }
 
     /**
@@ -112,6 +119,18 @@ protected:
     void check_param_count(const Json::Value &params, int expected, Json::Value &result);
 
     /**
+     * verify ownership
+     * 
+     */
+    void verify_ownership(const Json::Value &params, Json::Value &result);
+
+    /**
+     * validate port id
+     * 
+     */
+    void validate_port_id(uint8_t port_id, Json::Value &result);
+
+    /**
      * parse functions
      * 
      */
@@ -132,6 +151,9 @@ protected:
     const std::string  parse_string(const Json::Value &parent, int index, Json::Value &result);
     const Json::Value & parse_object(const Json::Value &parent, int index, Json::Value &result);
     const Json::Value & parse_array(const Json::Value &parent, int index, Json::Value &result);
+
+    /* shortcut for parsing port id */
+    uint8_t parse_port(const Json::Value &params, Json::Value &result);
 
     /**
      * parse a field from choices 
@@ -164,6 +186,9 @@ protected:
         s.pop_back();
         s += "]";
         generate_parse_err(result, s);
+
+        /* dummy return value - does not matter, the above will throw exception */
+        return (*choices.begin());
     }
 
     /**
@@ -209,6 +234,7 @@ protected:
     /* RPC command name */
     std::string   m_name;
     int           m_param_count;
+    bool          m_needs_ownership;
 };
 
 #endif /* __TREX_RPC_CMD_API_H__ */

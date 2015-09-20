@@ -156,7 +156,8 @@ bool LibPCapReader::ReadPacket(CCapPktRaw *lpPacket)
    }
    if (pkt_header.len > READER_MAX_PACKET_SIZE) {
        /* cannot read this packet */
-	   assert(0);
+       printf("ERROR packet is too big, bigger than %d \n",READER_MAX_PACKET_SIZE);
+       exit(-1);
        return false;
    }
 

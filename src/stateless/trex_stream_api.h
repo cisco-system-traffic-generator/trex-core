@@ -26,6 +26,8 @@ limitations under the License.
 #include <stdint.h>
 #include <string>
 
+#include <json/json.h>
+
 #include <trex_stream_vm.h>
 
 class TrexRpcCmdAddStream;
@@ -48,7 +50,13 @@ public:
     static const uint32_t MIN_PKT_SIZE_BYTES = 1;
     static const uint32_t MAX_PKT_SIZE_BYTES = 9000;
 
-private:
+    /* provides storage for the stream json*/
+    void store_stream_json(const Json::Value &stream_json);
+
+    /* access the stream json */
+    const Json::Value & get_stream_json();
+
+protected:
     /* basic */
     uint8_t       m_port_id;
     uint32_t      m_stream_id;
@@ -82,6 +90,8 @@ private:
     } m_rx_check;
 
 
+    /* original template provided by requester */
+    Json::Value m_stream_json;
 };
 
 /**
@@ -90,15 +100,15 @@ private:
  */
 class TrexStreamContinuous : public TrexStream {
 public:
-    TrexStreamContinuous(uint8_t port_id, uint32_t stream_id, uint32_t pps) : TrexStream(port_id, stream_id), m_pps(pps) {
+    TrexStreamContinuous(uint8_t port_id, uint32_t stream_id, double pps) : TrexStream(port_id, stream_id), m_pps(pps) {
     }
 
-    uint32_t get_pps() {
+    double get_pps() {
         return m_pps;
     }
 
 protected:
-    uint32_t m_pps;
+    double m_pps;
 };
 
 /**
@@ -107,7 +117,7 @@ protected:
  */
 class TrexStreamBurst : public TrexStream {
 public:
-    TrexStreamBurst(uint8_t port_id, uint32_t stream_id, uint32_t total_pkts, uint32_t pps) : 
+    TrexStreamBurst(uint8_t port_id, uint32_t stream_id, uint32_t total_pkts, double pps) : 
         TrexStream(port_id, stream_id),
         m_total_pkts(total_pkts),
         m_pps(pps) {
@@ -115,7 +125,7 @@ public:
 
 protected:
     uint32_t   m_total_pkts;
-    uint32_t   m_pps;
+    double     m_pps;
 };
 
 /**
@@ -127,7 +137,7 @@ public:
     TrexStreamMultiBurst(uint8_t  port_id,
                          uint32_t stream_id,
                          uint32_t pkts_per_burst,
-                         uint32_t pps,
+                         double   pps,
                          uint32_t num_bursts,
                          double   ibg_usec) : TrexStreamBurst(port_id, stream_id, pkts_per_burst, pps), m_num_bursts(num_bursts), m_ibg_usec(ibg_usec) {
 

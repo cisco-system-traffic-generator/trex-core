@@ -109,8 +109,10 @@ main_src = SrcGroup(dir='src',
              'utl_json.cpp',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
+
              'gtest/tuple_gen_test.cpp',
              'gtest/nat_test.cpp',
+             'gtest/trex_stateless_gtest.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -368,7 +370,8 @@ build_types = [
                #build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
 
-               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, flags = ['-DTREX_RPC_MOCK_SERVER'],
+               build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, 
+                            flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Wno-sign-compare', '-Werror'],
                             rpath = ['.']),
               ]
 

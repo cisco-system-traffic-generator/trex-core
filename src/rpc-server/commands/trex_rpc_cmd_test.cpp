@@ -21,7 +21,6 @@ limitations under the License.
 #include "trex_rpc_cmds.h"
 #include <iostream>
 #include <sstream>
-#include <trex_rpc_cmds_table.h>
 
 using namespace std;
 
@@ -46,35 +45,6 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdTestSub::_run(const Json::Value &params, Json::Value &result) {
 
     result["result"] = parse_int(params, "x", result) - parse_int(params, "y", result);
-
-    return (TREX_RPC_CMD_OK);
-}
-
-/**
- * ping command
- */
-trex_rpc_cmd_rc_e 
-TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
-
-    result["result"] = "ACK";
-    return (TREX_RPC_CMD_OK);
-}
-
-/**
- * query command
- */
-trex_rpc_cmd_rc_e 
-TrexRpcCmdGetReg::_run(const Json::Value &params, Json::Value &result) {
-    vector<string> cmds;
-
-    TrexRpcCommandsTable::get_instance().query(cmds);
-
-    Json::Value test = Json::arrayValue;
-    for (auto cmd : cmds) {
-        test.append(cmd);
-    }
-
-    result["result"] = test;
 
     return (TREX_RPC_CMD_OK);
 }

@@ -111,7 +111,6 @@ get_current_date_time() {
 }
 
 const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
-std::string TrexRpcServer::s_owner = "none";
 
 TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg) {
 
