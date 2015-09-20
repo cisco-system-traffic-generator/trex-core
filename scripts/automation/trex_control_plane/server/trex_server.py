@@ -53,7 +53,7 @@ class CTRexServer(object):
             the port number on which trex's zmq module will interact with daemon server
             default value: 4500
 
-        Instatiate a T-Rex client object, and connecting it to listening daemon-server
+        Instantiate a T-Rex client object, and connecting it to listening daemon-server
         """
         self.TREX_PATH          = os.path.abspath(os.path.dirname(trex_path+'/'))
         self.trex_files_path    = os.path.abspath(os.path.dirname(trex_files_path+'/'))
