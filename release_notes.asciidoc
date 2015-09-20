@@ -20,6 +20,11 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+
+== Release 1.77  ==
+
+* improve tuple generator capability now it is more flexiable see more link:trex_manual.html#_clients_servers_ip_allocation_scheme[here]
+
 == Release 1.76  ==
 
 === fix issues: ===
@@ -33,10 +38,6 @@ endif::backend-docbook[]
 === fix issues: ===
 
 * First version that works from GitHub/Git - init script are in the output package 
-
-== Release 1.75  ==
-
-* This version does not work, no init script 
 
 == Release 1.72  ==
 
