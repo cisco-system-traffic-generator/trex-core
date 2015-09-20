@@ -235,41 +235,41 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     }else if (tmp == "normal") {
         fi.m_dist=cdNORMAL_DIST;
     } else {
-        printf("\ndist,seq\n");
         fi.m_dist=cdSEQ_DIST;
     }
     utl_yaml_read_ip_addr(node,"ip_start",fi.m_ip_start);
     utl_yaml_read_ip_addr(node,"ip_end",fi.m_ip_end);
+    fi.m_number_of_clients_per_gb = 0;
+
+    fi.m_min_clients = 0;
+    fi.m_is_bundling = false;
+    fi.m_tcp_aging_sec = 0;
+    fi.m_udp_aging_sec = 0;
+    fi.m_dual_interface_mask = 0;
     try {
         utl_yaml_read_uint32(node,"clients_per_gb",fi.m_number_of_clients_per_gb);
     } catch ( const std::exception& e ) {
-        fi.m_number_of_clients_per_gb = 0;
-    }
+    ;}
     try {
         utl_yaml_read_uint32(node,"min_clients",fi.m_min_clients);
     } catch ( const std::exception& e ) {
-        fi.m_min_clients = 0;
-    }
+    ;}
     try {
         utl_yaml_read_ip_addr(node,"dual_port_mask",fi.m_dual_interface_mask);
     } catch ( const std::exception& e ) {
-        fi.m_dual_interface_mask = 0;
-    }
+    ;}
     try {
         utl_yaml_read_uint16(node,"tcp_aging",fi.m_tcp_aging_sec);
     } catch ( const std::exception& e ) {
-        fi.m_tcp_aging_sec = 0;
-    }
+    ;}
     try {
         utl_yaml_read_uint16(node,"udp_aging",fi.m_udp_aging_sec);
     } catch ( const std::exception& e ) {
-        fi.m_udp_aging_sec = 0;
-    }
+    ;}
     try {
         node["track_ports"] >> fi.m_is_bundling;
     } catch ( const std::exception& e ) {
-        fi.m_is_bundling = false;
-    }
+    ;}
 }
 void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
     if (src.m_number_of_clients_per_gb == 0)
@@ -308,6 +308,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         utl_yaml_read_uint16(node,"tcp_aging",c_pool.m_tcp_aging_sec);
         utl_yaml_read_uint16(node,"udp_aging",c_pool.m_udp_aging_sec);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
+        s_pool.m_is_bundling = false;
         fi.m_client_pool.push_back(c_pool);
         fi.m_server_pool.push_back(s_pool);
     }catch ( const std::exception& e ) {
@@ -319,13 +320,13 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
             CTupleGenPoolYaml pool;
             try {
                 c_pool_info[idx] >> pool;
+                if (fi.m_client_pool.size()>0) {
+                    copy_global_pool_para(pool, fi.m_client_pool[0]);
+                }
+                fi.m_client_pool.push_back(pool);
             } catch ( const std::exception& e ) {
                 printf("client pool in YAML is wrong\n");
             }
-            if (fi.m_client_pool.size()>0) {
-                copy_global_pool_para(pool, fi.m_client_pool[0]);
-            }
-            fi.m_client_pool.push_back(pool);
         }
     }catch ( const std::exception& e ) {
         printf("no client generator pool configured, using default pool\n");
