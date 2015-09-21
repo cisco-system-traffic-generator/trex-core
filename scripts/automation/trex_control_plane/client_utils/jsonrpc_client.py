@@ -25,8 +25,7 @@ class BatchMessage(object):
 
     def add (self, method_name, params = {}):
 
-        id = self.rpc_client.id_gen.next()
-        msg = self.rpc_client.create_jsonrpc_v2(method_name, params, id)
+        id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, encode = False)
         self.batch_list.append(msg)
 
     def invoke (self, block = False):
@@ -91,7 +90,7 @@ class JsonRpcClient(object):
     def create_batch (self):
         return BatchMessage(self)
 
-    def create_jsonrpc_v2 (self, method_name, params = {}):
+    def create_jsonrpc_v2 (self, method_name, params = {}, encode = True):
         msg = {}
         msg["jsonrpc"] = "2.0"
         msg["method"]  = method_name
@@ -100,7 +99,10 @@ class JsonRpcClient(object):
 
         msg["id"] = self.id_gen.next()
 
-        return id, json.dumps(msg)
+        if encode:
+            return id, json.dumps(msg)
+        else:
+            return id, msg
 
 
     def invoke_rpc_method (self, method_name, params = {}, block = False):
@@ -109,7 +111,6 @@ class JsonRpcClient(object):
 
         id, msg = self.create_jsonrpc_v2(method_name, params)
 
-        msg = json.dumps(msg)
         return self.send_raw_msg(msg, block)
 
     

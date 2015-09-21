@@ -353,7 +353,7 @@ TEST_F(RpcTest, get_version) {
 
     EXPECT_TRUE(response["result"] != Json::nullValue);
     EXPECT_TRUE(response["result"]["built_by"] == "MOCK");
-    EXPECT_TRUE(response["result"]["version"] == "v0.0");
+    EXPECT_TRUE(response["result"]["version"] == "v1.75");
 }
 
 /* get system info */
