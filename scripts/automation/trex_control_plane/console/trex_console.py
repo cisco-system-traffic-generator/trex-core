@@ -313,6 +313,13 @@ class TrexConsole(cmd.Cmd):
             print "{:<30} {:<30}".format(cmd + " - ", help)
 
 
+    # do 
+    #def do_snapshot (self, line):
+
+   #for key, value in self.rpc_client.snapshot()[1]['streams'].iteritems():
+        #print str(key) + "   " + str(value)
+
+
     # aliasing
     do_exit = do_EOF = do_q = do_quit
 

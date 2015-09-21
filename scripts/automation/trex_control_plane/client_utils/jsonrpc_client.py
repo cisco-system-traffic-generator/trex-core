@@ -389,4 +389,60 @@ class TrexStatelessClient(JsonRpcClient):
 
         return rc, resp_list
 
-   
+    # snapshot will take a snapshot of all your owned ports for streams and etc.
+    def snapshot(self):
+        
+
+        if len(self.get_owned_ports()) == 0:
+            return {}
+
+        snap = {}
+
+        batch = self.create_batch()
+        
+        for port_id in self.get_owned_ports():
+
+            batch.add("get_port_stats", params = {"port_id": port_id, "handler": self.port_handlers[port_id]})
+            batch.add("get_stream_list", params = {"port_id": port_id, "handler": self.port_handlers[port_id]})
+
+        rc, resp_list = batch.invoke()
+        if not rc:
+            return rc, resp_list
+
+        # split the list to 2s
+        index = 0
+        for port_id in self.get_owned_ports():
+            if not resp_list[index] or not resp_list[index + 1]:
+                snap[port_id] = None
+                continue
+
+            # fetch the first two
+            stats = resp_list[index][1]
+            stream_list = resp_list[index + 1][1]
+           
+            port = {}
+            port['status'] = stats['status']
+            port['stream_list'] = []
+
+            # get all the streams
+            if len(stream_list) > 0:
+                batch = self.create_batch()
+                for stream_id in stream_list:
+                    batch.add("get_stream", params = {"port_id": port_id, "stream_id": stream_id, "handler": self.port_handlers[port_id]})
+
+                rc, stream_resp_list = batch.invoke()
+                if not rc:
+                    port = {}
+
+                port['streams'] = {}
+                for i, resp in enumerate(stream_resp_list):
+                    if resp[0]:
+                        port['streams'][stream_list[i]] = resp[1]
+
+            snap[port_id] = port
+
+            # move to next one
+            index += 2
+
+
+        return snap

@@ -235,6 +235,26 @@ class SinglePortPanel(TrexStatusPanel):
         self.getwin().addstr(y, 2, "Streams:", curses.A_UNDERLINE)
         y += 2
 
+        # stream table header 
+        self.getwin().addstr(y, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+            "Stream ID", "Enabled", "Type", "Self Start", "ISG", "Next Stream", "VM"))
+        y += 2
+
+        # streams
+        if 'streams' in self.status_obj.snapshot[self.port_id]:
+            for stream_id, stream in self.status_obj.snapshot[self.port_id]['streams'].iteritems():
+                self.getwin().addstr(y, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+                    stream_id,
+                    ("True" if stream['stream']['enabled'] else "False"),
+                    stream['stream']['mode']['type'],
+                    ("True" if stream['stream']['self_start'] else "False"),
+                    stream['stream']['isg'],
+                    (stream['stream']['next_stream_id'] if stream['stream']['next_stream_id'] != -1 else "None"),
+                    ("{0} instr.".format(len(stream['stream']['vm'])) if stream['stream']['vm'] else "None")))
+
+                y += 1
+
+        # new section - traffic
         y += 2
 
         self.getwin().addstr(y, 2, "Traffic:", curses.A_UNDERLINE)
@@ -278,6 +298,8 @@ class TrexStatus():
         self.stdscr = stdscr
         self.log = []
         self.rpc_client = rpc_client
+
+        self.snapshot = self.rpc_client.snapshot()
 
         # fetch server info
         self.get_server_info()
