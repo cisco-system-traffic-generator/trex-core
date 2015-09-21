@@ -13,7 +13,6 @@ import time
 import socket
 import errno
 
-
 class InteractiveTRexClient(cmd.Cmd):
 
     intro = termstyle.green("\nInteractive shell to play with Cisco's T-Rex API.\nType help to view available pre-defined scenarios\n(c) All rights reserved.\n")

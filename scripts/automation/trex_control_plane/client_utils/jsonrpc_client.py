@@ -91,24 +91,23 @@ class JsonRpcClient(object):
     def create_batch (self):
         return BatchMessage(self)
 
-    def create_jsonrpc_v2 (self, method_name, params = {}, id = None):
+    def create_jsonrpc_v2 (self, method_name, params = {}):
         msg = {}
         msg["jsonrpc"] = "2.0"
         msg["method"]  = method_name
 
         msg["params"] = params
 
-        msg["id"] = id
+        msg["id"] = self.id_gen.next()
 
-        return msg
+        return id, json.dumps(msg)
 
 
     def invoke_rpc_method (self, method_name, params = {}, block = False):
         if not self.connected:
             return False, "Not connected to server"
 
-        id = self.id_gen.next()
-        msg = self.create_jsonrpc_v2(method_name, params, id = id)
+        id, msg = self.create_jsonrpc_v2(method_name, params)
 
         msg = json.dumps(msg)
         return self.send_raw_msg(msg, block)
@@ -239,7 +238,8 @@ class JsonRpcClient(object):
 
     def __del__(self):
         print "Shutting down RPC client\n"
-        self.context.destroy(linger=0)
+        if hasattr(self, "context"):
+            self.context.destroy(linger=0)
 
 # MOVE THIS TO DAN'S FILE
 class TrexStatelessClient(JsonRpcClient):
