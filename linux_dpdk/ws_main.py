@@ -747,7 +747,8 @@ files_list=[
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
             'doc_process.py',
-            'trex_daemon_server'
+            'trex_daemon_server',
+            'trex-console'
             ];
 
 files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib']
