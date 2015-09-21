@@ -11,13 +11,21 @@ import datetime
 
 g_curses_active = False
 
-#
+# simple percetange show
 def percentage (a, total):
     x = int ((float(a) / total) * 100)
     return str(x) + "%"
 
+# simple float to human readable
+def float_to_human_readable (size, suffix = "bps"):
+    for unit in ['','K','M','G']:
+        if abs(size) < 1024.0:
+            return "%3.1f %s%s" % (size, unit, suffix)
+        size /= 1024.0
+    return "NaN"
+
 # panel object
-class TrexStatusPanel():
+class TrexStatusPanel(object):
     def __init__ (self, h, l, y, x, headline):
         self.h = h
         self.l = l
@@ -43,13 +51,6 @@ class TrexStatusPanel():
 
     def getwin (self):
         return self.win
-
-def float_to_human_readable (size, suffix = "bps"):
-    for unit in ['','K','M','G']:
-        if abs(size) < 1024.0:
-            return "%3.1f %s%s" % (size, unit, suffix)
-        size /= 1024.0
-    return "NaN"
 
 
 # total stats (ports + global)
@@ -90,115 +91,87 @@ class Stats():
                 self.port_stats[self.port_list[i]] = rc[1]
 
 
+# various kinds of panels
 
-# status object
-class TrexStatus():
-    def __init__ (self, stdscr, rpc_client):
-        self.stdscr = stdscr
-        self.log = []
-        self.rpc_client = rpc_client
+# Server Info Panel
+class ServerInfoPanel(TrexStatusPanel):
+    def __init__ (self, h, l, y, x, status_obj):
 
-        self.get_server_info()
+        super(ServerInfoPanel, self).__init__(h, l, y ,x ,"Server Info:")
 
-        self.stats = Stats(rpc_client, self.rpc_client.get_owned_ports())
+        self.status_obj = status_obj
 
-        self.actions = {}
-        self.actions[ord('q')] = self.action_quit
-        self.actions[ord('p')] = self.action_ping
+    def draw (self):
 
-    def action_quit(self):
-        return False
-
-    def action_ping (self):
-        self.add_log_event("Pinging RPC server")
-        rc, msg = self.rpc_client.ping_rpc_server()
-        if rc:
-            self.add_log_event("Server replied: '{0}'".format(msg))
-        else:
-            self.add_log_event("Failed to get reply")
-        return True
-
-    def get_server_info (self):
-        rc, msg = self.rpc_client.get_rpc_server_version()
-
-        if rc:
-            self.server_version = msg
-        else:
-            self.server_version = None
-
-        rc, msg = self.rpc_client.get_system_info()
-
-        if rc:
-            self.server_sys_info = msg
-        else:
-            self.server_sys_info = None
-
-
-    def add_log_event (self, msg):
-        self.log.append("[{0}] {1}".format(str(datetime.datetime.now().time()), msg))
-
-    def add_panel (self, h, l, y, x, headline):
-         win = curses.newwin(h, l, y, x)
-         win.erase()
-         win.box()
-
-         win.addstr(1, 2, headline)
-         win.refresh()
-
-         panel.new_panel(win)
-         panel1 = panel.new_panel(win)
-         panel1.top()
-
-         return win, panel1
-
-    # static info panel
-    def update_info (self):
-        if self.server_version == None:
+        if self.status_obj.server_version == None:
             return
 
-        self.info_panel.clear()
+        self.clear()
 
-        connection_details = self.rpc_client.get_connection_details()
+        connection_details = self.status_obj.rpc_client.get_connection_details()
 
-        self.info_panel.getwin().addstr(3, 2, "{:<30} {:30}".format("Server:",self.server_sys_info["hostname"] + ":" + str(connection_details['port'])))
-        self.info_panel.getwin().addstr(4, 2, "{:<30} {:30}".format("Version:", self.server_version["version"]))
-        self.info_panel.getwin().addstr(5, 2, "{:<30} {:30}".format("Build:", 
-                                                                    self.server_version["build_date"] + " @ " + self.server_version["build_time"] + " by " + self.server_version["built_by"]))
+        self.getwin().addstr(3, 2, "{:<30} {:30}".format("Server:",self.status_obj.server_sys_info["hostname"] + ":" + str(connection_details['port'])))
+        self.getwin().addstr(4, 2, "{:<30} {:30}".format("Version:", self.status_obj.server_version["version"]))
+        self.getwin().addstr(5, 2, "{:<30} {:30}".format("Build:", 
+                                                                    self.status_obj.server_version["build_date"] + " @ " + 
+                                                                    self.status_obj.server_version["build_time"] + " by " + 
+                                                                    self.status_obj.server_version["built_by"]))
 
-        self.info_panel.getwin().addstr(6, 2, "{:<30} {:30}".format("Server Uptime:", self.server_sys_info["uptime"]))
-        self.info_panel.getwin().addstr(7, 2, "{:<30} {:<3} / {:<30}".format("DP Cores:", str(self.server_sys_info["dp_core_count"]) + " cores", self.server_sys_info["core_type"]))
-        self.info_panel.getwin().addstr(9, 2, "{:<30} {:<30}".format("Ports Count:", self.server_sys_info["port_count"]))
+        self.getwin().addstr(6, 2, "{:<30} {:30}".format("Server Uptime:", self.status_obj.server_sys_info["uptime"]))
+        self.getwin().addstr(7, 2, "{:<30} {:<3} / {:<30}".format("DP Cores:", str(self.status_obj.server_sys_info["dp_core_count"]) + 
+                                                                  " cores", self.status_obj.server_sys_info["core_type"]))
 
-        ports_owned = " ".join(str(x) for x in self.rpc_client.get_owned_ports())
+        self.getwin().addstr(9, 2, "{:<30} {:<30}".format("Ports Count:", self.status_obj.server_sys_info["port_count"]))
+
+        ports_owned = " ".join(str(x) for x in self.status_obj.rpc_client.get_owned_ports())
+
         if not ports_owned:
             ports_owned = "None"
-        self.info_panel.getwin().addstr(10, 2, "{:<30} {:<30}".format("Ports Owned:", ports_owned))
 
+        self.getwin().addstr(10, 2, "{:<30} {:<30}".format("Ports Owned:", ports_owned))
 
-    # general stats
-    def update_ports_stats (self):
+# general info panel
+class GeneralInfoPanel(TrexStatusPanel):
+    def __init__ (self, h, l, y, x, status_obj):
 
-        self.ports_stats_panel.clear()
+        super(GeneralInfoPanel, self).__init__(h, l, y ,x ,"General Info:")
 
-        owned_ports = self.rpc_client.get_owned_ports()
+        self.status_obj = status_obj
+
+    def draw (self):
+        pass
+
+# all ports stats
+class PortsStatsPanel(TrexStatusPanel):
+    def __init__ (self, h, l, y, x, status_obj):
+
+        super(PortsStatsPanel, self).__init__(h, l, y ,x ,"Trex Ports:")
+
+        self.status_obj = status_obj
+
+    def draw (self):
+
+        self.clear()
+
+        owned_ports = self.status_obj.rpc_client.get_owned_ports()
         if not owned_ports:
-            self.ports_stats_panel.getwin().addstr(3, 2, "No Owned Ports - Please Acquire One Or More Ports")
+            self.getwin().addstr(3, 2, "No Owned Ports - Please Acquire One Or More Ports")
             return
 
         # table header 
-        self.ports_stats_panel.getwin().addstr(3, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+        self.getwin().addstr(3, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
             "Port ID", "Tx [pps]", "Tx [bps]", "Tx [bytes]", "Rx [pps]", "Rx [bps]", "Rx [bytes]"))
 
         # port loop
-        self.stats.query_sync()
+        self.status_obj.stats.query_sync()
 
         for i, port_index in enumerate(owned_ports):
 
-            port_stats = self.stats.get_port_stats(port_index)
+            port_stats = self.status_obj.stats.get_port_stats(port_index)
 
             if port_stats:
-                self.ports_stats_panel.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,}".format(
-                    "{0} ({1})".format(str(port_index), self.server_sys_info["ports"][port_index]["speed"]),
+                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,}".format(
+                    "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
                     port_stats["tx_pps"],
                     port_stats["tx_bps"],
                     port_stats["total_tx_bytes"],
@@ -207,14 +180,168 @@ class TrexStatus():
                     port_stats["total_rx_bytes"]))
 
             else:
-                self.ports_stats_panel.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
-                    "{0} ({1})".format(str(port_index), self.server_sys_info["ports"][port_index]["speed"]),
+                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+                    "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
                     "N/A",
                     "N/A",
                     "N/A",
                     "N/A",
                     "N/A",
                     "N/A"))
+
+# control panel
+class ControlPanel(TrexStatusPanel):
+    def __init__ (self, h, l, y, x, status_obj):
+
+        super(ControlPanel, self).__init__(h, l, y, x, "")
+
+        self.status_obj = status_obj
+
+    def draw (self):
+        self.clear()
+
+        self.getwin().addstr(1, 2, "'g' - general, '0-{0}' - specific port, 'f' - freeze, 'c' - clear stats, 'p' - ping server, 'q' - quit"
+                             .format(self.status_obj.rpc_client.get_port_count() - 1))
+
+        index = 3
+
+        cut = len(self.status_obj.log) - 4
+        if cut < 0:
+            cut = 0
+
+        for l in self.status_obj.log[cut:]:
+            self.getwin().addstr(index, 2, l)
+            index += 1
+
+# specific ports panels
+class SinglePortPanel(TrexStatusPanel):
+    def __init__ (self, h, l, y, x, status_obj, port_id):
+
+        super(SinglePortPanel, self).__init__(h, l, y, x, "Port {0}".format(port_id))
+
+        self.status_obj = status_obj
+        self.port_id = port_id
+
+    def draw (self):
+        y = 3
+
+        self.clear()
+
+        if not self.port_id in self.status_obj.rpc_client.get_owned_ports():
+             self.getwin().addstr(y, 2, "Port {0} is not owned by you, please acquire the port for more info".format(self.port_id))
+             return
+
+        # streams
+        self.getwin().addstr(y, 2, "Streams:", curses.A_UNDERLINE)
+        y += 2
+
+        y += 2
+
+        self.getwin().addstr(y, 2, "Traffic:", curses.A_UNDERLINE)
+        y += 2
+
+        self.status_obj.stats.query_sync()
+        port_stats = self.status_obj.stats.get_port_stats(self.port_id)
+
+
+        # table header 
+        self.getwin().addstr(y, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+            "Port ID", "Tx [pps]", "Tx [bps]", "Tx [bytes]", "Rx [pps]", "Rx [bps]", "Rx [bytes]"))
+
+        y += 2
+
+        if port_stats:
+                self.getwin().addstr(y, 2, "{:^15} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,}".format(
+                    "{0} ({1})".format(str(self.port_id), self.status_obj.server_sys_info["ports"][self.port_id]["speed"]),
+                    port_stats["tx_pps"],
+                    port_stats["tx_bps"],
+                    port_stats["total_tx_bytes"],
+                    port_stats["rx_pps"],
+                    port_stats["rx_bps"],
+                    port_stats["total_rx_bytes"]))
+
+        else:
+            self.getwin().addstr(y, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+                "{0} ({1})".format(str(self.port_id), self.status_obj.server_sys_info["ports"][self.port_id]["speed"]),
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A"))
+
+        y += 2
+
+# status object
+class TrexStatus():
+    def __init__ (self, stdscr, rpc_client):
+        self.stdscr = stdscr
+        self.log = []
+        self.rpc_client = rpc_client
+
+        # fetch server info
+        self.get_server_info()
+
+        # create stats objects
+        self.stats = Stats(rpc_client, self.rpc_client.get_owned_ports())
+
+        # register actions
+        self.actions = {}
+        self.actions[ord('q')] = self.action_quit
+        self.actions[ord('p')] = self.action_ping
+        self.actions[ord('f')] = self.action_freeze 
+
+        self.actions[ord('g')] = self.action_show_ports_stats
+
+        for port_id in xrange(0, self.rpc_client.get_port_count()):
+            self.actions[ord('0') + port_id] = self.action_show_port_generator(port_id)
+
+        
+    # all ports stats
+    def action_show_ports_stats (self):
+        self.add_log_event("Switching to all ports view")
+        self.stats_panel = self.ports_stats_panel
+        
+        return True
+
+    # function generator for different ports requests
+    def action_show_port_generator (self, port_id):
+        def action_show_port():
+            self.add_log_event("Switching panel to port {0}".format(port_id))
+            self.stats_panel = self.ports_panels[port_id]
+
+            return True
+
+        return action_show_port
+
+    def action_freeze (self):
+        self.update_active = not self.update_active
+        self.add_log_event("Update continued" if self.update_active else "Update stopped")
+
+        return True
+
+    def action_quit(self):
+        return False
+
+    def action_ping (self):
+        self.add_log_event("Pinging RPC server")
+
+        rc, msg = self.rpc_client.ping_rpc_server()
+        if rc:
+            self.add_log_event("Server replied: '{0}'".format(msg))
+        else:
+            self.add_log_event("Failed to get reply")
+
+        return True
+
+    def get_server_info (self):
+
+        self.server_version = self.rpc_client.get_rpc_server_version()
+        self.server_sys_info = self.rpc_client.get_system_info()
+
+
+    def add_log_event (self, msg):
+        self.log.append("[{0}] {1}".format(str(datetime.datetime.now().time()), msg))
 
     # control panel
     def update_control (self):
@@ -237,16 +364,24 @@ class TrexStatus():
         self.max_y = self.stdscr.getmaxyx()[0]
         self.max_x = self.stdscr.getmaxyx()[1]
 
-        # create cls panel
-        self.ports_stats_panel = TrexStatusPanel(int(self.max_y * 0.8), self.max_x / 2, 0,0, "Trex Ports:")
+        self.server_info_panel    = ServerInfoPanel(int(self.max_y * 0.3), self.max_x / 2, int(self.max_y * 0.5), self.max_x /2, self)
+        self.general_info_panel   = GeneralInfoPanel(int(self.max_y * 0.5), self.max_x / 2, 0, self.max_x /2, self)
+        self.control_panel        = ControlPanel(int(self.max_y * 0.2), self.max_x , int(self.max_y * 0.8), 0, self)
 
-        self.general_panel = TrexStatusPanel(int(self.max_y * 0.5), self.max_x / 2, 0, self.max_x /2, "General Statistics:")
+        # those can be switched on the same place 
+        self.ports_stats_panel    = PortsStatsPanel(int(self.max_y * 0.8), self.max_x / 2, 0, 0, self)
 
-        self.info_panel    = TrexStatusPanel(int(self.max_y * 0.3), self.max_x / 2, int(self.max_y * 0.5), self.max_x /2, "Server Info:")
+        self.ports_panels = {}
+        for i in xrange(0, self.rpc_client.get_port_count()):
+            self.ports_panels[i] = SinglePortPanel(int(self.max_y * 0.8), self.max_x / 2, 0, 0, self, i)
 
-        self.control_panel = TrexStatusPanel(int(self.max_y * 0.2), self.max_x , int(self.max_y * 0.8), 0, "")
+        # at start time we point to the main one 
+        self.stats_panel = self.ports_stats_panel
+        self.stats_panel.panel.top()
 
         panel.update_panels(); self.stdscr.refresh()
+        return 
+
 
     def wait_for_key_input (self):
         ch = self.stdscr.getch()
@@ -260,31 +395,6 @@ class TrexStatus():
             return self.actions[ch]()
         else:
             self.add_log_event("Unknown key pressed, please see legend")
-
-        return True
-
-        if (ch != curses.ERR):
-            # stop/start status
-            if (ch == ord('f')):
-                self.update_active = not self.update_active
-                self.add_log_event("Update continued" if self.update_active else "Update stopped")
-
-            elif (ch == ord('p')):
-                self.add_log_event("Pinging RPC server")
-                rc, msg = self.rpc_client.ping_rpc_server()
-                if rc:
-                    self.add_log_event("Server replied: '{0}'".format(msg))
-                else:
-                    self.add_log_event("Failed to get reply")
-
-            # c - clear stats
-            elif (ch == ord('c')):
-                self.add_log_event("Statistics cleared")
-
-            elif (ch == ord('q')):
-                return False
-            else:
-                self.add_log_event("Unknown key pressed, please see legend")
 
         return True
 
@@ -309,9 +419,13 @@ class TrexStatus():
             if not rc:
                 break
 
-            self.update_control()
-            self.update_info()
-            self.update_ports_stats()
+            self.server_info_panel.draw()
+            self.general_info_panel.draw()
+            self.control_panel.draw()
+
+            # can be different kinds of panels
+            self.stats_panel.panel.top()
+            self.stats_panel.draw()
 
             panel.update_panels(); 
             self.stdscr.refresh()

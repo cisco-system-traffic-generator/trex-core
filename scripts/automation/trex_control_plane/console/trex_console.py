@@ -131,9 +131,26 @@ class TrexConsole(cmd.Cmd):
     def do_release (self, line):
         '''Release ports\n'''
 
-        port_list = self.parse_ports_from_line(line)
+        if line:
+            port_list = self.parse_ports_from_line(line)
+        else:
+            port_list = self.rpc_client.get_owned_ports()
+
         if not port_list:
             return
+
+        rc, resp_list = self.rpc_client.release_ports(port_list)
+
+
+        print "\n"
+
+        for i, rc in enumerate(resp_list):
+            if rc[0]:
+                print "Port {0} - Released".format(port_list[i])
+            else:
+                print "Port {0} - Failed to release port, probably not owned by you or port is under traffic"
+
+        print "\n"
 
     def do_get_port_stats (self, line):
         '''Get ports stats\n'''
@@ -176,9 +193,7 @@ class TrexConsole(cmd.Cmd):
             print "\n*** " + msg + "\n"
             return
 
-        rc, msg = self.rpc_client.get_supported_cmds()
-        if rc:
-            self.supported_rpc = [str(x) for x in msg if x]
+        self.supported_rpc = self.rpc_client.get_supported_cmds()
 
     def do_rpc (self, line):
         '''Launches a RPC on the server\n'''

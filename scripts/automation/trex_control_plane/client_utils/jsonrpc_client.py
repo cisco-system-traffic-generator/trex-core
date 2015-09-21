@@ -250,7 +250,11 @@ class TrexStatelessClient(JsonRpcClient):
 
         self.user = user
         self.port_handlers = {}
-        self.system_info = None
+
+        self.supported_cmds  = []
+        self.system_info     = None
+        self.server_version  = None
+        
 
     def whoami (self):
         return self.user
@@ -260,13 +264,13 @@ class TrexStatelessClient(JsonRpcClient):
         return self.invoke_rpc_method("ping", block = False)
 
     def get_rpc_server_version (self):
-        return self.invoke_rpc_method("get_version")
+        return self.server_version
 
     def get_system_info (self):
-        return self.invoke_rpc_method("get_system_info")
+        return self.system_info
 
     def get_supported_cmds(self):
-        return self.invoke_rpc_method("get_supported_cmds")
+        return self.supported_cmds
 
     def get_port_count (self):
         if not self.system_info:
@@ -274,27 +278,27 @@ class TrexStatelessClient(JsonRpcClient):
 
         return self.system_info["port_count"]
 
-    def connect (self):
-        rc, err = super(TrexStatelessClient, self).connect()
-        if not rc:
-            return rc, err
+    # refresh the client for transient data
+    def refresh (self):
 
-        # ping the server
-        rc, msg = self.ping_rpc_server()
+        # get server versionrc, msg = self.get_supported_cmds()
+        rc, msg = self.invoke_rpc_method("get_version")
         if not rc:
             self.disconnect()
             return rc, msg
+
+        self.server_version = msg
 
         # get supported commands
-        rc, msg = self.get_supported_cmds()
+        rc, msg = self.invoke_rpc_method("get_supported_cmds")
         if not rc:
             self.disconnect()
             return rc, msg
 
-        self.supported_rpc = [str(x) for x in msg if x]
+        self.supported_cmds = [str(x) for x in msg if x]
 
         # get system info
-        rc, msg = self.get_system_info()
+        rc, msg = self.invoke_rpc_method("get_system_info")
         if not rc:
             self.disconnect()
             return rc, msg
@@ -302,6 +306,14 @@ class TrexStatelessClient(JsonRpcClient):
         self.system_info = msg
 
         return True, ""
+
+    def connect (self):
+        rc, err = super(TrexStatelessClient, self).connect()
+        if not rc:
+            return rc, err
+
+        return self.refresh()
+
 
     # take ownership over ports
     def take_ownership (self, port_id_array, force = False):
@@ -323,6 +335,30 @@ class TrexStatelessClient(JsonRpcClient):
 
         return True, resp_list
 
+
+    def release_ports (self, port_id_array):
+        batch = self.create_batch()
+
+        for port_id in port_id_array:
+
+            # let the server handle un-acquired errors
+            if self.port_handlers.get(port_id):
+                handler = self.port_handlers[port_id]
+            else:
+                handler = ""
+
+            batch.add("release", params = {"port_id":port_id, "handler":handler})
+
+
+        rc, resp_list = batch.invoke()
+        if not rc:
+            return rc, resp_list
+
+        for i, rc in enumerate(resp_list):
+            if rc[0]:
+                self.port_handlers.pop(port_id_array[i])
+
+        return True, resp_list
 
     def get_owned_ports (self):
         return self.port_handlers.keys()
@@ -353,3 +389,4 @@ class TrexStatelessClient(JsonRpcClient):
 
         return rc, resp_list
 
+   
