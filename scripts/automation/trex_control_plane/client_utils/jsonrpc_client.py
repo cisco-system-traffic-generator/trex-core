@@ -17,13 +17,38 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+# sub class to describe a batch
+class BatchMessage(object):
+    def __init__ (self, rpc_client):
+        self.rpc_client = rpc_client
+        self.batch_list = []
 
+    def add (self, method_name, params = {}):
+
+        id = self.rpc_client.id_gen.next()
+        msg = self.rpc_client.create_jsonrpc_v2(method_name, params, id)
+        self.batch_list.append(msg)
+
+    def invoke (self, block = False):
+        if not self.rpc_client.connected:
+            return False, "Not connected to server"
+
+        msg = json.dumps(self.batch_list)
+
+        rc, resp_list = self.rpc_client.send_raw_msg(msg, block = False)
+        if len(self.batch_list) == 1:
+            return True, [(rc, resp_list)]
+        else:
+            return rc, resp_list
+
+
+# JSON RPC v2.0 client
 class JsonRpcClient(object):
 
     def __init__ (self, default_server, default_port):
         self.verbose = False
         self.connected = False
-
+        
         # default values
         self.port   = default_port
         self.server = default_server
@@ -63,6 +88,9 @@ class JsonRpcClient(object):
         print "[verbose] " + msg
 
 
+    def create_batch (self):
+        return BatchMessage(self)
+
     def create_jsonrpc_v2 (self, method_name, params = {}, id = None):
         msg = {}
         msg["jsonrpc"] = "2.0"
@@ -72,22 +100,21 @@ class JsonRpcClient(object):
 
         msg["id"] = id
 
-        return json.dumps(msg)
+        return msg
+
 
     def invoke_rpc_method (self, method_name, params = {}, block = False):
-        rc, msg = self._invoke_rpc_method(method_name, params, block)
-        if not rc:
-            self.disconnect()
-
-        return rc, msg
-
-    def _invoke_rpc_method (self, method_name, params = {}, block = False):
         if not self.connected:
             return False, "Not connected to server"
 
         id = self.id_gen.next()
         msg = self.create_jsonrpc_v2(method_name, params, id = id)
 
+        msg = json.dumps(msg)
+        return self.send_raw_msg(msg, block)
+
+    
+    def send_raw_msg (self, msg, block = False):
         self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
         if block:
@@ -96,6 +123,7 @@ class JsonRpcClient(object):
             try:
                 self.socket.send(msg, flags = zmq.NOBLOCK)
             except zmq.error.ZMQError as e:
+                self.disconnect()
                 return False, "Failed To Get Send Message"
 
         got_response = False
@@ -113,22 +141,41 @@ class JsonRpcClient(object):
                     sleep(0.2)
 
         if not got_response:
+            self.disconnect()
             return False, "Failed To Get Server Response"
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
 
         # decode
+
+        # batch ?
         response_json = json.loads(response)
+
+        if isinstance(response_json, list):
+            rc_list = []
+
+            for single_response in response_json:
+                rc, msg = self.process_single_response(single_response)
+                rc_list.append( (rc, msg) )
+
+            return True, rc_list
+
+        else:
+            rc, msg = self.process_single_response(response_json)
+            return rc, msg
+
+
+    def process_single_response (self, response_json):
 
         if (response_json.get("jsonrpc") != "2.0"):
             return False, "Malfromed Response ({0})".format(str(response))
 
-        if (response_json.get("id") != id):
-            return False, "Server Replied With Bad ID ({0})".format(str(response))
-
         # error reported by server
         if ("error" in response_json):
-            return True, response_json["error"]["message"]
+            if "specific_err" in response_json["error"]:
+                return False, response_json["error"]["specific_err"]
+            else:
+                return False, response_json["error"]["message"]
 
         # if no error there should be a result
         if ("result" not in response_json):
@@ -137,17 +184,7 @@ class JsonRpcClient(object):
         return True, response_json["result"]
 
 
-    def ping_rpc_server(self):
-
-        return self.invoke_rpc_method("ping", block = False)
-
-    def get_rpc_server_status (self):
-        return self.invoke_rpc_method("get_status")
-
-    def query_rpc_server(self):
-        return self.invoke_rpc_method("get_supported_cmds")
-
-
+  
     def set_verbose(self, mode):
         self.verbose = mode
 
@@ -183,12 +220,6 @@ class JsonRpcClient(object):
 
         self.connected = True
 
-        # ping the server
-        rc, err = self.ping_rpc_server()
-        if not rc:
-            self.disconnect()
-            return rc, err
-
         return True, ""
 
 
@@ -206,10 +237,119 @@ class JsonRpcClient(object):
     def is_connected(self):
         return self.connected
 
-
     def __del__(self):
         print "Shutting down RPC client\n"
         self.context.destroy(linger=0)
 
-if __name__ == "__main__":
-    pass
+# MOVE THIS TO DAN'S FILE
+class TrexStatelessClient(JsonRpcClient):
+
+    def __init__ (self, server, port, user):
+
+        super(TrexStatelessClient, self).__init__(server, port)
+
+        self.user = user
+        self.port_handlers = {}
+        self.system_info = None
+
+    def whoami (self):
+        return self.user
+
+    def ping_rpc_server(self):
+
+        return self.invoke_rpc_method("ping", block = False)
+
+    def get_rpc_server_version (self):
+        return self.invoke_rpc_method("get_version")
+
+    def get_system_info (self):
+        return self.invoke_rpc_method("get_system_info")
+
+    def get_supported_cmds(self):
+        return self.invoke_rpc_method("get_supported_cmds")
+
+    def get_port_count (self):
+        if not self.system_info:
+            return 0
+
+        return self.system_info["port_count"]
+
+    def connect (self):
+        rc, err = super(TrexStatelessClient, self).connect()
+        if not rc:
+            return rc, err
+
+        # ping the server
+        rc, msg = self.ping_rpc_server()
+        if not rc:
+            self.disconnect()
+            return rc, msg
+
+        # get supported commands
+        rc, msg = self.get_supported_cmds()
+        if not rc:
+            self.disconnect()
+            return rc, msg
+
+        self.supported_rpc = [str(x) for x in msg if x]
+
+        # get system info
+        rc, msg = self.get_system_info()
+        if not rc:
+            self.disconnect()
+            return rc, msg
+
+        self.system_info = msg
+
+        return True, ""
+
+    # take ownership over ports
+    def take_ownership (self, port_id_array, force = False):
+        if not self.connected:
+            return False, "Not connected to server"
+
+        batch = self.create_batch()
+
+        for port_id in port_id_array:
+            batch.add("acquire", params = {"port_id":port_id, "user":self.user, "force":force})
+
+        rc, resp_list = batch.invoke()
+        if not rc:
+            return rc, resp_list
+
+        for i, rc in enumerate(resp_list):
+            if rc[0]:
+                self.port_handlers[port_id_array[i]] = rc[1]
+
+        return True, resp_list
+
+
+    def get_owned_ports (self):
+        return self.port_handlers.keys()
+
+    # fetch port stats
+    def get_port_stats (self, port_id_array):
+        if not self.connected:
+            return False, "Not connected to server"
+
+        batch = self.create_batch()
+
+        # empty list means all
+        if port_id_array == []:
+            port_id_array = list([x for x in xrange(0, self.system_info["port_count"])])
+
+        for port_id in port_id_array:
+
+            # let the server handle un-acquired errors
+            if self.port_handlers.get(port_id):
+                handler = self.port_handlers[port_id]
+            else:
+                handler = ""
+
+            batch.add("get_port_stats", params = {"port_id":port_id, "handler":handler})
+
+
+        rc, resp_list = batch.invoke()
+
+        return rc, resp_list
+
