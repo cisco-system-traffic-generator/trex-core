@@ -33,10 +33,10 @@ class CTRexStatelessClient(object):
     class CStream(object):
         """docstring for CStream"""
         def __init__(self):
-            super(CStream, self).__init__()
+            super(CTRexStatelessClient.CStream, self).__init__()
             self.packet = CTRexPktBuilder()
-            self.rx_stats = CRxStats()
-            self.mode = CTxMode()
+            self.rx_stats = CTRexStatelessClient.CRxStats()
+            self.mode = CTRexStatelessClient.CTxMode()
             self.isg
             self._next_stream = -1
             self._self_start
@@ -54,7 +54,7 @@ class CTRexStatelessClient(object):
         def self_start(self):
             return self._self_start
 
-        @enabled.setter
+        @self_start.setter
         def self_start(self, bool_value):
             self._self_start = bool(bool_value)
 
@@ -62,7 +62,7 @@ class CTRexStatelessClient(object):
         def next_stream(self):
             return self._next_stream
 
-        @enabled.setter
+        @next_stream.setter
         def next_stream(self, value):
             self._next_stream = int(bool_value)
 
@@ -75,7 +75,7 @@ class CTRexStatelessClient(object):
                     "packet":self.packet.dump_pkt(),
                     "mode":self.mode.dump(),
                     "vm":self.packet.dump_vm_instructions(),  # TODO - add this method to packet builder module
-                    "rx_stats":self.rx_stats.dump()})
+                    "rx_stats":self.rx_stats.dump()}
 
     class CRxStats(object):
 
@@ -112,7 +112,7 @@ class CTRexStatelessClient(object):
             return {k:v
                     for k,v in self._rx_dict.items()
                     if v
-                    })
+                    }
 
     class CTxMode(object):
         """docstring for CTxMode"""

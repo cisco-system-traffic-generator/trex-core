@@ -1,6 +1,5 @@
 #!/router/bin/python
 
-
 import outer_packages
 import dpkt
 import socket
@@ -10,6 +9,7 @@ import random
 import string
 import struct
 import re
+from abc import ABCMeta, abstractmethod
 
 
 class CTRexPktBuilder(object):
@@ -30,7 +30,7 @@ class CTRexPktBuilder(object):
         self._pkt_by_hdr = {}
         self._pkt_top_layer = None
         self._max_pkt_size = max_pkt_size
-        self.payload_generator = CTRexPktBuilder.CTRexPayloadGen(self._packet, self._max_pkt_size)
+        self.payload_gen = CTRexPktBuilder.CTRexPayloadGen(self._packet, self._max_pkt_size)
         self.vm = CTRexPktBuilder.CTRexVM()
 
     def add_pkt_layer(self, layer_name, pkt_layer):
@@ -341,6 +341,9 @@ class CTRexPktBuilder(object):
             if self._pkt_by_hdr[layer] is layer_obj:
                 return layer
 
+    def _calc_offset(self, layer_name, hdr_field):
+        pass
+
     @staticmethod
     def _decode_mac_addr(mac_addr):
         """
@@ -457,6 +460,8 @@ class CTRexPktBuilder(object):
             """
             super(CTRexPktBuilder.CTRexVM, self).__init__()
             self.vm_variables = {}
+            self.vm_inst_by_offset = {}
+            # self.vm_inst_offsets = []
 
         def set_vm_var_field(self, var_name, field_name, val):
             """
@@ -478,7 +483,7 @@ class CTRexPktBuilder(object):
             """
             return self.vm_variables[var_name].set_field(field_name, val)
 
-        def add_flow_man_simple(self, name, **kwargs):
+        def add_flow_man_inst(self, name, **kwargs):
             """
             Adds a new flow manipulation object to the VM instance.
 
@@ -500,12 +505,18 @@ class CTRexPktBuilder(object):
                   Will rise when VM variables were misconfiguration.
             """
             if name not in self.vm_variables.keys():
-                self.vm_variables[name] = self.CTRexVMVariable(name)
+                self.vm_variables[name] = self.CTRexVMFlowVariable(name)
                 # try configuring VM var attributes
                 for (field, value) in kwargs.items():
                     self.vm_variables[name].set_field(field, value)
             else:
                 raise CTRexPktBuilder.VMVarNameExistsError(name)
+
+        def add_checksum_inst(self, linked_ip_layer):
+            pass
+
+        def add_write_flow_inst(self):
+            pass
 
         def load_flow_man(self, flow_obj):
             """
@@ -520,7 +531,7 @@ class CTRexPktBuilder(object):
                 list holds variables data of VM
 
             """
-            assert isinstance(flow_obj, CTRexPktBuilder.CTRexVM.CTRexVMVariable)
+            assert isinstance(flow_obj, CTRexPktBuilder.CTRexVM.CTRexVMFlowVariable)
             if flow_obj.name not in self.vm_variables.keys():
                 self.vm_variables[flow_obj.name] = flow_obj
             else:
@@ -540,7 +551,30 @@ class CTRexPktBuilder(object):
             return [var.dump()
                     for key, var in self.vm_variables.items()]
 
-        class CTRexVMVariable(object):
+        class CVMAbstractInstruction(object):
+            __metaclass__ = ABCMeta
+
+            def __init__(self, name):
+                """
+                Instantiate a CTRexVMVariable object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CVMAbstractInstruction, self).__init__()
+                self.name = name
+
+            def set_field(self, field_name, val):
+                if not hasattr(self, field_name):
+                    raise CTRexPktBuilder.VMFieldNameError(field_name)
+                setattr(self, field_name, val)
+
+            @abstractmethod
+            def dump(self):
+                pass
+
+        class CTRexVMFlowVariable(CVMAbstractInstruction):
             """
             This class defines a single VM variable to be used as part of CTRexVar object.
             """
@@ -555,12 +589,12 @@ class CTRexPktBuilder(object):
                     name : str
                         a string representing the name of the VM variable.
                 """
-                super(CTRexPktBuilder.CTRexVM.CTRexVMVariable, self).__init__()
-                self.name = name
+                super(CTRexPktBuilder.CTRexVM.CTRexVMFlowVariable, self).__init__(name)
+                # self.name = name
                 self.size = 4
                 self.big_endian = True
                 self.operation = "inc"
-                self.split_by_core = False
+                # self.split_by_core = False
                 self.init_value = 1
                 self.min_value = self.init_value
                 self.max_value = self.init_value
@@ -585,31 +619,24 @@ class CTRexPktBuilder(object):
 
                 """
                 if not hasattr(self, field_name):
-                    raise CTRexPktBuilder.VMVarNameError(field_name)
+                    raise CTRexPktBuilder.VMFieldNameError(field_name)
                 elif field_name == "size":
                     if type(val) != int:
-                        raise CTRexPktBuilder.VMVarFieldTypeError("size", int)
+                        raise CTRexPktBuilder.VMFieldTypeError("size", int)
                     elif val not in self.VALID_SIZE:
-                        raise CTRexPktBuilder.VMVarValueError("size", self.VALID_SIZE)
+                        raise CTRexPktBuilder.VMFieldValueError("size", self.VALID_SIZE)
                 elif field_name == "init_value":
                     if type(val) != int:
-                        raise CTRexPktBuilder.VMVarFieldTypeError("init_value", int)
+                        raise CTRexPktBuilder.VMFieldTypeError("init_value", int)
                 elif field_name == "operation":
                     if type(val) != str:
-                        raise CTRexPktBuilder.VMVarFieldTypeError("operation", str)
+                        raise CTRexPktBuilder.VMFieldTypeError("operation", str)
                     elif val not in self.VALID_OPERATION:
-                        raise CTRexPktBuilder.VMVarValueError("operation", self.VALID_OPERATION)
-                elif field_name == "split_by_core":
-                    val = bool(val)
+                        raise CTRexPktBuilder.VMFieldValueError("operation", self.VALID_OPERATION)
+                # elif field_name == "split_by_core":
+                #     val = bool(val)
                 # update field value on success
                 setattr(self, field_name, val)
-
-            def is_valid(self):
-                if self.size not in self.VALID_SIZE:
-                    return False
-                if self.type not in self.VALID_OPERATION:
-                    return False
-                return True
 
             def dump(self):
                 """
@@ -623,14 +650,62 @@ class CTRexPktBuilder(object):
 
                 """
                 return {"ins_name": "flow_man_simple",  # VM variable dump always refers to manipulate instruction.
-                        "flow_variable_name": self.name,
-                        "object_size": self.size,
-                        # "big_endian": self.big_endian,
-                        "Operation": self.operation,
-                        "split_by_core": self.split_by_core,
+                        "name": self.name,
+                        "size": self.size,
+                        "op": self.operation,
+                        # "split_by_core": self.split_by_core,
                         "init_value": self.init_value,
                         "min_value": self.min_value,
                         "max_value": self.max_value}
+
+        class CTRexVMChecksumInst(CVMAbstractInstruction):
+
+            def __init__(self, name, offset=0):
+                """
+                Instantiate a CTRexVMChecksumInst object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CTRexVMChecksumInst, self).__init__(name)
+                self.pkt_offset = offset
+
+            def dump(self):
+                return {"type": "fix_checksum_ipv4",
+                        "pkt_offset": int(self.pkt_offset)}
+
+        class CTRexVMWrtFlowVarInst(CVMAbstractInstruction):
+
+            def __init__(self, name):
+                """
+                Instantiate a CTRexVMWrtFlowVarInst object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CTRexVMWrtFlowVarInst, self).__init__(name)
+                self.pkt_offset = 0
+                self.add_value = 0
+                self.is_big_endian = False
+
+            def set_field(self, field_name, val):
+                if not hasattr(self, field_name):
+                    raise CTRexPktBuilder.VMFieldNameError(field_name)
+                cur_attr_type = getattr(self, field_name)
+                if cur_attr_type == type(val):
+                    setattr(self, field_name, val)
+                else:
+                    CTRexPktBuilder.VMFieldTypeError(field_name, cur_attr_type)
+
+            def dump(self):
+                return {"type": "write_flow_var",
+                        "name": self.name,
+                        "pkt_offset": int(self.pkt_offset),
+                        "add_value": int(self.add_value),
+                        "is_big_endian": bool(self.is_big_endian)
+                        }
 
     class CPacketBuildException(Exception):
         """
@@ -682,16 +757,16 @@ class CTRexPktBuilder(object):
             self.message = message or self._default_message
             super(CTRexPktBuilder.VMVarNameExistsError, self).__init__(-21, self.message)
 
-    class VMVarNameError(CPacketBuildException):
+    class VMFieldNameError(CPacketBuildException):
         """
         This exception is used to indicate that an undefined VM var field name has been accessed.
         """
         def __init__(self, name, message=''):
             self._default_message = "The given VM field name ({0}) is not defined and isn't legal.".format(name)
             self.message = message or self._default_message
-            super(CTRexPktBuilder.VMVarNameError, self).__init__(-22, self.message)
+            super(CTRexPktBuilder.VMFieldNameError, self).__init__(-22, self.message)
 
-    class VMVarFieldTypeError(CPacketBuildException):
+    class VMFieldTypeError(CPacketBuildException):
         """
         This exception is used to indicate an illegal value has type has been given to VM variable field.
         """
@@ -701,9 +776,9 @@ class CTRexPktBuilder(object):
                                                            field_type=type(name).__name__,
                                                            allowed_type=ok_type.__name__)
             self.message = message or self._default_message
-            super(CTRexPktBuilder.VMVarFieldTypeError, self).__init__(-31, self.message)
+            super(CTRexPktBuilder.VMFieldTypeError, self).__init__(-31, self.message)
 
-    class VMVarValueError(CPacketBuildException):
+    class VMFieldValueError(CPacketBuildException):
         """
         This exception is used to indicate an error an illegal value has been assigned to VM variable field.
         """
@@ -712,7 +787,7 @@ class CTRexPktBuilder(object):
             The only allowed options are: {allowed_opts}.'.format(field_name=name,
                                                                   allowed_opts=ok_opts)
             self.message = message or self._default_message
-            super(CTRexPktBuilder.VMVarValueError, self).__init__(-32, self.message)
+            super(CTRexPktBuilder.VMFieldValueError, self).__init__(-32, self.message)
 
 
 if __name__ == "__main__":
