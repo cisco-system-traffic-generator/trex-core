@@ -406,6 +406,7 @@ class CTRexPktBuilder(object):
     def _calc_offset(self, layer_name, hdr_field):
         pkt_header = self._pkt_by_hdr.get(layer_name)
         hdr_offset = len(self._packet) - len(pkt_header)
+        print hdr_offset
         inner_hdr_offsets = []
         for field in pkt_header.__hdr__:
             if field[0] == hdr_field:
