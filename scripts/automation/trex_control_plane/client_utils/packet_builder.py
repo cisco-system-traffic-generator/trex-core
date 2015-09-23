@@ -240,8 +240,9 @@ class CTRexPktBuilder(object):
 
     # VM access methods
     def set_vm_ip_range(self, ip_layer_name, ip_field,
-                        ip_init, ip_start, ip_end,
-                        operation, ip_type="ipv4", add_checksum_inst=True):
+                        ip_init, ip_start, ip_end, add_value,
+                        operation, is_big_endian=False,
+                        ip_type="ipv4", add_checksum_inst=True):
         if ip_field not in ["src", "dst"]:
             raise ValueError("set_vm_ip_range only available for source ('src') or destination ('dst') ip addresses")
         # set differences between IPv4 and IPv6
@@ -260,20 +261,53 @@ class CTRexPktBuilder(object):
         end_val = CTRexPktBuilder._decode_ip_addr(ip_end, ip_type)
         # All validations are done, start adding VM instructions
         flow_var_name = "{layer}__{field}".format(layer = ip_layer_name, field = ip_field)
-        field_abs_offset = self._calc_offset(ip_layer_name, ip_field)
-
+        hdr_offset, field_abs_offset = self._calc_offset(ip_layer_name, ip_field)
         self.vm.add_flow_man_inst(flow_var_name, size = ip_addr_size, operation = operation,
                                   init_value = init_val,
                                   min_value = start_val,
                                   max_value = end_val)
+        self.vm.add_write_flow_inst(flow_var_name, field_abs_offset)
+        self.vm.set_vm_var_field(flow_var_name, "add_value", add_value)
+        self.vm.set_vm_var_field(flow_var_name, "is_is_big_endian", is_big_endian)
+        if (ip_field == "ipv4" and add_checksum_inst):
+            self.vm.add_fix_checksum_inst(self._pkt_by_hdr.get(ip_layer_name), hdr_offset)
 
 
+    def set_vm_eth_range(self, eth_layer_name, eth_field,
+                         mac_init, mac_start, mac_end, add_value,
+                         operation, is_big_endian=False):
+        if eth_field not in ["src", "dst"]:
+            raise ValueError("set_vm_eth_range only available for source ('src') or destination ('dst') eth addresses")
 
-    def set_vm_eth_range(self, eth_layer_name, mac_start, mac_end):
-        pass
+        self._verify_layer_prop(eth_layer_name, dpkt.ethernet.Ethernet)
+        init_val = CTRexPktBuilder._decode_mac_addr(mac_init)
+        start_val = CTRexPktBuilder._decode_mac_addr(mac_start)
+        end_val = CTRexPktBuilder._decode_mac_addr(mac_end)
+        # All validations are done, start adding VM instructions
+        flow_var_name = "{layer}__{field}".format(layer = eth_layer_name, field = eth_field)
+        hdr_offset, field_abs_offset = self._calc_offset(eth_layer_name, eth_field)
+        self.vm.add_flow_man_inst(flow_var_name, size = 8, operation = operation,
+                                  init_value = init_val,
+                                  min_value = start_val,
+                                  max_value = end_val)
+        self.vm.add_write_flow_inst(flow_var_name, field_abs_offset)
+        self.vm.set_vm_var_field(flow_var_name, "add_value", add_value)
+        self.vm.set_vm_var_field(flow_var_name, "is_is_big_endian", is_big_endian)
 
-    def set_vm_range_type(self, start_val, end_val):
-        pass
+    def set_vm_custom_range(self, layer_name, hdr_field,
+                            init_val, start_val, end_val, add_val, val_size,
+                            operation, is_big_endian=False, range_name = ""):
+        self._verify_layer_prop(layer_name=layer_name, field_name=hdr_field)
+        if not range_name:
+            range_name = "{layer}__{field}".format(layer = layer_name, field = hdr_field)
+        hdr_offset, field_abs_offset = self._calc_offset(layer_name, hdr_field)
+        self.vm.add_flow_man_inst(range_name, size = val_size, operation = operation,
+                                  init_value = init_val,
+                                  min_value = start_val,
+                                  max_value = end_val)
+        self.vm.add_write_flow_inst(range_name, field_abs_offset)
+        self.vm.set_vm_var_field(range_name, "add_value", add_val)
+        self.vm.set_vm_var_field(range_name, "is_is_big_endian", is_big_endian)
 
     def get_vm_data(self):
         pass
@@ -374,13 +408,13 @@ class CTRexPktBuilder(object):
         hdr_offset = len(self._packet) - len(pkt_header)
         inner_hdr_offsets = []
         for field in pkt_header.__hdr__:
-            if field == hdr_field:
+            if field[0] == hdr_field:
                 break
             else:
                 inner_hdr_offsets.append(struct.calcsize(field[1]))
-        return pkt_header + sum(inner_hdr_offsets)
+        return hdr_offset, hdr_offset + sum(inner_hdr_offsets)
 
-    def _verify_layer_prop(self, layer_name, layer_type = None):
+    def _verify_layer_prop(self, layer_name, layer_type = None, field_name=None):
         if layer_name not in self._pkt_by_hdr:
             raise CTRexPktBuilder.PacketLayerError(layer_name)
         pkt_layer = self._pkt_by_hdr.get(layer_name)
@@ -388,6 +422,12 @@ class CTRexPktBuilder(object):
             # check for layer type
             if not isinstance(pkt_layer, layer_type):
                 raise CTRexPktBuilder.PacketLayerTypeError(layer_name, type(pkt_layer), layer_type)
+        if field_name:
+            # check if field exists on certain header
+            if not hasattr(pkt_layer, field_name):
+                raise CTRexPktBuilder.PacketLayerError(layer_name, "The specified field '{0}' does not exists on " \
+                                                                   "given packet layer ('{1}')".
+                                                                    format(field_name, layer_name))
         return
 
 
