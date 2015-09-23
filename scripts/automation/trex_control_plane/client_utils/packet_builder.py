@@ -239,8 +239,35 @@ class CTRexPktBuilder(object):
         return copy.copy(layer) if layer else None
 
     # VM access methods
-    def set_vm_ip_range(self, ip_layer_name, ip_start, ip_end, ip_type="ipv4", add_checksum_inst=True):
-        pass
+    def set_vm_ip_range(self, ip_layer_name, ip_field,
+                        ip_init, ip_start, ip_end,
+                        operation, ip_type="ipv4", add_checksum_inst=True):
+        if ip_field not in ["src", "dst"]:
+            raise ValueError("set_vm_ip_range only available for source ('src') or destination ('dst') ip addresses")
+        # set differences between IPv4 and IPv6
+        if ip_type == "ipv4":
+            ip_class = dpkt.ip.IP
+            ip_addr_size = 4
+        elif ip_type == "ipv6":
+            ip_class = dpkt.ip6.IP6
+            ip_addr_size = 16
+        else:
+            raise CTRexPktBuilder.IPAddressError()
+
+        self._verify_layer_prop(ip_layer_name, ip_class)
+        init_val = CTRexPktBuilder._decode_ip_addr(ip_init, ip_type)
+        start_val = CTRexPktBuilder._decode_ip_addr(ip_start, ip_type)
+        end_val = CTRexPktBuilder._decode_ip_addr(ip_end, ip_type)
+        # All validations are done, start adding VM instructions
+        flow_var_name = "{layer}__{field}".format(layer = ip_layer_name, field = ip_field)
+        field_abs_offset = self._calc_offset(ip_layer_name, ip_field)
+
+        self.vm.add_flow_man_inst(flow_var_name, size = ip_addr_size, operation = operation,
+                                  init_value = init_val,
+                                  min_value = start_val,
+                                  max_value = end_val)
+
+
 
     def set_vm_eth_range(self, eth_layer_name, mac_start, mac_end):
         pass
@@ -343,7 +370,26 @@ class CTRexPktBuilder(object):
                 return layer
 
     def _calc_offset(self, layer_name, hdr_field):
-        pass
+        pkt_header = self._pkt_by_hdr.get(layer_name)
+        hdr_offset = len(self._packet) - len(pkt_header)
+        inner_hdr_offsets = []
+        for field in pkt_header.__hdr__:
+            if field == hdr_field:
+                break
+            else:
+                inner_hdr_offsets.append(struct.calcsize(field[1]))
+        return pkt_header + sum(inner_hdr_offsets)
+
+    def _verify_layer_prop(self, layer_name, layer_type = None):
+        if layer_name not in self._pkt_by_hdr:
+            raise CTRexPktBuilder.PacketLayerError(layer_name)
+        pkt_layer = self._pkt_by_hdr.get(layer_name)
+        if layer_type:
+            # check for layer type
+            if not isinstance(pkt_layer, layer_type):
+                raise CTRexPktBuilder.PacketLayerTypeError(layer_name, type(pkt_layer), layer_type)
+        return
+
 
     @staticmethod
     def _decode_mac_addr(mac_addr):
@@ -605,7 +651,7 @@ class CTRexPktBuilder(object):
             """
             This class defines a single VM variable to be used as part of CTRexVar object.
             """
-            VALID_SIZE = [1, 2, 4, 8]
+            VALID_SIZE = [1, 2, 4, 8]   # size in Bytes
             VALID_OPERATION = ["inc", "dec", "random"]
 
             def __init__(self, name):
@@ -775,7 +821,28 @@ class CTRexPktBuilder(object):
         def __init__(self, message=''):
             self._default_message = 'Illegal MAC address has been provided.'
             self.message = message or self._default_message
-            super(CTRexPktBuilder.MACAddressError, self).__init__(-11, self.message)
+            super(CTRexPktBuilder.MACAddressError, self).__init__(-12, self.message)
+
+    class PacketLayerError(CPacketBuildException):
+        """
+        This exception is used to indicate an error caused by operation performed on an non-exists layer of the packet.
+        """
+        def __init__(self, name, message=''):
+            self._default_message = "The given packet layer name ({0}) does not exists.".format(name)
+            self.message = message or self._default_message
+            super(CTRexPktBuilder.PacketLayerError, self).__init__(-13, self.message)
+
+    class PacketLayerTypeError(CPacketBuildException):
+        """
+        This exception is used to indicate an error caused by operation performed on an non-exists layer of the packet.
+        """
+        def __init__(self, name, layer_type, ok_type, message=''):
+            self._default_message = 'The type of packet layer {layer_name} is of type {layer_type}, \
+            and not of the expected {allowed_type}.'.format(layer_name=name,
+                                                            layer_type=layer_type,
+                                                            allowed_type=ok_type.__name__)
+            self.message = message or self._default_message
+            super(CTRexPktBuilder.PacketLayerTypeError, self).__init__(-13, self.message)
 
     class VMVarNameExistsError(CPacketBuildException):
         """
