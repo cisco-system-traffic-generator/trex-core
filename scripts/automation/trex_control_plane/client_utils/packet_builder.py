@@ -10,6 +10,7 @@ import string
 import struct
 import re
 from abc import ABCMeta, abstractmethod
+from collections import namedtuple
 
 
 class CTRexPktBuilder(object):
@@ -238,13 +239,13 @@ class CTRexPktBuilder(object):
         return copy.copy(layer) if layer else None
 
     # VM access methods
-    def set_vm_ip_range(self, ip_start, ip_end, ip_type="ipv4"):
+    def set_vm_ip_range(self, ip_layer_name, ip_start, ip_end, ip_type="ipv4", add_checksum_inst=True):
         pass
 
-    def set_vm_range_type(self, ip_type):
+    def set_vm_eth_range(self, eth_layer_name, mac_start, mac_end):
         pass
 
-    def set_vm_core_mask(self, ip_type):
+    def set_vm_range_type(self, start_val, end_val):
         pass
 
     def get_vm_data(self):
@@ -451,6 +452,8 @@ class CTRexPktBuilder(object):
         This class defines the TRex VM which represents how TRex will regenerate packets.
         The packets will be regenerated based on the built packet containing this class.
         """
+        InstStore = namedtuple('InstStore', ['type', 'inst'])
+
         def __init__(self):
             """
             Instantiate a CTRexVM object
@@ -460,7 +463,7 @@ class CTRexPktBuilder(object):
             """
             super(CTRexPktBuilder.CTRexVM, self).__init__()
             self.vm_variables = {}
-            self.vm_inst_by_offset = {}
+            self._inst_by_offset = {} # this data structure holds only offset-related instructions, ordered in tuples
             # self.vm_inst_offsets = []
 
         def set_vm_var_field(self, var_name, field_name, val):
@@ -504,19 +507,38 @@ class CTRexPktBuilder(object):
                 + Exceptions from :func:`CTRexPktBuilder.CTRexVM.CTRexVMVariable.set_field` method.
                   Will rise when VM variables were misconfiguration.
             """
-            if name not in self.vm_variables.keys():
+            if name not in self.vm_variables:
                 self.vm_variables[name] = self.CTRexVMFlowVariable(name)
-                # try configuring VM var attributes
+                # try configuring VM instruction attributes
                 for (field, value) in kwargs.items():
                     self.vm_variables[name].set_field(field, value)
             else:
                 raise CTRexPktBuilder.VMVarNameExistsError(name)
 
-        def add_checksum_inst(self, linked_ip_layer):
-            pass
+        def add_fix_checksum_inst(self, linked_ipv4_obj, offset_to_obj=20, name=None):
+            # check if specified linked_ipv4_obj is indeed an ipv4 object
+            if not (isinstance(linked_ipv4_obj, dpkt.ip.IP) ):
+                raise ValueError("The provided layer object is not of IPv4.")
+            checksum_offset = offset_to_obj + 10    # IPv4 header places checksum field at the 10-12 Bytes
+            if not name:
+                name = "checksum_{off}".format(off = checksum_offset)   # name will override previous checksum inst, OK
+            new_checksum_inst = self.CTRexVMChecksumInst(name, checksum_offset)
+            # store the checksum inst in the end of the IP header (20 Bytes long)
+            self._inst_by_offset[offset_to_obj + 20] = self.InstStore('checksum', new_checksum_inst)
 
-        def add_write_flow_inst(self):
+        def add_write_flow_inst(self, name, pkt_offset, **kwargs):
             pass
+            if name not in self.vm_variables:
+                raise KeyError("Trying to add write_flow_var instruction to a not-exists VM flow variable ('{0}')".
+                               format(name))
+            else:
+                new_write_inst = self.CTRexVMWrtFlowVarInst(name, pkt_offset)
+                # try configuring VM instruction attributes
+                for (field, value) in kwargs.items():
+                    new_write_inst.set_field(field, value)
+                # add the instruction to the date-structure
+                self._inst_by_offset[pkt_offset] = self.InstStore('write', new_write_inst)
+
 
         def load_flow_man(self, flow_obj):
             """
@@ -539,7 +561,7 @@ class CTRexPktBuilder(object):
 
         def dump(self):
             """
-            dumps a VM variables (instructions) into an list data structure.
+            dumps a VM variables (instructions) into a list data structure.
 
             :parameters:
                 None
@@ -548,8 +570,13 @@ class CTRexPktBuilder(object):
                 list holds variables data of VM
 
             """
-            return [var.dump()
-                    for key, var in self.vm_variables.items()]
+            # at first, dump all CTRexVMFlowVariable instructions
+            ret_val = [var.dump()
+                       for key, var in self.vm_variables.items()]
+            # then, dump all the CTRexVMWrtFlowVarInst and CTRexVMChecksumInst instructions
+            ret_val += [self._inst_by_offset.get(key).inst.dump()
+                        for key in sorted(self._inst_by_offset)]
+            return ret_val
 
         class CVMAbstractInstruction(object):
             __metaclass__ = ABCMeta
@@ -660,7 +687,7 @@ class CTRexPktBuilder(object):
 
         class CTRexVMChecksumInst(CVMAbstractInstruction):
 
-            def __init__(self, name, offset=0):
+            def __init__(self, name, offset):
                 """
                 Instantiate a CTRexVMChecksumInst object
 
@@ -677,7 +704,7 @@ class CTRexPktBuilder(object):
 
         class CTRexVMWrtFlowVarInst(CVMAbstractInstruction):
 
-            def __init__(self, name):
+            def __init__(self, name, pkt_offset):
                 """
                 Instantiate a CTRexVMWrtFlowVarInst object
 
@@ -686,13 +713,15 @@ class CTRexPktBuilder(object):
                         a string representing the name of the VM variable.
                 """
                 super(CTRexPktBuilder.CTRexVM.CTRexVMWrtFlowVarInst, self).__init__(name)
-                self.pkt_offset = 0
+                self.pkt_offset = int(pkt_offset)
                 self.add_value = 0
                 self.is_big_endian = False
 
             def set_field(self, field_name, val):
                 if not hasattr(self, field_name):
                     raise CTRexPktBuilder.VMFieldNameError(field_name)
+                elif field_name == 'pkt_offset':
+                    raise ValueError("pkt_offset value cannot be changed")
                 cur_attr_type = getattr(self, field_name)
                 if cur_attr_type == type(val):
                     setattr(self, field_name, val)
@@ -702,7 +731,7 @@ class CTRexPktBuilder(object):
             def dump(self):
                 return {"type": "write_flow_var",
                         "name": self.name,
-                        "pkt_offset": int(self.pkt_offset),
+                        "pkt_offset": self.pkt_offset,
                         "add_value": int(self.add_value),
                         "is_big_endian": bool(self.is_big_endian)
                         }
