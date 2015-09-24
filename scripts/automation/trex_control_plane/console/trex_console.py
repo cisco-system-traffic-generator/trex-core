@@ -8,11 +8,96 @@ import random
 import string
 
 import sys
+import tty, termios
 import trex_root_path
+
 
 from client_utils.jsonrpc_client import TrexStatelessClient
 import trex_status
 
+#
+
+def readch (choices = []):
+        
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(sys.stdin.fileno())
+        while True:
+            ch = sys.stdin.read(1)
+            if (ord(ch) == 3) or (ord(ch) == 4):
+                return None
+            if ch in choices:
+                return ch
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    return None
+
+class YesNoMenu(object):
+    def __init__ (self, caption):
+        self.caption = caption
+
+    def show (self):
+        print "{0}".format(self.caption)
+        sys.stdout.write("[Y/y/N/n] : ")
+        ch = readch(choices = ['y', 'Y', 'n', 'N'])
+        if ch == None:
+            return None
+    
+        print "\n"    
+        if ch == 'y' or ch == 'Y':
+            return True
+        else:
+            return False
+
+# multi level cmd menu
+class CmdMenu(object):
+    def __init__ (self):
+        self.menus = []
+
+
+    def add_menu (self, caption, options):
+        menu = {}
+        menu['caption'] = caption
+        menu['options'] = options
+        self.menus.append(menu)
+
+    def show (self):
+        cur_level = 0
+        print "\n"
+
+        selected_path = []
+        for menu in self.menus:
+            # show all the options
+            print "{0}\n".format(menu['caption'])
+            for i, option in enumerate(menu['options']):
+                print "{0}. {1}".format(i + 1, option)
+
+            #print "\nPlease select an option: "
+
+            choices = range(0, len(menu['options']))
+            choices = [ chr(x + 48) for x in choices]
+
+            print ""
+            ch = readch(choices)
+            print ""
+
+            if ch == None:
+                return None
+
+            selected_path.append(int(ch) - 1)
+
+        return selected_path
+
+
+class AddStreamMenu(CmdMenu):
+    def __init__ (self):
+        super(AddStreamMenu, self).__init__()
+        self.add_menu('Please select type of stream', ['a', 'b', 'c'])
+        self.add_menu('Please select ISG', ['d', 'e', 'f'])
+
+# main console object
 class TrexConsole(cmd.Cmd):
     """Trex Console"""
    
@@ -107,6 +192,13 @@ class TrexConsole(cmd.Cmd):
 
     def do_acquire (self, line, force = False):
         '''Acquire ports\n'''
+
+        # make sure that the user wants to acquire all
+        if line == "":
+            ask = YesNoMenu('Do you want to acquire all ports ? ')
+            rc = ask.show()
+            if rc == False:
+                return
 
         port_list = self.parse_ports_from_line(line)
         if not port_list:
@@ -313,12 +405,24 @@ class TrexConsole(cmd.Cmd):
             print "{:<30} {:<30}".format(cmd + " - ", help)
 
 
-    # do 
-    #def do_snapshot (self, line):
 
-   #for key, value in self.rpc_client.snapshot()[1]['streams'].iteritems():
-        #print str(key) + "   " + str(value)
+    # adds a very simple stream
+    def do_add_simple_stream (self, line):
+        if line == "":
+            add_stream = AddStreamMenu()
+            add_stream.show()
+            return
 
+        params = line.split()
+        port_id = int(params[0])
+        stream_id = int(params[1])
+
+        packet = [0xFF,0xFF,0xFF]
+        rc, msg = self.rpc_client.add_stream(port_id = port_id, stream_id = stream_id, isg = 1.1, next_stream_id = -1, packet = packet)
+        if rc:
+            print "\nServer Response:\n\n" + self.rpc_client.pretty_json(json.dumps(msg)) + "\n"
+        else:
+            print "\n*** " + msg + "\n"
 
     # aliasing
     do_exit = do_EOF = do_q = do_quit

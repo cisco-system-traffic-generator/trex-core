@@ -271,17 +271,17 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
 
     result["result"]["status"] = port->get_state_as_string();
 
-    result["result"]["tx_bps"]         = Json::Value::UInt64(port->get_port_stats().tx_bps);
-    result["result"]["tx_pps"]         = Json::Value::UInt64(port->get_port_stats().tx_pps);
-    result["result"]["total_tx_pkts"]  = Json::Value::UInt64(port->get_port_stats().total_tx_pkts);
-    result["result"]["total_tx_bytes"] = Json::Value::UInt64(port->get_port_stats().total_tx_bytes);
+    result["result"]["tx_bps"]         = Json::Value::UInt64(port->get_port_stats().m_stats.tx_bps);
+    result["result"]["tx_pps"]         = Json::Value::UInt64(port->get_port_stats().m_stats.tx_pps);
+    result["result"]["total_tx_pkts"]  = Json::Value::UInt64(port->get_port_stats().m_stats.total_tx_pkts);
+    result["result"]["total_tx_bytes"] = Json::Value::UInt64(port->get_port_stats().m_stats.total_tx_bytes);
 
-    result["result"]["rx_bps"]         = Json::Value::UInt64(port->get_port_stats().rx_bps);
-    result["result"]["rx_pps"]         = Json::Value::UInt64(port->get_port_stats().rx_pps);
-    result["result"]["total_rx_pkts"]  = Json::Value::UInt64(port->get_port_stats().total_rx_pkts);
-    result["result"]["total_rx_bytes"] = Json::Value::UInt64(port->get_port_stats().total_rx_bytes);
+    result["result"]["rx_bps"]         = Json::Value::UInt64(port->get_port_stats().m_stats.rx_bps);
+    result["result"]["rx_pps"]         = Json::Value::UInt64(port->get_port_stats().m_stats.rx_pps);
+    result["result"]["total_rx_pkts"]  = Json::Value::UInt64(port->get_port_stats().m_stats.total_rx_pkts);
+    result["result"]["total_rx_bytes"] = Json::Value::UInt64(port->get_port_stats().m_stats.total_rx_bytes);
 
-    result["result"]["tx_rx_error"]    = Json::Value::UInt64(port->get_port_stats().tx_rx_errors);
+    result["result"]["tx_rx_error"]    = Json::Value::UInt64(port->get_port_stats().m_stats.tx_rx_errors);
 
     return (TREX_RPC_CMD_OK);
 }

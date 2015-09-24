@@ -42,14 +42,17 @@ public:
 };
 
 /**
- * describes a stateless port
+ * TRex stateless port stats
  * 
- * @author imarom (31-Aug-15)
+ * @author imarom (24-Sep-15)
  */
-class TrexStatelessPort {
-public:
+class TrexPortStats {
 
-    struct TrexPortStats {
+public:
+    TrexPortStats();
+
+public:
+    struct {
         uint64_t tx_pps;
         uint64_t tx_bps;
         uint64_t total_tx_pkts;
@@ -61,7 +64,16 @@ public:
         uint64_t total_rx_bytes;
 
         uint64_t tx_rx_errors;
-    };
+    } m_stats;
+};
+
+/**
+ * describes a stateless port
+ * 
+ * @author imarom (31-Aug-15)
+ */
+class TrexStatelessPort {
+public:
 
     /**
      * port state
@@ -171,10 +183,10 @@ public:
 
     const TrexPortStats & get_port_stats(void) {
         /* scrabble */
-        m_stats.tx_bps += 1 + rand() % 100;
-        m_stats.tx_pps += 1 + rand() % 10;
-        m_stats.total_tx_bytes += 1 + rand() % 10;
-        m_stats.total_tx_pkts += 1 + rand() % 5;
+        m_stats.m_stats.tx_bps += 1 + rand() % 100;
+        m_stats.m_stats.tx_pps += 1 + rand() % 10;
+        m_stats.m_stats.total_tx_bytes += 1 + rand() % 10;
+        m_stats.m_stats.total_tx_pkts += 1 + rand() % 5;
 
         return m_stats;
     }

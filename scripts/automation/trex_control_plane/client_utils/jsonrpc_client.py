@@ -60,6 +60,7 @@ class JsonRpcClient(object):
 
         return rc
 
+    # pretty print for JSON
     def pretty_json (self, json_str, use_colors = True):
         pretty_str = json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
 
@@ -87,6 +88,7 @@ class JsonRpcClient(object):
         print "[verbose] " + msg
 
 
+    # batch messages
     def create_batch (self):
         return BatchMessage(self)
 
@@ -114,6 +116,7 @@ class JsonRpcClient(object):
         return self.send_raw_msg(msg, block)
 
     
+    # low level send of string message
     def send_raw_msg (self, msg, block = False):
         self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
@@ -268,9 +271,15 @@ class TrexStatelessClient(JsonRpcClient):
         return self.server_version
 
     def get_system_info (self):
+        if not self.system_info:
+            return {}
+
         return self.system_info
 
     def get_supported_cmds(self):
+        if not self.supported_cmds:
+            return {}
+
         return self.supported_cmds
 
     def get_port_count (self):
@@ -279,10 +288,10 @@ class TrexStatelessClient(JsonRpcClient):
 
         return self.system_info["port_count"]
 
-    # refresh the client for transient data
-    def refresh (self):
+    # sync the client with all the server required data
+    def sync (self):
 
-        # get server versionrc, msg = self.get_supported_cmds()
+        # get server version
         rc, msg = self.invoke_rpc_method("get_version")
         if not rc:
             self.disconnect()
@@ -313,7 +322,7 @@ class TrexStatelessClient(JsonRpcClient):
         if not rc:
             return rc, err
 
-        return self.refresh()
+        return self.sync()
 
 
     # take ownership over ports
@@ -447,3 +456,34 @@ class TrexStatelessClient(JsonRpcClient):
 
 
         return snap
+
+    # add stream
+    def add_stream (self, port_id, stream_id, isg, next_stream_id, packet):
+        if not port_id in self.get_owned_ports():
+            return False, "Port {0} is not owned... please take ownership before adding streams".format(port_id)
+
+        handler = self.port_handlers[port_id]
+
+        stream = {}
+        stream['enabled'] = True
+        stream['self_start'] = True
+        stream['isg'] = isg
+        stream['next_stream_id'] = next_stream_id
+        stream['packet'] = {}
+        stream['packet']['binary'] = packet
+        stream['packet']['meta'] = ""
+        stream['vm'] = []
+        stream['rx_stats'] = {}
+        stream['rx_stats']['enabled'] = False
+
+        stream['mode'] = {}
+        stream['mode']['type'] = 'continuous'
+        stream['mode']['pps'] = 10.0
+
+        params = {}
+        params['handler'] = handler
+        params['stream'] = stream
+        params['port_id'] = port_id
+        params['stream_id'] = stream_id
+
+        return self.invoke_rpc_method('add_stream', params = params)
