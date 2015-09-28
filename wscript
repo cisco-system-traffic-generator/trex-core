@@ -139,6 +139,12 @@ def build(bld):
         	bld(rule=my_copy, target=x)
                 bld.add_group() 
 
+
+	for x in bld.path.ant_glob('yaml\\**\**.yaml'):
+        	bld(rule=my_copy, target=x)
+                bld.add_group() 
+
+
 	for x in bld.path.ant_glob('video\\**\**.mp4'):
         	bld(rule=my_copy, target=x)
                 bld.add_group() 

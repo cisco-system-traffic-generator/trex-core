@@ -1,8 +1,8 @@
 Packet Builder Language
 =======================
 :author: hhaim
-:email: <hhaim@cisco.com> 
-:revnumber: 0.03
+:email: <hhaim@cisco.com>
+:revnumber: 0.04
 :quotes.++:
 :numbered:
 
@@ -10,13 +10,13 @@ Packet Builder Language
 
 [options="header",cols="^1,^h,a"]
 |=================
-| Version |  name   |  meaning  
+| Version |  name   |  meaning
 | 0.01    |  hhaim |
-- first version 
-| 0.02    | hhaim 
+- first version
+| 0.02    | hhaim
 |
-- change the bool fields to properties 
-- add external/internal  property      
+- change the bool fields to properties
+- add external/internal  property
 - add const property  ( instead cant_change)
 - change  TLV property - now learn the prev header
 - add choice of next protocol that is not base on a field ( TCP->IP->TCP)
@@ -26,11 +26,17 @@ Packet Builder Language
 - add gui_representation class with data_type, form_type, combobox_values, data_type_regexp items to describe GUI view of field
 - rename choice attribute to value_based_next_header
 - fixed some typos
+| 0.04    | ybrustin
+|
+- change value_based_next_header, combobox_values (to be consistent with value_based_next_header) to dictionary
+- added value_based_next_class for options
+- move 'help' attribute to gui_representation
+- add link to headers.yaml (references at bottom of the page)
 
 |=================
 
 
-== A file format for GUI packet builder 
+== A file format for GUI packet builder
 
 === Introduction
 
@@ -39,16 +45,16 @@ We would like a file that will be read by GUI and will give us the ability to bu
 The format should be *YAML*
 
 
-=== High Level Requirement 
+=== High Level Requirement
 
-* Define a YAML object format for dynamic building of packets and a program that change various fields 
+* Define a YAML object format for dynamic building of packets and a program that change various fields
 * Ability to *parse* back the same buffer that was created using this tool (reversibility)
-** Ability to load packet from a pcap file and parse it 
+** Ability to load packet from a pcap file and parse it
 * Ability to save the packet to a pcap file
 * Ability to save the packet and program in JSON format (same JSON-RPC format)
 * Set a value for any field of any protocol
 * Vary packet fields across packets at run time e.g. changing IP/MAC addresses
-* Stack protocols in any arbitrary order define in YAML format 
+* Stack protocols in any arbitrary order define in YAML format
 
 === Header that should be supported (first phase)
 
@@ -57,13 +63,13 @@ The format should be *YAML*
 * Ethernet
 * 802.3
 * LLC SNAP
-*VLAN (with QinQ) stack
-*MPLS stack
+* VLAN (with QinQ) stack
+* MPLS stack
 
 ==== L3
 
-* ARP 
-* IPv4 
+* ARP
+* IPv4
 * IPv6 (4x header)
 * IP-in-IP a.k.a IP Tunnelling (6over4, 4over6, 4over4, 6over6)
 
@@ -71,52 +77,52 @@ The format should be *YAML*
 
 * TCP
 * UDP
-* ICMPv4 
+* ICMPv4
 * ICMPv6
 * IGMP
 
 ==== L7  anchor:Payload[]
 
 * Any text based protocol (HTTP, SIP, RTSP, NNTP etc.)
-** random string 
-** repeat string 
+** random string
+** repeat string
 
-* Pattern Binary 
+* Pattern Binary
 ** repeat of value (e.g 0x55)
-** random 
+** random
 ** seq (1,2,3,3,4)
-** User Hex Dump editor 
+** User Hex Dump editor
 
 
-=== YAML Format 
+=== YAML Format
 
 ==== Header section
 
 .Default Types  anchor:Types[]
 [options="header",cols="1,2,3"]
 |=================
-| Field Name        |   meaning                                        | size in bits 
-| bit               |  describe the header object e.g tcp              |  1  
-| uint8             |  describe the header object e.g tcp              |   8  
-| uint16            |  the name in the GUI                             |   16  
-| uint32            |  sub fields of this header                       |   32  
-| uint64            |  sub fields of this header                       |   64  
+| Field Name        |   meaning                                        | size in bits
+| bit               |  describe the header object e.g tcp              |  1
+| uint8             |  describe the header object e.g tcp              |  8
+| uint16            |  the name in the GUI                             |  16
+| uint32            |  sub fields of this header                       |  32
+| uint64            |  sub fields of this header                       |  64
 | other class type  | name of other class. for example, "c-mac-addr"; take fields from there, optionally overload them later  | The size taken from that class
-| Payload           |     xref:Payload[Payload]                        | total packet size - all header until now 
-| vlen_t            | in case of varible size header this include the size to the end of varible size header see example xref:IpvOption[Ipv4Option] |total size of the object 
+| Payload           |     xref:Payload[Payload]                        | total packet size - all header until now
+| vlen_t            | in case of varible size header this include the size to the end of varible size header see example xref:IpvOption[Ipv4Option] |total size of the object
 |=================
 
 
 .Default Data_Type anchor:Data_Type[]
 [options="header",cols="1,2"]
 |=================
-| Field Name               |   meaning                           
+| Field Name               | meaning
 | none                     |  use Hex Editor as Types
 | ipv4_t                   |  4 decimals 0-255 each
 | mac_addr_t               |  ([0-9a-fA-F]\{2\}:)\{5\}[0-9a-fA-F]\{2\}
-| ipv4_mask_t              |  should match uint32_t type          
-| ipv6_t                   |  should have 16 bytes field size 8x16 
-| ipv6_mask_t              |  should have 16 bytes field size 8x16 
+| ipv4_mask_t              |  should match uint32 type
+| ipv6_t                   |  should have 16 bytes field size 8x16
+| ipv6_mask_t              |  should have 16 bytes field size 8x16
 | another header class     |  sub fields of this header
 | char_t                   | array of bytes , look into the array_size of cost string
 | var_char_t               | array based on a field value look into
@@ -137,24 +143,26 @@ The format should be *YAML*
 .Default Gui_Representation anchor:Gui_Representation[]
 [options="header",cols="1,^1,5,^1,10"]
 |=================
-| Field Name         | value type      |  meaning                                           | Link | Additional info
-| data_type          | string          | how to represent data                              | xref:Data_Type[Data_Type]     | data_type could get data_type_regexp e.g data_type = "ipv4"; data_type = "regexp" data_type_regexp = "string that define regexp and Java function"
-| form_type          | string          | which editing form to use                          | xref:Form_Type[Form_Type]     | for example for ip address use combobox with option to edit value manually or choose: key "localhost" value "127.0.0.1" etc.
-| combobox_values    | array           | pairs of 'key - value' for combo_with/without_edit |     | 
-| data_type_regexp   | string          | in case it is reg_exp the name of the function     | xref:GenRegExp[GenRegExp]      |
+| Field Name         | value type      | meaning                                            | Link                      | Additional info
+| help               | string          | the name in the GUI                                |                           |
+| data_type          | string          | how to represent data                              | xref:Data_Type[Data_Type] | data_type could get data_type_regexp e.g data_type = "ipv4"; data_type = "regexp" data_type_regexp = "string that define regexp and Java function"
+| form_type          | string          | which editing form to use                          | xref:Form_Type[Form_Type] | for example for ip address use combobox with option to edit value manually or choose: key "localhost" value "127.0.0.1" etc.
+| combobox_values    | dictionary      | pairs of 'key - value' for combo_with/without_edit |                           |
+| data_type_regexp   | string          | in case it is reg_exp the name of the function     | xref:GenRegExp[GenRegExp] |
 |=================
 
 
 .Default Properties    anchor:Properties[]
 [options="header",cols="1,7"]
 |=================
-| Field Name             |   meaning
-| ipv4_checksum          | auto calculates checksum on this header Ipv4 type 
-| tcp_udp_checsum        | calculate next TCP checksum
-| ipv4_total_length      | calculate ipv4 total length this pkt_size = header  + reset of packet 
+| Field Name             | meaning
+| ipv4_checksum          | auto calculates checksum on this header Ipv4 type
+| tcp_checksum           | calculate TCP checksum
+| udp_checksum           | calculate UDP checksum
+| ipv4_total_length      | calculate ipv4 total length this pkt_size = header  + reset of packet
 | tlv                    | TLV length of the header (inlcudes the prev field length) example ip-option, tcp-option
 | le                     | little endian. deault is big
-| const                  | const field for example the 4 version of ipv4 header   - this GUI won't give option to change this field
+| const                  | const field for example the 4 version of ipv4 header - this GUI won't give option to change this field
 | external               | marks the header as an external header for the GUI. for example IPv4 is external header and mac-addr is internal header ( compose external header)
 |=================
 
@@ -163,57 +171,60 @@ The format should be *YAML*
 [options="header",cols="1,^1,30,^1,^1,30"]
 |=================
 | Field Name         | value type      |  meaning                                           | Default Value | Link | Example
-| class              | string          | describe the class type                            |   in case class is defined no need to have name and vise versa           |      | class : tcp 
-| name               | string          | describe the instance name                         |   in case class is defined no need to have name and vise versa          |      | name : tcp 
-| help               | string          | the name in the GUI                                |   no          |      |   class TCP, Layer 4
-| array_size         | integer         | how many objects of this type, default value is 1  |  1            |      | array_size : 6 in case of mac-addr   
+| class              | string          | describe the class type                            |   in case class is defined no need to have name and vise versa           |      | class : tcp
+| name               | string          | describe the instance name                         |   in case class is defined no need to have name and vise versa          |      | name : tcp
+| array_size         | integer         | how many objects of this type, default value is 1  |  1            |      | array_size : 6 in case of mac-addr
 | type               | string          | type, see  Types  define the size                  |   "uint8_t"   |  xref:Types[Types]   | type : "uint32_t" type : "mac_addr"
-| gui_representation | object          | description of how to view/edit data in GUI        |           | xref:Gui_Representation[Gui_Representation] | xref:Gui_Representation_Example[Gui_Representation_Example]
-| default            | array/value     | default value in the packets , you can override value for subfields in parent see example             
+| gui_representation | dictionary      | description of how to view/edit data in GUI        |           | xref:Gui_Representation[Gui_Representation] | xref:Gui_Representation_Example[Gui_Representation_Example]
+| default            | array/value     | default value in the packets , you can override value for subfields in parent see example
 | [0 ]x header size  |   |    xref:Overide_Subfields_Example[Overide_Subfields_Example]
-| properies          | array of string like masks   
+| properies          | array of string like masks
 | properies of this fields             |  []        | xref:Properties[Properties] | ["le","external"] , ["tlv","le","const"]
-| value_based_next_header              | array      |   define the next protocol based on a field value   |  none        | xref:Value_Based_Next_Header[Value_Based_Next_Header]  |
-| next_headers       | string or type  |   a name of class that define the next or just an array     |  "none"     | xref:Next_headers[Next_headers]  |
-| fields             | array           | array of Field_Type                             |   []          |        | fields : [  ]
-| offset             | integer/string  |   offset into the packet in bits, in case of auto add base of prev fields    |   "auto"          |        |  
-| option             | string          |   a java code that define a way to calculate varible size        |   "none"          |        |  |
+| value_based_next_header              | dictionary |   define the next protocol based on a field value                    |  none         | xref:Value_Based_Next_Header[Value_Based_Next_Header]  |
+| value_based_next_class               | dictionary |   define the next class based on a field value (useful for options)  |  none         | xref:Value_Based_Next_Class[Value_Based_Next_Class]  |
+| next_headers       | string or type  |   a name of class that define the next or just an array                           |  "none"       | xref:Next_headers[Next_headers]  |
+| fields             | array           | array of Field_Type                                                               |   []          |        | fields : [  ]
+| offset             | integer/string  |   offset into the packet in bits, in case of auto add base of prev fields         |   "auto"      |        |
+| option             | string          |   a java code that define a way to calculate varible size                         |   "none"      |        |  |
 |=================
 
 
 .Field_Type  anchor:ConstHeadesClass[]
 [options="header",cols="^1,^10"]
 |=================
-| Field Name | value type  
+| Field Name | value type
 | "root"     | the root pointer to the start of blocks L2/802.3 etc
 | "end"      | end TLV headers
 | "payload"   | the rest of the packets as buffer/string etc
 |=================
 
- 
+
 .Next_headers anchor:Next_headers[]
 Example of Next_headers
 [source,python]
 ----
 
  - class : "next-example-t-1"
-   help : "next-example-t-1"
-   next_headers : ["ip","ipv6,"tcp"]
+   gui_representation:
+       help : "next-example-t-1"
+   next_headers : ["ipv4", "ipv6, "tcp"]
 
 # option 1 define in the header itself
  - class : "tcp"
-   help : "TCP header"
+   gui_representation:
+       help : "TCP header"
    properies : ["external"]
-   next_headers : ["ip","ipv6,"tcp"]
-   fields : 
+   next_headers : ["ipv4", "ipv6, "tcp"]
+   fields :
         - name : "ver"
 
-# option 2 define throw a class 
+# option 2 define throw a class
  - class : "tcp"
-   help : "TCP header"
+   gui_representation:
+       help : "TCP header"
    properies : ["external"]
-   next_headers : "next-example-t-1" # 
-   fields : 
+   next_headers : "next-example-t-1" #
+   fields :
         - name : "ver"
 ----
 
@@ -222,42 +233,37 @@ Example of Next_headers
 Example of value_based_next_header
 [source,python]
 ----
-                fields :
-                        - key  : 0x0800
-                          val  : "ip"  # name of an external or internal class , the GUI should distinct betwean internal and external  
-        
-                        - key  : 0x86DD
-                          val  : "ipv6"      
-        
-                        - key  : 0x8100
-                          val  : "vlan"      
-        
-                        - key  : 0x8847
-                          val  : "mpls" # unicast
-                default : "payload" # if no match for any of above
+        value_based_next_header:
+            0x0800: 'ipv4'# name of an external or internal class , the GUI should distinct betwean internal and external
+            0x0806: 'arp'
+            0x86DD: 'ipv6'
+            0x8100: 'vlan'
+            0x8847: 'mpls unicast'
+            default: 'payload' # if no match for any of above
+
 ----
 
 
 .Generic RegExp Edit Field anchor:GenRegExp[]
 
-This will define a regexp that match for user input and how to converts it to buffer of bytes 
+This will define a regexp that match for user input and how to converts it to buffer of bytes
 
 [source,python]
 ----
 
 class MyClass : public RegExpBase {
   public:
-  
+
 
   string get_reg_exp_string( ) {
     return ((\d){1-3})[.]((\d){1-3})[.]((\d){1-3})[.]((\d){1-3}))
   }
-  
-  # in case of match      
+
+  # in case of match
   buffer get_buffer(){
      g= [get_group()[1].to_int()*256,get_group()[1].to_int()]
-     # return list 
-     return (g) 
+     # return list
+     return (g)
   }
 
 }
@@ -275,15 +281,16 @@ There would be a root object to point to possible starting headers
 ----
 
 -  class : "root"
-   help  : "Root"   
-   next_headers  : [ "ethrenet" ,"llc","_802-3"] 
+   gui_representation:
+       help  : "Root"
+   next_headers  : [ "ethernet", "llc", "_802-3"]
 ----
 
 So in a way you could define a tree like this
- 
+
 [source,python]
 ----
- 
+
 root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
                 |( by field )
                 |
@@ -298,22 +305,22 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
 ----
 
 
-==== Rules 
+==== Rules
 
-* The size of the header and offset is automatically defined in default by the order of the fields ( inc by type size multiply by array_size) 
+* The size of the header and offset is automatically defined in default by the order of the fields ( inc by type size multiply by array_size)
 * It can be overrided by offset field ( put offset in the object ) and then an more advanced field can be shown earlier in the GUI
 * The packet size is defined before the headers.  Header Should not be allowed to be added if the size + header size is bigger than packet size
 * "Payload" is predefined Fields that take the reset of the packet and user can edit it ( see xref:Payload[Payload] )
-* There would be a spare field in the Stream object so GUI could add more metadata for reconstructing the builder types 
-  for example in this example Ethrenet/IP/TCP/IP/TCP  you can't extrac from buffer alone that Payload is IP/TCP only the builder known that in build time.  
+* There would be a spare field in the Stream object so GUI could add more metadata for reconstructing the builder types
+  for example in this example Ethrenet/IP/TCP/IP/TCP  you can't extrac from buffer alone that Payload is IP/TCP only the builder known that in build time.
 * Ip total length need to keep the total_pkt_size - this ip header . this should work for internal header too.
-* When GUI add header ("external") the total size of this header should be calculated ( varible size should be given a default - ipv4) 
+* When GUI add header ("external") the total size of this header should be calculated ( varible size should be given a default - ipv4)
 
 
-=== Examples  
+=== Examples
 
 
-==== TLV (Ip option) anchor:IpvOption[]
+==== TLV (Ip option) anchor:IpvOption[], value_based_next_class anchor:Value_Based_Next_Class[]
 
 
 IP-option see link:http://tools.ietf.org/html/rfc791[ip_option]
@@ -322,59 +329,55 @@ IP-option see link:http://tools.ietf.org/html/rfc791[ip_option]
 
 1 : Length 1
 
-other : Byte : Length ( +first) |option 
- 
+other : Byte : Length ( +first) |option
+
 
 
 [source,python]
 ----
 
  - class : "ip_option_131"
-   help  : "ip_option"      
-   fields : 
+   gui_representation:
+       help  : "ip_option"
+   fields :
          - name : "length"    # tree with leaf of bits
-           help : "length"
+           gui_representation:
+               help : "length"
            type : uint8
            properties : ["tlv"] # the length include the prev field size (8 byte)
 
          - name : "pointer"    # tree with leaf of bits
            type : uint8
-           
+
          - name : "buffer"    # tree with leaf of bits
            type : "tlv_reset"
 
  - class : "default_ip4_option_tlv"
-   help  : "ip_option"      
-   fields : 
+   gui_representation:
+       help  : "ip_option"
+   fields :
          - name : "length"    # tree with leaf of bits
-           help : "length"
+           gui_representation:
+               help : "length"
            type : uint8
            properties : "tlv" # the length include the prev field size (8 byte)
-           
+
          - name : "buffer"    # tree with leaf of bits
            type : "vlen_t"
- 
+
 
  - class : "ip_option"
-   help  : "ip_option"      
+   gui_representation:
+       help  : "ip_option"
    type : uint8
    default : [0x01]
-   value_based_next_header : 
-       fields: 
-         - key : 0x00
-           val  : "end"   # reserve name for ending the loop
+   value_based_next_class :
+       0x00  : "end"   # reserve name for ending the loop
+       0x01  : "ip_option"   # back to this header
+       0x131 : "ip_option_131"
+       0x0812: "gre"
+       default : "default_ip4_option_tlv"
 
-        - key  : 0x01
-          val  : "ip_option"   # back to this header
-
-        - key  : 0x131
-          val  : "ip_option_131"      
-
-        - key  : 0x0812
-          val  : "gre"      
-
-      default : "default_ip4_option_tlv"  
-       
 
 ----
 
@@ -389,151 +392,145 @@ other : Byte : Length ( +first) |option
 ----
 
  - class : "c-mac-addr"
-   help  : "Mac addrees"      
    type : "uint8"
-   array_size : 6     
+   array_size : 6
    default : [0x00, 0x00, 0x01, 0x00, 0x00, 0x00]
    gui_representation:
       data_type  : "mac-addr_t" # format ([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}
+      help  : "Mac addrees"
 
 
  - class : "ethernet"
-   help : "Ethernet-L2"
+   gui_representation:
+       help : "Ethernet-L2"
    properties: ['external']
-   fields : 
+   fields :
         - name : "Dst"
-          help : "destination mac"      
+          gui_representation:
+              help : "destination mac"
           type : "c-mac-addr"
-          
+
         - name : "Src"
-          help : "source mac"      
+          gui_representation:
+              help : "source mac"
           type : "c-mac-addr"
-          
+
         - name: "Ethertype"
-          help: "Ethertype"
+          gui_representation:
+              help: "Ethertype"
           type: "uint16"
           default: [0x0800]
-          value_based_next_header : 
-                fields :
-                        - key  : 0x0800
-                          val  : "ip"
-        
-                        - key  : 0x86DD
-                          val  : "ipv6"
-        
-                        - key  : 0x8100
-                          val  : "vlan"
-        
-                        - key  : 0x8847
-                          val  : "mpls" #unicast
+          value_based_next_header :
+                0x0800  : "ipv4"
+                0x86DD  : "ipv6"
+                0x8100  : "vlan"
+                0x8847  : "mpls" #unicast
                 default : "payload"
-          
+
 
  - class : "ipv4"
-   help : "Ipv4"
-   fields : 
+   gui_representation:
+       help : "Ipv4"
+   fields :
         - name : "ver"
-          help : "Version"
+          gui_representation:
+              help : "Version"
           type : "bit"
-          array_size : 4     
+          array_size : 4
           default : [0, 1, 0, 0]
           properties : ["const"]
 
          - name : "ihl"
-          help : "IHL"
           type : "bit"
-          array_size : 4     
+          array_size : 4
           default : [0, 1, 1, 1]
           properties : ["ipv4_ihl"]
           gui_representation:
+              help : "IHL"
               form_type: "checkbox"
 
           ..
 
          - name : "hdr_chsum"
-          help : "Header Checksum"
+          gui_representation:
+              help : "Header Checksum"
           default : [0x00,0x00]
           properties : ["ipv4_check_sum", "const"]
 
          - name : "total_len"
-          help : "Total Length"
+          gui_representation:
+              help : "Total Length"
           default : [0x00,0x00]
           properties : ["ipv4_total_len", "const"] # auto calculate total_size-offset_header
-          
+
          - name : "protocol"
-          help : "Protocol"
           type : uint8
           default : 0x06
           value_based_next_header : &ipv4_next_header
-               fields: 
-                - key  : 0x06
-                  val  : "tcp"      
-
-                - key  : 0x11
-                  val  : "udp"      
-
-                - key  : 0x29
-                  val  : "ipv6"
-
-                - key  : 0x2F
-                  val  : "gre"      
-                default : "payload"  
+               0x06  : "tcp"
+               0x11  : "udp"
+               0x29  : "ipv6"
+               0x2F  : "gre"
+               default : "payload"
           gui_representation:
+              help : "IPv4 next Protocol"
               form_type: "combo_without_edit"
               combobox_values:
                 <<: *ipv4_next_header # take same choices as value_based_next_header
 
          - name : "src_addr"
-          help : "Source Address"
           type : uint32
           default : [16, 0, 0, 0]
           gui_representation:
+              help : "Source Address"
               data_type  : "ipv4" # reserve
 
          - name : "dst_addr"
-          help : "Destination Address"
           default : [48, 0, 0, 0]
           type : uint32
           gui_representation:
+              help : "Destination Address"
               data_type  : "ipv4" # reserve
               form_type : "combo_with_edit"
               combobox_values:
-                fields:
-                    - key : [127, 0, 0, 1]
-                    - value : "localhost"
-
-                    - key : [255, 255, 255, 255]
-                    - value : "broadcast"
+                    [127, 0, 0, 1]: 'localhost'
+                    [255, 255, 255, 255]: 'broadcast'
 
 
  - class : "tcp"
-   help : "TCP"
-   properties : ["external"] 
-   fields : 
+   gui_representation:
+       help : "TCP"
+   properties : ["external"]
+   fields :
          - name : "src_port"
-          help : "Source Port"
+          gui_representation:
+              help : "Source Port"
           default : [0x30,0x00]
           type : uint16
 
          - name : "dest_port"
-          help : "Source Port"
+          gui_representation:
+              help : "Source Port"
           default : [0x30,0x00]
           type : uint16
 
          - name : "seq"
-          help : "Seq Number"
+          gui_representation:
+              help : "Seq Number"
           type : uint32
           default : [0x30,0x00,00,00]
 
          - name : "ack"
-          help : "Ack Number"
+          gui_representation:
+              help : "Ack Number"
           type : uint32
           default : [0x30,0x00,00,00]
 
         ...
-        
+
          - name : "flags"    # tree with leaf of bits
-          help : "Ack Number"
+          gui_representation:
+              help : "Ack Number"
           type : uint8
           default : [0x30]
           fields :
@@ -547,18 +544,20 @@ other : Byte : Length ( +first) |option
                   type  : bit
                   default : [0x1]
                   ..
-                
+
          - name : "checksum"
-          help : "Checksum"
+          gui_representation:
+              help : "TCP Checksum"
           type : uint16
           default : [0x00,0x00]
           properties : ["tcp_checksum"] # auto calculate total_size-offset_header
 
 
 -  class : "root" # reserve
-   help  : "Root"   
-   next_headers : [ "ethrenet" ,"llc","_802-3"] 
----------------------------                
+   gui_representation:
+       help  : "Root"
+   next_headers : [ "ethrenet" ,"llc","_802-3"]
+---------------------------
 
 
 ==== Overide subfields example anchor:Overide_Subfields_Example[]
@@ -569,43 +568,38 @@ In this example parent class default value overrides default values of sub-field
 ----
 
  - class : "c-mac-addr"
-   help  : "Mac addrees"      
    type : "uint8"
-   array_size : 6     
+   array_size : 6
    gui_representation:
+      help  : "Mac addrees"
       data_type  : "mac-addr_t" # format ([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}
    default : [0x00,0x00,0x01,0x00,0x00,0x00]
-        
+
 
  - class : "ethernet"
-   help : "Ethernet-L2"
-   properties : ["external"] 
+   gui_representation:
+       help : "Ethernet-L2"
+   properties : ["external"]
    default : [0x00,0x01,0x01,0x00,0x00,0x00, 0x00,0x02,0x02,0x00,0x00,0x00 ,0x08,00] # change the default of sub-fields . it is const size
-   fields : 
+   fields :
         - name : "Dst"
-          help : "destination mac"      
+          gui_representation:
+              help : "destination mac"
           type : "c-mac-addr"
-          
+
         - name : "Src"
-          help : "source mac"      
+          gui_representation:
+              help : "source mac"
           type : "c-mac-addr"
-          
+
         - name : "ip_protocol"
           type : "uint16_t"
           default : [0x08,0x00]
-          value_based_next_header : 
-                fields :
-                        - key  : 0x0800
-                          val  : "ip"      
-        
-                        - key  : 0x86DD
-                          val  : "ipv6"      
-        
-                        - key  : 0x8100
-                          val  : "vlan"      
-        
-                        - key  : 0x8847
-                          val  : "mpls unicast"
+          value_based_next_header :
+                0x0800  : "ipv4"
+                0x86DD  : "ipv6"
+                0x8100  : "vlan"
+                0x8847  : "mpls unicast"
                 default : "payload"
 ----
 
@@ -614,42 +608,34 @@ In this example parent class default value overrides default values of sub-field
 [source,python]
 ----
   - name: 'Flags'
-    help: 'IPv4 Flags'
     type: 'bit'
     array_size: 3
-    gui-representation:
+    gui_representation:
+        help: 'IPv4 Flags'
         form_type: 'checkbox' # can check each bit
 
 
   - name: 'dst_addr'
-    help: 'IPv4 Destination Address'
     default: [48, 0, 0, 0]
     type: uint32
-    gui-representation:
+    gui_representation:
+        help: 'IPv4 Destination Address'
         data_type: 'ipv4_t' # special representation case, show as 4 decimal numbers
         form_type: 'combo_with_edit' # can choose from pre-defined values or edit manually
         combobox_values:
-            fields:
-              - key: [127, 0, 0, 1]
-              - val: 'localhost'
-
-              - key: [255, 255, 255, 255]
-              - val: 'broadcast'
+            [127, 0, 0, 1]: 'localhost'
+            [255, 255, 255, 255]: 'broadcast'
 
 
   - name: 'protocol'
-    help: 'IPv4 Protocol Field'
     type: uint8
     default: 0x06
     value_based_next_header: &ipv4_next_header
-        fields: 
-          - key: 0x06
-            val: 'tcp'      
-
-          - key: 0x11
-            val: 'udp'                  
-        default : "payload"  
-    gui-representation:
+        0x06: 'tcp'
+        0x11: 'udp'
+        default : "payload"
+    gui_representation:
+        help: 'IPv4 Protocol Field'
         form_type: 'combo_without_edit' # choose from supported protocols, no manual edit
         combobox_values:
             <<: *ipv4_next_header # take same choices as value_based_next_header
@@ -669,14 +655,16 @@ choosing from predefined values:
 
 image:images/combo_button_choosing.jpg[]
 
-==== Union base 
+==== Union base
 
 TBD
 
 
 
 === Resource
+*  link:yaml/headers.yaml[headers.yaml]
 *  link:https://wireedit.com/[WireEdit]
 *  link:http://ostinato.org/[ostinato]
 *  link:http://www.slideshare.net/nlekh/ixiaexplorer[IxExplorer]
+
 
