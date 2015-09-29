@@ -2,12 +2,25 @@ The TRex RPC Server
 ===================
 :author: Itay Marom
 :email: <imarom@cisco.com>
-:revnumber: 1.70-0.0
+:revnumber: 1.01
 :quotes.++:
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 
+== Change log
+
+[options="header",cols="^1,^h,3a"]
+|=================
+| Version |  name   |  meaning
+| 1.00    |  Itay Marom (imarom) |
+- first version
+| 1.01    | Dan Klein (danklei)
+|
+- added usage examples using Python code as Higher-level usage
+- added logic and explanation behind VM commands
+
+|=================
 
 
 == RPC Support On TRex
@@ -1084,3 +1097,197 @@ Describes the log off from the machine
 * *remove_all_streams* ['optional'] - if you want to clear all the previous streams - use this
 * *release* - release the ownership over the device
 
+
+== Higher Level implementation examples
+The following examples represents common scenarios implemented by a higher layer, which uses the API described above.
+
+The examples are written in Python, however similar examples can be shown in any programming language.
+
+=== CTRexPktBuilder class description
+`CTRexPktBuilder` is a Python module designed to provide a progammer API for dynamic packet building.
+Since the packet is built to be used by TRex, a `CTRexVM` subclass has been created to describe how TRex should use the described packet in its transmission.
+
+While the entire `CTRexPktBuilder` class (which is initialized by specifying the total length of the packet) responsible to both building the packet layer by layer, the `CTRexVM` class is responsible for controlling the ranging of the values as desribed in the <<vm_obj,VM objects section>>, and other attributes being used by TRex data-plane once the server receives its streams.
+
+
+=== Creating an example packet
+The following conde snippet describes how an ICMP Echo packet is built.
+
+[source, python, numbered]
+----
+from packet_builder import CTRexPktBuilder
+import dpkt
+
+pkt_bld = CTRexPktBuilder()      # <1>
+pkt_bld.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
+# set Ethernet layer attributes
+pkt_bld.set_eth_layer_addr("l2", "src", "00:15:17:a7:75:a3")
+pkt_bld.set_eth_layer_addr("l2", "dst", "e0:5f:b9:69:e9:22")
+pkt_bld.set_layer_attr("l2", "type", dpkt.ethernet.ETH_TYPE_IP)
+# set IP layer attributes
+pkt_bld.add_pkt_layer("l3_ip", dpkt.ip.IP())
+pkt_bld.set_ip_layer_addr("l3_ip", "src", "21.0.0.2")
+pkt_bld.set_ip_layer_addr("l3_ip", "dst", "22.0.0.12")
+pkt_bld.set_layer_attr("l3_ip", "p", dpkt.ip.IP_PROTO_ICMP)
+# set ICMP layer attributes
+pkt_bld.add_pkt_layer("icmp", dpkt.icmp.ICMP())
+pkt_bld.set_layer_attr("icmp", "type", dpkt.icmp.ICMP_ECHO)
+# set Echo(ICMP) layer attributes
+pkt_bld.add_pkt_layer("icmp_echo", dpkt.icmp.ICMP.Echo())
+pkt_bld.set_layer_attr("icmp_echo", "id", 24528)
+pkt_bld.set_layer_attr("icmp_echo", "seq", 11482)
+pkt_bld.set_pkt_payload('hello world')
+# finally, set IP header len with relation to payload data
+pkt_bld.set_layer_attr("l3_ip", "len", len(pkt_bld.get_layer('l3_ip')))
+----
+
+<1> Initialize the packet builder instance.
+
+This example created a packet without any ranging to it, so in this case TRex is expected to reply the same packet over and over without any changes to it.
+
+When adding sending this packet as part of the <<_add_stream, Add Stream>> command, the packet content specified under `packet` would look for the created ICMP packet like this:
+
+[source, python]
+----
+>>> print pkt_bld.dump_pkt()
+ [224, 95, 185, 105, 233, 34, 0, 21, 23, 167, 117, 163, 8, 0, 69, 0, 0, 39, 
+  0, 0, 0, 0, 64, 1, 79, 201, 21, 0, 0, 2, 22, 0, 0, 12, 8, 0, 217, 134, 95, 
+  208, 44, 218, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
+----
+
+Each of the array items representing a byte data-representation, hence ranging from 0 to 255.
+
+=== Create a packet with single ranging instruction
+The following example creates an HTTP GET packet, hence layering Ethernet/IP/TCP/HTTP.
+
+[source, python, numbered]
+----
+from packet_builder import CTRexPktBuilder
+import dpkt
+
+pkt_bld = CTRexPktBuilder()    
+pkt_bld.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
+# set Ethernet layer attributes
+pkt_bld.set_eth_layer_addr("l2", "src", "00:15:17:a7:75:a3")
+pkt_bld.set_eth_layer_addr("l2", "dst", "e0:5f:b9:69:e9:22")
+pkt_bld.set_layer_attr("l2", "type", dpkt.ethernet.ETH_TYPE_IP)
+# set IP layer attributes
+pkt_bld.add_pkt_layer("l3_ip", dpkt.ip.IP())
+pkt_bld.set_ip_layer_addr("l3_ip", "src", "21.0.0.2")
+pkt_bld.set_ip_layer_addr("l3_ip", "dst", "22.0.0.12")
+pkt_bld.set_layer_attr("l3_ip", "p", dpkt.ip.IP_PROTO_TCP)
+# set TCP layer attributes
+pkt_bld.add_pkt_layer("l4_tcp", dpkt.tcp.TCP())
+pkt_bld.set_layer_attr("l4_tcp", "sport", 13311)
+pkt_bld.set_layer_attr("l4_tcp", "dport", 80)
+pkt_bld.set_layer_attr("l4_tcp", "flags", 0)
+pkt_bld.set_layer_attr("l4_tcp", "win", 32768)
+pkt_bld.set_layer_attr("l4_tcp", "seq", 0)
+# set packet payload, for example HTTP GET request
+pkt_bld.set_pkt_payload('GET /10k_60k HTTP/1.1\r\nHost: 22.0.0.3\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322; .NET CLR 2.0.50727)\r\nAccept: */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate, compress\r\n\r\n')
+
+# finally, set IP header len with relation to payload data
+pkt_bld.set_layer_attr("l3_ip", "len", len(pkt_bld.get_layer('l3_ip')))
+----
+
+Now, we extened the single packet created with three VM instructions, in order to range over the source IP of the packet.
+
+[source, python, numbered]
+----
+pkt_bld.set_vm_ip_range(ip_layer_name="l3_ip", # <1>
+                        ip_field="src",        # <2>
+                        ip_init="10.0.0.1", ip_start="10.0.0.1", ip_end="10.0.0.255", 
+                        add_value=1,
+                        operation="inc")
+----
+
+<1> `l3_ip` corresponds with the layer name given to the IP layer of the packet. This helps identifying and diffrenciate in packet containing more than one IP header.
+
+<2> the name of the field on which we want to range.
+
+Now, we added ranging for source IP starting from 10.0.0.1 to 10.0.0.255.
+This will generate the follwing VM instructions, which will be provided under `vm` field of the <<_add_stream, add_stream>> command:
+
+[source, python]
+----
+>>> print pkt_bld.vm.dump(),
+ [{'name': 'l3__src', 'ins_name': 'flow_var', 'max_value': '167772415', 'min_value': '167772161', 'init_value': '167772161', 'size': 4, 'op': 'inc'}, 
+  {'is_big_endian': False, 'pkt_offset': 26, 'type': 'write_flow_var', 'name': 'l3__src', 'add_value': 1}, 
+  {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]
+----
+
+As we can see, three instructions has been generated for this ranging criteria: 
+
+1. `flow_var` instruction - for defining the ranging parameters.
+
+2. `write_flow_var` instruction - for specifying where and how the modification should take place.
+
+3. `fix_checksum_ipv4` instruction - for updated the checksum field
+
+[WARNING]
+The order of the instruction **does matter**. In this example, if the `fix_checksum_ipv4` instruction would have been places prior to the `write_flow_var` instruction, the generated packet would have satyed with the old checksum values.
+
+[NOTE]
+By default, with each change to the IP header, a `fix_checksum_ipv4` instruction is added. This can be canceled by passing `add_checksum_inst=False` in functions which ranges over an IP field.
+
+
+=== Create a packet with multiple ranging instructions
+Now, we shall extend our ranging and add another field to range on, this time we'll pick the TOS field of the IP header.
+
+So, we'll add the following code snippet **ontop of the ranging method we already applied**:
+
+[source, python, numbered]
+----
+pkt_bld.set_vm_custom_range(layer_name="l3_ip", 
+                            hdr_field="tos", 
+                            init_val="10", start_val="10", end_val="200", add_val=2, val_size=1,
+                            operation="inc")
+----
+
+So, in this case we chose to range the TOS field from 10 to 200 in steps of 2.
+
+Finally, let's see the expected JSON output of the VM instructions:
+
+[source, python]
+----
+>>> print pkt_bld.vm.dump()
+ [{ 'init_value': '167772161',  # <1>
+    'ins_name': 'flow_var',
+    'max_value': '167772415',
+    'min_value': '167772161',
+    'name': 'l3__src',
+    'op': 'inc',
+    'size': 4},
+  { 'init_value': '10',         # <2>
+    'ins_name': 'flow_var',
+    'max_value': '200',
+    'min_value': '10',
+    'name': 'l3__tos',
+    'op': 'inc',
+    'size': 1},
+  { 'add_value': 2,             # <3>
+    'is_big_endian': False,
+    'name': 'l3__tos',
+    'pkt_offset': 15,
+    'type': 'write_flow_var'},
+  { 'add_value': 1,             # <4>
+    'is_big_endian': False,
+    'name': 'l3__src',
+    'pkt_offset': 26,
+    'type': 'write_flow_var'},
+  { 'pkt_offset': 14, 'type': 'fix_checksum_ipv4'} # <5>
+  ]
+----
+
+<1> `flow_var` instruction for source IP.
+
+<2> `flow_var` instruction for TOS field
+
+<3> `write_flow_var` instruction for TOS.
+
+<4> `write_flow_var` instruction for source IP.
+
+<5> `fix_checksum_ipv4` instruction for both ranging options
+
+[NOTE]
+In this case only one checksum instruction has been generated, since both ranging options applies to the same IP header.
