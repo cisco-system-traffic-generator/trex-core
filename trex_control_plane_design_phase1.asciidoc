@@ -154,17 +154,17 @@ Using class methods, the client interacts with T-Rex server, and enable it to pe
 
   5. Get custom T-Rex stats based on a window of saved history of latest 'N' polling results.
 
-The clients is also based on Python 2.7, however unlike ther server, it can run on any machine who wishes to. +
-In fact, the client side is simply a python library that interact with the werver using JSON-RPC (v2), hence if needed, anyone can write a library on any other language that will interact with the server ins the very same way.
+The clients is also based on Python 2.7, however unlike the server, it can run on any machine who wishes to. +
+In fact, the client side is simply a python library that interact with the server using JSON-RPC (v2), hence if needed, anyone can write a library on any other language that will interact with the server ins the very same way.
 
 
 ==== `CTRexClient` module initialization
 
 As explained, `CTRexClient` is the main module to use when writing an T-Rex test-plan. +
-This module holds the entire interaction with T-Rex server, and result contiaing via `result_obj`, which is an instance of `CTRexResult` class. +
+This module holds the entire interaction with T-Rex server, and result containing via `result_obj`, which is an instance of `CTRexResult` class. +
 The `CTRexClient` instance is initialized in the following way:
 
-  1. **T-Rex hostname**: represents the hostname on which the server is listening. Both hostname or IPv4 address will be a valid input.
+  1. **T-Rex hostname**: represents the hostname on which the server is listening. Either hostname or IPv4 address will be a valid input.
 
   2. **Server port**: the port on which the server listens to incoming client requests. This parameter value must be identical to `port` option configured in the server.
 
@@ -174,7 +174,7 @@ The `CTRexClient` instance is initialized in the following way:
   This option is especially useful for developers who wishes to imitate the functionality of this client using other programming languages.
 
 **That's it!** +
-Once these parameter has been passed, you're ready to interact woth T-Rex.
+Once these parameter has been passed, you're ready to interact with T-Rex.
 
 [NOTE] 
 The most common initialization will simply use the hostname, such that common initilization lookes like: + 
@@ -187,7 +187,7 @@ This section covers with great detail the usage of the client module. Each of th
   - **`start_trex (f, d, block_to_success, timeout, trex_cmd_options)`** +
     Issue a request to start T-Rex with certain configuration. The server will only handle the request if the T-Rex is in `Idle` status. +
     Once the status has been confirmed, T-Rex server will issue for this single client a token, so that only that client may abort running T-Rex session. +
-    `f` and `d` parameters are mandatory, as they are crutial parameter in setting T-Rex bahviour. Also, `d` parameter must be at least 30 seconds or larger.
+    `f` and `d` parameters are mandatory, as they are crucial parameter in setting T-Rex behaviour. Also, `d` parameter must be at least 30 seconds or larger.
     By default (and by design) this method **blocks** until T-Rex status changes to either 'Running' or back to 'Idle'.
 
   - **`stop_trex()`** +
@@ -195,7 +195,7 @@ This section covers with great detail the usage of the client module. Each of th
     This option is very useful especially when the real-time data from the T-Rex are utilized.
 
   - **`wait_until_kickoff_finish(timeout = 40)`** +
-    This method blocks until T-Rex T-Rex status changes to 'Running'. In case of error an exception will be thrown. +
+    This method blocks until T-Rex status changes to 'Running'. In case of error an exception will be thrown. +
     The 'timeout' parameter sets the maximum waiting time. +
     This method is especially useful when `block_to_success` was set to false in order to utilize the time to configure other things, such as DUT. 
 
@@ -229,7 +229,7 @@ endif::backend-xhtml11[]
     This method performs single poll of T-Rex running data and process it into the result object (named `result_obj`). +
     The method returns the most updated data dump from T-Rex in the form of Python dictionary. +
     +
-    Behind the scenes, running that method will trigger inner-client process over the saved window, and produce window-relevant inforamtion, as well as get the most important data moe accessible. +
+    Behind the scenes, running that method will trigger inner-client process over the saved window, and produce window-relevant information, as well as get the most important data more accessible. +
     Once the data has been fetched (at sample rate the satisfies the user), a custom data manipulation can be done in various forms and techniques footnote:[See `CTRexResult` module usage for more details]. +
     **Note: ** the sampling rate is bounded from buttom to 2 samples/sec.
 
@@ -270,7 +270,7 @@ These methods are:
     Fetch, out of all data dumps stored in history a value. 
     
   - **History data access API** +
-    Since (as metioned earlier) the data dump is a JSON-RPC string, which is decoded into Python dictionaries and lists, nested within each other. +
+    Since (as mentioned earlier) the data dump is a JSON-RPC string, which is decoded into Python dictionaries and lists, nested within each other. +
     This "Mini API" is used by both `get_last_value` and `get_value_list` methods, and receives in both cases two arguments: `tree_path_to_key, regex` footnote:[By default, `regex` argument is set to None]. +
     The user may choose whatever value he wishes to extract, using the `tree_path_to_key` argument. 
 
@@ -291,7 +291,7 @@ These methods are:
         
 == Usage Examples
 
-=== Exmaple #1: Checking T-Rex status and Launching T-Rex
+=== Example #1: Checking T-Rex status and Launching T-Rex
 
 The following program checks T-Rex status, and later on launches it, querying its status along different time slots.
 
@@ -345,7 +345,7 @@ Is T-Rex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'T-Rex 
 <1> When looking at T-Rex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
 
 
-=== Exmaple #2: Checking T-Rex status and Launching T-Rex with 'BAD PARAMETERS'
+=== Example #2: Checking T-Rex status and Launching T-Rex with 'BAD PARAMETERS'
 
 The following program checks T-Rex status, and later on launches it with wrong input ('mdf' is not legal option), hence T-Rex run will not start and a message will be available.
 
@@ -402,7 +402,7 @@ Is T-Rex running?  False {u'state': <TRexStatus.Idle: 1>, u'verbose': u'T-Rex ru
 <2> After T-Rex lanuching failed, a message indicating the failure reason. However, T-Rex is back Idle, ready to handle another launching request.
 
 
-=== Exmaple #3: Launching T-Rex, let it run until custom condition is satisfied
+=== Example #3: Launching T-Rex, let it run until custom condition is satisfied
 
 The following program will launch T-Rex, and poll its result data until custom condition function returns `True`. + In this case, the condition function is simply named `condition`. + 
 Once the condition is met, T-Rex run will be terminated.
@@ -439,7 +439,7 @@ print "Before Running, T-Rex status is: ", trex.get_running_status()
 
 <<<
 
-=== Exmaple #4: Launching T-Rex, monitor live data and stopping on demand
+=== Example #4: Launching T-Rex, monitor live data and stopping on demand
 
 The following program will launch T-Rex, and while it runs poll the server (every 5 seconds) for running inforamtion, such as latency, drops, and other extractable parameters. +
 Then, after some criteria was met, T-Rex execution is terminated, enabeling others to use the resource instead of waiting for the entire execution to finish.
@@ -484,7 +484,7 @@ print "Before Running, T-Rex status is: ", trex.get_running_status()
 
 <<<
 
-=== Exmaple #5: Launching T-Rex, let it run until finished
+=== Example #5: Launching T-Rex, let it run until finished
 
 The following program will launch T-Rex, and poll it automatically until run finishes. The polling rate is customisable (in this case, every 10 seconds) using `time_between_samples` argument.
 

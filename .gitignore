@@ -1,21 +1,11 @@
 # Compiled source #
 ###################
-*.com
-*.class
-*.dll
-*.exe
-*.o
-*.so
-.lock*
-linux_dpdk*
+.lock-waf*
+.waf*
 linux*
-scripts/_t-rex-*
-scripts/bp-sim-*
 scripts/doc/*
-scripts/mock-*
-
+build/
 *.pyc
-
  
 # Packages #
 ############
@@ -29,12 +19,7 @@ scripts/mock-*
 *.rar
 *.tar
 *.zip
-  
-# Logs and databases #
-######################
-*.log
-*.sql
-*.sqlite
+*.vpj
  
 # OS generated files #
 ######################
@@ -44,7 +29,6 @@ scripts/mock-*
 .Trashes
 ehthumbs.db
 Thumbs.db
-
 
 # IDE/ Editors files #
 ######################

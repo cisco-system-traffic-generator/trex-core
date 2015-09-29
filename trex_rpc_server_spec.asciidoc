@@ -1,0 +1,1086 @@
+The TRex RPC Server
+===================
+:author: Itay Marom
+:email: <imarom@cisco.com>
+:revnumber: 1.70-0.0
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+
+
+
+== RPC Support On TRex
+
+TRex implements a RPC protocol in order to config, view and
+in general execute remote calls on TRex
+
+In this document we will provide information on
+how a client can implement the protocol used to communicate with TRex
+
+In general, we will describe the following:
+
+* *Transport Layer* - The transport layer used to communicate with TRex server
+* *RPC Reprensentation Protocol* - The format in which remote procedures are carried
+
+=== Transport Layer
+
+TRex server transport layer is implemented using ZMQ.
+
+The default configuration is TCP on port 5555, however this is configurable.
+
+{zwsp} +
+The communication model is based on the request-reply ZMQ model:
+
+http://zguide.zeromq.org/page:all#Ask-and-Ye-Shall-Receive
+
+{zwsp} +
+
+for more on ZMQ and implementation please refer to:
+{zwsp} +
+http://zeromq.org/intro:read-the-manual
+
+=== RPC Reprensentation Protocol
+
+The RPC reprensentation protocol is JSON RPC v2.0.
+Every request and response will be encoded in a JSON RPC v2.0 format.
+
+{zwsp} +
+
+For more info on JSON RPC v2.0 spec please refer to:
+{zwsp} +
+
+http://www.jsonrpc.org/specification
+
+{zwsp} +
+
+Later on in the document we will describe all the supported commands.
+
+=== TRex RPC Mock Server
+Before we get into the commands, it's worth mentioning that TRex has a mock RPC server
+designed to allow playing around with the server in order to understand the response
+and perform adjustments to the request.
+
+TRex also provides a Python based console that can connect to the server (mock or real) and
+send various commands to the server.
+
+==== Building The Mock Server
+Building the mock server is performed like this:
+[source,bash]
+----
+trex-core/linux>  ./b configure
+trex-core/linux>  ./b --target=mock-rpc-server-64-debug
+----
+
+==== Running The Mock Server
+Launching the mock server is performed like this:
+
+[source,bash]
+----
+ 
+trex-core/scripts> ./mock-rpc-server-64-debug
+
+-= Starting RPC Server Mock =-
+
+Listening on tcp://localhost:5050 [ZMQ]
+
+Setting Server To Full Verbose
+
+Server Started
+
+----
+
+==== Using The TRex Console To Interact
+When the mock server is up, you can already send commands to the server.
+{zwsp} +
+{zwsp} +
+
+Let's demonstrate the operation with the Python based TRex console:
+
+{zwsp} +
+
+[source,bash]
+----
+trex-core/scripts> ./trex-console
+
+Connecting To RPC Server On tcp://localhost:5050
+[SUCCESS]
+
+
+-=TRex Console V1.0=-
+
+Type 'help' or '?' for supported actions
+
+TRex >
+
+----
+As we will see later on, a basic RPC command supported by the server is 'ping'.
+{zwsp} +
+Let's issue a ping command to the server and see what happens on both sides:
+
+{zwsp} +
+{zwsp} +
+
+On the 'client' side:
+
+[source,bash]
+----
+TRex > verbose on
+
+verbose set to on
+
+TRex > ping
+
+-> Pinging RPC server
+[verbose] Sending Request To Server:
+
+{
+    "id": "l0tog11a",
+    "jsonrpc": "2.0",
+    "method": "ping",
+    "params": null
+}
+
+[verbose] Server Response:
+
+{
+    "id": "l0tog11a",
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+[SUCCESS]
+
+----
+On the 'server' side:
+
+[source,bash]
+----
+
+trex-core/scripts> ./mock-rpc-server-64-debug
+
+-= Starting RPC Server Mock =-
+
+Listening on tcp://localhost:5050 [ZMQ]
+
+Setting Server To Full Verbose
+
+Server Started
+
+
+[verbose][req resp] Server Received:
+
+{
+   "id" : "maa5a3g1",
+   "jsonrpc" : "2.0",
+   "method" : "ping",
+   "params" : null
+}
+
+[verbose][req resp] Server Replied:
+
+{
+   "id" : "maa5a3g1",
+   "jsonrpc" : "2.0",
+   "result" : "ACK"
+}
+
+----
+
+== RPC Server Component Position Illustration
+
+The following diagram illustres the RPC server component's place:
+
+image::images/rpc_server_big_picture.png[title="RPC Server Position",align="left",width=800, link="images/rpc_server_big_picture.png"]
+
+== RPC Server Port State Machine
+Any port on the server can be in numbered of states, each state provides other subset of the commands
+that are allowed to be executed.
+
+We define the following possible states:
+
+* *unowned* - The specific port is either unowned or another user is owning the port
+* *owned* - The specific port has been acquired by the client
+* *active* - The specific port is in the middle of injecting traffic - currently active
+
+Each port command will specify on which states it is possible to execute it.
+
+For port related commands valid only on 'owned' or 'active', a field called ''handler'' 'MUST' be passed
+along with the rest of the parameters.
+
+
+This will identify the connection:
+
+image::images/rpc_states.png[title="Port States",align="left",width=150, link="images/rpc_states.png"]
+
+== RPC Commands
+The following RPC commands are supported
+
+=== Ping
+* *Name* - 'ping'
+* *Valid States* - 'not relevant'
+* *Description* - Pings the TRex server
+* *Paramters* - None
+* *Result* ['string'] - "ACK" On Sucess
+
+Example:
+
+[source,bash]
+----
+'Request':
+
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "ping",
+    "params": null
+}
+
+'Response':
+
+{
+   "jsonrpc" : "2.0",
+   "id" : 1,
+   "result" : "ACK"
+}
+
+----
+
+=== Get Server Supported Commands
+* *Name* - 'get_supported_cmds'
+* *Valid States* - 'not relevant'
+* *Description* - Queries the server for all the supported commands
+* *Paramters* - None
+* *Result* ['array'] - A list of all the supported commands by the server
+
+Example:
+
+[source,bash]
+----
+'Request':
+
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "get_supported_cmds",
+    "params": null
+}
+
+
+'Response':
+
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": [
+        "remove_all_streams",
+        "remove_stream",
+        "add_stream",
+        "get_reg_cmds",
+        "ping",
+        "test_sub",
+        "get_version",
+        "test_add"
+    ]
+}
+
+----
+
+
+=== Get Version
+* *Name* - 'get_version'
+* *Valid States* - 'not relevant'
+* *Description* - Queries the server for version information
+* *Paramters* - None
+* *Result* ['object'] - See table below
+
+.Object type 'return values for get_version' 
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type     | Description 
+| version       | string   | TRex version
+| build_date    | string   | build date
+| build_time    | string   | build time
+| built_by      | string   | who built this version
+|=================
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "wapkk8m6",
+    "jsonrpc": "2.0",
+    "method": "get_version",
+    "params": null
+}
+
+
+'Response':
+
+{
+    "id": "wapkk8m6",
+    "jsonrpc": "2.0",
+    "result": {
+        "build_date": "Sep 16 2015",
+        "build_time": "12:33:01",
+        "built_by": "imarom",
+        "version": "v0.0"
+    }
+}
+
+----
+
+=== Get System Info
+* *Name* - 'get_system_info'
+* *Description* - Queries the server for system properties
+* *Paramters* - None
+* *Result* ['object'] - See table below
+
+.return value: 'get_system_info'
+[options="header",cols="1,1,3"]
+|=================
+| Field          | Type     | Description 
+| dp_core_count  | int      | DP core count
+| core_type      | string   | DP core type
+| hostname       | string   | machine host name
+| uptime         | string   | uptime of the server
+| port_count     | int      | number of ports on the machine
+| ports          | array    | arary of object ''port'' - see below
+|=================
+
+.return value: 'get_system_info'.'port'
+[options="header",cols="1,1,3"]
+|=================
+| Field          | Type     | Description 
+| driver         | string   | driver type
+| speed          | string   | speed of the port (1g, 10g, 40g, 100g)
+| status         | string   | 'down', 'idle' or 'transmitting'
+|=================
+
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "zweuldlh",
+    "jsonrpc": "2.0",
+    "method": "get_system_info",
+    "params": null
+}
+
+'Response':
+
+{
+    "id": "zweuldlh",
+    "jsonrpc": "2.0",
+    "result": {
+        "core_type": "Intel(R) Xeon(R) CPU E5-2650 0 @ 2.00GHz",
+        "dp_core_count": 1,
+        "hostname": "csi-kiwi-03.cisco.com",
+        "port_count": 4,
+        "ports": [
+            {
+                "driver": "E1000",
+                "index": 0,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 1,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 2,
+                "speed": "1g",
+                "status": "down"
+            },
+            {
+                "driver": "E1000",
+                "index": 3,
+                "speed": "1g",
+                "status": "down"
+            }
+        ]
+    }
+}
+
+----
+
+=== Get Owner
+* *Name* - 'get_owner'
+* *Valid States* - 'all'
+* *Description* - Queries the server for a specific port current owner
+* *Paramters* -
+** *port_id* ['int'] - port id to query for owner
+* *Result* ['string'] - owner name if exists, otherwise 'none'
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "hxjkuwj9",
+    "jsonrpc": "2.0",
+    "method": "get_owner",
+    "params": {
+	"port_id": 1
+    }
+}
+
+'Response':
+
+{
+    "id": "hxjkuwj9",
+    "jsonrpc": "2.0",
+    "result": {
+        "owner": "itay"
+    }
+}
+
+----
+
+=== Acquire
+* *Name* - 'Acquire'
+* *Valid States* - 'all'
+* *Description* - Takes ownership over the port
+* *Paramters* -
+** *port_id* ['int'] - port id to take ownership
+** *user* ['string'] - User name aquiring the system
+** *force* ['boolean'] - force action even if another user is holding the port
+* *Result* ['string'] - 'unique' connection handler for future requests for that port
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "b1tr56yz",
+    "jsonrpc": "2.0",
+    "method": "Acquire",
+    "params": {
+	"user": "itay"
+	"port_id": 1
+        "force": false,
+    }
+}
+
+
+'Response':
+
+{
+    "id": "b1tr56yz",
+    "jsonrpc": "2.0",
+    "result": "4cBWDxS2"
+}
+----
+
+
+=== Release
+* *Name* - 'release'
+* *Valid States* - 'owned'
+* *Description* - Release owernship over the device
+* *Paramters* -
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id to release
+* *Result* ['string'] - "ACK" on success
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "m785dxwd",
+    "jsonrpc": "2.0",
+    "method": "release",
+    "params": {
+        "handler": "37JncCHr"
+	"port_id": 1
+    }
+}
+
+
+'Response':
+
+{
+    "id": "m785dxwd",
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+----
+
+
+=== Add Stream
+* *Name* - 'add_stream'
+* *Valid States* - 'owned'
+* *Description* - Adds a stream to a port
+* *Paramters* 
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id associated with this stream
+** *stream_id* ['int'] - stream id associated with the stream object
+** *stream* - object of type xref:stream_obj['stream']
+* *Result* ['string'] - "ACK" in case of success
+
+==== Object type 'stream' anchor:stream_obj[]
+
+Add_stream gets a single parameter of type object.
+
+The format of that object is as follows:
+
+.Object type 'stream' 
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| enabled         | boolean | is this stream enabled
+| self_start      | boolean | is this stream triggered by starting injection or triggered by another stream
+| isg             | double  | ['usec'] inter stream gap - delay time in usec until the stream is started
+| next_stream_id  | int     | next stream to start after this stream. -1 means stop after this stream
+| packet          | object  | object of type xref:packet_obj['packet']
+| mode            | object  | object of type xref:mode_obj['mode']
+| vm              | array   | array of objects of type xref:vm_obj['vm']
+| rx_stats        | object  | object of type xref:rx_stats_obj['rx_stats']
+|=================
+
+===== Object type 'packet' anchor:packet_obj[]
+packet contains binary and meta data
+
+.Object type 'packet'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| binary      | byte array  | binary dump of the packet to be used in the stream as array of bytes
+| meta        | string      | meta data object. opaque to the RPC server. will be passed on queries
+|=================
+
+===== Object type 'mode' anchor:mode_obj[]
+mode object can be 'one' of the following objects:
+
+.Object type 'mode - continuous' 
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | ''continuous''
+| pps         | double      | rate in packets per second 
+|=================
+
+.Object type 'mode - single_burst' 
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type        | Description
+| type          | string      | ''single_burst''
+| pps           | double      | rate in packets per second 
+| total pkts    | int         | total packets in the burst
+|=================
+
+.Object type 'mode - multi_burst' 
+[options="header",cols="1,1,3"]
+|=================
+| Field          | Type        | Description
+| type           | string      | ''multi_burst''
+| pps            | int         | rate in packets per second 
+| pkts_per_burst | int         | packets in a single burst
+| ibg            | double      | ['usec'] inter burst gap. delay between bursts in usec
+| count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
+|=================
+
+===== Object type 'vm' anchor:vm_obj[]
+Array of VM instruction objects to be used with this stream
+
+Any element in the array can be one of the following object types:
+
+.Object type 'vm - fix_checksum_ipv4'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | ''fix_checksum_ipv4''
+| pkt_offset  | uint16      | offset of the field to fix 
+|=================
+
+.Object type 'vm - flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type                        | Description
+| type        | string                      | ''flow_var'''
+| name        | string                      | flow var name - this should be a unique identifier
+| size        | [1,2,4,8]                   | size of the flow var in bytes
+| op          | ['inc', 'dec', 'random']    | operation type to perform on the field
+| init value  | uint64_t as string          | init value for the field
+| min value   | uint64_t as string          | minimum value for the field
+| max value   | uint64_t as string          | maximum value for the field
+|=================
+
+.Object type 'vm - write_flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type        | Description
+| type          | string      | ''write_flow_var''
+| name          | string      | flow var name to write
+| pkt_offset    | uint16      | offset at the packet to perform the write
+| add_value     | int         | delta to add to the field prior to writing - can be negative
+| is_big_endian | boolean     | should write as big endian or little 
+|=================
+
+TIP: For more information and examples on VM objects please refer to:
+link:vm_doc.html[VM examples]
+
+===== Object type 'rx_stats' anchor:rx_stats_obj[]
+Describes rx stats for the stream
+
+{zwsp} +
+
+IMPORTANT: In case rx_stats is enabled, meta data will be written in the end of the packet.
+please also consider the following constraints:
+
+==== Constrains
+* *performance* - this will have performance impact as rx packets will be examined
+* *override* - up to 10 bytes at the end of the packet will be overidden by the meta data required
+
+==== The bytes needed for activating 'rx_stats':
+
+* *rx_stream_id* consumes 2 bytes
+* *seq_enabled* consumes 4 bytes
+* *latency_enabled* consumes 4 bytes
+
+so if no seq or latency are enabled 2 bytes will be used.
+
+
+if seq or latency alone are enabled, 6 bytes will be used.
+
+
+if both are enabled then 10 bytes will be used.
+
+
+.Object type 'rx_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field            | Type        | Description
+| enabled          | boolean     | is rx_stats enabled for this stream
+| seq_enabled      | boolean     | should write 32 bit sequence
+| latency_enabled  | boolean     | should write 32 bit latency
+|=================
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "add_stream",
+    "params": {
+        "handler": "37JncCHr",
+        "port_id": 1,
+	"stream_id": 502
+        "stream": {
+            "enabled": true,
+            "isg": 4.3,
+            "mode": {
+                "pps": 3,
+                "total_pkts": 5000,
+                "type": "single_burst"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": [
+                    4,
+                    1,
+                    255
+                ],
+                "meta": ""
+            },
+            "rx_stats": {
+                "enabled": false
+            },
+            "self_start": true,
+        }
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+
+=== Remove Stream
+* *Name* - 'remove_stream'
+* *Valid States* - 'owned'
+* *Description* - Removes a stream from a port
+* *Paramters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port assosicated with the stream.
+** *stream_id* ['int'] - stream to remove
+
+* *Result* ['string'] - "ACK" in case of success
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "method": "remove_stream",
+    "params": {
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "stream_id": 502
+    }
+}
+
+
+'Response':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+----
+
+=== Get Stream ID List
+* *Name* - 'get_stream_list'
+* *Valid States* - 'owned', 'active'
+* *Description* - fetch all the assoicated streams for a port
+* *Paramters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port to query for registered streams
+
+* *Result* ['array'] - array of 'stream_id'
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream_list",
+    "params": {
+        "handler": "37JncCHr",
+        "port_id": 1
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": [
+        502,
+        18
+    ]
+}
+
+
+----
+
+=== Get Stream
+* *Name* - 'get_stream'
+* *Valid States* - 'owned', 'active'
+* *Description* - get a specific stream object
+* *Paramters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port for the associated stream
+** *stream_id* ['int'] - the requested stream id
+
+* *Result* ['object'] - object xref:stream_obj['stream']
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream",
+    "params": {
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "stream_id": 7
+    }
+}
+
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+        "stream": {
+            "enabled": true,
+            "isg": 4.3,
+            "mode": {
+                "pps": 3,
+                "type": "continuous"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": [
+                    4,
+                    1,
+                    255
+                ],
+                "meta": ""
+            },
+            "self_start": true
+        }
+    }
+}
+
+----
+
+
+=== Remove All Streams
+* *Name* - 'remove_all_streams'
+* *Valid States* - 'owned'
+* *Description* - remove all streams from a port
+* *Paramters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port for the associated stream
+
+* *Result* ['string'] - "ACK" on success
+
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "remove_all_streams",
+    "params": {
+        "handler": "37JncCHr",
+        "port_id": 2
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+
+=== Start Traffic
+* *Name* - 'start_traffic'
+* *Valid States* - 'owned'
+* *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
+* *Paramters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to start traffic
+
+* *Result* ['string'] - "ACK" on success
+
+[source,bash]
+----
+
+'Request':
+
+{   
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "method": "start_traffic",
+    "params": {
+        "handler": "37JncCHr",
+        "port_id": 3
+    }
+
+'Response':
+
+{
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+=== Stop Traffic
+* *Name* - 'stop_traffic'
+* *Valid States* - 'active'
+* *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
+* *Paramters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to stop traffic
+
+* *Result* ['string'] - "ACK" on success
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "method": "stop_traffic",
+    "params": {
+        "handler": "37JncCHr",
+        "port_id": 3
+    }
+}
+
+'Response':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "result": "ACK"
+}
+
+
+----
+
+=== Get Global Stats
+* *Name* - 'get_global_stats'
+* *Valid States* - 'owned', 'active'
+* *Description* - Get machine global stats
+* *Paramters* - None
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_global_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| state             | string      | server state: can be 'unowned', 'owned' or 'active'
+| cpu_util          | double      | DP CPU util. in %
+| tx_bps            | double      | total TX bits per second
+| rx_bps            | double      | total RX bits per second
+| tx_pps            | double      | total TX packets per second
+| rx_pps            | double      | total RX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_rx_pkts     | int         | total RX packets
+| total_tx_bytes    | int         | total TX bytes
+| total_rx_bytes    | int         | total RX bytes
+| tx_rx_error       | int         | total Tx/Rx errors
+|=================
+
+=== Get Port Stats
+* *Name* - 'get_port_stats'
+* *Valid States* - 'owned', 'active'
+* *Description* - Get port stats
+* *Paramters*
+** *port_id* [int] - The port id for query
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_port_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| status            | string      | 'down', 'idle' or 'transmitting'
+| tx_bps            | double      | total TX bits per second
+| rx_bps            | double      | total RX bits per second
+| tx_pps            | double      | total TX packets per second
+| rx_pps            | double      | total RX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_rx_pkts     | int         | total RX packets
+| total_rx_bytes    | int         | total TX bytes
+| total_tx_bytes    | int         | total RX bytes
+| tx_rx_error       | int         | total Tx/Rx errors
+|=================
+
+=== Get Stream Stats
+* *Name* - 'get_steram_stats'
+* *Valid States* - 'owned', 'active'
+* *Description* - Get port stats
+* *Paramters*
+** *port_id* [int] - The port id for query
+** *stream_id* [int] - The stream id for query
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_stream_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| tx_bps            | double      | total TX bits per second
+| tx_pps            | double      | total TX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_tx_bytes    | int         | total TX bytes
+| rx_bps            | double      | total RX bits per second (if 'rx_stats' enabled)
+| rx_pps            | double      | total RX packets per second (if 'rx_stats' enabled)
+| total_rx_pkts     | int         | total RX packets (if 'rx_stats' enabled)
+| total_rx_bytes    | int         | total RX bytes (if 'rx_stats' enabled)
+| latency           | array       | array of 2 ordered elements average, maximum (if 'rx_stats' enabled)
+|=================
+
+
+== Typical Transactions Examples
+the following examples represents common scenarios.
+commands in [...] represents 'meta commands'
+and not real RPC commands such as 'repeat', 'wait' and etc.
+
+=== Init/Boot
+This sequence represents a client implementing the protocol taking ownership
+over the server and preparing to perform work
+
+==== Commands Flow
+* *ping* - Ping the server to verify the server is up
+* *get_owner* - if owner is not me or 'none' prompt to the user if he wants to force it
+* *acquire* - Ask or force for exclusive control over the server. save the 'handler' given for future commands
+* *get_version* - Verify the server is compatible with the GUI
+* *get_system_info* - Get the installed ports and cores
+* *get_stream_list* - for every port, get the list and sync the GUI
+* *get_stream* - for every stream in a port list, get the stream info and sync the GUI
+
+=== Simple Traffic With Adding / Editing Streams
+
+describes a simple scenario where a user wants to
+add or edit one or more streams to one or more ports
+
+==== Commands Flow
+* *[init]* - perform the init procedure from above
+* *[GUI add/edit streams]* - GUI provides the user a way to add or edit streams and sync them
+* *remove_all_streams* ['optional'] - remove all previous streams to start from scratch
+* *add_stream* - configure a specific port with a stream. 
+* *['repeat previous']* - 'repeat' the above for how many ports and streams desired 
+* *get_stream_list* ['optional'] - sanity - verify the server is synced with the GUI 
+* *start_traffic* - start traffic on the specific port / all the ports
+* *get_global_stats* ['optional'] - make sure the machine is transmiting traffic
+* *['perfrom test']* - perform the required test
+* *stop_traffic* - when done, stop the traffic on the specific port / all the ports
+* *get_global_stats* ['optional'] - make sure the machine has stopped
+
+=== Logout
+
+Describes the log off from the machine
+
+==== Commands Flow
+* *stop_traffic* ['optional'] - if traffic has started - stop it
+* *get_global_stats* ['optional'] - make sure the machine has stopped
+* *remove_all_streams* ['optional'] - if you want to clear all the previous streams - use this
+* *release* - release the ownership over the device
+
