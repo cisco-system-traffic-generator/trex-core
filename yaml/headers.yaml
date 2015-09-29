@@ -8,7 +8,7 @@
   - class: 'root'
     gui_representation:
         help: 'Root'
-    next_headers: ['ethernet', 'llc', '_802-3', 'ipv4']
+    next_headers: ['ethernet', 'llc', '_802-3']
 
 
 #######################################################################
@@ -39,7 +39,7 @@
         gui_representation:
             help: 'Ethertype'
         type: 'uint16'
-        default: [0x0800]
+        default: 0x0800
         value_based_next_header:
             0x0800: 'ipv4'
               # not implemented
