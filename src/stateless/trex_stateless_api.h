@@ -181,13 +181,14 @@ public:
 
     }
 
-    const TrexPortStats & get_port_stats(void) {
-        /* scrabble */
-        m_stats.m_stats.tx_bps += 1 + rand() % 100;
-        m_stats.m_stats.tx_pps += 1 + rand() % 10;
-        m_stats.m_stats.total_tx_bytes += 1 + rand() % 10;
-        m_stats.m_stats.total_tx_pkts += 1 + rand() % 5;
+    /**
+     * update the values of the stats
+     * 
+     * @author imarom (24-Sep-15)
+     */
+    void update_stats();
 
+    const TrexPortStats & get_stats() {
         return m_stats;
     }
 
