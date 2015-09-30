@@ -22,7 +22,7 @@
     gui_representation:
         help: 'Ethernet-L2'
     properties: ['external']
-    default: [0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x08, 0x00]
+    default: [0x01, 0x01, 0x01, 0x00, 0x02, 0x02, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x08, 0x00]
     fields:
       - name: 'Dst'
         gui_representation:
@@ -42,9 +42,9 @@
         default: 0x0800
         value_based_next_header:
             0x0800: 'ipv4'
+            0x86DD: 'ipv6'
               # not implemented
               # 0x0806: 'arp'
-              # 0x86DD: 'ipv6'
               # 0x8100: 'vlan'   # field of 4 bytes added in this case, what to do?
               # 0x8847: 'mpls unicast' # unicast or multicast? multicast is 0x8848
             default: 'payload'
@@ -148,8 +148,8 @@
         value_based_next_header: &ipv4_next_header
             0x06: 'tcp'
             0x11: 'udp'
+            0x29: 'ipv6'
            # not implemented
-           # 0x29: 'ipv6'
            # 0x2F: 'gre'
             default: 'payload'
         gui_representation:
@@ -179,6 +179,67 @@
      # - name: 'Opts' # presence of this field and it's size should be determined in python/java
      #   help: 'IPv4 options'
      #   type: 'c-ipv4-options'
+
+     
+  - class: 'ipv6'
+    gui_representation:
+        help: 'IPv6'
+    properties: ['external']
+    fields:
+      - name: 'ver'
+        gui_representation:
+            help: 'Version'
+        type: 'c-bit'
+        array_size: 4
+        default: [0, 1, 1, 0]
+        properties: ['const']
+
+      - name: 'traff_class/diff_serv'
+        gui_representation:
+            help: 'Traffic Class/Diff Serv'
+        type: 'bit'
+        array_size: 8
+        default: [0, 0, 0, 0, 0, 0, 0, 0]
+
+      - name: 'flow_label'
+        gui_representation:
+            help: 'Flow Label'
+        type: 'bit'
+        array_size: 20
+        default: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+
+      - name: 'payload_length'
+        gui_representation:
+            help: 'Payload Length'
+        type: 'uint16'
+        default: 40
+
+      - name: 'ipv6_next_header'
+        gui_representation:
+            help: 'IPv6 Next Header field'
+        type: 'uint8'
+        value_based_next_header:
+            6: 'tcp'
+            17: 'udp'
+            41: 'ipv6'
+            default: 'tcp'
+        
+      - name: 'hop_limit'
+        gui_representation:
+            help: 'IPv6 hop limit'
+        type: 'uint8'
+        default: 200
+
+      - name: 'Src'
+        gui_representation:
+            help: 'Source IPv6'
+        type: 'c-ipv6-addr'
+
+      - name: 'Dst'
+        gui_representation:
+            help: 'Destination IPv6'
+        type: 'c-ipv6-addr'
+
 
 
 # L4
@@ -286,7 +347,7 @@
         gui_representation:
             help: 'Window size'
         type: uint16
-        default: 0x0000
+        default: 0x0080
 
       - name: 'checksum'
         gui_representation:
@@ -374,6 +435,16 @@
     gui_representation:
         help: 'bit with checkbox representation'
         form_type: 'checkbox'
+
+        
+  - class: 'c-ipv6-addr'
+    type: 'uint16'
+    array_size: 8
+    default: [7, 8, 7, 8, 7, 8, 7, 8]
+    gui_representation:
+        help: 'IPv6 address'
+        data_type: 'ipv6_t'
+        form_type: 'combo_with_edit'
 
 
 ######################
