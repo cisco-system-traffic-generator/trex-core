@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# T-Rex Control Plain documentation build configuration file, created by
+# TRex Control Plain documentation build configuration file, created by
 # sphinx-quickstart on Tue Jun  2 07:48:10 2015.
 #
 # This file is execfile()d with the current directory set to its
@@ -54,7 +54,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'T-Rex Control Plain'
+project = u'TRex Control Plain'
 copyright = u'2015, Cisco Systems Inc.'
 author = u'Dan Klein for Cisco Systems Inc.'
 
@@ -211,7 +211,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'T-RexControlPlaindoc'
+htmlhelp_basename = 'TRexControlPlaindoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -233,7 +233,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'T-RexControlPlain.tex', u'T-Rex Control Plain Documentation',
+  (master_doc, 'TRexControlPlain.tex', u'TRex Control Plain Documentation',
    u'Dan Klein for Cisco Systems Inc', 'manual'),
 ]
 
@@ -263,7 +263,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 't-rexcontrolplain', u'T-Rex Control Plain Documentation',
+    (master_doc, 'TRexcontrolplain', u'TRex Control Plain Documentation',
      [author], 1)
 ]
 
@@ -277,8 +277,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'T-RexControlPlain', u'T-Rex Control Plain Documentation',
-   author, 'T-RexControlPlain', 'One line description of project.',
+  (master_doc, 'TRexControlPlain', u'TRex Control Plain Documentation',
+   author, 'TRexControlPlain', 'One line description of project.',
    'Miscellaneous'),
 ]
 

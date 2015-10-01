@@ -2,8 +2,8 @@
 Client Utilities
 ================
 
-T-Rex YAML generator
---------------------
+TRex YAML generator
+-------------------
 
 .. automodule:: trex_yaml_gen
     :members:

@@ -30,18 +30,18 @@ from distutils.util import strtobool
 
 class CTRexClient(object):
     """
-    This class defines the client side of the RESTfull interaction with T-Rex
+    This class defines the client side of the RESTfull interaction with TRex
     """
 
     def __init__(self, trex_host, max_history_size = 100, trex_daemon_port = 8090, trex_zmq_port = 4500, verbose = False):
         """ 
-        Instantiate a T-Rex client object, and connecting it to listening daemon-server
+        Instantiate a TRex client object, and connecting it to listening daemon-server
 
         :parameters:
              trex_host : str
-                a string of the t-rex ip address or hostname.
+                a string of the TRex ip address or hostname.
              max_history_size : int
-                a number to set the maximum history size of a single T-Rex run. Each sampling adds a new item to history.
+                a number to set the maximum history size of a single TRex run. Each sampling adds a new item to history.
 
                 default value : **100**
              trex_daemon_port : int
@@ -90,7 +90,7 @@ class CTRexClient(object):
 
     def start_trex (self, f, d, block_to_success = True, timeout = 30, user = None, **trex_cmd_options):
         """
-        Request to start a T-Rex run on server. 
+        Request to start a TRex run on server.
                 
         :parameters:  
             f : str
@@ -98,17 +98,17 @@ class CTRexClient(object):
             d : int
                 the desired duration of the test. must be at least 30 seconds long.
             block_to_success : bool
-                determine if this method blocks until T-Rex changes state from 'Starting' to either 'Idle' or 'Running'
+                determine if this method blocks until TRex changes state from 'Starting' to either 'Idle' or 'Running'
 
                 default value : **True**
             timeout : int
-                maximum time (in seconds) to wait in blocking state until T-Rex changes state from 'Starting' to either 'Idle' or 'Running'
+                maximum time (in seconds) to wait in blocking state until TRex changes state from 'Starting' to either 'Idle' or 'Running'
 
                 default value: **30**
             user : str
                 the identity of the the run issuer.
             trex_cmd_options : key, val
-                sets desired T-Rex options using key=val syntax, separated by comma.
+                sets desired TRex options using key=val syntax, separated by comma.
                 for keys with no value, state key=True
 
         :return: 
@@ -117,8 +117,8 @@ class CTRexClient(object):
         :raises:
             + :exc:`ValueError`, in case 'd' parameter inserted with wrong value.
             + :exc:`trex_exceptions.TRexError`, in case one of the trex_cmd_options raised an exception at server.
-            + :exc:`trex_exceptions.TRexInUseError`, in case T-Rex is already taken.
-            + :exc:`trex_exceptions.TRexRequestDenied`, in case T-Rex is reserved for another user than the one trying start T-Rex.
+            + :exc:`trex_exceptions.TRexInUseError`, in case TRex is already taken.
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying start TRex.
             + ProtocolError, in case of error in JSON-RPC protocol.
         
         """
@@ -146,25 +146,25 @@ class CTRexClient(object):
         if retval!=0:   
             self.seq = retval   # update seq num only on successful submission
             return True
-        else:   # T-Rex is has been started by another user
+        else:   # TRex is has been started by another user
             raise TRexInUseError('T-Rex is already being used by another user or process. Try again once T-Rex is back in IDLE state.')
 
     def stop_trex (self):
         """
-        Request to stop a T-Rex run on server. 
+        Request to stop a TRex run on server.
 
-        The request is only valid if the stop initiator is the same client as the T-Rex run initiator.
+        The request is only valid if the stop initiator is the same client as the TRex run initiator.
                 
         :parameters:        
             None
 
         :return: 
             + **True** on successful termination 
-            + **False** if request issued but T-Rex wasn't running.
+            + **False** if request issued but TRex wasn't running.
 
         :raises:
-            + :exc:`trex_exceptions.TRexRequestDenied`, in case T-Rex ir running but started by another user.
-            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed T-Rex run (unexpected termination).
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex ir running but started by another user.
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
             + ProtocolError, in case of error in JSON-RPC protocol.
 
         """
@@ -179,16 +179,16 @@ class CTRexClient(object):
 
     def force_kill (self, confirm = True):
         """
-        Force killing of running T-Rex process (if exists) on the server.
+        Force killing of running TRex process (if exists) on the server.
 
         .. tip:: This method is a safety method and **overrides any running or reserved resources**, and as such isn't designed to be used on a regular basis. 
                  Always consider using :func:`trex_client.CTRexClient.stop_trex` instead.
 
-        In the end of this method, T-Rex will return to IDLE state with no reservation.
+        In the end of this method, TRex will return to IDLE state with no reservation.
         
         :parameters:        
             confirm : bool
-                Prompt a user confirmation before continue terminating T-Rex session
+                Prompt a user confirmation before continue terminating TRex session
 
         :return: 
             + **True** on successful termination 
@@ -221,20 +221,20 @@ class CTRexClient(object):
 
     def wait_until_kickoff_finish(self, timeout = 40):
         """
-        Block the client application until T-Rex changes state from 'Starting' to either 'Idle' or 'Running'
+        Block the client application until TRex changes state from 'Starting' to either 'Idle' or 'Running'
 
-        The request is only valid if the stop initiator is the same client as the T-Rex run initiator.
+        The request is only valid if the stop initiator is the same client as the TRex run initiator.
 
         :parameters:        
             timeout : int
-                maximum time (in seconds) to wait in blocking state until T-Rex changes state from 'Starting' to either 'Idle' or 'Running'
+                maximum time (in seconds) to wait in blocking state until TRex changes state from 'Starting' to either 'Idle' or 'Running'
 
         :return: 
             + **True** on successful termination 
-            + **False** if request issued but T-Rex wasn't running.
+            + **False** if request issued but TRex wasn't running.
 
         :raises:
-            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed T-Rex run (unexpected termination).
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
             + ProtocolError, in case of error in JSON-RPC protocol.
 
             .. note::  Exceptions are throws only when start_trex did not block in the first place, i.e. `block_to_success` parameter was set to `False`
@@ -252,22 +252,22 @@ class CTRexClient(object):
 
     def is_running (self, dump_out = False):
         """
-        Poll for T-Rex running status.
+        Poll for TRex running status.
 
-        If T-Rex is running, a history item will be added into result_obj and processed.
+        If TRex is running, a history item will be added into result_obj and processed.
 
-        .. tip:: This method is especially useful for iterating until T-Rex run is finished.
+        .. tip:: This method is especially useful for iterating until TRex run is finished.
 
         :parameters:        
             dump_out : dict
                 if passed, the pointer object is cleared and the latest dump stored in it.
 
         :return: 
-            + **True** if T-Rex is running. 
-            + **False** if T-Rex is not running.
+            + **True** if TRex is running.
+            + **False** if TRex is not running.
 
         :raises:
-            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed T-Rex run (unexpected termination).
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
             + :exc:`TypeError`, in case JSON stream decoding error.
             + ProtocolError, in case of error in JSON-RPC protocol.
 
@@ -292,7 +292,7 @@ class CTRexClient(object):
 
     def get_trex_files_path (self):
         """
-        Fetches the local path in which files are stored when pushed to t-rex server from client.
+        Fetches the local path in which files are stored when pushed to TRex server from client.
 
         :parameters:        
             None
@@ -300,7 +300,7 @@ class CTRexClient(object):
         :return: 
             string representation of the desired path
 
-            .. note::  The returned path represents a path on the T-Rex server **local machine**
+            .. note::  The returned path represents a path on the TRex server **local machine**
 
         :raises:
             ProtocolError, in case of error in JSON-RPC protocol.
@@ -317,7 +317,7 @@ class CTRexClient(object):
 
     def get_running_status (self):
         """
-        Fetches the current T-Rex status.
+        Fetches the current TRex status.
 
         If available, a verbose data will accompany the state itself.
 
@@ -344,18 +344,18 @@ class CTRexClient(object):
 
     def get_running_info (self):
         """
-        Performs single poll of T-Rex running data and process it into the result object (named `result_obj`).
+        Performs single poll of TRex running data and process it into the result object (named `result_obj`).
 
-        .. tip:: This method will throw an exception if T-Rex isn't running. Always consider using :func:`trex_client.CTRexClient.is_running` which handles a single poll operation in safer manner.
+        .. tip:: This method will throw an exception if TRex isn't running. Always consider using :func:`trex_client.CTRexClient.is_running` which handles a single poll operation in safer manner.
 
         :parameters:        
             None
 
         :return: 
-            dictionary containing the most updated data dump from T-Rex.
+            dictionary containing the most updated data dump from TRex.
 
         :raises:
-            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed T-Rex run (unexpected termination).
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
             + :exc:`TypeError`, in case JSON stream decoding error.
             + ProtocolError, in case of error in JSON-RPC protocol.
 
@@ -379,7 +379,7 @@ class CTRexClient(object):
 
     def sample_until_condition (self, condition_func, time_between_samples = 5):
         """
-        Automatically sets ongoing sampling of T-Rex data, with sampling rate described by time_between_samples. 
+        Automatically sets ongoing sampling of TRex data, with sampling rate described by time_between_samples.
 
         On each fetched dump, the condition_func is applied on the result objects, and if returns True, the sampling will stop.
 
@@ -394,23 +394,23 @@ class CTRexClient(object):
                 default value : **5**
 
         :return: 
-            the first result object (see :class:`CTRexResult` for further details) of the T-Rex run on which the condition has been met.
+            the first result object (see :class:`CTRexResult` for further details) of the TRex run on which the condition has been met.
 
         :raises:
             + :exc:`UserWarning`, in case the condition_func method condition hasn't been met
-            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed T-Rex run (unexpected termination).
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
             + :exc:`TypeError`, in case JSON stream decoding error.
             + ProtocolError, in case of error in JSON-RPC protocol.
             + :exc:`Exception`, in case the condition_func suffered from any kind of exception
 
         """
-        # make sure T-Rex is running. raise exceptions here if any
+        # make sure TRex is running. raise exceptions here if any
         self.wait_until_kickoff_finish()    
         try:
             while self.is_running():
                 results = self.get_result_obj()
                 if condition_func(results):
-                    # if condition satisfied, stop T-Rex and return result object
+                    # if condition satisfied, stop TRex and return result object
                     self.stop_trex()
                     return results
                 time.sleep(time_between_samples)
@@ -423,7 +423,7 @@ class CTRexClient(object):
 
     def sample_to_run_finish (self, time_between_samples = 5):
         """
-        Automatically sets automatically sampling of T-Rex data with sampling rate described by time_between_samples until T-Rex run finished.
+        Automatically sets automatically sampling of TRex data with sampling rate described by time_between_samples until TRex run finished.
 
         :parameters:        
             time_between_samples : int
@@ -436,7 +436,7 @@ class CTRexClient(object):
 
         :raises:
             + :exc:`UserWarning`, in case the condition_func method condition hasn't been met
-            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed T-Rex run (unexpected termination).
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
             + :exc:`TypeError`, in case JSON stream decoding error.
             + ProtocolError, in case of error in JSON-RPC protocol.
 
@@ -475,13 +475,13 @@ class CTRexClient(object):
 
     def is_reserved (self):
         """
-        Checks if T-Rex is currently reserved to any user or not.
+        Checks if TRex is currently reserved to any user or not.
 
         :parameters:        
             None
 
         :return: 
-            + **True** if T-Rex is reserved. 
+            + **True** if TRex is reserved.
             + **False** otherwise.
 
         :raises:
@@ -499,13 +499,13 @@ class CTRexClient(object):
 
     def reserve_trex (self, user = None):
         """
-        Reserves the usage of T-Rex to a certain user. 
+        Reserves the usage of TRex to a certain user.
 
-        When T-Rex is reserved, it can't be reserved.
+        When TRex is reserved, it can't be reserved.
                 
         :parameters:        
             user : str
-                a username of the desired owner of T-Rex
+                a username of the desired owner of TRex
 
                 default: current logged user
 
@@ -513,8 +513,8 @@ class CTRexClient(object):
             **True** if reservation made successfully
 
         :raises:
-            + :exc:`trex_exceptions.TRexRequestDenied`, in case T-Rex is reserved for another user than the one trying to make the reservation.
-            + :exc:`trex_exceptions.TRexInUseError`, in case T-Rex is currently running.
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying to make the reservation.
+            + :exc:`trex_exceptions.TRexInUseError`, in case TRex is currently running.
             + ProtocolError, in case of error in JSON-RPC protocol.
 
         """
@@ -530,14 +530,14 @@ class CTRexClient(object):
 
     def cancel_reservation (self, user = None):
         """
-        Cancels a current reservation of T-Rex to a certain user. 
+        Cancels a current reservation of TRex to a certain user.
 
-        When T-Rex is reserved, no other user can start new T-Rex runs.
+        When TRex is reserved, no other user can start new TRex runs.
 
                 
         :parameters:        
             user : str
-                a username of the desired owner of T-Rex
+                a username of the desired owner of TRex
 
                 default: current logged user
 
@@ -546,7 +546,7 @@ class CTRexClient(object):
             + **False** if there was no reservation at all.
 
         :raises:
-            + :exc:`trex_exceptions.TRexRequestDenied`, in case T-Rex is reserved for another user than the one trying to cancel the reservation.
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying to cancel the reservation.
             + ProtocolError, in case of error in JSON-RPC protocol.
 
         """
@@ -671,7 +671,7 @@ class CTRexClient(object):
     
     def _handle_AppError_exception(self, err):
         """
-        This private method triggres the T-Rex dedicated exception generation in case a general ProtocolError has been raised.
+        This private method triggres the TRex dedicated exception generation in case a general ProtocolError has been raised.
         """
         # handle known exceptions based on known error codes.
         # if error code is not known, raise ProtocolError
@@ -680,17 +680,17 @@ class CTRexClient(object):
 
 class CTRexResult(object):
     """
-    A class containing all results received from T-Rex.
+    A class containing all results received from TRex.
 
     Ontop to containing the results, this class offers easier data access and extended results processing options
     """
     def __init__(self, max_history_size):
         """ 
-        Instatiate a T-Rex result object
+        Instatiate a TRex result object
 
         :parameters:
              max_history_size : int
-                a number to set the maximum history size of a single T-Rex run. Each sampling adds a new item to history.
+                a number to set the maximum history size of a single TRex run. Each sampling adds a new item to history.
 
         """
         self._history = deque(maxlen = max_history_size)
@@ -749,7 +749,7 @@ class CTRexResult(object):
 
     def get_avg_latency (self):
         """
-        Fetches the average latency measured on each of the interfaces from the start of T-Rex run
+        Fetches the average latency measured on each of the interfaces from the start of TRex run
 
         :parameters:        
             None
@@ -779,7 +779,7 @@ class CTRexResult(object):
 
     def get_total_drops (self):
         """
-        Fetches the total number of drops identified from the moment T-Rex run began.
+        Fetches the total number of drops identified from the moment TRex run began.
 
         :parameters:        
             None
@@ -805,7 +805,7 @@ class CTRexResult(object):
 
     def is_valid_hist (self):
         """
-        Checks if result obejct contains valid data.
+        Checks if result object contains valid data.
 
         :parameters:        
             None
@@ -819,7 +819,7 @@ class CTRexResult(object):
 
     def set_valid_hist (self, valid_stat = True):
         """
-        Sets result obejct validity status.
+        Sets result object validity status.
 
         :parameters:        
             valid_stat : bool
@@ -835,7 +835,7 @@ class CTRexResult(object):
 
     def is_done_warmup (self):
         """
-        Checks if T-Rex latest results TX-rate indicates that T-Rex has reached its expected TX-rate.
+        Checks if TRex latest results TX-rate indicates that TRex has reached its expected TX-rate.
 
         :parameters:        
             None

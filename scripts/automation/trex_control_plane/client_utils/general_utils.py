@@ -37,7 +37,7 @@ def find_path_to_pardir (pardir, base_path = os.getcwd() ):
     """
     Finds the absolute path for some parent dir `pardir`, starting from base_path
 
-    The request is only valid if the stop intitiator is the same client as the T-Rex run intitiator.
+    The request is only valid if the stop initiator is the same client as the TRex run initiator.
             
     :parameters:        
         pardir : str

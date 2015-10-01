@@ -2,11 +2,12 @@
 Authors
 =======
 
-T-Rex is developed in Cisco Systems Inc. as the next generation traffic generator.
+TRex is developed in Cisco Systems Inc. as the next generation traffic generator.
 
-T-Rex core-team developers are:
+TRex core-team developers are:
 
   - Hanoch Haim
   - Dave Johnson
   - Wenxian Li
   - Dan Klein
+  - Itay Marom

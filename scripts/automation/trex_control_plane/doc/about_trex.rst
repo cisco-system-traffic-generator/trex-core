@@ -1,11 +1,11 @@
-===================
-About T-Rex project
-===================
+==================
+About TRex project
+==================
 
 Full project's official site
 ----------------------------
 
-To learn all about T-Rex project, visit Cisco's internal `official site <http://csi-wiki-01:8080/display/bpsim/Home>`_
+To learn all about TRex project, visit TRex `official site <http://trex-tgn.cisco.com>`_
 
 Even more
 ---------
