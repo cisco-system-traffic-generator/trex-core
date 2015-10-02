@@ -334,7 +334,7 @@ TEST(tuple_gen,GenerateTupleMac) {
 
     CClientPool gen;
     gen.Create(cdSEQ_DIST, 
-               0x10000001,  0x1000000f, 64000,2, &fl,true,0,0);
+               0x10000001,  0x1000000f, 64000,2, &fl.m_mac_info,true,0,0);
     CTupleBase result;
     uint32_t result_src;
     uint16_t result_port;

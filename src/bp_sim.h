@@ -3430,6 +3430,7 @@ inline void CFlowGenListPerThread::free_last_flow_node(CGenNode *p){
     free_node( p);
 }
 
+
 class CFlowGenList {
 
 public:
@@ -3457,12 +3458,12 @@ public:
     double get_total_tx_bps();
     uint32_t get_total_repeat_flows();
     double get_delta_flow_is_sec();
+    bool   get_is_mac_conf() { return m_mac_info.is_configured();}
 public:
     std::vector<CFlowGeneratorRec *> m_cap_gen;   /* global info */
     CFlowsYamlInfo                   m_yaml_info; /* global yaml*/
     std::vector<CFlowGenListPerThread   *> m_threads_info;  
-    bool                             is_mac_info_configured;
-    std::map<uint32_t, mac_addr_align_t>    m_mac_info;  /* global mac info loaded form mac_file*/
+    CFlowGenListMac                  m_mac_info;
 };
 
 

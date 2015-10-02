@@ -3177,7 +3177,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     /* split the clients to threads */
     CTupleGenYamlInfo * tuple_gen = &m_flow_list->m_yaml_info.m_tuple_gen;
 
-    m_smart_gen.Create(0,m_thread_id,m_flow_list->is_mac_info_configured);
+    m_smart_gen.Create(0,m_thread_id,m_flow_list->get_is_mac_conf());
 
     /* split the clients to threads using the mask */
     CIpPortion  portion;
@@ -3191,7 +3191,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                         portion.m_ip_end,
                         get_longest_flow(i,true),
                         get_total_kcps(i,true)*1000,
-                        m_flow_list,
+                        &m_flow_list->m_mac_info,
                         tuple_gen->m_client_pool[i].m_tcp_aging_sec,
                         tuple_gen->m_client_pool[i].m_udp_aging_sec
                         );
@@ -3962,7 +3962,7 @@ int CFlowGenList::load_from_mac_file(std::string file_name) {
          printf(" ERROR no mac_file is set,  file %s does not exist \n",file_name.c_str());
          exit(-1);
      }
-    is_mac_info_configured = true;
+    m_mac_info.set_configured(true);
 
      try {
         std::ifstream fin((char *)file_name.c_str());
@@ -3970,7 +3970,7 @@ int CFlowGenList::load_from_mac_file(std::string file_name) {
         YAML::Node doc;
 
         parser.GetNextDocument(doc);
-        doc[0] >> m_mac_info;
+        doc[0] >> m_mac_info.get_mac_info();
      } catch ( const std::exception& e ) {
          std::cout << e.what() << "\n";
          m_mac_info.clear();
@@ -3982,7 +3982,6 @@ int CFlowGenList::load_from_mac_file(std::string file_name) {
 
 int CFlowGenList::load_from_yaml(std::string file_name,
                                  uint32_t num_threads){
-    is_mac_info_configured = false;
     uint8_t idx;
     m_yaml_info.load_from_yaml_file(file_name);
     if (m_yaml_info.verify_correctness(num_threads) ==false){
@@ -6642,25 +6641,6 @@ void CFlowYamlDynamicPyloadPlugin::Dump(FILE *fd){
         m_program[i].Dump(fd);
     }
 }
-
-bool is_mac_info_conf(CFlowGenList *fl_list) {
-    if (fl_list) {
-        return fl_list->is_mac_info_configured;
-    }
-    return false;
-}
-
-mac_addr_align_t * get_mac_addr_by_ip(CFlowGenList *fl_list,
-                                      uint32_t ip) {
-    if (fl_list && 
-        fl_list->is_mac_info_configured &&
-        fl_list->m_mac_info.count(ip)>0) {
-        return &fl_list->m_mac_info[ip];
-    }
-    return NULL;
-}
-
-
 
 uint16_t CSimplePacketParser::getPktSize(){
     uint16_t ip_len=0;
