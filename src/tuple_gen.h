@@ -632,7 +632,6 @@ private:
 
 class CServerPool : public CServerPoolBase {
 public:
-    CIpPool *gen;
     void GenerateTuple(CTupleBase & tuple) {
        uint32_t idx = gen->generate_ip();
        tuple.setServerAll(idx, gen->get_ip(idx));
@@ -656,6 +655,8 @@ public:
     uint32_t get_total_ips() {
         return gen->m_ip_info.size();
     }
+private: 
+    CIpPool *gen;
 };
 
 /* generate for each template */
@@ -712,7 +713,7 @@ public:
 public:
     CTupleGeneratorSmart(){
         m_was_init=false;
-        has_mac_mapping = false;
+        m_has_mac_mapping = false;
     }
     bool Create(uint32_t _id,
             uint32_t thread_id, bool has_mac=false);
@@ -763,7 +764,7 @@ private:
     std::vector<CClientPool*> m_client_pool;
     std::vector<CServerPoolBase*> m_server_pool;
     bool     m_was_init;
-    bool     has_mac_mapping;
+    bool     m_has_mac_mapping;
 };
 
 class CTupleTemplateGeneratorSmart {

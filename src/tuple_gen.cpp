@@ -123,7 +123,6 @@ void CClientPool::Create(IP_DIST_t  dist_value,
     CreateBase();
 }
 
-void delay(int msec);
 
 bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
                                           uint32_t min_client,
@@ -136,7 +135,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
     pool->Create(client_dist, min_client, max_client,
-                 l_flow, t_cps, mac_info, has_mac_mapping,
+                 l_flow, t_cps, mac_info, m_has_mac_mapping,
                  tcp_aging, udp_aging);
 
     m_client_pool.push_back(pool);
@@ -171,13 +170,13 @@ bool CTupleGeneratorSmart::Create(uint32_t _id,
     m_thread_id     = thread_id;
     m_id = _id;
     m_was_init=true;
-    has_mac_mapping = has_mac;
+    m_has_mac_mapping = has_mac;
     return(true);
 }
 
 void CTupleGeneratorSmart::Delete(){
     m_was_init=false;
-    has_mac_mapping = false;
+    m_has_mac_mapping = false;
 
     for (int idx=0;idx<m_client_pool.size();idx++) {
         m_client_pool[idx]->Delete();
