@@ -12,6 +12,7 @@ The packet generator module does extensive usage with `dkpt <https://github.com/
 
 .. toctree::
     :maxdepth: 0
+    :titlesonly:
 
     examples
     stream_export

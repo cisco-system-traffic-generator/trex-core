@@ -12,16 +12,18 @@ The TRex Packet Builder module supports (using ___ method) the export of built s
 Guidelines
 ----------
 
-1. One
-2. Two
-3. Three
+1. The YAML file can either contain Byte representation of the packet of refer to a .pcap file that conatains it.
+2. The YAML file is similar as much as possible to the `add_stream method <http://trex-tgn.cisco.com/trex/doc/trex_rpc_server_spec.html#_add_stream>`_ of TRex RPC server spec, which defines the raw interaction with TRex server.
+3. Only packet binary data and VM instructinos are to be saved. Any meta-data packet builder module used while creating the packet will be stripped out.
 
 Export Format
 -------------
 
 .. literalinclude:: export_format.yaml
+    :lines: 4-
+    :linenos:
 
 Example
 -------
 
-Whenever TRex is publishing live data, it uses JSON notation to describe the data-object.
+The following files snapshot represents each of the options.
