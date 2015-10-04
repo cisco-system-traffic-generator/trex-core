@@ -1,0 +1,27 @@
+router:
+  model          : 1RU
+  hostname       : ASR1001_T-Rex
+  ip_address     : 10.56.199.247
+  image          : asr1001-universalk9.BLD_V155_2_S_XE315_THROTTLE_LATEST_20150121_110036-std.bin
+  line_password  : lab
+  en_password    : lab
+  mgmt_interface : GigabitEthernet0/0/0
+  clean_config   : /Configurations/danklei/asr1001_TRex_clean_config.cfg
+  intf_masking   : 255.255.255.0
+  ipv6_mask      : 64
+  interfaces     :
+    - client :
+        name          : GigabitEthernet0/0/1
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      server :
+        name          : GigabitEthernet0/0/2
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      vrf_name      : null
+
+tftp:
+  hostname       : ats-asr-srv-1
+  ip_address     : 10.56.128.23
+  root_dir       : /auto/avc-devtest/
+  images_path    : /images/1RU/

@@ -2,8 +2,13 @@
 Client Utilities
 ================
 
-T-Rex YAML generator
---------------------
+.. toctree::
+    :maxdepth: 2
+
+    packet_generator/index
+
+TRex YAML generator
+-------------------
 
 .. automodule:: trex_yaml_gen
     :members:
