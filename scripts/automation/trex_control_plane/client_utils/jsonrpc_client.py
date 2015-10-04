@@ -1,6 +1,6 @@
 #!/router/bin/python
 
-import outer_packages
+import external_packages
 import zmq
 import json
 import general_utils

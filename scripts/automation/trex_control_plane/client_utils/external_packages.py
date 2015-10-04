@@ -12,7 +12,6 @@ CLIENT_UTILS_MODULES = ['zmq',
                         'dpkt-1.8.6'
                         ]
 
-
 def import_client_utils_modules():
     # must be in a higher priority
     sys.path.insert(0, PATH_TO_PYTHON_LIB)
