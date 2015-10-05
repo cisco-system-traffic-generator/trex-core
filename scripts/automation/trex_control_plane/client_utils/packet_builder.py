@@ -75,6 +75,7 @@ class CTRexPktBuilder(object):
 
             attr: str
                 a string representation of the sub-field to be set:
+
                 + "src" for source
                 + "dst" for destination
 
@@ -84,6 +85,7 @@ class CTRexPktBuilder(object):
 
             ip_type : str
                 a string representation of the IP version to be set:
+
                 + "ipv4" for IPv4
                 + "ipv6" for IPv6
 
@@ -115,6 +117,7 @@ class CTRexPktBuilder(object):
 
             attr: str
                 a string representation of the sub-field to be set:
+
                 + "src" for source
                 + "dst" for destination
 
@@ -227,6 +230,7 @@ class CTRexPktBuilder(object):
             val : int
                 value of attribute.
                 This value will be set "ontop" of the existing value using bitwise "OR" operation.
+
                 .. tip:: It is very useful to use dpkt constants to define the values of these fields.
 
         :raises:
@@ -408,9 +412,9 @@ class CTRexPktBuilder(object):
         trim_size = val_size*2
         hdr_offset, field_abs_offset = self._calc_offset(layer_name, hdr_field, val_size)
         self.vm.add_flow_man_inst(range_name, size=val_size, operation=operation,
-                                  init_value=str(init_val),
-                                  min_value=str(start_val),
-                                  max_value=str(end_val))
+                                  init_value=init_val,
+                                  min_value=start_val,
+                                  max_value=end_val)
         self.vm.add_write_flow_inst(range_name, field_abs_offset)
         self.vm.set_vm_off_inst_field(range_name, "add_value", add_val)
         self.vm.set_vm_off_inst_field(range_name, "is_big_endian", is_big_endian)

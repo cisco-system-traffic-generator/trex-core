@@ -383,7 +383,7 @@ def build_prog (bld, build_obj):
 
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
-                cxxflags =build_obj.get_flags(),
+                cxxflags =(build_obj.get_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags(),
                 source = build_obj.get_src(),
                 use = build_obj.get_use_libs(),

@@ -75,6 +75,12 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true);
 
 
 /**
+ * port commands
+ */
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats, "get_port_stats", 1, true);
+
+
+/**
  * stream cmds
  */
 TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveAllStreams,   "remove_all_streams",   1, true);
@@ -98,7 +104,6 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 2, true);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic, "start_traffic", 1, true);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic, "stop_traffic", 1, true);
-
 
 
 #endif /* __TREX_RPC_CMD_H__ */

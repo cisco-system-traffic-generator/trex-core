@@ -34,7 +34,7 @@ CCustomLogger.setup_custom_logger('TRexServer')
 logger = logging.getLogger('TRexServer')
 
 class CTRexServer(object):
-    """This class defines the server side of the RESTfull interaction with T-Rex"""
+    """This class defines the server side of the RESTfull interaction with TRex"""
     DEFAULT_TREX_PATH = '/auto/proj-pcube-b/apps/PL-b/tools/bp_sim2/v1.55/' #'/auto/proj-pcube-b/apps/PL-b/tools/nightly/trex_latest'
     TREX_START_CMD    = './t-rex-64'
     DEFAULT_FILE_PATH = '/tmp/trex_files/'
@@ -53,7 +53,7 @@ class CTRexServer(object):
             the port number on which trex's zmq module will interact with daemon server
             default value: 4500
 
-        Instantiate a T-Rex client object, and connecting it to listening daemon-server
+        Instantiate a TRex client object, and connecting it to listening daemon-server
         """
         self.TREX_PATH          = os.path.abspath(os.path.dirname(trex_path+'/'))
         self.trex_files_path    = os.path.abspath(os.path.dirname(trex_files_path+'/'))
@@ -94,17 +94,17 @@ class CTRexServer(object):
         """This method fires up the daemon server based on initialized parameters of the class"""
         # initialize the server instance with given reasources
         try:    
-            print "Firing up T-Rex REST daemon @ port {trex_port} ...\n".format( trex_port = self.trex_daemon_port )
-            logger.info("Firing up T-Rex REST daemon @ port {trex_port} ...".format( trex_port = self.trex_daemon_port ))
+            print "Firing up TRex REST daemon @ port {trex_port} ...\n".format( trex_port = self.trex_daemon_port )
+            logger.info("Firing up TRex REST daemon @ port {trex_port} ...".format( trex_port = self.trex_daemon_port ))
             logger.info("current working dir is: {0}".format(self.TREX_PATH) )
             logger.info("current files dir is  : {0}".format(self.trex_files_path) )
             logger.debug("Starting TRex server. Registering methods to process.")
             self.server = SimpleJSONRPCServer( (self.trex_host, self.trex_daemon_port) )
         except socket.error as e:
             if e.errno == errno.EADDRINUSE:
-                logger.error("T-Rex server requested address already in use. Aborting server launching.")
-                print "T-Rex server requested address already in use. Aborting server launching."
-                raise socket.error(errno.EADDRINUSE, "T-Rex daemon requested address already in use. Server launch aborted. Please make sure no other process is using the desired server properties.")
+                logger.error("TRex server requested address already in use. Aborting server launching.")
+                print "TRex server requested address already in use. Aborting server launching."
+                raise socket.error(errno.EADDRINUSE, "TRex daemon requested address already in use. Server launch aborted. Please make sure no other process is using the desired server properties.")
 
         # set further functionality and peripherals to server instance 
         try:
@@ -136,7 +136,7 @@ class CTRexServer(object):
     def stop_handler (self, signum, frame):
         logger.info("Daemon STOP request detected.")
         if self.is_running():
-            # in case T-Rex process is currently running, stop it before terminating server process
+            # in case TRex process is currently running, stop it before terminating server process
             self.stop_trex(self.trex.get_seq())
         sys.exit(0)
 
@@ -163,25 +163,25 @@ class CTRexServer(object):
 
     def reserve_trex (self, user):
         if user == "":
-            logger.info("T-Rex reservation cannot apply to empty string user. Request denied.")
-            return Fault(-33, "T-Rex reservation cannot apply to empty string user. Request denied.")
+            logger.info("TRex reservation cannot apply to empty string user. Request denied.")
+            return Fault(-33, "TRex reservation cannot apply to empty string user. Request denied.")
 
         with self.start_lock:
             logger.info("Processing reserve_trex() command.")
             if self.is_reserved():
                 if user == self.__reservation['user']:  
                     # return True is the same user is asking and already has the resrvation
-                    logger.info("the same user is asking and already has the resrvation. Re-reserving T-Rex.")
+                    logger.info("the same user is asking and already has the resrvation. Re-reserving TRex.")
                     return True
 
-                logger.info("T-Rex is already reserved to another user ({res_user}), cannot reserve to another user.".format( res_user = self.__reservation['user'] ))
-                return Fault(-33, "T-Rex is already reserved to another user ({res_user}). Please make sure T-Rex is free before reserving it.".format(
+                logger.info("TRex is already reserved to another user ({res_user}), cannot reserve to another user.".format( res_user = self.__reservation['user'] ))
+                return Fault(-33, "TRex is already reserved to another user ({res_user}). Please make sure TRex is free before reserving it.".format(
                     res_user = self.__reservation['user']) )  # raise at client TRexInUseError
             elif self.trex.get_status() != TRexStatus.Idle:
-                logger.info("T-Rex is currently running, cannot reserve T-Rex unless in Idle state.")
-                return Fault(-13, 'T-Rex is currently running, cannot reserve T-Rex unless in Idle state. Please try again when T-Rex run finished.')  # raise at client TRexInUseError
+                logger.info("TRex is currently running, cannot reserve TRex unless in Idle state.")
+                return Fault(-13, 'TRex is currently running, cannot reserve TRex unless in Idle state. Please try again when TRex run finished.')  # raise at client TRexInUseError
             else:
-                logger.info("T-Rex is now reserved for user ({res_user}).".format( res_user = user ))
+                logger.info("TRex is now reserved for user ({res_user}).".format( res_user = user ))
                 self.__reservation = {'user' : user, 'since' : time.ctime()}
                 logger.debug("Reservation details: "+ str(self.__reservation))
                 return True
@@ -191,15 +191,15 @@ class CTRexServer(object):
             logger.info("Processing cancel_reservation() command.")
             if self.is_reserved():
                 if self.__reservation['user'] == user:
-                    logger.info("T-Rex reservation to {res_user} has been canceled successfully.".format(res_user = self.__reservation['user']))
+                    logger.info("TRex reservation to {res_user} has been canceled successfully.".format(res_user = self.__reservation['user']))
                     self.__reservation = None
                     return True
                 else:
-                    logger.warning("T-Rex is reserved to different user than the provided one. Reservation wasn't canceled.")
+                    logger.warning("TRex is reserved to different user than the provided one. Reservation wasn't canceled.")
                     return Fault(-33, "Cancel reservation request is available to the user that holds the reservation. Request denied")  # raise at client TRexRequestDenied
             
             else:
-                logger.info("T-Rex is not reserved to anyone. No need to cancel anything")
+                logger.info("TRex is not reserved to anyone. No need to cancel anything")
                 assert(self.__reservation is None)
                 return False
 
@@ -208,21 +208,21 @@ class CTRexServer(object):
         with self.start_lock:
             logger.info("Processing start_trex() command.")
             if self.is_reserved():
-                # check if this is not the user to which T-Rex is reserved
+                # check if this is not the user to which TRex is reserved
                 if self.__reservation['user'] != user:  
-                    logger.info("T-Rex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))
-                    return Fault(-33, "T-Rex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))  # raise at client TRexRequestDenied
+                    logger.info("TRex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))
+                    return Fault(-33, "TRex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))  # raise at client TRexRequestDenied
             elif self.trex.get_status() != TRexStatus.Idle:
-                logger.info("T-Rex is already taken, cannot create another run until done.")
+                logger.info("TRex is already taken, cannot create another run until done.")
                 return Fault(-13, '')  # raise at client TRexInUseError
             
             try: 
                 server_cmd_data = self.generate_run_cmd(**trex_cmd_options)
                 self.zmq_monitor.first_dump = True
                 self.trex.start_trex(self.TREX_PATH, server_cmd_data)
-                logger.info("T-Rex session has been successfully initiated.")
+                logger.info("TRex session has been successfully initiated.")
                 if block_to_success:
-                    # delay server response until T-Rex is at 'Running' state.
+                    # delay server response until TRex is at 'Running' state.
                     start_time = time.time()
                     trex_state = None
                     while (time.time() - start_time) < timeout :
@@ -232,20 +232,20 @@ class CTRexServer(object):
                         else:
                             time.sleep(0.5)
 
-                    # check for T-Rex run started normally
+                    # check for TRex run started normally
                     if trex_state == TRexStatus.Starting:   # reached timeout
-                        logger.warning("TimeoutError: T-Rex initiation outcome could not be obtained, since T-Rex stays at Starting state beyond defined timeout.")
-                        return Fault(-12, 'TimeoutError: T-Rex initiation outcome could not be obtained, since T-Rex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
+                        logger.warning("TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.")
+                        return Fault(-12, 'TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
                     elif trex_state == TRexStatus.Idle:
                         return Fault(-11, self.trex.get_verbose_status())   # raise at client TRexError
                 
-                # reach here only if T-Rex is at 'Running' state
+                # reach here only if TRex is at 'Running' state
                 self.trex.gen_seq()
                 return self.trex.get_seq()          # return unique seq number to client
                         
             except TypeError as e:
-                logger.error("T-Rex command generation failed, probably because either -f (traffic generation .yaml file) and -c (num of cores) was not specified correctly.\nReceived params: {params}".format( params = trex_cmd_options) )
-                raise TypeError('T-Rex -f (traffic generation .yaml file) and -c (num of cores) must be specified.')
+                logger.error("TRex command generation failed, probably because either -f (traffic generation .yaml file) and -c (num of cores) was not specified correctly.\nReceived params: {params}".format( params = trex_cmd_options) )
+                raise TypeError('TRex -f (traffic generation .yaml file) and -c (num of cores) must be specified.')
 
 
     def stop_trex(self, seq):
@@ -262,11 +262,11 @@ class CTRexServer(object):
                 return False
 
     def force_trex_kill (self):
-        logger.info("Processing force_trex_kill() command. --> Killing T-Rex session indiscriminately.")
+        logger.info("Processing force_trex_kill() command. --> Killing TRex session indiscriminately.")
         return self.trex.stop_trex()
 
     def wait_until_kickoff_finish (self, timeout = 40):
-        # block until T-Rex exits Starting state
+        # block until TRex exits Starting state
         logger.info("Processing wait_until_kickoff_finish() command.")
         trex_state = None
         start_time = time.time()
@@ -274,7 +274,7 @@ class CTRexServer(object):
             trex_state = self.trex.get_status()
             if trex_state != TRexStatus.Starting:
                 return
-        return Fault(-12, 'TimeoutError: T-Rex initiation outcome could not be obtained, since T-Rex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
+        return Fault(-12, 'TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
 
     def get_running_info (self):
         logger.info("Processing get_running_info() command.")
@@ -283,7 +283,7 @@ class CTRexServer(object):
     def generate_run_cmd (self, f, d, iom = 0, export_path="/tmp/trex.txt", **kwargs):
         """ generate_run_cmd(self, trex_cmd_options, export_path) -> str
 
-        Generates a custom running command for the kick-off of the T-Rex traffic generator.
+        Generates a custom running command for the kick-off of the TRex traffic generator.
         Returns a tuple of command (string) and export path (string) to be issued on the trex server
 
         Parameters
@@ -325,14 +325,14 @@ class CTRexServer(object):
     def __check_trex_path_validity(self):
         # check for executable existance
         if not os.path.exists(self.TREX_PATH+'/t-rex-64'):
-            print "The provided T-Rex path do not contain an executable T-Rex file.\nPlease check the path and retry."
-            logger.error("The provided T-Rex path do not contain an executable T-Rex file")
+            print "The provided TRex path do not contain an executable TRex file.\nPlease check the path and retry."
+            logger.error("The provided TRex path do not contain an executable TRex file")
             exit(-1)
         # check for executable permissions
         st = os.stat(self.TREX_PATH+'/t-rex-64')
         if not bool(st.st_mode & (stat.S_IXUSR ) ):
-            print "The provided T-Rex path do not contain an T-Rex file with execution privileges.\nPlease check the files permissions and retry."
-            logger.error("The provided T-Rex path do not contain an T-Rex file with execution privileges")
+            print "The provided TRex path do not contain an TRex file with execution privileges.\nPlease check the files permissions and retry."
+            logger.error("The provided TRex path do not contain an TRex file with execution privileges")
             exit(-1)
         else:
             return
@@ -357,7 +357,7 @@ class CTRexServer(object):
 class CTRex(object):
     def __init__(self):
         self.status         = TRexStatus.Idle
-        self.verbose_status = 'T-Rex is Idle'
+        self.verbose_status = 'TRex is Idle'
         self.errcode        = None
         self.session        = None
         self.zmq_monitor    = None
@@ -388,34 +388,34 @@ class CTRex(object):
         if self.status == TRexStatus.Running:
             return self.encoder.encode(self.zmq_dump)
         else:
-            logger.info("T-Rex isn't running. Running information isn't available.")
+            logger.info("TRex isn't running. Running information isn't available.")
             if self.status == TRexStatus.Idle:
                 if self.errcode is not None:    # some error occured
-                    logger.info("T-Rex is in Idle state, with errors. returning fault")
+                    logger.info("TRex is in Idle state, with errors. returning fault")
                     return Fault(self.errcode, self.verbose_status)               # raise at client relevant exception, depending on the reason the error occured
                 else:
-                    logger.info("T-Rex is in Idle state, no errors. returning {}")
+                    logger.info("TRex is in Idle state, no errors. returning {}")
                     return u'{}'    
                 
-            return Fault(-12, self.verbose_status)                                # raise at client TRexWarning, indicating T-Rex is back to Idle state or still in Starting state
+            return Fault(-12, self.verbose_status)                                # raise at client TRexWarning, indicating TRex is back to Idle state or still in Starting state
 
     def stop_trex(self):
         if self.status == TRexStatus.Idle:
             # t-rex isn't running, nothing to abort
-            logger.info("T-Rex isn't running. No need to stop anything.")
-            if self.errcode is not None:    # some error occured, notify client despite T-Rex already stopped
+            logger.info("TRex isn't running. No need to stop anything.")
+            if self.errcode is not None:    # some error occurred, notify client despite TRex already stopped
                     return Fault(self.errcode, self.verbose_status)               # raise at client relevant exception, depending on the reason the error occured
             return False
         else:
             # handle stopping t-rex's run
             self.session.join()
-            logger.info("T-Rex session has been successfully aborted.")
+            logger.info("TRex session has been successfully aborted.")
             return True
 
     def start_trex(self, trex_launch_path, trex_cmd):
         self.set_status(TRexStatus.Starting)
         logger.info("TRex running state changed to 'Starting'.")
-        self.set_verbose_status('T-Rex is starting (data is not available yet)')
+        self.set_verbose_status('TRex is starting (data is not available yet)')
 
         self.errcode    = None
         self.session    = AsynchronousTRexSession(self, trex_launch_path, trex_cmd)      
@@ -430,7 +430,7 @@ def generate_trex_parser ():
     default_path        = os.path.abspath(os.path.join(outer_packages.CURRENT_PATH, os.pardir, os.pardir, os.pardir))
     default_files_path  = os.path.abspath(CTRexServer.DEFAULT_FILE_PATH)
 
-    parser = ArgumentParser(description = 'Run server application for T-Rex traffic generator',
+    parser = ArgumentParser(description = 'Run server application for TRex traffic generator',
         formatter_class = RawTextHelpFormatter,
         usage = """
 trex_daemon_server [options]
@@ -440,10 +440,10 @@ trex_daemon_server [options]
     parser.add_argument("-p", "--daemon-port", type=int, default = 8090, metavar="PORT", dest="daemon_port", 
         help="Select port on which the daemon runs.\nDefault port is 8090.", action="store")
     parser.add_argument("-z", "--zmq-port", dest="zmq_port", type=int,
-        action="store", help="Select port on which the ZMQ module listens to T-Rex.\nDefault port is 4500.", metavar="PORT",
+        action="store", help="Select port on which the ZMQ module listens to TRex.\nDefault port is 4500.", metavar="PORT",
         default = 4500)
     parser.add_argument("-t", "--trex-path", dest="trex_path",
-        action="store", help="Specify the compiled T-Rex directory from which T-Rex would run.\nDefault path is: {def_path}.".format( def_path = default_path ), 
+        action="store", help="Specify the compiled TRex directory from which TRex would run.\nDefault path is: {def_path}.".format( def_path = default_path ),
         metavar="PATH", default = default_path )
     parser.add_argument("-f", "--files-path", dest="files_path",
         action="store", help="Specify a path to directory on which pushed files will be saved at.\nDefault path is: {def_path}.".format( def_path = default_files_path ), 

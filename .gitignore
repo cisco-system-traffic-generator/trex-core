@@ -14,6 +14,7 @@ scripts/bp-sim-*
 scripts/doc/*
 scripts/mock-*
 scripts/automation/trex_control_plane/doc/_build/*
+
 *.pyc
 
  

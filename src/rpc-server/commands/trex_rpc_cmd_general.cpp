@@ -81,7 +81,7 @@ TrexRpcCmdGetVersion::_run(const Json::Value &params, Json::Value &result) {
 
     #else
 
-    section["version"]       = "v0.0";
+    section["version"]       = "v1.75";
     section["build_date"]    = __DATE__;
     section["build_time"]    = __TIME__;
     section["built_by"]      = "MOCK";
@@ -177,19 +177,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
         section["ports"][i]["owner"] = port->get_owner();
 
-        switch (port->get_state()) {
-        case TrexStatelessPort::PORT_STATE_DOWN:
-            section["ports"][i]["status"] = "down";
-            break;
-
-        case TrexStatelessPort::PORT_STATE_UP_IDLE:
-            section["ports"][i]["status"] = "idle";
-            break;
-
-        case TrexStatelessPort::PORT_STATE_TRANSMITTING:
-            section["ports"][i]["status"] = "transmitting";
-            break;
-        }
+        section["ports"][i]["status"] = port->get_state_as_string();
 
     }
 
@@ -234,7 +222,7 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
 
     if ( (!port->is_free_to_aquire()) && (port->get_owner() != new_owner) && (!force)) {
-        generate_execute_err(result, "device is already taken by '" + port->get_owner() + "'");
+        generate_execute_err(result, "port is already taken by '" + port->get_owner() + "'");
     }
 
     port->set_owner(new_owner);
@@ -265,3 +253,36 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 
     return (TREX_RPC_CMD_OK);
 }
+
+/**
+ * get port stats
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+
+    if (port->get_state() == TrexStatelessPort::PORT_STATE_DOWN) {
+        generate_execute_err(result, "cannot get stats - port is down");
+    }
+
+    result["result"]["status"] = port->get_state_as_string();
+
+    result["result"]["tx_bps"]         = Json::Value::UInt64(port->get_port_stats().tx_bps);
+    result["result"]["tx_pps"]         = Json::Value::UInt64(port->get_port_stats().tx_pps);
+    result["result"]["total_tx_pkts"]  = Json::Value::UInt64(port->get_port_stats().total_tx_pkts);
+    result["result"]["total_tx_bytes"] = Json::Value::UInt64(port->get_port_stats().total_tx_bytes);
+
+    result["result"]["rx_bps"]         = Json::Value::UInt64(port->get_port_stats().rx_bps);
+    result["result"]["rx_pps"]         = Json::Value::UInt64(port->get_port_stats().rx_pps);
+    result["result"]["total_rx_pkts"]  = Json::Value::UInt64(port->get_port_stats().total_rx_pkts);
+    result["result"]["total_rx_bytes"] = Json::Value::UInt64(port->get_port_stats().total_rx_bytes);
+
+    result["result"]["tx_rx_error"]    = Json::Value::UInt64(port->get_port_stats().tx_rx_errors);
+
+    return (TREX_RPC_CMD_OK);
+}
+

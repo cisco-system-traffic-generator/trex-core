@@ -49,6 +49,20 @@ public:
 class TrexStatelessPort {
 public:
 
+    struct TrexPortStats {
+        uint64_t tx_pps;
+        uint64_t tx_bps;
+        uint64_t total_tx_pkts;
+        uint64_t total_tx_bytes;
+
+        uint64_t rx_pps;
+        uint64_t rx_bps;
+        uint64_t total_rx_pkts;
+        uint64_t total_rx_bytes;
+
+        uint64_t tx_rx_errors;
+    };
+
     /**
      * port state
      */
@@ -95,6 +109,12 @@ public:
     port_state_e get_state() {
         return m_port_state;
     }
+
+    /**
+     * port state as string
+     * 
+     */
+    std::string get_state_as_string();
 
     /**
      * fill up properties of the port
@@ -149,6 +169,16 @@ public:
 
     }
 
+    const TrexPortStats & get_port_stats(void) {
+        /* scrabble */
+        m_stats.tx_bps += 1 + rand() % 100;
+        m_stats.tx_pps += 1 + rand() % 10;
+        m_stats.total_tx_bytes += 1 + rand() % 10;
+        m_stats.total_tx_pkts += 1 + rand() % 5;
+
+        return m_stats;
+    }
+
 private:
 
     std::string generate_handler();
@@ -158,6 +188,7 @@ private:
     port_state_e     m_port_state;
     std::string      m_owner;
     std::string      m_owner_handler;
+    TrexPortStats    m_stats;
 };
 
 /**

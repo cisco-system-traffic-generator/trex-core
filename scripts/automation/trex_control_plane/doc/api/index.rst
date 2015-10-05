@@ -1,9 +1,8 @@
 
 API Reference
 =============
-The T-Rex API reference section is currently a work in progress.
 
-**T-Rex Modules**
+**TRex Modules**
 
 .. toctree::
     :maxdepth: 4
@@ -11,7 +10,7 @@ The T-Rex API reference section is currently a work in progress.
     client_code
     exceptions
 
-**T-Rex JSON Template**
+**TRex JSON Template**
 
 .. toctree::
     :maxdepth: 4

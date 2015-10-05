@@ -4,9 +4,13 @@ import cmd
 import json
 import ast
 import argparse
+import random
+import string
+
 import sys
 import trex_root_path
-from client_utils.jsonrpc_client import JsonRpcClient
+
+from client_utils.jsonrpc_client import TrexStatelessClient
 import trex_status
 
 class TrexConsole(cmd.Cmd):
@@ -34,7 +38,7 @@ class TrexConsole(cmd.Cmd):
 
     # set verbose on / off
     def do_verbose (self, line):
-        '''shows or set verbose mode\n'''
+        '''Shows or set verbose mode\n'''
         if line == "":
             print "\nverbose is " + ("on\n" if self.verbose else "off\n")
 
@@ -78,6 +82,98 @@ class TrexConsole(cmd.Cmd):
             print "\n*** " + msg + "\n"
             return
 
+    def do_force_acquire (self, line):
+        '''Acquires ports by force\n'''
+
+        self.do_acquire(line, True)
+
+    def parse_ports_from_line (self, line):
+        port_list = set()
+
+        if line:
+            for port_id in line.split(' '):
+                if (not port_id.isdigit()) or (int(port_id) < 0) or (int(port_id) >= self.rpc_client.get_port_count()):
+                    print "Please provide a list of ports seperated by spaces between 0 and {0}".format(self.rpc_client.get_port_count() - 1)
+                    return None
+
+                port_list.add(int(port_id))
+
+            port_list = list(port_list)
+
+        else:
+            port_list = [i for i in xrange(0, self.rpc_client.get_port_count())]
+
+        return port_list
+
+    def do_acquire (self, line, force = False):
+        '''Acquire ports\n'''
+
+        port_list = self.parse_ports_from_line(line)
+        if not port_list:
+            return
+
+        print "\nTrying to acquire ports: " + (" ".join(str(x) for x in port_list)) + "\n"
+
+        rc, resp_list = self.rpc_client.take_ownership(port_list, force)
+
+        if not rc:
+            print "\n*** " + resp_list + "\n"
+            return
+
+        for i, rc in enumerate(resp_list):
+            if rc[0]:
+                print "Port {0} - Acquired".format(port_list[i])
+            else:
+                print "Port {0} - ".format(port_list[i]) + rc[1]
+
+        print "\n"
+
+    def do_release (self, line):
+        '''Release ports\n'''
+
+        if line:
+            port_list = self.parse_ports_from_line(line)
+        else:
+            port_list = self.rpc_client.get_owned_ports()
+
+        if not port_list:
+            return
+
+        rc, resp_list = self.rpc_client.release_ports(port_list)
+
+
+        print "\n"
+
+        for i, rc in enumerate(resp_list):
+            if rc[0]:
+                print "Port {0} - Released".format(port_list[i])
+            else:
+                print "Port {0} - Failed to release port, probably not owned by you or port is under traffic"
+
+        print "\n"
+
+    def do_get_port_stats (self, line):
+        '''Get ports stats\n'''
+
+        port_list = self.parse_ports_from_line(line)
+        if not port_list:
+            return
+
+        rc, resp_list = self.rpc_client.get_port_stats(port_list)
+
+        if not rc:
+            print "\n*** " + resp_list + "\n"
+            return
+
+        for i, rc in enumerate(resp_list):
+            if rc[0]:
+                print "\nPort {0} stats:\n{1}\n".format(port_list[i], self.rpc_client.pretty_json(json.dumps(rc[1])))
+            else:
+                print "\nPort {0} - ".format(i) + rc[1] + "\n"
+
+        print "\n"
+
+
     def do_connect (self, line):
         '''Connects to the server\n'''
 
@@ -97,10 +193,7 @@ class TrexConsole(cmd.Cmd):
             print "\n*** " + msg + "\n"
             return
 
-        rc, msg = self.rpc_client.query_rpc_server()
-
-        if rc:
-            self.supported_rpc = [str(x) for x in msg if x]
+        self.supported_rpc = self.rpc_client.get_supported_cmds()
 
     def do_rpc (self, line):
         '''Launches a RPC on the server\n'''
@@ -135,7 +228,7 @@ class TrexConsole(cmd.Cmd):
 
         rc, msg = self.rpc_client.invoke_rpc_method(method, params)
         if rc:
-            print "\nServer Response:\n\n" + json.dumps(msg) + "\n"
+            print "\nServer Response:\n\n" + self.rpc_client.pretty_json(json.dumps(msg)) + "\n"
         else:
             print "\n*** " + msg + "\n"
             #print "Please try 'reconnect' to reconnect to server"
@@ -151,7 +244,7 @@ class TrexConsole(cmd.Cmd):
         trex_status.show_trex_status(self.rpc_client)
 
     def do_quit(self, line):
-        '''exit the client\n'''
+        '''Exit the client\n'''
         return True
 
     def do_disconnect (self, line):
@@ -166,6 +259,10 @@ class TrexConsole(cmd.Cmd):
         else:
             print msg + "\n"
 
+    def do_whoami (self, line):
+        '''Prints console user name\n'''
+        print "\n" + self.rpc_client.whoami() + "\n"
+        
     def postcmd(self, stop, line):
         if self.rpc_client.is_connected():
             self.prompt = "TRex > "
@@ -216,6 +313,13 @@ class TrexConsole(cmd.Cmd):
             print "{:<30} {:<30}".format(cmd + " - ", help)
 
 
+    # do 
+    #def do_snapshot (self, line):
+
+   #for key, value in self.rpc_client.snapshot()[1]['streams'].iteritems():
+        #print str(key) + "   " + str(value)
+
+
     # aliasing
     do_exit = do_EOF = do_q = do_quit
 
@@ -230,6 +334,10 @@ def setParserOptions ():
                         default = 5050,
                         type = int)
 
+    parser.add_argument("-u", "--user", help = "User Name  [default is random generated]\n",
+                        default = 'user_' + ''.join(random.choice(string.digits) for _ in range(5)),
+                        type = str)
+
     return parser
 
 def main ():
@@ -237,7 +345,7 @@ def main ():
     options = parser.parse_args(sys.argv[1:])
 
     # RPC client
-    rpc_client = JsonRpcClient(options.server, options.port)
+    rpc_client = TrexStatelessClient(options.server, options.port, options.user)
 
     # console
     try:

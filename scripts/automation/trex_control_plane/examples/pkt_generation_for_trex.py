@@ -2,7 +2,7 @@
 
 ######################################################################################
 ###                                                                                ###
-###            T-Rex end-to-end demo script, written by T-Rex dev-team             ###
+###             TRex end-to-end demo script, written by TRex dev-team              ###
 ###   THIS SCRIPT ASSUMES PyYaml and Scapy INSTALLED ON PYTHON'S RUNNING MACHINE   ###
 ###      (for any question please contact trex-dev team @ trex-dev@cisco.com)      ###
 ###                                                                                ###
@@ -33,13 +33,13 @@ def pkts_to_pcap (pcap_filename, packets):
 
 
 def main (args):
-    # instantiate T-Rex client
+    # instantiate TRex client
     trex = CTRexClient('trex-dan', verbose = args.verbose)
 
     if args.steps:
         print "\nNext step: .pcap generation."
         raw_input("Press Enter to continue...")
-    # generate T-Rex traffic.
+    # generate TRex traffic.
     pkts = generate_dns_packets('21.0.0.2', '22.0.0.12')    # In this case - DNS traffic (request-response)
     print "\ngenerated traffic:"
     print "=================="
@@ -50,7 +50,7 @@ def main (args):
         print "\nNext step: .yaml generation."
         raw_input("Press Enter to continue...")
     # Generate .yaml file that uses the generated .pcap file
-    trex_files_path = trex.get_trex_files_path()	# fetch the path in which packets are saved on T-Rex server
+    trex_files_path = trex.get_trex_files_path()	# fetch the path in which packets are saved on TRex server
     yaml_obj 		= CTRexYaml(trex_files_path)	# instantiate CTRexYaml obj
 
     # set .yaml file parameters according to need and use
@@ -65,12 +65,12 @@ def main (args):
     yaml_obj.dump()
 
     if args.steps:
-        print "\nNext step: run T-Rex with provided files."
+        print "\nNext step: run TRex with provided files."
         raw_input("Press Enter to continue...")
     # push all relevant files to server
     trex.push_files( yaml_obj.get_file_list() )
 
-    print "\nStarting T-Rex..."
+    print "\nStarting TRex..."
     trex.start_trex(c = 2,
         m = 1.5,
         nc = True,
@@ -80,8 +80,8 @@ def main (args):
         l = 1000)
     
     if args.verbose:
-        print "T-Rex state changed to 'Running'."
-        print "Sampling T-Rex in 0.2 samples/sec (single sample every 5 secs)"
+        print "TRex state changed to 'Running'."
+        print "Sampling TRex in 0.2 samples/sec (single sample every 5 secs)"
     
     last_res = dict()
     while trex.is_running(dump_out = last_res):
@@ -92,14 +92,14 @@ def main (args):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description = 'Run T-Rex client API end-to-end example.',
+    parser = ArgumentParser(description = 'Run TRex client API end-to-end example.',
         usage = """pkt_generation_for_trex [options]""" )
 
     parser.add_argument("-s", "--step-by-step", dest="steps",
         action="store_false", help="Switch OFF step-by-step script overview. Default is: ON.", 
         default = True )
     parser.add_argument("--verbose", dest="verbose",
-        action="store_true", help="Switch ON verbose option at T-Rex client. Default is: OFF.", 
+        action="store_true", help="Switch ON verbose option at TRex client. Default is: OFF.",
         default = False )
     args = parser.parse_args()
     main(args)

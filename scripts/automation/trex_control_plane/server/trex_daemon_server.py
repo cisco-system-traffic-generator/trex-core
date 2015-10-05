@@ -54,7 +54,7 @@ def main ():
         logger.addHandler(handler)
     except EnvironmentError, e:
             if e.errno == errno.EACCES: # catching permission denied error
-                print "Launching user must have sudo privileges in order to run T-Rex daemon.\nTerminating daemon process."
+                print "Launching user must have sudo privileges in order to run TRex daemon.\nTerminating daemon process."
             exit(-1)
 
     try:

@@ -19,7 +19,7 @@ class CTRexStatelessClient(object):
         self._conn_handler = {}
 
     def owned(func):
-        def wrapper(self, *args, **kwargs ) :
+        def wrapper(self, *args, **kwargs):
             if self._conn_handler.get(kwargs.get("port_id")):
                 return func(self, *args, **kwargs)
             else:
@@ -37,37 +37,65 @@ class CTRexStatelessClient(object):
     @owned
     def release(self, port_id=None):
         self._conn_handler.pop(port_id)
-        params = {"handler":self._conn_handler.get(port_id),
+        params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id}
         return self.transmit("release", params)
 
     @owned
     def add_stream(self, stream_id, stream_obj, port_id=None):
         assert isinstance(stream_obj, CStream)
-        params = {"handler":self._conn_handler.get(port_id),
-                  "port_id":port_id,
-                  "stream_id":stream_id,
-                  "stream":stream_obj.dump()}
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id,
+                  "stream_id": stream_id,
+                  "stream": stream_obj.dump()}
         return self.transmit("add_stream", params)
 
     @owned
     def remove_stream(self, stream_id, port_id=None):
-        params = {"handler":self._conn_handler.get(port_id),
-                  "port_id":port_id,
-                  "stream_id":stream_id}
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id,
+                  "stream_id": stream_id}
         return self.transmit("remove_stream", params)
 
     @owned
     def get_stream_list(self, port_id=None):
-        params = {"handler":self._conn_handler.get(port_id),
-                  "port_id":port_id}
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id}
         return self.transmit("get_stream_list", params)
 
     @owned
     def get_stream(self, stream_id, port_id=None):
-        params = {"handler":self._conn_handler.get(port_id),
-                  "port_id":port_id}
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id,
+                  "stream_id": stream_id}
         return self.transmit("get_stream_list", params)
+
+    @owned
+    def start_traffic(self, port_id=None):
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id}
+        return self.transmit("start_traffic", params)
+
+    @owned
+    def stop_traffic(self, port_id=None):
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id}
+        return self.transmit("stop_traffic", params)
+
+    def get_global_stats(self):
+        return self.transmit("get_global_stats")
+
+    @owned
+    def stop_traffic(self, port_id=None):
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id}
+        return self.transmit("stop_traffic", params)
+
+
+
+
+
+
 
 
 

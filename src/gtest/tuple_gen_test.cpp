@@ -153,12 +153,12 @@ TEST(CClientInfoLTest, get_new_free_port) {
 
 
 
-/* UIT of CTupleGeneratorSmart */
-TEST(tuple_gen,GenerateTuple) {
-    CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001,  0x10000f01, 0x30000001, 0x40000001, 
-               MAX_PORT, MAX_PORT);
+/* UIT of CClientPool, using CClientInfoL */
+TEST(tuple_gen,clientPoolL) {
+    CClientPool gen;
+    gen.Create(cdSEQ_DIST, 
+               0x10000001,  0x10000f01, 64000,1,NULL,false, 
+               0,0);
     CTupleBase result;
     uint32_t result_src;
     uint32_t result_dest;
@@ -166,13 +166,11 @@ TEST(tuple_gen,GenerateTuple) {
 
     for(int i=0;i<10;i++) {
         gen.GenerateTuple(result);
-        printf(" C:%x S:%x P:%d \n",result.getClient(),result.getServer(),result.getClientPort());
+        printf(" C:%x P:%d \n",result.getClient(),result.getClientPort());
 
         result_src = result.getClient();
-        result_dest = result.getServer();
         result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i));
-        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
         EXPECT_EQ(result_port, 1024);
     }
 
@@ -180,18 +178,118 @@ TEST(tuple_gen,GenerateTuple) {
 //    EXPECT_EQ((size_t)0, gen.m_clients.size());
 }
 
-TEST(tuple_gen,GenerateTuple2) {
-    CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001, 
-               MAX_PORT, MAX_PORT);
+/* UIT of CClientPool, using CClientInfo */
+TEST(tuple_gen,clientPool) {
+    CClientPool gen;
+    gen.Create(cdSEQ_DIST, 
+               0x10000001,  0x10000021, 64000,1000,NULL,false, 
+               0,0);
     CTupleBase result;
     uint32_t result_src;
     uint32_t result_dest;
     uint16_t result_port;
 
-    for(int i=0;i<200;i++) {
+    for(int i=0;i<10;i++) {
         gen.GenerateTuple(result);
+        printf(" C:%x P:%d \n",result.getClient(),result.getClientPort());
+
+        result_src = result.getClient();
+        result_port = result.getClientPort();
+        EXPECT_EQ(result_src, (uint32_t)(0x10000001+i));
+        EXPECT_EQ(result_port, 1024);
+    }
+
+    gen.Delete();
+//    EXPECT_EQ((size_t)0, gen.m_clients.size());
+}
+
+/* UIT of CServerPool */
+TEST(tuple_gen,serverPool) {
+    CServerPool gen;
+    gen.Create(cdSEQ_DIST, 
+               0x30000001,  0x30000ff1, 64000,10);
+    CTupleBase result;
+    uint32_t result_dest;
+
+    for(int i=0;i<10;i++) {
+        gen.GenerateTuple(result);
+        printf(" S:%x \n",result.getServer());
+
+        result_dest = result.getServer();
+        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
+    }
+
+    gen.Delete();
+
+    gen.Create(cdSEQ_DIST, 
+               0x30000001,  0x30000003, 64000,1000);
+
+    for(int i=0;i<10;i++) {
+        gen.GenerateTuple(result);
+        printf(" S:%x \n",result.getServer());
+
+        result_dest = result.getServer();
+        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i%3)) ) );
+    }
+
+    gen.Delete();
+    //    EXPECT_EQ((size_t)0, gen.m_clients.size());
+}
+
+TEST(tuple_gen,servePoolSim) {
+    CServerPoolSimple gen;
+    gen.Create(cdSEQ_DIST, 
+               0x30000001,  0x40000001, 64000,10);
+    CTupleBase result;
+    uint32_t result_dest;
+
+    for(int i=0;i<10;i++) {
+        gen.GenerateTuple(result);
+        printf(" S:%x \n",result.getServer());
+
+        result_dest = result.getServer();
+        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
+    }
+
+    gen.Delete();
+
+    gen.Create(cdSEQ_DIST, 
+               0x30000001,  0x30000003, 64000,1000);
+
+    for(int i=0;i<10;i++) {
+        gen.GenerateTuple(result);
+        printf(" S:%x \n",result.getServer());
+
+        result_dest = result.getServer();
+        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i%3)) ) );
+    }
+
+    gen.Delete();
+    //    EXPECT_EQ((size_t)0, gen.m_clients.size());
+}
+
+
+
+
+TEST(tuple_gen,GenerateTuple2) {
+    CClientPool c_gen;
+    CClientPool c_gen_2;
+    c_gen.Create(cdSEQ_DIST, 
+               0x10000001,  0x1000000f, 64000,4,NULL,false, 
+               0,0);
+    CServerPool s_gen;
+    CServerPool s_gen_2;
+    s_gen.Create(cdSEQ_DIST, 
+               0x30000001,  0x30000ff1, 64000,10);
+    CTupleBase result;
+
+    uint32_t result_src;
+    uint32_t result_dest;
+    uint16_t result_port;
+
+    for(int i=0;i<200;i++) {
+        c_gen.GenerateTuple(result);
+        s_gen.GenerateTuple(result);
       //  gen.Dump(stdout);
       //  fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
@@ -202,23 +300,29 @@ TEST(tuple_gen,GenerateTuple2) {
         EXPECT_EQ(result_port, 1024+i/15);
     }
 
-    gen.Delete();
+    s_gen.Delete();
+    c_gen.Delete();
 //    EXPECT_EQ((size_t)0, gen.m_clients.size());
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001, 
-               MAX_PORT,MAX_PORT);
+    c_gen.Create(cdSEQ_DIST, 
+               0x10000001,  0x1000000f, 64000,400,NULL,false, 
+               0,0);
+    s_gen.Create(cdSEQ_DIST, 
+               0x30000001,  0x30000001, 64000,10);
     for(int i=0;i<200;i++) {
-        gen.GenerateTuple(result);
+        s_gen.GenerateTuple(result);
+        c_gen.GenerateTuple(result);
     //    gen.Dump(stdout);
-     //   fprintf(stdout, "i:%d\n",i);
+       // fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
         result_dest = result.getServer();
         result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
-        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
+        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001)) ) );
         EXPECT_EQ(result_port, 1024+i/15);
     }
 
+    s_gen.Delete();
+    c_gen.Delete();
 
 
 }
@@ -227,29 +331,27 @@ TEST(tuple_gen,GenerateTupleMac) {
     CFlowGenList  fl;
     fl.Create();
     fl.load_from_mac_file("avl/mac_uit.yaml");
-    fl.m_yaml_info.m_tuple_gen.m_clients_ip_start = 0x10000001;
-    fl.m_yaml_info.m_tuple_gen.m_clients_ip_end = 0x1000000f;
 
-
-    CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001,  0x1000000f, 0x30000001, 0x40000001, 
-               MAX_PORT, MAX_PORT, &fl);
+    CClientPool gen;
+    gen.Create(cdSEQ_DIST, 
+               0x10000001,  0x1000000f, 64000,2, &fl,true,0,0);
     CTupleBase result;
     uint32_t result_src;
-    uint32_t result_dest;
     uint16_t result_port;
-
+    mac_addr_align_t* result_mac;
     for(int i=0;i<10;i++) {
         gen.GenerateTuple(result);
-        printf(" C:%x S:%x P:%d \n",result.getClient(),result.getServer(),result.getClientPort());
+        printf(" C:%x P:%d \n",result.getClient(),result.getClientPort());
 
         result_src = result.getClient();
-        result_dest = result.getServer();
         result_port = result.getClientPort();
+        result_mac = result.getClientMac();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%2));
-        EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
         EXPECT_EQ(result_port, 1024+i/2);
+        if (i%2==0)
+            EXPECT_EQ(result_mac->mac[3], 5);
+        else
+            EXPECT_EQ(result_mac->mac[3], 1);
     }
 
     gen.Delete();
@@ -257,87 +359,48 @@ TEST(tuple_gen,GenerateTupleMac) {
 }
 
 
-
-TEST(tuple_gen,GenerateTupleEx) {
-    CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001,
-               MAX_PORT, MAX_PORT);
-    CTupleBase result;
-    uint32_t result_src;
-    uint32_t result_dest;
-    uint16_t result_port;
-    uint16_t ex_port[2];
-    for(int i=0;i<20;i++) {
-
-        gen.GenerateTupleEx(result,2,ex_port);
-        fprintf(stdout, "i:%d\n",i);
-        result_src = result.getClient();
-        result_dest = result.getServer();
-        result_port = result.getClientPort();
-
-        EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
-        EXPECT_EQ(result_dest, (uint32_t)(((0x30000001+i)) ));
-
-        EXPECT_EQ(result_port, 1024+(i/15)*3);
-        EXPECT_EQ(ex_port[0], 1025+(i/15)*3);
-        EXPECT_EQ(ex_port[1], 1026+(i/15)*3);
-    }
-
-    gen.Delete();
-}
-
 TEST(tuple_gen,split1) {
-    CClientPortion  portion;
+    CIpPortion  portion;
 
-    CTupleGenYamlInfo fi;
-    fi.m_clients_ip_start =0x10000000;
-    fi.m_clients_ip_end   =0x100000ff;
-
-    fi.m_servers_ip_start =0x20000000;
-    fi.m_servers_ip_end   =0x200000ff;
+    CTupleGenPoolYaml fi;
+    fi.m_ip_start =0x10000000;
+    fi.m_ip_end   =0x100000ff;
 
     fi.m_dual_interface_mask =0x01000000;
 
-    split_clients(0,
+    split_ips(0,
                   1, 
                   0,
                   fi,
                   portion);
-    EXPECT_EQ(portion.m_client_start, (uint32_t)(0x10000000));
-    EXPECT_EQ(portion.m_client_end,   (uint32_t)(0x100000ff ));
-    EXPECT_EQ(portion.m_server_start  , (uint32_t)(0x20000000));
-    EXPECT_EQ(portion.m_server_end    , (uint32_t)(0x200000ff));
-    printf(" %x %x %x %x \n",portion.m_client_start,portion.m_client_end,portion.m_server_start,portion.m_server_end);
+    EXPECT_EQ(portion.m_ip_start, (uint32_t)(0x10000000));
+    EXPECT_EQ(portion.m_ip_end,   (uint32_t)(0x100000ff ));
+    printf(" %x %x \n",portion.m_ip_start,portion.m_ip_end);
 
-    split_clients(2,
+    split_ips(2,
                   4, 
                   1,
                   fi,
                   portion);
 
-     EXPECT_EQ(portion.m_client_start, (uint32_t)(0x11000080));
-     EXPECT_EQ(portion.m_client_end, (uint32_t)(0x110000bf ));
-     EXPECT_EQ(portion.m_server_start  , (uint32_t)(0x21000080));
-     EXPECT_EQ(portion.m_server_end    , (uint32_t)(0x210000bf));
-     printf(" %x %x %x %x \n",portion.m_client_start,portion.m_client_end,portion.m_server_start,portion.m_server_end);
+     EXPECT_EQ(portion.m_ip_start, (uint32_t)(0x11000080));
+     EXPECT_EQ(portion.m_ip_end, (uint32_t)(0x110000bf ));
+     printf(" %x %x \n",portion.m_ip_start,portion.m_ip_end);
 }
 
 TEST(tuple_gen,split2) {
-    CClientPortion  portion;
+    CIpPortion  portion;
 
-    CTupleGenYamlInfo fi;
-    fi.m_clients_ip_start =0x10000000;
-    fi.m_clients_ip_end   =0x100001ff;
+    CTupleGenPoolYaml fi;
 
-    fi.m_servers_ip_start =0x20000000;
-    fi.m_servers_ip_end   =0x200001ff;
+    fi.m_ip_start =0x20000000;
+    fi.m_ip_end   =0x200001ff;
 
     fi.m_dual_interface_mask =0x01000000;
 
     int i;
     for (i=0; i<8; i++) {
-        split_clients(i,
+        split_ips(i,
                       8, 
                       (i&1),
                       fi,
@@ -345,31 +408,23 @@ TEST(tuple_gen,split2) {
 
 
         if ( (i&1) ) {
-            EXPECT_EQ(portion.m_client_start, (uint32_t)(0x11000000)+(0x40*i));
-            EXPECT_EQ(portion.m_client_end, (uint32_t)(0x11000000 +(0x40*i+0x40-1)));
-            EXPECT_EQ(portion.m_server_start  , (uint32_t)(0x21000000)+ (0x40*i) );
-            EXPECT_EQ(portion.m_server_end    , (uint32_t)(0x21000000)+(0x40*i+0x40-1) );
+            EXPECT_EQ(portion.m_ip_start  , (uint32_t)(0x21000000)+ (0x40*i) );
+            EXPECT_EQ(portion.m_ip_end    , (uint32_t)(0x21000000)+(0x40*i+0x40-1) );
         }else{
-            EXPECT_EQ(portion.m_client_start, (uint32_t)(0x10000000)+ (0x40*i) );
-            EXPECT_EQ(portion.m_client_end, (uint32_t)(0x10000000   + (0x40*i+0x40-1) ) );
-            EXPECT_EQ(portion.m_server_start  , (uint32_t)(0x20000000) + (0x40*i) );
-            EXPECT_EQ(portion.m_server_end    , (uint32_t)(0x20000000) + (0x40*i+0x40-1) );
+            EXPECT_EQ(portion.m_ip_start  , (uint32_t)(0x20000000) + (0x40*i) );
+            EXPECT_EQ(portion.m_ip_end    , (uint32_t)(0x20000000) + (0x40*i+0x40-1) );
         }
-        printf(" %x %x %x %x \n",portion.m_client_start,portion.m_client_end,portion.m_server_start,portion.m_server_end);
+        printf(" %x %x \n",portion.m_ip_start,portion.m_ip_end);
     }
 }
 
-
-
-
-
 TEST(tuple_gen,template1) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001,
-               MAX_PORT, MAX_PORT);
+    gen.Create(1, 1); 
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
-    template_1.Create(&gen);
+    template_1.Create(&gen,0,0);
     template_1.SetSingleServer(true,0x12121212,0,0);
     CTupleBase result;
 
@@ -391,11 +446,11 @@ TEST(tuple_gen,template1) {
 
 TEST(tuple_gen,template2) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001,
-               MAX_PORT, MAX_PORT);
+    gen.Create(1, 1);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
-    template_1.Create(&gen);
+    template_1.Create(&gen,0,0);
     template_1.SetW(10);
 
     CTupleBase result;
@@ -420,11 +475,11 @@ TEST(tuple_gen,template2) {
 
 TEST(tuple_gen,no_free) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x10000001, 0x30000001, 0x300000ff,
-               MAX_PORT, MAX_PORT);
+    gen.Create(1, 1);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000001,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x400000ff,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
-    template_1.Create(&gen);
+    template_1.Create(&gen,0,0);
 
     CTupleBase result;
 
@@ -445,11 +500,11 @@ TEST(tuple_gen,no_free) {
 
 TEST(tuple_gen,try_to_free) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x10000001, 0x30000001, 0x300000ff,
-               MAX_PORT, MAX_PORT);
+    gen.Create(1, 1); 
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000001,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x400000ff,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
-    template_1.Create(&gen);
+    template_1.Create(&gen,0,0);
 
     CTupleBase result;
 
@@ -460,7 +515,7 @@ TEST(tuple_gen,try_to_free) {
         uint32_t result_src = result.getClient();
         uint32_t result_dest = result.getServer();
         uint16_t result_port = result.getClientPort();
-        gen.FreePort(result_src,result_port);
+        gen.FreePort(0,result.getClientId(),result_port);
     }
     // should have error
     EXPECT_FALSE((gen.getErrorAllocationCounter()>0)?true:false);
@@ -474,16 +529,18 @@ TEST(tuple_gen,try_to_free) {
 /* tuple generator using CClientInfoL*/
 TEST(tuple_gen_2,GenerateTuple) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001,  0x10000f01, 0x30000001, 0x40000001, 
-               0,0);
+    gen.Create(1, 1); 
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000f01,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
+    CTupleTemplateGeneratorSmart template_1;
+    template_1.Create(&gen,0,0);
     CTupleBase result;
     uint32_t result_src;
     uint32_t result_dest;
     uint16_t result_port;
 
     for(int i=0;i<10;i++) {
-        gen.GenerateTuple(result);
+        template_1.GenerateTuple(result);
         printf(" C:%x S:%x P:%d \n",result.getClient(),result.getServer(),result.getClientPort());
 
         result_src = result.getClient();
@@ -500,16 +557,18 @@ TEST(tuple_gen_2,GenerateTuple) {
 
 TEST(tuple_gen_2,GenerateTuple2) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001, 
-               0,0);
+    gen.Create(1, 1);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
+    CTupleTemplateGeneratorSmart template_1;
+    template_1.Create(&gen,0,0);
     CTupleBase result;
     uint32_t result_src;
     uint32_t result_dest;
     uint16_t result_port;
 
     for(int i=0;i<200;i++) {
-        gen.GenerateTuple(result);
+        template_1.GenerateTuple(result);
       //  gen.Dump(stdout);
       //  fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
@@ -522,11 +581,12 @@ TEST(tuple_gen_2,GenerateTuple2) {
 
     gen.Delete();
 //    EXPECT_EQ((size_t)0, gen.m_clients.size());
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001, 
-               0,0);
+    gen.Create(1, 1); 
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
+    template_1.Create(&gen,0,0);
     for(int i=0;i<200;i++) {
-        gen.GenerateTuple(result);
+        template_1.GenerateTuple(result);
     //    gen.Dump(stdout);
      //   fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
@@ -542,43 +602,13 @@ TEST(tuple_gen_2,GenerateTuple2) {
 }
 
 
-
-TEST(tuple_gen_2,GenerateTupleEx) {
-    CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001,
-               0,0);
-    CTupleBase result;
-    uint32_t result_src;
-    uint32_t result_dest;
-    uint16_t result_port;
-    uint16_t ex_port[2];
-    for(int i=0;i<20;i++) {
-
-        gen.GenerateTupleEx(result,2,ex_port);
-        fprintf(stdout, "i:%d\n",i);
-        result_src = result.getClient();
-        result_dest = result.getServer();
-        result_port = result.getClientPort();
-
-        EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
-        EXPECT_EQ(result_dest, (uint32_t)(((0x30000001+i)) ));
-
-        EXPECT_EQ(result_port, 1024+(i/15)*3);
-        EXPECT_EQ(ex_port[0], 1025+(i/15)*3);
-        EXPECT_EQ(ex_port[1], 1026+(i/15)*3);
-    }
-
-    gen.Delete();
-}
-
 TEST(tuple_gen_2,template1) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001,
-               0,0);
+    gen.Create(1, 1); 
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
-    template_1.Create(&gen);
+    template_1.Create(&gen,0,0);
     template_1.SetSingleServer(true,0x12121212,0,0);
     CTupleBase result;
 
@@ -601,11 +631,11 @@ TEST(tuple_gen_2,template1) {
 
 TEST(tuple_gen_2,template2) {
     CTupleGeneratorSmart gen;
-    gen.Create(1, 1,cdSEQ_DIST, 
-               0x10000001, 0x1000000f, 0x30000001, 0x40000001,
-               0,0);
+    gen.Create(1, 1);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
-    template_1.Create(&gen);
+    template_1.Create(&gen,0,0);
     template_1.SetW(10);
 
     CTupleBase result;
@@ -646,45 +676,40 @@ TEST(tuple_gen_yaml,yam_reader1) {
         std::cout << e.what() << "\n";
         exit(-1);
     }
-    fi.Dump(stdout);
 }
 
 TEST(tuple_gen_yaml,yam_is_valid) {
 
     CTupleGenYamlInfo  fi;
+    CTupleGenPoolYaml c_pool;
+    CTupleGenPoolYaml s_pool;
+    fi.m_client_pool.push_back(c_pool); 
+    fi.m_server_pool.push_back(s_pool); 
+    
+    fi.m_client_pool[0].m_ip_start = 0x10000001;
+    fi.m_client_pool[0].m_ip_end   = 0x100000ff;
 
-    fi.m_clients_ip_start = 0x10000001;
-    fi.m_clients_ip_end   = 0x100000ff;
-
-    fi.m_servers_ip_start = 0x10000001;
-    fi.m_servers_ip_end   = 0x100001ff;
+    fi.m_server_pool[0].m_ip_start = 0x10000001;
+    fi.m_server_pool[0].m_ip_end   = 0x100001ff;
 
     EXPECT_EQ(fi.is_valid(8,true)?1:0, 1);
-    EXPECT_EQ(fi.m_servers_ip_start, 0x10000001);
-    EXPECT_EQ(fi.m_servers_ip_end, 0x100001fe);
 
-    printf(" start:%x end:%x \n",fi.m_servers_ip_start,fi.m_servers_ip_end);
 
-    fi.m_clients_ip_start = 0x10000001;
-    fi.m_clients_ip_end   = 0x100000ff;
+    fi.m_client_pool[0].m_ip_start = 0x10000001;
+    fi.m_client_pool[0].m_ip_end   = 0x100000ff;
 
-    fi.m_servers_ip_start = 0x10000001;
-    fi.m_servers_ip_end   = 0x10000009;
+    fi.m_server_pool[0].m_ip_start = 0x10000001;
+    fi.m_server_pool[0].m_ip_end   = 0x10000007;
 
     EXPECT_EQ(fi.is_valid(8,true)?1:0, 0);
 
-    fi.m_clients_ip_start = 0x10000001;
-    fi.m_clients_ip_end   = 0x100000ff;
+    fi.m_client_pool[0].m_ip_start = 0x10000001;
+    fi.m_client_pool[0].m_ip_end   = 0x100000ff;
 
-    fi.m_servers_ip_start = 0x10000001;
-    fi.m_servers_ip_end   = 0x100003ff;
+    fi.m_server_pool[0].m_ip_start = 0x10000001;
+    fi.m_server_pool[0].m_ip_end   = 0x100003ff;
 
     EXPECT_EQ(fi.is_valid(8,true)?1:0, 1);
-    EXPECT_EQ(fi.m_servers_ip_start, 0x10000001);
-    EXPECT_EQ(fi.m_servers_ip_end, 0x100003fc);
-
-    printf(" start:%x end:%x \n",fi.m_servers_ip_start,fi.m_servers_ip_end);
-
 
 }
 

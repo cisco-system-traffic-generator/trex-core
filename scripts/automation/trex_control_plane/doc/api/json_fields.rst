@@ -1,23 +1,23 @@
 
-T-Rex JSON Template
-===================
+TRex JSON Template
+==================
 
-Whenever T-Rex is publishing live data, it uses JSON notation to describe the data-object.
+Whenever TRex is publishing live data, it uses JSON notation to describe the data-object.
 
-Each client may parse it diffrently, however this page will describe the values meaning when published by T-Rex server.
+Each client may parse it differently, however this page will describe the values meaning when published by TRex server.
 
 
 Main Fields
 -----------
 
-Each T-Rex server-published JSON object contains data divided to main fields under which the actual data lays.
+Each TRex server-published JSON object contains data divided to main fields under which the actual data lays.
 
 These main fields are:
 
 +-----------------------------+----------------------------------------------------+---------------------------+
 | Main field                  | Contains                                           | Comments                  |
 +=============================+====================================================+===========================+
-| :ref:`trex-global-field`    | Must-have data on T-Rex run,                       |                           |
+| :ref:`trex-global-field`    | Must-have data on TRex run,                        |                           |
 |                             | mainly regarding Tx/Rx and packet drops            |                           |
 +-----------------------------+----------------------------------------------------+---------------------------+
 | :ref:`tx-gen-field`         | Data indicate the quality of the transmit process. |                           |
@@ -117,7 +117,7 @@ trex-global field
 .. _tx-gen-field:
 
 tx-gen field
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~
 
 +-------------------+-------+-----------------------------------------------------------+
 |      Sub-key      | Type  |                          Meaning                          |

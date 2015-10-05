@@ -80,6 +80,7 @@ uint8_t TrexStateless::get_port_count() {
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
     m_port_state = PORT_STATE_UP_IDLE;
     clear_owner();
+    m_stats = {0};
 }
 
 
@@ -121,12 +122,30 @@ TrexStreamTable * TrexStatelessPort::get_stream_table() {
     return &m_stream_table;
 }
 
+
+std::string 
+TrexStatelessPort::get_state_as_string() {
+
+    switch (get_state()) {
+    case PORT_STATE_DOWN:
+        return "down";
+
+    case PORT_STATE_UP_IDLE:
+        return  "idle";
+
+    case PORT_STATE_TRANSMITTING:
+        return "transmitting";
+    }
+
+    return "unknown";
+}
+
 void
 TrexStatelessPort::get_properties(string &driver, string &speed) {
 
     /* take this from DPDK */
-    driver = "Unknown Driver";
-    speed  = "Unknown Speed";
+    driver = "e1000";
+    speed  = "1 Gbps";
 }
 
 

@@ -1,6 +1,6 @@
 #!/router/bin/python
 
-# import outer_packages
+import outer_packages  # import this to overcome doc building import error by sphinx
 from enum import Enum
 
 

@@ -616,7 +616,7 @@ def build_prog (bld, build_obj):
 
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
-                cxxflags =build_obj.get_cxx_flags(),
+                cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl'],
                 use =[build_obj.get_dpdk_target(),'zmq'],
@@ -747,7 +747,8 @@ files_list=[
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
             'doc_process.py',
-            'trex_daemon_server'
+            'trex_daemon_server',
+            'trex-console'
             ];
 
 files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib']
