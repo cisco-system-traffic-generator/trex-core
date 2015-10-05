@@ -7,7 +7,7 @@ import os
 
 class CTRexYaml(object):
     """
-    This class functions as a YAML generator according to T-Rex YAML format.
+    This class functions as a YAML generator according to TRex YAML format.
 
     CTRexYaml is compatible with both Python 2 and Python 3.
     """
@@ -38,7 +38,7 @@ class CTRexYaml(object):
 
         :parameters:  
             trex_files_path : str
-                a path (on T-Rex server side) for the pcap files using which T-Rex can access it.
+                a path (on TRex server side) for the pcap files using which TRex can access it.
 
         """
         self.yaml_obj        = list(CTRexYaml.YAML_TEMPLATE)
@@ -114,7 +114,7 @@ class CTRexYaml(object):
         :parameters:  
             None
 
-        :reaturn: 
+        :return:
             None
 
         """
@@ -193,7 +193,7 @@ class CTRexYaml(object):
         """
         Returns a list of all files related to the YAML object, including the YAML filename itself.
 
-        .. tip:: This method is especially useful for listing all the files that should be pushed to T-Rex server as part of the same yaml selection.
+        .. tip:: This method is especially useful for listing all the files that should be pushed to TRex server as part of the same yaml selection.
                 
         :parameters:  
             None

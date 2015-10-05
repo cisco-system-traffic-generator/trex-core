@@ -27,7 +27,7 @@ class RPCError(Exception):
 
 class TRexException(RPCError):
     """ 
-    This is the most general T-Rex exception.
+    This is the most general TRex exception.
     
     All exceptions inherits from this class has an error code and a default message which describes the most common use case of the error.
 
@@ -35,55 +35,55 @@ class TRexException(RPCError):
 
     """
     code = -10
-    _default_message = 'T-Rex encountered an unexpected error. please contact T-Rex dev team.' 
+    _default_message = 'TRex encountered an unexpected error. please contact TRex dev team.'
     # api_name = 'TRex'
 
 class TRexError(TRexException):
     """ 
-    This is the most general T-Rex exception.
+    This is the most general TRex exception.
 
     This exception isn't used by default and will only when an unrelated to ProtocolError will occur, and it can't be resolved to any of the deriviate exceptions.
     """
     code = -11
-    _default_message = 'T-Rex run failed due to wrong input parameters, or due to reachability issues.'
+    _default_message = 'TRex run failed due to wrong input parameters, or due to reachability issues.'
 
 class TRexWarning(TRexException):
-    """ Indicates a warning from T-Rex server. When this exception raises it normally used to indicate required data isn't ready yet """
+    """ Indicates a warning from TRex server. When this exception raises it normally used to indicate required data isn't ready yet """
     code = -12
-    _default_message = 'T-Rex is starting (data is not available yet).'
+    _default_message = 'TRex is starting (data is not available yet).'
 
 class TRexRequestDenied(TRexException):
     """ Indicates the desired reques was denied by the server """
     code = -33
-    _default_message = 'T-Rex desired request denied because the requested resource is already taken. Try again once T-Rex is back in IDLE state.'
+    _default_message = 'TRex desired request denied because the requested resource is already taken. Try again once TRex is back in IDLE state.'
 
 class TRexInUseError(TRexException):
     """
-    Indicates that T-Rex is currently in use 
+    Indicates that TRex is currently in use
 
     """
     code = -13
-    _default_message = 'T-Rex is already being used by another user or process. Try again once T-Rex is back in IDLE state.'
+    _default_message = 'TRex is already being used by another user or process. Try again once TRex is back in IDLE state.'
 
 class TRexRunFailedError(TRexException):
-    """ Indicates that T-Rex has failed due to some reason. This Exception is used when T-Rex process itself terminates due to unknown reason """
+    """ Indicates that TRex has failed due to some reason. This Exception is used when TRex process itself terminates due to unknown reason """
     code = -14
     _default_message = ''
 
 class TRexIncompleteRunError(TRexException):
     """ 
-    Indicates that T-Rex has failed due to some reason. 
-    This Exception is used when T-Rex process itself terminated with error fault or it has been terminated by an external intervention in the OS.
+    Indicates that TRex has failed due to some reason.
+    This Exception is used when TRex process itself terminated with error fault or it has been terminated by an external intervention in the OS.
 
     """
     code = -15
-    _default_message = 'T-Rex run was terminated unexpectedly by outer process or by the hosting OS'
+    _default_message = 'TRex run was terminated unexpectedly by outer process or by the hosting OS'
 
 EXCEPTIONS = [TRexException, TRexError, TRexWarning, TRexInUseError, TRexRequestDenied, TRexRunFailedError, TRexIncompleteRunError]
 
 class CExceptionHandler(object):
     """ 
-    CExceptionHandler is responsible for generating T-Rex API related exceptions in client side.
+    CExceptionHandler is responsible for generating TRex API related exceptions in client side.
     """
     def __init__(self, exceptions):
         """ 
@@ -92,7 +92,7 @@ class CExceptionHandler(object):
         :parameters:
 
          exceptions : list
-            a list of all T-Rex acceptable exception objects.
+            a list of all TRex acceptable exception objects.
             
             default list:
                - :exc:`trex_exceptions.TRexException`
@@ -113,7 +113,7 @@ class CExceptionHandler(object):
         """
         Generates an exception based on a general ProtocolError exception object `err`. 
 
-        When T-Rex is reserved, no other user can start new T-Rex runs.
+        When TRex is reserved, no other user can start new TRex runs.
 
                 
         :parameters:
@@ -122,7 +122,7 @@ class CExceptionHandler(object):
             a ProtocolError exception raised by :class:`trex_client.CTRexClient` class
 
         :return: 
-         A T-Rex exception from the exception list defined in class creation.
+         A TRex exception from the exception list defined in class creation.
 
          If such exception wasn't found, returns a TRexException exception
 
