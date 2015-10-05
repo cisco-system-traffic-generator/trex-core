@@ -1,16 +1,19 @@
-===================
-About T-Rex project
-===================
+==================
+About TRex project
+==================
 
 Full project's official site
 ----------------------------
 
-To learn all about T-Rex project, visit Cisco's internal `official site <http://csi-wiki-01:8080/display/bpsim/Home>`_
+To learn all about TRex project, visit TRex `official site <http://trex-tgn.cisco.com>`_
 
-Even more
----------
+GitHub Repository
+-----------------
 
-.. toctree::
-    :maxdepth: 2
+`TRex GitHub repository <https://github.com/cisco-system-traffic-generator>`_
 
-    authors
+TRex Google Group
+-----------------
+
+Check out the project's `google group <https://groups.google.com/forum/#!forum/trex-tgn>`_ to contact TRex DEV team and follow other user stories.
+

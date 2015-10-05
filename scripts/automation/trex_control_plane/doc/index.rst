@@ -51,9 +51,7 @@ About TRex
 .. toctree::
     :maxdepth: 2
 
-    All about T-Rex <about_trex>
-    license
-
+    All about TRex <about_trex>
 
 
 Indices and tables

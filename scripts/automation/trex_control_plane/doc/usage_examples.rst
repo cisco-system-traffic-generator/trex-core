@@ -6,7 +6,7 @@ Usage Examples
 Full-featured interactive shell
 -------------------------------
 
-The `client_interactive_example.py` extends and uses the `Cmd <https://docs.python.org/2/library/cmd.html>`_ built in python class to create a Full-featured shell using which one can interact with T-Rex server and get instant results.
+The `client_interactive_example.py` extends and uses the `Cmd <https://docs.python.org/2/library/cmd.html>`_ built in python class to create a Full-featured shell using which one can interact with TRex server and get instant results.
 
 The help menu of this application is:
 
@@ -14,21 +14,21 @@ The help menu of this application is:
 
         usage: client_interactive_example [options]
 
-        Run T-Rex client API demos and scenarios.
+        Run TRex client API demos and scenarios.
 
         optional arguments:
           -h, --help            show this help message and exit
           -v, --version         show program's version number and exit
           -t HOST, --trex-host HOST
-                                Specify the hostname or ip to connect with T-Rex
+                                Specify the hostname or ip to connect with TRex
                                 server.
           -p PORT, --trex-port PORT
-                                Select port on which the T-Rex server listens. Default
+                                Select port on which the TRex server listens. Default
                                 port is 8090.
           -m SIZE, --maxhist SIZE
                                 Specify maximum history size saved at client side.
                                 Default size is 100.
-          --verbose             Switch ON verbose option at T-Rex client. Default is:
+          --verbose             Switch ON verbose option at TRex client. Default is:
                                 OFF.
 
 **Code Excerpt**
@@ -51,8 +51,8 @@ The demo takes the user a full circle:
     2. exporting the generated packets into .pcap file named `dns_traffic.pcap`.
     3. Use the :class:`trex_yaml_gen.CTRexYaml` generator to include that pcap file in the yaml object.
     4. Export the YAML object onto a YAML file named `dns_traffic.yaml`
-    5. Push the generated files to T-Rex server.
-    6. Run T-Rex based on the generated (and pushed) files.
+    5. Push the generated files to TRex server.
+    6. Run TRex based on the generated (and pushed) files.
 
 **Code Excerpt** [#f1]_ 
 
