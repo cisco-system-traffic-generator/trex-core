@@ -167,8 +167,8 @@ The ISO images of the described Linux OS can be downloaded from the following li
     | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-19-x86_64-CHECKSUM[Fedora 19 CHECKSUM] 
 | 3.| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]
     | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-CHECKSUM[Fedora 20 CHECKSUM] 
-| 4.|link:http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-desktop-amd64.iso[Ubuntu 14.04]
-    | link:http://releases.ubuntu.com/14.04/SHA256SUMS[Ubuntu 14.04 CHECKSUM]
+| 4.|link:http://old-releases.ubuntu.com/releases/14.04.1/ubuntu-14.04-desktop-amd64.iso[Ubuntu 14.04.01]
+    | http://old-releases.ubuntu.com/releases/14.04.1/SHA256SUMS[Ubuntu 14.04 CHECKSUM]
 |======================================
 
 
