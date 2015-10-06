@@ -64,6 +64,36 @@ class CTRexPktBuilder(object):
             return
 
     def set_ip_layer_addr(self, layer_name, attr, ip_addr, ip_type="ipv4"):
+        """
+        This method sets the IP address fields of an IP header (source or destination, for both IPv4 and IPv6)
+        using a human readable addressing representation.
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l3_ip", etc.
+
+            attr: str
+                a string representation of the sub-field to be set:
+                + "src" for source
+                + "dst" for destination
+
+            ip_addr: str
+                a string representation of the IP address to be set.
+                Example: "10.0.0.1" for IPv4, or "5001::DB8:1:3333:1:1" for IPv6
+
+            ip_type : str
+                a string representation of the IP version to be set:
+                + "ipv4" for IPv4
+                + "ipv6" for IPv6
+
+                Default: **ipv4**
+
+        :raises:
+            + :exc:`ValueError`, in case the desired layer_name is not an IP layer
+            + :exc:`KeyError`, in case the desired layer_name does not exists.
+
+        """
         try:
             layer = self._pkt_by_hdr[layer_name.lower()]
             if not (isinstance(layer, dpkt.ip.IP) or isinstance(layer, dpkt.ip6.IP6)):
@@ -75,9 +105,54 @@ class CTRexPktBuilder(object):
             raise KeyError("Specified layer '{0}' doesn't exist on packet.".format(layer_name))
 
     def set_ipv6_layer_addr(self, layer_name, attr, ip_addr):
+        """
+        This method sets the IPv6 address fields of an IP header (source or destination)
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l3_ip", etc.
+
+            attr: str
+                a string representation of the sub-field to be set:
+                + "src" for source
+                + "dst" for destination
+
+            ip_addr: str
+                a string representation of the IP address to be set.
+                Example: "5001::DB8:1:3333:1:1"
+
+        :raises:
+            + :exc:`ValueError`, in case the desired layer_name is not an IPv6 layer
+            + :exc:`KeyError`, in case the desired layer_name does not exists.
+
+        """
         self.set_ip_layer_addr(layer_name, attr, ip_addr, ip_type="ipv6")
 
     def set_eth_layer_addr(self, layer_name, attr, mac_addr):
+        """
+        This method sets the ethernet address fields of an Ethernet header (source or destination)
+        using a human readable addressing representation.
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l2", etc.
+
+            attr: str
+                a string representation of the sub-field to be set:
+                + "src" for source
+                + "dst" for destination
+
+            mac_addr: str
+                a string representation of the MAC address to be set.
+                Example: "00:de:34:ef:2e:f4".
+
+        :raises:
+            + :exc:`ValueError`, in case the desired layer_name is not an Ethernet layer
+            + :exc:`KeyError`, in case the desired layer_name does not exists.
+
+        """
         try:
             layer = self._pkt_by_hdr[layer_name.lower()]
             if not isinstance(layer, dpkt.ethernet.Ethernet):
@@ -136,6 +211,29 @@ class CTRexPktBuilder(object):
             raise KeyError("Specified layer '{0}' doesn't exist on packet.".format(layer_name))
 
     def set_layer_bit_attr(self, layer_name, attr, val):
+        """
+        This method enables the user to set the value of a field smaller that 1 Byte in size.
+        This method isn't used to set full-sized fields value (>= 1 byte).
+        Use :func:`packet_builder.CTRexPktBuilder.set_layer_attr` instead.
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l2", "l4_tcp", etc.
+
+            attr : str
+                a string representing the attribute to be set on desired layer
+
+            val : int
+                value of attribute.
+                This value will be set "ontop" of the existing value using bitwise "OR" operation.
+                .. tip:: It is very useful to use dpkt constants to define the values of these fields.
+
+        :raises:
+            + :exc:`KeyError`, in case of missing layer (the desired layer isn't part of packet)
+            + :exc:`ValueError`, in case invalid attribute to the specified layer.
+
+        """
         return self.set_layer_attr(layer_name, attr, val, True)
 
     def set_pkt_payload(self, payload):
@@ -241,7 +339,7 @@ class CTRexPktBuilder(object):
     # VM access methods
     def set_vm_ip_range(self, ip_layer_name, ip_field,
                         ip_init, ip_start, ip_end, add_value,
-                        operation, is_big_endian=False, val_size = 4,
+                        operation, is_big_endian=False, val_size=4,
                         ip_type="ipv4", add_checksum_inst=True):
         if ip_field not in ["src", "dst"]:
             raise ValueError("set_vm_ip_range only available for source ('src') or destination ('dst') ip addresses")
@@ -275,7 +373,7 @@ class CTRexPktBuilder(object):
 
     def set_vm_eth_range(self, eth_layer_name, eth_field,
                          mac_init, mac_start, mac_end, add_value,
-                         operation, val_size = 4, is_big_endian=False):
+                         operation, val_size=4, is_big_endian=False):
         if eth_field not in ["src", "dst"]:
             raise ValueError("set_vm_eth_range only available for source ('src') or destination ('dst') eth addresses")
         self._verify_layer_prop(eth_layer_name, dpkt.ethernet.Ethernet)
@@ -299,15 +397,20 @@ class CTRexPktBuilder(object):
                             init_val, start_val, end_val, add_val, val_size,
                             operation, is_big_endian=False, range_name="",
                             add_checksum_inst=True):
+        # verify input validity for init/start/end values
+        for val in [init_val, start_val, end_val]:
+            if not isinstance(val, int):
+                raise ValueError("init/start/end values are expected integers, but received type '{0}'".
+                                 format(type(val)))
         self._verify_layer_prop(layer_name=layer_name, field_name=hdr_field)
         if not range_name:
             range_name = "{layer}__{field}".format(layer=layer_name, field=hdr_field)
         trim_size = val_size*2
         hdr_offset, field_abs_offset = self._calc_offset(layer_name, hdr_field, val_size)
         self.vm.add_flow_man_inst(range_name, size=val_size, operation=operation,
-                                  init_value=init_val,
-                                  min_value=start_val,
-                                  max_value=end_val)
+                                  init_value=str(init_val),
+                                  min_value=str(start_val),
+                                  max_value=str(end_val))
         self.vm.add_write_flow_inst(range_name, field_abs_offset)
         self.vm.set_vm_off_inst_field(range_name, "add_value", add_val)
         self.vm.set_vm_off_inst_field(range_name, "is_big_endian", is_big_endian)
@@ -315,7 +418,7 @@ class CTRexPktBuilder(object):
             self.vm.add_fix_checksum_inst(self._pkt_by_hdr.get(layer_name), hdr_offset)
 
     def get_vm_data(self):
-        pass
+        return self.vm.dump()
 
     def dump_pkt(self):
         """
@@ -369,8 +472,7 @@ class CTRexPktBuilder(object):
         except IOError:
             raise IOError(2, "The provided path could not be accessed")
 
-    # ----- useful shortcut methods ----- #
-    def gen_dns_packet(self):
+    def export_pkt(self, file_path, link_pcap=False, pcap_name=None, pcap_ts=None):
         pass
 
     # ----- internal methods ----- #
