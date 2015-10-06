@@ -9,6 +9,19 @@ TRex
 :local_web_server_url: csi-wiki-01:8181/trex
 
 
+== Change log
+
+[options="header",cols="^1,^h,3a"]
+|=================
+| Version |  name   |  meaning
+| 1.77-0.0    |  Hanoh Haim (hhaim) |
+- initail versions
+| 1.77.1    | Dan Klein (danklei)
+|
+- fixed ISO images references and supported linux supported OS
+
+|=================
+
 
 == Introduction
 
@@ -137,21 +150,36 @@ NOTE: You should buy seperatly the 10Gb/sec SFP+, Cisco would be fine with TRex 
 
 ==== Supported versions
 
-Fedora 18, Ubuntu 14.04.1  LTS and Fedora 20 are the Linux OS supported. 
+Fedora 18-20, and Ubuntu 14.04.1 LTS are the Linux OS supported. 
 More OS could be supported by compiling the drivers.
 
 ==== Download ISO file 
 
-Download the ISO from Fedora web site from link:http://archive.fedoraproject.org/pub/fedora/linux/releases/18/Fedora/x86_64/iso/[here].
+The ISO images of the described Linux OS can be downloaded from the following links:
 
-Verify the checksum with the following command:
+.Supported Linux ISO image links
+[options="header",cols="1,2,3^",width="50%"]
+|======================================
+| # | Distribution | SHA256 Checksum
+| 1.| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/18/Fedora/x86_64/iso/Fedora-18-x86_64-DVD.iso[Fedora 18] 
+    | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/18/Fedora/x86_64/iso/Fedora-18-x86_64-CHECKSUM[Fedora 18 CHECKSUM] 
+| 2.| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-19-x86_64-DVD.iso[Fedora 19]
+    | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-19-x86_64-CHECKSUM[Fedora 19 CHECKSUM] 
+| 3.| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]
+    | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-CHECKSUM[Fedora 20 CHECKSUM] 
+| 4.|link:http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-desktop-amd64.iso[Ubuntu 14.04]
+    | link:http://releases.ubuntu.com/14.04/SHA256SUMS[Ubuntu 14.04 CHECKSUM]
+|======================================
+
+
+Then, verify the checksum of the downloaded file matches the linked checksum values with the `sha256sum` command. For example:
 
 [source,bash]
 ----
 $sha256sum Fedora-18-x86_64-DVD.iso
 91c5f0aca391acf76a047e284144f90d66d3d5f5dcd26b01f368a43236832c03 #<1>
 ----
-<1> Should be equal to this number. 
+<1> Should be equal to the sha256 values described in the linked CHECKSUM files. 
 
 ==== Install Linux 
 
