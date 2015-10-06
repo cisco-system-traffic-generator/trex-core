@@ -6,14 +6,17 @@ try:
 except ImportError:
     # support import for Python 3
     import client.outer_packages
-from client_utils.jsonrpc_client import JsonRpcClient
+from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 from client_utils.packet_builder import CTRexPktBuilder
 import json
 from common.trex_stats import *
+from collections import namedtuple
 
 
 class CTRexStatelessClient(object):
     """docstring for CTRexStatelessClient"""
+    RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
+
     def __init__(self, server="localhost", port=5050, virtual=False):
         super(CTRexStatelessClient, self).__init__()
         self.tx_link = CTRexStatelessClient.CTxLink(server, port, virtual)
@@ -60,11 +63,18 @@ class CTRexStatelessClient(object):
 
     # ----- user-access methods ----- #
     def acquire(self, port_id, username, force=False):
-        params = {"port_id": port_id,
-                  "user": username,
-                  "force": force}
-        self._conn_handler[port_id] = self.transmit("acquire", params)
-        return self._conn_handler[port_id]
+        if isinstance(port_id, list) or isinstance(port_id, set):
+            port_ids = set(port_id) # convert to set to avoid duplications
+            commands = [self.RpcCmdData("acquire", {"port_id":p_id, "user":username, "force":force})
+                        for p_id in port_ids]
+            rc, resp_list = self.transmit_batch(commands)
+
+        else:
+            params = {"port_id": port_id,
+                      "user": username,
+                      "force": force}
+            self._conn_handler[port_id] = self.transmit("acquire", params)
+            return self._conn_handler[port_id]
 
     @force_status(owned=True)
     def release(self, port_id=None):
@@ -133,6 +143,9 @@ class CTRexStatelessClient(object):
     def transmit(self, method_name, params={}):
         return self.tx_link.transmit(method_name, params)
 
+    def transmit_batch(self, batch_list):
+        return self.tx_link.transmit_batch(batch_list)
+
     @staticmethod
     def _object_decoder(obj_type, obj_data):
         if obj_type=="global":
@@ -163,14 +176,31 @@ class CTRexStatelessClient(object):
 
         def transmit(self, method_name, params={}):
             if self.virtual:
-                print "Transmitting virtually over tcp://{server}:{port}".format(
-                    server=self.server,
-                    port=self.port)
+                self._prompt_virtual_tx_msg()
                 id, msg = self.rpc_link.create_jsonrpc_v2(method_name, params)
                 print msg
                 return
             else:
                 return self.rpc_link.invoke_rpc_method(method_name, params)
+
+        def transmit_batch(self, batch_list):
+            if self.virtual:
+                self._prompt_virtual_tx_msg()
+                print [msg
+                       for id, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params)
+                                       for command in batch_list]]
+            else:
+                batch = self.rpc_link.create_batch()
+                for command in batch_list:
+                    batch.add(command.method, command.params)
+                # invoke the batch
+                return batch.invoke()
+
+
+        def _prompt_virtual_tx_msg(self):
+            print "Transmitting virtually over tcp://{server}:{port}".format(
+                    server=self.server,
+                    port=self.port)
 
 class CStream(object):
     """docstring for CStream"""

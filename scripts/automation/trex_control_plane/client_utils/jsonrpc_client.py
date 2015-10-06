@@ -23,7 +23,7 @@ class BatchMessage(object):
         self.rpc_client = rpc_client
         self.batch_list = []
 
-    def add (self, method_name, params = {}):
+    def add (self, method_name, params={}):
 
         id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, encode = False)
         self.batch_list.append(msg)
