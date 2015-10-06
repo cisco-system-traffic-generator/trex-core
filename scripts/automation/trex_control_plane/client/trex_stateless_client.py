@@ -9,6 +9,7 @@ except ImportError:
 from client_utils.jsonrpc_client import JsonRpcClient
 from client_utils.packet_builder import CTRexPktBuilder
 import json
+from common.trex_stats import *
 
 
 class CTRexStatelessClient(object):
@@ -17,31 +18,62 @@ class CTRexStatelessClient(object):
         super(CTRexStatelessClient, self).__init__()
         self.tx_link = CTRexStatelessClient.CTxLink(server, port, virtual)
         self._conn_handler = {}
+        self._active_ports = set()
+        self._port_stats = CTRexStatsManager()
+        self._stream_stats = CTRexStatsManager()
 
-    def owned(func):
-        def wrapper(self, *args, **kwargs):
-            if self._conn_handler.get(kwargs.get("port_id")):
-                return func(self, *args, **kwargs)
-            else:
-                raise RuntimeError("The requested method ('{0}') cannot be invoked unless the desired port is owned".
-                                   format(func.__name__))
+
+    # ----- decorator methods ----- #
+    def force_status(owned=True, active=False):
+        def wrapper(func):
+            def wrapper_f(self, *args, **kwargs):
+                port_ids = kwargs.get("port_id")
+                if isinstance(port_ids, int):
+                    # make sure port_ids is a list
+                    port_ids = [port_ids]
+                bad_ids = set()
+                for port_id in port_ids:
+                    if not self._conn_handler.get(kwargs.get(port_id)):
+                        bad_ids.add(port_ids)
+                if bad_ids:
+                    # Some port IDs are not according to desires status
+                    own_str = "owned" if owned else "not-owned"
+                    act_str = "active" if active else "non-active"
+                    raise RuntimeError("The requested method ('{0}') cannot be invoked since port IDs {1} are not both" \
+                                       "{2} and {3}".format(func.__name__,
+                                                            bad_ids,
+                                                            own_str,
+                                                            act_str))
+                else:
+                    func(self, *args, **kwargs)
+            return wrapper_f
         return wrapper
 
+    # def owned(func):
+    #     def wrapper(self, *args, **kwargs):
+    #         if self._conn_handler.get(kwargs.get("port_id")):
+    #             return func(self, *args, **kwargs)
+    #         else:
+    #             raise RuntimeError("The requested method ('{0}') cannot be invoked unless the desired port is owned".
+    #                                format(func.__name__))
+    #     return wrapper
+
+    # ----- user-access methods ----- #
     def acquire(self, port_id, username, force=False):
         params = {"port_id": port_id,
                   "user": username,
                   "force": force}
         self._conn_handler[port_id] = self.transmit("acquire", params)
-        return self._conn_handler
+        return self._conn_handler[port_id]
 
-    @owned
+    @force_status(owned=True)
     def release(self, port_id=None):
         self._conn_handler.pop(port_id)
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id}
         return self.transmit("release", params)
 
-    @owned
+    @force_status(owned=True)
     def add_stream(self, stream_id, stream_obj, port_id=None):
         assert isinstance(stream_obj, CStream)
         params = {"handler": self._conn_handler.get(port_id),
@@ -50,15 +82,15 @@ class CTRexStatelessClient(object):
                   "stream": stream_obj.dump()}
         return self.transmit("add_stream", params)
 
-    @owned
+    @force_status(owned=True)
     def remove_stream(self, stream_id, port_id=None):
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id,
                   "stream_id": stream_id}
         return self.transmit("remove_stream", params)
 
-    @owned
-    def get_stream_list(self, port_id=None):
+    @force_status(owned=True,active=)
+    def get_stream_id_list(self, port_id=None):
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id}
         return self.transmit("get_stream_list", params)
@@ -86,21 +118,35 @@ class CTRexStatelessClient(object):
         return self.transmit("get_global_stats")
 
     @owned
-    def stop_traffic(self, port_id=None):
-        params = {"handler": self._conn_handler.get(port_id),
+    def get_port_stats(self, port_id=None):
+        params = {"handler": self._conn_handler.get(port_id),   # TODO: verify if needed
                   "port_id": port_id}
-        return self.transmit("stop_traffic", params)
+        return self.transmit("get_port_stats", params)
 
+    @owned
+    def get_stream_stats(self, port_id=None):
+        params = {"handler": self._conn_handler.get(port_id),   # TODO: verify if needed
+                  "port_id": port_id}
+        return self.transmit("get_stream_stats", params)
 
-
-
-
-
-
-
-
+    # ----- internal methods ----- #
     def transmit(self, method_name, params={}):
         return self.tx_link.transmit(method_name, params)
+
+    @staticmethod
+    def _object_decoder(obj_type, obj_data):
+        if obj_type=="global":
+            return CGlobalStats(**obj_data)
+        elif obj_type=="port":
+            return CPortStats(**obj_data)
+        elif obj_type=="stream":
+            return CStreamStats(**obj_data)
+        else:
+            # Do not serialize the data into class
+            return obj_data
+
+
+
 
 
     # ------ private classes ------ #

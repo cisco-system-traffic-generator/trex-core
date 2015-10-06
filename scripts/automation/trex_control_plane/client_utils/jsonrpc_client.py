@@ -60,6 +60,7 @@ class JsonRpcClient(object):
 
         return rc
 
+    # pretty print for JSON
     def pretty_json (self, json_str, use_colors = True):
         pretty_str = json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
 
@@ -87,6 +88,7 @@ class JsonRpcClient(object):
         print "[verbose] " + msg
 
 
+    # batch messages
     def create_batch (self):
         return BatchMessage(self)
 
@@ -114,6 +116,7 @@ class JsonRpcClient(object):
         return self.send_raw_msg(msg, block)
 
     
+    # low level send of string message
     def send_raw_msg (self, msg, block = False):
         self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
@@ -241,209 +244,3 @@ class JsonRpcClient(object):
         print "Shutting down RPC client\n"
         if hasattr(self, "context"):
             self.context.destroy(linger=0)
-
-# MOVE THIS TO DAN'S FILE
-class TrexStatelessClient(JsonRpcClient):
-
-    def __init__ (self, server, port, user):
-
-        super(TrexStatelessClient, self).__init__(server, port)
-
-        self.user = user
-        self.port_handlers = {}
-
-        self.supported_cmds  = []
-        self.system_info     = None
-        self.server_version  = None
-        
-
-    def whoami (self):
-        return self.user
-
-    def ping_rpc_server(self):
-
-        return self.invoke_rpc_method("ping", block = False)
-
-    def get_rpc_server_version (self):
-        return self.server_version
-
-    def get_system_info (self):
-        return self.system_info
-
-    def get_supported_cmds(self):
-        return self.supported_cmds
-
-    def get_port_count (self):
-        if not self.system_info:
-            return 0
-
-        return self.system_info["port_count"]
-
-    # refresh the client for transient data
-    def refresh (self):
-
-        # get server versionrc, msg = self.get_supported_cmds()
-        rc, msg = self.invoke_rpc_method("get_version")
-        if not rc:
-            self.disconnect()
-            return rc, msg
-
-        self.server_version = msg
-
-        # get supported commands
-        rc, msg = self.invoke_rpc_method("get_supported_cmds")
-        if not rc:
-            self.disconnect()
-            return rc, msg
-
-        self.supported_cmds = [str(x) for x in msg if x]
-
-        # get system info
-        rc, msg = self.invoke_rpc_method("get_system_info")
-        if not rc:
-            self.disconnect()
-            return rc, msg
-
-        self.system_info = msg
-
-        return True, ""
-
-    def connect (self):
-        rc, err = super(TrexStatelessClient, self).connect()
-        if not rc:
-            return rc, err
-
-        return self.refresh()
-
-
-    # take ownership over ports
-    def take_ownership (self, port_id_array, force = False):
-        if not self.connected:
-            return False, "Not connected to server"
-
-        batch = self.create_batch()
-
-        for port_id in port_id_array:
-            batch.add("acquire", params = {"port_id":port_id, "user":self.user, "force":force})
-
-        rc, resp_list = batch.invoke()
-        if not rc:
-            return rc, resp_list
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                self.port_handlers[port_id_array[i]] = rc[1]
-
-        return True, resp_list
-
-
-    def release_ports (self, port_id_array):
-        batch = self.create_batch()
-
-        for port_id in port_id_array:
-
-            # let the server handle un-acquired errors
-            if self.port_handlers.get(port_id):
-                handler = self.port_handlers[port_id]
-            else:
-                handler = ""
-
-            batch.add("release", params = {"port_id":port_id, "handler":handler})
-
-
-        rc, resp_list = batch.invoke()
-        if not rc:
-            return rc, resp_list
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                self.port_handlers.pop(port_id_array[i])
-
-        return True, resp_list
-
-    def get_owned_ports (self):
-        return self.port_handlers.keys()
-
-    # fetch port stats
-    def get_port_stats (self, port_id_array):
-        if not self.connected:
-            return False, "Not connected to server"
-
-        batch = self.create_batch()
-
-        # empty list means all
-        if port_id_array == []:
-            port_id_array = list([x for x in xrange(0, self.system_info["port_count"])])
-
-        for port_id in port_id_array:
-
-            # let the server handle un-acquired errors
-            if self.port_handlers.get(port_id):
-                handler = self.port_handlers[port_id]
-            else:
-                handler = ""
-
-            batch.add("get_port_stats", params = {"port_id":port_id, "handler":handler})
-
-
-        rc, resp_list = batch.invoke()
-
-        return rc, resp_list
-
-    # snapshot will take a snapshot of all your owned ports for streams and etc.
-    def snapshot(self):
-        
-
-        if len(self.get_owned_ports()) == 0:
-            return {}
-
-        snap = {}
-
-        batch = self.create_batch()
-        
-        for port_id in self.get_owned_ports():
-
-            batch.add("get_port_stats", params = {"port_id": port_id, "handler": self.port_handlers[port_id]})
-            batch.add("get_stream_list", params = {"port_id": port_id, "handler": self.port_handlers[port_id]})
-
-        rc, resp_list = batch.invoke()
-        if not rc:
-            return rc, resp_list
-
-        # split the list to 2s
-        index = 0
-        for port_id in self.get_owned_ports():
-            if not resp_list[index] or not resp_list[index + 1]:
-                snap[port_id] = None
-                continue
-
-            # fetch the first two
-            stats = resp_list[index][1]
-            stream_list = resp_list[index + 1][1]
-           
-            port = {}
-            port['status'] = stats['status']
-            port['stream_list'] = []
-
-            # get all the streams
-            if len(stream_list) > 0:
-                batch = self.create_batch()
-                for stream_id in stream_list:
-                    batch.add("get_stream", params = {"port_id": port_id, "stream_id": stream_id, "handler": self.port_handlers[port_id]})
-
-                rc, stream_resp_list = batch.invoke()
-                if not rc:
-                    port = {}
-
-                port['streams'] = {}
-                for i, resp in enumerate(stream_resp_list):
-                    if resp[0]:
-                        port['streams'][stream_list[i]] = resp[1]
-
-            snap[port_id] = port
-
-            # move to next one
-            index += 2
-
-
-        return snap
