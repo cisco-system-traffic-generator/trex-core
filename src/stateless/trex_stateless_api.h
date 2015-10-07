@@ -41,167 +41,36 @@ public:
     }
 };
 
+class TrexStatelessPort;
+
 /**
- * TRex stateless port stats
+ * unified stats
  * 
- * @author imarom (24-Sep-15)
+ * @author imarom (06-Oct-15)
  */
-class TrexPortStats {
-
+class TrexStatelessStats {
 public:
-    TrexPortStats();
+    TrexStatelessStats() {
+        m_stats = {0};
+    }
 
-public:
     struct {
-        uint64_t tx_pps;
-        uint64_t tx_bps;
-        uint64_t total_tx_pkts;
-        uint64_t total_tx_bytes;
+        double m_cpu_util;
 
-        uint64_t rx_pps;
-        uint64_t rx_bps;
-        uint64_t total_rx_pkts;
-        uint64_t total_rx_bytes;
-
-        uint64_t tx_rx_errors;
+        double m_tx_bps;
+        double m_rx_bps;
+       
+        double m_tx_pps;
+        double m_rx_pps;
+       
+        uint64_t m_total_tx_pkts;
+        uint64_t m_total_rx_pkts;
+       
+        uint64_t m_total_tx_bytes;
+        uint64_t m_total_rx_bytes;
+       
+        uint64_t m_tx_rx_errors;
     } m_stats;
-};
-
-/**
- * describes a stateless port
- * 
- * @author imarom (31-Aug-15)
- */
-class TrexStatelessPort {
-public:
-
-    /**
-     * port state
-     */
-    enum port_state_e {
-        PORT_STATE_DOWN,
-        PORT_STATE_UP_IDLE,
-        PORT_STATE_TRANSMITTING
-    };
-
-    /**
-     * describess different error codes for port operations
-     */
-    enum rc_e {
-        RC_OK,
-        RC_ERR_BAD_STATE_FOR_OP,
-        RC_ERR_NO_STREAMS,
-        RC_ERR_FAILED_TO_COMPILE_STREAMS
-    };
-
-    TrexStatelessPort(uint8_t port_id);
-
-    /**
-     * start traffic
-     * 
-     */
-    rc_e start_traffic(void);
-
-    /**
-     * stop traffic
-     * 
-     */
-    void stop_traffic(void);
-
-    /**
-     * access the stream table
-     * 
-     */
-    TrexStreamTable *get_stream_table();
-
-    /**
-     * get the port state
-     * 
-     */
-    port_state_e get_state() {
-        return m_port_state;
-    }
-
-    /**
-     * port state as string
-     * 
-     */
-    std::string get_state_as_string();
-
-    /**
-     * fill up properties of the port
-     * 
-     * @author imarom (16-Sep-15)
-     * 
-     * @param driver 
-     * @param speed 
-     */
-    void get_properties(std::string &driver, std::string &speed);
-
-    /**
-    * query for ownership
-    * 
-    */
-    const std::string &get_owner() {
-        return m_owner;
-    }
-
-    /**
-     * owner handler 
-     * for the connection 
-     * 
-     */
-    const std::string &get_owner_handler() {
-        return m_owner_handler;
-    }
-
-    bool is_free_to_aquire() {
-        return (m_owner == "none");
-    }
-
-    /**
-    * take ownership of the server array 
-    * this is static 
-    * ownership is total 
-    * 
-    */
-    void set_owner(const std::string &owner) {
-        m_owner = owner;
-        m_owner_handler = generate_handler();
-    }
-
-    void clear_owner() {
-        m_owner = "none";
-        m_owner_handler = "";
-    }
-
-    bool verify_owner_handler(const std::string &handler) {
-
-        return ( (m_owner != "none") && (m_owner_handler == handler) );
-
-    }
-
-    /**
-     * update the values of the stats
-     * 
-     * @author imarom (24-Sep-15)
-     */
-    void update_stats();
-
-    const TrexPortStats & get_stats() {
-        return m_stats;
-    }
-
-private:
-
-    std::string generate_handler();
-
-    TrexStreamTable  m_stream_table;
-    uint8_t          m_port_id;
-    port_state_e     m_port_state;
-    std::string      m_owner;
-    std::string      m_owner_handler;
-    TrexPortStats    m_stats;
 };
 
 /**
@@ -232,8 +101,22 @@ public:
         return instance;
     }
 
-    TrexStatelessPort *get_port_by_id(uint8_t port_id);
-    uint8_t            get_port_count();
+    TrexStatelessPort * get_port_by_id(uint8_t port_id);
+    uint8_t             get_port_count();
+
+    /**
+     * update all the stats (deep update)
+     * (include all the ports and global stats)
+     * 
+     */
+    void               update_stats();
+
+    /**
+     * fetch all the stats
+     * 
+     */
+    void                encode_stats(Json::Value &global);
+
 
 protected:
     TrexStateless();
@@ -248,9 +131,11 @@ protected:
     TrexStateless(TrexStateless const&)      = delete;  
     void operator=(TrexStateless const&)     = delete;
 
-    bool                m_is_configured;
-    TrexStatelessPort  **m_ports;
-    uint8_t             m_port_count;
+    bool                 m_is_configured;
+    TrexStatelessPort   **m_ports;
+    uint8_t              m_port_count;
+
+    TrexStatelessStats   m_stats;
 };
 
 #endif /* __TREX_STATELESS_API_H__ */

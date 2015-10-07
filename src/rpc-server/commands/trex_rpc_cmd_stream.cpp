@@ -22,6 +22,7 @@ limitations under the License.
 #include <trex_rpc_server_api.h>
 #include <trex_stream_api.h>
 #include <trex_stateless_api.h>
+#include <trex_stateless_port.h>
 
 #include <iostream>
 

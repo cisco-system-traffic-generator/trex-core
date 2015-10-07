@@ -23,6 +23,7 @@ limitations under the License.
 #define __TREX_RPC_ASYNC_SERVER_H__
 
 #include <trex_rpc_server_api.h>
+#include <trex_stateless_port.h>
 
 /**
  * async RPC server

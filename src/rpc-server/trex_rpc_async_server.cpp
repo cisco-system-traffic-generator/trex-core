@@ -18,10 +18,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+/* required for sleep_for c++ 2011
+   https://bugs.launchpad.net/ubuntu/+source/gcc-4.4/+bug/608145
+*/
+#define _GLIBCXX_USE_NANOSLEEP
+
 #include <trex_stateless_api.h>
+#include <trex_stateless_port.h>
 #include <trex_rpc_async_server.h>
 #include <zmq.h>
 #include <json/json.h>
+#include <string>
+#include <iostream>
 
 /**
  * ZMQ based publisher server
@@ -32,6 +41,10 @@ TrexRpcServerAsync::TrexRpcServerAsync(const TrexRpcServerConfig &cfg) : TrexRpc
     m_context = zmq_ctx_new();
 }
 
+/**
+ * publisher thread
+ * 
+ */
 void 
 TrexRpcServerAsync::_rpc_thread_cb() {
     std::stringstream ss;
@@ -57,21 +70,30 @@ TrexRpcServerAsync::_rpc_thread_cb() {
 
     /* while the server is running - publish results */
     while (m_is_running) {
-        /* update all ports for their stats */
-        uint8_t port_count = TrexStateless::get_instance().get_port_count();
-        for (uint8_t i = 0; i < port_count; i++) {
-            TrexStateless::get_instance().get_port_by_id(i).update_stats();
-            const TrexPortStats &stats = TrexStateless::get_instance().get_port_by_id(i).get_stats();
+        Json::Value snapshot;
+        Json::FastWriter writer;
 
+        /* trigger a full update for stats */
+        TrexStateless::get_instance().update_stats();
 
+        /* encode them to JSON */
+        TrexStateless::get_instance().encode_stats(snapshot);
 
-        }
+        /* write to string and publish */
+        std::string snapshot_str = writer.write(snapshot);
+
+        zmq_send(m_socket, snapshot_str.c_str(), snapshot_str.size(), 0);
+        //std::cout << "sending " << snapshot_str << "\n";
+
+        /* relax for some time */
+        std::this_thread::sleep_for (std::chrono::milliseconds(1000));
+
     }
 }
 
 void 
 TrexRpcServerAsync::_stop_rpc_thread() {
     m_is_running = false;
-    this->m_thread.join();
+    this->m_thread->join();
     zmq_term(m_context);
 }

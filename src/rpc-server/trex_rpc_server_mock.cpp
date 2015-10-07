@@ -59,8 +59,10 @@ int main(int argc, char *argv[]) {
     cout << "\n-= Starting RPC Server Mock =-\n\n";
     cout << "Listening on tcp://localhost:5050 [ZMQ]\n\n";
 
-    TrexRpcServerConfig rpc_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
-    TrexRpcServer rpc(rpc_cfg);
+    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
+    TrexRpcServerConfig rpc_async_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
+
+    TrexRpcServer rpc(rpc_req_resp_cfg, rpc_async_cfg);
 
     /* init the RPC server */
     rpc.start();

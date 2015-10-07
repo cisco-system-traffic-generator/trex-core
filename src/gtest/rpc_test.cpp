@@ -42,9 +42,10 @@ protected:
 
         m_verbose = false;
          
-        TrexRpcServerConfig cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
+        TrexRpcServerConfig req_resp_cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
+        TrexRpcServerConfig async_cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
 
-        m_rpc = new TrexRpcServer(cfg);
+        m_rpc = new TrexRpcServer(req_resp_cfg, async_cfg);
         m_rpc->start();
 
         m_context = zmq_ctx_new ();

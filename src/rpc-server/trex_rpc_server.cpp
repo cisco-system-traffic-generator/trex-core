@@ -21,6 +21,7 @@ limitations under the License.
 
 #include <trex_rpc_server_api.h>
 #include <trex_rpc_req_resp_server.h>
+#include <trex_rpc_async_server.h>
 #include <trex_rpc_jsonrpc_v2_parser.h>
 #include <unistd.h>
 #include <zmq.h>
@@ -112,10 +113,13 @@ get_current_date_time() {
 
 const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
 
-TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg) {
+TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg,
+                             const TrexRpcServerConfig &async_cfg) {
 
     /* add the request response server */
     m_servers.push_back(new TrexRpcServerReqRes(req_resp_cfg));
+    /* add async publisher */
+    m_servers.push_back(new TrexRpcServerAsync(async_cfg));
 }
 
 TrexRpcServer::~TrexRpcServer() {

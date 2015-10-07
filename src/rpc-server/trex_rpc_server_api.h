@@ -139,8 +139,10 @@ protected:
 class TrexRpcServer {
 public:
   
-    /* currently only request response server config is required */
-    TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg);
+    /* creates the collection of servers using configurations */
+    TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg,
+                  const TrexRpcServerConfig &async_cfg);
+
     ~TrexRpcServer();
 
     /**

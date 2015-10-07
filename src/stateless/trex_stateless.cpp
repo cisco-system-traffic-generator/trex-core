@@ -19,6 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <trex_stateless_api.h>
+#include <trex_stateless_port.h>
 
 using namespace std;
 
@@ -73,107 +74,64 @@ uint8_t TrexStateless::get_port_count() {
     return m_port_count;
 }
 
-
-/***************************
- * trex stateless port stats
- * 
- **************************/
-TrexPortStats::TrexPortStats() {
-    m_stats = {0};
-}
-
-/***************************
- * trex stateless port
- * 
- **************************/
-TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
-    m_port_state = PORT_STATE_UP_IDLE;
-    clear_owner();
-}
-
-
-/**
- * starts the traffic on the port
- * 
- */
-TrexStatelessPort::rc_e
-TrexStatelessPort::start_traffic(void) {
-
-    if (m_port_state != PORT_STATE_UP_IDLE) {
-        return (RC_ERR_BAD_STATE_FOR_OP);
-    }
-
-    if (get_stream_table()->size() == 0) {
-        return (RC_ERR_NO_STREAMS);
-    }
-
-    m_port_state = PORT_STATE_TRANSMITTING;
-
-    /* real code goes here */
-    return (RC_OK);
-}
-
 void 
-TrexStatelessPort::stop_traffic(void) {
+TrexStateless::update_stats() {
 
-    /* real code goes here */
-    if (m_port_state == PORT_STATE_TRANSMITTING) {
-        m_port_state = PORT_STATE_UP_IDLE;
+    /* update CPU util. */
+    #ifdef TREX_RPC_MOCK_SERVER
+        m_stats.m_stats.m_cpu_util = 0;
+    #else
+        m_stats.m_stats.m_cpu_util = 0;
+    #endif
+
+    /* for every port update and accumulate */
+    for (uint8_t i = 0; i < m_port_count; i++) {
+        m_ports[i]->update_stats();
+
+        const TrexPortStats & port_stats = m_ports[i]->get_stats();
+
+        m_stats.m_stats.m_tx_bps += port_stats.m_stats.m_tx_bps;
+        m_stats.m_stats.m_rx_bps += port_stats.m_stats.m_rx_bps;
+
+        m_stats.m_stats.m_tx_pps += port_stats.m_stats.m_tx_pps;
+        m_stats.m_stats.m_rx_pps += port_stats.m_stats.m_rx_pps;
+
+        m_stats.m_stats.m_total_tx_pkts += port_stats.m_stats.m_total_tx_pkts;
+        m_stats.m_stats.m_total_rx_pkts += port_stats.m_stats.m_total_rx_pkts;
+
+        m_stats.m_stats.m_total_tx_bytes += port_stats.m_stats.m_total_tx_bytes;
+        m_stats.m_stats.m_total_rx_bytes += port_stats.m_stats.m_total_rx_bytes;
+
+        m_stats.m_stats.m_tx_rx_errors += port_stats.m_stats.m_tx_rx_errors;
     }
-}
-
-/**
-* access the stream table
-* 
-*/
-TrexStreamTable * TrexStatelessPort::get_stream_table() {
-    return &m_stream_table;
-}
-
-
-std::string 
-TrexStatelessPort::get_state_as_string() {
-
-    switch (get_state()) {
-    case PORT_STATE_DOWN:
-        return "down";
-
-    case PORT_STATE_UP_IDLE:
-        return  "idle";
-
-    case PORT_STATE_TRANSMITTING:
-        return "transmitting";
-    }
-
-    return "unknown";
 }
 
 void
-TrexStatelessPort::get_properties(string &driver, string &speed) {
+TrexStateless::encode_stats(Json::Value &global) {
 
-    /* take this from DPDK */
-    driver = "e1000";
-    speed  = "1 Gbps";
-}
+    global["cpu_util"] = m_stats.m_stats.m_cpu_util;
 
+    global["tx_bps"]   = m_stats.m_stats.m_tx_bps;
+    global["rx_bps"]   = m_stats.m_stats.m_rx_bps;
 
-/**
- * generate a random connection handler
- * 
- */
-std::string 
-TrexStatelessPort::generate_handler() {
-    std::stringstream ss;
+    global["tx_pps"]   = m_stats.m_stats.m_tx_pps;
+    global["rx_pps"]   = m_stats.m_stats.m_rx_pps;
 
-    static const char alphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
+    global["total_tx_pkts"] = Json::Value::UInt64(m_stats.m_stats.m_total_tx_pkts);
+    global["total_rx_pkts"] = Json::Value::UInt64(m_stats.m_stats.m_total_rx_pkts);
 
-    /* generate 8 bytes of random handler */
-    for (int i = 0; i < 8; ++i) {
-        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
+    global["total_tx_bytes"] = Json::Value::UInt64(m_stats.m_stats.m_total_tx_bytes);
+    global["total_rx_bytes"] = Json::Value::UInt64(m_stats.m_stats.m_total_rx_bytes);
+
+    global["tx_rx_errors"]    = Json::Value::UInt64(m_stats.m_stats.m_tx_rx_errors);
+
+    for (uint8_t i = 0; i < m_port_count; i++) {
+        std::stringstream ss;
+
+        ss << "port " << i;
+        Json::Value &port_section = global[ss.str()];
+
+        m_ports[i]->encode_stats(port_section);
     }
-
-    return (ss.str());
 }
+
