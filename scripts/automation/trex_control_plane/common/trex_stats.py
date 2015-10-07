@@ -3,18 +3,32 @@ import copy
 
 class CTRexStatsManager(object):
 
-    def __init__(self):
-        self._stats = {}
-        pass
+    def __init__(self, *args):
+        for stat_type in args:
+            # register stat handler for each stats type
+            setattr(self, stat_type, CTRexStatsManager.CSingleStatsHandler())
 
-    def update(self, obj_id, stats_obj):
-        assert isinstance(stats_obj, CTRexStats)
-        self._stats[obj_id] = stats_obj
+    def __getitem__(self, item):
+        stats_obj = getattr(self,item)
+        if stats_obj:
+            return stats_obj.get_stats()
+        else:
+            return None
 
-    def get_stats(self, obj_id):
-        return copy.copy(self._stats.pop(obj_id))
+    class CSingleStatsHandler(object):
 
+        def __init__(self):
+            self._stats = {}
 
+        def update(self, obj_id, stats_obj):
+            assert isinstance(stats_obj, CTRexStats)
+            self._stats[obj_id] = stats_obj
+
+        def get_stats(self, obj_id=None):
+            if obj_id:
+                return copy.copy(self._stats.pop(obj_id))
+            else:
+                return copy.copy(self._stats)
 
 
 class CTRexStats(object):
