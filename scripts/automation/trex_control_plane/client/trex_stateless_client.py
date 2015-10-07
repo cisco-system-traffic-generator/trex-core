@@ -98,6 +98,8 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def release(self, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id)  # convert to set to avoid duplications
@@ -113,6 +115,8 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def add_stream(self, stream_id, stream_obj, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         assert isinstance(stream_obj, CStream)
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id,
@@ -122,6 +126,8 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def remove_stream(self, stream_id, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id,
                   "stream_id": stream_id}
@@ -129,12 +135,16 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True, active_and_owned=True)
     def get_stream_id_list(self, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id}
         return self.transmit("get_stream_list", params)
 
     @force_status(owned=True, active_and_owned=True)
     def get_stream(self, stream_id, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id,
                   "stream_id": stream_id}
@@ -142,6 +152,8 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def start_traffic(self, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id) # convert to set to avoid duplications
@@ -156,6 +168,8 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=False, active_and_owned=True)
     def stop_traffic(self, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id) # convert to set to avoid duplications
@@ -173,6 +187,8 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True, active_and_owned=True)
     def get_port_stats(self, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id) # convert to set to avoid duplications
@@ -187,6 +203,8 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True, active_and_owned=True)
     def get_stream_stats(self, port_id=None):
+        if not CTRexStatelessClient._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id) # convert to set to avoid duplications
