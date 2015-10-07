@@ -141,7 +141,7 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'VLANHeader.cpp']);
 
 # stateless code
-stateless_src = SrcGroup(dir='src/stateless/',
+stateless_src = SrcGroup(dir='src/stateless/cp/',
                           src_list=['trex_stream.cpp',
                                     'trex_stream_vm.cpp',
                                     'trex_stateless.cpp',
@@ -236,7 +236,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 includes_path =''' ../src/pal/linux/
                    ../src/
                    ../src/rpc-server/
-                   ../src/stateless/
+                   ../src/stateless/cp/
                    ../external_libs/json/
                    ../external_libs/zmq/include/
                    ../external_libs/yaml-cpp/include/
