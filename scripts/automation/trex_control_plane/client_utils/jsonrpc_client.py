@@ -28,7 +28,7 @@ class BatchMessage(object):
         id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, encode = False)
         self.batch_list.append(msg)
 
-    def invoke (self, block = False):
+    def invoke(self, block = False):
         if not self.rpc_client.connected:
             return False, "Not connected to server"
 

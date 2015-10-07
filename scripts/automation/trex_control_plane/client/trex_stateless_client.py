@@ -23,8 +23,7 @@ class CTRexStatelessClient(object):
         self.tx_link = CTRexStatelessClient.CTxLink(server, port, virtual)
         self._conn_handler = {}
         self._active_ports = set()
-        self._port_stats = CTRexStatsManager()
-        self._stream_stats = CTRexStatsManager()
+        self._stats = CTRexStatsManager("port", "stream")
         self._system_info = None
 
     # ----- decorator methods ----- #
@@ -87,14 +86,15 @@ class CTRexStatelessClient(object):
             commands = [self.RpcCmdData("acquire", {"port_id": p_id, "user": self.user, "force": force})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
-            # TODO: further processing here
-
+            if rc:
+                self._process_batch_result(commands, resp_list, self._handle_acquire_response)
         else:
             params = {"port_id": port_id,
                       "user": self.user,
                       "force": force}
-            self._conn_handler[port_id] = self.transmit("acquire", params)
-            return self._conn_handler[port_id]
+            command = self.RpcCmdData("acquire", params)
+            self._handle_acquire_response(command, self.transmit(command.method, command.params))
+            return self._conn_handler.get(port_id)
 
     @force_status(owned=True)
     def release(self, port_id=None):
@@ -106,12 +106,15 @@ class CTRexStatelessClient(object):
             commands = [self.RpcCmdData("release", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
-            # TODO: further processing here
+            if rc:
+                self._process_batch_result(commands, resp_list, self._handle_release_response)
         else:
             self._conn_handler.pop(port_id)
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
-            return self.transmit("release", params)
+            command = self.RpcCmdData("release", params)
+            self._handle_release_response(command, self.transmit(command.method, command.params))
+            return
 
     @force_status(owned=True)
     def add_stream(self, stream_id, stream_obj, port_id=None):
@@ -160,11 +163,14 @@ class CTRexStatelessClient(object):
             commands = [self.RpcCmdData("start_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
-            # TODO: further processing here
+            if rc:
+                self._process_batch_result(commands, resp_list, self._handle_start_traffic_response)
         else:
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
-            return self.transmit("start_traffic", params)
+            command = self.RpcCmdData("start_traffic", params)
+            self._handle_start_traffic_response(command, self.transmit(command.method, command.params))
+            return
 
     @force_status(owned=False, active_and_owned=True)
     def stop_traffic(self, port_id=None):
@@ -176,11 +182,14 @@ class CTRexStatelessClient(object):
             commands = [self.RpcCmdData("stop_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
-            # TODO: further processing here
+            if rc:
+                self._process_batch_result(commands, resp_list, self._handle_stop_traffic_response)
         else:
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
-            return self.transmit("stop_traffic", params)
+            command = self.RpcCmdData("stop_traffic", params)
+            self._handle_start_traffic_response(command, self.transmit(command.method, command.params))
+            return
 
     def get_global_stats(self):
         return self.transmit("get_global_stats")
@@ -236,6 +245,31 @@ class CTRexStatelessClient(object):
             # Do not serialize the data into class
             return obj_data
 
+    @staticmethod
+    def default_success_test(result_obj):
+        if result_obj[0]:
+            return True
+        else:
+            return False
+
+    # ----- handler internal methods ----- #
+    def _handle_acquire_response(self, request, response):
+        if response[0]:
+            self._conn_handler[request.get("port_id")] = response[1]
+
+    def _handle_release_response(self, request, response):
+        if response[0]:
+            del self._conn_handler[request.get("port_id")]
+
+    def _handle_start_traffic_response(self, request, response):
+        if response[0]:
+             self._active_ports.add(request.get("port_id"))
+
+    def _handle_stop_traffic_response(self, request, response):
+        if response[0]:
+             self._active_ports.remove(request.get("port_id"))
+
+
     def _is_ports_valid(self, port_id):
         if isinstance(port_id, list) or isinstance(port_id, set):
             # check each item of the sequence
@@ -245,6 +279,16 @@ class CTRexStatelessClient(object):
             return True
         else:
             return False
+
+    def _process_batch_result(self, req_list, resp_list, handler_func=None, success_test=default_success_test):
+        for i, response in enumerate(resp_list):
+            if success_test():
+                # run handler method with its params
+                handler_func(req_list[i], response)
+            else:
+                continue  # TODO: mark in this case somehow the bad result
+
+
 
 
     # ------ private classes ------ #
