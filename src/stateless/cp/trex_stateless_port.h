@@ -21,7 +21,7 @@ limitations under the License.
 #ifndef __TREX_STATELESS_PORT_H__
 #define __TREX_STATELESS_PORT_H__
 
-#include <trex_stream_api.h>
+#include <trex_stream.h>
 
 /**
  * TRex stateless port stats

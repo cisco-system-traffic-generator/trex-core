@@ -18,14 +18,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef __TREX_STATELESS_API_H__
-#define __TREX_STATELESS_API_H__
+#ifndef __TREX_STATELESS_H__
+#define __TREX_STATELESS_H__
 
 #include <stdint.h>
 #include <string>
 #include <stdexcept>
 
-#include <trex_stream_api.h>
+#include <trex_stream.h>
 
 /**
  * generic exception for errors
@@ -138,5 +138,5 @@ protected:
     TrexStatelessStats   m_stats;
 };
 
-#endif /* __TREX_STATELESS_API_H__ */
+#endif /* __TREX_STATELESS_H__ */
 

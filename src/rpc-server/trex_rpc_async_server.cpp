@@ -24,7 +24,7 @@ limitations under the License.
 */
 #define _GLIBCXX_USE_NANOSLEEP
 
-#include <trex_stateless_api.h>
+#include <trex_stateless.h>
 #include <trex_stateless_port.h>
 #include <trex_rpc_async_server.h>
 #include <zmq.h>

@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include <trex_rpc_server_api.h>
-#include <trex_stateless_api.h>
+#include <trex_stateless.h>
 
 #include <iostream>
 #include <unistd.h>
