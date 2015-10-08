@@ -688,6 +688,15 @@ public:
         RUN_FLAGS_RXCHECK_CONST_TS =1,
     };
 
+    /**
+     * different running modes for Trex
+     */
+    enum trex_run_mode_e {
+        RUN_MODE_INVALID,
+        RUN_MODE_BATCH,
+        RUN_MODE_INTERACTIVE
+    };
+
 public:
     CParserOption(){
         m_factor=1.0;
@@ -707,6 +716,7 @@ public:
         m_run_flags=0;
         prefix="";
         m_mac_splitter=0;
+        m_run_mode = RUN_MODE_INVALID;
     }
 
     CPreviewMode    preview;
@@ -730,13 +740,14 @@ public:
     uint8_t         m_mac_splitter;
     uint8_t         m_pad;
 
+    trex_run_mode_e    m_run_mode;
 
-    std::string     cfg_file;
-    std::string     mac_file;
-    std::string     platform_cfg_file;
+    std::string        cfg_file;
+    std::string        mac_file;
+    std::string        platform_cfg_file;
 
-    std::string     out_file;
-    std::string     prefix;
+    std::string        out_file;
+    std::string        prefix;
 
                                  
     CMacAddrCfg     m_mac_addr[MAX_LATENCY_PORTS];

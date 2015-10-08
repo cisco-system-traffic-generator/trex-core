@@ -83,9 +83,10 @@ class TrexStatelessCfg {
 public:
     /* default values */
     TrexStatelessCfg() {
-        m_port_count = 0;
-        m_rpc_req_resp_cfg = NULL;
-        m_rpc_async_cfg = NULL;
+        m_port_count          = 0;
+        m_dp_core_count       = 0;
+        m_rpc_req_resp_cfg    = NULL;
+        m_rpc_async_cfg       = NULL;
         m_rpc_server_verbose = false;
     }
 
@@ -93,6 +94,7 @@ public:
     const TrexRpcServerConfig  *m_rpc_async_cfg;
     bool                        m_rpc_server_verbose;
     uint8_t                     m_port_count;
+    uint8_t                     m_dp_core_count;
 };
 
 /**
@@ -107,7 +109,7 @@ public:
      * reconfiguration is not allowed
      * an exception will be thrown
      */
-    static void create(const TrexStatelessCfg &cfg);
+    static void configure(const TrexStatelessCfg &cfg);
 
     /**
      * destroy the instance
@@ -129,8 +131,22 @@ public:
         return instance;
     }
 
+    /**
+     * starts the control plane side
+     * 
+     */
+    void launch_control_plane();
+
+    /**
+     * launch on a single DP core
+     * 
+     */
+    void launch_on_dp_core();
+
     TrexStatelessPort * get_port_by_id(uint8_t port_id);
     uint8_t             get_port_count();
+
+    uint8_t             get_dp_core_count();
 
     /**
      * update all the stats (deep update)
@@ -167,6 +183,9 @@ protected:
     /* ports */
     std::vector <TrexStatelessPort *>   m_ports;
     uint8_t                             m_port_count;
+
+    /* cores */
+    uint8_t m_dp_core_count;
 
     /* stats */
     TrexStatelessStats   m_stats;

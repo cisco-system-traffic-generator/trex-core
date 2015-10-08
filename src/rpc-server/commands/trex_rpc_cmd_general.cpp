@@ -155,7 +155,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["uptime"] = TrexRpcServer::get_server_uptime();
 
     /* FIXME: core count */
-    section["dp_core_count"] = 1;
+    section["dp_core_count"] = instance.get_dp_core_count();
     section["core_type"] = get_cpu_model();
 
     /* ports */

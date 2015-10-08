@@ -22,6 +22,8 @@ limitations under the License.
 #include <trex_stateless_port.h>
 
 #include <sched.h>
+#include <iostream>
+#include <unistd.h>
 
 using namespace std;
 
@@ -35,10 +37,10 @@ TrexStateless::TrexStateless() {
 
 
 /**
- * creates the singleton stateless object
+ * configure the singleton stateless object
  * 
  */
-void TrexStateless::create(const TrexStatelessCfg &cfg) {
+void TrexStateless::configure(const TrexStatelessCfg &cfg) {
 
     TrexStateless& instance = get_instance_internal();
 
@@ -46,6 +48,33 @@ void TrexStateless::create(const TrexStatelessCfg &cfg) {
     if (instance.m_is_configured) {
         throw TrexException("re-configuration of stateless object is not allowed");
     }
+
+    /* create RPC servers */
+    instance.m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_rpc_async_cfg);
+    instance.m_rpc_server->set_verbose(cfg.m_rpc_server_verbose);
+
+    /* configure ports */
+
+    instance.m_port_count = cfg.m_port_count;
+
+    for (int i = 0; i < instance.m_port_count; i++) {
+        instance.m_ports.push_back(new TrexStatelessPort(i));
+    }
+
+    /* cores */
+    instance.m_dp_core_count = cfg.m_dp_core_count;
+
+    /* done */
+    instance.m_is_configured = true;
+}
+
+/**
+ * starts the control plane side
+ * 
+ */
+void
+TrexStateless::launch_control_plane() {
+    //std::cout << "\n on control/master core \n";
 
     /* pin this process to the current running CPU
        any new thread will be called on the same CPU
@@ -56,21 +85,17 @@ void TrexStateless::create(const TrexStatelessCfg &cfg) {
     CPU_SET(sched_getcpu(), &mask);
     sched_setaffinity(0, sizeof(mask), &mask);
 
-    /* start RPC servers */
-    instance.m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_rpc_async_cfg);
-    instance.m_rpc_server->set_verbose(cfg.m_rpc_server_verbose);
-    instance.m_rpc_server->start();
+    /* start RPC server */
+    m_rpc_server->start();
+}
 
-    /* configure ports */
+void
+TrexStateless::launch_on_dp_core() {
+    //std::cout << "\n on DP core \n";
 
-    instance.m_port_count = cfg.m_port_count;
-
-    for (int i = 0; i < instance.m_port_count; i++) {
-        instance.m_ports.push_back(new TrexStatelessPort(i));
+    while (true) {
+        sleep(1);
     }
-
-    /* done */
-    instance.m_is_configured = true;
 }
 
 /**
@@ -115,8 +140,14 @@ TrexStatelessPort * TrexStateless::get_port_by_id(uint8_t port_id) {
 
 }
 
-uint8_t TrexStateless::get_port_count() {
+uint8_t 
+TrexStateless::get_port_count() {
     return m_port_count;
+}
+
+uint8_t 
+TrexStateless::get_dp_core_count() {
+    return m_dp_core_count;
 }
 
 void 

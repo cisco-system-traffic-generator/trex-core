@@ -62,11 +62,14 @@ int main(int argc, char *argv[]) {
     TrexRpcServerConfig rpc_async_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
 
     cfg.m_port_count         = 4;
+    cfg.m_dp_core_count      = 2;
     cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
     cfg.m_rpc_async_cfg      = &rpc_async_cfg;
     cfg.m_rpc_server_verbose = (is_gtest ? false : true);
 
-    TrexStateless::create(cfg);
+    TrexStateless::configure(cfg);
+
+    TrexStateless::get_instance().launch_control_plane();
 
     /* gtest handling */
     if (is_gtest) {
