@@ -140,8 +140,8 @@ class TrexRpcServer {
 public:
   
     /* creates the collection of servers using configurations */
-    TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg,
-                  const TrexRpcServerConfig &async_cfg);
+    TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
+                  const TrexRpcServerConfig *async_cfg);
 
     ~TrexRpcServer();
 

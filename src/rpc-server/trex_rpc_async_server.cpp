@@ -87,13 +87,13 @@ TrexRpcServerAsync::_rpc_thread_cb() {
 
         /* relax for some time */
         std::this_thread::sleep_for (std::chrono::milliseconds(1000));
-
     }
+
+    /* must be closed from the same thread */
+    zmq_close(m_socket);
 }
 
 void 
 TrexRpcServerAsync::_stop_rpc_thread() {
-    m_is_running = false;
-    this->m_thread->join();
     zmq_term(m_context);
 }

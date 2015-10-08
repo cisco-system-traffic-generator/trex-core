@@ -44,31 +44,39 @@ int gtest_main(int argc, char **argv);
 
 int main(int argc, char *argv[]) {
 
-    /* configure the stateless object with 4 ports */
-    TrexStateless::configure(4);
+    bool is_gtest = false;
 
-    // gtest ?
+     // gtest ?
     if (argc > 1) {
         if (string(argv[1]) != "--ut") {
             cout << "\n[Usage] " << argv[0] << ": " << " [--ut]\n\n";
             exit(-1);
         }
-        return gtest_main(argc, argv);
+        is_gtest = true;
     }
 
-    cout << "\n-= Starting RPC Server Mock =-\n\n";
-    cout << "Listening on tcp://localhost:5050 [ZMQ]\n\n";
+    /* configure the stateless object with 4 ports */
+    TrexStatelessCfg cfg;
 
     TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
     TrexRpcServerConfig rpc_async_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
 
-    TrexRpcServer rpc(rpc_req_resp_cfg, rpc_async_cfg);
+    cfg.m_port_count         = 4;
+    cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
+    cfg.m_rpc_async_cfg      = &rpc_async_cfg;
+    cfg.m_rpc_server_verbose = (is_gtest ? false : true);
 
-    /* init the RPC server */
-    rpc.start();
+    TrexStateless::create(cfg);
 
-    cout << "Setting Server To Full Verbose\n\n";
-    rpc.set_verbose(true);
+    /* gtest handling */
+    if (is_gtest) {
+        int rc = gtest_main(argc, argv);
+        TrexStateless::destroy();
+        return rc;
+    }
+
+    cout << "\n-= Starting RPC Server Mock =-\n\n";
+    cout << "Listening on tcp://localhost:5050 [ZMQ]\n\n";
 
     cout << "Server Started\n\n";
 
@@ -76,7 +84,6 @@ int main(int argc, char *argv[]) {
         sleep(1);
     }
 
-    rpc.stop();
-
-
+    TrexStateless::destroy();
 }
+

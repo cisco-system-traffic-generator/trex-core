@@ -21,6 +21,8 @@ limitations under the License.
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
 
+#include <sched.h>
+
 using namespace std;
 
 /***********************************************************
@@ -31,36 +33,79 @@ TrexStateless::TrexStateless() {
     m_is_configured = false;
 }
 
+
 /**
- * one time configuration of the stateless object
+ * creates the singleton stateless object
  * 
  */
-void TrexStateless::configure(uint8_t port_count) {
+void TrexStateless::create(const TrexStatelessCfg &cfg) {
 
     TrexStateless& instance = get_instance_internal();
 
+    /* check status */
     if (instance.m_is_configured) {
         throw TrexException("re-configuration of stateless object is not allowed");
     }
 
-    instance.m_port_count = port_count;
-    instance.m_ports = new TrexStatelessPort*[port_count];
+    /* pin this process to the current running CPU
+       any new thread will be called on the same CPU
+       (control plane restriction)
+     */
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(sched_getcpu(), &mask);
+    sched_setaffinity(0, sizeof(mask), &mask);
+
+    /* start RPC servers */
+    instance.m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_rpc_async_cfg);
+    instance.m_rpc_server->set_verbose(cfg.m_rpc_server_verbose);
+    instance.m_rpc_server->start();
+
+    /* configure ports */
+
+    instance.m_port_count = cfg.m_port_count;
 
     for (int i = 0; i < instance.m_port_count; i++) {
-        instance.m_ports[i] = new TrexStatelessPort(i);
+        instance.m_ports.push_back(new TrexStatelessPort(i));
     }
 
+    /* done */
     instance.m_is_configured = true;
 }
 
-TrexStateless::~TrexStateless() {
-    for (int i = 0; i < m_port_count; i++) {
-        delete m_ports[i];
+/**
+ * destroy the singleton and release all memory
+ * 
+ * @author imarom (08-Oct-15)
+ */
+void
+TrexStateless::destroy() {
+    TrexStateless& instance = get_instance_internal();
+
+    if (!instance.m_is_configured) {
+        return;
     }
 
-    delete [] m_ports;
+    /* release memory for ports */
+    for (auto port : instance.m_ports) {
+        delete port;
+    }
+    instance.m_ports.clear();
+
+    /* stops the RPC server */
+    instance.m_rpc_server->stop();
+    delete instance.m_rpc_server;
+
+    instance.m_rpc_server = NULL;
+
+    /* done */
+    instance.m_is_configured = false;
 }
 
+/**
+ * fetch a port by ID
+ * 
+ */
 TrexStatelessPort * TrexStateless::get_port_by_id(uint8_t port_id) {
     if (port_id >= m_port_count) {
         throw TrexException("index out of range");

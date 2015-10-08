@@ -26,6 +26,7 @@ limitations under the License.
 #include <stdexcept>
 
 #include <trex_stream.h>
+#include <trex_rpc_server_api.h>
 
 /**
  * generic exception for errors
@@ -74,6 +75,27 @@ public:
 };
 
 /**
+ * config object for stateless object
+ * 
+ * @author imarom (08-Oct-15)
+ */
+class TrexStatelessCfg {
+public:
+    /* default values */
+    TrexStatelessCfg() {
+        m_port_count = 0;
+        m_rpc_req_resp_cfg = NULL;
+        m_rpc_async_cfg = NULL;
+        m_rpc_server_verbose = false;
+    }
+
+    const TrexRpcServerConfig  *m_rpc_req_resp_cfg;
+    const TrexRpcServerConfig  *m_rpc_async_cfg;
+    bool                        m_rpc_server_verbose;
+    uint8_t                     m_port_count;
+};
+
+/**
  * defines the T-Rex stateless operation mode
  * 
  */
@@ -85,7 +107,13 @@ public:
      * reconfiguration is not allowed
      * an exception will be thrown
      */
-    static void configure(uint8_t port_count);
+    static void create(const TrexStatelessCfg &cfg);
+
+    /**
+     * destroy the instance
+     * 
+     */
+    static void destroy();
 
     /**
      * singleton public get instance
@@ -115,12 +143,11 @@ public:
      * fetch all the stats
      * 
      */
-    void                encode_stats(Json::Value &global);
+    void               encode_stats(Json::Value &global);
 
 
 protected:
     TrexStateless();
-    ~TrexStateless();
 
     static TrexStateless& get_instance_internal () {
         static TrexStateless instance;
@@ -131,10 +158,17 @@ protected:
     TrexStateless(TrexStateless const&)      = delete;  
     void operator=(TrexStateless const&)     = delete;
 
+    /* status */
     bool                 m_is_configured;
-    TrexStatelessPort   **m_ports;
-    uint8_t              m_port_count;
 
+    /* RPC server array */
+    TrexRpcServer        *m_rpc_server;
+
+    /* ports */
+    std::vector <TrexStatelessPort *>   m_ports;
+    uint8_t                             m_port_count;
+
+    /* stats */
     TrexStatelessStats   m_stats;
 };
 
