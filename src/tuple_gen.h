@@ -515,6 +515,20 @@ class CIpPool {
 
 class CClientPool : public CIpPool {
 public:
+
+    uint32_t GenerateTuple(CTupleBase & tuple) {
+        uint32_t idx = generate_ip();
+        CIpInfoBase* ip_info = m_ip_info[idx];
+        ip_info->generate_tuple(tuple);
+
+        tuple.setClientId(idx);
+        if (tuple.getClientPort()==ILLEGAL_PORT) {
+            m_port_allocation_error++;
+        }
+        m_active_alloc++;
+        return idx;
+    }
+
     uint16_t get_tcp_aging() {
         return m_tcp_aging;
     }
@@ -530,20 +544,6 @@ public:
                 bool has_mac_map, 
                 uint16_t tcp_aging,
                 uint16_t udp_aging); 
-
-    uint32_t GenerateTuple(CTupleBase & tuple) {
-        uint32_t idx = generate_ip();
-        CIpInfoBase* ip_info = m_ip_info[idx];
-        ip_info->generate_tuple(tuple);
-
-        tuple.setClientId(idx);
-        if (tuple.getClientPort()==ILLEGAL_PORT) {
-            m_port_allocation_error++;
-        }
-        m_active_alloc++;
-        return idx;
-    }
-
 
 public: 
     uint16_t m_tcp_aging;
