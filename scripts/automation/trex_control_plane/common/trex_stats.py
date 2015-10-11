@@ -1,6 +1,7 @@
 #!/router/bin/python
 import copy
 
+
 class CTRexStatsManager(object):
 
     def __init__(self, *args):
@@ -9,7 +10,7 @@ class CTRexStatsManager(object):
             setattr(self, stat_type, CTRexStatsManager.CSingleStatsHandler())
 
     def __getitem__(self, item):
-        stats_obj = getattr(self,item)
+        stats_obj = getattr(self, item)
         if stats_obj:
             return stats_obj.get_stats()
         else:

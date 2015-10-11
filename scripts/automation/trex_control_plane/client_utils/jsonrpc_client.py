@@ -6,6 +6,9 @@ import json
 import general_utils
 import re
 from time import sleep
+from collections import namedtuple
+
+CmdResponse = namedtuple('CmdResponse', ['success', 'data'])
 
 class bcolors:
     BLUE = '\033[94m'
@@ -127,7 +130,7 @@ class JsonRpcClient(object):
                 self.socket.send(msg, flags = zmq.NOBLOCK)
             except zmq.error.ZMQError as e:
                 self.disconnect()
-                return False, "Failed To Get Send Message"
+                return CmdResponse(False, "Failed To Get Send Message")
 
         got_response = False
 
@@ -145,7 +148,7 @@ class JsonRpcClient(object):
 
         if not got_response:
             self.disconnect()
-            return False, "Failed To Get Server Response"
+            return CmdResponse(False, "Failed To Get Server Response")
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
 
@@ -159,13 +162,13 @@ class JsonRpcClient(object):
 
             for single_response in response_json:
                 rc, msg = self.process_single_response(single_response)
-                rc_list.append( (rc, msg) )
+                rc_list.append( CmdResponse(rc, msg) )
 
-            return True, rc_list
+            return CmdResponse(True, rc_list)
 
         else:
             rc, msg = self.process_single_response(response_json)
-            return rc, msg
+            return CmdResponse(rc, msg)
 
 
     def process_single_response (self, response_json):

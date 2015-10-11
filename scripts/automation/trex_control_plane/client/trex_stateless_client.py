@@ -48,7 +48,7 @@ class CTRexStatelessClient(object):
                         continue
                 if bad_ids:
                     # Some port IDs are not according to desires status
-                    raise RuntimeError("The requested method ('{0}') cannot be invoked since port IDs {1} are not" \
+                    raise RuntimeError("The requested method ('{0}') cannot be invoked since port IDs {1} are not"
                                        "at allowed stated".format(func.__name__))
                 else:
                     func(self, *args, **kwargs)
@@ -78,7 +78,7 @@ class CTRexStatelessClient(object):
         return self.system_info.get("port_count")
 
     def acquire(self, port_id, force=False):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
@@ -98,7 +98,7 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def release(self, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
@@ -118,7 +118,7 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def add_stream(self, stream_id, stream_obj, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         assert isinstance(stream_obj, CStream)
         params = {"handler": self._conn_handler.get(port_id),
@@ -129,7 +129,7 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def remove_stream(self, stream_id, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id,
@@ -138,7 +138,7 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True, active_and_owned=True)
     def get_stream_id_list(self, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id}
@@ -146,7 +146,7 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True, active_and_owned=True)
     def get_stream(self, stream_id, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id,
@@ -155,7 +155,7 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=True)
     def start_traffic(self, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
@@ -174,7 +174,7 @@ class CTRexStatelessClient(object):
 
     @force_status(owned=False, active_and_owned=True)
     def stop_traffic(self, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
@@ -192,11 +192,13 @@ class CTRexStatelessClient(object):
             return
 
     def get_global_stats(self):
-        return self.transmit("get_global_stats")
+        command = self.RpcCmdData("get_global_stats", {})
+        return self._handle_get_global_stats_response(command, self.transmit(command.method, command.params))
+        # return self.transmit("get_global_stats")
 
     @force_status(owned=True, active_and_owned=True)
     def get_port_stats(self, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
@@ -204,15 +206,17 @@ class CTRexStatelessClient(object):
             commands = [self.RpcCmdData("get_port_stats", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
-            # TODO: further processing here
+            if rc:
+                self._process_batch_result(commands, resp_list, self._handle_get_port_stats_response)
         else:
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
-            return self.transmit("get_port_stats", params)
+            command = self.RpcCmdData("get_port_stats", params)
+            return self._handle_get_port_stats_response(command, self.transmit(command.method, command.params))
 
     @force_status(owned=True, active_and_owned=True)
     def get_stream_stats(self, port_id=None):
-        if not CTRexStatelessClient._is_ports_valid(port_id):
+        if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
@@ -220,11 +224,13 @@ class CTRexStatelessClient(object):
             commands = [self.RpcCmdData("get_stream_stats", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
-            # TODO: further processing here
+            if rc:
+                self._process_batch_result(commands, resp_list, self._handle_get_stream_stats_response)
         else:
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
-            return self.transmit("get_stream_stats", params)
+            command = self.RpcCmdData("get_stream_stats", params)
+            return self._handle_get_stream_stats_response(command, self.transmit(command.method, command.params))
 
     # ----- internal methods ----- #
     def transmit(self, method_name, params={}):
@@ -247,32 +253,50 @@ class CTRexStatelessClient(object):
 
     @staticmethod
     def default_success_test(result_obj):
-        if result_obj[0]:
+        if result_obj.success:
             return True
         else:
             return False
 
     # ----- handler internal methods ----- #
     def _handle_acquire_response(self, request, response):
-        if response[0]:
-            self._conn_handler[request.get("port_id")] = response[1]
+        if response.success:
+            self._conn_handler[request.get("port_id")] = response.data
 
     def _handle_release_response(self, request, response):
-        if response[0]:
+        if response.success:
             del self._conn_handler[request.get("port_id")]
 
     def _handle_start_traffic_response(self, request, response):
-        if response[0]:
+        if response.success:
             self._active_ports.add(request.get("port_id"))
 
     def _handle_stop_traffic_response(self, request, response):
-        if response[0]:
+        if response.success:
             self._active_ports.remove(request.get("port_id"))
+
+    def _handle_get_global_stats_response(self, request, response):
+        if response.success:
+            return CGlobalStats(**response.success)
+        else:
+            return False
+
+    def _handle_get_port_stats_response(self, request, response):
+        if response.success:
+            return CPortStats(**response.success)
+        else:
+            return False
+
+    def _handle_get_stream_stats_response(self, request, response):
+        if response.success:
+            return CStreamStats(**response.success)
+        else:
+            return False
 
     def _is_ports_valid(self, port_id):
         if isinstance(port_id, list) or isinstance(port_id, set):
             # check each item of the sequence
-            return all([CTRexStatelessClient._is_ports_valid(port)
+            return all([self._is_ports_valid(port)
                         for port in port_id])
         elif (isinstance(port_id, int)) and (port_id > 0) and (port_id <= self.get_port_count()):
             return True
@@ -281,7 +305,8 @@ class CTRexStatelessClient(object):
 
     def _process_batch_result(self, req_list, resp_list, handler_func=None, success_test=default_success_test):
         for i, response in enumerate(resp_list):
-            if success_test():
+            # testing each result with success test so that a conclusion report could be deployed in future.
+            if success_test(response):
                 # run handler method with its params
                 handler_func(req_list[i], response)
             else:
@@ -303,7 +328,7 @@ class CTRexStatelessClient(object):
         def transmit(self, method_name, params={}):
             if self.virtual:
                 self._prompt_virtual_tx_msg()
-                id, msg = self.rpc_link.create_jsonrpc_v2(method_name, params)
+                _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params)
                 print msg
                 return
             else:
