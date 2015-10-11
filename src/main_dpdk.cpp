@@ -4215,7 +4215,7 @@ static int stateless_entry(__attribute__((unused)) void *dummy) {
     if (lpsock->thread_phy_is_master( phy_id )) {
         TrexStateless::get_instance().launch_control_plane();
     } else {
-        TrexStateless::get_instance().launch_on_dp_core();
+        TrexStateless::get_instance().launch_on_dp_core(phy_id);
     }
 
     return (0);

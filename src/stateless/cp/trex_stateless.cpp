@@ -63,6 +63,9 @@ void TrexStateless::configure(const TrexStatelessCfg &cfg) {
 
     /* cores */
     instance.m_dp_core_count = cfg.m_dp_core_count;
+    for (int i = 0; i < instance.m_dp_core_count; i++) {
+        instance.m_dp_cores.push_back(new TrexStatelessDpCore(i));
+    }
 
     /* done */
     instance.m_is_configured = true;
@@ -90,12 +93,8 @@ TrexStateless::launch_control_plane() {
 }
 
 void
-TrexStateless::launch_on_dp_core() {
-    //std::cout << "\n on DP core \n";
-
-    while (true) {
-        sleep(1);
-    }
+TrexStateless::launch_on_dp_core(uint8_t core_id) {
+    m_dp_cores[core_id - 1]->run();
 }
 
 /**

@@ -22,6 +22,13 @@ limitations under the License.
 #include <trex_stateless_port.h>
 #include <string>
 
+// DPDK c++ issue 
+#define UINT8_MAX 255
+#define UINT16_MAX 0xFFFF
+// DPDK c++ issue 
+
+#include <rte_ethdev.h>
+
 using namespace std;
 
 /***************************
@@ -143,7 +150,11 @@ TrexStatelessPort::update_stats() {
 
     #else
     /* real update work */
-    #endif
+    struct rte_eth_stats stats;
+    rte_eth_stats_get(m_port_id, &stats);
+    printf("ipackets is %u\n", stats.ipackets);
+    printf("opackets is %u\n", stats.opackets);
+    #endif           
 }
 
 const TrexPortStats &

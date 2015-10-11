@@ -26,6 +26,8 @@ limitations under the License.
 #include <stdexcept>
 
 #include <trex_stream.h>
+#include <trex_stateless_port.h>
+#include <trex_stateless_dp_core.h>
 #include <trex_rpc_server_api.h>
 
 /**
@@ -141,7 +143,7 @@ public:
      * launch on a single DP core
      * 
      */
-    void launch_on_dp_core();
+    void launch_on_dp_core(uint8_t core_id);
 
     TrexStatelessPort * get_port_by_id(uint8_t port_id);
     uint8_t             get_port_count();
@@ -181,11 +183,12 @@ protected:
     TrexRpcServer        *m_rpc_server;
 
     /* ports */
-    std::vector <TrexStatelessPort *>   m_ports;
-    uint8_t                             m_port_count;
+    std::vector <TrexStatelessPort *>    m_ports;
+    uint8_t                              m_port_count;
 
     /* cores */
-    uint8_t m_dp_core_count;
+    std::vector <TrexStatelessDpCore *>  m_dp_cores;
+    uint8_t                              m_dp_core_count;
 
     /* stats */
     TrexStatelessStats   m_stats;
