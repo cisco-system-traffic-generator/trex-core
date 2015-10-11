@@ -30,7 +30,7 @@ limitations under the License.
 
 /************** RPC server interface ***************/
 
-TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name) : m_cfg(cfg), m_name(name)  {
+TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name, std::mutex *lock) : m_cfg(cfg), m_name(name), m_lock(lock)  {
     m_is_running = false;
     m_is_verbose = false;
 }
@@ -114,16 +114,17 @@ get_current_date_time() {
 const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
 
 TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
-                             const TrexRpcServerConfig *async_cfg) {
+                             const TrexRpcServerConfig *async_cfg,
+                             std::mutex *lock) {
 
     /* add the request response server */
     if (req_resp_cfg) {
-        m_servers.push_back(new TrexRpcServerReqRes(*req_resp_cfg));
+        m_servers.push_back(new TrexRpcServerReqRes(*req_resp_cfg, lock));
     }
     
     /* add async publisher */
     if (async_cfg) {
-        m_servers.push_back(new TrexRpcServerAsync(*async_cfg));
+        m_servers.push_back(new TrexRpcServerAsync(*async_cfg, lock));
     }
 }
 

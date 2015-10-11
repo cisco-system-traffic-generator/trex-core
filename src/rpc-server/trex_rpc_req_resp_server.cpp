@@ -34,7 +34,7 @@ limitations under the License.
  * ZMQ based request-response server
  * 
  */
-TrexRpcServerReqRes::TrexRpcServerReqRes(const TrexRpcServerConfig &cfg) : TrexRpcServerInterface(cfg, "req resp") {
+TrexRpcServerReqRes::TrexRpcServerReqRes(const TrexRpcServerConfig &cfg, std::mutex *lock) : TrexRpcServerInterface(cfg, "req resp", lock) {
     /* ZMQ is not thread safe - this should be outside */
     m_context = zmq_ctx_new();
 }
@@ -127,6 +127,11 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
 
     int index = 0;
 
+    /* if lock was provided, take it  */
+    if (m_lock) {
+        m_lock->lock();
+    }
+
     /* for every command parsed - launch it */
     for (auto command : commands) {
         Json::Value single_response;
@@ -136,6 +141,11 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
 
         response[index++] = single_response;
 
+    }
+
+    /* done with the lock */
+    if (m_lock) {
+        m_lock->unlock();
     }
 
     /* write the JSON to string and sever on ZMQ */

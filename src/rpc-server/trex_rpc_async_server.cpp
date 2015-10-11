@@ -36,7 +36,7 @@ limitations under the License.
  * ZMQ based publisher server
  * 
  */
-TrexRpcServerAsync::TrexRpcServerAsync(const TrexRpcServerConfig &cfg) : TrexRpcServerInterface(cfg, "publisher") {
+TrexRpcServerAsync::TrexRpcServerAsync(const TrexRpcServerConfig &cfg, std::mutex *lock) : TrexRpcServerInterface(cfg, "publisher", lock) {
     /* ZMQ is not thread safe - this should be outside */
     m_context = zmq_ctx_new();
 }
@@ -73,8 +73,18 @@ TrexRpcServerAsync::_rpc_thread_cb() {
         Json::Value snapshot;
         Json::FastWriter writer;
 
+        /* if lock was provided - take it */
+        if (m_lock) {
+            m_lock->lock();
+        }
+
         /* trigger a full update for stats */
         TrexStateless::get_instance().update_stats();
+
+        /* done with the lock */
+        if (m_lock) {
+            m_lock->unlock();
+        }
 
         /* encode them to JSON */
         TrexStateless::get_instance().encode_stats(snapshot);

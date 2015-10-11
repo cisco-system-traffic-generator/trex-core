@@ -50,7 +50,9 @@ void TrexStateless::configure(const TrexStatelessCfg &cfg) {
     }
 
     /* create RPC servers */
-    instance.m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_rpc_async_cfg);
+
+    /* set both servers to mutex each other */
+    instance.m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_rpc_async_cfg, &instance.m_global_cp_lock);
     instance.m_rpc_server->set_verbose(cfg.m_rpc_server_verbose);
 
     /* configure ports */
@@ -152,12 +154,10 @@ TrexStateless::get_dp_core_count() {
 void 
 TrexStateless::update_stats() {
 
-    /* update CPU util. */
-    #ifdef TREX_RPC_MOCK_SERVER
-        m_stats.m_stats.m_cpu_util = 0;
-    #else
-        m_stats.m_stats.m_cpu_util = 0;
-    #endif
+    /* update CPU util.
+      TODO
+     */
+    m_stats.m_stats.m_cpu_util = 0;
 
     /* for every port update and accumulate */
     for (uint8_t i = 0; i < m_port_count; i++) {

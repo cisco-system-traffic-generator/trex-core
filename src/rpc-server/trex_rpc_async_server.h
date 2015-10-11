@@ -33,7 +33,7 @@ limitations under the License.
 class TrexRpcServerAsync : public TrexRpcServerInterface  {
 public:
 
-    TrexRpcServerAsync(const TrexRpcServerConfig &cfg);
+    TrexRpcServerAsync(const TrexRpcServerConfig &cfg, std::mutex *lock = NULL);
 
 protected:
     void _rpc_thread_cb();

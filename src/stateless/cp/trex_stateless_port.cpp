@@ -28,6 +28,7 @@ limitations under the License.
 // DPDK c++ issue 
 
 #include <rte_ethdev.h>
+#include <os_time.h>
 
 using namespace std;
 
@@ -133,28 +134,23 @@ TrexStatelessPort::generate_handler() {
  */
 void 
 TrexStatelessPort::update_stats() {
-    #ifdef TREX_RPC_MOCK_SERVER
-    /* do lies - its a mock */
-    m_stats.m_stats.m_tx_bps = rand() % 10000;
-    m_stats.m_stats.m_rx_bps = rand() % 10000;
-
-    m_stats.m_stats.m_tx_pps = m_stats.m_stats.m_tx_bps / (64 + rand() % 1000);
-    m_stats.m_stats.m_rx_pps = m_stats.m_stats.m_rx_bps / (64 + rand() % 1000);
-
-
-    m_stats.m_stats.m_total_tx_bytes += m_stats.m_stats.m_tx_bps;
-    m_stats.m_stats.m_total_rx_bytes += m_stats.m_stats.m_rx_bps;
-
-    m_stats.m_stats.m_total_tx_pkts += m_stats.m_stats.m_tx_pps;
-    m_stats.m_stats.m_total_rx_pkts += m_stats.m_stats.m_rx_pps;
-
-    #else
-    /* real update work */
     struct rte_eth_stats stats;
     rte_eth_stats_get(m_port_id, &stats);
-    printf("ipackets is %u\n", stats.ipackets);
-    printf("opackets is %u\n", stats.opackets);
-    #endif           
+
+    /* copy straight values */
+    m_stats.m_stats.m_total_tx_bytes = stats.obytes;
+    m_stats.m_stats.m_total_rx_bytes = stats.ibytes;
+
+    m_stats.m_stats.m_total_tx_pkts  = stats.opackets;
+    m_stats.m_stats.m_total_rx_pkts  = stats.ipackets;
+
+    /* calculate stats */
+    m_stats.m_stats.m_tx_bps = m_stats.m_bw_tx_bps.add(stats.obytes);
+    m_stats.m_stats.m_rx_bps = m_stats.m_bw_rx_bps.add(stats.ibytes);
+
+    m_stats.m_stats.m_tx_pps = m_stats.m_bw_tx_pps.add(stats.opackets);
+    m_stats.m_stats.m_rx_pps = m_stats.m_bw_rx_pps.add(stats.ipackets);
+
 }
 
 const TrexPortStats &
@@ -178,6 +174,53 @@ TrexStatelessPort::encode_stats(Json::Value &port) {
     port["total_rx_bytes"]  = Json::Value::UInt64(m_stats.m_stats.m_total_rx_bytes);
     
     port["tx_rx_errors"]    = Json::Value::UInt64(m_stats.m_stats.m_tx_rx_errors);
+}
+
+
+
+/***************************
+ * BW measurement
+ * 
+ **************************/
+/* TODO: move this to a common place */
+BWMeasure::BWMeasure() {
+    reset();
+}
+
+void BWMeasure::reset(void) {
+    m_start=false;
+    m_last_time_msec=0;
+    m_last_bytes=0;
+    m_last_result=0.0;
+};
+
+double BWMeasure::calc_MBsec(uint32_t dtime_msec,
+                             uint64_t dbytes){
+    double rate=0.000008*( (  (double)dbytes*(double)os_get_time_freq())/((double)dtime_msec) );
+    return(rate);
+}
+
+double BWMeasure::add(uint64_t size) {
+    if ( false == m_start ) {
+        m_start=true;
+        m_last_time_msec = os_get_time_msec() ;
+        m_last_bytes=size;
+        return(0.0);
+    }
+
+    uint32_t ctime=os_get_time_msec();
+    if ((ctime - m_last_time_msec) <os_get_time_freq() ) {
+        return(m_last_result);
+    }
+
+    uint32_t dtime_msec = ctime-m_last_time_msec;
+    uint64_t dbytes     = size - m_last_bytes;
+
+    m_last_time_msec    = ctime;
+    m_last_bytes        = size;
+
+    m_last_result= 0.5*calc_MBsec(dtime_msec,dbytes) +0.5*(m_last_result);
+    return( m_last_result );
 }
 
 

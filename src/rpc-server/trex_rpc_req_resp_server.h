@@ -32,7 +32,7 @@ limitations under the License.
 class TrexRpcServerReqRes : public TrexRpcServerInterface  {
 public:
 
-    TrexRpcServerReqRes(const TrexRpcServerConfig &cfg);
+    TrexRpcServerReqRes(const TrexRpcServerConfig &cfg, std::mutex *lock = NULL);
 
 protected:
     void _rpc_thread_cb();

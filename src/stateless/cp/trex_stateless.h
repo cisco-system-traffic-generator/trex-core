@@ -25,6 +25,8 @@ limitations under the License.
 #include <string>
 #include <stdexcept>
 
+#include <mutex>
+
 #include <trex_stream.h>
 #include <trex_stateless_port.h>
 #include <trex_stateless_dp_core.h>
@@ -192,6 +194,8 @@ protected:
 
     /* stats */
     TrexStatelessStats   m_stats;
+
+    std::mutex m_global_cp_lock;
 };
 
 #endif /* __TREX_STATELESS_H__ */

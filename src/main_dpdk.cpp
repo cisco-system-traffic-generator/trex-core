@@ -2735,7 +2735,7 @@ public:
     }
 public:
 
-    bool Create();
+    bool Create(bool is_stateless);
     void Delete();
 
     int  ixgbe_prob_init();
@@ -3409,18 +3409,22 @@ int  CGlobalPortCfg::ixgbe_start(void){
 }
 
 
-bool CGlobalPortCfg::Create(){
+bool CGlobalPortCfg::Create(bool is_stateless){
 
-   if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
-                                 !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
-       return (false);
-   }
-
+    /* hack - need to refactor */
+    if (!is_stateless) {
+        if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
+                                      !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
+            return (false);
+        }
+    }
 
    /* We load the YAML twice, 
      this is the first time. to update global flags  */
    CFlowsYamlInfo     pre_yaml_info;
-   pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+   if (!is_stateless) {
+       pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+   }
 
    if ( pre_yaml_info.m_vlan_info.m_enable ){
        CGlobalInfo::m_options.preview.set_vlan_mode_enable(true);
@@ -4513,12 +4517,6 @@ int main_test(int argc , char * argv[]){
         rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
     }
 
-    /* patch here */
-    if (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_INTERACTIVE) {
-        return launch_stateless_trex();
-    }
-
-
     time_init();
     
         /* check if we are in simulation mode */
@@ -4527,10 +4525,17 @@ int main_test(int argc , char * argv[]){
         return ( sim_load_list_of_cap_files(&CGlobalInfo::m_options) );
     }
 
+    bool is_stateless = (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_INTERACTIVE);
 
-    if ( !ports_cfg.Create() ){
+    if ( !ports_cfg.Create(is_stateless) ){
         exit(1);
     }
+
+    /* patch here */
+    if (is_stateless) {
+        return launch_stateless_trex();
+    }
+
 
     if (po->preview.get_is_rx_check_enable() &&  (po->m_rx_check_sampe< get_min_sample_rate()) ) {
         po->m_rx_check_sampe = get_min_sample_rate();

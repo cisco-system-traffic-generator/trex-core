@@ -24,6 +24,27 @@ limitations under the License.
 #include <trex_stream.h>
 
 /**
+ * bandwidth measurement class
+ * 
+ */
+class BWMeasure {
+public:
+    BWMeasure();
+    void reset(void);
+    double add(uint64_t size);
+
+private:
+    double calc_MBsec(uint32_t dtime_msec,
+                      uint64_t dbytes);
+
+public:
+   bool      m_start;
+   uint32_t  m_last_time_msec;
+   uint64_t  m_last_bytes;
+   double    m_last_result;
+};
+
+/**
  * TRex stateless port stats
  * 
  * @author imarom (24-Sep-15)
@@ -33,9 +54,22 @@ class TrexPortStats {
 public:
     TrexPortStats() {
         m_stats = {0};
+
+        m_bw_tx_bps.reset();
+        m_bw_rx_bps.reset();
+
+        m_bw_tx_pps.reset();
+        m_bw_rx_pps.reset();
     }
 
 public:
+
+    BWMeasure m_bw_tx_bps;
+    BWMeasure m_bw_rx_bps;
+
+    BWMeasure m_bw_tx_pps;
+    BWMeasure m_bw_rx_pps;
+
     struct {
 
         double m_tx_bps;

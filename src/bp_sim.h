@@ -221,7 +221,9 @@ private:
             memset(m_pyload_mbuf_ptr+len+m_new_pkt_size,0xa,(-m_new_pkt_size));
         }
 
+        return (0);
     }
+
 public:
     int16_t        m_new_pkt_size; /* New packet size after transform by plugin */
     CFlowPktInfo * m_pkt_info;
@@ -302,7 +304,7 @@ public:
 
 void CVirtualIFPerSideStats::Dump(FILE *fd){
 
-    #define DP_B(f) if (f) printf(" %-40s : %llu \n",#f,f)
+    #define DP_B(f) if (f) printf(" %-40s : %lu \n",#f,f)
     DP_B(m_tx_pkt);  
     DP_B(m_tx_rx_check_pkt);
     DP_B(m_tx_bytes);  
@@ -1440,7 +1442,7 @@ public:
 
 
     inline bool is_eligible_from_server_side(){
-        return ( (m_src_ip&1==1)?true:false);
+        return ( ( (m_src_ip&1) == 1)?true:false);
     }
 
 
@@ -1647,7 +1649,7 @@ public:
 */
 inline int check_objects_sizes(void){
     if ( sizeof(CGenNodeDeferPort) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeDeferPort) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeDeferPort),sizeof(CGenNode));
+        printf("ERROR sizeof(CGenNodeDeferPort) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeDeferPort),sizeof(CGenNode));
         assert(0);
     }
     if ( (int)offsetof(struct CGenNodeDeferPort,m_type)!=offsetof(struct CGenNode,m_type) ){
@@ -2587,6 +2589,8 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
     EthernetHeader * et  = 
         (EthernetHeader * )(p + m_pkt_indication.getFastEtherOffset());
 
+    (void)et;
+
     if ( unlikely (m_pkt_indication.is_ipv6())) {
         IPv6Header *ipv6= (IPv6Header *)ipv4;
 
@@ -2668,6 +2672,8 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 
     EthernetHeader * et  = 
         (EthernetHeader * )(p + m_pkt_indication.getFastEtherOffset());
+
+    (void)et;
 
     uint16_t src_port =   node->m_src_port;
 
@@ -2869,6 +2875,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
     /* need to update the mbuf size here .., this is not must but needed for accuracy  */
     uint16_t buf_adjust = len - vm.m_new_pkt_size;
     int rc = rte_pktmbuf_trim(m, buf_adjust);
+    (void)rc;
 
     /* update IP length , and TCP checksum , we can accelerate this using hardware ! */
     uint16_t pkt_adjust = vm.m_new_pkt_size - m_packet->pkt_len;

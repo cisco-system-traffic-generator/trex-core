@@ -113,6 +113,9 @@ class CIpInfoBase {
         void set_ip(uint32_t ip) {
             m_ip = ip;
         }
+
+        virtual ~CIpInfoBase() {}
+
     public:
         uint32_t          m_ip;
 };
@@ -388,7 +391,7 @@ class CIpPool {
                 (ip<=ip_back->get_ip())) {
                 return(true);
             }
-            printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%x\n", 
+            printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%p\n", 
                    ip, ip_front->get_ip(), 
                    ip_back->get_ip(),this);
             return(false);

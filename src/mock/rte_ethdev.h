@@ -18,26 +18,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef __TREX_STATELESS_DP_CORE_H__
-#define __TREX_STATELESS_DP_CORE_H__
+#ifndef __MOCK_FILE_RTE_ETHDEV_H__
+#define __MOCK_FILE_RTE_ETHDEV_H__
 
-#include <stdint.h>
+#include <string.h>
 
-/**
- * stateless DP core object
- * 
- */
-class TrexStatelessDpCore {
-public:
-
-    TrexStatelessDpCore(uint8_t core_id);
-
-    /* starts the DP core run */
-    void run();
-
-private:
-    void test_inject_dummy_pkt();
-    uint8_t m_core_id;
+struct rte_eth_stats {
+    uint64_t obytes;
+    uint64_t ibytes;
+    uint64_t opackets;
+    uint64_t ipackets;
 };
 
-#endif /* __TREX_STATELESS_DP_CORE_H__ */
+static inline void
+rte_eth_stats_get(uint8_t port_id, struct rte_eth_stats *stats) {
+    memset(stats, 0, sizeof(rte_eth_stats));
+}
+
+static inline uint16_t
+rte_eth_tx_burst(uint8_t port_id, uint16_t queue_id,
+                 struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
+    return (0);
+}
+
+#endif /* __MOCK_FILE_RTE_ETHDEV_H__ */
