@@ -1,7 +1,6 @@
 #!/router/bin/python
 
-
-import outer_packages
+import external_packages
 import dpkt
 import socket
 import binascii
@@ -10,6 +9,8 @@ import random
 import string
 import struct
 import re
+from abc import ABCMeta, abstractmethod
+from collections import namedtuple
 
 
 class CTRexPktBuilder(object):
@@ -30,7 +31,7 @@ class CTRexPktBuilder(object):
         self._pkt_by_hdr = {}
         self._pkt_top_layer = None
         self._max_pkt_size = max_pkt_size
-        self.payload_generator = CTRexPktBuilder.CTRexPayloadGen(self._packet, self._max_pkt_size)
+        self.payload_gen = CTRexPktBuilder.CTRexPayloadGen(self._packet, self._max_pkt_size)
         self.vm = CTRexPktBuilder.CTRexVM()
 
     def add_pkt_layer(self, layer_name, pkt_layer):
@@ -63,6 +64,38 @@ class CTRexPktBuilder(object):
             return
 
     def set_ip_layer_addr(self, layer_name, attr, ip_addr, ip_type="ipv4"):
+        """
+        This method sets the IP address fields of an IP header (source or destination, for both IPv4 and IPv6)
+        using a human readable addressing representation.
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l3_ip", etc.
+
+            attr: str
+                a string representation of the sub-field to be set:
+
+                + "src" for source
+                + "dst" for destination
+
+            ip_addr: str
+                a string representation of the IP address to be set.
+                Example: "10.0.0.1" for IPv4, or "5001::DB8:1:3333:1:1" for IPv6
+
+            ip_type : str
+                a string representation of the IP version to be set:
+
+                + "ipv4" for IPv4
+                + "ipv6" for IPv6
+
+                Default: **ipv4**
+
+        :raises:
+            + :exc:`ValueError`, in case the desired layer_name is not an IP layer
+            + :exc:`KeyError`, in case the desired layer_name does not exists.
+
+        """
         try:
             layer = self._pkt_by_hdr[layer_name.lower()]
             if not (isinstance(layer, dpkt.ip.IP) or isinstance(layer, dpkt.ip6.IP6)):
@@ -74,9 +107,55 @@ class CTRexPktBuilder(object):
             raise KeyError("Specified layer '{0}' doesn't exist on packet.".format(layer_name))
 
     def set_ipv6_layer_addr(self, layer_name, attr, ip_addr):
+        """
+        This method sets the IPv6 address fields of an IP header (source or destination)
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l3_ip", etc.
+
+            attr: str
+                a string representation of the sub-field to be set:
+
+                + "src" for source
+                + "dst" for destination
+
+            ip_addr: str
+                a string representation of the IP address to be set.
+                Example: "5001::DB8:1:3333:1:1"
+
+        :raises:
+            + :exc:`ValueError`, in case the desired layer_name is not an IPv6 layer
+            + :exc:`KeyError`, in case the desired layer_name does not exists.
+
+        """
         self.set_ip_layer_addr(layer_name, attr, ip_addr, ip_type="ipv6")
 
     def set_eth_layer_addr(self, layer_name, attr, mac_addr):
+        """
+        This method sets the ethernet address fields of an Ethernet header (source or destination)
+        using a human readable addressing representation.
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l2", etc.
+
+            attr: str
+                a string representation of the sub-field to be set:
+                + "src" for source
+                + "dst" for destination
+
+            mac_addr: str
+                a string representation of the MAC address to be set.
+                Example: "00:de:34:ef:2e:f4".
+
+        :raises:
+            + :exc:`ValueError`, in case the desired layer_name is not an Ethernet layer
+            + :exc:`KeyError`, in case the desired layer_name does not exists.
+
+        """
         try:
             layer = self._pkt_by_hdr[layer_name.lower()]
             if not isinstance(layer, dpkt.ethernet.Ethernet):
@@ -135,6 +214,30 @@ class CTRexPktBuilder(object):
             raise KeyError("Specified layer '{0}' doesn't exist on packet.".format(layer_name))
 
     def set_layer_bit_attr(self, layer_name, attr, val):
+        """
+        This method enables the user to set the value of a field smaller that 1 Byte in size.
+        This method isn't used to set full-sized fields value (>= 1 byte).
+        Use :func:`packet_builder.CTRexPktBuilder.set_layer_attr` instead.
+
+        :parameters:
+            layer_name: str
+                a string representing the name of the layer.
+                Example: "l2", "l4_tcp", etc.
+
+            attr : str
+                a string representing the attribute to be set on desired layer
+
+            val : int
+                value of attribute.
+                This value will be set "ontop" of the existing value using bitwise "OR" operation.
+
+                .. tip:: It is very useful to use dpkt constants to define the values of these fields.
+
+        :raises:
+            + :exc:`KeyError`, in case of missing layer (the desired layer isn't part of packet)
+            + :exc:`ValueError`, in case invalid attribute to the specified layer.
+
+        """
         return self.set_layer_attr(layer_name, attr, val, True)
 
     def set_pkt_payload(self, payload):
@@ -238,17 +341,88 @@ class CTRexPktBuilder(object):
         return copy.copy(layer) if layer else None
 
     # VM access methods
-    def set_vm_ip_range(self, ip_start, ip_end, ip_type="ipv4"):
-        pass
+    def set_vm_ip_range(self, ip_layer_name, ip_field,
+                        ip_init, ip_start, ip_end, add_value,
+                        operation, is_big_endian=False, val_size=4,
+                        ip_type="ipv4", add_checksum_inst=True):
+        if ip_field not in ["src", "dst"]:
+            raise ValueError("set_vm_ip_range only available for source ('src') or destination ('dst') ip addresses")
+        # set differences between IPv4 and IPv6
+        if ip_type == "ipv4":
+            ip_class = dpkt.ip.IP
+            ip_addr_size = val_size if val_size <= 4 else 4
+        elif ip_type == "ipv6":
+            ip_class = dpkt.ip6.IP6
+            ip_addr_size = val_size if val_size <= 8 else 4
+        else:
+            raise CTRexPktBuilder.IPAddressError()
 
-    def set_vm_range_type(self, ip_type):
-        pass
+        self._verify_layer_prop(ip_layer_name, ip_class)
+        trim_size = ip_addr_size*2
+        init_val = int(binascii.hexlify(CTRexPktBuilder._decode_ip_addr(ip_init, ip_type))[-trim_size:], 16)
+        start_val = int(binascii.hexlify(CTRexPktBuilder._decode_ip_addr(ip_start, ip_type))[-trim_size:], 16)
+        end_val = int(binascii.hexlify(CTRexPktBuilder._decode_ip_addr(ip_end, ip_type))[-trim_size:], 16)
+        # All validations are done, start adding VM instructions
+        flow_var_name = "{layer}__{field}".format(layer=ip_layer_name, field=ip_field)
+        hdr_offset, field_abs_offset = self._calc_offset(ip_layer_name, ip_field, ip_addr_size)
+        self.vm.add_flow_man_inst(flow_var_name, size=ip_addr_size, operation=operation,
+                                  init_value=init_val,
+                                  min_value=start_val,
+                                  max_value=end_val)
+        self.vm.add_write_flow_inst(flow_var_name, field_abs_offset)
+        self.vm.set_vm_off_inst_field(flow_var_name, "add_value", add_value)
+        self.vm.set_vm_off_inst_field(flow_var_name, "is_big_endian", is_big_endian)
+        if ip_type == "ipv4" and add_checksum_inst:
+            self.vm.add_fix_checksum_inst(self._pkt_by_hdr.get(ip_layer_name), hdr_offset)
 
-    def set_vm_core_mask(self, ip_type):
-        pass
+    def set_vm_eth_range(self, eth_layer_name, eth_field,
+                         mac_init, mac_start, mac_end, add_value,
+                         operation, val_size=4, is_big_endian=False):
+        if eth_field not in ["src", "dst"]:
+            raise ValueError("set_vm_eth_range only available for source ('src') or destination ('dst') eth addresses")
+        self._verify_layer_prop(eth_layer_name, dpkt.ethernet.Ethernet)
+        eth_addr_size = val_size if val_size <= 4 else 4
+        trim_size = eth_addr_size*2
+        init_val = int(binascii.hexlify(CTRexPktBuilder._decode_mac_addr(mac_init))[-trim_size:], 16)
+        start_val = int(binascii.hexlify(CTRexPktBuilder._decode_mac_addr(mac_start))[-trim_size:], 16)
+        end_val = int(binascii.hexlify(CTRexPktBuilder._decode_mac_addr(mac_end))[-trim_size:], 16)
+        # All validations are done, start adding VM instructions
+        flow_var_name = "{layer}__{field}".format(layer=eth_layer_name, field=eth_field)
+        hdr_offset, field_abs_offset = self._calc_offset(eth_layer_name, eth_field, eth_addr_size)
+        self.vm.add_flow_man_inst(flow_var_name, size=8, operation=operation,
+                                  init_value=init_val,
+                                  min_value=start_val,
+                                  max_value=end_val)
+        self.vm.add_write_flow_inst(flow_var_name, field_abs_offset)
+        self.vm.set_vm_off_inst_field(flow_var_name, "add_value", add_value)
+        self.vm.set_vm_off_inst_field(flow_var_name, "is_big_endian", is_big_endian)
+
+    def set_vm_custom_range(self, layer_name, hdr_field,
+                            init_val, start_val, end_val, add_val, val_size,
+                            operation, is_big_endian=False, range_name="",
+                            add_checksum_inst=True):
+        # verify input validity for init/start/end values
+        for val in [init_val, start_val, end_val]:
+            if not isinstance(val, int):
+                raise ValueError("init/start/end values are expected integers, but received type '{0}'".
+                                 format(type(val)))
+        self._verify_layer_prop(layer_name=layer_name, field_name=hdr_field)
+        if not range_name:
+            range_name = "{layer}__{field}".format(layer=layer_name, field=hdr_field)
+        trim_size = val_size*2
+        hdr_offset, field_abs_offset = self._calc_offset(layer_name, hdr_field, val_size)
+        self.vm.add_flow_man_inst(range_name, size=val_size, operation=operation,
+                                  init_value=init_val,
+                                  min_value=start_val,
+                                  max_value=end_val)
+        self.vm.add_write_flow_inst(range_name, field_abs_offset)
+        self.vm.set_vm_off_inst_field(range_name, "add_value", add_val)
+        self.vm.set_vm_off_inst_field(range_name, "is_big_endian", is_big_endian)
+        if isinstance(self._pkt_by_hdr.get(layer_name), dpkt.ip.IP) and add_checksum_inst:
+            self.vm.add_fix_checksum_inst(self._pkt_by_hdr.get(layer_name), hdr_offset)
 
     def get_vm_data(self):
-        pass
+        return self.vm.dump()
 
     def dump_pkt(self):
         """
@@ -302,9 +476,7 @@ class CTRexPktBuilder(object):
         except IOError:
             raise IOError(2, "The provided path could not be accessed")
 
-
-    # ----- useful shortcut methods ----- #
-    def gen_dns_packet(self):
+    def export_pkt(self, file_path, link_pcap=False, pcap_name=None, pcap_ts=None):
         pass
 
     # ----- internal methods ----- #
@@ -341,6 +513,41 @@ class CTRexPktBuilder(object):
         for layer in known_layers:
             if self._pkt_by_hdr[layer] is layer_obj:
                 return layer
+
+    def _calc_offset(self, layer_name, hdr_field, hdr_field_size):
+        pkt_header = self._pkt_by_hdr.get(layer_name)
+        hdr_offset = len(self._packet) - len(pkt_header)
+        inner_hdr_offsets = []
+        for field in pkt_header.__hdr__:
+            if field[0] == hdr_field:
+                field_size = struct.calcsize(field[1])
+                if field_size == hdr_field_size:
+                    break
+                elif field_size < hdr_field_size:
+                    raise CTRexPktBuilder.PacketLayerError(layer_name,
+                                                           "The specified field '{0}' size is smaller than given range"
+                                                           " size ('{1}')".format(hdr_field, hdr_field_size))
+                else:
+                    inner_hdr_offsets.append(field_size - hdr_field_size)
+                    break
+            else:
+                inner_hdr_offsets.append(struct.calcsize(field[1]))
+        return hdr_offset, hdr_offset + sum(inner_hdr_offsets)
+
+    def _verify_layer_prop(self, layer_name, layer_type=None, field_name=None):
+        if layer_name not in self._pkt_by_hdr:
+            raise CTRexPktBuilder.PacketLayerError(layer_name)
+        pkt_layer = self._pkt_by_hdr.get(layer_name)
+        if layer_type:
+            # check for layer type
+            if not isinstance(pkt_layer, layer_type):
+                raise CTRexPktBuilder.PacketLayerTypeError(layer_name, type(pkt_layer), layer_type)
+        if field_name and not hasattr(pkt_layer, field_name):
+            # check if field exists on certain header
+            raise CTRexPktBuilder.PacketLayerError(layer_name, "The specified field '{0}' does not exists on "
+                                                               "given packet layer ('{1}')".format(field_name,
+                                                                                                   layer_name))
+        return
 
     @staticmethod
     def _decode_mac_addr(mac_addr):
@@ -449,6 +656,8 @@ class CTRexPktBuilder(object):
         This class defines the TRex VM which represents how TRex will regenerate packets.
         The packets will be regenerated based on the built packet containing this class.
         """
+        InstStore = namedtuple('InstStore', ['type', 'inst'])
+
         def __init__(self):
             """
             Instantiate a CTRexVM object
@@ -458,8 +667,10 @@ class CTRexPktBuilder(object):
             """
             super(CTRexPktBuilder.CTRexVM, self).__init__()
             self.vm_variables = {}
+            self._inst_by_offset = {}   # this data structure holds only offset-related instructions, ordered in tuples
+            self._off_inst_by_name = {}
 
-        def set_vm_var_field(self, var_name, field_name, val):
+        def set_vm_var_field(self, var_name, field_name, val, offset_inst=False):
             """
             Set VM variable field. Only existing variables are allowed to be changed.
 
@@ -477,9 +688,15 @@ class CTRexPktBuilder(object):
                 + :exc:`CTRexPktBuilder.VMVarValueError`, in case val isn't one of allowed options of field_name.
 
             """
-            return self.vm_variables[var_name].set_field(field_name, val)
+            if offset_inst:
+                return self._off_inst_by_name[var_name].inst.set_field(field_name, val)
+            else:
+                return self.vm_variables[var_name].set_field(field_name, val)
 
-        def add_flow_man_simple(self, name, **kwargs):
+        def set_vm_off_inst_field(self, var_name, field_name, val):
+            return self.set_vm_var_field(var_name, field_name, val, True)
+
+        def add_flow_man_inst(self, name, **kwargs):
             """
             Adds a new flow manipulation object to the VM instance.
 
@@ -488,7 +705,7 @@ class CTRexPktBuilder(object):
                     name of the manipulation, must be distinct.
                     Example: 'source_ip_change'
 
-                **kwargs : dict
+                **kwargs** : dict
                     optional, set flow_man fields on initialization (key = field_name, val = field_val).
                     Must be used with legit fields, see :func:`CTRexPktBuilder.CTRexVM.CTRexVMVariable.set_field`.
 
@@ -500,13 +717,39 @@ class CTRexPktBuilder(object):
                 + Exceptions from :func:`CTRexPktBuilder.CTRexVM.CTRexVMVariable.set_field` method.
                   Will rise when VM variables were misconfiguration.
             """
-            if name not in self.vm_variables.keys():
-                self.vm_variables[name] = self.CTRexVMVariable(name)
-                # try configuring VM var attributes
+            if name not in self.vm_variables:
+                self.vm_variables[name] = self.CTRexVMFlowVariable(name)
+                # try configuring VM instruction attributes
                 for (field, value) in kwargs.items():
                     self.vm_variables[name].set_field(field, value)
             else:
                 raise CTRexPktBuilder.VMVarNameExistsError(name)
+
+        def add_fix_checksum_inst(self, linked_ipv4_obj, offset_to_obj=14, name=None):
+            # check if specified linked_ipv4_obj is indeed an ipv4 object
+            if not (isinstance(linked_ipv4_obj, dpkt.ip.IP)):
+                raise ValueError("The provided layer object is not of IPv4.")
+            if not name:
+                name = "checksum_{off}".format(off=offset_to_obj)   # name will override previous checksum inst, OK
+            new_checksum_inst = self.CTRexVMChecksumInst(name, offset_to_obj)
+            # store the checksum inst in the end of the IP header (20 Bytes long)
+            inst = self.InstStore('checksum', new_checksum_inst)
+            self._inst_by_offset[offset_to_obj + 20] = inst
+            self._off_inst_by_name[name] = inst
+
+        def add_write_flow_inst(self, name, pkt_offset, **kwargs):
+            if name not in self.vm_variables:
+                raise KeyError("Trying to add write_flow_var instruction to a not-exists VM flow variable ('{0}')".
+                               format(name))
+            else:
+                new_write_inst = self.CTRexVMWrtFlowVarInst(name, pkt_offset)
+                # try configuring VM instruction attributes
+                for (field, value) in kwargs.items():
+                    new_write_inst.set_field(field, value)
+                # add the instruction to the date-structure
+                inst = self.InstStore('write', new_write_inst)
+                self._inst_by_offset[pkt_offset] = inst
+                self._off_inst_by_name[name] = inst
 
         def load_flow_man(self, flow_obj):
             """
@@ -521,7 +764,7 @@ class CTRexPktBuilder(object):
                 list holds variables data of VM
 
             """
-            assert isinstance(flow_obj, CTRexPktBuilder.CTRexVM.CTRexVMVariable)
+            assert isinstance(flow_obj, CTRexPktBuilder.CTRexVM.CTRexVMFlowVariable)
             if flow_obj.name not in self.vm_variables.keys():
                 self.vm_variables[flow_obj.name] = flow_obj
             else:
@@ -529,7 +772,7 @@ class CTRexPktBuilder(object):
 
         def dump(self):
             """
-            dumps a VM variables (instructions) into an list data structure.
+            dumps a VM variables (instructions) into a list data structure.
 
             :parameters:
                 None
@@ -538,14 +781,42 @@ class CTRexPktBuilder(object):
                 list holds variables data of VM
 
             """
-            return [var.dump()
-                    for key, var in self.vm_variables.items()]
+            # at first, dump all CTRexVMFlowVariable instructions
+            ret_val = [var.dump()
+                       for key, var in self.vm_variables.items()]
+            # then, dump all the CTRexVMWrtFlowVarInst and CTRexVMChecksumInst instructions
+            ret_val += [self._inst_by_offset.get(key).inst.dump()
+                        for key in sorted(self._inst_by_offset)]
+            return ret_val
 
-        class CTRexVMVariable(object):
+        class CVMAbstractInstruction(object):
+            __metaclass__ = ABCMeta
+
+            def __init__(self, name):
+                """
+                Instantiate a CTRexVMVariable object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CVMAbstractInstruction, self).__init__()
+                self.name = name
+
+            def set_field(self, field_name, val):
+                if not hasattr(self, field_name):
+                    raise CTRexPktBuilder.VMFieldNameError(field_name)
+                setattr(self, field_name, val)
+
+            @abstractmethod
+            def dump(self):
+                pass
+
+        class CTRexVMFlowVariable(CVMAbstractInstruction):
             """
             This class defines a single VM variable to be used as part of CTRexVar object.
             """
-            VALID_SIZE = [1, 2, 4, 8]
+            VALID_SIZE = [1, 2, 4, 8]   # size in Bytes
             VALID_OPERATION = ["inc", "dec", "random"]
 
             def __init__(self, name):
@@ -556,12 +827,12 @@ class CTRexPktBuilder(object):
                     name : str
                         a string representing the name of the VM variable.
                 """
-                super(CTRexPktBuilder.CTRexVM.CTRexVMVariable, self).__init__()
-                self.name = name
+                super(CTRexPktBuilder.CTRexVM.CTRexVMFlowVariable, self).__init__(name)
+                # self.name = name
                 self.size = 4
                 self.big_endian = True
                 self.operation = "inc"
-                self.split_by_core = False
+                # self.split_by_core = False
                 self.init_value = 1
                 self.min_value = self.init_value
                 self.max_value = self.init_value
@@ -586,31 +857,24 @@ class CTRexPktBuilder(object):
 
                 """
                 if not hasattr(self, field_name):
-                    raise CTRexPktBuilder.VMVarNameError(field_name)
+                    raise CTRexPktBuilder.VMFieldNameError(field_name)
                 elif field_name == "size":
                     if type(val) != int:
-                        raise CTRexPktBuilder.VMVarFieldTypeError("size", int)
+                        raise CTRexPktBuilder.VMFieldTypeError("size", int)
                     elif val not in self.VALID_SIZE:
-                        raise CTRexPktBuilder.VMVarValueError("size", self.VALID_SIZE)
-                elif field_name == "init_value":
+                        raise CTRexPktBuilder.VMFieldValueError("size", self.VALID_SIZE)
+                elif field_name in ["init_value", "min_value", "max_value"]:
                     if type(val) != int:
-                        raise CTRexPktBuilder.VMVarFieldTypeError("init_value", int)
+                        raise CTRexPktBuilder.VMFieldTypeError(field_name, int)
                 elif field_name == "operation":
                     if type(val) != str:
-                        raise CTRexPktBuilder.VMVarFieldTypeError("operation", str)
+                        raise CTRexPktBuilder.VMFieldTypeError("operation", str)
                     elif val not in self.VALID_OPERATION:
-                        raise CTRexPktBuilder.VMVarValueError("operation", self.VALID_OPERATION)
-                elif field_name == "split_by_core":
-                    val = bool(val)
+                        raise CTRexPktBuilder.VMFieldValueError("operation", self.VALID_OPERATION)
+                # elif field_name == "split_by_core":
+                #     val = bool(val)
                 # update field value on success
                 setattr(self, field_name, val)
-
-            def is_valid(self):
-                if self.size not in self.VALID_SIZE:
-                    return False
-                if self.type not in self.VALID_OPERATION:
-                    return False
-                return True
 
             def dump(self):
                 """
@@ -623,15 +887,116 @@ class CTRexPktBuilder(object):
                     dictionary holds variable data of VM variable
 
                 """
-                return {"ins_name": "flow_man_simple",  # VM variable dump always refers to manipulate instruction.
-                        "flow_variable_name": self.name,
-                        "object_size": self.size,
-                        # "big_endian": self.big_endian,
-                        "Operation": self.operation,
-                        "split_by_core": self.split_by_core,
-                        "init_value": self.init_value,
-                        "min_value": self.min_value,
-                        "max_value": self.max_value}
+                return {"ins_name": "flow_var",  # VM variable dump always refers to manipulate instruction.
+                        "name": self.name,
+                        "size": self.size,
+                        "op": self.operation,
+                        # "split_by_core": self.split_by_core,
+                        "init_value": str(self.init_value),
+                        "min_value": str(self.min_value),
+                        "max_value": str(self.max_value)}
+
+        class CTRexVMChecksumInst(CVMAbstractInstruction):
+
+            def __init__(self, name, offset):
+                """
+                Instantiate a CTRexVMChecksumInst object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CTRexVMChecksumInst, self).__init__(name)
+                self.pkt_offset = offset
+
+            def dump(self):
+                return {"type": "fix_checksum_ipv4",
+                        "pkt_offset": int(self.pkt_offset)}
+
+        class CTRexVMWrtFlowVarInst(CVMAbstractInstruction):
+
+            def __init__(self, name, pkt_offset):
+                """
+                Instantiate a CTRexVMWrtFlowVarInst object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CTRexVMWrtFlowVarInst, self).__init__(name)
+                self.pkt_offset = int(pkt_offset)
+                self.add_value = 0
+                self.is_big_endian = False
+
+            def set_field(self, field_name, val):
+                if not hasattr(self, field_name):
+                    raise CTRexPktBuilder.VMFieldNameError(field_name)
+                elif field_name == 'pkt_offset':
+                    raise ValueError("pkt_offset value cannot be changed")
+                cur_attr_type = type(getattr(self, field_name))
+                if cur_attr_type == type(val):
+                    setattr(self, field_name, val)
+                else:
+                    CTRexPktBuilder.VMFieldTypeError(field_name, cur_attr_type)
+
+            def dump(self):
+                return {"type": "write_flow_var",
+                        "name": self.name,
+                        "pkt_offset": self.pkt_offset,
+                        "add_value": int(self.add_value),
+                        "is_big_endian": bool(self.is_big_endian)
+                        }
+
+        class CTRexVMChecksumInst(CVMAbstractInstruction):
+
+            def __init__(self, name, offset):
+                """
+                Instantiate a CTRexVMChecksumInst object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CTRexVMChecksumInst, self).__init__(name)
+                self.pkt_offset = offset
+
+            def dump(self):
+                return {"type": "fix_checksum_ipv4",
+                        "pkt_offset": int(self.pkt_offset)}
+
+        class CTRexVMWrtFlowVarInst(CVMAbstractInstruction):
+
+            def __init__(self, name, pkt_offset):
+                """
+                Instantiate a CTRexVMWrtFlowVarInst object
+
+                :parameters:
+                    name : str
+                        a string representing the name of the VM variable.
+                """
+                super(CTRexPktBuilder.CTRexVM.CTRexVMWrtFlowVarInst, self).__init__(name)
+                self.pkt_offset = int(pkt_offset)
+                self.add_value = 0
+                self.is_big_endian = False
+
+            def set_field(self, field_name, val):
+                if not hasattr(self, field_name):
+                    raise CTRexPktBuilder.VMFieldNameError(field_name)
+                elif field_name == 'pkt_offset':
+                    raise ValueError("pkt_offset value cannot be changed")
+                cur_attr_type = type(getattr(self, field_name))
+                if cur_attr_type == type(val):
+                    setattr(self, field_name, val)
+                else:
+                    CTRexPktBuilder.VMFieldTypeError(field_name, cur_attr_type)
+
+            def dump(self):
+                return {"type": "write_flow_var",
+                        "name": self.name,
+                        "pkt_offset": self.pkt_offset,
+                        "add_value": int(self.add_value),
+                        "is_big_endian": bool(self.is_big_endian)
+                        }
 
     class CPacketBuildException(Exception):
         """
@@ -672,7 +1037,28 @@ class CTRexPktBuilder(object):
         def __init__(self, message=''):
             self._default_message = 'Illegal MAC address has been provided.'
             self.message = message or self._default_message
-            super(CTRexPktBuilder.MACAddressError, self).__init__(-11, self.message)
+            super(CTRexPktBuilder.MACAddressError, self).__init__(-12, self.message)
+
+    class PacketLayerError(CPacketBuildException):
+        """
+        This exception is used to indicate an error caused by operation performed on an non-exists layer of the packet.
+        """
+        def __init__(self, name, message=''):
+            self._default_message = "The given packet layer name ({0}) does not exists.".format(name)
+            self.message = message or self._default_message
+            super(CTRexPktBuilder.PacketLayerError, self).__init__(-13, self.message)
+
+    class PacketLayerTypeError(CPacketBuildException):
+        """
+        This exception is used to indicate an error caused by operation performed on an non-exists layer of the packet.
+        """
+        def __init__(self, name, layer_type, ok_type, message=''):
+            self._default_message = "The type of packet layer {layer_name} is of type {layer_type}, " \
+                                    "and not of the expected {allowed_type}.".format(layer_name=name,
+                                                            layer_type=layer_type,
+                                                            allowed_type=ok_type.__name__)
+            self.message = message or self._default_message
+            super(CTRexPktBuilder.PacketLayerTypeError, self).__init__(-13, self.message)
 
     class VMVarNameExistsError(CPacketBuildException):
         """
@@ -683,37 +1069,37 @@ class CTRexPktBuilder(object):
             self.message = message or self._default_message
             super(CTRexPktBuilder.VMVarNameExistsError, self).__init__(-21, self.message)
 
-    class VMVarNameError(CPacketBuildException):
+    class VMFieldNameError(CPacketBuildException):
         """
         This exception is used to indicate that an undefined VM var field name has been accessed.
         """
         def __init__(self, name, message=''):
             self._default_message = "The given VM field name ({0}) is not defined and isn't legal.".format(name)
             self.message = message or self._default_message
-            super(CTRexPktBuilder.VMVarNameError, self).__init__(-22, self.message)
+            super(CTRexPktBuilder.VMFieldNameError, self).__init__(-22, self.message)
 
-    class VMVarFieldTypeError(CPacketBuildException):
+    class VMFieldTypeError(CPacketBuildException):
         """
         This exception is used to indicate an illegal value has type has been given to VM variable field.
         """
         def __init__(self, name, ok_type, message=''):
-            self._default_message = 'The desired value of field {field_name} is of type {field_type}, \
-            and not of the allowed {allowed_type}.'.format(field_name=name,
-                                                           field_type=type(name).__name__,
-                                                           allowed_type=ok_type.__name__)
+            self._default_message = "The desired value of field {field_name} is of type {field_type}, " \
+                                    "and not of the allowed {allowed_type}.".format(field_name=name,
+                                                                                    field_type=type(name).__name__,
+                                                                                    allowed_type=ok_type.__name__)
             self.message = message or self._default_message
-            super(CTRexPktBuilder.VMVarFieldTypeError, self).__init__(-31, self.message)
+            super(CTRexPktBuilder.VMFieldTypeError, self).__init__(-31, self.message)
 
-    class VMVarValueError(CPacketBuildException):
+    class VMFieldValueError(CPacketBuildException):
         """
         This exception is used to indicate an error an illegal value has been assigned to VM variable field.
         """
         def __init__(self, name, ok_opts, message=''):
-            self._default_message = 'The desired value of field {field_name} is illegal.\n \
-            The only allowed options are: {allowed_opts}.'.format(field_name=name,
-                                                                  allowed_opts=ok_opts)
+            self._default_message = "The desired value of field {field_name} is illegal.\n" \
+                                    "The only allowed options are: {allowed_opts}.".format(field_name=name,
+                                                                                           allowed_opts=ok_opts)
             self.message = message or self._default_message
-            super(CTRexPktBuilder.VMVarValueError, self).__init__(-32, self.message)
+            super(CTRexPktBuilder.VMFieldValueError, self).__init__(-32, self.message)
 
 
 if __name__ == "__main__":

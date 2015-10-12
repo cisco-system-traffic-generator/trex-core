@@ -4,7 +4,7 @@ TRex JSON Template
 
 Whenever TRex is publishing live data, it uses JSON notation to describe the data-object.
 
-Each client may parse it diffrently, however this page will describe the values meaning when published by TRex server.
+Each client may parse it differently, however this page will describe the values meaning when published by TRex server.
 
 
 Main Fields
@@ -117,7 +117,7 @@ trex-global field
 .. _tx-gen-field:
 
 tx-gen field
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~
 
 +-------------------+-------+-----------------------------------------------------------+
 |      Sub-key      | Type  |                          Meaning                          |

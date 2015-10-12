@@ -97,9 +97,9 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
     @staticmethod
     def _show(self):
         if self.pidfile.is_locked():
-            print termstyle.red("T-Rex server daemon is running")
+            print termstyle.red("TRex server daemon is running")
         else:
-            print termstyle.red("T-Rex server daemon is NOT running")
+            print termstyle.red("TRex server daemon is NOT running")
 
     def do_action(self):
         self.__prevent_duplicate_runs()

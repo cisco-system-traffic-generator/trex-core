@@ -22,7 +22,7 @@ class ZmqMonitorSession(threading.Thread):
         self.zmq_port       = zmq_port
         self.zmq_publisher  = "tcp://localhost:{port}".format(port=self.zmq_port)
         self.trexObj        = trexObj
-        self.expect_trex    = self.trexObj.expect_trex     # used to signal if T-Rex is expected to run and if data should be considered
+        self.expect_trex    = self.trexObj.expect_trex     # used to signal if TRex is expected to run and if data should be considered
         self.decoder        = JSONDecoder()
         logger.info("ZMQ monitor initialization finished")
 
@@ -69,7 +69,7 @@ class ZmqMonitorSession(threading.Thread):
                 # change TRexStatus from starting to Running once the first ZMQ dump is obtained and parsed successfully
                 self.first_dump = False
                 self.trexObj.set_status(TRexStatus.Running)
-                self.trexObj.set_verbose_status("T-Rex is Running")
+                self.trexObj.set_verbose_status("TRex is Running")
                 logger.info("First ZMQ dump received and successfully parsed. TRex running state changed to 'Running'.")
 
 

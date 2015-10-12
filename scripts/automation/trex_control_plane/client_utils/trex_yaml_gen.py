@@ -114,7 +114,7 @@ class CTRexYaml(object):
         :parameters:  
             None
 
-        :reaturn: 
+        :return:
             None
 
         """

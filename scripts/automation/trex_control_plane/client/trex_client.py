@@ -69,7 +69,7 @@ class CTRexClient(object):
         self.result_obj         = CTRexResult(max_history_size)
         self.decoder            = JSONDecoder()
         self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = trex_host, port = trex_daemon_port )
-        self.__verbose_print("Connecting to T-Rex @ {trex_path} ...".format( trex_path = self.trex_server_path ) )
+        self.__verbose_print("Connecting to TRex @ {trex_path} ...".format( trex_path = self.trex_server_path ) )
         self.history            = jsonrpclib.history.History()
         self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)
         self.check_server_connectivity()
@@ -128,7 +128,7 @@ class CTRexClient(object):
             if d < 30:  # specify a test should take at least 30 seconds long.
                 raise ValueError
         except ValueError:
-            raise ValueError('d parameter must be integer, specifying how long T-Rex run, and must be larger than 30 secs.')
+            raise ValueError('d parameter must be integer, specifying how long TRex run, and must be larger than 30 secs.')
 
         trex_cmd_options.update( {'f' : f, 'd' : d} )
         
@@ -147,7 +147,7 @@ class CTRexClient(object):
             self.seq = retval   # update seq num only on successful submission
             return True
         else:   # TRex is has been started by another user
-            raise TRexInUseError('T-Rex is already being used by another user or process. Try again once T-Rex is back in IDLE state.')
+            raise TRexInUseError('TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
 
     def stop_trex (self):
         """
@@ -199,7 +199,7 @@ class CTRexClient(object):
 
         """
         if confirm:
-            prompt = "WARNING: This will terminate active T-Rex session indiscriminately.\nAre you sure? "
+            prompt = "WARNING: This will terminate active TRex session indiscriminately.\nAre you sure? "
             sys.stdout.write('%s [y/n]\n' % prompt)
             while True:
                 try:
@@ -416,7 +416,7 @@ class CTRexClient(object):
                 time.sleep(time_between_samples)
         except TRexWarning:
             # means we're back to Idle state, and didn't meet our condition
-            raise UserWarning("T-Rex results condition wasn't met during T-Rex run.")
+            raise UserWarning("TRex results condition wasn't met during TRex run.")
         except Exception:
             # this could come from provided method 'condition_func'
             raise
@@ -627,7 +627,7 @@ class CTRexClient(object):
             return method_to_call()
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                raise SocketError(errno.ECONNREFUSED, "Connection from T-Rex server was refused. Please make sure the server is up.")
+                raise SocketError(errno.ECONNREFUSED, "Connection from TRex server was refused. Please make sure the server is up.")
 
     def check_server_connectivity (self):
         """
@@ -640,7 +640,7 @@ class CTRexClient(object):
             raise socket.gaierror(e.errno, "Could not resolve server hostname. Please make sure hostname entered correctly.")    
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                raise socket.error(errno.ECONNREFUSED, "Connection from T-Rex server was refused. Please make sure the server is up.")
+                raise socket.error(errno.ECONNREFUSED, "Connection from TRex server was refused. Please make sure the server is up.")
         finally:
             self.prompt_verbose_data()
         
@@ -856,7 +856,7 @@ class CTRexResult(object):
                 defines a path to desired data. 
 
                 .. tip:: | Use '.' to enter one level deeper in dictionary hierarchy. 
-                         | Use '[i]' to access the i'th indexed obejct of an array.
+                         | Use '[i]' to access the i'th indexed object of an array.
 
             tree_path_to_key : regex
                 apply a regex to filter results out from a multiple results set.

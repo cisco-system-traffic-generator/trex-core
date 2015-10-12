@@ -12,4 +12,6 @@ match_max 100000
 expect "*?assword:*"
 send -- "$pass\r"
 send -- "\r"
-interact
+expect eof
+wait
+#interact
