@@ -18,6 +18,13 @@ To understand the entirely how the API works and how to set up the server side, 
 **Use the table of contents below or the menu to your left to navigate through the site**
 
 
+Getting Started
+===============
+.. toctree::
+    :maxdepth: 2
+
+    installation
+
 API Reference
 =============
 .. toctree::
@@ -38,6 +45,13 @@ Usage Examples
     :maxdepth: 2
 
     usage_examples
+
+About TRex
+==========
+.. toctree::
+    :maxdepth: 2
+
+    All about TRex <about_trex>
 
 
 Indices and tables

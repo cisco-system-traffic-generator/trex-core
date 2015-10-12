@@ -8,7 +8,7 @@ class CTRexAdvClient(trex_client.CTRexClient):
         super(CTRexAdvClient, self).__init__(trex_host, max_history_size, trex_daemon_port, trex_zmq_port, verbose)
         pass
 
-    # TREX KIWI advanced methods
+    # T-REX KIWI advanced methods
     def start_quick_trex(self, pcap_file, d, delay, dual, ipv6, times, interfaces):
         try:
             return self.server.start_quick_trex(pcap_file = pcap_file, duration = d, dual = dual, delay = delay, ipv6 = ipv6, times = times, interfaces = interfaces)

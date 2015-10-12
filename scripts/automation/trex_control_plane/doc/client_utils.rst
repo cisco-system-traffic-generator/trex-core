@@ -2,6 +2,11 @@
 Client Utilities
 ================
 
+.. toctree::
+    :maxdepth: 2
+
+    packet_generator/index
+
 TRex YAML generator
 -------------------
 

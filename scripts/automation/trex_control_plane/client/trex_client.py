@@ -805,7 +805,7 @@ class CTRexResult(object):
 
     def is_valid_hist (self):
         """
-        Checks if result object contains valid data.
+        Checks if result obejct contains valid data.
 
         :parameters:        
             None
@@ -819,7 +819,7 @@ class CTRexResult(object):
 
     def set_valid_hist (self, valid_stat = True):
         """
-        Sets result object validity status.
+        Sets result obejct validity status.
 
         :parameters:        
             valid_stat : bool

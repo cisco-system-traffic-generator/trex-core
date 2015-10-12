@@ -1,0 +1,47 @@
+####################################################
+####         TRex packet export format          ####
+####################################################
+
+# PACKET REP - OPTION #1
+packet:
+  is_pcap         : YES/NO                  # <1>
+  binary          : []                      # <2>
+  pcap            : path/to/pcap/file.pcap  # <3>
+  meta            : any metadata wished to  # <4>
+
+# PACKET REP - OPTION #2
+packet:
+  data            : [] / path/to/pcap/file.pcap # <5>
+  meta            : any metadata wished to  # <4>
+
+vm:                                         # <6>
+  - vm instruction #1
+  - vm instruction #2
+  ...
+  - vm instruction #N
+
+
+###################################
+####         Comments          ####
+###################################
+#
+# <1>: is_pcap is a boolean field that indicates if packet is transferred by pcap referencs
+#      ('YES') or binary representation ('NO').
+#
+# <2>: binary field encodes the packet in binary representation. in a sequence (array) data.
+#      Each array item is an integer ranging 0-255.
+#      **LEAVE BLANK IF USING PCAP REFERENCE**
+#
+# <3>: path to the linked pcap file. Make sure to provide path with reading credentials.
+#      **LEAVE BLANK IF USING BINARY REP FOR THE PACKET**
+#
+# <4>: meta data is any JSON formatted data ment to be passed on.
+#
+# <5>: data field can be both binary representation or pcap file refernce,
+#      without the need for user's explicit typing.
+#      The application logic differs between the cases by the object type
+#      (array/string ending in '.pcap')
+#      Less configuration, little more confusing, LESS similar to RPC spec
+#
+# <6>: vm instructions passed in array representation (sequence).
+#      Each instruction is deifned according to the structures of the supported VM instructions.
