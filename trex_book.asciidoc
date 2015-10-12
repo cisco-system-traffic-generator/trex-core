@@ -150,8 +150,21 @@ NOTE: You should buy seperatly the 10Gb/sec SFP+, Cisco would be fine with TRex 
 
 ==== Supported versions
 
-Fedora 18-20, and Ubuntu 14.04.1 LTS are the Linux OS supported. 
-More OS could be supported by compiling the drivers.
+Fedora 18-20 , and Ubuntu 14.04.1 LTS are the Linux OS supported. 
+You should install the *64bit* Kernel version.
+More 64bit OS could be supported by compiling the drivers.
+
+WARNING: Only *64bit* Kernels are supported 
+
+To verify that your kernel is 64bit version try this
+
+[source,bash]
+----
+$uname -m
+x86_64   #<1>
+----
+<1> x86_64 is the desired output 
+
 
 ==== Download ISO file 
 
