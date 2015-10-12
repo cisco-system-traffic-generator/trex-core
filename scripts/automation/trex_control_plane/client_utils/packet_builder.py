@@ -1055,8 +1055,8 @@ class CTRexPktBuilder(object):
         def __init__(self, name, layer_type, ok_type, message=''):
             self._default_message = "The type of packet layer {layer_name} is of type {layer_type}, " \
                                     "and not of the expected {allowed_type}.".format(layer_name=name,
-                                                            layer_type=layer_type,
-                                                            allowed_type=ok_type.__name__)
+                                                                                     layer_type=layer_type,
+                                                                                     allowed_type=ok_type.__name__)
             self.message = message or self._default_message
             super(CTRexPktBuilder.PacketLayerTypeError, self).__init__(-13, self.message)
 
