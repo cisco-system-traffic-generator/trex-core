@@ -39,9 +39,9 @@ class BatchMessage(object):
 
         rc, resp_list = self.rpc_client.send_raw_msg(msg, block = False)
         if len(self.batch_list) == 1:
-            return True, [(rc, resp_list)]
+            return CmdResponse(True, [CmdResponse(rc, resp_list)])
         else:
-            return rc, resp_list
+            return CmdResponse(rc, resp_list)
 
 
 # JSON RPC v2.0 client
