@@ -82,7 +82,7 @@ class CTRexStatelessClient(object):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
-            port_ids = set(port_id) # convert to set to avoid duplications
+            port_ids = set(port_id)  # convert to set to avoid duplications
             commands = [self.RpcCmdData("acquire", {"port_id": p_id, "user": self.user, "force": force})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
@@ -159,7 +159,7 @@ class CTRexStatelessClient(object):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
-            port_ids = set(port_id) # convert to set to avoid duplications
+            port_ids = set(port_id)  # convert to set to avoid duplications
             commands = [self.RpcCmdData("start_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
@@ -178,7 +178,7 @@ class CTRexStatelessClient(object):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
-            port_ids = set(port_id) # convert to set to avoid duplications
+            port_ids = set(port_id)  # convert to set to avoid duplications
             commands = [self.RpcCmdData("stop_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
@@ -200,7 +200,7 @@ class CTRexStatelessClient(object):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
-            port_ids = set(port_id) # convert to set to avoid duplications
+            port_ids = set(port_id)  # convert to set to avoid duplications
             commands = [self.RpcCmdData("get_port_stats", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
@@ -216,7 +216,7 @@ class CTRexStatelessClient(object):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
-            port_ids = set(port_id) # convert to set to avoid duplications
+            port_ids = set(port_id)  # convert to set to avoid duplications
             commands = [self.RpcCmdData("get_stream_stats", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
@@ -263,12 +263,11 @@ class CTRexStatelessClient(object):
 
     def _handle_start_traffic_response(self, request, response):
         if response[0]:
-             self._active_ports.add(request.get("port_id"))
+            self._active_ports.add(request.get("port_id"))
 
     def _handle_stop_traffic_response(self, request, response):
         if response[0]:
-             self._active_ports.remove(request.get("port_id"))
-
+            self._active_ports.remove(request.get("port_id"))
 
     def _is_ports_valid(self, port_id):
         if isinstance(port_id, list) or isinstance(port_id, set):
@@ -287,8 +286,6 @@ class CTRexStatelessClient(object):
                 handler_func(req_list[i], response)
             else:
                 continue  # TODO: mark in this case somehow the bad result
-
-
 
 
     # ------ private classes ------ #
@@ -316,8 +313,8 @@ class CTRexStatelessClient(object):
             if self.virtual:
                 self._prompt_virtual_tx_msg()
                 print [msg
-                       for id, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params)
-                                       for command in batch_list]]
+                       for _, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params)
+                                      for command in batch_list]]
             else:
                 batch = self.rpc_link.create_batch()
                 for command in batch_list:
@@ -326,9 +323,8 @@ class CTRexStatelessClient(object):
                 return batch.invoke()
 
         def _prompt_virtual_tx_msg(self):
-            print "Transmitting virtually over tcp://{server}:{port}".format(
-                    server=self.server,
-                    port=self.port)
+            print "Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
+                                                                             port=self.port)
 
 
 class CStream(object):
@@ -351,7 +347,7 @@ class CStream(object):
                        if x not in set_keys]
         for key in keys_to_set:
             default = self.DEFAULTS.get(key)
-            if type(default)==type:
+            if type(default) == type:
                 setattr(self, key, default())
             else:
                 setattr(self, key, default)
@@ -433,7 +429,7 @@ class CRxStats(object):
 
     def dump(self):
         return {k: v
-                for k,v in self._rx_dict.items()
+                for k, v in self._rx_dict.items()
                 if v
                 }
 
@@ -460,7 +456,7 @@ class CTxMode(object):
             self._fields[attr] = type(self._fields.get(attr))(val)
         else:
             raise ValueError("The provided attribute ('{0}') is not a legal attribute in selected TX mode ('{1}')".
-                format(attr, self._tx_mode))
+                             format(attr, self._tx_mode))
 
     def dump(self):
         dump = {"type": self._tx_mode}
