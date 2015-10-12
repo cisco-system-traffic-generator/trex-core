@@ -30,6 +30,15 @@ for file in /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepag
     fi
 done
 
+MACHINE_TYPE=`uname -m`
+
+if [ ${MACHINE_TYPE} != 'x86_64' ]; then
+  echo "ERROR You have a 32bit Kernel try to install 64bit Kernel"
+  exit 1
+fi
+
+
+
 if ! lsmod | grep -q igb_uio  ;  then
     echo "Load the drivers for the first time "
     modprobe uio
