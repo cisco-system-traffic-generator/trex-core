@@ -74,7 +74,7 @@ class InteractiveTRexClient(cmd.Cmd):
         print termstyle.green("*** End of TRex status prompt ***")
 
     def do_show_trex_files_path (self, line):
-        """Prompts the local path in which files are stored when pushed to t-rex server from client"""
+        """Prompts the local path in which files are stored when pushed to trex server from client"""
         print self.trex.get_trex_files_path()
         print termstyle.green("*** End of trex_files_path prompt ***")
 

@@ -318,7 +318,7 @@ class CTRexServer(object):
             io          = iom, 
             export = export_path )
 
-        logger.info("T-REX FULL COMMAND: {command}".format(command = cmd) )
+        logger.info("TRex FULL COMMAND: {command}".format(command = cmd) )
 
         return (cmd, export_path, long(d))
 

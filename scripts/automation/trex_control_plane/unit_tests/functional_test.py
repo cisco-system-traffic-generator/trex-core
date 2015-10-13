@@ -37,7 +37,7 @@ class CTRexStartStop_Test(CControlPlaneGeneral_Test):
         
     def test_parameter_name_error(self):
         ret = self.trex.start_trex( c = 4, 
-            wrong_key = 1.1,                # <----- This key does not exists in T-Rex API
+            wrong_key = 1.1,                # <----- This key does not exists in TRex API
             d = 70,
             f = 'avl/sfr_delay_10_1g.yaml',
             nc = True,
@@ -50,7 +50,7 @@ class CTRexStartStop_Test(CControlPlaneGeneral_Test):
         run_status = self.trex.get_running_status()
         assert isinstance(run_status, dict)
         assert_equal (run_status['state'], TRexStatus.Idle )
-        assert_equal (run_status['verbose'], "T-Rex run failed due to wrong input parameters, or due to reachability issues.")
+        assert_equal (run_status['verbose'], "TRex run failed due to wrong input parameters, or due to reachability issues.")
         assert_raises(TRexError, self.trex.get_running_info)
 
     def test_too_early_sample(self):
@@ -83,33 +83,33 @@ class CTRexStartStop_Test(CControlPlaneGeneral_Test):
         assert self.trex.is_running() == False
 
     def test_start_more_than_once_same_user(self):
-        assert self.trex.is_running() == False                  # first, make sure T-Rex is not running
-        ret = self.trex.start_trex(**self.valid_start_params)   # start 1st T-Rex run
+        assert self.trex.is_running() == False                  # first, make sure TRex is not running
+        ret = self.trex.start_trex(**self.valid_start_params)   # start 1st TRex run
         assert ret == True                                      # make sure 1st run submitted successfuly
         # time.sleep(1)
-        assert_raises(TRexInUseError, self.trex.start_trex, **self.valid_start_params)  # try to start T-Rex again
+        assert_raises(TRexInUseError, self.trex.start_trex, **self.valid_start_params)  # try to start TRex again
 
         ret = self.trex.stop_trex()
         assert ret==True    # make sure stop succeeded
         assert self.trex.is_running() == False
 
     def test_start_more_than_once_different_users(self):
-        assert self.trex.is_running() == False                  # first, make sure T-Rex is not running
-        ret = self.trex.start_trex(**self.valid_start_params)   # start 1st T-Rex run
+        assert self.trex.is_running() == False                  # first, make sure TRex is not running
+        ret = self.trex.start_trex(**self.valid_start_params)   # start 1st TRex run
         assert ret == True                                      # make sure 1st run submitted successfuly
         # time.sleep(1)
         
         tmp_trex = CTRexClient(self.trex_server_name)           # initialize another client connecting same server
-        assert_raises(TRexInUseError, tmp_trex.start_trex, **self.valid_start_params)  # try to start T-Rex again
+        assert_raises(TRexInUseError, tmp_trex.start_trex, **self.valid_start_params)  # try to start TRex again
 
         ret = self.trex.stop_trex()
         assert ret==True    # make sure stop succeeded
         assert self.trex.is_running() == False
 
     def test_simultaneous_sampling(self):
-        assert self.trex.is_running() == False                  # first, make sure T-Rex is not running
+        assert self.trex.is_running() == False                  # first, make sure TRex is not running
         tmp_trex = CTRexClient(self.trex_server_name)           # initialize another client connecting same server
-        ret = self.trex.start_trex(**self.valid_start_params)   # start T-Rex run
+        ret = self.trex.start_trex(**self.valid_start_params)   # start TRex run
         assert ret == True                                      # make sure 1st run submitted successfuly
 
         time.sleep(6)
@@ -123,7 +123,7 @@ class CTRexStartStop_Test(CControlPlaneGeneral_Test):
                 assert tmp_trex.get_result_obj().is_valid_hist() == True
             if self.trex.get_result_obj().is_done_warmup():
                 assert tmp_trex.get_result_obj().is_done_warmup() == True
-            # except TRexError as inst: # T-Rex might have stopped between is_running result and get_running_info() call
+            # except TRexError as inst: # TRex might have stopped between is_running result and get_running_info() call
             #     # hence, ingore that case
             #     break   
 
@@ -132,7 +132,7 @@ class CTRexStartStop_Test(CControlPlaneGeneral_Test):
     def test_fast_toggling(self):
         assert self.trex.is_running() == False  
         for i in range(20):
-            ret = self.trex.start_trex(**self.valid_start_params)   # start T-Rex run
+            ret = self.trex.start_trex(**self.valid_start_params)   # start TRex run
             assert ret == True
             assert self.trex.is_running() == False  # we expect the status to be 'Starting'
             ret = self.trex.stop_trex()
