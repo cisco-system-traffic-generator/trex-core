@@ -18,7 +18,7 @@ class TRexCPConfiguringPlugin(Plugin):
         super(TRexCPConfiguringPlugin, self).options(parser, env)
         parser.add_option('-t', '--trex-server', action='store',
                             dest='trex_server', default='trex-dan',
-                            help='Specify T-Rex server hostname. This server will be used to test control-plane functionality.')
+                            help='Specify TRex server hostname. This server will be used to test control-plane functionality.')
 
     def configure(self, options, conf):
         if options.trex_server:

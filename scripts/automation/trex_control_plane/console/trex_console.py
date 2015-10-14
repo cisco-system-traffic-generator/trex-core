@@ -326,11 +326,11 @@ class TrexConsole(cmd.Cmd):
 def setParserOptions ():
     parser = argparse.ArgumentParser(prog="trex_console.py")
 
-    parser.add_argument("-s", "--server", help = "T-Rex Server [default is localhost]",
+    parser.add_argument("-s", "--server", help = "TRex Server [default is localhost]",
                         default = "localhost",
                         type = str)
 
-    parser.add_argument("-p", "--port", help = "T-Rex Server Port  [default is 5050]\n",
+    parser.add_argument("-p", "--port", help = "TRex Server Port  [default is 5050]\n",
                         default = 5050,
                         type = int)
 
