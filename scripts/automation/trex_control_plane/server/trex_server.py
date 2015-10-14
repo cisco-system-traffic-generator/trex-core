@@ -19,7 +19,6 @@ from common.trex_status_e import TRexStatus
 from common.trex_exceptions import *
 import subprocess
 from random import randrange
-#import shlex
 import logging
 import threading
 import CCustomLogger
@@ -39,7 +38,7 @@ class CTRexServer(object):
     TREX_START_CMD    = './t-rex-64'
     DEFAULT_FILE_PATH = '/tmp/trex_files/'
 
-    def __init__(self, trex_path, trex_files_path, trex_host = socket.gethostname(), trex_daemon_port = 8090, trex_zmq_port = 4500):
+    def __init__(self, trex_path, trex_files_path, trex_host='0.0.0.0', trex_daemon_port=8090, trex_zmq_port=4500):
         """ 
         Parameters
         ----------
@@ -92,8 +91,8 @@ class CTRexServer(object):
 
     def start(self):
         """This method fires up the daemon server based on initialized parameters of the class"""
-        # initialize the server instance with given reasources
-        try:    
+        # initialize the server instance with given resources
+        try:
             print "Firing up TRex REST daemon @ port {trex_port} ...\n".format( trex_port = self.trex_daemon_port )
             logger.info("Firing up TRex REST daemon @ port {trex_port} ...".format( trex_port = self.trex_daemon_port ))
             logger.info("current working dir is: {0}".format(self.TREX_PATH) )
@@ -104,7 +103,15 @@ class CTRexServer(object):
             if e.errno == errno.EADDRINUSE:
                 logger.error("TRex server requested address already in use. Aborting server launching.")
                 print "TRex server requested address already in use. Aborting server launching."
-                raise socket.error(errno.EADDRINUSE, "TRex daemon requested address already in use. Server launch aborted. Please make sure no other process is using the desired server properties.")
+                raise socket.error(errno.EADDRINUSE, "TRex daemon requested address already in use. "
+                                                     "Server launch aborted. Please make sure no other process is "
+                                                     "using the desired server properties.")
+            elif isinstance(e, socket.gaierror) and e.errno == -3:
+                # handling Temporary failure in name resolution exception
+                raise socket.gaierror(-3, "Temporary failure in name resolution.\n"
+                                          "Make sure provided hostname has DNS resolving.")
+            else:
+                raise
 
         # set further functionality and peripherals to server instance 
         try:
@@ -129,7 +136,7 @@ class CTRexServer(object):
         except KeyboardInterrupt:
             logger.info("Daemon shutdown request detected." )
         finally:
-            self.zmq_monitor.join()            # close ZMQ monitor thread reasources
+            self.zmq_monitor.join()            # close ZMQ monitor thread resources
             self.server.shutdown()
             pass
 
@@ -318,7 +325,7 @@ class CTRexServer(object):
             io          = iom, 
             export = export_path )
 
-        logger.info("TRex FULL COMMAND: {command}".format(command = cmd) )
+        logger.info("TREX FULL COMMAND: {command}".format(command = cmd) )
 
         return (cmd, export_path, long(d))
 
@@ -448,6 +455,10 @@ trex_daemon_server [options]
     parser.add_argument("-f", "--files-path", dest="files_path",
         action="store", help="Specify a path to directory on which pushed files will be saved at.\nDefault path is: {def_path}.".format( def_path = default_files_path ), 
         metavar="PATH", default = default_files_path )
+    parser.add_argument("--trex-host", dest="trex_host",
+        action="store", help="Specify a hostname to be registered as the TRex server.\n"
+                             "Default is to bind all IPs using '0.0.0.0'.",
+        metavar="HOST", default = '0.0.0.0')
     return parser
 
 trex_parser = generate_trex_parser()
@@ -455,8 +466,9 @@ trex_parser = generate_trex_parser()
 def do_main_program ():
 
     args = trex_parser.parse_args()
-    
-    server = CTRexServer(trex_daemon_port = args.daemon_port, trex_zmq_port = args.zmq_port, trex_path = args.trex_path, trex_files_path = args.files_path)
+    server = CTRexServer(trex_path = args.trex_path,  trex_files_path = args.files_path,
+                         trex_host = args.trex_host, trex_daemon_port = args.daemon_port,
+                         trex_zmq_port = args.zmq_port)
     server.start()
 
 

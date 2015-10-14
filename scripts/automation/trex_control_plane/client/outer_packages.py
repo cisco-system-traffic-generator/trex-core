@@ -1,7 +1,6 @@
 #!/router/bin/python
 
 import sys
-import site
 import os
 
 CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
@@ -25,6 +24,6 @@ def import_module_list(modules_list):
     for p in modules_list:
         full_path = os.path.join(PATH_TO_PYTHON_LIB, p)
         fix_path = os.path.normcase(full_path)  # (CURRENT_PATH+p)
-        site.addsitedir(full_path)
+        sys.path.insert(1, full_path)
 
 import_client_modules()
