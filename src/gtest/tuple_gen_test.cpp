@@ -334,7 +334,8 @@ TEST(tuple_gen,GenerateTupleMac) {
 
     CClientPool gen;
     gen.Create(cdSEQ_DIST, 
-               0x10000001,  0x1000000f, 64000,2, &fl,true,0,0);
+               0x10000001,  0x1000000f, 64000,2, &fl.m_mac_info,true,0,0);
+
     CTupleBase result;
     uint32_t result_src;
     uint16_t result_port;
@@ -348,6 +349,7 @@ TEST(tuple_gen,GenerateTupleMac) {
         result_mac = result.getClientMac();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%2));
         EXPECT_EQ(result_port, 1024+i/2);
+        printf("i:%d,mac:%d\n",i,result_mac->mac[3]);
         if (i%2==0)
             EXPECT_EQ(result_mac->mac[3], 5);
         else

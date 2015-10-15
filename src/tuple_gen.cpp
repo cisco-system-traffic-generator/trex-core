@@ -57,7 +57,7 @@ void CClientPool::Create(IP_DIST_t  dist_value,
             uint32_t max_ip,
             double l_flow,
             double t_cps,
-            CFlowGenList* fl_list,
+            CFlowGenListMac* mac_info,
             bool has_mac_map,
             uint16_t tcp_aging, 
             uint16_t udp_aging) {
@@ -65,10 +65,10 @@ void CClientPool::Create(IP_DIST_t  dist_value,
     set_dist(dist_value);
     uint32_t total_ip = max_ip - min_ip +1;
     uint32_t avail_ip = total_ip;
-    if (has_mac_map && (fl_list!=NULL)) {
+    if (has_mac_map && (mac_info!=NULL)) {
         for(int idx=0;idx<total_ip;idx++){
             mac_addr_align_t *mac_adr = NULL;
-            mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+            mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
             if (mac_adr == NULL) {
                 avail_ip--;
             }
@@ -86,7 +86,7 @@ void CClientPool::Create(IP_DIST_t  dist_value,
         if (has_mac_map) {
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
-                mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+                mac_adr = mac_info->get_mac_addr_by_ip( min_ip+idx);
                 if (mac_adr != NULL) {
                     m_ip_info[idx] = new CClientInfoL(has_mac_map);
                     m_ip_info[idx]->set_ip(min_ip+idx);
@@ -103,7 +103,7 @@ void CClientPool::Create(IP_DIST_t  dist_value,
         if (has_mac_map) {
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
-                mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+                mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
                 if (mac_adr != NULL) {
                     m_ip_info[idx] = new CClientInfo(has_mac_map);
                     m_ip_info[idx]->set_ip(min_ip+idx);
@@ -123,20 +123,19 @@ void CClientPool::Create(IP_DIST_t  dist_value,
     CreateBase();
 }
 
-void delay(int msec);
 
 bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
                                           uint32_t min_client,
                                           uint32_t max_client,
                                           double l_flow,
                                           double t_cps,
-                                          CFlowGenList* fl_list, 
+                                          CFlowGenListMac* mac_info, 
                                           uint16_t tcp_aging,
                                           uint16_t udp_aging){
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
     pool->Create(client_dist, min_client, max_client,
-                 l_flow, t_cps, fl_list, has_mac_mapping,
+                 l_flow, t_cps, mac_info, m_has_mac_mapping,
                  tcp_aging, udp_aging);
 
     m_client_pool.push_back(pool);
@@ -171,13 +170,13 @@ bool CTupleGeneratorSmart::Create(uint32_t _id,
     m_thread_id     = thread_id;
     m_id = _id;
     m_was_init=true;
-    has_mac_mapping = has_mac;
+    m_has_mac_mapping = has_mac;
     return(true);
 }
 
 void CTupleGeneratorSmart::Delete(){
     m_was_init=false;
-    has_mac_mapping = false;
+    m_has_mac_mapping = false;
 
     for (int idx=0;idx<m_client_pool.size();idx++) {
         m_client_pool[idx]->Delete();
