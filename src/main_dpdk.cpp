@@ -4100,9 +4100,9 @@ int CGlobalPortCfg::start_send_master(){
     if (CGlobalInfo::m_options.mac_file != "") {
         CGlobalInfo::m_options.preview.set_mac_ip_mapping_enable(true);
         m_fl.load_from_mac_file(CGlobalInfo::m_options.mac_file);
-        m_fl.is_mac_info_configured = true;
+        m_fl.m_mac_info.set_configured(true);
     } else {
-        m_fl.is_mac_info_configured = false;
+        m_fl.m_mac_info.set_configured(false);
     }
  
     m_expected_pps = m_fl.get_total_pps();     
