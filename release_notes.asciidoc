@@ -20,6 +20,19 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.78  ==
+
+* some clean up in tuple generator 
+
+=== fix issues: ===
+
+Python API fixup see here  
+* link:http://csi-wiki-01:8090/issue/trex-126[trex-126] 
+* link:http://csi-wiki-01:8090/issue/trex-123[trex-122] 
+
+Check for 64bit Kernel
+* link:http://csi-wiki-01:8090/issue/trex-123[trex-123] 
+
 
 == Release 1.77  ==
 
