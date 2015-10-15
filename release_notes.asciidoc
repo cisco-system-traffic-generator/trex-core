@@ -23,6 +23,7 @@ endif::backend-docbook[]
 == Release 1.78  ==
 
 * some clean up in tuple generator 
+* trex stateles console works with trex-mock
 
 === fix issues: ===
 
