@@ -12,7 +12,7 @@
 #      + type: type of field
 #      + has_default: if the value has any default
 #      + default: the default value (Only appears if has_default field is 'YES')
-# 2.2. If an object type, jump to correspoding object key.
+# 2.2. If an object type, jump to corresponding object key.
 # 3. If an object has more than one instance type, another layer with the type shall be added.
 #    For example, 'mode' object has 3 types: 'continuous', 'single_burst', 'multi_burst'
 #    So, 3 mode objects will be defined, named: 
@@ -20,10 +20,12 @@
 #    - mode['single_burst']
 #    - mode['multi_burst']
 #    In this case, there's no default for the 'type' field on the object
-# 4. Some values has 'multiplier' property attached. 
+# 4. Some values has 'multiply' property attached.
 #    In such case, the loaded value will be multiplied by the multiplier
 #    For example, if the mode's 'pps' field value is 10, and its multiplier is 5,
 #    the loaded pps value will be 10*5=50
+# 5. Any object type must be listed by the user, even if all its field are defaults.
+#    The most basic option would be to declare the object with "[]", which stands for empty object in YAML syntax.
 
 
 stream:
@@ -36,7 +38,7 @@ stream:
     has_default: YES
     default: True
   isg:
-    type: double
+    type: [int, double, string]
     has_default: YES
     default: 0.0
   next_stream_id:
@@ -66,33 +68,33 @@ packet:
 mode:
   continuous:
     pps:
-      type: double
+      type: [int, double]
       has_default: NO
-      multiplier: 1.0
+      multiply: YES
   single_burst:
     pps:
-      type: int
+      type: [int, double]
       has_default: NO
+      multiply: YES
     total_pkts:
       type: int
       has_default: NO
-      multiplier: 1.0
   multi_burst:
     pps:
-      type: int
+      type: [int, double]
       has_default: NO
+      multiply: YES
     pkts_per_burst:
       type: int
       has_default: NO
     ibg:
-      type: double
+      type: [int, double, string]
       has_default: YES
       default: 100.0
     count:
       type: int
       has_default: YES
       default: 0  # loop forever
-      multiplier: 1.0
 
 rx_stats:
   enabled:
@@ -101,7 +103,9 @@ rx_stats:
     default: False
   seq_enabled:
     type: boolean
-    has_default: NO
+    has_default: YES
+    default: False
   latency_enabled:
     type: boolean
-    has_default: NO
+    has_default: YES
+    default: False
