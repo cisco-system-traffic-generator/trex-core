@@ -5,13 +5,14 @@ from client_utils.packet_builder import CTRexPktBuilder
 from collections import OrderedDict
 from client_utils.yaml_utils import *
 import dpkt
+import struct
 
 
 class CStreamList(object):
 
     def __init__(self):
-        self.streams_list = OrderedDict()
-        self.yaml_loader = CTRexYAMLLoader("rpc_exceptions.yaml")
+        self.streams_list = {OrderedDict()}
+        self.yaml_loader = CTRexYAMLLoader("rpc_defaults.yaml")
         self._stream_id = 0
         # self._stream_by_name = {}
 
@@ -62,184 +63,155 @@ class CStreamList(object):
             new_stream_obj.load_data(**new_stream_data)
             self.append_stream(stream_name, new_stream_obj)
 
-
-
-        # start validating and reassembling clients input
-
+    def compile_streams(self):
+        stream_ids = {}
 
         pass
 
+
 class CRxStats(object):
 
-    def __init__(self, enabled=False, seq_enabled=False, latency_enabled=False):
-        self._rx_dict = {"enabled": enabled,
-                         "seq_enabled": seq_enabled,
-                         "latency_enabled": latency_enabled}
-
-    @property
-    def enabled(self):
-        return self._rx_dict.get("enabled")
-
-    @enabled.setter
-    def enabled(self, bool_value):
-        self._rx_dict['enabled'] = bool(bool_value)
-
-    @property
-    def seq_enabled(self):
-        return self._rx_dict.get("seq_enabled")
-
-    @seq_enabled.setter
-    def seq_enabled(self, bool_value):
-        self._rx_dict['seq_enabled'] = bool(bool_value)
-
-    @property
-    def latency_enabled(self):
-        return self._rx_dict.get("latency_enabled")
-
-    @latency_enabled.setter
-    def latency_enabled(self, bool_value):
-        self._rx_dict['latency_enabled'] = bool(bool_value)
+    FIELDS = ["seq_enabled", "latency_enabled"]
+    def __init__(self, enabled=False, **kwargs):
+        self.enabled = bool(enabled)
+        for field in CRxStats.FIELDS:
+            setattr(self, field, kwargs.get(field, False))
 
     def dump(self):
-        return {k: v
-                for k, v in self._rx_dict.items()
-                if v
-                }
+        if self.enabled:
+            dump = {"enabled": True}
+            dump.update({k: getattr(self, k)
+                         for k in CRxStats.FIELDS
+                         if getattr(self, k)
+                         })
+            return dump
+        else:
+            return {"enabled": False}
+
+
 
 class CTxMode(object):
     """docstring for CTxMode"""
-    def __init__(self, tx_mode, pps):
-        super(CTxMode, self).__init__()
-        if tx_mode not in ["continuous", "single_burst", "multi_burst"]:
-            raise ValueError("Unknown TX mode ('{0}')has been initialized.".format(tx_mode))
-        self._tx_mode = tx_mode
-        self._fields = {'pps': float(pps)}
-        if tx_mode == "single_burst":
-            self._fields['total_pkts'] = 0
-        elif tx_mode == "multi_burst":
-            self._fields['pkts_per_burst'] = 0
-            self._fields['ibg'] = 0.0
-            self._fields['count'] = 0
-        else:
-            pass
+    GENERAL_FIELDS = ["type", "pps"]
+    FIELDS = {"continuous": [],
+              "single_burst": ["total_pkts"],
+              "multi_burst": ["pkts_per_burst", "ibg", "count"]}
 
-    def set_tx_mode_attr(self, attr, val):
-        if attr in self._fields:
-            self._fields[attr] = type(self._fields.get(attr))(val)
-        else:
-            raise ValueError("The provided attribute ('{0}') is not a legal attribute in selected TX mode ('{1}')".
-                             format(attr, self._tx_mode))
+    def __init__(self, type, pps=0, **kwargs):
+        self._MODES = CTxMode.FIELDS.keys()
+        self.type = type
+        self.pps = pps
+        for field in CTxMode.FIELDS.get(self.type):
+            setattr(self, field, kwargs.get(field, 0))
+
+    @property
+    def type(self):
+        return self._type
+
+    @type.setter
+    def type(self, type):
+        if type not in self._MODES:
+            raise ValueError("Unknown TX mode ('{0}')has been initialized.".format(type))
+        self._type = type
+        self._reset_fields()
 
     def dump(self):
-        dump = {"type": self._tx_mode}
-        dump.update({k: v
-                     for k, v in self._fields.items()
+        dump = ({k: getattr(self, k)
+                 for k in CTxMode.GENERAL_FIELDS
+                 })
+        dump.update({k: getattr(self, k)
+                     for k in CTxMode.FIELDS.get(self.type)
                      })
         return dump
 
+    def _reset_fields(self):
+        for field in CTxMode.FIELDS.get(self.type):
+            setattr(self, field, 0)
+
+
 class CStream(object):
     """docstring for CStream"""
-    DEFAULTS = {"rx_stats": CRxStats,
-                "mode": CTxMode,
-                "isg": 5.0,
-                "next_stream": -1,
-                "self_start": True,
-                "enabled": True}
 
     FIELDS = ["enabled", "self_start", "next_stream", "isg", "mode", "rx_stats", "packet", "vm"]
 
     def __init__(self):
-        super(CStream, self).__init__()
+        self.is_loaded = False
         for field in CStream.FIELDS:
             setattr(self, field, None)
 
     def load_data(self, **kwargs):
-        for k, v in kwargs.items():
-            if k == "rx_stats":
-                if isinstance(v, dict):
-                    setattr(self, k, CRxStats(**v))
-                elif isinstance(v, CRxStats):
-                    setattr(self, k, v)
-            elif k == "mode":
-                if isinstance(v, dict):
-                    setattr(self, k, CTxMode(v))
-                elif isinstance(v, CTxMode):
-                    setattr(self, k, v)
-            else:
-                setattr(self, k, v)
+        try:
+            for k in CStream.FIELDS:
+                if k == "rx_stats":
+                    rx_stats_data = kwargs[k]
+                    if isinstance(rx_stats_data, dict):
+                        setattr(self, k, CRxStats(**rx_stats_data))
+                    elif isinstance(rx_stats_data, CRxStats):
+                        setattr(self, k, rx_stats_data)
+                elif k == "mode":
+                    tx_mode = kwargs[k]
+                    if isinstance(tx_mode, dict):
+                        setattr(self, k, CTxMode(**tx_mode))
+                    elif isinstance(tx_mode, CTxMode):
+                        setattr(self, k, tx_mode)
+                elif k == "packet":
+                    if isinstance(kwargs[k], CTRexPktBuilder):
+                        if "vm" not in kwargs:
+                            self.load_packet_obj(kwargs[k])
+                        else:
+                            raise ValueError("When providing packet object with a CTRexPktBuilder, vm parameter "
+                                             "should not be supplied")
+                    else:
+                        binary = kwargs[k]["binary"]
+                        if isinstance(binary, list):
+                            setattr(self, k, kwargs[k])
+                        elif isinstance(binary, str) and binary.endswith(".pcap"):
+                            self.load_packet_from_pcap(binary, kwargs[k]["meta"])
+                        else:
+                            raise ValueError("Packet binary attribute has been loaded with unsupported value."
+                                             "Supported values are reference to pcap file with SINGLE packet, "
+                                             "or a list of unsigned-byte integers")
+                else:
+                    setattr(self, k, kwargs[k])
+            self.is_loaded = True
+        except KeyError as e:
+            cause = e.args[0]
+            raise KeyError("The attribute '{0}' is missing as a field of the CStream object.\n"
+                           "Loaded data must contain all of the following fields: {1}".format(cause, CStream.FIELDS))
 
+    def load_packet_obj(self, packet_obj):
+        assert isinstance(packet_obj, CTRexPktBuilder)
+        self.packet = packet_obj.dump_pkt()
+        self.vm = packet_obj.get_vm_data()
 
+    def load_packet_from_pcap(self, pcap_path, metadata=''):
+        with open(pcap_path, 'r') as f:
+            pcap = dpkt.pcap.Reader(f)
+            first_packet = True
+            for _, buf in pcap:
+                # this is an iterator, can't evaluate the number of files in advance
+                if first_packet:
+                    self.packet = {"binary": [struct.unpack('B', buf[i:i+1])[0] # represent data as list of 0-255 ints
+                                              for i in range(0, len(buf))],
+                                   "meta": metadata}    # meta data continues without a change.
+                    first_packet = False
+                else:
+                    raise ValueError("Provided pcap file contains more than single packet.")
+        # arrive here ONLY if pcap contained SINGLE packet
+        return
 
-    # def __init__(self, enabled, self_start, next_stream, isg, mode, rx_stats, packet, vm):
-    #     super(CStream, self).__init__()
-    #     for k, v in kwargs.items():
-    #         if k == "rx_stats":
-    #             if isinstance(v, dict):
-    #                 setattr(self, k, CRxStats(v))
-    #             elif isinstance(v, CRxStats):
-    #                 setattr(self, k, v)
-    #         elif k == "mode":
-    #             if isinstance(v, dict):
-    #                 setattr(self, k, CTxMode(v))
-    #             elif isinstance(v, CTxMode):
-    #                 setattr(self, k, v)
-    #         else:
-    #             setattr(self, k, v)
-    #     # set default values to unset attributes, according to DEFAULTS dict
-    #     set_keys = set(kwargs.keys())
-    #     keys_to_set = [x
-    #                    for x in self.DEFAULTS
-    #                    if x not in set_keys]
-    #     for key in keys_to_set:
-    #         default = self.DEFAULTS.get(key)
-    #         if type(default) == type:
-    #             setattr(self, key, default())
-    #         else:
-    #             setattr(self, key, default)
-
-    # @property
-    # def packet(self):
-    #     return self._packet
-    #
-    # @packet.setter
-    # def packet(self, packet_obj):
-    #     assert isinstance(packet_obj, CTRexPktBuilder)
-    #     self._packet = packet_obj
-    #
-    # @property
-    # def enabled(self):
-    #     return self._enabled
-    #
-    # @enabled.setter
-    # def enabled(self, bool_value):
-    #     self._enabled = bool(bool_value)
-    #
-    # @property
-    # def self_start(self):
-    #     return self._self_start
-    #
-    # @self_start.setter
-    # def self_start(self, bool_value):
-    #     self._self_start = bool(bool_value)
-    #
-    # @property
-    # def next_stream(self):
-    #     return self._next_stream
-    #
-    # @next_stream.setter
-    # def next_stream(self, value):
-    #     self._next_stream = int(value)
 
     def dump(self):
-        pass
-        return {"enabled": self.enabled,
-                "self_start": self.self_start,
-                "isg": self.isg,
-                "next_stream": self.next_stream,
-                "packet": self.packet.dump_pkt(),
-                "mode": self.mode.dump(),
-                "vm": self.packet.get_vm_data(),
-                "rx_stats": self.rx_stats.dump()}
+        if self.is_loaded:
+            dump = {}
+            for key in CStream.FIELDS:
+                try:
+                    dump[key] = getattr(self, key).dump()  # use dump() method of compound object, such TxMode
+                except AttributeError:
+                    dump[key] = getattr(self, key)
+            return dump
+        else:
+            raise RuntimeError("CStream object isn't loaded with data. Use 'load_data' method.")
 
 
 

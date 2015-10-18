@@ -77,7 +77,8 @@ class CTRexYAMLLoader(object):
         if isinstance(evaluated_obj, dict) and evaluated_obj.keys() == [root_obj]:
             evaluated_obj = evaluated_obj.get(root_obj)
         if not self.ref_obj:
-            self.ref_obj = load_yaml_to_obj(self.yaml_path)     # load reference object to class attribute.
+            self.ref_obj = load_yaml_to_any_obj(self.yaml_path)
+            # self.load_reference()
         ref_item = self.ref_obj.get(root_obj)
         if ref_item is not None:
             try:
