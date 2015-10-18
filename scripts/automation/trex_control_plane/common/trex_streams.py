@@ -3,12 +3,15 @@
 import external_packages
 from client_utils.packet_builder import CTRexPktBuilder
 from collections import OrderedDict
+from client_utils.yaml_utils import *
+import dpkt
 
 
 class CStreamList(object):
 
     def __init__(self):
         self.streams_list = OrderedDict()
+        self.yaml_loader = CTRexYAMLLoader("rpc_exceptions.yaml")
         self._stream_id = 0
         # self._stream_by_name = {}
 
@@ -22,100 +25,49 @@ class CStreamList(object):
     def remove_stream(self, name):
         return self.streams_list.pop(name)
 
-    def export_to_yaml(self, file_path):
-        pass
+    def rearrange_streams(self, streams_names_list, new_streams_dict={}):
+        tmp_list = OrderedDict()
+        for stream in streams_names_list:
+            if stream in self.streams_list:
+                tmp_list[stream] = self.streams_list.get(stream)
+            elif stream in new_streams_dict:
+                new_stream_obj = new_streams_dict.get(stream)
+                assert isinstance(new_stream_obj, CStream)
+                tmp_list[stream] = new_stream_obj
+            else:
+                raise NameError("Given stream named '{0}' cannot be found in existing stream list or and wasn't"
+                                "provided with the new_stream_dict parameter.".format(stream))
+        self.streams_list = tmp_list
 
-    def load_yaml(self, file_path):
+    def export_to_yaml(self, file_path):
+        raise NotImplementedError("export_to_yaml method is not implemented, yet")
+
+    def load_yaml(self, file_path, multiplier_dict={}):
         # clear all existing streams linked to this object
         self.streams_list.clear()
-        # self._stream_id = 0
-        # load from YAML file the streams one by one
-        try:
-            with open(file_path, 'r') as f:
-                loaded_streams = yaml.load(f)
+        streams_data = load_yaml_to_obj(file_path)
+        assert isinstance(streams_data, list)
+        raw_streams = {}
+        for stream in streams_data:
+            stream_name = stream.get("name")
+            raw_stream = stream.get("stream")
+            if not stream_name or not raw_stream:
+                raise ValueError("Provided stream is not according to convention."
+                                 "Each stream must be provided as two keys: 'name' and 'stream'. "
+                                 "Provided item was:\n {stream}".format(stream))
+            new_stream_data = self.yaml_loader.validate_yaml(raw_stream,
+                                                             "stream",
+                                                             multiplier= multiplier_dict.get(stream_name, 1))
+            new_stream_obj = CStream()
+            new_stream_obj.load_data(**new_stream_data)
+            self.append_stream(stream_name, new_stream_obj)
 
-                # assume at this point that YAML file is according to rules and correct
 
 
-        except yaml.YAMLError as e:
-            print "Error in YAML configuration file:", e
-            print "Aborting YAML loading, no changes made to stream list"
-            return
+        # start validating and reassembling clients input
 
 
         pass
-
-
-
-
-class CStream(object):
-    """docstring for CStream"""
-    DEFAULTS = {"rx_stats": CRxStats,
-                "mode": CTxMode,
-                "isg": 5.0,
-                "next_stream": -1,
-                "self_start": True,
-                "enabled": True}
-
-    def __init__(self, **kwargs):
-        super(CStream, self).__init__()
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-        # set default values to unset attributes, according to DEFAULTS dict
-        set_keys = set(kwargs.keys())
-        keys_to_set = [x
-                       for x in self.DEFAULTS
-                       if x not in set_keys]
-        for key in keys_to_set:
-            default = self.DEFAULTS.get(key)
-            if type(default) == type:
-                setattr(self, key, default())
-            else:
-                setattr(self, key, default)
-
-    @property
-    def packet(self):
-        return self._packet
-
-    @packet.setter
-    def packet(self, packet_obj):
-        assert isinstance(packet_obj, CTRexPktBuilder)
-        self._packet = packet_obj
-
-    @property
-    def enabled(self):
-        return self._enabled
-
-    @enabled.setter
-    def enabled(self, bool_value):
-        self._enabled = bool(bool_value)
-
-    @property
-    def self_start(self):
-        return self._self_start
-
-    @self_start.setter
-    def self_start(self, bool_value):
-        self._self_start = bool(bool_value)
-
-    @property
-    def next_stream(self):
-        return self._next_stream
-
-    @next_stream.setter
-    def next_stream(self, value):
-        self._next_stream = int(value)
-
-    def dump(self):
-        pass
-        return {"enabled": self.enabled,
-                "self_start": self.self_start,
-                "isg": self.isg,
-                "next_stream": self.next_stream,
-                "packet": self.packet.dump_pkt(),
-                "mode": self.mode.dump(),
-                "vm": self.packet.get_vm_data(),
-                "rx_stats": self.rx_stats.dump()}
 
 class CRxStats(object):
 
@@ -154,7 +106,6 @@ class CRxStats(object):
                 if v
                 }
 
-
 class CTxMode(object):
     """docstring for CTxMode"""
     def __init__(self, tx_mode, pps):
@@ -185,6 +136,115 @@ class CTxMode(object):
                      for k, v in self._fields.items()
                      })
         return dump
+
+class CStream(object):
+    """docstring for CStream"""
+    DEFAULTS = {"rx_stats": CRxStats,
+                "mode": CTxMode,
+                "isg": 5.0,
+                "next_stream": -1,
+                "self_start": True,
+                "enabled": True}
+
+    FIELDS = ["enabled", "self_start", "next_stream", "isg", "mode", "rx_stats", "packet", "vm"]
+
+    def __init__(self):
+        super(CStream, self).__init__()
+        for field in CStream.FIELDS:
+            setattr(self, field, None)
+
+    def load_data(self, **kwargs):
+        for k, v in kwargs.items():
+            if k == "rx_stats":
+                if isinstance(v, dict):
+                    setattr(self, k, CRxStats(**v))
+                elif isinstance(v, CRxStats):
+                    setattr(self, k, v)
+            elif k == "mode":
+                if isinstance(v, dict):
+                    setattr(self, k, CTxMode(v))
+                elif isinstance(v, CTxMode):
+                    setattr(self, k, v)
+            else:
+                setattr(self, k, v)
+
+
+
+    # def __init__(self, enabled, self_start, next_stream, isg, mode, rx_stats, packet, vm):
+    #     super(CStream, self).__init__()
+    #     for k, v in kwargs.items():
+    #         if k == "rx_stats":
+    #             if isinstance(v, dict):
+    #                 setattr(self, k, CRxStats(v))
+    #             elif isinstance(v, CRxStats):
+    #                 setattr(self, k, v)
+    #         elif k == "mode":
+    #             if isinstance(v, dict):
+    #                 setattr(self, k, CTxMode(v))
+    #             elif isinstance(v, CTxMode):
+    #                 setattr(self, k, v)
+    #         else:
+    #             setattr(self, k, v)
+    #     # set default values to unset attributes, according to DEFAULTS dict
+    #     set_keys = set(kwargs.keys())
+    #     keys_to_set = [x
+    #                    for x in self.DEFAULTS
+    #                    if x not in set_keys]
+    #     for key in keys_to_set:
+    #         default = self.DEFAULTS.get(key)
+    #         if type(default) == type:
+    #             setattr(self, key, default())
+    #         else:
+    #             setattr(self, key, default)
+
+    # @property
+    # def packet(self):
+    #     return self._packet
+    #
+    # @packet.setter
+    # def packet(self, packet_obj):
+    #     assert isinstance(packet_obj, CTRexPktBuilder)
+    #     self._packet = packet_obj
+    #
+    # @property
+    # def enabled(self):
+    #     return self._enabled
+    #
+    # @enabled.setter
+    # def enabled(self, bool_value):
+    #     self._enabled = bool(bool_value)
+    #
+    # @property
+    # def self_start(self):
+    #     return self._self_start
+    #
+    # @self_start.setter
+    # def self_start(self, bool_value):
+    #     self._self_start = bool(bool_value)
+    #
+    # @property
+    # def next_stream(self):
+    #     return self._next_stream
+    #
+    # @next_stream.setter
+    # def next_stream(self, value):
+    #     self._next_stream = int(value)
+
+    def dump(self):
+        pass
+        return {"enabled": self.enabled,
+                "self_start": self.self_start,
+                "isg": self.isg,
+                "next_stream": self.next_stream,
+                "packet": self.packet.dump_pkt(),
+                "mode": self.mode.dump(),
+                "vm": self.packet.get_vm_data(),
+                "rx_stats": self.rx_stats.dump()}
+
+
+
+
+
 
 if __name__ == "__main__":
     pass

@@ -41,7 +41,7 @@ stream:
     type: [int, double, string]
     has_default: YES
     default: 0.0
-  next_stream_id:
+  next_stream:
     type: [int, string]   # string to allow naming binding
     has_default: YES
     default: -1  # no next streams
