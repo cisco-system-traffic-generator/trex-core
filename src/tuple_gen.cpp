@@ -245,30 +245,12 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     fi.m_tcp_aging_sec = 0;
     fi.m_udp_aging_sec = 0;
     fi.m_dual_interface_mask = 0;
-    try {
-        utl_yaml_read_uint32(node,"clients_per_gb",fi.m_number_of_clients_per_gb);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_uint32(node,"min_clients",fi.m_min_clients);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_ip_addr(node,"dual_port_mask",fi.m_dual_interface_mask);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_uint16(node,"tcp_aging",fi.m_tcp_aging_sec);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_uint16(node,"udp_aging",fi.m_udp_aging_sec);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        node["track_ports"] >> fi.m_is_bundling;
-    } catch ( const std::exception& e ) {
-    ;}
+    utl_yaml_read_uint32(node,"clients_per_gb",fi.m_number_of_clients_per_gb);
+    utl_yaml_read_uint32(node,"min_clients",fi.m_min_clients);
+    utl_yaml_read_ip_addr(node,"dual_port_mask",fi.m_dual_interface_mask);
+    utl_yaml_read_uint16(node,"tcp_aging",fi.m_tcp_aging_sec);
+    utl_yaml_read_uint16(node,"udp_aging",fi.m_udp_aging_sec);
+    utl_yaml_read_bool(node,"track_ports",fi.m_is_bundling);
 }
 void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
     if (src.m_number_of_clients_per_gb == 0)
