@@ -18,8 +18,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef __TREX_STREAM_API_H__
-#define __TREX_STREAM_API_H__
+#ifndef __TREX_STREAM_H__
+#define __TREX_STREAM_H__
 
 #include <unordered_map>
 #include <vector>
@@ -205,5 +205,5 @@ private:
     std::unordered_map<int, TrexStream *> m_stream_table;
 };
 
-#endif /* __TREX_STREAM_API_H__ */
+#endif /* __TREX_STREAM_H__ */
 

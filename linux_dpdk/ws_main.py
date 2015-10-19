@@ -141,6 +141,7 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
+                              'trex_rpc_async_server.cpp',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
@@ -148,8 +149,17 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                               'commands/trex_rpc_cmd_test.cpp',
                               'commands/trex_rpc_cmd_general.cpp',
                               'commands/trex_rpc_cmd_stream.cpp',
+
                           ])
 
+# stateless code
+stateless_src = SrcGroup(dir='src/stateless/',
+                          src_list=['cp/trex_stream.cpp',
+                                    'cp/trex_stream_vm.cpp',
+                                    'cp/trex_stateless.cpp',
+                                    'cp/trex_stateless_port.cpp',
+                                    'dp/trex_stateless_dp_core.cpp'
+                                    ])
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
                     src_list=[
@@ -346,6 +356,9 @@ bp =SrcGroups([
                 cmn_src ,
                 net_src ,
                 yaml_src,
+                rpc_server_src,
+                json_src,
+                stateless_src,
                 version_src
                 ]);
 
@@ -400,7 +413,8 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../src/
                    
                    ../src/rpc-server/
-                   ../src/stateless/
+                   ../src/stateless/cp/
+                   ../src/stateless/dp/
 
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq/include/
