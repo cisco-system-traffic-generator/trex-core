@@ -26,10 +26,13 @@ limitations under the License.
 
 #include <bp_sim.h>
 
+#ifndef TREX_RPC_MOCK_SERVER
+
 // DPDK c++ issue 
 #define UINT8_MAX 255
 #define UINT16_MAX 0xFFFF
 // DPDK c++ issue 
+#endif
 
 #include <rte_ethdev.h>
 #include "mbuf.h"
