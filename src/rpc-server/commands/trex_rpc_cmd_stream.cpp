@@ -233,7 +233,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
 
 void 
 TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
-    std::string  flow_var_name = parse_string(inst, "flow_var_name", result);
+    std::string  flow_var_name = parse_string(inst, "name", result);
     uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
     int          add_value     = parse_int(inst,    "add_value", result);
     bool         is_big_endian = parse_bool(inst,   "is_big_endian", result);
