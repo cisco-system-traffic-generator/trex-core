@@ -2350,21 +2350,18 @@ void operator >> (const YAML::Node& node, CFlowYamlDpPkt & fi) {
 void operator >> (const YAML::Node& node, CVlanYamlInfo & fi) {
     
     uint32_t tmp;
-    try {
+    if (node.FindValue("enable")) {
       node["enable"] >> tmp ;
       fi.m_enable=tmp;
-    }catch ( const std::exception& e ) {
-        
-   }
+    }
 
-    try {
+    if (node.FindValue("vlan0")) {
       node["vlan0"] >>  tmp;
       fi.m_vlan_per_port[0] = tmp;
+    }
+    if (node.FindValue("vlan1")) {
       node["vlan1"] >>  tmp; 
       fi.m_vlan_per_port[1] = tmp;
-    }catch ( const std::exception& e ) {
-        // there is a default 
-
     }
 }
 
@@ -2373,14 +2370,15 @@ void operator >> (const YAML::Node& node, CVlanYamlInfo & fi) {
 void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
    node["name"] >> fi.m_name;
     
-   try {
+   if (node.FindValue("client_pool")) {
        node["client_pool"] >> fi.m_client_pool_name;
-   } catch ( const std::exception& e ) {
+   } else {
        fi.m_client_pool_name = "default"; 
    }
-   try {
+
+   if (node.FindValue("server_pool")) {
        node["server_pool"] >> fi.m_server_pool_name;
-   } catch ( const std::exception& e ) {
+   } else {
        fi.m_server_pool_name = "default"; 
    }
  
@@ -2392,35 +2390,35 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
    node["rtt"] >>  t;
    fi.m_rtt_sec = t/1000000.0;
    node["w"] >>  fi.m_w;
-
-   try {
+ 
+   if (node.FindValue("cap_ipg")) {
        node["cap_ipg"] >> fi.m_cap_mode;
        fi.m_cap_mode_was_set =true;
-   } catch ( const std::exception& e ) {
+   } else {
        fi.m_cap_mode_was_set =false;
    }
 
-   try {
+   if (node.FindValue("wlength")) {
        node["wlength"] >> fi.m_wlength;
        fi.m_wlength_set=true;
-   } catch ( const std::exception& e ) {
+   } else {
        fi.m_wlength_set=false;
        fi.m_wlength =500;
    }
 
-   try {
+   if (node.FindValue("limit")) {
        node["limit"] >>  fi.m_limit;
        fi.m_limit_was_set = true;
-   } catch ( const std::exception& e ) {
+   } else {
        fi.m_limit_was_set = false;
        fi.m_limit = 0;
    }
 
-   try {
+   if (node.FindValue("plugin_id")) {
        uint32_t plugin_val;
        node["plugin_id"] >> plugin_val;
        fi.m_plugin_id=plugin_val;
-   } catch ( const std::exception& e ) {
+   } else {
        fi.m_plugin_id=0;
    }
 
@@ -2429,10 +2427,10 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
    if ( utl_yaml_read_ip_addr(node, 
                          "server_addr",
                          fi.m_server_addr) ){
-       try {
+       if (node.FindValue("one_app_server")) {
            node["one_app_server"] >> fi.m_one_app_server;
            fi.m_one_app_server_was_set=true;
-       } catch ( const std::exception& e ) {
+       } else {
            fi.m_one_app_server_was_set = false;
            fi.m_one_app_server = false;
        }
@@ -2478,10 +2476,10 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
 
    node["duration"] >> flows_info.m_duration_sec;
 
-   try {
+   if (node.FindValue("generator")) {
      node["generator"] >> flows_info.m_tuple_gen;
      flows_info.m_tuple_gen_was_set =true;
-   } catch ( const std::exception& e ) {
+   } else {
      flows_info.m_tuple_gen_was_set =false;
    }
 
@@ -2500,7 +2498,7 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
    // formed by providing src_ipv6,dst_ipv6 and specifying
    // {0,0,0,0,0,0xffff}
    flows_info.m_ipv6_set=true;
-   try {
+   if (node.FindValue("src_ipv6")) {
        const YAML::Node& src_ipv6_info = node["src_ipv6"];
        if (src_ipv6_info.size() == 6 ){
             for(unsigned i=0;i<src_ipv6_info.size();i++) {
@@ -2512,11 +2510,11 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
        }else{
            flows_info.m_ipv6_set=false;
        }
-   } catch ( const std::exception& e ) {
+   } else {
        flows_info.m_ipv6_set=false;
    }
 
-   try {
+   if (node.FindValue("dst_ipv6")) {
        const YAML::Node& dst_ipv6_info = node["dst_ipv6"];
        if (dst_ipv6_info.size() == 6 ){
             for(unsigned i=0;i<dst_ipv6_info.size();i++) {
@@ -2528,61 +2526,60 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
        }else{
            flows_info.m_ipv6_set=false;
        }
-   } catch ( const std::exception& e ) {
+   } else {
        flows_info.m_ipv6_set=false;
    }
 
-   try {
+   if (node.FindValue("cap_ipg")) {
        node["cap_ipg"] >> flows_info.m_cap_mode;
        flows_info.m_cap_mode_set=true;
-   } catch ( const std::exception& e ) {
+   } else {
        flows_info.m_cap_mode=false;
        flows_info.m_cap_mode_set=false;
    }
    double t;
 
-   try {
+   if (node.FindValue("cap_ipg_min")) {
        node["cap_ipg_min"] >>  t  ;
        flows_info.m_cap_ipg_min = t/1000000.0;
        flows_info.m_cap_ipg_min_set=true;
-   } catch ( const std::exception& e ) {
+   } else {
        flows_info.m_cap_ipg_min_set=false;
        flows_info.m_cap_ipg_min = 20;
    }
 
-   try {
+   if (node.FindValue("cap_override_ipg")) {
        node["cap_override_ipg"] >> t;
        flows_info.m_cap_overide_ipg = t/1000000.0;
        flows_info.m_cap_overide_ipg_set = true;
-   } catch ( const std::exception& e ) {
+   } else {
        flows_info.m_cap_overide_ipg_set = false;
        flows_info.m_cap_overide_ipg = 0;
    }
 
-   try {
+   if (node.FindValue("wlength")) {
        node["wlength"] >> flows_info.m_wlength;
        flows_info.m_wlength_set=true;
-   } catch ( const std::exception& e ) {
+   } else {
        flows_info.m_wlength_set=false;
        flows_info.m_wlength =100;
    }
 
-   try {
+   if (node.FindValue("one_app_server")) {
        node["one_app_server"] >> flows_info.m_one_app_server;
        flows_info.m_one_app_server_was_set=true;
-   } catch ( const std::exception& e ) {
+   } else {
        flows_info.m_one_app_server =false;
        flows_info.m_one_app_server_was_set=false;
    }
 
-   try {
+   if (node.FindValue("vlan")) {
      node["vlan"] >> flows_info.m_vlan_info;
-   } catch ( const std::exception& e ) {
    }
 
-   try {
+   if (node.FindValue("mac_override_by_ip")) {
      node["mac_override_by_ip"] >> flows_info.m_mac_replace_by_ip;
-   } catch ( const std::exception& e ) {
+   } else {
      flows_info.m_mac_replace_by_ip =false;
    }
 
