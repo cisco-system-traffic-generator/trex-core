@@ -41,8 +41,8 @@ stream:
     type: [int, double, string]
     has_default: YES
     default: 0.0
-  next_stream:
-    type: [int, string]   # string to allow naming binding
+  next_stream_id:
+    type: string   # string to allow naming binding
     has_default: YES
     default: -1  # no next streams
   packet:
@@ -101,6 +101,10 @@ rx_stats:
     type: boolean
     has_default: YES
     default: False
+  stream_id:
+    type: string
+    has_default: YES
+    default: False  # use related stream_id
   seq_enabled:
     type: boolean
     has_default: YES

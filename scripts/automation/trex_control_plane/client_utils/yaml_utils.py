@@ -31,18 +31,18 @@ class CTRexYAMLLoader(object):
         self.ref_obj = None
 
     def check_term_param_type(self, val, val_field, ref_val, multiplier):
-        print val, val_field, ref_val
+        # print val, val_field, ref_val
         tmp_type = ref_val.get('type')
         if isinstance(tmp_type, list):
             # item can be one of multiple types
-            print "multiple choice!"
+            # print "multiple choice!"
             python_types = set()
             for t in tmp_type:
                 if t in self.TYPE_DICT:
                     python_types.add(self.TYPE_DICT.get(t))
                 else:
                     return False, TypeError("Unknown resolving for type {0}".format(t))
-            print "python legit types: ", python_types
+            # print "python legit types: ", python_types
             if type(val) not in python_types:
                 return False, TypeError("Type of object field '{0}' is not allowed".format(val_field))
             else:
@@ -58,7 +58,7 @@ class CTRexYAMLLoader(object):
                 return True, CTRexYAMLLoader._calc_final_value(val, multiplier, ref_val.get('multiply', False))
 
     def get_reference_default(self, root_obj, sub_obj, key):
-        print root_obj, sub_obj, key
+        # print root_obj, sub_obj, key
         if sub_obj:
             ref_field = self.ref_obj.get(root_obj).get(sub_obj).get(key)
         else:
@@ -77,7 +77,7 @@ class CTRexYAMLLoader(object):
         if isinstance(evaluated_obj, dict) and evaluated_obj.keys() == [root_obj]:
             evaluated_obj = evaluated_obj.get(root_obj)
         if not self.ref_obj:
-            self.ref_obj = load_yaml_to_any_obj(self.yaml_path)
+            self.ref_obj = load_yaml_to_obj(self.yaml_path)
             # self.load_reference()
         ref_item = self.ref_obj.get(root_obj)
         if ref_item is not None:
@@ -85,30 +85,30 @@ class CTRexYAMLLoader(object):
                 typed_obj = [False, None]   # first item stores validity (multiple object "shapes"), second stored type
                 if "type" in evaluated_obj:
                     ref_item = ref_item[evaluated_obj.get("type")]
-                    print "lower resolution with typed object"
+                    # print "lower resolution with typed object"
                     typed_obj = [True, evaluated_obj.get("type")]
                 if isinstance(ref_item, dict) and "type" not in ref_item:   # this is not a terminal
                     result_obj = {}
                     if typed_obj[0]:
                         result_obj["type"] = typed_obj[1]
-                    print "processing dictionary non-terminal value"
+                    # print "processing dictionary non-terminal value"
                     for k, v in ref_item.items():
-                        print "processing element '{0}' with value '{1}'".format(k,v)
+                        # print "processing element '{0}' with value '{1}'".format(k,v)
                         if k in evaluated_obj:
                             # validate with ref obj
-                            print "found in evaluated object!"
+                            # print "found in evaluated object!"
                             tmp_type = v.get('type')
-                            print tmp_type
-                            print evaluated_obj
+                            # print tmp_type
+                            # print evaluated_obj
                             if tmp_type == "object":
                                 # go deeper into nesting hierarchy
-                                print "This is an object type, recursion!"
+                                # print "This is an object type, recursion!"
                                 result_obj[k] = self.validate_yaml(evaluated_obj.get(k), k, fill_defaults, multiplier)
                             else:
                                 # validation on terminal type
-                                print "Validating terminal type %s" % k
+                                # print "Validating terminal type %s" % k
                                 res_ok, data = self.check_term_param_type(evaluated_obj.get(k), k, v, multiplier)
-                                print "Validating: ", res_ok
+                                # print "Validating: ", res_ok
                                 if res_ok:
                                     # data field contains the value to save
                                     result_obj[k] = data

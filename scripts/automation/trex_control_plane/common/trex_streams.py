@@ -2,19 +2,21 @@
 
 import external_packages
 from client_utils.packet_builder import CTRexPktBuilder
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from client_utils.yaml_utils import *
 import dpkt
 import struct
+import copy
+import os
 
+StreamPack = namedtuple('StreamPack', ['stream_id', 'stream'])
 
 class CStreamList(object):
 
     def __init__(self):
-        self.streams_list = {OrderedDict()}
-        self.yaml_loader = CTRexYAMLLoader("rpc_defaults.yaml")
-        self._stream_id = 0
-        # self._stream_by_name = {}
+        self.streams_list = {}
+        self.yaml_loader = CTRexYAMLLoader(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
+                                                        "rpc_defaults.yaml"))
 
     def append_stream(self, name, stream_obj):
         assert isinstance(stream_obj, CStream)
@@ -24,21 +26,19 @@ class CStreamList(object):
         return
 
     def remove_stream(self, name):
-        return self.streams_list.pop(name)
-
-    def rearrange_streams(self, streams_names_list, new_streams_dict={}):
-        tmp_list = OrderedDict()
-        for stream in streams_names_list:
-            if stream in self.streams_list:
-                tmp_list[stream] = self.streams_list.get(stream)
-            elif stream in new_streams_dict:
-                new_stream_obj = new_streams_dict.get(stream)
-                assert isinstance(new_stream_obj, CStream)
-                tmp_list[stream] = new_stream_obj
-            else:
-                raise NameError("Given stream named '{0}' cannot be found in existing stream list or and wasn't"
-                                "provided with the new_stream_dict parameter.".format(stream))
-        self.streams_list = tmp_list
+        popped = self.streams_list.pop(name)
+        if popped:
+            for stream_name, stream in self.streams_list.items():
+                if stream.next_stream_id == name:
+                    stream.next_stream_id = -1
+                try:
+                    rx_stats_stream = getattr(stream.rx_stats, "stream_id")
+                    if rx_stats_stream == name:
+                        # if a referenced stream of rx_stats object deleted, revert to rx stats of current stream 
+                        setattr(stream.rx_stats, "stream_id", stream_name)
+                except AttributeError as e:
+                    continue    # 
+        return popped
 
     def export_to_yaml(self, file_path):
         raise NotImplementedError("export_to_yaml method is not implemented, yet")
@@ -48,7 +48,6 @@ class CStreamList(object):
         self.streams_list.clear()
         streams_data = load_yaml_to_obj(file_path)
         assert isinstance(streams_data, list)
-        raw_streams = {}
         for stream in streams_data:
             stream_name = stream.get("name")
             raw_stream = stream.get("stream")
@@ -62,16 +61,41 @@ class CStreamList(object):
             new_stream_obj = CStream()
             new_stream_obj.load_data(**new_stream_data)
             self.append_stream(stream_name, new_stream_obj)
+        return streams_data
 
     def compile_streams(self):
+        # first, assign an id to each stream
         stream_ids = {}
+        for idx, stream_name in enumerate(self.streams_list):
+            stream_ids[stream_name] = idx
+        # next, iterate over the streams and transform them from working with names to ids.
+        # with that build a new dict with old stream_name as the key, and StreamPack as the stored value 
+        compiled_streams = {}
+        for stream_name, stream in self.streams_list.items():
+            tmp_stream = CStreamList._compile_single_stream(stream_name, stream, stream_ids)
+            compiled_streams[stream_name] = StreamPack(stream_ids.get(stream_name),
+                                                       tmp_stream)
+        return compiled_streams
 
-        pass
+    @staticmethod
+    def _compile_single_stream(stream_name, stream, id_dict):
+        # copy the old stream to temporary one, no change to class attributes
+        tmp_stream = copy.copy(stream)
+        next_stream_id = id_dict.get(getattr(tmp_stream, "next_stream_id"), -1)
+        try:
+            rx_stats_stream_id = id_dict.get(getattr(tmp_stream.rx_stats, "stream_id"),
+                                             id_dict.get(stream_name))
+        except AttributeError as e:
+            rx_stats_stream_id = id_dict.get(stream_name)
+        # assign resolved values to stream object
+        tmp_stream.next_stream_id = next_stream_id
+        tmp_stream.rx_stats.stream_id = rx_stats_stream_id
+        return tmp_stream
 
 
 class CRxStats(object):
 
-    FIELDS = ["seq_enabled", "latency_enabled"]
+    FIELDS = ["seq_enabled", "latency_enabled", "stream_id"]
     def __init__(self, enabled=False, **kwargs):
         self.enabled = bool(enabled)
         for field in CRxStats.FIELDS:
@@ -82,7 +106,7 @@ class CRxStats(object):
             dump = {"enabled": True}
             dump.update({k: getattr(self, k)
                          for k in CRxStats.FIELDS
-                         if getattr(self, k)
+                         if getattr(self, k) or k == "stream_id"
                          })
             return dump
         else:
@@ -132,10 +156,12 @@ class CTxMode(object):
 class CStream(object):
     """docstring for CStream"""
 
-    FIELDS = ["enabled", "self_start", "next_stream", "isg", "mode", "rx_stats", "packet", "vm"]
+    FIELDS = ["enabled", "self_start", "next_stream_id", "isg", "mode", "rx_stats", "packet", "vm"]
+    # COMPILE_FIELDS = ["enabled", "self_start", "next_stream_id", "isg", "mode", "rx_stats", "packet", "vm"]
 
     def __init__(self):
         self.is_loaded = False
+        self._is_compiled = False
         for field in CStream.FIELDS:
             setattr(self, field, None)
 
@@ -201,7 +227,8 @@ class CStream(object):
         return
 
 
-    def dump(self):
+    def dump(self, compilation=False):
+        # fields = CStream.COMPILE_FIELDS if compilation else CStream.FIELDS
         if self.is_loaded:
             dump = {}
             for key in CStream.FIELDS:
@@ -213,8 +240,8 @@ class CStream(object):
         else:
             raise RuntimeError("CStream object isn't loaded with data. Use 'load_data' method.")
 
-
-
+    def dump_compiled(self):
+        return self.dump(compilation=True)
 
 
 

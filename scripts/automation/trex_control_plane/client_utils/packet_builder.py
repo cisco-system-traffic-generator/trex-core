@@ -889,7 +889,7 @@ class CTRexPktBuilder(object):
                     dictionary holds variable data of VM variable
 
                 """
-                return {"ins_name": "flow_var",  # VM variable dump always refers to manipulate instruction.
+                return {"type": "flow_var",  # VM variable dump always refers to manipulate instruction.
                         "name": self.name,
                         "size": self.size,
                         "op": self.operation,
