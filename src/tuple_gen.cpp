@@ -227,9 +227,27 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
     utl_yaml_read_ ## type (node, #field , target); \
     } else { printf("error in generator definition -- " #field "\n"); } 
 
+IP_DIST_t convert_distribution (const YAML::Node& node) {
+    std::string tmp;
+    node["distribution"] >> tmp ;
+    if (tmp == "random") {
+        return cdRANDOM_DIST;
+    }else if (tmp == "normal") {
+        return cdNORMAL_DIST;
+    } else {
+        return cdSEQ_DIST;
+    }
+}
+
+void read_tuple_para(const YAML::Node& node, CTupleGenPoolYaml & fi) {
+    UTL_YAML_READ(uint32, clients_per_gb, fi.m_number_of_clients_per_gb);
+    UTL_YAML_READ(uint32, min_clients, fi.m_min_clients);
+    UTL_YAML_READ(ip_addr, dual_port_mask, fi.m_dual_interface_mask);
+    UTL_YAML_READ(uint16, tcp_aging, fi.m_tcp_aging_sec);
+    UTL_YAML_READ(uint16, udp_aging, fi.m_udp_aging_sec);
+}
 
 void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
-    std::string tmp;
     if (node.FindValue("name")) {
         node["name"] >> fi.m_name;
     } else {
@@ -237,15 +255,8 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
         assert(0);
     }
     if (node.FindValue("distribution")) {
-        node["distribution"] >> tmp ;
+        fi.m_dist = convert_distribution(node); 
     } 
-    if (tmp == "random") {
-        fi.m_dist=cdRANDOM_DIST;
-    }else if (tmp == "normal") {
-        fi.m_dist=cdNORMAL_DIST;
-    } else {
-        fi.m_dist=cdSEQ_DIST;
-    }
     UTL_YAML_READ(ip_addr, ip_start, fi.m_ip_start);
     UTL_YAML_READ(ip_addr, ip_end, fi.m_ip_end);
 
@@ -255,12 +266,7 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     fi.m_tcp_aging_sec = 0;
     fi.m_udp_aging_sec = 0;
     fi.m_dual_interface_mask = 0;
-
-    UTL_YAML_READ(uint32, clients_per_gb, fi.m_number_of_clients_per_gb);
-    UTL_YAML_READ(uint32, min_clients, fi.m_min_clients);
-    UTL_YAML_READ(ip_addr, dual_port_mask, fi.m_dual_interface_mask);
-    UTL_YAML_READ(uint16, tcp_aging, fi.m_tcp_aging_sec);
-    UTL_YAML_READ(uint16, udp_aging, fi.m_udp_aging_sec);
+    read_tuple_para(node, fi);
     if (node.FindValue("track_ports")) {
         node["track_ports"] >> fi.m_is_bundling;
     }
@@ -280,30 +286,18 @@ void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
 
 
 void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
-    std::string tmp;
 
     CTupleGenPoolYaml c_pool;
     CTupleGenPoolYaml s_pool;
     
     if (node.FindValue("distribution")) {
-        node["distribution"] >> tmp ;
-        if (tmp == "random") {
-            c_pool.m_dist=cdRANDOM_DIST;
-        }else if (tmp == "normal") {
-            c_pool.m_dist=cdNORMAL_DIST;
-        } else {
-            c_pool.m_dist=cdSEQ_DIST;
-        }
+        c_pool.m_dist = convert_distribution(node); 
         s_pool.m_dist = c_pool.m_dist;
         UTL_YAML_READ(ip_addr, clients_start, c_pool.m_ip_start);
         UTL_YAML_READ(ip_addr, clients_end, c_pool.m_ip_end);
         UTL_YAML_READ(ip_addr, servers_start, s_pool.m_ip_start);
         UTL_YAML_READ(ip_addr, servers_end, s_pool.m_ip_end);
-        UTL_YAML_READ(uint32, clients_per_gb, c_pool.m_number_of_clients_per_gb);
-        UTL_YAML_READ(uint32, min_clients, c_pool.m_min_clients);
-        UTL_YAML_READ(ip_addr, dual_port_mask, c_pool.m_dual_interface_mask);
-        UTL_YAML_READ(uint16, tcp_aging, c_pool.m_tcp_aging_sec);
-        UTL_YAML_READ(uint16, udp_aging, c_pool.m_udp_aging_sec);
+        read_tuple_para(node, c_pool);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
         s_pool.m_is_bundling = false;
         fi.m_client_pool.push_back(c_pool);
