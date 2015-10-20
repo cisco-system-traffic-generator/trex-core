@@ -458,32 +458,56 @@ class TrexStatelessClient(JsonRpcClient):
         return snap
 
     # add stream
-    def add_stream (self, port_id, stream_id, isg, next_stream_id, packet):
-        if not port_id in self.get_owned_ports():
-            return False, "Port {0} is not owned... please take ownership before adding streams".format(port_id)
+    # def add_stream (self, port_id, stream_id, isg, next_stream_id, packet, vm=[]):
+    #     if not port_id in self.get_owned_ports():
+    #         return False, "Port {0} is not owned... please take ownership before adding streams".format(port_id)
+    #
+    #     handler = self.port_handlers[port_id]
+    #
+    #     stream = {}
+    #     stream['enabled'] = True
+    #     stream['self_start'] = True
+    #     stream['isg'] = isg
+    #     stream['next_stream_id'] = next_stream_id
+    #     stream['packet'] = {}
+    #     stream['packet']['binary'] = packet
+    #     stream['packet']['meta'] = ""
+    #     stream['vm'] = vm
+    #     stream['rx_stats'] = {}
+    #     stream['rx_stats']['enabled'] = False
+    #
+    #     stream['mode'] = {}
+    #     stream['mode']['type'] = 'continuous'
+    #     stream['mode']['pps'] = 10.0
+    #
+    #     params = {}
+    #     params['handler'] = handler
+    #     params['stream'] = stream
+    #     params['port_id'] = port_id
+    #     params['stream_id'] = stream_id
+    #
+    #     print params
+    #     return self.invoke_rpc_method('add_stream', params = params)
 
-        handler = self.port_handlers[port_id]
+    def add_stream(self, port_id_array, stream_pack_list):
+        batch = self.create_batch()
 
-        stream = {}
-        stream['enabled'] = True
-        stream['self_start'] = True
-        stream['isg'] = isg
-        stream['next_stream_id'] = next_stream_id
-        stream['packet'] = {}
-        stream['packet']['binary'] = packet
-        stream['packet']['meta'] = ""
-        stream['vm'] = []
-        stream['rx_stats'] = {}
-        stream['rx_stats']['enabled'] = False
+        for port_id in port_id_array:
+            for stream_pack in stream_pack_list:
+                params = {"port_id": port_id,
+                          "handler": self.port_handlers[port_id],
+                          "stream_id": stream_pack.stream_id,
+                          "stream": stream_pack.stream}
+                batch.add("add_stream", params=params)
+        rc, resp_list = batch.invoke()
+        if not rc:
+            return rc, resp_list
 
-        stream['mode'] = {}
-        stream['mode']['type'] = 'continuous'
-        stream['mode']['pps'] = 10.0
+        for i, rc in enumerate(resp_list):
+            if rc[0]:
+                print "Stream {0} - {1}".format(i, rc[1])
+                # self.port_handlers[port_id_array[i]] = rc[1]
 
-        params = {}
-        params['handler'] = handler
-        params['stream'] = stream
-        params['port_id'] = port_id
-        params['stream_id'] = stream_id
+        return True, resp_list
 
-        return self.invoke_rpc_method('add_stream', params = params)
+        # return self.invoke_rpc_method('add_stream', params = params)

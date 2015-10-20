@@ -33,6 +33,7 @@ class CTRexPktBuilder(object):
         self._max_pkt_size = max_pkt_size
         self.payload_gen = CTRexPktBuilder.CTRexPayloadGen(self._packet, self._max_pkt_size)
         self.vm = CTRexPktBuilder.CTRexVM()
+        self.metadata = ""
 
     def add_pkt_layer(self, layer_name, pkt_layer):
         """
@@ -441,8 +442,9 @@ class CTRexPktBuilder(object):
         if self._packet is None:
             raise CTRexPktBuilder.EmptyPacketError()
         pkt_in_hex = binascii.hexlify(str(self._packet))
-        return [int(pkt_in_hex[i:i+2], 16)
-                for i in range(0, len(pkt_in_hex), 2)]
+        return {"binary": [int(pkt_in_hex[i:i+2], 16)
+                           for i in range(0, len(pkt_in_hex), 2)],
+                "meta": self.metadata}
         # return [pkt_in_hex[i:i+2] for i in range(0, len(pkt_in_hex), 2)]
 
     def dump_pkt_to_pcap(self, file_path, ts=None):
@@ -887,7 +889,7 @@ class CTRexPktBuilder(object):
                     dictionary holds variable data of VM variable
 
                 """
-                return {"ins_name": "flow_var",  # VM variable dump always refers to manipulate instruction.
+                return {"type": "flow_var",  # VM variable dump always refers to manipulate instruction.
                         "name": self.name,
                         "size": self.size,
                         "op": self.operation,

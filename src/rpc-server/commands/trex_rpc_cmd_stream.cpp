@@ -1,5 +1,5 @@
 /*
- Itay Marom
+ Itay Marom, Dan Klein
  Cisco Systems, Inc.
 */
 
@@ -108,7 +108,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     if (stream->m_rx_check.m_enable) {
         stream->m_rx_check.m_stream_id   = parse_int(rx, "stream_id", result);
         stream->m_rx_check.m_seq_enabled = parse_bool(rx, "seq_enabled", result);
-        stream->m_rx_check.m_latency     = parse_bool(rx, "latency", result);
+        stream->m_rx_check.m_latency     = parse_bool(rx, "latency_enabled", result);
     }
 
     /* make sure this is a valid stream to add */
