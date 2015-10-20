@@ -225,7 +225,7 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
 
 #define UTL_YAML_READ(type, field, target) if (node.FindValue(#field)) { \
     utl_yaml_read_ ## type (node, #field , target); \
-    } else { printf("error in generator definition -- " #field "\n"); } 
+    } else { printf("generator definition mising " #field "\n"); } 
 
 IP_DIST_t convert_distribution (const YAML::Node& node) {
     std::string tmp;
