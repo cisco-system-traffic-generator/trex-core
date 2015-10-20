@@ -70,13 +70,15 @@ bool utl_yaml_read_ip_addr(const YAML::Node& node,
     std::string tmp;
     uint32_t ip;
     bool res=false;
-    try {
+    if ( node.FindValue(name) ) {
         node[name] >> tmp ;
         if ( my_inet_pton4((char *)tmp.c_str(), (unsigned char *)&ip) ){
             val=PKT_NTOHL(ip);
             res=true;
+        }else{
+            printf(" ERROR  not a valid ip %s \n",(char *)tmp.c_str());
+            exit(-1);
         }
-    }catch ( const std::exception& e ) {
     }
     return (res);
 }
@@ -85,14 +87,11 @@ bool utl_yaml_read_uint32(const YAML::Node& node,
                           std::string name,
                           uint32_t & val){
     bool res=false;
-
-    try {
+    if ( node.FindValue(name) ) {
         node[name] >> val ;
         res=true;
-    }catch ( const std::exception& e ) {
     }
     return (res);
-
 }
 
 bool utl_yaml_read_uint16(const YAML::Node& node, 
@@ -100,12 +99,10 @@ bool utl_yaml_read_uint16(const YAML::Node& node,
                        uint16_t & val){
     uint32_t val_tmp;
     bool res=false;
-
-    try {
+    if ( node.FindValue(name) ) {
         node[name] >> val_tmp ;
         val = (uint16_t)val_tmp;
         res=true;
-    }catch ( const std::exception& e ) {
     }
 }
 
@@ -113,10 +110,9 @@ bool utl_yaml_read_bool(const YAML::Node& node,
                        std::string name,
                        bool & val){
     bool res=false;
-    try {
+    if ( node.FindValue(name) ) {
         node[name] >> val ;
         res=true;
-    }catch ( const std::exception& e ) {
     }
     return( res);
 }

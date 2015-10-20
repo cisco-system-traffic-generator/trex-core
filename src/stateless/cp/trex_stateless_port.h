@@ -18,27 +18,74 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef __TREX_STATELESS_API_H__
-#define __TREX_STATELESS_API_H__
+#ifndef __TREX_STATELESS_PORT_H__
+#define __TREX_STATELESS_PORT_H__
 
-#include <stdint.h>
-#include <string>
-#include <stdexcept>
-
-#include <trex_stream_api.h>
+#include <trex_stream.h>
 
 /**
- * generic exception for errors
- * TODO: move this to a better place
+ * bandwidth measurement class
+ * 
  */
-class TrexException : public std::runtime_error 
-{
+class BWMeasure {
 public:
-    TrexException() : std::runtime_error("") {
+    BWMeasure();
+    void reset(void);
+    double add(uint64_t size);
 
+private:
+    double calc_MBsec(uint32_t dtime_msec,
+                      uint64_t dbytes);
+
+public:
+   bool      m_start;
+   uint32_t  m_last_time_msec;
+   uint64_t  m_last_bytes;
+   double    m_last_result;
+};
+
+/**
+ * TRex stateless port stats
+ * 
+ * @author imarom (24-Sep-15)
+ */
+class TrexPortStats {
+
+public:
+    TrexPortStats() {
+        m_stats = {0};
+
+        m_bw_tx_bps.reset();
+        m_bw_rx_bps.reset();
+
+        m_bw_tx_pps.reset();
+        m_bw_rx_pps.reset();
     }
-    TrexException(const std::string &what) : std::runtime_error(what) {
-    }
+
+public:
+
+    BWMeasure m_bw_tx_bps;
+    BWMeasure m_bw_rx_bps;
+
+    BWMeasure m_bw_tx_pps;
+    BWMeasure m_bw_rx_pps;
+
+    struct {
+
+        double m_tx_bps;
+        double m_rx_bps;
+       
+        double m_tx_pps;
+        double m_rx_pps;
+       
+        uint64_t m_total_tx_pkts;
+        uint64_t m_total_rx_pkts;
+       
+        uint64_t m_total_tx_bytes;
+        uint64_t m_total_rx_bytes;
+       
+        uint64_t m_tx_rx_errors;
+    } m_stats;
 };
 
 /**
@@ -48,20 +95,6 @@ public:
  */
 class TrexStatelessPort {
 public:
-
-    struct TrexPortStats {
-        uint64_t tx_pps;
-        uint64_t tx_bps;
-        uint64_t total_tx_pkts;
-        uint64_t total_tx_bytes;
-
-        uint64_t rx_pps;
-        uint64_t rx_bps;
-        uint64_t total_rx_pkts;
-        uint64_t total_rx_bytes;
-
-        uint64_t tx_rx_errors;
-    };
 
     /**
      * port state
@@ -169,15 +202,18 @@ public:
 
     }
 
-    const TrexPortStats & get_port_stats(void) {
-        /* scrabble */
-        m_stats.tx_bps += 1 + rand() % 100;
-        m_stats.tx_pps += 1 + rand() % 10;
-        m_stats.total_tx_bytes += 1 + rand() % 10;
-        m_stats.total_tx_pkts += 1 + rand() % 5;
+    /**
+     * update the values of the stats
+     * 
+     */
+    void update_stats();
 
-        return m_stats;
-    }
+    const TrexPortStats & get_stats();
+
+    /**
+     * encode stats as JSON
+     */
+    void encode_stats(Json::Value &port);
 
 private:
 
@@ -191,54 +227,4 @@ private:
     TrexPortStats    m_stats;
 };
 
-/**
- * defines the T-Rex stateless operation mode
- * 
- */
-class TrexStateless {
-public:
-
-    /**
-     * configure the stateless object singelton 
-     * reconfiguration is not allowed
-     * an exception will be thrown
-     */
-    static void configure(uint8_t port_count);
-
-    /**
-     * singleton public get instance
-     * 
-     */
-    static TrexStateless& get_instance() {
-        TrexStateless& instance = get_instance_internal();
-
-        if (!instance.m_is_configured) {
-            throw TrexException("object is not configured");
-        }
-
-        return instance;
-    }
-
-    TrexStatelessPort *get_port_by_id(uint8_t port_id);
-    uint8_t            get_port_count();
-
-protected:
-    TrexStateless();
-    ~TrexStateless();
-
-    static TrexStateless& get_instance_internal () {
-        static TrexStateless instance;
-        return instance;
-    }
-
-     /* c++ 2011 style singleton */
-    TrexStateless(TrexStateless const&)      = delete;  
-    void operator=(TrexStateless const&)     = delete;
-
-    bool                m_is_configured;
-    TrexStatelessPort  **m_ports;
-    uint8_t             m_port_count;
-};
-
-#endif /* __TREX_STATELESS_API_H__ */
-
+#endif /* __TREX_STATELESS_PORT_H__ */

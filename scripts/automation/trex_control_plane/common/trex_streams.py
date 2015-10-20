@@ -105,9 +105,8 @@ class CRxStats(object):
         if self.enabled:
             dump = {"enabled": True}
             dump.update({k: getattr(self, k)
-                         for k in CRxStats.FIELDS
-                         if getattr(self, k) or k == "stream_id"
-                         })
+                         for k in CRxStats.FIELDS}
+                        )
             return dump
         else:
             return {"enabled": False}

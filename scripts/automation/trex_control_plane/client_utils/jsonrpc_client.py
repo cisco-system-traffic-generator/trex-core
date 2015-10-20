@@ -505,7 +505,8 @@ class TrexStatelessClient(JsonRpcClient):
 
         for i, rc in enumerate(resp_list):
             if rc[0]:
-                self.port_handlers[port_id_array[i]] = rc[1]
+                print "Stream {0} - {1}".format(i, rc[1])
+                # self.port_handlers[port_id_array[i]] = rc[1]
 
         return True, resp_list
 

@@ -142,15 +142,18 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
 
 # stateless code
 stateless_src = SrcGroup(dir='src/stateless/',
-                          src_list=['trex_stream.cpp',
-                                    'trex_stream_vm.cpp',
-                                    'trex_stateless.cpp',
+                          src_list=['cp/trex_stream.cpp',
+                                    'cp/trex_stream_vm.cpp',
+                                    'cp/trex_stateless.cpp',
+                                    'cp/trex_stateless_port.cpp',
+                                    'dp/trex_stateless_dp_core.cpp'
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
+                              'trex_rpc_async_server.cpp',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
@@ -162,10 +165,12 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           ])
 
 # RPC mock server (test)
-rpc_server_mock_src = SrcGroup(dir='src/rpc-server/',
+rpc_server_mock_src = SrcGroup(dir='src/mock/',
                           src_list=[
                               'trex_rpc_server_mock.cpp',
                               '../gtest/rpc_test.cpp',
+                              '../pal/linux/mbuf.cpp',
+                              '../os_time.cpp',
                           ])
 
 # JSON package
@@ -233,8 +238,10 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 
 includes_path =''' ../src/pal/linux/
                    ../src/
+                   ../src/mock/
                    ../src/rpc-server/
-                   ../src/stateless/
+                   ../src/stateless/cp/
+                   ../src/stateless/dp/
                    ../external_libs/json/
                    ../external_libs/zmq/include/
                    ../external_libs/yaml-cpp/include/
