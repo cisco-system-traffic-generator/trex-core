@@ -1,0 +1,20 @@
+### Two-stream UDP packets, 64B and 594B ###
+############################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: cap2/udp_64B.pcap
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: cap2/udp_594B.pcap
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []

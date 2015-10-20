@@ -1,5 +1,22 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
+
+"""
+Dan Klein, Itay Marom
+Cisco Systems, Inc.
+
+Copyright (c) 2015-2015 Cisco Systems, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
 import cmd
 import json
 import ast
@@ -416,8 +433,12 @@ class TrexConsole(cmd.Cmd):
         if args >= 2:
             name = args[0]
             yaml_path = args[1]
+            try:
+                multiplier = args[2]
+            except IndexError:
+                multiplier = 1
             stream_list = CStreamList()
-            loaded_obj = stream_list.load_yaml(yaml_path)
+            loaded_obj = stream_list.load_yaml(yaml_path, multiplier)
             # print self.rpc_client.pretty_json(json.dumps(loaded_obj))
             if name in self.user_streams:
                 print "Picked name already exist. Please pick another name."
@@ -433,7 +454,8 @@ class TrexConsole(cmd.Cmd):
                     raise
             return
         else:
-            print "please provide load name and YAML path, separated by space."
+            print "please provide load name and YAML path, separated by space.\n" \
+                  "Optionally, you may provide a third argument to specify multiplier."
 
     def do_show_stream_list(self, line):
         '''Shows the loaded stream list named [name] \n'''

@@ -108,7 +108,6 @@ class CTRexYAMLLoader(object):
                                 # validation on terminal type
                                 # print "Validating terminal type %s" % k
                                 res_ok, data = self.check_term_param_type(evaluated_obj.get(k), k, v, multiplier)
-                                # print "Validating: ", res_ok
                                 if res_ok:
                                     # data field contains the value to save
                                     result_obj[k] = data
@@ -138,8 +137,13 @@ class CTRexYAMLLoader(object):
 
     @staticmethod
     def _calc_final_value(val, multiplier, multiply):
+        def to_num(s):
+            try:
+                return int(s)
+            except ValueError:
+                return float(s)
         if multiply:
-            return (val * multiplier)
+            return val * to_num(multiplier)
         else:
             return val
 

@@ -43,7 +43,7 @@ class CStreamList(object):
     def export_to_yaml(self, file_path):
         raise NotImplementedError("export_to_yaml method is not implemented, yet")
 
-    def load_yaml(self, file_path, multiplier_dict={}):
+    def load_yaml(self, file_path, multiplier=1):
         # clear all existing streams linked to this object
         self.streams_list.clear()
         streams_data = load_yaml_to_obj(file_path)
@@ -57,11 +57,11 @@ class CStreamList(object):
                                  "Provided item was:\n {stream}".format(stream))
             new_stream_data = self.yaml_loader.validate_yaml(raw_stream,
                                                              "stream",
-                                                             multiplier= multiplier_dict.get(stream_name, 1))
+                                                             multiplier= multiplier)
             new_stream_obj = CStream()
             new_stream_obj.load_data(**new_stream_data)
             self.append_stream(stream_name, new_stream_obj)
-        return streams_data
+        return new_stream_data
 
     def compile_streams(self):
         # first, assign an id to each stream

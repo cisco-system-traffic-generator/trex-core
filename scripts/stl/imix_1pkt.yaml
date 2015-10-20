@@ -4,7 +4,7 @@
   stream:
     self_start: True
     packet:
-      binary: cap2/udp_64B_1pkt.pcap
+      binary: cap2/udp_64B.pcap
     mode:
       type: continuous
       pps: 100
