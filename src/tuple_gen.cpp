@@ -316,15 +316,11 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         const YAML::Node& c_pool_info = node["generator_clients"];
         for (uint16_t idx=0;idx<c_pool_info.size();idx++) {
             CTupleGenPoolYaml pool;
-            try {
-                c_pool_info[idx] >> pool;
-                if (fi.m_client_pool.size()>0) {
-                    copy_global_pool_para(pool, fi.m_client_pool[0]);
-                }
-                fi.m_client_pool.push_back(pool);
-            } catch ( const std::exception& e ) {
-                printf("client pool in YAML is wrong\n");
+            c_pool_info[idx] >> pool;
+            if (fi.m_client_pool.size()>0) {
+                copy_global_pool_para(pool, fi.m_client_pool[0]);
             }
+            fi.m_client_pool.push_back(pool);
         }
     } else {
         printf("no client generator pool configured, using default pool\n");
@@ -334,11 +330,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         const YAML::Node& s_pool_info = node["generator_servers"];
         for (uint16_t idx=0;idx<s_pool_info.size();idx++) {
             CTupleGenPoolYaml pool;
-            try {
-                s_pool_info[idx] >> pool;
-            } catch ( const std::exception& e ) {
-                printf("server pool in YAML is wrong\n");
-            }
+            s_pool_info[idx] >> pool;
             if (fi.m_server_pool.size()>0) {
                 copy_global_pool_para(pool, fi.m_server_pool[0]);
             }
