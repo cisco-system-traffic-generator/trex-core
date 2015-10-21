@@ -23,7 +23,7 @@ import ast
 import argparse
 import random
 import string
-
+import os
 import sys
 import tty, termios
 import trex_root_path
@@ -457,6 +457,26 @@ class TrexConsole(cmd.Cmd):
             print "please provide load name and YAML path, separated by space.\n" \
                   "Optionally, you may provide a third argument to specify multiplier."
 
+    @staticmethod
+    def tree_autocomplete(text):
+        dir = os.path.dirname(text)
+        if dir:
+            path = dir
+        else:
+            path = "."
+        start_string = os.path.basename(text)
+        return [x
+                for x in os.listdir(path)
+                if x.startswith(start_string)]
+
+
+    def complete_load_stream_list(self, text, line, begidx, endidx):
+        arg_num = len(line.split()) - 1
+        if arg_num == 2:
+            return TrexConsole.tree_autocomplete(line.split()[-1])
+        else:
+            return [text]
+
     def do_show_stream_list(self, line):
         '''Shows the loaded stream list named [name] \n'''
         args = line.split()
@@ -474,7 +494,7 @@ class TrexConsole(cmd.Cmd):
             print "\nAvailable stream lists:\n{0}".format(', '.join([x
                                                                   for x in self.user_streams.keys()]))
 
-    def complete_show_stream_list (self, text, line, begidx, endidx):
+    def complete_show_stream_list(self, text, line, begidx, endidx):
         return [x
                 for x in self.user_streams.keys()
                 if x.startswith(text)]
