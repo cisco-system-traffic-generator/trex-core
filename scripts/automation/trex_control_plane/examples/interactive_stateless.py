@@ -76,18 +76,18 @@ class InteractiveStatelessTRex(cmd.Cmd):
 
 
     def do_push_files(self, filepaths):
-        """Pushes a custom file to be stored locally on T-Rex server.\
+        """Pushes a custom file to be stored locally on TRex server.\
         \nPush multiple files by specifying their path separated by ' ' (space)."""
         try:
             filepaths = filepaths.split(' ')
-            print termstyle.green("*** Starting pushing files ({trex_files}) to T-Rex. ***".format(
+            print termstyle.green("*** Starting pushing files ({trex_files}) to TRex. ***".format(
                 trex_files=', '.join(filepaths))
             )
             ret_val = self.trex.push_files(filepaths)
             if ret_val:
-                print termstyle.green("*** End of T-Rex push_files method (success) ***")
+                print termstyle.green("*** End of TRex push_files method (success) ***")
             else:
-                print termstyle.magenta("*** End of T-Rex push_files method (failed) ***")
+                print termstyle.magenta("*** End of TRex push_files method (failed) ***")
 
         except IOError as inst:
             print termstyle.magenta(inst)
@@ -99,10 +99,10 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0 \t (C) Cisco Systems Inc.\n')
 
     parser.add_argument("-t", "--trex-host", required = True, dest="trex_host",
-        action="store", help="Specify the hostname or ip to connect with T-Rex server.",
+        action="store", help="Specify the hostname or ip to connect with TRex server.",
         metavar="HOST" )
     parser.add_argument("-p", "--trex-port", type=int, default = 5050, metavar="PORT", dest="trex_port",
-        help="Select port on which the T-Rex server listens. Default port is 5050.", action="store")
+        help="Select port on which the TRex server listens. Default port is 5050.", action="store")
     # parser.add_argument("-m", "--maxhist", type=int, default = 100, metavar="SIZE", dest="hist_size",
     #     help="Specify maximum history size saved at client side. Default size is 100.", action="store")
     parser.add_argument("--virtual", dest="virtual",
@@ -124,5 +124,5 @@ if __name__ == "__main__":
     except socket.error, e:
         if e.errno == errno.ECONNREFUSED:
             raise socket.error(errno.ECONNREFUSED,
-                               "Connection from T-Rex server was terminated. \
+                               "Connection from TRex server was terminated. \
                                Please make sure the server is up.")

@@ -950,7 +950,7 @@ def generate_job_id ():
     return (str(int(random.getrandbits(32))))
 
 def print_header ():
-    logger.log("--== T-Trex Performance Tool v1.0 (2014) ==--")
+    logger.log("--== TRex Performance Tool v1.0 (2014) ==--")
 
 # print startup summary
 def log_startup_summary (job_summary):
@@ -960,10 +960,10 @@ def log_startup_summary (job_summary):
 
     logger.log("\nWork Request Details:\n")
     logger.log("Setup Details:\n")
-    logger.log("T-Rex Config File:   {0}".format(job_summary['config_file']))
+    logger.log("TRex Config File:   {0}".format(job_summary['config_file']))
     logger.log("Machine Name:        {0}".format(trex_config['trex_name']))
-    logger.log("T-Rex Type:          {0}".format(trex_config['trex_machine_type']))
-    logger.log("T-Rex Dual Int. Tx:  {0}".format(trex_config['trex_is_dual']))
+    logger.log("TRex Type:          {0}".format(trex_config['trex_machine_type']))
+    logger.log("TRex Dual Int. Tx:  {0}".format(trex_config['trex_is_dual']))
     logger.log("Router Interface:    {0}".format(trex_config['router_interface']))
 
     logger.log("\nJob Details:\n")

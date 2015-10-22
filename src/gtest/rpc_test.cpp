@@ -42,11 +42,6 @@ protected:
 
         m_verbose = false;
          
-        TrexRpcServerConfig cfg = TrexRpcServerConfig(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
-
-        m_rpc = new TrexRpcServer(cfg);
-        m_rpc->start();
-
         m_context = zmq_ctx_new ();
         m_socket = zmq_socket (m_context, ZMQ_REQ);
         zmq_connect (m_socket, "tcp://localhost:5050");
@@ -54,9 +49,6 @@ protected:
     }
 
     virtual void TearDown() {
-        m_rpc->stop();
-
-        delete m_rpc;
         zmq_close(m_socket);
         zmq_term(m_context);
     }
@@ -657,3 +649,4 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 }
+

@@ -19,20 +19,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef __TREX_RPC_REQ_RESP_API_H__
-#define __TREX_RPC_REQ_RESP_API_H__
+#ifndef __TREX_RPC_ASYNC_SERVER_H__
+#define __TREX_RPC_ASYNC_SERVER_H__
 
 #include <trex_rpc_server_api.h>
+#include <trex_stateless_port.h>
 
 /**
- * request-response RPC server
+ * async RPC server
  * 
  * @author imarom (11-Aug-15)
  */
-class TrexRpcServerReqRes : public TrexRpcServerInterface  {
+class TrexRpcServerAsync : public TrexRpcServerInterface  {
 public:
 
-    TrexRpcServerReqRes(const TrexRpcServerConfig &cfg, std::mutex *lock = NULL);
+    TrexRpcServerAsync(const TrexRpcServerConfig &cfg, std::mutex *lock = NULL);
 
 protected:
     void _rpc_thread_cb();
@@ -40,7 +41,6 @@ protected:
 
 private:
 
-    void handle_request(const std::string &request);
     void handle_server_error(const std::string &specific_err);
 
     static const int    RPC_MAX_MSG_SIZE = (20 * 1024);
@@ -50,4 +50,5 @@ private:
 };
 
 
-#endif /* __TREX_RPC_REQ_RESP_API_H__ */
+#endif /* __TREX_RPC_ASYNC_SERVER_H__ */
+

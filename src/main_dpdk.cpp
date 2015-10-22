@@ -55,6 +55,7 @@ limitations under the License.
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
 #include <common/basic_utils.h>
+#include <stateless/cp/trex_stateless.h>
 #include <../linux_dpdk/version.h>
 
 extern "C" {
@@ -426,7 +427,8 @@ static char global_loglevel_str[20];
 // cores =0==1,1*2,2,3,4,5,6
 // An enum for all the option types
 enum { OPT_HELP, 
-    OPT_CFG, 
+    OPT_MODE_BATCH, 
+    OPT_MODE_INTERACTIVE,
     OPT_NODE_DUMP,  
     OPT_UT,
     OPT_FILE_OUT,
@@ -478,15 +480,16 @@ enum { OPT_HELP,
 */
 static CSimpleOpt::SOption parser_options[] =
 {
-    { OPT_HELP,     "-?",           SO_NONE   },
-    { OPT_HELP,     "-h",           SO_NONE   },
-    { OPT_HELP,     "--help",       SO_NONE   },
-    { OPT_UT,       "--ut",         SO_NONE   },
-    { OPT_CFG,       "-f",          SO_REQ_SEP},
-    { OPT_PLAT_CFG_FILE,"--cfg", SO_REQ_SEP},
-    { OPT_REAL_TIME , "-r",         SO_NONE  },
-    { OPT_SINGLE_CORE     , "-s",   SO_NONE  },
-    { OPT_FILE_OUT   , "-o" ,        SO_REQ_SEP},
+    { OPT_HELP,                   "-?",                SO_NONE   },
+    { OPT_HELP,                   "-h",                SO_NONE   },
+    { OPT_HELP,                   "--help",            SO_NONE   },
+    { OPT_UT,                     "--ut",              SO_NONE   },
+    { OPT_MODE_BATCH,             "-f",                SO_REQ_SEP},
+    { OPT_MODE_INTERACTIVE,       "-i",                SO_NONE   },
+    { OPT_PLAT_CFG_FILE,          "--cfg",             SO_REQ_SEP},
+    { OPT_REAL_TIME ,             "-r",                SO_NONE  },
+    { OPT_SINGLE_CORE,            "-s",                SO_NONE  },
+    { OPT_FILE_OUT,               "-o" ,               SO_REQ_SEP},
     { OPT_FLIP_CLIENT_SERVER,"--flip",SO_NONE  },
     { OPT_FLOW_FLIP_CLIENT_SERVER,"-p",SO_NONE  },
     { OPT_FLOW_FLIP_CLIENT_SERVER_SIDE,"-e",SO_NONE  },
@@ -533,13 +536,18 @@ static CSimpleOpt::SOption parser_options[] =
 
 static int usage(){
 
-    printf(" Usage: t-rex-64 [OPTION] -f cfg.yaml -c cores   \n");
+    printf(" Usage: t-rex-64 [MODE] [OPTION] -f cfg.yaml -c cores   \n");
     printf(" \n");
     printf(" \n");
-    printf(" options \n");
+    
+    printf(" mode \n\n");
     printf(" -f [file]                  : YAML file  with template configuration \n");
+    printf(" -i                         : launch TRex in interactive mode (RPC server)\n");
     printf(" \n\n");
-    printf(" --mac [file]                  : YAML file with <client ip, mac addr> configuration \n");
+
+    printf(" options \n\n");
+
+    printf(" --mac [file]               : YAML file with <client ip, mac addr> configuration \n");
     printf(" \n\n");
     printf(" -r                         : realtime enable \n");
     printf(" \n\n");
@@ -612,7 +620,8 @@ static int usage(){
     printf(" --mac-spread              : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
     printf("                             maximum is up to 128 devices   \n");
     
-    printf(" simulation mode : \n");
+    
+    printf("\n simulation mode : \n");
     printf(" Using this mode you can generate the traffic into a pcap file and learn how trex works \n");
     printf(" With this version you must be SUDO to use this mode ( I know this is not normal )  \n");
     printf(" you can use the Linux CEL version of t-rex to do it without super user   \n");
@@ -653,6 +662,7 @@ static int usage(){
     printf(" Open Source Components / Libraries \n");
     printf(" DPDK       (BSD)         \n");
     printf(" YAML-CPP   (BSD)       \n");
+    printf(" JSONCPP    (MIT)       \n");
     printf(" \n");
     printf(" Open Source Binaries \n");
     printf(" ZMQ        (LGPL v3plus) \n");
@@ -667,6 +677,11 @@ static int usage(){
 
 int gtest_main(int argc, char **argv) ;
 
+static void parse_err(const std::string &msg) {
+    std::cout << "\nArgument Parsing Error: \n\n" << "*** "<< msg << "\n\n";
+    exit(-1);
+}
+
 static int parse_options(int argc, char *argv[], CParserOption* po, bool first_time ) {
      CSimpleOpt args(argc, argv, parser_options);
 
@@ -679,36 +694,55 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
      int res1;
      uint32_t tmp_data;
 
+     po->m_run_mode = CParserOption::RUN_MODE_INVALID;
 
      while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
             switch (args.OptionId()) {
+
             case OPT_UT :
-                printf(" Supported only in simulation \n");
-                res1=0;
-                exit(res1);
+                parse_err("Supported only in simulation");
                 break;
+
             case OPT_HELP: 
                 usage();
                 return -1;
-            case OPT_CFG:
+
+            case OPT_MODE_BATCH:
+                if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
+                    parse_err("Please specify single run mode");
+                }
+                po->m_run_mode = CParserOption::RUN_MODE_BATCH;
                 po->cfg_file = args.OptionArg();
                 break;
+
+            case OPT_MODE_INTERACTIVE:
+                if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
+                    parse_err("Please specify single run mode");
+                }
+                po->m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
+                break;
+
             case OPT_NO_KEYBOARD_INPUT  :
                 po->preview.set_no_keyboard(true);
                 break;
+
             case OPT_MAC_FILE :
                 po->mac_file = args.OptionArg();
                 break;
+
             case OPT_PLAT_CFG_FILE :
                 po->platform_cfg_file = args.OptionArg();
                 break;
+
             case OPT_SINGLE_CORE :
                 po->preview.setSingleCore(true);
                 break;
+
             case OPT_IPV6:
                 po->preview.set_ipv6_mode_enable(true);
                 break;
+
             case OPT_VLAN:
                 po->preview.set_vlan_mode_enable(true);
                 break;
@@ -726,6 +760,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 printf(" warning -r is deprecated, real time is not needed any more , it is the default \n");
                 po->preview.setRealTime(true);
                 break;
+
             case OPT_NO_FLOW_CONTROL:
                 po->preview.set_disable_flow_control_setting(true);
                 break;
@@ -832,21 +867,20 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
      } // End of while
 
 
-    if ((po->cfg_file =="") ) {
-         printf("Invalid combination of parameters you must add -f with configuration file \n");
-         return -1;
+    if ((po->m_run_mode ==  CParserOption::RUN_MODE_INVALID) ) {
+        parse_err("Please provide single run mode (e.g. batch or interactive)");
      }
 
     if ( po->m_mac_splitter > 128 ){
-       printf("maximum mac spreading is 128 you set it to %d \n",po->m_mac_splitter);
-       return -1;
+        std::stringstream ss;
+        ss << "maximum mac spreading is 128 you set it to: " << po->m_mac_splitter;
+        parse_err(ss.str());
     }
 
     if ( po->preview.get_learn_mode_enable()  ){
         if  ( po->preview.get_ipv6_mode_enable() ){
-            printf("--learn mode is not supported with --ipv6, beacuse there is not such thing NAT66 ( ipv6-ipv6) \n");
-            printf("if you think it is important,open a defect \n");
-            return -1;
+            parse_err("--learn mode is not supported with --ipv6, beacuse there is not such thing NAT66 ( ipv6-ipv6) \n" \
+                      "if you think it is important,open a defect \n");
         }
         if ( po->is_latency_disabled() ){
             /* set latency thread */
@@ -2701,7 +2735,7 @@ public:
     }
 public:
 
-    bool Create();
+    bool Create(bool is_stateless);
     void Delete();
 
     int  ixgbe_prob_init();
@@ -3375,18 +3409,22 @@ int  CGlobalPortCfg::ixgbe_start(void){
 }
 
 
-bool CGlobalPortCfg::Create(){
+bool CGlobalPortCfg::Create(bool is_stateless){
 
-   if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
-                                 !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
-       return (false);
-   }
-
+    /* hack - need to refactor */
+    if (!is_stateless) {
+        if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
+                                      !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
+            return (false);
+        }
+    }
 
    /* We load the YAML twice, 
      this is the first time. to update global flags  */
    CFlowsYamlInfo     pre_yaml_info;
-   pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+   if (!is_stateless) {
+       pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+   }
 
    if ( pre_yaml_info.m_vlan_info.m_enable ){
        CGlobalInfo::m_options.preview.set_vlan_mode_enable(true);
@@ -3863,6 +3901,7 @@ int CGlobalPortCfg::run_in_master(){
 
     std::string json;
     bool was_stopped=false;
+
     while ( true ) {
 
         if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ){
@@ -3976,6 +4015,7 @@ int CGlobalPortCfg::run_in_master(){
             break;
         }
     }
+
     m_mg.stop();
     delay(1000);
     if ( was_stopped ){
@@ -4100,9 +4140,9 @@ int CGlobalPortCfg::start_send_master(){
     if (CGlobalInfo::m_options.mac_file != "") {
         CGlobalInfo::m_options.preview.set_mac_ip_mapping_enable(true);
         m_fl.load_from_mac_file(CGlobalInfo::m_options.mac_file);
-        m_fl.is_mac_info_configured = true;
+        m_fl.m_mac_info.set_configured(true);
     } else {
-        m_fl.is_mac_info_configured = false;
+        m_fl.m_mac_info.set_configured(false);
     }
  
     m_expected_pps = m_fl.get_total_pps();     
@@ -4172,7 +4212,18 @@ static int latency_one_lcore(__attribute__((unused)) void *dummy)
 }
 
 
+static int stateless_entry(__attribute__((unused)) void *dummy) {
+    CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
+    physical_thread_id_t phy_id = rte_lcore_id();
 
+    if (lpsock->thread_phy_is_master( phy_id )) {
+        TrexStateless::get_instance().launch_control_plane();
+    } else {
+        TrexStateless::get_instance().launch_on_dp_core(phy_id);
+    }
+
+    return (0);
+}
 
 static int slave_one_lcore(__attribute__((unused)) void *dummy)
 {
@@ -4381,7 +4432,37 @@ int sim_load_list_of_cap_files(CParserOption * op){
 
 
 
+static int
+launch_stateless_trex() {
+    CPlatformSocketInfo *lpsock=&CGlobalInfo::m_socket;
+    CParserOption       *lpop= &CGlobalInfo::m_options;
+    CPlatformYamlInfo   *cg=&global_platform_cfg_info;
 
+    TrexStatelessCfg cfg;
+
+    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
+    TrexRpcServerConfig rpc_async_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
+
+    cfg.m_dp_core_count      = lpop->preview.getCores();
+    cfg.m_port_count         = lpop->m_expected_portd;
+    cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
+    cfg.m_rpc_async_cfg      = &rpc_async_cfg;
+    cfg.m_rpc_server_verbose = true;
+
+    TrexStateless::configure(cfg);
+
+    printf("\nStarting T-Rex Stateless\n");
+    printf("Starting RPC Server...\n\n");
+
+    rte_eal_mp_remote_launch(stateless_entry, NULL, CALL_MASTER);
+
+    unsigned lcore_id;
+    RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+        if (rte_eal_wait_lcore(lcore_id) < 0)
+            return -1;
+    }
+    return (0);
+}
 
 
 
@@ -4436,7 +4517,6 @@ int main_test(int argc , char * argv[]){
         rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
     }
 
-
     time_init();
     
         /* check if we are in simulation mode */
@@ -4445,10 +4525,17 @@ int main_test(int argc , char * argv[]){
         return ( sim_load_list_of_cap_files(&CGlobalInfo::m_options) );
     }
 
+    bool is_stateless = (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_INTERACTIVE);
 
-    if ( !ports_cfg.Create() ){
+    if ( !ports_cfg.Create(is_stateless) ){
         exit(1);
     }
+
+    /* patch here */
+    if (is_stateless) {
+        return launch_stateless_trex();
+    }
+
 
     if (po->preview.get_is_rx_check_enable() &&  (po->m_rx_check_sampe< get_min_sample_rate()) ) {
         po->m_rx_check_sampe = get_min_sample_rate();
@@ -4518,6 +4605,7 @@ int main_test(int argc , char * argv[]){
         if (rte_eal_wait_lcore(lcore_id) < 0)
             return -1;
     }
+
     ports_cfg.stop_master();
     ports_cfg.Delete();
     utl_termio_reset();

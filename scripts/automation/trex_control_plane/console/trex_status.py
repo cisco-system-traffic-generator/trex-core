@@ -170,7 +170,7 @@ class PortsStatsPanel(TrexStatusPanel):
             port_stats = self.status_obj.stats.get_port_stats(port_index)
 
             if port_stats:
-                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,} {:^15,}".format(
+                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15,.2f} {:^15,.2f} {:^15,} {:^15,.2f} {:^15,.2f} {:^15,}".format(
                     "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
                     port_stats["tx_pps"],
                     port_stats["tx_bps"],

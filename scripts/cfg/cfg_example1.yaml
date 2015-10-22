@@ -6,8 +6,15 @@
   enable_zmq_pub  : true  # enable publisher for stats data 
   zmq_pub_port    : 4507
   telnet_port     : 4508 # the telnet port in case it is enable ( with intercative mode )
+  platform :
+        master_thread_id  : 12
+        latency_thread_id : 13
+        dual_if   :
+             - socket   : 1
+               threads  : [8,9,10,11]
+  
   port_info       :  # set eh mac addr 
-          - dest_mac        :   [0x1,0x0,0x0,0x1,0x0,0x00]  # port 0
+          - dest_mac        :   [1,0x0,0x0,0x1,0x0,0x00]  # port 0
             src_mac         :   [0x2,0x0,0x0,0x2,0x0,0x00]
           - dest_mac        :   [0x3,0x0,0x0,0x3,0x0,0x00]  # port 1
             src_mac         :   [0x4,0x0,0x0,0x4,0x0,0x00]

@@ -221,7 +221,9 @@ private:
             memset(m_pyload_mbuf_ptr+len+m_new_pkt_size,0xa,(-m_new_pkt_size));
         }
 
+        return (0);
     }
+
 public:
     int16_t        m_new_pkt_size; /* New packet size after transform by plugin */
     CFlowPktInfo * m_pkt_info;
@@ -302,7 +304,7 @@ public:
 
 void CVirtualIFPerSideStats::Dump(FILE *fd){
 
-    #define DP_B(f) if (f) printf(" %-40s : %llu \n",#f,f)
+    #define DP_B(f) if (f) printf(" %-40s : %lu \n",#f,f)
     DP_B(m_tx_pkt);  
     DP_B(m_tx_rx_check_pkt);
     DP_B(m_tx_bytes);  
@@ -688,6 +690,15 @@ public:
         RUN_FLAGS_RXCHECK_CONST_TS =1,
     };
 
+    /**
+     * different running modes for Trex
+     */
+    enum trex_run_mode_e {
+        RUN_MODE_INVALID,
+        RUN_MODE_BATCH,
+        RUN_MODE_INTERACTIVE
+    };
+
 public:
     CParserOption(){
         m_factor=1.0;
@@ -707,6 +718,7 @@ public:
         m_run_flags=0;
         prefix="";
         m_mac_splitter=0;
+        m_run_mode = RUN_MODE_INVALID;
     }
 
     CPreviewMode    preview;
@@ -730,13 +742,14 @@ public:
     uint8_t         m_mac_splitter;
     uint8_t         m_pad;
 
+    trex_run_mode_e    m_run_mode;
 
-    std::string     cfg_file;
-    std::string     mac_file;
-    std::string     platform_cfg_file;
+    std::string        cfg_file;
+    std::string        mac_file;
+    std::string        platform_cfg_file;
 
-    std::string     out_file;
-    std::string     prefix;
+    std::string        out_file;
+    std::string        prefix;
 
                                  
     CMacAddrCfg     m_mac_addr[MAX_LATENCY_PORTS];
@@ -1429,7 +1442,7 @@ public:
 
 
     inline bool is_eligible_from_server_side(){
-        return ( (m_src_ip&1==1)?true:false);
+        return ( ( (m_src_ip&1) == 1)?true:false);
     }
 
 
@@ -1636,7 +1649,7 @@ public:
 */
 inline int check_objects_sizes(void){
     if ( sizeof(CGenNodeDeferPort) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeDeferPort) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeDeferPort),sizeof(CGenNode));
+        printf("ERROR sizeof(CGenNodeDeferPort) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeDeferPort),sizeof(CGenNode));
         assert(0);
     }
     if ( (int)offsetof(struct CGenNodeDeferPort,m_type)!=offsetof(struct CGenNode,m_type) ){
@@ -2576,6 +2589,8 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
     EthernetHeader * et  = 
         (EthernetHeader * )(p + m_pkt_indication.getFastEtherOffset());
 
+    (void)et;
+
     if ( unlikely (m_pkt_indication.is_ipv6())) {
         IPv6Header *ipv6= (IPv6Header *)ipv4;
 
@@ -2657,6 +2672,8 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 
     EthernetHeader * et  = 
         (EthernetHeader * )(p + m_pkt_indication.getFastEtherOffset());
+
+    (void)et;
 
     uint16_t src_port =   node->m_src_port;
 
@@ -2858,6 +2875,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
     /* need to update the mbuf size here .., this is not must but needed for accuracy  */
     uint16_t buf_adjust = len - vm.m_new_pkt_size;
     int rc = rte_pktmbuf_trim(m, buf_adjust);
+    (void)rc;
 
     /* update IP length , and TCP checksum , we can accelerate this using hardware ! */
     uint16_t pkt_adjust = vm.m_new_pkt_size - m_packet->pkt_len;
@@ -3430,6 +3448,7 @@ inline void CFlowGenListPerThread::free_last_flow_node(CGenNode *p){
     free_node( p);
 }
 
+
 class CFlowGenList {
 
 public:
@@ -3457,12 +3476,12 @@ public:
     double get_total_tx_bps();
     uint32_t get_total_repeat_flows();
     double get_delta_flow_is_sec();
+    bool   get_is_mac_conf() { return m_mac_info.is_configured();}
 public:
     std::vector<CFlowGeneratorRec *> m_cap_gen;   /* global info */
     CFlowsYamlInfo                   m_yaml_info; /* global yaml*/
     std::vector<CFlowGenListPerThread   *> m_threads_info;  
-    bool                             is_mac_info_configured;
-    std::map<uint32_t, mac_addr_align_t>    m_mac_info;  /* global mac info loaded form mac_file*/
+    CFlowGenListMac                  m_mac_info;
 };
 
 

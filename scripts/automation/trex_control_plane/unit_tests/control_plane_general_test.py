@@ -9,7 +9,7 @@ Name:
 
 Description:
 
-    This script creates the functionality to test the performance of the T-Rex traffic generator control plane.
+    This script creates the functionality to test the performance of the TRex traffic generator control plane.
     The scenarios assumes a WORKING server is listening and processing the requests.
 
 ::

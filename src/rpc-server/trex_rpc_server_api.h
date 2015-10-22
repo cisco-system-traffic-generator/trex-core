@@ -24,6 +24,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include <vector>
+#include <mutex>
 #include <thread>
 #include <string>
 #include <stdexcept>
@@ -68,7 +69,7 @@ private:
 class TrexRpcServerInterface {
 public:
   
-    TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name);
+    TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name, std::mutex *m_lock = NULL);
     virtual ~TrexRpcServerInterface();
 
     /**
@@ -127,6 +128,7 @@ protected:
     bool                                 m_is_verbose;
     std::thread                          *m_thread;
     std::string                          m_name;
+    std::mutex                           *m_lock;
 };
 
 /**
@@ -139,8 +141,11 @@ protected:
 class TrexRpcServer {
 public:
   
-    /* currently only request response server config is required */
-    TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg);
+    /* creates the collection of servers using configurations */
+    TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
+                  const TrexRpcServerConfig *async_cfg,
+                  std::mutex *m_lock = NULL);
+
     ~TrexRpcServer();
 
     /**

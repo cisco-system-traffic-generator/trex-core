@@ -1,5 +1,5 @@
 /*
- Itay Marom
+ Itay Marom, Dan Klein
  Cisco Systems, Inc.
 */
 
@@ -20,8 +20,9 @@ limitations under the License.
 */
 #include "trex_rpc_cmds.h"
 #include <trex_rpc_server_api.h>
-#include <trex_stream_api.h>
-#include <trex_stateless_api.h>
+#include <trex_stream.h>
+#include <trex_stateless.h>
+#include <trex_stateless_port.h>
 
 #include <iostream>
 
@@ -107,7 +108,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     if (stream->m_rx_check.m_enable) {
         stream->m_rx_check.m_stream_id   = parse_int(rx, "stream_id", result);
         stream->m_rx_check.m_seq_enabled = parse_bool(rx, "seq_enabled", result);
-        stream->m_rx_check.m_latency     = parse_bool(rx, "latency", result);
+        stream->m_rx_check.m_latency     = parse_bool(rx, "latency_enabled", result);
     }
 
     /* make sure this is a valid stream to add */
@@ -232,7 +233,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
 
 void 
 TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
-    std::string  flow_var_name = parse_string(inst, "flow_var_name", result);
+    std::string  flow_var_name = parse_string(inst, "name", result);
     uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
     int          add_value     = parse_int(inst,    "add_value", result);
     bool         is_big_endian = parse_bool(inst,   "is_big_endian", result);

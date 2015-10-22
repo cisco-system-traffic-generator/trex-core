@@ -57,7 +57,7 @@ void CClientPool::Create(IP_DIST_t  dist_value,
             uint32_t max_ip,
             double l_flow,
             double t_cps,
-            CFlowGenList* fl_list,
+            CFlowGenListMac* mac_info,
             bool has_mac_map,
             uint16_t tcp_aging, 
             uint16_t udp_aging) {
@@ -65,10 +65,10 @@ void CClientPool::Create(IP_DIST_t  dist_value,
     set_dist(dist_value);
     uint32_t total_ip = max_ip - min_ip +1;
     uint32_t avail_ip = total_ip;
-    if (has_mac_map && (fl_list!=NULL)) {
+    if (has_mac_map && (mac_info!=NULL)) {
         for(int idx=0;idx<total_ip;idx++){
             mac_addr_align_t *mac_adr = NULL;
-            mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+            mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
             if (mac_adr == NULL) {
                 avail_ip--;
             }
@@ -86,7 +86,7 @@ void CClientPool::Create(IP_DIST_t  dist_value,
         if (has_mac_map) {
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
-                mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+                mac_adr = mac_info->get_mac_addr_by_ip( min_ip+idx);
                 if (mac_adr != NULL) {
                     m_ip_info[idx] = new CClientInfoL(has_mac_map);
                     m_ip_info[idx]->set_ip(min_ip+idx);
@@ -103,7 +103,7 @@ void CClientPool::Create(IP_DIST_t  dist_value,
         if (has_mac_map) {
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
-                mac_adr = get_mac_addr_by_ip(fl_list, min_ip+idx);
+                mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
                 if (mac_adr != NULL) {
                     m_ip_info[idx] = new CClientInfo(has_mac_map);
                     m_ip_info[idx]->set_ip(min_ip+idx);
@@ -123,20 +123,19 @@ void CClientPool::Create(IP_DIST_t  dist_value,
     CreateBase();
 }
 
-void delay(int msec);
 
 bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
                                           uint32_t min_client,
                                           uint32_t max_client,
                                           double l_flow,
                                           double t_cps,
-                                          CFlowGenList* fl_list, 
+                                          CFlowGenListMac* mac_info, 
                                           uint16_t tcp_aging,
                                           uint16_t udp_aging){
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
     pool->Create(client_dist, min_client, max_client,
-                 l_flow, t_cps, fl_list, has_mac_mapping,
+                 l_flow, t_cps, mac_info, m_has_mac_mapping,
                  tcp_aging, udp_aging);
 
     m_client_pool.push_back(pool);
@@ -171,13 +170,13 @@ bool CTupleGeneratorSmart::Create(uint32_t _id,
     m_thread_id     = thread_id;
     m_id = _id;
     m_was_init=true;
-    has_mac_mapping = has_mac;
+    m_has_mac_mapping = has_mac;
     return(true);
 }
 
 void CTupleGeneratorSmart::Delete(){
     m_was_init=false;
-    has_mac_mapping = false;
+    m_has_mac_mapping = false;
 
     for (int idx=0;idx<m_client_pool.size();idx++) {
         m_client_pool[idx]->Delete();
@@ -224,52 +223,53 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
 
 
 
+#define UTL_YAML_READ(type, field, target) if (node.FindValue(#field)) { \
+    utl_yaml_read_ ## type (node, #field , target); \
+    } else { printf("generator definition mising " #field "\n"); } 
 
-
-void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
+IP_DIST_t convert_distribution (const YAML::Node& node) {
     std::string tmp;
-    node["name"] >> fi.m_name;
     node["distribution"] >> tmp ;
     if (tmp == "random") {
-        fi.m_dist=cdRANDOM_DIST;
+        return cdRANDOM_DIST;
     }else if (tmp == "normal") {
-        fi.m_dist=cdNORMAL_DIST;
+        return cdNORMAL_DIST;
     } else {
-        fi.m_dist=cdSEQ_DIST;
+        return cdSEQ_DIST;
     }
-    utl_yaml_read_ip_addr(node,"ip_start",fi.m_ip_start);
-    utl_yaml_read_ip_addr(node,"ip_end",fi.m_ip_end);
-    fi.m_number_of_clients_per_gb = 0;
+}
 
+void read_tuple_para(const YAML::Node& node, CTupleGenPoolYaml & fi) {
+    UTL_YAML_READ(uint32, clients_per_gb, fi.m_number_of_clients_per_gb);
+    UTL_YAML_READ(uint32, min_clients, fi.m_min_clients);
+    UTL_YAML_READ(ip_addr, dual_port_mask, fi.m_dual_interface_mask);
+    UTL_YAML_READ(uint16, tcp_aging, fi.m_tcp_aging_sec);
+    UTL_YAML_READ(uint16, udp_aging, fi.m_udp_aging_sec);
+}
+
+void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
+    if (node.FindValue("name")) {
+        node["name"] >> fi.m_name;
+    } else {
+        printf("error in generator definition, name missing\n");
+        assert(0);
+    }
+    if (node.FindValue("distribution")) {
+        fi.m_dist = convert_distribution(node); 
+    } 
+    UTL_YAML_READ(ip_addr, ip_start, fi.m_ip_start);
+    UTL_YAML_READ(ip_addr, ip_end, fi.m_ip_end);
+
+    fi.m_number_of_clients_per_gb = 0;
     fi.m_min_clients = 0;
     fi.m_is_bundling = false;
     fi.m_tcp_aging_sec = 0;
     fi.m_udp_aging_sec = 0;
     fi.m_dual_interface_mask = 0;
-    try {
-        utl_yaml_read_uint32(node,"clients_per_gb",fi.m_number_of_clients_per_gb);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_uint32(node,"min_clients",fi.m_min_clients);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_ip_addr(node,"dual_port_mask",fi.m_dual_interface_mask);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_uint16(node,"tcp_aging",fi.m_tcp_aging_sec);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
-        utl_yaml_read_uint16(node,"udp_aging",fi.m_udp_aging_sec);
-    } catch ( const std::exception& e ) {
-    ;}
-    try {
+    read_tuple_para(node, fi);
+    if (node.FindValue("track_ports")) {
         node["track_ports"] >> fi.m_is_bundling;
-    } catch ( const std::exception& e ) {
-    ;}
+    }
 }
 void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
     if (src.m_number_of_clients_per_gb == 0)
@@ -283,69 +283,54 @@ void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
     if (src.m_udp_aging_sec == 0)
         src.m_udp_aging_sec = dst.m_udp_aging_sec;
 }
-void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
-    std::string tmp;
 
-    try {
-        CTupleGenPoolYaml c_pool;
-        CTupleGenPoolYaml s_pool;
-        node["distribution"] >> tmp ;
-        if (tmp == "random") {
-            c_pool.m_dist=cdRANDOM_DIST;
-        }else if (tmp == "normal") {
-            c_pool.m_dist=cdNORMAL_DIST;
-        } else {
-            c_pool.m_dist=cdSEQ_DIST;
-        }
+
+void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
+
+    CTupleGenPoolYaml c_pool;
+    CTupleGenPoolYaml s_pool;
+    
+    if (node.FindValue("distribution")) {
+        c_pool.m_dist = convert_distribution(node); 
         s_pool.m_dist = c_pool.m_dist;
-        utl_yaml_read_ip_addr(node,"clients_start",c_pool.m_ip_start);
-        utl_yaml_read_ip_addr(node,"clients_end",c_pool.m_ip_end);
-        utl_yaml_read_ip_addr(node,"servers_start",s_pool.m_ip_start);
-        utl_yaml_read_ip_addr(node,"servers_end",s_pool.m_ip_end);
-        utl_yaml_read_uint32(node,"clients_per_gb",c_pool.m_number_of_clients_per_gb);
-        utl_yaml_read_uint32(node,"min_clients",c_pool.m_min_clients);
-        utl_yaml_read_ip_addr(node,"dual_port_mask",c_pool.m_dual_interface_mask);
-        utl_yaml_read_uint16(node,"tcp_aging",c_pool.m_tcp_aging_sec);
-        utl_yaml_read_uint16(node,"udp_aging",c_pool.m_udp_aging_sec);
+        UTL_YAML_READ(ip_addr, clients_start, c_pool.m_ip_start);
+        UTL_YAML_READ(ip_addr, clients_end, c_pool.m_ip_end);
+        UTL_YAML_READ(ip_addr, servers_start, s_pool.m_ip_start);
+        UTL_YAML_READ(ip_addr, servers_end, s_pool.m_ip_end);
+        read_tuple_para(node, c_pool);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
         s_pool.m_is_bundling = false;
         fi.m_client_pool.push_back(c_pool);
         fi.m_server_pool.push_back(s_pool);
-    }catch ( const std::exception& e ) {
+    } else {
         printf("No default generator defined.\n");
     }
-    try{
+    
+    if (node.FindValue("generator_clients")) {
         const YAML::Node& c_pool_info = node["generator_clients"];
         for (uint16_t idx=0;idx<c_pool_info.size();idx++) {
             CTupleGenPoolYaml pool;
-            try {
-                c_pool_info[idx] >> pool;
-                if (fi.m_client_pool.size()>0) {
-                    copy_global_pool_para(pool, fi.m_client_pool[0]);
-                }
-                fi.m_client_pool.push_back(pool);
-            } catch ( const std::exception& e ) {
-                printf("client pool in YAML is wrong\n");
+            c_pool_info[idx] >> pool;
+            if (fi.m_client_pool.size()>0) {
+                copy_global_pool_para(pool, fi.m_client_pool[0]);
             }
+            fi.m_client_pool.push_back(pool);
         }
-    }catch ( const std::exception& e ) {
+    } else {
         printf("no client generator pool configured, using default pool\n");
     } 
-    try {
+
+    if (node.FindValue("generator_servers")) {
         const YAML::Node& s_pool_info = node["generator_servers"];
         for (uint16_t idx=0;idx<s_pool_info.size();idx++) {
             CTupleGenPoolYaml pool;
-            try {
-                s_pool_info[idx] >> pool;
-            } catch ( const std::exception& e ) {
-                printf("server pool in YAML is wrong\n");
-            }
+            s_pool_info[idx] >> pool;
             if (fi.m_server_pool.size()>0) {
                 copy_global_pool_para(pool, fi.m_server_pool[0]);
             }
             fi.m_server_pool.push_back(pool);
         }
-    }catch ( const std::exception& e ) {
+    } else {
         printf("no server generator pool configured, using default pool\n");
     } 
 }

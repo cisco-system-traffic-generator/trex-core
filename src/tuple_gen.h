@@ -37,9 +37,96 @@ limitations under the License.
 #include "common/c_common.h"
 #include <bitset>
 #include <yaml-cpp/yaml.h>
-
+#include <mac_mapping.h>
 
 #include <random>
+
+class CTupleBase {
+public:
+       CTupleBase() {
+           m_client_mac.inused = UNUSED;
+       }
+       uint32_t getClient() {
+           return m_client_ip;
+       }
+       void setClient(uint32_t ip) {
+           m_client_ip = ip;
+       }
+       uint32_t getClientId() {
+           return m_client_idx;
+       }
+       void setClientId(uint32_t id) {
+           m_client_idx = id;
+       }
+       
+       uint32_t getServer(){
+           return m_server_ip;
+       }
+       void setServer(uint32_t ip) {
+           m_server_ip = ip;
+       }
+       uint32_t getServerId(){
+           return m_server_idx;
+       }
+       void setServerId(uint32_t id) {
+           m_server_idx = id;
+       }
+       uint16_t getServerPort() {
+           return m_server_port;
+       }
+       void setServerPort(uint16_t port) {
+           m_server_port = port;
+       }
+       uint16_t getClientPort() {
+           return m_client_port;
+       }
+       void setClientPort(uint16_t port) {
+           m_client_port = port;
+       }
+       mac_addr_align_t* getClientMac() {
+           return &m_client_mac;
+       }
+       void setClientMac(mac_addr_align_t* mac_info) {
+           if (mac_info != NULL) {
+               memcpy(&m_client_mac, mac_info, sizeof(mac_addr_align_t));
+               m_client_mac.inused = INUSED;
+           } else {
+               m_client_mac.inused = UNUSED;
+           }
+       }
+       void setClientTuple(uint32_t ip,mac_addr_align_t*mac,uint16_t port) {
+           setClient(ip);
+           setClientMac(mac);
+           setClientPort(port);
+       }
+       void setClientAll2(uint32_t id, uint32_t ip,uint16_t port) {
+           setClientId(id);
+           setClient(ip);
+           setClientPort(port);
+       }
+ 
+       void setServerAll(uint32_t id, uint32_t ip) {
+           setServerId(id);
+           setServer(ip);
+       }
+       void getClientAll(uint32_t & id, uint32_t & ip, uint32_t & port) {
+           id = getClientId();
+           ip = getClient();
+           port = getClientPort();
+       }
+       void getServerAll(uint32_t & id, uint32_t & ip) {
+           id = getServerId();
+           ip = getServer();
+       }
+private:
+       uint32_t m_client_ip;
+       uint32_t m_client_idx;
+       uint32_t m_server_ip;
+       uint32_t m_server_idx;
+       mac_addr_align_t m_client_mac;
+       uint16_t m_client_port;
+       uint16_t m_server_port;
+};
 
 
 
@@ -59,31 +146,14 @@ limitations under the License.
 
 #define FOREACH(vector) for(int i=0;i<vector.size();i++)
 
+
 /* Client distribution */
-
-
 typedef enum  {
     cdSEQ_DIST    = 0,
     cdRANDOM_DIST = 1,
     cdNORMAL_DIST = 2,
     cdMAX_DIST    = 3
 } IP_DIST_t ;
-
-#define INUSED 0
-#define UNUSED 1
-typedef struct mac_addr_align_ {
-public:
-    uint8_t mac[6];
-    uint8_t inused;
-    uint8_t pad;
-} mac_addr_align_t;
-
-typedef struct mac_mapping_ {
-    mac_addr_align_t mac;
-    uint32_t         ip;
-} mac_mapping_t;
-
-
 
 /* For type 1, we generator port by maintaining a 64K bit array for each port.
  * In this case, we cannot support large number of clients due to memory exhausted. 
@@ -99,13 +169,13 @@ typedef struct mac_mapping_ {
 #define TYPE2 1
 #define MAX_TYPE 3
 
-
 class CIpInfoBase {
     public:
         virtual mac_addr_align_t* get_mac() { return NULL;}
         virtual void set_mac(mac_addr_align_t*){;}
         virtual uint16_t get_new_free_port() = 0;
         virtual void return_port(uint16_t a) = 0;
+        virtual void generate_tuple(CTupleBase & tuple) = 0;
         virtual void return_all_ports() = 0;
         uint32_t get_ip() {
             return m_ip;
@@ -113,7 +183,8 @@ class CIpInfoBase {
         void set_ip(uint32_t ip) {
             m_ip = ip;
         }
-    public:
+        virtual ~CIpInfoBase() {}
+    protected:
         uint32_t          m_ip;
 };
 
@@ -233,31 +304,37 @@ class CIpInfo : public CIpInfoBase {
 };
 
 class CClientInfo : public CIpInfo {
-    public:
-        CClientInfo (bool has_mac) {
-            if (has_mac==true) {
-                m_mac = new mac_addr_align_t();
-            } else {
-                m_mac = NULL;
-            }
-        }
-        CClientInfo () {
+public:
+    CClientInfo (bool has_mac) {
+        if (has_mac==true) {
+            m_mac = new mac_addr_align_t();
+        } else {
             m_mac = NULL;
         }
- 
-        mac_addr_align_t* get_mac() {
-            return m_mac;
+    }
+    CClientInfo () {
+        m_mac = NULL;
+    }
+
+    mac_addr_align_t* get_mac() {
+        return m_mac;
+    }
+    void set_mac(mac_addr_align_t *mac) {
+        memcpy(m_mac, mac, sizeof(mac_addr_align_t));
+    }
+    ~CClientInfo() {
+        if (m_mac!=NULL){
+            delete m_mac;
+            m_mac=NULL;
         }
-        void set_mac(mac_addr_align_t *mac) {
-            memcpy(m_mac, mac, sizeof(mac_addr_align_t));
-        }
-        ~CClientInfo() {
-            if (m_mac!=NULL){
-                delete m_mac;
-            }
-        }
-    private:
-        mac_addr_align_t *m_mac;
+    }
+    
+    void generate_tuple(CTupleBase & tuple) {
+        tuple.setClientTuple(m_ip, m_mac,
+                           get_new_free_port());
+    }
+private:
+    mac_addr_align_t *m_mac;
 };
 
 class CClientInfoL : public CIpInfoL {
@@ -272,100 +349,44 @@ public:
     CClientInfoL () {
         m_mac = NULL;
     }
- 
+
     mac_addr_align_t* get_mac() {
         return m_mac;
     }
+
     void set_mac(mac_addr_align_t *mac) {
         memcpy(m_mac, mac, sizeof(mac_addr_align_t));
     }
+
     ~CClientInfoL() {
-        if (m_mac!=NULL) {
+        if (m_mac!=NULL){
             delete m_mac;
+            m_mac=NULL;
         }
+    }
+    
+    void generate_tuple(CTupleBase & tuple) {
+        tuple.setClientTuple(m_ip, m_mac,
+                           get_new_free_port());
     }
 private:
     mac_addr_align_t *m_mac;
 };
 
 class CServerInfo : public CIpInfo {
-    ;
+    void generate_tuple(CTupleBase & tuple) {
+        tuple.setServer(m_ip);
+    }
 };
 
 class CServerInfoL : public CIpInfoL {
-    ;
-};
-
-
-class CTupleBase {
-public:
-       CTupleBase() {
-           m_client_mac.inused = UNUSED;
-       }
-       uint32_t getClient() {
-           return m_client_ip;
-       }
-       void setClient(uint32_t ip) {
-           m_client_ip = ip;
-       }
-       uint32_t getClientId() {
-           return m_client_idx;
-       }
-       void setClientId(uint32_t id) {
-           m_client_idx = id;
-       }
-       
-       uint32_t getServer(){
-           return m_server_ip;
-       }
-       void setServer(uint32_t ip) {
-           m_server_ip = ip;
-       }
-       uint32_t getServerId(){
-           return m_server_idx;
-       }
-       void setServerId(uint32_t id) {
-           m_server_idx = id;
-       }
-       uint16_t getServerPort() {
-           return m_server_port;
-       }
-       void setServerPort(uint16_t port) {
-           m_server_port = port;
-       }
-       uint16_t getClientPort() {
-           return m_client_port;
-       }
-       void setClientPort(uint16_t port) {
-           m_client_port = port;
-       }
-       mac_addr_align_t* getClientMac() {
-           return &m_client_mac;
-       }
-       void setClientMac(mac_addr_align_t* mac_info) {
-           if (mac_info != NULL) {
-               memcpy(&m_client_mac, mac_info, sizeof(mac_addr_align_t));
-               m_client_mac.inused = INUSED;
-           } else {
-               m_client_mac.inused = UNUSED;
-           }
-       }
-private:
-       uint32_t m_client_ip;
-       uint32_t m_client_idx;
-       uint32_t m_server_ip;
-       uint32_t m_server_idx;
-       mac_addr_align_t m_client_mac;
-       uint16_t m_client_port;
-       uint16_t m_server_port;
+    void generate_tuple(CTupleBase & tuple) {
+        tuple.setServer(m_ip);
+    }
 };
 
 
 
-class CFlowGenList;
-mac_addr_align_t * get_mac_addr_by_ip(CFlowGenList *fl_list,
-                                             uint32_t ip);
-bool is_mac_info_conf(CFlowGenList *fl_list);
 
 class CIpPool {
     public:
@@ -381,14 +402,15 @@ class CIpPool {
             m_active_alloc++;
             return (port);
         }
-        bool is_valid_ip(uint32_t ip){
+
+       bool is_valid_ip(uint32_t ip){
             CIpInfoBase* ip_front = m_ip_info.front();
             CIpInfoBase* ip_back  = m_ip_info.back();
             if ((ip>=ip_front->get_ip()) && 
                 (ip<=ip_back->get_ip())) {
                 return(true);
             }
-            printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%x\n", 
+            printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%p\n", 
                    ip, ip_front->get_ip(), 
                    ip_back->get_ip(),this);
             return(false);
@@ -422,6 +444,9 @@ class CIpPool {
             inc_cur_idx();
             return res_idx;
         }
+
+            
+
         void set_dist(IP_DIST_t dist) {
             if (dist>=cdMAX_DIST) {
                 m_dist = cdSEQ_DIST;
@@ -491,13 +516,20 @@ class CIpPool {
 
 class CClientPool : public CIpPool {
 public:
-    void GenerateTuple(CTupleBase & tuple) {
-       uint32_t idx = generate_ip();
-       tuple.setClientId(idx);
-       tuple.setClient(get_ip(idx));
-       tuple.setClientMac(get_mac(idx));
-       tuple.setClientPort(GenerateOnePort(idx));
+
+    uint32_t GenerateTuple(CTupleBase & tuple) {
+        uint32_t idx = generate_ip();
+        CIpInfoBase* ip_info = m_ip_info[idx];
+        ip_info->generate_tuple(tuple);
+
+        tuple.setClientId(idx);
+        if (tuple.getClientPort()==ILLEGAL_PORT) {
+            m_port_allocation_error++;
+        }
+        m_active_alloc++;
+        return idx;
     }
+
     uint16_t get_tcp_aging() {
         return m_tcp_aging;
     }
@@ -509,10 +541,11 @@ public:
                 uint32_t max_ip,
                 double l_flow,
                 double t_cps,
-                CFlowGenList* fl_list,
+                CFlowGenListMac* mac_info,
                 bool has_mac_map, 
                 uint16_t tcp_aging,
                 uint16_t udp_aging); 
+
 public: 
     uint16_t m_tcp_aging;
     uint16_t m_udp_aging;
@@ -568,11 +601,9 @@ private:
 
 class CServerPool : public CServerPoolBase {
 public:
-    CIpPool *gen;
     void GenerateTuple(CTupleBase & tuple) {
        uint32_t idx = gen->generate_ip();
-       tuple.setServerId(idx);
-       tuple.setServer(gen->get_ip(idx));
+       tuple.setServerAll(idx, gen->get_ip(idx));
     }
     uint16_t GenerateOnePort(uint32_t idx) {
         return gen->GenerateOnePort(idx);
@@ -587,11 +618,14 @@ public:
         if (gen!=NULL) {
             gen->Delete();
             delete gen;
+            gen=NULL;
         }
     }
     uint32_t get_total_ips() {
         return gen->m_ip_info.size();
     }
+private: 
+    CIpPool *gen;
 };
 
 /* generate for each template */
@@ -648,7 +682,7 @@ public:
 public:
     CTupleGeneratorSmart(){
         m_was_init=false;
-        has_mac_mapping = false;
+        m_has_mac_mapping = false;
     }
     bool Create(uint32_t _id,
             uint32_t thread_id, bool has_mac=false);
@@ -672,7 +706,7 @@ public:
                          uint32_t max_client,
                          double l_flow,
                          double t_cps,
-                         CFlowGenList* fl_list,
+                         CFlowGenListMac* mac_info,
                          uint16_t tcp_aging,
                          uint16_t udp_aging);
     bool add_server_pool(IP_DIST_t  server_dist,
@@ -699,7 +733,7 @@ private:
     std::vector<CClientPool*> m_client_pool;
     std::vector<CServerPoolBase*> m_server_pool;
     bool     m_was_init;
-    bool     has_mac_mapping;
+    bool     m_has_mac_mapping;
 };
 
 class CTupleTemplateGeneratorSmart {
@@ -718,15 +752,13 @@ public:
                 m_server_gen->GenerateTuple(tuple);
                 m_cache_client_ip = tuple.getClient();
                 m_cache_client_idx = tuple.getClientId();
-                m_cache_server_ip = tuple.getServer();
-                m_cache_server_idx = tuple.getServerId();
+                tuple.getServerAll(m_cache_server_idx, m_cache_server_ip);
             }else{
-                tuple.setServer(m_cache_server_ip);
-                tuple.setServerId(m_cache_server_idx);
-                tuple.setClient(m_cache_client_ip);
-                tuple.setClientId(m_cache_client_idx);
-                tuple.setClientPort(
-                         m_client_gen->GenerateOnePort(m_cache_client_idx));
+                tuple.setServerAll(m_cache_server_idx, 
+                                   m_cache_server_ip);
+                tuple.setClientAll2(m_cache_client_idx,
+                                    m_cache_client_ip,
+                                    m_client_gen->GenerateOnePort(m_cache_client_idx));
             }
             m_cnt++;
             if (m_cnt>=m_w) {
