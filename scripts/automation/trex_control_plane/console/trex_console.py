@@ -17,6 +17,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+__version__ = "1.0"
+
 import cmd
 import json
 import ast
@@ -38,7 +40,7 @@ LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 
 #
 
-def readch (choices = []):
+def readch(choices=[]):
         
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
@@ -119,7 +121,7 @@ class AddStreamMenu(CmdMenu):
         self.add_menu('Please select ISG', ['d', 'e', 'f'])
 
 # main console object
-class TrexConsole(cmd.Cmd):
+class TRexConsole(cmd.Cmd):
     """Trex Console"""
    
     def __init__(self, rpc_client):
@@ -129,7 +131,7 @@ class TrexConsole(cmd.Cmd):
 
         self.do_connect("")
 
-        self.intro  = "\n-=TRex Console V1.0=-\n"
+        self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n" 
 
         self.verbose = False
@@ -473,7 +475,7 @@ class TrexConsole(cmd.Cmd):
     def complete_load_stream_list(self, text, line, begidx, endidx):
         arg_num = len(line.split()) - 1
         if arg_num == 2:
-            return TrexConsole.tree_autocomplete(line.split()[-1])
+            return TRexConsole.tree_autocomplete(line.split()[-1])
         else:
             return [text]
 
@@ -581,7 +583,7 @@ def main ():
 
     # console
     try:
-        console = TrexConsole(rpc_client)
+        console = TRexConsole(rpc_client)
         console.cmdloop()
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
