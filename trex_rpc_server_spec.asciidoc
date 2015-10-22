@@ -19,6 +19,10 @@ The TRex RPC Server
 |
 - added usage examples using Python code as Higher-level usage
 - added logic and explanation behind VM commands
+| 1.1    | Dan Klein (danklei)
+|
+- Fixed some consistency issues
+- added RPC interaction examples appendix
 
 |=================
 
@@ -659,7 +663,7 @@ please also consider the following constraints:
 
 ==== The bytes needed for activating 'rx_stats':
 
-* *rx_stream_id* consumes 2 bytes
+* *stream_id* consumes 2 bytes
 * *seq_enabled* consumes 4 bytes
 * *latency_enabled* consumes 4 bytes
 
@@ -677,6 +681,8 @@ if both are enabled then 10 bytes will be used.
 |=================
 | Field            | Type        | Description
 | enabled          | boolean     | is rx_stats enabled for this stream
+| stream_id        | int         | stream_id for which to collect rx_stats. + 
+This could be stream_id different from the stream object which contains the rx_stats object.
 | seq_enabled      | boolean     | should write 32 bit sequence
 | latency_enabled  | boolean     | should write 32 bit latency
 |=================
@@ -729,6 +735,9 @@ if both are enabled then 10 bytes will be used.
 
 
 ----
+
+This request-reply sequence demonstrate a method in which rx_stats are diabled.
+In case rx_stats feature is enabled, rx_object **must include** all rx_stats object fields as described above.
 
 
 === Remove Stream
