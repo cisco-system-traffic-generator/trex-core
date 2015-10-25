@@ -1300,3 +1300,218 @@ Finally, let's see the expected JSON output of the VM instructions:
 
 [NOTE]
 In this case only one checksum instruction has been generated, since both ranging options applies to the same IP header.
+
+
+:numbered!:
+
+[appendix]
+Interaction Examples
+--------------------
+
+This appendix brings examples with data for the this RPC interaction. + 
+
+
+<<_add_stream, add_stream>> method example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following example represents an interaction between the RPC client and the server's response.
+
+Simple single packet client request
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+On the following example, there's no VM instructions, rx_stats option is disabled and there's only a single packet which isn't connected to any other packet.
+
+[underline]#Client request#
+[source, bash]
+----
+{
+  "id" : "2bqgd2r4",
+  "jsonrpc" : "2.0",
+  "method" : "add_stream",
+  "params" : {
+     "handler" : "37JncCHr",
+     "port_id" : 1,
+     "stream" : {
+        "enabled" : true,
+        "isg" : 0,
+        "mode" : {
+           "pps" : 100,
+           "type" : "continuous"
+        },
+        "next_stream_id" : -1,
+        "packet" : {
+           "binary" : [
+              0,
+              80,
+              86,
+              128,
+              13,
+              ...  # more packet data
+              77,
+              79,
+              250,
+              154,
+              66
+           ],
+           "meta" : ""
+        },
+        "rx_stats" : {
+           "enabled" : false
+        },
+        "self_start" : true,
+        "vm" : []
+     },
+     "stream_id" : 0
+  }
+}
+
+----
+
+[underline]#Server's response#
+[source, bash]
+----
+{
+   "id" : "2bqgd2r4",
+   "jsonrpc" : "2.0",
+   "result" : "ACK"
+}
+
+----
+
+
+Two linked packets with VM instructions client request
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+On the following example, a **batch request** is being issued to the server, containing two `add_stream` requests. 
+
+[underline]#First request# +
+The first client request is similar to the previous example. +
+However, in this case the rx_stats object is enbaled and set to monitor ancestor's `stream_id` (which is 0 in this case).
+
+Ontop, this stream points to the next stream as the one to follow, as described under `next_stream_id` of `stream` object.
+
+[underline]#Second request# + 
+In this stream the big difference is that it has VM instructions under the `vm` field of the `stream` object.
+
+Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `stream` object is set to '-1'.
+
+
+[underline]#Client request#
+
+[source, bash]
+----
+[
+   {
+      "id" : "tq49f6uj",
+      "jsonrpc" : "2.0",
+      "method" : "add_stream",
+      "params" : {
+         "handler" : "2JjzhMai",
+         "port_id" : 3,
+         "stream" : {
+            "enabled" : true,
+            "isg" : 0,
+            "mode" : {
+               "pps" : 100,
+               "type" : "continuous"
+            },
+            "next_stream_id" : 1,
+            "packet" : {
+               "binary" : [
+                  0,
+                  80,
+                  86,
+                  ...  # more packet data
+                  250,
+                  154,
+                  66
+               ],
+               "meta" : ""
+            },
+            "rx_stats" : {
+               "enabled" : true,
+               "latency_enabled" : false,
+               "seq_enabled" : false,
+               "stream_id" : 0
+            },
+            "self_start" : true,
+            "vm" : []
+         },
+         "stream_id" : 0
+      }
+   },
+   {
+      "id" : "2m7i5olx",
+      "jsonrpc" : "2.0",
+      "method" : "add_stream",
+      "params" : {
+         "handler" : "2JjzhMai",
+         "port_id" : 3,
+         "stream" : {
+            "enabled" : true,
+            "isg" : 0,
+            "mode" : {
+               "pps" : 200,
+               "type" : "continuous"
+            },
+            "next_stream_id" : -1,
+            "packet" : {
+               "binary" : [
+                  0,
+                  80,
+                  86,
+                  128,
+                  ...  # more packet data
+                  216,
+                  148,
+                  25
+               ],
+               "meta" : ""
+            },
+            "rx_stats" : {
+               "enabled" : false
+            },
+            "self_start" : false,
+            "vm" : [
+               {
+                  "init_value" : "65537",
+                  "max_value" : "65551",
+                  "min_value" : "65537",
+                  "name" : "l3__src",
+                  "op" : "inc",
+                  "size" : 4,
+                  "type" : "flow_var"
+               },
+               {
+                  "add_value" : 1,
+                  "is_big_endian" : false,
+                  "name" : "l3__src",
+                  "pkt_offset" : 34,
+                  "type" : "write_flow_var"
+               }
+            ]
+         },
+         "stream_id" : 1
+      }
+   }
+]
+
+----
+
+[underline]#Server's response#
+[source, bash]
+----
+[
+   {
+      "id" : "tq49f6uj",
+      "jsonrpc" : "2.0",
+      "result" : "ACK"
+   },
+   {
+      "id" : "2m7i5olx",
+      "jsonrpc" : "2.0",
+      "result" : "ACK"
+   }
+]
+
+----
