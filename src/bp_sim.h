@@ -721,6 +721,7 @@ public:
         m_run_mode = RUN_MODE_INVALID;
     }
 
+
     CPreviewMode    preview;
     float           m_factor;
     float           m_duration;
@@ -741,8 +742,9 @@ public:
     uint16_t        m_run_flags;
     uint8_t         m_mac_splitter;
     uint8_t         m_pad;
-
     trex_run_mode_e    m_run_mode;
+
+
 
     std::string        cfg_file;
     std::string        mac_file;
@@ -776,6 +778,10 @@ public:
     }
     bool is_latency_disabled(){
         return ( m_latency_rate == 0 ?true:false);
+    }
+
+    bool is_stateless(){
+        return (m_run_mode == RUN_MODE_INTERACTIVE ?true:false);
     }
 
     bool is_latency_enabled(){
@@ -1187,6 +1193,9 @@ public:
     static CPlatformSocketInfo m_socket;
 };
 
+static inline int get_is_stateless(){
+    return (CGlobalInfo::m_options.is_stateless() );
+}
 
 static inline int get_is_rx_check_mode(){
     return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);
@@ -3331,7 +3340,9 @@ public :
 
 public:
     void Clean();
-    void generate_erf(std::string erf_file_name,CPreviewMode &preview);
+    void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
+    void start_stateless_daemon();
+
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
     void DumpStats(FILE *fd);
@@ -3421,7 +3432,11 @@ private:
     CNodeRing *                      m_ring_to_rx;   /* ring dp -> latency thread */
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
-};
+
+
+private:
+    uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 
+} __rte_cache_aligned ;
 
 inline CGenNode * CFlowGenListPerThread::create_node(void){
     CGenNode * res;

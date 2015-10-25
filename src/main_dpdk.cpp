@@ -928,6 +928,20 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         }
     }
 
+    if ( get_is_stateless() ) {
+        if ( po->preview.get_is_rx_check_enable() ) {
+            parse_err("Rx check is not supported with interactive mode ");
+        }
+
+        if  ( (! po->is_latency_disabled()) || (po->preview.getOnlyLatency()) ){
+            parse_err("Latecny check is not supported with interactive mode ");
+        }
+
+        if ( po->preview.getSingleCore() ){
+            parse_err("single core is not supported with interactive mode ");
+        }
+
+    }
     return 0;
 }
 
@@ -2719,10 +2733,10 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
 
 
 
-struct CGlobalPortCfg  {
+struct CGlobalTRex  {
 
 public:
-    CGlobalPortCfg (){
+    CGlobalTRex (){
        m_max_ports=4;
        m_max_cores=1;
        m_cores_to_dual_ports=0;
@@ -2735,7 +2749,7 @@ public:
     }
 public:
 
-    bool Create(bool is_stateless);
+    bool Create();
     void Delete();
 
     int  ixgbe_prob_init();
@@ -2754,6 +2768,8 @@ public:
 
 public:
     int start_send_master();
+    int start_master_stateless();
+
     int run_in_core(virtual_thread_id_t virt_core_id);
     int stop_core(virtual_thread_id_t virt_core_id);
 
@@ -2893,7 +2909,7 @@ private:
 
 
 
-int CGlobalPortCfg::test_send1(){
+int CGlobalTRex::test_send1(){
 
     CParserOption po ;
     CFlowGenList fl;
@@ -2920,7 +2936,7 @@ int CGlobalPortCfg::test_send1(){
         //CNullIF * erf_vif = new CNullIF();
         CVirtualIF * erf_vif = &m_cores_vif[0];
         lpt->set_vif(erf_vif);
-        lpt->generate_erf("hey",po.preview);
+        lpt->start_generate_stateful("hey",po.preview);
         lpt->m_node_gen.DumpHist(stdout);
         lpt->DumpStats(stdout);
     }
@@ -2936,7 +2952,7 @@ int CGlobalPortCfg::test_send1(){
 }
 
 
-int  CGlobalPortCfg::rcv_send(int port,int queue_id){
+int  CGlobalTRex::rcv_send(int port,int queue_id){
 
     CPhyEthIF * lp=&m_ports[port];
     rte_mbuf_t * rx_pkts[32];
@@ -2955,7 +2971,7 @@ int  CGlobalPortCfg::rcv_send(int port,int queue_id){
     return (0);
 }
 
-int  CGlobalPortCfg::rcv_send_all(int queue_id){
+int  CGlobalTRex::rcv_send_all(int queue_id){
     int i;
     for (i=0; i<m_max_ports; i++) {
         rcv_send(i,queue_id);
@@ -2966,7 +2982,7 @@ int  CGlobalPortCfg::rcv_send_all(int queue_id){
 
 
 
-int CGlobalPortCfg::test_send(){
+int CGlobalTRex::test_send(){
     int i;
 
     CPhyEthIF * lp=&m_ports[0];
@@ -3118,7 +3134,7 @@ const uint8_t sctp_pkt1[]={
 
 
 
-int CGlobalPortCfg::create_pkt(uint8_t *pkt,int pkt_size){
+int CGlobalTRex::create_pkt(uint8_t *pkt,int pkt_size){
     rte_mempool_t * mp= CGlobalInfo::m_mem_pool[0].m_big_mbuf_pool ;
 
     rte_mbuf_t * m=rte_pktmbuf_alloc(mp);
@@ -3138,17 +3154,17 @@ int CGlobalPortCfg::create_pkt(uint8_t *pkt,int pkt_size){
     return (0);
 }
 
-int CGlobalPortCfg::create_udp_pkt(){
+int CGlobalTRex::create_udp_pkt(){
     return (create_pkt((uint8_t*)udp_pkt,sizeof(udp_pkt)));
 }
 
-int CGlobalPortCfg::create_sctp_pkt(){
+int CGlobalTRex::create_sctp_pkt(){
     return (create_pkt((uint8_t*)sctp_pkt1,sizeof(sctp_pkt1)));
 }
 
 
 /* test by sending 10 packets ...*/
-int CGlobalPortCfg::test_send_pkts(uint16_t queue_id,
+int CGlobalTRex::test_send_pkts(uint16_t queue_id,
                                       int pkt,
                                       int port){
 
@@ -3174,7 +3190,7 @@ int CGlobalPortCfg::test_send_pkts(uint16_t queue_id,
 
 
 
-int  CGlobalPortCfg::set_promisc_all(bool enable){
+int  CGlobalTRex::set_promisc_all(bool enable){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=&m_ports[i];
@@ -3184,7 +3200,7 @@ int  CGlobalPortCfg::set_promisc_all(bool enable){
 
 
 
-int  CGlobalPortCfg::reset_counters(){
+int  CGlobalTRex::reset_counters(){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=&m_ports[i];
@@ -3193,7 +3209,7 @@ int  CGlobalPortCfg::reset_counters(){
 }
 
 
-bool CGlobalPortCfg::is_all_links_are_up(bool dump){
+bool CGlobalTRex::is_all_links_are_up(bool dump){
     bool all_link_are=true;
     int i;
     for (i=0; i<m_max_ports; i++) {
@@ -3212,7 +3228,7 @@ bool CGlobalPortCfg::is_all_links_are_up(bool dump){
 
 
 
-int  CGlobalPortCfg::ixgbe_rx_queue_flush(){
+int  CGlobalTRex::ixgbe_rx_queue_flush(){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=&m_ports[i];
@@ -3222,7 +3238,7 @@ int  CGlobalPortCfg::ixgbe_rx_queue_flush(){
 }
 
 
-int  CGlobalPortCfg::ixgbe_configure_mg(void){
+int  CGlobalTRex::ixgbe_configure_mg(void){
     int i;
     CLatencyManagerCfg mg_cfg;
     mg_cfg.m_max_ports = m_max_ports;
@@ -3265,7 +3281,7 @@ int  CGlobalPortCfg::ixgbe_configure_mg(void){
 }
 
 
-int  CGlobalPortCfg::ixgbe_start(void){
+int  CGlobalTRex::ixgbe_start(void){
     int i;
     for (i=0; i<m_max_ports; i++) {
 
@@ -3409,8 +3425,9 @@ int  CGlobalPortCfg::ixgbe_start(void){
 }
 
 
-bool CGlobalPortCfg::Create(bool is_stateless){
+bool CGlobalTRex::Create(){
 
+    bool is_stateless = get_is_stateless();
     /* hack - need to refactor */
     if (!is_stateless) {
         if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
@@ -3463,13 +3480,13 @@ bool CGlobalPortCfg::Create(bool is_stateless){
    return (true);
 
 }
-void CGlobalPortCfg::Delete(){
+void CGlobalTRex::Delete(){
     m_zmq_publisher.Delete();
 }
 
 
 
-int  CGlobalPortCfg::ixgbe_prob_init(void){
+int  CGlobalTRex::ixgbe_prob_init(void){
 
     uint8_t nb_ports;             
 
@@ -3561,13 +3578,13 @@ int  CGlobalPortCfg::ixgbe_prob_init(void){
     return (0);
 }
 
-int  CGlobalPortCfg::cores_prob_init(){
+int  CGlobalTRex::cores_prob_init(){
     m_max_cores = rte_lcore_count();
     assert(m_max_cores>0);
     return (0);
 }
 
-int  CGlobalPortCfg::queues_prob_init(){
+int  CGlobalTRex::queues_prob_init(){
 
     if (m_max_cores < 2) {
           rte_exit(EXIT_FAILURE, "number of cores should be at least 3 \n");
@@ -3608,7 +3625,7 @@ int  CGlobalPortCfg::queues_prob_init(){
 }
 
 
-void CGlobalPortCfg::dump_config(FILE *fd){
+void CGlobalTRex::dump_config(FILE *fd){
     fprintf(fd," number of ports         : %u \n",m_max_ports);
     fprintf(fd," max cores for 2 ports   : %u \n",m_cores_to_dual_ports);
     fprintf(fd," max queue per port      : %u \n",m_max_queues_per_port);
@@ -3616,7 +3633,7 @@ void CGlobalPortCfg::dump_config(FILE *fd){
 
 
 
-void CGlobalPortCfg::dump_post_test_stats(FILE *fd){
+void CGlobalTRex::dump_post_test_stats(FILE *fd){
     uint64_t pkt_out=0;
     uint64_t pkt_out_bytes=0;
     uint64_t pkt_in_bytes=0;
@@ -3675,7 +3692,7 @@ void CGlobalPortCfg::dump_post_test_stats(FILE *fd){
 }
 
 
-void CGlobalPortCfg::update_stats(){
+void CGlobalTRex::update_stats(){
 
     int i;
     for (i=0; i<m_max_ports; i++) {
@@ -3696,7 +3713,7 @@ void CGlobalPortCfg::update_stats(){
 }
 
 
-void CGlobalPortCfg::get_stats(CGlobalStats & stats){
+void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     int i;
     float total_tx=0.0;
@@ -3822,7 +3839,7 @@ void CGlobalPortCfg::get_stats(CGlobalStats & stats){
     stats.m_tx_expected_bps        = m_expected_bps*pf;
 }
 
-bool CGlobalPortCfg::sanity_check(){
+bool CGlobalTRex::sanity_check(){
 
     CFlowGenListPerThread   * lpt;
     uint32_t errors=0;
@@ -3842,7 +3859,7 @@ bool CGlobalPortCfg::sanity_check(){
 
 
 /* dump the template info */
-void CGlobalPortCfg::dump_template_info(std::string & json){
+void CGlobalTRex::dump_template_info(std::string & json){
     CFlowGenListPerThread   * lpt = m_fl.m_threads_info[0];
     CFlowsYamlInfo * yaml_info=&lpt->m_yaml_info;
 
@@ -3857,7 +3874,7 @@ void CGlobalPortCfg::dump_template_info(std::string & json){
     json+="]}" ;
 }
 
-void CGlobalPortCfg::dump_stats(FILE *fd,std::string & json,
+void CGlobalTRex::dump_stats(FILE *fd,std::string & json,
                                 CGlobalStats::DumpFormat format){
     CGlobalStats  stats;
     update_stats();
@@ -3897,7 +3914,7 @@ void CGlobalPortCfg::dump_stats(FILE *fd,std::string & json,
 }
 
 
-int CGlobalPortCfg::run_in_master(){
+int CGlobalTRex::run_in_master(){
 
     std::string json;
     bool was_stopped=false;
@@ -3953,10 +3970,10 @@ int CGlobalPortCfg::run_in_master(){
         m_fl.m_threads_info[0]->m_node_gen.dump_json(json);
         m_zmq_publisher.publish_json(json);
 
-        dump_template_info(json);
-        m_zmq_publisher.publish_json(json);
-
-
+        if ( !get_is_stateless() ){
+            dump_template_info(json);
+            m_zmq_publisher.publish_json(json);
+        }
 
         if ( !CGlobalInfo::m_options.is_latency_disabled() ){
             m_mg.update();
@@ -4027,7 +4044,7 @@ int CGlobalPortCfg::run_in_master(){
 
 
 
-int CGlobalPortCfg::run_in_laterncy_core(void){
+int CGlobalTRex::run_in_laterncy_core(void){
     if ( !CGlobalInfo::m_options.is_latency_disabled() ){
         m_mg.start(0);
     }
@@ -4035,12 +4052,12 @@ int CGlobalPortCfg::run_in_laterncy_core(void){
 }
 
 
-int CGlobalPortCfg::stop_core(virtual_thread_id_t virt_core_id){
+int CGlobalTRex::stop_core(virtual_thread_id_t virt_core_id){
     m_signal[virt_core_id]=1;
     return (0);
 }
 
-int CGlobalPortCfg::run_in_core(virtual_thread_id_t virt_core_id){
+int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
 
     CPreviewMode *lp=&CGlobalInfo::m_options.preview;
     if ( lp->getSingleCore() && 
@@ -4051,19 +4068,23 @@ int CGlobalPortCfg::run_in_core(virtual_thread_id_t virt_core_id){
         return (0);
     }
 
+
     assert(m_fl_was_init);
     CFlowGenListPerThread   * lpt;
     lpt = m_fl.m_threads_info[virt_core_id-1];
-    lpt->generate_erf(CGlobalInfo::m_options.out_file,*lp);
-    //lpt->m_node_gen.DumpHist(stdout);
-    //lpt->DumpStats(stdout);
+
+    if (get_is_stateless()) {
+        lpt->start_stateless_daemon();
+    }else{
+        lpt->start_generate_stateful(CGlobalInfo::m_options.out_file,*lp);
+    }
 
     m_signal[virt_core_id]=1;
     return (0);
 }
 
 
-int CGlobalPortCfg::stop_master(){
+int CGlobalTRex::stop_master(){
 
     delay(1000);
     std::string json;
@@ -4117,7 +4138,7 @@ int CGlobalPortCfg::stop_master(){
 
 }
 
-bool CGlobalPortCfg::is_all_cores_finished(){
+bool CGlobalTRex::is_all_cores_finished(){
     int i;
     for (i=0; i<get_cores_tx(); i++) {
         if ( m_signal[i+1]==0){
@@ -4128,8 +4149,31 @@ bool CGlobalPortCfg::is_all_cores_finished(){
 }
 
 
+int CGlobalTRex::start_master_stateless(){
+    int i;
+    for (i=0; i<BP_MAX_CORES; i++) {
+        m_signal[i]=0;
+    }
+    m_fl.Create();
+    m_expected_pps = 0;
+    m_expected_cps = 0;
+    m_expected_bps = 0;
 
-int CGlobalPortCfg::start_send_master(){
+    m_fl.generate_p_thread_info(get_cores_tx());
+    CFlowGenListPerThread   * lpt;
+
+    for (i=0; i<get_cores_tx(); i++) {
+        lpt = m_fl.m_threads_info[i];
+        CVirtualIF * erf_vif = &m_cores_vif[i+1];
+        lpt->set_vif(erf_vif);
+        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1].get_socket_id();
+    }
+    m_fl_was_init=true;
+}
+
+
+
+int CGlobalTRex::start_send_master(){
     int i;
     for (i=0; i<BP_MAX_CORES; i++) {
         m_signal[i]=0;
@@ -4187,7 +4231,7 @@ int CGlobalPortCfg::start_send_master(){
 
 ////////////////////////////////////////////
 
-static CGlobalPortCfg ports_cfg;
+static CGlobalTRex g_trex;
 
 static int latency_one_lcore(__attribute__((unused)) void *dummy)
 {
@@ -4196,16 +4240,16 @@ static int latency_one_lcore(__attribute__((unused)) void *dummy)
 
 
     if ( lpsock->thread_phy_is_latency( phy_id )  ){
-        ports_cfg.run_in_laterncy_core();
+        g_trex.run_in_laterncy_core();
     }else{
 
         if ( lpsock->thread_phy_is_master( phy_id ) ) {
-            ports_cfg.run_in_master();
+            g_trex.run_in_master();
             delay(1);
         }else{
             delay((uint32_t)(1000.0*CGlobalInfo::m_options.m_duration));
             /* this core has stopped */
-            ports_cfg.m_signal[ lpsock->thread_phy_to_virt( phy_id ) ]=1;
+            g_trex.m_signal[ lpsock->thread_phy_to_virt( phy_id ) ]=1;
         }
     }
 	return 0;
@@ -4232,13 +4276,13 @@ static int slave_one_lcore(__attribute__((unused)) void *dummy)
 
 
     if ( lpsock->thread_phy_is_latency( phy_id )  ){
-        ports_cfg.run_in_laterncy_core();
+        g_trex.run_in_laterncy_core();
     }else{
         if ( lpsock->thread_phy_is_master( phy_id ) ) {
-            ports_cfg.run_in_master();
+            g_trex.run_in_master();
             delay(1);
         }else{
-            ports_cfg.run_in_core( lpsock->thread_phy_to_virt( phy_id ) );
+            g_trex.run_in_core( lpsock->thread_phy_to_virt( phy_id ) );
         }
     }
 	return 0;
@@ -4418,7 +4462,7 @@ int sim_load_list_of_cap_files(CParserOption * op){
     lpt->set_vif(&erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->generate_erf(op->out_file,op->preview);
+        lpt->start_generate_stateful(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);
@@ -4440,7 +4484,7 @@ launch_stateless_trex() {
 
     TrexStatelessCfg cfg;
 
-    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
+    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
     TrexRpcServerConfig rpc_async_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
 
     cfg.m_dp_core_count      = lpop->preview.getCores();
@@ -4527,15 +4571,14 @@ int main_test(int argc , char * argv[]){
 
     bool is_stateless = (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_INTERACTIVE);
 
-    if ( !ports_cfg.Create(is_stateless) ){
+    if ( !g_trex.Create() ){
         exit(1);
     }
 
     /* patch here */
-    if (is_stateless) {
+    /*if (is_stateless) {
         return launch_stateless_trex();
-    }
-
+    }*/
 
     if (po->preview.get_is_rx_check_enable() &&  (po->m_rx_check_sampe< get_min_sample_rate()) ) {
         po->m_rx_check_sampe = get_min_sample_rate();
@@ -4543,25 +4586,30 @@ int main_test(int argc , char * argv[]){
     }
 
     /* set dump mode */
-    ports_cfg.m_io_modes.set_mode((CTrexGlobalIoMode::CliDumpMode)CGlobalInfo::m_options.m_io_mode);
+    g_trex.m_io_modes.set_mode((CTrexGlobalIoMode::CliDumpMode)CGlobalInfo::m_options.m_io_mode);
 
     if ( !CGlobalInfo::m_options.is_latency_disabled() 
          && (CGlobalInfo::m_options.m_latency_prev>0)  ){
         uint32_t pkts = CGlobalInfo::m_options.m_latency_prev*
             CGlobalInfo::m_options.m_latency_rate;
         printf("Start prev latency check - hack for Keren for %d sec \n",CGlobalInfo::m_options.m_latency_prev);
-        ports_cfg.m_mg.start(pkts);
+        g_trex.m_mg.start(pkts);
         printf("Delay now you can call command \n");
         delay(CGlobalInfo::m_options.m_latency_prev* 1000);
         printf("Finish wating  \n");
-        ports_cfg.m_mg.reset();
-        ports_cfg.reset_counters();
+        g_trex.m_mg.reset();
+        g_trex.reset_counters();
     }
 
-    ports_cfg.start_send_master();
+    if ( get_is_stateless() ) {
+        g_trex.start_master_stateless();
+
+    }else{
+        g_trex.start_send_master();
+    }
 
     // TBD remove 
-    //ports_cfg.test_latency();
+    //g_trex.test_latency();
     /* test seding */
 	//while (1) {
 	//}
@@ -4570,18 +4618,11 @@ int main_test(int argc , char * argv[]){
 	/* TBD_FDIR */
 	#if 0
 	printf(" test_send \n");
-	ports_cfg.test_send();
+	g_trex.test_send();
     while (1) {
            delay(10000);
     }
 	#endif
-
-
-
-
-    //ports_cfg.test_latency();
-    //return (0);
-
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
         rte_eal_mp_remote_launch(latency_one_lcore, NULL, CALL_MASTER);
@@ -4589,14 +4630,14 @@ int main_test(int argc , char * argv[]){
             if (rte_eal_wait_lcore(lcore_id) < 0)
                 return -1;
         }
-        ports_cfg.stop_master();
+        g_trex.stop_master();
 
         return (0);
     }
 
     if ( CGlobalInfo::m_options.preview.getSingleCore() ) {
-        ports_cfg.run_in_core(1);
-        ports_cfg.stop_master();
+        g_trex.run_in_core(1);
+        g_trex.stop_master();
         return (0);
     }
 
@@ -4606,8 +4647,8 @@ int main_test(int argc , char * argv[]){
             return -1;
     }
 
-    ports_cfg.stop_master();
-    ports_cfg.Delete();
+    g_trex.stop_master();
+    g_trex.Delete();
     utl_termio_reset();
 
     return (0);

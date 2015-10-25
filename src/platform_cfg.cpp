@@ -300,6 +300,10 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         plat_info.m_telnet_exist=true;
     }
 
+    if ( node.FindValue("zmq_rpc_port") ){
+        node["zmq_rpc_port"] >> plat_info.m_zmq_rpc_port;
+    }
+
     if ( node.FindValue("port_bandwidth_gb") ){
         node["port_bandwidth_gb"] >> plat_info.m_port_bandwidth_gb;
     }

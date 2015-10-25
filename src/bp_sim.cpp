@@ -3845,8 +3845,20 @@ void CFlowGenListPerThread::check_msgs(void){
     }
 }
 
+void delay(int msec);
 
-void CFlowGenListPerThread::generate_erf(std::string erf_file_name,
+
+void CFlowGenListPerThread::start_stateless_daemon(){
+    /* todo sleep */
+
+    while (1) {
+        delay(100);
+    }
+    /* sleep , get message from queue, shecudule --> get message */
+}
+
+
+void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
                                 CPreviewMode & preview){
     /* now we are ready to generate*/
     if ( m_cap_gen.size()==0 ){
