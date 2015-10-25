@@ -21,7 +21,7 @@ class CTRexStatelessClient(object):
     def __init__(self, username, server="localhost", port=5050, virtual=False):
         super(CTRexStatelessClient, self).__init__()
         self.user = username
-        self.tx_link = CTRexStatelessClient.CTxLink(server, port, virtual)
+        self.comm_link = CTRexStatelessClient.CCommLink(server, port, virtual)
         self._conn_handler = {}
         self._active_ports = set()
         self._stats = CTRexStatsManager("port", "stream")
@@ -64,7 +64,7 @@ class CTRexStatelessClient(object):
 
     # ----- user-access methods ----- #
     def connect(self):
-        self.tx_link.connect()
+        self.comm_link.connect()
 
     def ping(self):
         return self.transmit("ping")
@@ -238,10 +238,10 @@ class CTRexStatelessClient(object):
 
     # ----- internal methods ----- #
     def transmit(self, method_name, params={}):
-        return self.tx_link.transmit(method_name, params)
+        return self.comm_link.transmit(method_name, params)
 
     def transmit_batch(self, batch_list):
-        return self.tx_link.transmit_batch(batch_list)
+        return self.comm_link.transmit_batch(batch_list)
 
     @staticmethod
     def _object_decoder(obj_type, obj_data):
@@ -318,10 +318,10 @@ class CTRexStatelessClient(object):
 
 
     # ------ private classes ------ #
-    class CTxLink(object):
+    class CCommLink(object):
         """describes the connectivity of the stateless client method"""
         def __init__(self, server="localhost", port=5050, virtual=False):
-            super(CTRexStatelessClient.CTxLink, self).__init__()
+            super(CTRexStatelessClient.CCommLink, self).__init__()
             self.virtual = virtual
             self.server = server
             self.port = port
