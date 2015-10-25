@@ -24,6 +24,13 @@ sys.path.insert(0, os.path.abspath('../client'))
 sys.path.insert(0, os.path.abspath('../client_utils'))
 sys.path.insert(0, os.path.abspath('../examples'))
 sys.path.insert(0, os.path.abspath('../common'))
+## add all external libs path manually
+external_libs_path = os.path.join(os.pardir, os.pardir, os.pardir, "external_libs")
+external_libs_pkgs = [os.path.join(external_libs_path, p) 
+                      for p in os.listdir(external_libs_path) 
+                      if os.path.isdir(os.path.join(external_libs_path, p))]
+for p in external_libs_pkgs:
+    sys.path.insert(1, p)
 
 # -- General configuration ------------------------------------------------
 
