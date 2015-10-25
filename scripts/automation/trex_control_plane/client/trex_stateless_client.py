@@ -63,6 +63,9 @@ class CTRexStatelessClient(object):
         return self._system_info
 
     # ----- user-access methods ----- #
+    def connect(self):
+        self.tx_link.connect()
+
     def ping(self):
         return self.transmit("ping")
 
@@ -323,6 +326,8 @@ class CTRexStatelessClient(object):
             self.server = server
             self.port = port
             self.rpc_link = JsonRpcClient(self.server, self.port)
+
+        def connect(self):
             if not self.virtual:
                 self.rpc_link.connect()
 

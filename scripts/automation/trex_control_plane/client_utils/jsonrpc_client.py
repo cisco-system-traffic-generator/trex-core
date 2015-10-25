@@ -182,7 +182,7 @@ class JsonRpcClient(object):
 
         # if no error there should be a result
         if ("result" not in response_json):
-            return False, "Malfromed Response ({0})".format(str(response))
+            return False, "Malformed Response ({0})".format(str(response))
 
         return True, response_json["result"]
 
@@ -200,7 +200,7 @@ class JsonRpcClient(object):
         else:
             return False, "Not connected to server"
 
-    def connect(self, server = None, port = None):
+    def connect(self, server=None, port=None):
         if self.connected:
             self.disconnect()
 

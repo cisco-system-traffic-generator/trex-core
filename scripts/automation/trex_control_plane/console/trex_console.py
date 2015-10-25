@@ -17,7 +17,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-__version__ = "1.0"
 
 import cmd
 import json
@@ -35,6 +34,8 @@ from common.trex_streams import *
 from client_utils.jsonrpc_client import TrexStatelessClient
 import trex_status
 from collections import namedtuple
+
+__version__ = "1.0"
 
 LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 
