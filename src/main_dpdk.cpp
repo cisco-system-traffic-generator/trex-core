@@ -3428,12 +3428,9 @@ int  CGlobalTRex::ixgbe_start(void){
 bool CGlobalTRex::Create(){
 
     bool is_stateless = get_is_stateless();
-    /* hack - need to refactor */
-    if (!is_stateless) {
-        if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
-                                      !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
-            return (false);
-        }
+    if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
+                                  !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
+        return (false);
     }
 
    /* We load the YAML twice, 
@@ -4173,6 +4170,7 @@ int CGlobalTRex::start_master_stateless(){
 
 
 
+
 int CGlobalTRex::start_send_master(){
     int i;
     for (i=0; i<BP_MAX_CORES; i++) {
@@ -4256,18 +4254,6 @@ static int latency_one_lcore(__attribute__((unused)) void *dummy)
 }
 
 
-static int stateless_entry(__attribute__((unused)) void *dummy) {
-    CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
-    physical_thread_id_t phy_id = rte_lcore_id();
-
-    if (lpsock->thread_phy_is_master( phy_id )) {
-        TrexStateless::get_instance().launch_control_plane();
-    } else {
-        TrexStateless::get_instance().launch_on_dp_core(phy_id);
-    }
-
-    return (0);
-}
 
 static int slave_one_lcore(__attribute__((unused)) void *dummy)
 {
@@ -4477,7 +4463,7 @@ int sim_load_list_of_cap_files(CParserOption * op){
 
 
 static int
-launch_stateless_trex() {
+launch_stateless_trex_thread() {
     CPlatformSocketInfo *lpsock=&CGlobalInfo::m_socket;
     CParserOption       *lpop= &CGlobalInfo::m_options;
     CPlatformYamlInfo   *cg=&global_platform_cfg_info;
@@ -4485,26 +4471,15 @@ launch_stateless_trex() {
     TrexStatelessCfg cfg;
 
     TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
-    TrexRpcServerConfig rpc_async_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
 
     cfg.m_dp_core_count      = lpop->preview.getCores();
     cfg.m_port_count         = lpop->m_expected_portd;
     cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-    cfg.m_rpc_async_cfg      = &rpc_async_cfg;
+    cfg.m_rpc_async_cfg      = NULL;
     cfg.m_rpc_server_verbose = true;
 
     TrexStateless::configure(cfg);
-
-    printf("\nStarting T-Rex Stateless\n");
     printf("Starting RPC Server...\n\n");
-
-    rte_eal_mp_remote_launch(stateless_entry, NULL, CALL_MASTER);
-
-    unsigned lcore_id;
-    RTE_LCORE_FOREACH_SLAVE(lcore_id) {
-        if (rte_eal_wait_lcore(lcore_id) < 0)
-            return -1;
-    }
     return (0);
 }
 
@@ -4576,9 +4551,9 @@ int main_test(int argc , char * argv[]){
     }
 
     /* patch here */
-    /*if (is_stateless) {
-        return launch_stateless_trex();
-    }*/
+    if (is_stateless) {
+        launch_stateless_trex_thread();
+    }
 
     if (po->preview.get_is_rx_check_enable() &&  (po->m_rx_check_sampe< get_min_sample_rate()) ) {
         po->m_rx_check_sampe = get_min_sample_rate();
@@ -4607,12 +4582,6 @@ int main_test(int argc , char * argv[]){
     }else{
         g_trex.start_send_master();
     }
-
-    // TBD remove 
-    //g_trex.test_latency();
-    /* test seding */
-	//while (1) {
-	//}
 
 
 	/* TBD_FDIR */

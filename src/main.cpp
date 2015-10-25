@@ -234,7 +234,7 @@ void * thread_task(void *info){
         char buf[100];
         sprintf(buf,"my%d.erf",obj->thread_id);
         volatile int i;
-        lpt->generate_erf(buf,*obj->preview_info);
+        lpt->start_generate_stateful(buf,*obj->preview_info);
         lpt->m_node_gen.DumpHist(stdout);
         printf("end thread %d \n",obj->thread_id);
     }
@@ -325,7 +325,7 @@ void test_load_list_of_cap_files(CParserOption * op){
         lpt=fl.m_threads_info[i];
         char buf[100];
         sprintf(buf,"my%d.erf",i);
-        lpt->generate_erf(buf,op->preview);
+        lpt->start_generate_stateful(buf,op->preview);
         lpt->m_node_gen.DumpHist(stdout);
     }
     //sprintf(buf,"my%d.erf",7);
@@ -353,7 +353,7 @@ int load_list_of_cap_files(CParserOption * op){
     lpt->set_vif(&erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->generate_erf(op->out_file,op->preview);
+        lpt->start_generate_stateful(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);

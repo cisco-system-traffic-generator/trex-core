@@ -205,7 +205,7 @@ public:
                 }
             }
 
-            lpt->generate_erf(buf,CGlobalInfo::m_options.preview);
+            lpt->start_generate_stateful(buf,CGlobalInfo::m_options.preview);
             lpt->m_node_gen.DumpHist(stdout);
 
             cmp.d_sec = m_time_diff;
@@ -2105,7 +2105,7 @@ public:
         int i;
         for (i=0; i<m_threads; i++) {
             lpt=fl.m_threads_info[i];
-            lpt->generate_erf("t1",CGlobalInfo::m_options.preview);
+            lpt->start_generate_stateful("t1",CGlobalInfo::m_options.preview);
         }
         fl.Delete();
         return (true);
