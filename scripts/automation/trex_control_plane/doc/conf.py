@@ -29,8 +29,8 @@ external_libs_path = os.path.join(os.pardir, os.pardir, os.pardir, "external_lib
 external_libs_pkgs = [os.path.join(external_libs_path, p) 
                       for p in os.listdir(external_libs_path) 
                       if os.path.isdir(os.path.join(external_libs_path, p))]
-# for p in external_libs_pkgs:
-#     sys.path.insert(1, p)
+for p in external_libs_pkgs:
+    sys.path.insert(1, p)
 
 # -- General configuration ------------------------------------------------
 
