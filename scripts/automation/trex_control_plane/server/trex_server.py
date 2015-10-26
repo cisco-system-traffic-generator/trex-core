@@ -67,6 +67,7 @@ class CTRexServer(object):
         self.start_lock         = threading.Lock()
         self.__reservation      = None
         self.zmq_monitor        = ZmqMonitorSession(self.trex, self.trex_zmq_port)    # intiate single ZMQ monitor thread for server usage
+        logger.info(self.get_trex_version(base64 = False))
     
     def add(self, x, y):
         print "server function add ",x,y
@@ -167,14 +168,16 @@ class CTRexServer(object):
         return self._pull_file('/var/log/trex/trex_daemon_server.log')
         
     # get Trex version from ./t-rex-64 --help (last 4 lines)
-    def get_trex_version (self):
+    def get_trex_version (self, base64 = True):
         try:
             logger.info("Processing get_trex_version() command.")
-            if self.trex_version:
+            if not self.trex_version:
+                help_print = os.popen('cd {path}; ./t-rex-64 --help'.format(path=self.TREX_PATH), 'r').read()
+                self.trex_version = binascii.b2a_base64('\n'.join(help_print.split('\n')[-5:-1]))
+            if base64:
                 return self.trex_version
-            help_print = os.popen('cd {path}; ./t-rex-64 --help'.format(path=self.TREX_PATH), 'r').read()
-            self.trex_version = binascii.b2a_base64('\n'.join(help_print.split('\n')[-5:-1]))
-            return self.trex_version
+            else:
+                return binascii.a2b_base64(self.trex_version)
         except Exception as e:
             err_str = "Can't get trex version, error: {0}".format(e)
             logger.error(err_str)
