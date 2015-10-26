@@ -86,7 +86,7 @@ def options(opt):
 	opt.add_option('--exe', action='store_true', default=False, help='Execute the program after it is compiled')
 
 def configure(conf):
-	conf.find_program('asciidoc', path='/usr/local/bin/', var='ASCIIDOC')
+	conf.find_program('asciidoc', path_list='/usr/bin/', var='ASCIIDOC')
 	conf.find_program('sphinx-build', path_list='/usr/local/bin/', var='SPHINX')
 	pass;
 
