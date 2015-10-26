@@ -145,7 +145,7 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     string hostname;
 
-    TrexStateless & instance = TrexStateless::get_instance();
+    TrexStateless * main = get_stateless_obj();
 
     Json::Value &section = result["result"];
 
@@ -155,21 +155,21 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["uptime"] = TrexRpcServer::get_server_uptime();
 
     /* FIXME: core count */
-    section["dp_core_count"] = instance.get_dp_core_count();
+    section["dp_core_count"] = main->get_dp_core_count();
     section["core_type"] = get_cpu_model();
 
     /* ports */
    
 
-    section["port_count"] = instance.get_port_count();
+    section["port_count"] = main->get_port_count();
 
     section["ports"] = Json::arrayValue;
 
-    for (int i = 0; i < instance.get_port_count(); i++) {
+    for (int i = 0; i < main->get_port_count(); i++) {
         string driver;
         string speed;
 
-        TrexStatelessPort *port = instance.get_port_by_id(i);
+        TrexStatelessPort *port = main->get_port_by_id(i);
         port->get_properties(driver, speed);
 
         section["ports"][i]["index"]   = i;
@@ -201,7 +201,7 @@ TrexRpcCmdGetOwner::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
     section["owner"] = port->get_owner();
 
     return (TREX_RPC_CMD_OK);
@@ -220,7 +220,7 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
     bool force = parse_bool(params, "force", result);
 
     /* if not free and not you and not force - fail */
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     if ( (!port->is_free_to_aquire()) && (port->get_owner() != new_owner) && (!force)) {
         generate_execute_err(result, "port is already taken by '" + port->get_owner() + "'");
@@ -242,7 +242,7 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     if (port->get_state() == TrexStatelessPort::PORT_STATE_TRANSMITTING) {
         generate_execute_err(result, "cannot release a port during transmission");
@@ -264,7 +264,7 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     if (port->get_state() == TrexStatelessPort::PORT_STATE_DOWN) {
         generate_execute_err(result, "cannot get stats - port is down");

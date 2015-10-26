@@ -79,7 +79,7 @@ TrexRpcServerAsync::_rpc_thread_cb() {
         }
 
         /* trigger a full update for stats */
-        TrexStateless::get_instance().update_stats();
+        //get_stateless_obj()->update_stats();
 
         /* done with the lock */
         if (m_lock) {
@@ -87,7 +87,7 @@ TrexRpcServerAsync::_rpc_thread_cb() {
         }
 
         /* encode them to JSON */
-        TrexStateless::get_instance().encode_stats(snapshot);
+        get_stateless_obj()->encode_stats(snapshot);
 
         /* write to string and publish */
         std::string snapshot_str = writer.write(snapshot);

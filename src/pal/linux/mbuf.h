@@ -187,6 +187,8 @@ static inline void utl_rte_pktmbuf_add_last(rte_mbuf_t *m,rte_mbuf_t *m_last){
 
 #define CACHE_LINE_SIZE 64
 
+#define RTE_CACHE_LINE_SIZE (CACHE_LINE_SIZE)
+
 #define SOCKET_ID_ANY 0
 
 #endif

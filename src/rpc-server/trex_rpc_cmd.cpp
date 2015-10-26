@@ -61,7 +61,7 @@ TrexRpcCommand::verify_ownership(const Json::Value &params, Json::Value &result)
     std::string handler = parse_string(params, "handler", result);
     uint8_t port_id = parse_port(params, result);
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     if (!port->verify_owner_handler(handler)) {
         generate_execute_err(result, "invalid handler provided. please pass the handler given when calling 'acquire' or take ownership");
@@ -78,9 +78,9 @@ TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
 
 void 
 TrexRpcCommand::validate_port_id(uint8_t port_id, Json::Value &result) {
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
+    if (port_id >= get_stateless_obj()->get_port_count()) {
         std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
+        ss << "invalid port id - should be between 0 and " << (int)get_stateless_obj()->get_port_count() - 1;
         generate_execute_err(result, ss.str());
     }
 }

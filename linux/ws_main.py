@@ -146,7 +146,6 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stream_vm.cpp',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
-                                    'dp/trex_stateless_dp_core.cpp'
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
@@ -168,6 +167,7 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
 rpc_server_mock_src = SrcGroup(dir='src/mock/',
                           src_list=[
                               'trex_rpc_server_mock.cpp',
+                              'trex_platform_api_mock.cpp',
                               '../gtest/rpc_test.cpp',
                               '../pal/linux/mbuf.cpp',
                               '../os_time.cpp',

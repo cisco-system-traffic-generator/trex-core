@@ -73,6 +73,7 @@ extern "C" {
 #include "msg_manager.h"
 #include "platform_cfg.h"
 
+#include <internal_api/trex_platform_api.h>
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -103,8 +104,6 @@ extern "C" int vmxnet3_xmit_set_callback(rte_mbuf_convert_to_one_seg_t cb);
 
 #define RTE_TEST_TX_DESC_DEFAULT 512
 #define RTE_TEST_RX_DESC_DROP    0
-
-
 
 static inline int get_vm_one_queue_enable(){
     return (CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ?1:0);
@@ -2746,6 +2745,7 @@ public:
        m_expected_pps=0.0;                
        m_expected_cps=0.0;
        m_expected_bps=0.0;
+       m_trex_stateless = NULL;
     }
 public:
 
@@ -2905,6 +2905,9 @@ private:
 
     CLatencyPktInfo     m_latency_pkt;
     CZMqPublisher       m_zmq_publisher;
+
+public:
+    TrexStateless       *m_trex_stateless;
 };
 
 
@@ -3426,19 +3429,30 @@ int  CGlobalTRex::ixgbe_start(void){
 
 
 bool CGlobalTRex::Create(){
+    CFlowsYamlInfo     pre_yaml_info;
 
-    bool is_stateless = get_is_stateless();
+    if (get_is_stateless()) {
+
+          TrexStatelessCfg cfg;
+
+          TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
+
+          cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
+          cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
+          cfg.m_rpc_async_cfg      = NULL;
+          cfg.m_rpc_server_verbose = true;
+          cfg.m_platform_api       = new TrexDpdkPlatformApi();
+
+          m_trex_stateless = new TrexStateless(cfg);
+
+    } else {
+        pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+    }
+
     if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
                                   !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
         return (false);
     }
-
-   /* We load the YAML twice, 
-     this is the first time. to update global flags  */
-   CFlowsYamlInfo     pre_yaml_info;
-   if (!is_stateless) {
-       pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
-   }
 
    if ( pre_yaml_info.m_vlan_info.m_enable ){
        CGlobalInfo::m_options.preview.set_vlan_mode_enable(true);
@@ -3448,13 +3462,14 @@ bool CGlobalTRex::Create(){
    ixgbe_prob_init();
    cores_prob_init();
    queues_prob_init();
-          /* allocate rings */
-    assert( CMsgIns::Ins()->Create(get_cores_tx()) );
 
-    if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeNatInfo) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
-        assert(0);
-    }
+   /* allocate rings */
+   assert( CMsgIns::Ins()->Create(get_cores_tx()) );
+
+   if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
+       printf("ERROR sizeof(CGenNodeNatInfo) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
+       assert(0);
+   }
 
     if ( sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)  ) {
         printf("ERROR sizeof(CGenNodeLatencyPktInfo) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeLatencyPktInfo),sizeof(CGenNode));
@@ -3916,6 +3931,8 @@ int CGlobalTRex::run_in_master(){
     std::string json;
     bool was_stopped=false;
 
+    m_trex_stateless->launch_control_plane();
+
     while ( true ) {
 
         if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ){
@@ -4022,6 +4039,10 @@ int CGlobalTRex::run_in_master(){
             m_zmq_publisher.publish_json(json);
 
         }
+
+        /* stateless info */
+        m_trex_stateless->generate_publish_snapshot(json);
+        m_zmq_publisher.publish_json(json);
 
         delay(500);
 
@@ -4230,6 +4251,11 @@ int CGlobalTRex::start_send_master(){
 ////////////////////////////////////////////
 
 static CGlobalTRex g_trex;
+
+
+TrexStateless * get_stateless_obj() {
+    return g_trex.m_trex_stateless;
+}
 
 static int latency_one_lcore(__attribute__((unused)) void *dummy)
 {
@@ -4460,31 +4486,6 @@ int sim_load_list_of_cap_files(CParserOption * op){
 }
 
 
-
-
-static int
-launch_stateless_trex_thread() {
-    CPlatformSocketInfo *lpsock=&CGlobalInfo::m_socket;
-    CParserOption       *lpop= &CGlobalInfo::m_options;
-    CPlatformYamlInfo   *cg=&global_platform_cfg_info;
-
-    TrexStatelessCfg cfg;
-
-    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
-
-    cfg.m_dp_core_count      = lpop->preview.getCores();
-    cfg.m_port_count         = lpop->m_expected_portd;
-    cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-    cfg.m_rpc_async_cfg      = NULL;
-    cfg.m_rpc_server_verbose = true;
-
-    TrexStateless::configure(cfg);
-    printf("Starting RPC Server...\n\n");
-    return (0);
-}
-
-
-
 int main_test(int argc , char * argv[]){
 
     utl_termio_init();
@@ -4544,15 +4545,8 @@ int main_test(int argc , char * argv[]){
         return ( sim_load_list_of_cap_files(&CGlobalInfo::m_options) );
     }
 
-    bool is_stateless = (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_INTERACTIVE);
-
     if ( !g_trex.Create() ){
         exit(1);
-    }
-
-    /* patch here */
-    if (is_stateless) {
-        launch_stateless_trex_thread();
     }
 
     if (po->preview.get_is_rx_check_enable() &&  (po->m_rx_check_sampe< get_min_sample_rate()) ) {
@@ -5155,4 +5149,37 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
     return(r);
 }
 
+
+/***********************************************************
+ * platfrom API object 
+ * TODO: REMOVE THIS TO A SEPERATE FILE 
+ * 
+ **********************************************************/
+void
+TrexDpdkPlatformApi::get_global_stats(TrexPlatformGlobalStats &stats) const {
+    CGlobalStats trex_stats;
+    g_trex.get_stats(trex_stats);
+
+    stats.m_stats.m_cpu_util = trex_stats.m_cpu_util;
+
+    stats.m_stats.m_tx_bps             = trex_stats.m_tx_bps;
+    stats.m_stats.m_tx_pps             = trex_stats.m_tx_pps;
+    stats.m_stats.m_total_tx_pkts      = trex_stats.m_total_tx_pkts;
+    stats.m_stats.m_total_tx_bytes     = trex_stats.m_total_tx_bytes;
+
+    stats.m_stats.m_rx_bps             = trex_stats.m_rx_bps;
+    stats.m_stats.m_rx_pps             = /*trex_stats.m_rx_pps*/ 0; /* missing */
+    stats.m_stats.m_total_rx_pkts      = trex_stats.m_total_rx_pkts;
+    stats.m_stats.m_total_rx_bytes     = trex_stats.m_total_rx_bytes;
+}
+
+void 
+TrexDpdkPlatformApi::get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
+
+}
+
+uint8_t 
+TrexDpdkPlatformApi::get_dp_core_count() const {
+    return CGlobalInfo::m_options.preview.getCores();
+}
 

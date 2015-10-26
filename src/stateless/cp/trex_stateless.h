@@ -29,8 +29,9 @@ limitations under the License.
 
 #include <trex_stream.h>
 #include <trex_stateless_port.h>
-#include <trex_stateless_dp_core.h>
 #include <trex_rpc_server_api.h>
+
+#include <internal_api/trex_platform_api.h>
 
 /**
  * generic exception for errors
@@ -88,17 +89,17 @@ public:
     /* default values */
     TrexStatelessCfg() {
         m_port_count          = 0;
-        m_dp_core_count       = 0;
         m_rpc_req_resp_cfg    = NULL;
         m_rpc_async_cfg       = NULL;
-        m_rpc_server_verbose = false;
+        m_rpc_server_verbose  = false;
+        m_platform_api        = NULL;
     }
 
     const TrexRpcServerConfig  *m_rpc_req_resp_cfg;
     const TrexRpcServerConfig  *m_rpc_async_cfg;
+    const TrexPlatformApi      *m_platform_api;
     bool                        m_rpc_server_verbose;
     uint8_t                     m_port_count;
-    uint8_t                     m_dp_core_count;
 };
 
 /**
@@ -113,27 +114,8 @@ public:
      * reconfiguration is not allowed
      * an exception will be thrown
      */
-    static void configure(const TrexStatelessCfg &cfg);
-
-    /**
-     * destroy the instance
-     * 
-     */
-    static void destroy();
-
-    /**
-     * singleton public get instance
-     * 
-     */
-    static TrexStateless& get_instance() {
-        TrexStateless& instance = get_instance_internal();
-
-        if (!instance.m_is_configured) {
-            throw TrexException("object is not configured");
-        }
-
-        return instance;
-    }
+    TrexStateless(const TrexStatelessCfg &cfg);
+    ~TrexStateless();
 
     /**
      * starts the control plane side
@@ -152,12 +134,6 @@ public:
 
     uint8_t             get_dp_core_count();
 
-    /**
-     * update all the stats (deep update)
-     * (include all the ports and global stats)
-     * 
-     */
-    void               update_stats();
 
     /**
      * fetch all the stats
@@ -165,21 +141,20 @@ public:
      */
     void               encode_stats(Json::Value &global);
 
+    /**
+     * generate a snapshot for publish
+     */
+    void generate_publish_snapshot(std::string &snapshot);
 
-protected:
-    TrexStateless();
-
-    static TrexStateless& get_instance_internal () {
-        static TrexStateless instance;
-        return instance;
+    const TrexPlatformApi * get_platform_api() {
+        return (m_platform_api);
     }
 
-     /* c++ 2011 style singleton */
+protected:
+
+    /* no copy or assignment */
     TrexStateless(TrexStateless const&)      = delete;  
     void operator=(TrexStateless const&)     = delete;
-
-    /* status */
-    bool                 m_is_configured;
 
     /* RPC server array */
     TrexRpcServer        *m_rpc_server;
@@ -188,15 +163,20 @@ protected:
     std::vector <TrexStatelessPort *>    m_ports;
     uint8_t                              m_port_count;
 
-    /* cores */
-    std::vector <TrexStatelessDpCore *>  m_dp_cores;
-    uint8_t                              m_dp_core_count;
-
-    /* stats */
-    TrexStatelessStats   m_stats;
+    /* platform API */
+    const TrexPlatformApi                *m_platform_api;
 
     std::mutex m_global_cp_lock;
 };
+
+/**
+ * an anchor function
+ * 
+ * @author imarom (25-Oct-15)
+ * 
+ * @return TrexStateless& 
+ */
+TrexStateless * get_stateless_obj();
 
 #endif /* __TREX_STATELESS_H__ */
 
