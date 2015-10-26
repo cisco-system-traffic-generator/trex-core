@@ -59,6 +59,7 @@ class CTRexServer(object):
         self.__check_trex_path_validity()
         self.__check_files_path_validity()
         self.trex               = CTRex()
+        self.trex_version       = None
         self.trex_host          = trex_host
         self.trex_daemon_port   = trex_daemon_port
         self.trex_zmq_port      = trex_zmq_port
@@ -116,6 +117,9 @@ class CTRexServer(object):
         # set further functionality and peripherals to server instance 
         try:
             self.server.register_function(self.add)
+            self.server.register_function(self.get_trex_log)
+            self.server.register_function(self.get_trex_daemon_log)
+            self.server.register_function(self.get_trex_version)
             self.server.register_function(self.connectivity_check)
             self.server.register_function(self.start_trex)
             self.server.register_function(self.stop_trex)
@@ -139,6 +143,42 @@ class CTRexServer(object):
             self.zmq_monitor.join()            # close ZMQ monitor thread resources
             self.server.shutdown()
             pass
+
+    # get files from Trex server and return their content (mainly for logs)
+    @staticmethod
+    def _pull_file(filepath):
+        try:
+            with open(filepath, 'rb') as f:
+                file_content = f.read()
+                return binascii.b2a_base64(file_content)
+        except Exception as e:
+            err_str = "Can't get requested file: {0}, possibly due to TRex that did not run".format(filepath)
+            logger.error('{0}, error: {1}'.format(err_str, e))
+            return Fault(-33, err_str)
+
+    # get Trex log /tmp/trex.txt
+    def get_trex_log(self):
+        logger.info("Processing get_trex_log() command.")
+        return self._pull_file('/tmp/trex.txt')
+
+    # get daemon log /var/log/trex/trex_daemon_server.log
+    def get_trex_daemon_log (self):
+        logger.info("Processing get_trex_daemon_log() command.")
+        return self._pull_file('/var/log/trex/trex_daemon_server.log')
+        
+    # get Trex version from ./t-rex-64 --help (last 4 lines)
+    def get_trex_version (self):
+        try:
+            logger.info("Processing get_trex_version() command.")
+            if self.trex_version:
+                return self.trex_version
+            help_print = os.popen('cd {path}; ./t-rex-64 --help'.format(path=self.TREX_PATH), 'r').read()
+            self.trex_version = binascii.b2a_base64('\n'.join(help_print.split('\n')[-5:-1]))
+            return self.trex_version
+        except Exception as e:
+            err_str = "Can't get trex version, error: {0}".format(e)
+            logger.error(err_str)
+            return Fault(-33, err_str)
 
     def stop_handler (self, signum, frame):
         logger.info("Daemon STOP request detected.")
