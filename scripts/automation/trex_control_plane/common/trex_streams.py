@@ -227,8 +227,7 @@ class CStream(object):
         return
 
 
-    def dump(self, compilation=False):
-        # fields = CStream.COMPILE_FIELDS if compilation else CStream.FIELDS
+    def dump(self):
         if self.is_loaded:
             dump = {}
             for key in CStream.FIELDS:
@@ -239,10 +238,6 @@ class CStream(object):
             return dump
         else:
             raise RuntimeError("CStream object isn't loaded with data. Use 'load_data' method.")
-
-    def dump_compiled(self):
-        return self.dump(compilation=True)
-
 
 
 if __name__ == "__main__":

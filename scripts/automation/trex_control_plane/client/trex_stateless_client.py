@@ -66,6 +66,9 @@ class CTRexStatelessClient(object):
     def connect(self):
         self.comm_link.connect()
 
+    def disconnect(self):
+        self.comm_link.disconnect()
+
     def ping(self):
         return self.transmit("ping")
 
