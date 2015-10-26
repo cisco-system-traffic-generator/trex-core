@@ -23,6 +23,7 @@ limitations under the License.
 
 
 #include "CRing.h"
+#include <string>
 
 
 /* messages from CP->DP Ids */
@@ -71,7 +72,7 @@ public:
         m_dp_to_cp=0;
         m_num_dp_threads=0;
     }
-    bool Create(uint8_t num_dp_threads);
+    bool Create(uint8_t num_dp_threads,std::string name);
     void Delete();
     CNodeRing * getRingCpToDp(uint8_t thread_id);
     CNodeRing * getRingDpToCp(uint8_t thread_id);
@@ -94,12 +95,18 @@ public:
     CMessagingManager * getRxDp(){
         return (&m_rx_dp);
     }
+    CMessagingManager * getCpDp(){
+        return (&m_cp_dp);
+    }
+
     uint8_t get_num_threads(){
         return (m_rx_dp.get_num_threads());
     }
 
 private:
     CMessagingManager m_rx_dp;
+    CMessagingManager m_cp_dp;
+
 
 private:
     /* one instance */

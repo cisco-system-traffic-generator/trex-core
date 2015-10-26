@@ -1869,6 +1869,8 @@ public:
 
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m);
+
 
 public:
     void GetCoreCounters(CVirtualIFPerSideStats *stats);
@@ -1881,7 +1883,7 @@ public:
         return ( CGlobalInfo::m_socket.port_to_socket( m_ports[0].m_port->get_port_id() ) );
     }
 
-private:
+protected:
 
     int send_burst(CCorePerPort * lp_port,
                    uint16_t len,
@@ -1892,7 +1894,7 @@ private:
 
 
 
-private:
+protected:
     uint8_t      m_core_id;
     uint16_t     m_mbuf_cache; 
     CCorePerPort m_ports[CS_NUM]; /* each core has 2 tx queues 1. client side and server side */
@@ -2006,6 +2008,7 @@ void CCoreEthIF::flush_rx_queue(void){
         }
     }
 }
+
 
 int CCoreEthIF::flush_tx_queue(void){
     /* flush both sides */
@@ -2163,13 +2166,20 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 
 
 
-int CCoreEthIFStateless::send_node(CGenNode * node){
-    /*CGenNode * node*/
-    /* fill the info needed by stateless */
-    printf(" send node stateless \n");
+int CCoreEthIFStateless::send_node(CGenNode * no){
+    CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
 
+    /* check that we have mbuf  */
+    rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+    assert( m );
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    CCorePerPort *  lp_port=&m_ports[dir];
+    CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
+    rte_pktmbuf_refcnt_update(m,1);
+    send_pkt(lp_port,m,lp_stats);
     return (0);
 };
+
 
 
 int CCoreEthIF::send_node(CGenNode * node){
@@ -2261,6 +2271,19 @@ int CCoreEthIF::send_node(CGenNode * node){
 
     /* send the packet */
     send_pkt(lp_port,m,lp_stats);
+    return (0);
+}
+
+
+int CCoreEthIF::update_mac_addr_from_global_cfg(pkt_dir_t  dir, 
+                                rte_mbuf_t      *m){
+    assert(m);
+    assert(dir<2);
+    CCorePerPort *  lp_port=&m_ports[dir];
+    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+    uint8_t p_id=lp_port->m_port->get_port_id();
+
+    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
     return (0);
 }
 
