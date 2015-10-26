@@ -3114,10 +3114,6 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
     return (0);
 }
 
-int CNodeGenerator::flush_one_node_to_file(CGenNode * node){
-    BP_ASSERT(m_v_if);
-    return (m_v_if->send_node(node));
-}
 
 int CNodeGenerator::update_stats(CGenNode * node){
     if ( m_preview_mode.getVMode() >2 ){
@@ -3455,49 +3451,59 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 
         uint8_t type=node->m_type;
 
-        if ( likely( type == CGenNode::FLOW_PKT ) ) {
-            /* PKT */
-            if ( !(node->is_repeat_flow()) || (always==false)) {
-                flush_one_node_to_file(node);
-                #ifdef _DEBUG
-                update_stats(node);
-                #endif
-            }
-            m_p_queue.pop();
-            if ( node->is_last_in_flow() ) {
-                if ((node->is_repeat_flow()) && (always==false)) {
-                    /* Flow is repeated, reschedule it */
-                    thread->reschedule_flow( node);
+        if ( type == CGenNode::STATELESS_PKT ) {
+
+           flush_one_node_to_file(node);
+           /* in case of continues */
+           node->m_time += 0.0001; /*TBD PPS*/
+           m_p_queue.push(node);
+           /* no need per thread stats, it is too heavy */
+            
+        }else{
+            if ( likely( type == CGenNode::FLOW_PKT ) ) {
+                /* PKT */
+                if ( !(node->is_repeat_flow()) || (always==false)) {
+                    flush_one_node_to_file(node);
+                    #ifdef _DEBUG
+                    update_stats(node);
+                    #endif
+                }
+                m_p_queue.pop();
+                if ( node->is_last_in_flow() ) {
+                    if ((node->is_repeat_flow()) && (always==false)) {
+                        /* Flow is repeated, reschedule it */
+                        thread->reschedule_flow( node);
+                    }else{
+                        /* Flow will not be repeated, so free node */
+                        thread->free_last_flow_node( node);
+                    }
                 }else{
-                    /* Flow will not be repeated, so free node */
-                    thread->free_last_flow_node( node);
+                    node->update_next_pkt_in_flow();
+                    m_p_queue.push(node);
                 }
             }else{
-                node->update_next_pkt_in_flow();
-                m_p_queue.push(node);
-            }
-        }else{
-            if ((type == CGenNode::FLOW_FIF)) {
-               /* callback to our method */
-                m_p_queue.pop();
-                if ( always == false) {
-                    thread->m_cur_time_sec = node->m_time ;
-    
-                    if ( thread->generate_flows_roundrobin(&done) <0){
-                        break;
-                    }
-                    if (!done) {
-                        node->m_time +=d_time;
-                        m_p_queue.push(node);
+                if ((type == CGenNode::FLOW_FIF)) {
+                   /* callback to our method */
+                    m_p_queue.pop();
+                    if ( always == false) {
+                        thread->m_cur_time_sec = node->m_time ;
+
+                        if ( thread->generate_flows_roundrobin(&done) <0){
+                            break;
+                        }
+                        if (!done) {
+                            node->m_time +=d_time;
+                            m_p_queue.push(node);
+                        }else{
+                            thread->free_node(node);
+                        }
                     }else{
                         thread->free_node(node);
                     }
-                }else{
-                    thread->free_node(node);
-                }
 
-            }else{
-                handle_slow_messages(type,node,thread,always);
+                }else{
+                    handle_slow_messages(type,node,thread,always);
+                }
             }
         }
     }
@@ -3848,8 +3854,100 @@ void CFlowGenListPerThread::check_msgs(void){
 void delay(int msec);
 
 
+const uint8_t test_udp_pkt[]={ 
+    0x00,0x00,0x00,0x01,0x00,0x00,
+    0x00,0x00,0x00,0x01,0x00,0x00,
+    0x08,0x00,
+
+    0x45,0x00,0x00,0x81,
+    0xaf,0x7e,0x00,0x00,
+    0x12,0x11,0xd9,0x23,
+    0x01,0x01,0x01,0x01,
+    0x3d,0xad,0x72,0x1b,
+
+    0x11,0x11,
+    0x11,0x11,
+
+    0x00,0x6d,
+	0x00,0x00,
+
+    0x64,0x31,0x3a,0x61,
+    0x64,0x32,0x3a,0x69,0x64,
+    0x32,0x30,0x3a,0xd0,0x0e,
+    0xa1,0x4b,0x7b,0xbd,0xbd,
+    0x16,0xc6,0xdb,0xc4,0xbb,0x43,
+    0xf9,0x4b,0x51,0x68,0x33,0x72,
+    0x20,0x39,0x3a,0x69,0x6e,0x66,0x6f,
+    0x5f,0x68,0x61,0x73,0x68,0x32,0x30,0x3a,0xee,0xc6,0xa3,
+    0xd3,0x13,0xa8,0x43,0x06,0x03,0xd8,0x9e,0x3f,0x67,0x6f,
+    0xe7,0x0a,0xfd,0x18,0x13,0x8d,0x65,0x31,0x3a,0x71,0x39,
+    0x3a,0x67,0x65,0x74,0x5f,0x70,0x65,0x65,0x72,0x73,0x31,
+    0x3a,0x74,0x38,0x3a,0x3d,0xeb,0x0c,0xbf,0x0d,0x6a,0x0d,
+    0xa5,0x31,0x3a,0x79,0x31,0x3a,0x71,0x65,0x87,0xa6,0x7d,
+    0xe7
+};
+
+
+
+
+void CFlowGenListPerThread::start_stateless_const_rate_demo(){
+
+    CGenNodeStateless * node= create_node_sl();
+
+    /* add periodic */
+    node->m_type = CGenNode::STATELESS_PKT;
+    node->m_time = m_cur_time_sec+ 0.0 /* STREAM ISG */;
+    node->m_flags =0; 
+
+    /* set socket id */
+    node->set_socket_id(m_node_gen.m_socket_id);
+
+    /* build a mbuf from a packet */
+    uint16_t pkt_size=sizeof(test_udp_pkt);
+    uint8_t * stream_pkt=(uint8_t *)test_udp_pkt;
+
+    /* allocate const mbuf */
+    rte_mbuf_t * m = CGlobalInfo::pktmbuf_alloc( node->get_socket_id(),pkt_size );
+    assert(m);
+    char *p = rte_pktmbuf_append(m, pkt_size);
+    assert(p);
+    /* copy the packet */
+    memcpy(p,stream_pkt,pkt_size);
+
+    /* set dir 0 or 1 client or server */
+    pkt_dir_t  dir=0;
+    node->set_mbuf_cache_dir(dir);
+
+    /* TBD repace the mac if req we should add flag  */
+    m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,m);
+
+    /* set the packet as a readonly */
+    node->set_cache_mbuf(m);
+
+    #if 0
+    /* dump the packet */
+    uint8_t *p1=rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size1=rte_pktmbuf_pkt_len(m);
+    utl_DumpBuffer(stdout,p,pkt_size,0);
+    #endif
+
+    m_node_gen.add_node((CGenNode *)node);
+
+
+    double old_offset=0.0;
+
+    CGenNode * node_sync= create_node() ;
+    node_sync->m_type = CGenNode::FLOW_SYNC;
+    node_sync->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
+    m_node_gen.add_node(node_sync);
+
+    // TBD time  
+    m_node_gen.flush_file(100000000,0.0, false,this,old_offset);
+}
+
 void CFlowGenListPerThread::start_stateless_daemon(){
     /* todo sleep */
+    start_stateless_const_rate_demo();
 
     while (1) {
         delay(100);

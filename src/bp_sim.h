@@ -360,6 +360,16 @@ public:
      */
     virtual int flush_tx_queue(void)=0;
 
+
+    /**
+     * update the source and destination mac-addr of a given mbuf by global database
+     * 
+     * @param dir
+     * @param m
+     * 
+     * @return 
+     */
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m)=0;
 public:
 
 
@@ -1342,15 +1352,17 @@ class CCapFileFlowInfo ;
 /* this is a simple struct, do not add constructor and destractor here!
    we are optimizing the allocation dealocation !!!
  */
-struct CGenNode  {
+
+struct CGenNodeBase  {
 public:
 
     enum {
-        FLOW_PKT=0,
-        FLOW_FIF=1,
-        FLOW_DEFER_PORT_RELEASE=2,
-        FLOW_PKT_NAT=3,
-        FLOW_SYNC=4     /* called evey 1 msec */
+        FLOW_PKT                =0,
+        FLOW_FIF                =1,
+        FLOW_DEFER_PORT_RELEASE =2,
+        FLOW_PKT_NAT            =3,
+        FLOW_SYNC               =4,     /* called evey 1 msec */
+        STATELESS_PKT           =5
 
     };
 
@@ -1358,7 +1370,7 @@ public:
     enum {
         NODE_FLAGS_DIR                  =1,
         NODE_FLAGS_MBUF_CACHE           =2,
-		NODE_FLAGS_SAMPLE_RX_CHECK      =4,
+        NODE_FLAGS_SAMPLE_RX_CHECK      =4,
 
         NODE_FLAGS_LEARN_MODE           =8,   /* bits 3,4 MASK 0x18 wait for second direction packet */
         NODE_FLAGS_LEARN_MSG_PROCESSED  =0x10,   /* got NAT msg */
@@ -1369,19 +1381,49 @@ public:
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100 /* init packet start from server side with server addr */
     };
 
+
 public:
-    /* C1 */
+    /*********************************************/
+    /* C1  must */
     uint8_t             m_type;
     uint8_t             m_thread_id; /* zero base */
     uint8_t             m_socket_id;
-    uint8_t            m_pad2;
+    uint8_t             m_pad2;
 
     uint16_t            m_src_port;
     uint16_t            m_flags; /* BIT 0 - DIR ,
                                     BIT 1 - mbug_cache 
 									BIT 2 - SAMPLE DUPLICATE */
 
-    double              m_time;
+    double              m_time;    /* can't change this header - size 16 bytes*/
+
+public:
+    bool operator <(const CGenNodeBase * rsh ) const {
+        return (m_time<rsh->m_time);
+    }
+    bool operator ==(const CGenNodeBase * rsh ) const {
+        return (m_time==rsh->m_time);
+    }
+    bool operator >(const CGenNodeBase * rsh ) const {
+        return (m_time>rsh->m_time);
+    }
+
+public:
+    void set_socket_id(socket_id_t socket){
+        m_socket_id=socket;
+    }
+
+    socket_id_t get_socket_id(){
+        return ( m_socket_id );
+    }
+
+
+};
+
+
+struct CGenNode : public CGenNodeBase  {
+
+public:
 
     uint32_t        m_src_ip;  /* client ip */
     uint32_t        m_dest_ip; /* server ip */
@@ -1411,25 +1453,8 @@ public:
     uint32_t            m_end_of_cache_line[6];
 
 public:
-    bool operator <(const CGenNode * rsh ) const {
-        return (m_time<rsh->m_time);
-    }
-    bool operator ==(const CGenNode * rsh ) const {
-        return (m_time==rsh->m_time);
-    }
-    bool operator >(const CGenNode * rsh ) const {
-        return (m_time>rsh->m_time);
-    }
-public:
     void Dump(FILE *fd);
 
-    void set_socket_id(socket_id_t socket){
-        m_socket_id=socket;
-    }
-
-    socket_id_t get_socket_id(){
-        return ( m_socket_id );
-    }
 
 
     static void DumpHeader(FILE *fd);
@@ -1612,6 +1637,60 @@ public:
 } __rte_cache_aligned;
 
 
+/* this is a event for stateless */
+struct CGenNodeStateless : public CGenNodeBase  {
+public:
+
+
+private:
+    void *              m_cache_mbuf;
+
+
+    uint64_t            m_pad_end[13];         
+
+
+public:
+
+    void set_socket_id(socket_id_t socket){
+        m_socket_id=socket;
+    }
+
+    socket_id_t get_socket_id(){
+        return ( m_socket_id );
+    }
+
+    inline void set_mbuf_cache_dir(pkt_dir_t  dir){
+        if (dir) {
+            m_flags |=NODE_FLAGS_DIR;
+        }else{
+            m_flags &=~NODE_FLAGS_DIR;
+        }
+    }
+
+    inline pkt_dir_t get_mbuf_cache_dir(){
+        return ((pkt_dir_t)( m_flags &1));
+    }
+
+
+
+    inline void set_cache_mbuf(rte_mbuf_t * m){
+        m_cache_mbuf=(void *)m;
+        m_flags |= NODE_FLAGS_MBUF_CACHE;
+    }
+
+    inline rte_mbuf_t * get_cache_mbuf(){
+        if ( m_flags &NODE_FLAGS_MBUF_CACHE ) {
+            return ((rte_mbuf_t *)m_cache_mbuf);
+        }else{
+            return ((rte_mbuf_t *)0);
+        }
+    }
+
+
+} __rte_cache_aligned; ;
+
+
+
 #if __x86_64__
 /* size of 64 bytes */
     #define DEFER_CLIENTS_NUM (16)
@@ -1652,23 +1731,36 @@ public:
 
 } __rte_cache_aligned ;
 
+
+
 /* run time verification of objects size and offsets 
    need to clean this up and derive this objects from base object but require too much refactoring right now
    hhaim
 */
+
+#define COMPARE_NODE_OBJECT(NODE_NAME)     if ( sizeof(NODE_NAME) != sizeof(CGenNode)  ) { \
+                                            printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same size \n",#NODE_NAME,sizeof(NODE_NAME),sizeof(CGenNode)); \
+                                            assert(0); \
+                                            }\
+                                            if ( (int)offsetof(struct NODE_NAME,m_type)!=offsetof(struct CGenNodeBase,m_type) ){\
+                                            printf("ERROR offsetof(struct %s,m_type)!=offsetof(struct CGenNodeBase,m_type) \n",#NODE_NAME);\
+                                            assert(0);\
+                                            }\
+                                            if ( (int)offsetof(struct CGenNodeDeferPort,m_time)!=offsetof(struct CGenNodeBase,m_time) ){\
+                                            printf("ERROR offsetof(struct %s,m_time)!=offsetof(struct CGenNodeBase,m_time) \n",#NODE_NAME);\
+                                            assert(0);\
+                                            }
+
+#define COMPARE_NODE_OBJECT_SIZE(NODE_NAME)     if ( sizeof(NODE_NAME) != sizeof(CGenNode)  ) { \
+                                            printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same size \n",#NODE_NAME,sizeof(NODE_NAME),sizeof(CGenNode)); \
+                                            assert(0); \
+                                            }
+
+
+
 inline int check_objects_sizes(void){
-    if ( sizeof(CGenNodeDeferPort) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeDeferPort) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeDeferPort),sizeof(CGenNode));
-        assert(0);
-    }
-    if ( (int)offsetof(struct CGenNodeDeferPort,m_type)!=offsetof(struct CGenNode,m_type) ){
-        printf("ERROR offsetof(struct CGenNodeDeferPort,m_type)!=offsetof(struct CGenNode,m_type) \n");
-        assert(0);
-    }
-    if ( (int)offsetof(struct CGenNodeDeferPort,m_time)!=offsetof(struct CGenNode,m_time) ){
-        printf("ERROR offsetof(struct CGenNodeDeferPort,m_time)!=offsetof(struct CGenNode,m_time) \n");
-        assert(0);
-    }
+    COMPARE_NODE_OBJECT(CGenNodeDeferPort);
+    COMPARE_NODE_OBJECT_SIZE(CGenNodeStateless);
     return (0);
 }
 
@@ -1726,6 +1818,11 @@ public:
     virtual int open_file(std::string file_name);
     virtual int write_pkt(CCapPktRaw *pkt_raw);
     virtual int close_file(void);
+
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+        return (0);
+    }
+
 
 
     /**
@@ -1788,6 +1885,10 @@ public:
         return (0);
     }
 
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+        return (0);
+    }
+
 
     virtual int send_node(CGenNode * node);
 
@@ -1839,7 +1940,9 @@ public:
 
 
 private:
-    int   flush_one_node_to_file(CGenNode * node);
+    inline int   flush_one_node_to_file(CGenNode * node){
+        return (m_v_if->send_node(node));
+    }
     int   update_stats(CGenNode * node);
     FORCE_NO_INLINE void  handle_slow_messages(uint8_t type,
                                              CGenNode * node,
@@ -3334,6 +3437,11 @@ public :
 
 
     inline CGenNode * create_node(void);
+    inline CGenNodeStateless * create_node_sl(void){
+        return ((CGenNodeStateless*)create_node() );
+    }
+
+
     inline void free_node(CGenNode *p);
     inline void free_last_flow_node(CGenNode *p);
 
@@ -3342,6 +3450,8 @@ public:
     void Clean();
     void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
     void start_stateless_daemon();
+    void start_stateless_const_rate_demo();
+
 
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);

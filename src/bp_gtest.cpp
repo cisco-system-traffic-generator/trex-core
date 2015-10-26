@@ -2031,6 +2031,10 @@ public:
     virtual int send_node(CGenNode * node);
 
 
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+        return (0);
+    }
+
 
     /**
      * flush all pending packets into the stream 

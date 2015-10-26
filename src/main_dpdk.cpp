@@ -1868,6 +1868,8 @@ public:
 
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m);
+
 
 public:
     void GetCoreCounters(CVirtualIFPerSideStats *stats);
@@ -1880,7 +1882,7 @@ public:
         return ( CGlobalInfo::m_socket.port_to_socket( m_ports[0].m_port->get_port_id() ) );
     }
 
-private:
+protected:
 
     int send_burst(CCorePerPort * lp_port,
                    uint16_t len,
@@ -1891,12 +1893,20 @@ private:
 
 
 
-private:
+protected:
     uint8_t      m_core_id;
     uint16_t     m_mbuf_cache; 
     CCorePerPort m_ports[CS_NUM]; /* each core has 2 tx queues 1. client side and server side */
     CNodeRing *  m_ring_to_rx;
+
+} __rte_cache_aligned; ;
+
+class CCoreEthIFStateless : public CCoreEthIF {
+public:
+    virtual int send_node(CGenNode * node);
 };
+
+
 
 bool CCoreEthIF::Create(uint8_t             core_id,
                         uint16_t            tx_client_queue_id,
@@ -1997,6 +2007,7 @@ void CCoreEthIF::flush_rx_queue(void){
         }
     }
 }
+
 
 int CCoreEthIF::flush_tx_queue(void){
     /* flush both sides */
@@ -2153,6 +2164,23 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 }
 
 
+
+int CCoreEthIFStateless::send_node(CGenNode * no){
+    CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
+
+    /* check that we have mbuf  */
+    rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+    assert( m );
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    CCorePerPort *  lp_port=&m_ports[dir];
+    CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
+    rte_pktmbuf_refcnt_update(m,1);
+    send_pkt(lp_port,m,lp_stats);
+    return (0);
+};
+
+
+
 int CCoreEthIF::send_node(CGenNode * node){
 
     if ( unlikely( node->get_cache_mbuf() !=NULL ) ) {
@@ -2242,6 +2270,19 @@ int CCoreEthIF::send_node(CGenNode * node){
 
     /* send the packet */
     send_pkt(lp_port,m,lp_stats);
+    return (0);
+}
+
+
+int CCoreEthIF::update_mac_addr_from_global_cfg(pkt_dir_t  dir, 
+                                rte_mbuf_t      *m){
+    assert(m);
+    assert(dir<2);
+    CCorePerPort *  lp_port=&m_ports[dir];
+    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+    uint8_t p_id=lp_port->m_port->get_port_id();
+
+    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
     return (0);
 }
 
@@ -2816,7 +2857,6 @@ public:
 
 
 
-    int test_send1();
     int rcv_send(int port,int queue_id);
     int rcv_send_all(int queue_id);
 
@@ -2882,7 +2922,9 @@ public:
 
 
     CPhyEthIF   m_ports[BP_MAX_PORTS];
-    CCoreEthIF  m_cores_vif[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve*/
+    CCoreEthIF          m_cores_vif_sf[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve - stateful */
+    CCoreEthIFStateless m_cores_vif_sl[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve - stateless*/
+    CCoreEthIF *        m_cores_vif[BP_MAX_CORES];
 
 
     CParserOption m_po ;
@@ -2910,49 +2952,6 @@ public:
     TrexStateless       *m_trex_stateless;
 };
 
-
-
-int CGlobalTRex::test_send1(){
-
-    CParserOption po ;
-    CFlowGenList fl;
-
-    po.cfg_file = "cap2/dns.yaml";
-    //po.cfg_file = "cap2/sfr3.yaml";
-    //po.cfg_file = "cap2/sfr4.yaml";
-    //po.cfg_file = "cap2/sfr.yaml";
-
-    po.preview.setVMode(3);
-    po.preview.setFileWrite(true);
-
-    fl.Create();
-
-    fl.load_from_yaml(po.cfg_file,1);
-    //fl.DumpPktSize();
-
-    fl.generate_p_thread_info(1);
-    CFlowGenListPerThread   * lpt;
-
-    int i;
-    for (i=0; i<1; i++) {
-        lpt = fl.m_threads_info[i];
-        //CNullIF * erf_vif = new CNullIF();
-        CVirtualIF * erf_vif = &m_cores_vif[0];
-        lpt->set_vif(erf_vif);
-        lpt->start_generate_stateful("hey",po.preview);
-        lpt->m_node_gen.DumpHist(stdout);
-        lpt->DumpStats(stdout);
-    }
-
-    m_cores_vif[0].flush_tx_queue();
-    delay(1000);
-    //fprintf(stdout," drop : %llu \n",m_test_drop);
-
-    m_cores_vif[0].DumpCoreStats(stdout);
-    m_cores_vif[0].DumpIfStats(stdout);
-
-    fl.Delete();
-}
 
 
 int  CGlobalTRex::rcv_send(int port,int queue_id){
@@ -3407,7 +3406,12 @@ int  CGlobalTRex::ixgbe_start(void){
     for (i=0; i<get_cores_tx(); i++) {
         int j=(i+1);
         int queue_id=((j-1)/get_base_num_cores() );   /* for the first min core queue 0 , then queue 1 etc */
-        m_cores_vif[j].Create(j,
+        if ( get_is_stateless() ){
+            m_cores_vif[j]=&m_cores_vif_sl[j];
+        }else{
+            m_cores_vif[j]=&m_cores_vif_sf[j];
+        }
+        m_cores_vif[j]->Create(j,
                               queue_id,
                               &m_ports[port_offset], /* 0,2*/
                               queue_id,
@@ -3422,7 +3426,7 @@ int  CGlobalTRex::ixgbe_start(void){
     fprintf(stdout," -------------------------------\n");
     CCoreEthIF::DumpIfCfgHeader(stdout);
     for (i=0; i<get_cores_tx(); i++) {
-        m_cores_vif[i+1].DumpIfCfg(stdout);
+        m_cores_vif[i+1]->DumpIfCfg(stdout);
     }
     fprintf(stdout," -------------------------------\n");
 }
@@ -3656,7 +3660,7 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
 
     int i;
     for (i=0; i<get_cores_tx(); i++) {
-        CCoreEthIF * erf_vif = &m_cores_vif[i+1];
+        CCoreEthIF * erf_vif = m_cores_vif[i+1];
         CVirtualIFPerSideStats stats;
         erf_vif->GetCoreCounters(&stats);
         sw_pkt_out     += stats.m_tx_pkt;
@@ -4123,7 +4127,7 @@ int CGlobalTRex::stop_master(){
     int i;
     for (i=0; i<get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
-        CCoreEthIF * erf_vif = &m_cores_vif[i+1];
+        CCoreEthIF * erf_vif = m_cores_vif[i+1];
 
         erf_vif->DumpCoreStats(stdout);
         erf_vif->DumpIfStats(stdout);
@@ -4182,9 +4186,9 @@ int CGlobalTRex::start_master_stateless(){
 
     for (i=0; i<get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
-        CVirtualIF * erf_vif = &m_cores_vif[i+1];
+        CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1].get_socket_id();
+        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1]->get_socket_id();
     }
     m_fl_was_init=true;
 }
@@ -4237,10 +4241,10 @@ int CGlobalTRex::start_send_master(){
     for (i=0; i<get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
         //CNullIF * erf_vif = new CNullIF();
-        CVirtualIF * erf_vif = &m_cores_vif[i+1];
+        CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
         /* socket id */
-        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1].get_socket_id();
+        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1]->get_socket_id();
 
     }
     m_fl_was_init=true;
