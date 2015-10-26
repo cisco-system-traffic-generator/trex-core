@@ -2759,7 +2759,7 @@ TEST_F(gt_ring, ring1) {
 
 TEST_F(gt_ring, ring2) {
     CMessagingManager ringmg;
-    ringmg.Create(8);
+    ringmg.Create(8, "test");
 
     int i;
     for (i=0; i<8; i++) {
