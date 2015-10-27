@@ -114,6 +114,9 @@ class CTRexStatelessClient(object):
     def get_port_count(self):
         return self.system_info.get("port_count")
 
+    def get_acquired_ports(self):
+        return self._conn_handler.keys()
+
     def acquire(self, port_id, force=False):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -145,14 +148,16 @@ class CTRexStatelessClient(object):
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
             if rc:
-                self._process_batch_result(commands, resp_list, self._handle_release_response)
+                return self._process_batch_result(commands, resp_list, self._handle_release_response,
+                                                  success_test=self.ack_success_test)
         else:
             self._conn_handler.pop(port_id)
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
             command = RpcCmdData("release", params)
-            self._handle_release_response(command, self.transmit(command.method, command.params))
-            return
+            return self._handle_release_response(command,
+                                          self.transmit(command.method, command.params),
+                                          self.ack_success_test)
 
     @force_status(owned=True)
     def add_stream(self, stream_id, stream_obj, port_id=None):
@@ -362,8 +367,12 @@ class CTRexStatelessClient(object):
             return RpcResponseStatus(False, port_id, response.data)
 
     def _handle_release_response(self, request, response, success_test):
-        if response.success:
-            del self._conn_handler[request.get("port_id")]
+        port_id = request.params.get("port_id")
+        if success_test(response):
+            del self._conn_handler[port_id]
+            return RpcResponseStatus(True, port_id, "Released")
+        else:
+            return RpcResponseStatus(False, port_id, response.data)
 
     def _handle_start_traffic_response(self, request, response, success_test):
         if response.success:

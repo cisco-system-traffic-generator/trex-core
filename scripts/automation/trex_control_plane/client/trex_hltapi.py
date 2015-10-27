@@ -3,6 +3,7 @@
 import trex_root_path
 from client_utils.packet_builder import CTRexPktBuilder
 from trex_stateless_client import CTRexStatelessClient
+import dpkt
 
 
 class CTRexHltApi(object):
@@ -46,28 +47,68 @@ class CTRexHltApi(object):
                 ret_dict.update({"log": log})
                 return ret_dict
         print log
-        ret_dict.update({"status": 1})
-        self.trex_client.disconnect()
+        port_handle = {device: {port: port               # since only supporting single TRex at the moment, 1:1 map
+                                for port in port_list}
+                       }
 
-        pass
+        ret_dict.update({"status": 1,
+                         "log": None,
+                         "port_handle": port_handle,
+                         "offline": 0})  # ports are online
+        return ret_dict
 
     def cleanup_session(self, port_list, maintain_lock=False):
-        pass
+        ret_dict = {"status": 0}
+        if not maintain_lock:
+            # release taken ports
+            if port_list == "all":
+                port_list = self.trex_client.get_acquired_ports()
+            else:
+                port_list = self.parse_port_list(port_list)
+            response = self.trex_client.release(port_list)
+            res_ok, log = CTRexHltApi.process_response(port_list, response)
+            print log
+            if not res_ok:
+                ret_dict.update({"log": log})
+                return ret_dict
+        ret_dict.update({"status": 1,
+                         "log": None})
+        self.trex_client.disconnect()
+        self.trex_client = None
+        return ret_dict
 
     def interface_config(self, port_handle, mode="config"):
-        pass
+        allowed_modes = ["config", "modify", "destroy"]
+        if mode not in allowed_modes:
+            raise ValueError("mode must be one of the following values: {modes}".format(modes=allowed_modes))
+        # pass this function for now...
+        return {"status": 1, "log": None}
 
-    def get_status(self):
-        pass
-
-    def get_port_handler(self):
-        pass
-
+    # ----- traffic functions ----- #
     def traffic_config(self, mode, port_handle,
-                       mac_src, mac_dst,
+                       l2_encap, mac_src, mac_dst,
                        l3_protocol, ip_src_addr, ip_dst_addr, l3_length,
                        transmit_mode, rate_pps):
-        pass
+        allowed_modes = ["create", "modify", "remove", "enable", "disable", "reset"]
+        if mode not in allowed_modes:
+            raise ValueError("mode must be one of the following values: {modes}".format(modes=allowed_modes))
+        if mode == "create":
+            # create a new stream with desired attributes
+            pkt_bld = CTRexPktBuilder()
+            if l2_encap == "ethernet_ii":
+                pkt_bld.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
+                # set Ethernet layer attributes
+                pkt_bld.set_eth_layer_addr("l2", "src", mac_src)
+                pkt_bld.set_eth_layer_addr("l2", "dst", mac_dst)
+            else:
+                raise NotImplementedError("l2_encap does not support the desired encapsulation '{0}'".format(l2_encap))
+            # set l3 attrubutes
+            if l3_protocol == "ipv4":
+                
+
+            pass
+        else:
+            raise NotImplementedError("mode '{0}' is not supported yet on TRex".format(mode))
 
     def traffic_control(self, action, port_handle):
         pass
