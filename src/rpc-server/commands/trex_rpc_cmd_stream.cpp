@@ -462,7 +462,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ss.str());
     }
 
-    return (TREX_RPC_CMD_OK);
+   return (TREX_RPC_CMD_OK);
 }
 
 /***************************

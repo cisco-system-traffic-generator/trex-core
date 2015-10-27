@@ -28,8 +28,15 @@ limitations under the License.
 
 /* messages from CP->DP Ids */
 
-#define NAT_MSG             (7)
-#define LATENCY_PKT_SEND_MSG    (8)
+struct CGenNodeMsgBase  {
+    enum {
+        NAT_FIRST     = 7,
+        LATENCY_PKT   = 8,
+    } msg_types;
+
+public:
+    uint8_t       m_msg_type; /* msg type */
+};
 
 /*
 

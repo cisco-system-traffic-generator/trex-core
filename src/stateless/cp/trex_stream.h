@@ -41,6 +41,7 @@ class TrexStream {
     friend class TrexRpcCmdAddStream;
     friend class TrexRpcCmdGetStream;
     friend class TrexStreamTable;
+    friend class TrexStatelessPort;
 
 public:
     TrexStream(uint8_t port_id, uint32_t stream_id);
@@ -196,6 +197,9 @@ public:
      * 
      */
     int size();
+
+    std::unordered_map<int, TrexStream *>::iterator begin() {return m_stream_table.begin();}
+    std::unordered_map<int, TrexStream *>::iterator end() {return m_stream_table.end();}
 
 private:
     /**

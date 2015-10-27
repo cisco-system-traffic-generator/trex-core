@@ -18,8 +18,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
+#include <trex_stateless_messaging.h>
+
 #include <string>
 
 #ifndef TREX_RPC_MOCK_SERVER
@@ -61,7 +64,32 @@ TrexStatelessPort::start_traffic(void) {
 
     m_port_state = PORT_STATE_TRANSMITTING;
 
-    /* real code goes here */
+
+    /* ************* A HACK FOR NOW *************/
+    /* we support only one stream continious */
+    if (get_stream_table()->size() != 1)  {
+        return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
+    }
+
+    TrexStream *stream;
+    for (auto it = get_stream_table()->begin(); it != get_stream_table()->end(); it++ ) {
+        stream = (*it).second;
+    }
+
+    /* support only cont streams */
+    TrexStreamContinuous *cont_stream = dynamic_cast<TrexStreamContinuous *>(stream);
+    if (!cont_stream) {
+        return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
+    }
+
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(cont_stream->m_pkt.binary, cont_stream->m_pkt.len, cont_stream->get_pps());
+
+    // FIXME (add the right core list)
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);
+
+    ring->Enqueue((CGenNode *)start_msg);
+
     return (RC_OK);
 }
 
@@ -72,6 +100,14 @@ TrexStatelessPort::stop_traffic(void) {
     if (m_port_state == PORT_STATE_TRANSMITTING) {
         m_port_state = PORT_STATE_UP_IDLE;
     }
+
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop();
+
+    // FIXME (add the right core list)
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);
+
+    ring->Enqueue((CGenNode *)stop_msg);
 }
 
 /**

@@ -59,16 +59,6 @@ struct CNatFlowInfo {
  this struct should be in the same size of CGenNode beacuse allocator is global .
 
 */
-struct CGenNodeMsgBase  {
-    enum {
-        NAT_FIRST = NAT_MSG,
-        LATENCY_PKT = LATENCY_PKT_SEND_MSG
-    } msg_types;
-
-public:
-    uint8_t       m_msg_type; /* msg type */
-};
-
 
 struct CGenNodeNatInfo : public CGenNodeMsgBase  {
     uint8_t       m_pad;

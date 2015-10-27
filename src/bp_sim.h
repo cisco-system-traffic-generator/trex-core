@@ -57,6 +57,8 @@ limitations under the License.
 #include <arpa/inet.h>
 #include "platform_cfg.h"
 
+#include <trex_stateless_dp_core.h>
+
 #undef NAT_TRACE_
 
 
@@ -1641,6 +1643,9 @@ public:
 struct CGenNodeStateless : public CGenNodeBase  {
 public:
 
+    inline uint8_t *get_opaque_storage() {
+        return (uint8_t *)&m_pad_end;
+    }
 
 private:
     void *              m_cache_mbuf;
@@ -3450,7 +3455,6 @@ public:
     void Clean();
     void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
     void start_stateless_daemon();
-    void start_stateless_const_rate_demo();
 
 
     void Dump(FILE *fd);
@@ -3465,6 +3469,7 @@ public:
 
 private:
     void check_msgs(void);
+
     void handel_nat_msg(CGenNodeNatInfo * msg);
     void handel_latecy_pkt_msg(CGenNodeLatencyPktInfo * msg);
 
@@ -3543,6 +3548,7 @@ private:
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
 
+    TrexStatelessDpCore              *m_stateless_dp_info;
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 

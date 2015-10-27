@@ -25,7 +25,6 @@ limitations under the License.
 #include "msg_manager.h"
 #include <common/basic_utils.h> 
 
-
 #undef VALG
 
 #ifdef VALG
@@ -279,7 +278,7 @@ void CPlatformSocketInfoConfig::dump(FILE *fd){
     fprintf(fd," \n");
     fprintf(fd," active sockets : %d \n",max_num_active_sockets());
 
-    fprintf(fd," ports_sockets : \n",max_num_active_sockets());
+    fprintf(fd," ports_sockets : %d \n",max_num_active_sockets());
 
     for (i=0; i<(MAX_LATENCY_PORTS); i++) {
         fprintf(fd,"%d,",port_to_socket(i));
@@ -3200,6 +3199,10 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
     assert(m_ring_from_rx);
     assert(m_ring_to_rx);
+
+    /* create the info required for stateless DP core */
+    m_stateless_dp_info = new TrexStatelessDpCore(thread_id, this);
+
     return (true);
 }
 
@@ -3347,6 +3350,9 @@ void CFlowGenListPerThread::Delete(){
     m_node_gen.Delete();
     Clean();
     m_cpu_cp_u.Delete();
+
+    delete m_stateless_dp_info;
+    m_stateless_dp_info = NULL;
 }
 
 
@@ -3452,12 +3458,9 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         uint8_t type=node->m_type;
 
         if ( type == CGenNode::STATELESS_PKT ) {
-
-           flush_one_node_to_file(node);
-           /* in case of continues */
-           node->m_time += 0.0001; /*TBD PPS*/
-           m_p_queue.push(node);
-           /* no need per thread stats, it is too heavy */
+             m_p_queue.pop();
+             // TODO: should this be inlined ? with IPO is this important ?
+             thread->m_stateless_dp_info->handle_pkt_event(node);
             
         }else{
             if ( likely( type == CGenNode::FLOW_PKT ) ) {
@@ -3564,9 +3567,12 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
 
         }else{
             if ( type == CGenNode::FLOW_SYNC ){
+
+                m_p_queue.pop();
+
                 thread->check_msgs();      /* check messages */
                 m_v_if->flush_tx_queue(); /* flush pkt each timeout */
-                m_p_queue.pop();
+                
                 if ( always == false) {
                     node->m_time += SYNC_TIME_OUT;
                     m_p_queue.push(node);
@@ -3815,11 +3821,15 @@ void CFlowGenListPerThread::handel_nat_msg(CGenNodeNatInfo * msg){
     }
 }
 
+void CFlowGenListPerThread::check_msgs(void) {
 
-void CFlowGenListPerThread::check_msgs(void){
-    if ( likely ( m_ring_from_rx->isEmpty() ) ){
+    /* inlined for performance */
+    m_stateless_dp_info->periodic_check_for_cp_messages();
+
+    if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return;
     }
+
     #ifdef  NAT_TRACE_
     printf(" %.03f got message from RX \n",now_sec());
     #endif
@@ -3839,9 +3849,11 @@ void CFlowGenListPerThread::check_msgs(void){
         case CGenNodeMsgBase::NAT_FIRST:
             handel_nat_msg((CGenNodeNatInfo * )msg);
             break;
+
         case CGenNodeMsgBase::LATENCY_PKT:
             handel_latecy_pkt_msg((CGenNodeLatencyPktInfo *) msg);
             break;
+
         default:
             printf("ERROR pkt-thread message type is not valid %d \n",msg_type);
             assert(0);
@@ -3887,72 +3899,8 @@ const uint8_t test_udp_pkt[]={
     0xe7
 };
 
-
-
-
-void CFlowGenListPerThread::start_stateless_const_rate_demo(){
-
-    CGenNodeStateless * node= create_node_sl();
-
-    /* add periodic */
-    node->m_type = CGenNode::STATELESS_PKT;
-    node->m_time = m_cur_time_sec+ 0.0 /* STREAM ISG */;
-    node->m_flags =0; 
-
-    /* set socket id */
-    node->set_socket_id(m_node_gen.m_socket_id);
-
-    /* build a mbuf from a packet */
-    uint16_t pkt_size=sizeof(test_udp_pkt);
-    uint8_t * stream_pkt=(uint8_t *)test_udp_pkt;
-
-    /* allocate const mbuf */
-    rte_mbuf_t * m = CGlobalInfo::pktmbuf_alloc( node->get_socket_id(),pkt_size );
-    assert(m);
-    char *p = rte_pktmbuf_append(m, pkt_size);
-    assert(p);
-    /* copy the packet */
-    memcpy(p,stream_pkt,pkt_size);
-
-    /* set dir 0 or 1 client or server */
-    pkt_dir_t  dir=0;
-    node->set_mbuf_cache_dir(dir);
-
-    /* TBD repace the mac if req we should add flag  */
-    m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,m);
-
-    /* set the packet as a readonly */
-    node->set_cache_mbuf(m);
-
-    #if 0
-    /* dump the packet */
-    uint8_t *p1=rte_pktmbuf_mtod(m, uint8_t*);
-    uint16_t pkt_size1=rte_pktmbuf_pkt_len(m);
-    utl_DumpBuffer(stdout,p,pkt_size,0);
-    #endif
-
-    m_node_gen.add_node((CGenNode *)node);
-
-
-    double old_offset=0.0;
-
-    CGenNode * node_sync= create_node() ;
-    node_sync->m_type = CGenNode::FLOW_SYNC;
-    node_sync->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
-    m_node_gen.add_node(node_sync);
-
-    // TBD time  
-    m_node_gen.flush_file(100000000,0.0, false,this,old_offset);
-}
-
 void CFlowGenListPerThread::start_stateless_daemon(){
-    /* todo sleep */
-    start_stateless_const_rate_demo();
-
-    while (1) {
-        delay(100);
-    }
-    /* sleep , get message from queue, shecudule --> get message */
+    m_stateless_dp_info->start();
 }
 
 
@@ -4073,6 +4021,7 @@ int CFlowGenList::load_from_mac_file(std::string file_name) {
          exit(-1);
      }
 
+     return (0);
 }
 
 
