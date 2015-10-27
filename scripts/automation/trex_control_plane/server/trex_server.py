@@ -67,7 +67,6 @@ class CTRexServer(object):
         self.start_lock         = threading.Lock()
         self.__reservation      = None
         self.zmq_monitor        = ZmqMonitorSession(self.trex, self.trex_zmq_port)    # intiate single ZMQ monitor thread for server usage
-        logger.info(self.get_trex_version(base64 = False))
     
     def add(self, x, y):
         print "server function add ",x,y
@@ -100,6 +99,7 @@ class CTRexServer(object):
             logger.info("current working dir is: {0}".format(self.TREX_PATH) )
             logger.info("current files dir is  : {0}".format(self.trex_files_path) )
             logger.debug("Starting TRex server. Registering methods to process.")
+            logger.info(self.get_trex_version(base64 = False))
             self.server = SimpleJSONRPCServer( (self.trex_host, self.trex_daemon_port) )
         except socket.error as e:
             if e.errno == errno.EADDRINUSE:
@@ -172,8 +172,10 @@ class CTRexServer(object):
         try:
             logger.info("Processing get_trex_version() command.")
             if not self.trex_version:
-                help_print = os.popen('cd {path}; ./t-rex-64 --help'.format(path=self.TREX_PATH), 'r').read()
-                self.trex_version = binascii.b2a_base64('\n'.join(help_print.split('\n')[-5:-1]))
+                help_print = subprocess.Popen(['./t-rex-64', '--help'], cwd = self.TREX_PATH, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                help_print.wait()
+                help_print_stdout = help_print.stdout.read()
+                self.trex_version = binascii.b2a_base64('\n'.join(help_print_stdout.split('\n')[-5:-1]))
             if base64:
                 return self.trex_version
             else:
