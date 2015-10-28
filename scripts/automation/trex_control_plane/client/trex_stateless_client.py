@@ -89,6 +89,9 @@ class CTRexStatelessClient(object):
                 self.__err_log = ver_info
         return self._server_version if self._server_version else "Unknown"
 
+    def is_connected(self):
+        return self.comm_link.is_connected
+
     # ----- user-access methods ----- #
     def connect(self):
         rc, err = self.comm_link.connect()
@@ -113,6 +116,13 @@ class CTRexStatelessClient(object):
 
     def get_port_count(self):
         return self.system_info.get("port_count")
+
+    def get_port_ids(self, as_str=False):
+        port_ids = range(self.get_port_count())
+        if as_str:
+            return " ".join(str(p) for p in port_ids)
+        else:
+            return port_ids
 
     def get_acquired_ports(self):
         return self._conn_handler.keys()
@@ -417,7 +427,7 @@ class CTRexStatelessClient(object):
             # check each item of the sequence
             return all([self._is_ports_valid(port)
                         for port in port_id])
-        elif (isinstance(port_id, int)) and (port_id > 0) and (port_id <= self.get_port_count()):
+        elif (isinstance(port_id, int)) and (port_id >= 0) and (port_id <= self.get_port_count()):
             return True
         else:
             return False
@@ -450,13 +460,20 @@ class CTRexStatelessClient(object):
             self.port = port
             self.rpc_link = JsonRpcClient(self.server, self.port)
 
+        @property
+        def is_connected(self):
+            if not self.virtual:
+                return self.rpc_link.connected
+            else:
+                return True
+
         def connect(self):
             if not self.virtual:
                 return self.rpc_link.connect()
 
         def disconnect(self):
             if not self.virtual:
-                self.rpc_link.disconnect()
+                return self.rpc_link.disconnect()
 
         def transmit(self, method_name, params={}):
             if self.virtual:

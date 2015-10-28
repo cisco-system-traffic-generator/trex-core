@@ -29,6 +29,7 @@ import sys
 import tty, termios
 import trex_root_path
 from common.trex_streams import *
+from client.trex_stateless_client import CTRexStatelessClient
 
 
 from client_utils.jsonrpc_client import TrexStatelessClient
@@ -74,6 +75,25 @@ class YesNoMenu(object):
             return True
         else:
             return False
+
+class CStreamsDB(object):
+
+    def __init__(self):
+        self.loaded_streams = {}
+
+    def load_streams(self, name, LoadedStreamList_obj):
+        if name in self.loaded_streams:
+            return False
+        else:
+            self.loaded_streams[name] = LoadedStreamList_obj
+            return True
+
+    def remove_streams(self, name):
+        return self.loaded_streams.pop(name)
+
+    def get_loaded_streams(self):
+        return self.loaded_streams.keys()
+
 
 # multi level cmd menu
 class CmdMenu(object):
@@ -125,10 +145,10 @@ class AddStreamMenu(CmdMenu):
 class TRexConsole(cmd.Cmd):
     """Trex Console"""
    
-    def __init__(self, rpc_client):
+    def __init__(self, stateless_client, verbose):
         cmd.Cmd.__init__(self)
 
-        self.rpc_client = rpc_client
+        self.stateless_client = stateless_client
 
         self.do_connect("")
 
@@ -140,6 +160,7 @@ class TRexConsole(cmd.Cmd):
         self.postcmd(False, "")
 
         self.user_streams = {}
+        self.streams_db = CStreamsDB()
       
 
     # a cool hack - i stole this function and added space
@@ -155,12 +176,12 @@ class TRexConsole(cmd.Cmd):
 
         elif line == "on":
             self.verbose = True
-            self.rpc_client.set_verbose(True)
+            self.stateless_client.set_verbose(True)
             print "\nverbose set to on\n"
 
         elif line == "off":
             self.verbose = False
-            self.rpc_client.set_verbose(False)
+            self.stateless_client.set_verbose(False)
             print "\nverbose set to off\n"
 
         else:
@@ -170,7 +191,7 @@ class TRexConsole(cmd.Cmd):
     def do_query_server(self, line):
         '''query the RPC server for supported remote commands\n'''
 
-        rc, msg = self.rpc_client.query_rpc_server()
+        rc, msg = self.stateless_client.query_rpc_server()
         if not rc:
             print "\n*** " + msg + "\n"
             return
@@ -186,8 +207,8 @@ class TRexConsole(cmd.Cmd):
 
         print "\n-> Pinging RPC server"
 
-        rc, msg = self.rpc_client.ping_rpc_server()
-        if rc:
+        res_ok, msg = self.stateless_client.ping()
+        if res_ok:
             print "[SUCCESS]\n"
         else:
             print "\n*** " + msg + "\n"
@@ -198,13 +219,15 @@ class TRexConsole(cmd.Cmd):
 
         self.do_acquire(line, True)
 
+    def extract_port_ids_from_line(self, line):
+        return {int(x) for x in line.split()}
+
     def parse_ports_from_line (self, line):
         port_list = set()
-
         if line:
             for port_id in line.split(' '):
-                if (not port_id.isdigit()) or (int(port_id) < 0) or (int(port_id) >= self.rpc_client.get_port_count()):
-                    print "Please provide a list of ports seperated by spaces between 0 and {0}".format(self.rpc_client.get_port_count() - 1)
+                if (not port_id.isdigit()) or (int(port_id) < 0) or (int(port_id) >= self.stateless_client.get_port_count()):
+                    print "Please provide a list of ports separated by spaces between 0 and {0}".format(self.stateless_client.get_port_count() - 1)
                     return None
 
                 port_list.add(int(port_id))
@@ -212,106 +235,86 @@ class TRexConsole(cmd.Cmd):
             port_list = list(port_list)
 
         else:
-            port_list = [i for i in xrange(0, self.rpc_client.get_port_count())]
+            port_list = [i for i in xrange(0, self.stateless_client.get_port_count())]
 
         return port_list
 
-    def do_acquire (self, line, force = False):
+    def do_acquire (self, line, force=False):
         '''Acquire ports\n'''
 
         # make sure that the user wants to acquire all
-        if line == "":
-            ask = YesNoMenu('Do you want to acquire all ports ? ')
+        args = line.split()
+        if len(args) < 1:
+            print "Please provide a list of ports separated by spaces, or specify 'all' to acquire all available ports"
+        if args[0] == "all":
+            ask = YesNoMenu('Are you sure you want to acquire all ports ? ')
             rc = ask.show()
             if rc == False:
                 return
-
-        port_list = self.parse_ports_from_line(line)
-        if not port_list:
-            return
+            else:
+                port_list = self.stateless_client.get_port_ids()
+        else:
+            port_list = self.extract_port_ids_from_line(line)
 
         print "\nTrying to acquire ports: " + (" ".join(str(x) for x in port_list)) + "\n"
 
-        rc, resp_list = self.rpc_client.take_ownership(port_list, force)
-
-        if not rc:
-            print "\n*** " + resp_list + "\n"
+        # rc, resp_list = self.stateless_client.take_ownership(port_list, force)
+        res_ok, log = self.stateless_client.acquire(port_list, force)
+        self.prompt_response(log)
+        if not res_ok:
+            print "[FAILED]\n"
             return
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                print "Port {0} - Acquired".format(port_list[i])
-            else:
-                print "Port {0} - ".format(port_list[i]) + rc[1]
-
-        print "\n"
+        print "[SUCCESS]\n"
+        return
 
     def do_release (self, line):
         '''Release ports\n'''
 
-        if line:
-            port_list = self.parse_ports_from_line(line)
+        # if line:
+        #     port_list = self.parse_ports_from_line(line)
+        # else:
+        #     port_list = self.stateless_client.get_owned_ports()
+        args = line.split()
+        if len(args) < 1:
+            print "Please provide a list of ports separated by spaces, or specify 'all' to acquire all available ports"
+        if args[0] == "all":
+            ask = YesNoMenu('Are you sure you want to release all acquired ports ? ')
+            rc = ask.show()
+            if rc == False:
+                return
+            else:
+                port_list = self.stateless_client.get_acquired_ports()
         else:
-            port_list = self.rpc_client.get_owned_ports()
+            port_list = self.extract_port_ids_from_line(line)
 
-        if not port_list:
+        res_ok, log = self.stateless_client.release(port_list)
+        self.prompt_response(log)
+        if not res_ok:
+            print "[FAILED]\n"
             return
-
-        rc, resp_list = self.rpc_client.release_ports(port_list)
-
-
-        print "\n"
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                print "Port {0} - Released".format(port_list[i])
-            else:
-                print "Port {0} - Failed to release port, probably not owned by you or port is under traffic"
-
-        print "\n"
-
-    def do_get_port_stats (self, line):
-        '''Get ports stats\n'''
-
-        port_list = self.parse_ports_from_line(line)
-        if not port_list:
-            return
-
-        rc, resp_list = self.rpc_client.get_port_stats(port_list)
-
-        if not rc:
-            print "\n*** " + resp_list + "\n"
-            return
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                print "\nPort {0} stats:\n{1}\n".format(port_list[i], self.rpc_client.pretty_json(json.dumps(rc[1])))
-            else:
-                print "\nPort {0} - ".format(i) + rc[1] + "\n"
-
-        print "\n"
-
+        print "[SUCCESS]\n"
+        return
 
     def do_connect (self, line):
         '''Connects to the server\n'''
 
         if line == "":
-            rc, msg = self.rpc_client.connect()
+            res_ok, msg = self.stateless_client.connect()
         else:
             sp = line.split()
             if (len(sp) != 2):
                 print "\n[usage] connect [server] [port] or without parameters\n"
                 return
 
-            rc, msg = self.rpc_client.connect(sp[0], sp[1])
+            res_ok, msg = self.stateless_client.connect(sp[0], sp[1])
 
-        if rc:
+        if res_ok:
             print "[SUCCESS]\n"
         else:
             print "\n*** " + msg + "\n"
             return
 
-        self.supported_rpc = self.rpc_client.get_supported_cmds()
+        self.supported_rpc = self.stateless_client.get_supported_cmds().data
 
     def do_rpc (self, line):
         '''Launches a RPC on the server\n'''
@@ -344,9 +347,9 @@ class TRexConsole(cmd.Cmd):
             print "Example: rpc test_add {'x': 12, 'y': 17}\n"
             return
 
-        rc, msg = self.rpc_client.invoke_rpc_method(method, params)
-        if rc:
-            print "\nServer Response:\n\n" + self.rpc_client.pretty_json(json.dumps(msg)) + "\n"
+        res_ok, msg = self.stateless_client.invoke_rpc_method(method, params)
+        if res_ok:
+            print "\nServer Response:\n\n" + self.stateless_client.pretty_json(json.dumps(msg)) + "\n"
         else:
             print "\n*** " + msg + "\n"
             #print "Please try 'reconnect' to reconnect to server"
@@ -359,7 +362,7 @@ class TRexConsole(cmd.Cmd):
         '''Shows a graphical console\n'''
 
         self.do_verbose('off')
-        trex_status.show_trex_status(self.rpc_client)
+        trex_status.show_trex_status(self.stateless_client)
 
     def do_quit(self, line):
         '''Exit the client\n'''
@@ -367,22 +370,22 @@ class TRexConsole(cmd.Cmd):
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
-        if not self.rpc_client.is_connected():
+        if not self.stateless_client.is_connected():
             print "Not connected to server\n"
             return
 
-        rc, msg = self.rpc_client.disconnect()
-        if rc:
+        res_ok, msg = self.stateless_client.disconnect()
+        if res_ok:
             print "[SUCCESS]\n"
         else:
             print msg + "\n"
 
     def do_whoami (self, line):
         '''Prints console user name\n'''
-        print "\n" + self.rpc_client.whoami() + "\n"
+        print "\n" + self.stateless_client.user + "\n"
         
     def postcmd(self, stop, line):
-        if self.rpc_client.is_connected():
+        if self.stateless_client.is_connected():
             self.prompt = "TRex > "
         else:
             self.supported_rpc = None
@@ -430,7 +433,7 @@ class TRexConsole(cmd.Cmd):
 
             print "{:<30} {:<30}".format(cmd + " - ", help)
 
-    def do_load_stream_list(self, line):
+    def do_stream_db_add(self, line):
         '''Loads a YAML stream list serialization into user console \n'''
         args = line.split()
         if args >= 2:
@@ -442,19 +445,31 @@ class TRexConsole(cmd.Cmd):
                 multiplier = 1
             stream_list = CStreamList()
             loaded_obj = stream_list.load_yaml(yaml_path, multiplier)
-            # print self.rpc_client.pretty_json(json.dumps(loaded_obj))
-            if name in self.user_streams:
-                print "Picked name already exist. Please pick another name."
-            else:
-                try:
-                    compiled_streams = stream_list.compile_streams()
-                    self.user_streams[name] = LoadedStreamList(loaded_obj,
-                                                               [StreamPack(v.stream_id, v.stream.dump())
-                                                                for k, v in compiled_streams.items()])
-
+            # print self.stateless_client.pretty_json(json.dumps(loaded_obj))
+            try:
+                compiled_streams = stream_list.compile_streams()
+                res_ok = self.streams_db.load_streams(name, LoadedStreamList(loaded_obj,
+                                                                             [StreamPack(v.stream_id, v.stream.dump())
+                                                                              for k, v in compiled_streams.items()]))
+                if res_ok:
                     print "Stream list '{0}' loaded successfully".format(name)
-                except Exception as e:
-                    raise
+                else:
+                    print "Picked name already exist. Please pick another name."
+            except Exception as e:
+                print "adding new stream failed due to the following error:\n", str(e)
+
+            # if name in self.user_streams:
+            #     print "Picked name already exist. Please pick another name."
+            # else:
+            #     try:
+            #         compiled_streams = stream_list.compile_streams()
+            #         self.user_streams[name] = LoadedStreamList(loaded_obj,
+            #                                                    [StreamPack(v.stream_id, v.stream.dump())
+            #                                                     for k, v in compiled_streams.items()])
+            #
+            #         print "Stream list '{0}' loaded successfully".format(name)
+            #     except Exception as e:
+            #         raise
             return
         else:
             print "please provide load name and YAML path, separated by space.\n" \
@@ -473,7 +488,7 @@ class TRexConsole(cmd.Cmd):
                 if x.startswith(start_string)]
 
 
-    def complete_load_stream_list(self, text, line, begidx, endidx):
+    def complete_stream_db_add(self, text, line, begidx, endidx):
         arg_num = len(line.split()) - 1
         if arg_num == 2:
             return TRexConsole.tree_autocomplete(line.split()[-1])
@@ -488,9 +503,9 @@ class TRexConsole(cmd.Cmd):
             try:
                 stream = self.user_streams[list_name]
                 if len(args) >= 2 and args[1] == "full":
-                    print self.rpc_client.pretty_json(json.dumps(stream.compiled))
+                    print self.stateless_client.pretty_json(json.dumps(stream.compiled))
                 else:
-                    print self.rpc_client.pretty_json(json.dumps(stream.loaded))
+                    print self.stateless_client.pretty_json(json.dumps(stream.loaded))
             except KeyError as e:
                 print "Unknown stream list name provided"
         else:
@@ -508,9 +523,9 @@ class TRexConsole(cmd.Cmd):
             try:
                 stream_list = self.user_streams[args[0]]
                 port_list = self.parse_ports_from_line(' '.join(args[1:]))
-                owned = set(self.rpc_client.get_owned_ports())
+                owned = set(self.stateless_client.get_owned_ports())
                 if set(port_list).issubset(owned):
-                    rc, resp_list = self.rpc_client.add_stream(port_list, stream_list.compiled)
+                    rc, resp_list = self.stateless_client.add_stream(port_list, stream_list.compiled)
                     if not rc:
                         print "\n*** " + resp_list + "\n"
                         return
@@ -526,6 +541,12 @@ class TRexConsole(cmd.Cmd):
                 print "Provided stream list name '{0}' doesn't exists.".format(cause)
         else:
             print "Please provide list name and ports to attach to, or leave empty to attach to all ports."
+
+
+    def prompt_response(self, response_obj):
+        resp_list = response_obj if isinstance(response_obj, list) else [response_obj]
+        for response in resp_list:
+            print response
 
 
 
@@ -549,9 +570,9 @@ class TRexConsole(cmd.Cmd):
         stream_id = int(params[1])
 
         packet = [0xFF,0xFF,0xFF]
-        rc, msg = self.rpc_client.add_stream(port_id = port_id, stream_id = stream_id, isg = 1.1, next_stream_id = -1, packet = packet)
+        rc, msg = self.stateless_client.add_stream(port_id = port_id, stream_id = stream_id, isg = 1.1, next_stream_id = -1, packet = packet)
         if rc:
-            print "\nServer Response:\n\n" + self.rpc_client.pretty_json(json.dumps(msg)) + "\n"
+            print "\nServer Response:\n\n" + self.stateless_client.pretty_json(json.dumps(msg)) + "\n"
         else:
             print "\n*** " + msg + "\n"
 
@@ -573,18 +594,23 @@ def setParserOptions ():
                         default = 'user_' + ''.join(random.choice(string.digits) for _ in range(5)),
                         type = str)
 
+    parser.add_argument("--verbose", dest="verbose",
+                        action="store_true", help="Switch ON verbose option. Default is: OFF.",
+                        default = False)
+
     return parser
 
 def main ():
     parser = setParserOptions()
-    options = parser.parse_args(sys.argv[1:])
+    options = parser.parse_args()#sys.argv[1:])
 
-    # RPC client
-    rpc_client = TrexStatelessClient(options.server, options.port, options.user)
+    # Stateless client connection
+    # stateless_client = TrexStatelessClient(options.server, options.port, options.user)
+    stateless_client = CTRexStatelessClient(options.user, options.server, options.port)
 
     # console
     try:
-        console = TRexConsole(rpc_client)
+        console = TRexConsole(stateless_client, options.verbose)
         console.cmdloop()
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
