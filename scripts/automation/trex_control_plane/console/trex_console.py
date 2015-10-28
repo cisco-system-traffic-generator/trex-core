@@ -449,10 +449,10 @@ class TRexConsole(cmd.Cmd):
                 try:
                     compiled_streams = stream_list.compile_streams()
                     self.user_streams[name] = LoadedStreamList(loaded_obj,
-                                                               [StreamPack(v.stream_id, v.stream.dump_compiled())
+                                                               [StreamPack(v.stream_id, v.stream.dump())
                                                                 for k, v in compiled_streams.items()])
 
-                    print "Stream '{0}' loaded successfully".format(name)
+                    print "Stream list '{0}' loaded successfully".format(name)
                 except Exception as e:
                     raise
             return

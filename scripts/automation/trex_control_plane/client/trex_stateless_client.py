@@ -62,7 +62,7 @@ class CTRexStatelessClient(object):
                         continue
                 if bad_ids:
                     # Some port IDs are not according to desires status
-                    raise RuntimeError("The requested method ('{0}') cannot be invoked since port IDs {1} are not"
+                    raise RuntimeError("The requested method ('{0}') cannot be invoked since port IDs {1} are not "
                                        "at allowed stated".format(func.__name__, list(bad_ids)))
                 else:
                     return func(self, *args, **kwargs)
@@ -229,13 +229,15 @@ class CTRexStatelessClient(object):
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
             if rc:
-                self._process_batch_result(commands, resp_list, self._handle_start_traffic_response)
+                return self._process_batch_result(commands, resp_list, self._handle_start_traffic_response,
+                                                  success_test=self.ack_success_test)
         else:
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
             command = RpcCmdData("start_traffic", params)
-            self._handle_start_traffic_response(command, self.transmit(command.method, command.params))
-            return
+            return self._handle_start_traffic_response(command,
+                                                       self.transmit(command.method, command.params),
+                                                       self.ack_success_test)
 
     @force_status(owned=False, active_and_owned=True)
     def stop_traffic(self, port_id=None):
@@ -248,13 +250,15 @@ class CTRexStatelessClient(object):
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
             if rc:
-                self._process_batch_result(commands, resp_list, self._handle_stop_traffic_response)
+                return self._process_batch_result(commands, resp_list, self._handle_stop_traffic_response,
+                                                  success_test=self.ack_success_test)
         else:
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
             command = RpcCmdData("stop_traffic", params)
-            self._handle_start_traffic_response(command, self.transmit(command.method, command.params))
-            return
+            return self._handle_start_traffic_response(command,
+                                                       self.transmit(command.method, command.params),
+                                                       self.ack_success_test)
 
     def get_global_stats(self):
         command = RpcCmdData("get_global_stats", {})
@@ -375,12 +379,20 @@ class CTRexStatelessClient(object):
             return RpcResponseStatus(False, port_id, response.data)
 
     def _handle_start_traffic_response(self, request, response, success_test):
-        if response.success:
-            self._active_ports.add(request.get("port_id"))
+        port_id = request.params.get("port_id")
+        if success_test(response):
+            self._active_ports.add(port_id)
+            return RpcResponseStatus(True, port_id, "Traffic started")
+        else:
+            return RpcResponseStatus(False, port_id, response.data)
 
-    def _handle_stop_traffic_response(self, request, response):
-        if response.success:
-            self._active_ports.remove(request.get("port_id"))
+    def _handle_stop_traffic_response(self, request, response, success_test):
+        port_id = request.params.get("port_id")
+        if success_test(response):
+            self._active_ports.remove(port_id)
+            return RpcResponseStatus(True, port_id, "Traffic stopped")
+        else:
+            return RpcResponseStatus(False, port_id, response.data)
 
     def _handle_get_global_stats_response(self, request, response, success_test):
         if response.success:

@@ -23,7 +23,7 @@ class CStreamList(object):
         if name in self.streams_list:
             raise NameError("A stream with this name already exists on this list.")
         self.streams_list[name]=stream_obj
-        return
+        return name
 
     def remove_stream(self, name):
         popped = self.streams_list.pop(name)
@@ -184,6 +184,7 @@ class CStream(object):
                     if isinstance(kwargs[k], CTRexPktBuilder):
                         if "vm" not in kwargs:
                             self.load_packet_obj(kwargs[k])
+                            break # vm field check is skipped
                         else:
                             raise ValueError("When providing packet object with a CTRexPktBuilder, vm parameter "
                                              "should not be supplied")
