@@ -20,32 +20,25 @@ limitations under the License.
 */
 #include <trex_stateless_messaging.h>
 #include <trex_stateless_dp_core.h>
+#include <trex_stream.h>
 #include <string.h>
 
 /*************************
   start traffic message
  ************************/ 
-TrexStatelessDpStart::TrexStatelessDpStart(const uint8_t *pkt, uint16_t pkt_len, double pps) {
-    assert(pkt);
-    assert(pkt_len > 0);
-
-    m_pkt = new uint8_t[pkt_len];
-    memcpy(m_pkt, pkt, pkt_len);
-    m_pkt_len = pkt_len;
-
-    m_pps = pps;
+TrexStatelessDpStart::TrexStatelessDpStart(TrexStreamsCompiledObj *obj) : m_obj(obj) {
 }
 
 TrexStatelessDpStart::~TrexStatelessDpStart() {
-    if (m_pkt) {
-        delete m_pkt;
+    if (m_obj) {
+        delete m_obj;
     }
 }
 
 bool
 TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
 
-    dp_core->start_const_traffic(m_pkt, m_pkt_len, m_pps);
+    dp_core->start_traffic(m_obj);
     return true;
 }
 

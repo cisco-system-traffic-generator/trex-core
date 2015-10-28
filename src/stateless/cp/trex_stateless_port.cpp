@@ -58,32 +58,16 @@ TrexStatelessPort::start_traffic(void) {
         return (RC_ERR_BAD_STATE_FOR_OP);
     }
 
-    if (get_stream_table()->size() == 0) {
-        return (RC_ERR_NO_STREAMS);
-    }
+    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(); 
 
-    m_port_state = PORT_STATE_TRANSMITTING;
-
-
-    /* ************* A HACK FOR NOW *************/
-    /* we support only one stream continious */
-    if (get_stream_table()->size() != 1)  {
-        return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
-    }
-
-    TrexStream *stream;
-    for (auto it = get_stream_table()->begin(); it != get_stream_table()->end(); it++ ) {
-        stream = (*it).second;
-    }
-
-    /* support only cont streams */
-    TrexStreamContinuous *cont_stream = dynamic_cast<TrexStreamContinuous *>(stream);
-    if (!cont_stream) {
+    /* compile the streams */
+    bool rc = get_stream_table()->compile(*compiled_obj);
+    if (!rc) {
         return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
-    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(cont_stream->m_pkt.binary, cont_stream->m_pkt.len, cont_stream->get_pps());
+    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(compiled_obj);
 
     // FIXME (add the right core list)
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);

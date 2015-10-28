@@ -150,6 +150,28 @@ protected:
 };
 
 /**
+ * compiled object for a table of streams
+ * 
+ * @author imarom (28-Oct-15)
+ */
+class TrexStreamsCompiledObj {
+public:
+
+    TrexStreamsCompiledObj() {}
+    ~TrexStreamsCompiledObj();
+
+    void add_compiled_stream(double pps, uint8_t *pkt, uint16_t pkt_len);
+
+    struct obj_st {
+        double   m_pps;
+        uint8_t *m_pkt;
+        uint16_t m_pkt_len;
+    };
+
+    std::vector<obj_st> m_objs;
+};
+
+/**
  * holds all the streams 
  *  
  */
@@ -191,6 +213,16 @@ public:
      * @param stream_list 
      */
     void get_stream_list(std::vector<uint32_t> &stream_list);
+
+    /**
+     * compiles all the streams in the table to a DP object that 
+     * can be passed to the DP cores 
+     * 
+     * @author imarom (28-Oct-15)
+     * 
+     * @return bool 
+     */
+    bool compile(TrexStreamsCompiledObj &obj);
 
     /**
      * get the table size

@@ -20,6 +20,7 @@ limitations under the License.
 */
 #include <trex_stateless_dp_core.h>
 #include <trex_stateless_messaging.h>
+#include <trex_stream.h>
 
 #include <bp_sim.h>
 
@@ -74,10 +75,7 @@ TrexStatelessDpCore::handle_pkt_event(CGenNode *node) {
 }
 
 void
-TrexStatelessDpCore::start_const_traffic(const uint8_t *pkt,
-                                         uint16_t pkt_len,
-                                         double pps) {
-
+TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pkt_len) {
     CGenNodeStateless *node = m_core->create_node_sl();
 
     /* add periodic */
@@ -117,7 +115,13 @@ TrexStatelessDpCore::start_const_traffic(const uint8_t *pkt,
     m_state = TrexStatelessDpCore::STATE_TRANSMITTING;
 
     m_core->m_node_gen.add_node((CGenNode *)node);
+}
 
+void
+TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
+    for (auto single_stream : obj->m_objs) {
+        add_cont_stream(single_stream.m_pps, single_stream.m_pkt, single_stream.m_pkt_len);
+    }
 }
 
 void

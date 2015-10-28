@@ -28,6 +28,7 @@ class TrexStatelessCpToDpMsgBase;
 class TrexStatelessDpStart;
 class CFlowGenListPerThread;
 class CGenNode;
+class TrexStreamsCompiledObj;
 
 class TrexStatelessDpCore {
 
@@ -62,7 +63,7 @@ public:
      * @param pkt 
      * @param pkt_len 
      */
-    void start_const_traffic(const uint8_t *pkt, uint16_t pkt_len, double pps);
+    void start_traffic(TrexStreamsCompiledObj *obj);
 
     /**
      * stop all traffic for this core
@@ -106,6 +107,8 @@ private:
      * @param msg 
      */
     void handle_cp_msg(TrexStatelessCpToDpMsgBase *msg);
+
+    void add_cont_stream(double pps, const uint8_t *pkt, uint16_t pkt_len);
 
     uint8_t              m_thread_id;
     state_e              m_state;

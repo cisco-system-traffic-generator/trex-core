@@ -24,6 +24,7 @@ limitations under the License.
 #include <msg_manager.h>
 
 class TrexStatelessDpCore;
+class TrexStreamsCompiledObj;
 
 /**
  * defines the base class for CP to DP messages
@@ -54,24 +55,14 @@ public:
 class TrexStatelessDpStart : public TrexStatelessCpToDpMsgBase {
 public:
 
-    TrexStatelessDpStart(const uint8_t *pkt, uint16_t pkt_len, double pps);
+    TrexStatelessDpStart(TrexStreamsCompiledObj *obj);
 
     ~TrexStatelessDpStart();
-
-    const uint8_t * get_pkt() {
-        return m_pkt;
-    }
-
-    uint16_t get_pkt_len() {
-        return m_pkt_len;
-    }
 
     virtual bool handle(TrexStatelessDpCore *dp_core);
 
 private:
-    uint8_t *m_pkt;
-    uint16_t m_pkt_len;
-    double   m_pps;
+    TrexStreamsCompiledObj *m_obj;
 };
 
 /**
