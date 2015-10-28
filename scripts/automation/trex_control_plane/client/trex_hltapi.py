@@ -78,9 +78,9 @@ class CTRexHltApi(object):
         return ret_dict
 
     def interface_config(self, port_handle, mode="config"):
-        allowed_modes = ["config", "modify", "destroy"]
-        if mode not in allowed_modes:
-            raise ValueError("mode must be one of the following values: {modes}".format(modes=allowed_modes))
+        ALLOWED_MODES = ["config", "modify", "destroy"]
+        if mode not in ALLOWED_MODES:
+            raise ValueError("mode must be one of the following values: {modes}".format(modes=ALLOWED_MODES))
         # pass this function for now...
         return {"status": 1, "log": None}
 
@@ -89,21 +89,15 @@ class CTRexHltApi(object):
                        l2_encap, mac_src, mac_dst,
                        l3_protocol, ip_src_addr, ip_dst_addr, l3_length,
                        transmit_mode, rate_pps):
-        allowed_modes = ["create", "modify", "remove", "enable", "disable", "reset"]
-        if mode not in allowed_modes:
-            raise ValueError("mode must be one of the following values: {modes}".format(modes=allowed_modes))
+        ALLOWED_MODES = ["create", "modify", "remove", "enable", "disable", "reset"]
+        if mode not in ALLOWED_MODES:
+            raise ValueError("mode must be one of the following values: {modes}".format(modes=ALLOWED_MODES))
         if mode == "create":
             # create a new stream with desired attributes
-            pkt_bld = CTRexPktBuilder()
-            if l2_encap == "ethernet_ii":
-                pkt_bld.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
-                # set Ethernet layer attributes
-                pkt_bld.set_eth_layer_addr("l2", "src", mac_src)
-                pkt_bld.set_eth_layer_addr("l2", "dst", mac_dst)
-            else:
-                raise NotImplementedError("l2_encap does not support the desired encapsulation '{0}'".format(l2_encap))
-            # set l3 attrubutes
-            if l3_protocol == "ipv4":
+            stream = CTRexHltApi.generate_stream(l2_encap, mac_src, mac_dst,
+                                                 l3_protocol, ip_src_addr, ip_dst_addr, l3_length,
+                                                 transmit_mode, rate_pps)
+
                 
 
             pass
@@ -148,6 +142,44 @@ class CTRexHltApi(object):
     def join_batch_response(responses):
         return "\n".join([str(response)
                           for response in responses])
+
+    @staticmethod
+    def generate_stream(l2_encap, mac_src, mac_dst,
+                       l3_protocol, ip_src_addr, ip_dst_addr, l3_length,
+                       transmit_mode, rate_pps):
+        ALLOWED_L3_PROTOCOL = {"ipv4": dpkt.ethernet.ETH_TYPE_IP,
+                               "ipv6": dpkt.ethernet.ETH_TYPE_IP6,
+                               "arp": dpkt.ethernet.ETH_TYPE_ARP}
+        ALLOWED_L4_PROTOCOL = {"tcp": dpkt.ip.IP_PROTO_TCP,
+                               "udp": dpkt.ip.IP_PROTO_UDP,
+                               "icmp": dpkt.ip.IP_PROTO_ICMP,
+                               "icmpv6": dpkt.ip.IP_PROTO_ICMP6,
+                               "igmp": dpkt.ip.IP_PROTO_IGMP,
+                               "rtp": dpkt.ip.IP_PROTO_IRTP,
+                               "isis": dpkt.ip.IP_PROTO_ISIS,
+                               "ospf": dpkt.ip.IP_PROTO_OSPF}
+
+        pkt_bld = CTRexPktBuilder()
+        if l2_encap == "ethernet_ii":
+            pkt_bld.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
+            # set Ethernet layer attributes
+            pkt_bld.set_eth_layer_addr("l2", "src", mac_src)
+            pkt_bld.set_eth_layer_addr("l2", "dst", mac_dst)
+        else:
+            raise NotImplementedError("l2_encap does not support the desired encapsulation '{0}'".format(l2_encap))
+        # set l3 on l2
+        if l3_protocol not in ALLOWED_L3_PROTOCOL:
+            raise ValueError("l3_protocol must be one of the following: {0}".format(ALLOWED_L3_PROTOCOL))
+        pkt_bld.set_layer_attr("l2", "type", ALLOWED_L3_PROTOCOL[l3_protocol])
+
+        # set l3 attributes
+        if l3_protocol == "ipv4":
+            pkt_bld.add_pkt_layer("l3", dpkt.ip.IP())
+            pkt_bld.set_ip_layer_addr("l3", "src", ip_src_addr)
+            pkt_bld.set_ip_layer_addr("l3", "dst", ip_dst_addr)
+        else:
+            raise NotImplementedError("l3_protocol '{0}' is not supported by TRex yet.".format(l3_protocol))
+
 
 
 if __name__ == "__main__":
