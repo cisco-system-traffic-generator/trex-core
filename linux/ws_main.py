@@ -93,11 +93,18 @@ def configure(conf):
 
 bp_sim_main = SrcGroup(dir='src',
         src_list=['main.cpp'])
- 
+
+bp_sim_gtest = SrcGroup(dir='src',
+        src_list=[
+             'bp_gtest.cpp',
+             'gtest/tuple_gen_test.cpp',
+             'gtest/nat_test.cpp',
+             'gtest/trex_stateless_gtest.cpp'
+             ])
+
 main_src = SrcGroup(dir='src',
         src_list=[
              'bp_sim.cpp',
-             'bp_gtest.cpp',
              'os_time.cpp',
              'rx_check.cpp',
              'tuple_gen.cpp',
@@ -111,9 +118,6 @@ main_src = SrcGroup(dir='src',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
 
-             'gtest/tuple_gen_test.cpp',
-             'gtest/nat_test.cpp',
-             'gtest/trex_stateless_gtest.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -147,6 +151,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stream_vm.cpp',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
+                                    'cp/trex_streams_compiler.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
                                     ])
@@ -230,6 +235,7 @@ bp_hack_for_compile = SrcGroup(dir='/src/stub/',
 
 bp =SrcGroups([
                 bp_sim_main,
+                bp_sim_gtest,
                 main_src, 
                 cmn_src ,
                 net_src ,

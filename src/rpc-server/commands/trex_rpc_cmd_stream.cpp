@@ -377,7 +377,7 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
 
        TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-       port->get_stream_table()->get_stream_list(stream_list);
+       port->get_stream_table()->get_id_list(stream_list);
 
        Json::Value json_list = Json::arrayValue;
 

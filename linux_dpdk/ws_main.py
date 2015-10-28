@@ -158,6 +158,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stream_vm.cpp',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
+                                    'cp/trex_streams_compiler.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp'
                                     ])

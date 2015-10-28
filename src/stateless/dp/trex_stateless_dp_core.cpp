@@ -20,7 +20,7 @@ limitations under the License.
 */
 #include <trex_stateless_dp_core.h>
 #include <trex_stateless_messaging.h>
-#include <trex_stream.h>
+#include <trex_streams_compiler.h>
 
 #include <bp_sim.h>
 
@@ -119,7 +119,7 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
 
 void
 TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
-    for (auto single_stream : obj->m_objs) {
+    for (auto single_stream : obj->get_objects()) {
         add_cont_stream(single_stream.m_pps, single_stream.m_pkt, single_stream.m_pkt_len);
     }
 }

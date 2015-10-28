@@ -20,7 +20,7 @@ limitations under the License.
 */
 #include <trex_stateless_messaging.h>
 #include <trex_stateless_dp_core.h>
-#include <trex_stream.h>
+#include <trex_streams_compiler.h>
 #include <string.h>
 
 /*************************

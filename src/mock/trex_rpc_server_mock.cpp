@@ -21,12 +21,16 @@ limitations under the License.
 
 #include <trex_rpc_server_api.h>
 #include <trex_stateless.h>
+#include <trex_stateless_dp_core.h>
+
+#include <msg_manager.h>
 
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
 #include <string.h>
 #include <zmq.h>
+#include <bp_sim.h>
 
 using namespace std;
 
@@ -123,8 +127,29 @@ static bool parse_uint16(const string arg, uint16_t &port) {
     return (x);
 }
 
+static void
+run_dummy_core() {
+    //TODO: connect this to the scheduler
+    
+    //CFlowGenList fl;
+    //fl.Create();
+    //CFlowGenListPerThread   *lp = new CFlowGenListPerThread();
+    //lp->Create(0, 0, NULL, 0);
+    //TrexStatelessDpCore dummy_core(0, lp);
+    //lp->start_stateless_daemon();
+}
+
 int main(int argc, char *argv[]) {
     bool is_gtest = false;
+
+    time_init();
+    CGlobalInfo::m_socket.Create(0);
+
+    CGlobalInfo::init_pools(1000);
+    assert( CMsgIns::Ins()->Create(1));
+
+    std::thread *m_thread = new std::thread(run_dummy_core);
+    (void)m_thread;
 
      // gtest ?
     if (argc > 1) {

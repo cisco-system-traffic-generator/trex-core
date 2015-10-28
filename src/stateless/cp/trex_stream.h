@@ -37,11 +37,6 @@ class TrexRpcCmdAddStream;
  * 
  */
 class TrexStream {
-    /* provide the RPC parser a way to access private fields */
-    friend class TrexRpcCmdAddStream;
-    friend class TrexRpcCmdGetStream;
-    friend class TrexStreamTable;
-    friend class TrexStatelessPort;
 
 public:
     TrexStream(uint8_t port_id, uint32_t stream_id);
@@ -57,7 +52,7 @@ public:
     /* access the stream json */
     const Json::Value & get_stream_json();
 
-protected:
+public:
     /* basic */
     uint8_t       m_port_id;
     uint32_t      m_stream_id;
@@ -150,28 +145,6 @@ protected:
 };
 
 /**
- * compiled object for a table of streams
- * 
- * @author imarom (28-Oct-15)
- */
-class TrexStreamsCompiledObj {
-public:
-
-    TrexStreamsCompiledObj() {}
-    ~TrexStreamsCompiledObj();
-
-    void add_compiled_stream(double pps, uint8_t *pkt, uint16_t pkt_len);
-
-    struct obj_st {
-        double   m_pps;
-        uint8_t *m_pkt;
-        uint16_t m_pkt_len;
-    };
-
-    std::vector<obj_st> m_objs;
-};
-
-/**
  * holds all the streams 
  *  
  */
@@ -212,17 +185,13 @@ public:
      * 
      * @param stream_list 
      */
-    void get_stream_list(std::vector<uint32_t> &stream_list);
+    void get_id_list(std::vector<uint32_t> &id_list);
 
     /**
-     * compiles all the streams in the table to a DP object that 
-     * can be passed to the DP cores 
+     * populate a list with all the stream objects
      * 
-     * @author imarom (28-Oct-15)
-     * 
-     * @return bool 
      */
-    bool compile(TrexStreamsCompiledObj &obj);
+    void get_object_list(std::vector<TrexStream *> &object_list);
 
     /**
      * get the table size

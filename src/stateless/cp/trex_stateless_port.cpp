@@ -22,6 +22,7 @@ limitations under the License.
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
 #include <trex_stateless_messaging.h>
+#include <trex_streams_compiler.h>
 
 #include <string>
 
@@ -58,13 +59,25 @@ TrexStatelessPort::start_traffic(void) {
         return (RC_ERR_BAD_STATE_FOR_OP);
     }
 
-    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(); 
+    if (get_stream_table()->size() == 0) {
+        return (RC_ERR_NO_STREAMS);
+    }
 
-    /* compile the streams */
-    bool rc = get_stream_table()->compile(*compiled_obj);
+    /* fetch all the streams from the table */
+    vector<TrexStream *> streams;
+    get_stream_table()->get_object_list(streams);
+
+    /* compiler it */
+    TrexStreamsCompiler compiler;
+    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj();
+
+    bool rc = compiler.compile(streams, *compiled_obj);
     if (!rc) {
         return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
     }
+
+    /* move the state to transmiting */
+    m_port_state = PORT_STATE_TRANSMITTING;
 
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(compiled_obj);

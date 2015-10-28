@@ -58,29 +58,6 @@ TrexStream::get_stream_json() {
 }
 
 /**************************************
- * stream compiled object
- *************************************/
-TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
-    for (auto &obj : m_objs) {
-        delete obj.m_pkt;
-    }
-    m_objs.clear();
-}
-
-void 
-TrexStreamsCompiledObj::add_compiled_stream(double pps, uint8_t *pkt, uint16_t pkt_len) {
-    obj_st obj;
-
-    obj.m_pps = pps;
-    obj.m_pkt_len = pkt_len;
-
-    obj.m_pkt = new uint8_t[pkt_len];
-    memcpy(obj.m_pkt, pkt, pkt_len);
-
-    m_objs.push_back(obj);
-}
-
-/**************************************
  * stream table
  *************************************/
 TrexStreamTable::TrexStreamTable() {
@@ -127,42 +104,24 @@ TrexStream * TrexStreamTable::get_stream_by_id(uint32_t stream_id) {
     }
 }
 
-void TrexStreamTable::get_stream_list(std::vector<uint32_t> &stream_list) {
-    stream_list.clear();
+void TrexStreamTable::get_id_list(std::vector<uint32_t> &id_list) {
+    id_list.clear();
 
     for (auto stream : m_stream_table) {
-        stream_list.push_back(stream.first);
+        id_list.push_back(stream.first);
     }
+}
+
+void TrexStreamTable::get_object_list(std::vector<TrexStream *> &object_list) {
+    object_list.clear();
+
+    for (auto stream : m_stream_table) {
+        object_list.push_back(stream.second);
+    }
+
 }
 
 int TrexStreamTable::size() {
     return m_stream_table.size();
-}
-
-
-bool 
-TrexStreamTable::compile(TrexStreamsCompiledObj &obj) {
-
-    /* for now we do something trivial, */
-    for (auto it = m_stream_table.begin(); it != m_stream_table.end(); it++ ) {
-        TrexStream *stream = (*it).second;
-
-        if (!stream->m_enabled) {
-            continue;
-        }
-        if (!stream->m_self_start) {
-            continue;
-        }
-
-        /* support only continous for now ... */
-        TrexStreamContinuous *cont_stream = dynamic_cast<TrexStreamContinuous *>(stream);
-        if (!cont_stream) {
-            continue;
-        }
-
-        obj.add_compiled_stream(cont_stream->get_pps(), cont_stream->m_pkt.binary, cont_stream->m_pkt.len);
-    }
-
-    return true;
 }
 
