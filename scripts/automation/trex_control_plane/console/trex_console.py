@@ -30,6 +30,8 @@ import tty, termios
 import trex_root_path
 from common.trex_streams import *
 from client.trex_stateless_client import CTRexStatelessClient
+from common.text_opts import *
+from client_utils.general_utils import user_input
 
 
 from client_utils.jsonrpc_client import TrexStatelessClient
@@ -43,7 +45,7 @@ LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 #
 
 def readch(choices=[]):
-        
+
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
@@ -69,30 +71,51 @@ class YesNoMenu(object):
         ch = readch(choices = ['y', 'Y', 'n', 'N'])
         if ch == None:
             return None
-    
-        print "\n"    
+
+        print "\n"
         if ch == 'y' or ch == 'Y':
             return True
         else:
             return False
 
+class ConfirmMenu(object):
+    def __init__ (self, caption):
+        self.caption = "{cap} [confirm] : ".format(cap=caption)
+
+    def show(self):
+        sys.stdout.write(self.caption)
+        
+
+
+
 class CStreamsDB(object):
 
     def __init__(self):
-        self.loaded_streams = {}
+        self.stream_packs = {}
 
     def load_streams(self, name, LoadedStreamList_obj):
-        if name in self.loaded_streams:
+        if name in self.stream_packs:
             return False
         else:
-            self.loaded_streams[name] = LoadedStreamList_obj
+            self.stream_packs[name] = LoadedStreamList_obj
             return True
 
-    def remove_streams(self, name):
-        return self.loaded_streams.pop(name)
+    def remove_stream_packs(self, *names):
+        removed_streams = []
+        for name in names:
+            removed = self.stream_packs.pop(name)
+            if removed:
+                removed_streams.append(name)
+        return removed_streams
 
-    def get_loaded_streams(self):
-        return self.loaded_streams.keys()
+    def clear(self):
+        self.stream_packs.clear()
+
+    def get_loaded_streams_names(self):
+        return self.stream_packs.keys()
+
+    def get_stream_pack(self, name):
+        return self.stream_packs.get(name)
 
 
 # multi level cmd menu
@@ -144,7 +167,7 @@ class AddStreamMenu(CmdMenu):
 # main console object
 class TRexConsole(cmd.Cmd):
     """Trex Console"""
-   
+
     def __init__(self, stateless_client, verbose):
         cmd.Cmd.__init__(self)
 
@@ -153,7 +176,7 @@ class TRexConsole(cmd.Cmd):
         self.do_connect("")
 
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
-        self.intro += "\nType 'help' or '?' for supported actions\n" 
+        self.intro += "\nType 'help' or '?' for supported actions\n"
 
         self.verbose = False
 
@@ -161,7 +184,7 @@ class TRexConsole(cmd.Cmd):
 
         self.user_streams = {}
         self.streams_db = CStreamsDB()
-      
+
 
     # a cool hack - i stole this function and added space
     def completenames(self, text, *ignored):
@@ -209,7 +232,7 @@ class TRexConsole(cmd.Cmd):
 
         res_ok, msg = self.stateless_client.ping()
         if res_ok:
-            print "[SUCCESS]\n"
+            print format_text("[SUCCESS]\n", 'green', 'bold')
         else:
             print "\n*** " + msg + "\n"
             return
@@ -262,9 +285,9 @@ class TRexConsole(cmd.Cmd):
         res_ok, log = self.stateless_client.acquire(port_list, force)
         self.prompt_response(log)
         if not res_ok:
-            print "[FAILED]\n"
+            print format_text("[FAILED]\n", 'red', 'bold')
             return
-        print "[SUCCESS]\n"
+        print format_text("[SUCCESS]\n", 'green', 'bold')
         return
 
     def do_release (self, line):
@@ -290,9 +313,9 @@ class TRexConsole(cmd.Cmd):
         res_ok, log = self.stateless_client.release(port_list)
         self.prompt_response(log)
         if not res_ok:
-            print "[FAILED]\n"
+            print format_text("[FAILED]\n", 'red', 'bold')
             return
-        print "[SUCCESS]\n"
+        print format_text("[SUCCESS]\n", 'green', 'bold')
         return
 
     def do_connect (self, line):
@@ -356,7 +379,9 @@ class TRexConsole(cmd.Cmd):
 
 
     def complete_rpc (self, text, line, begidx, endidx):
-        return [x for x in self.supported_rpc if x.startswith(text)]
+        return [x
+                for x in self.supported_rpc
+                if x.startswith(text)]
 
     def do_status (self, line):
         '''Shows a graphical console\n'''
@@ -376,14 +401,14 @@ class TRexConsole(cmd.Cmd):
 
         res_ok, msg = self.stateless_client.disconnect()
         if res_ok:
-            print "[SUCCESS]\n"
+            print format_text("[SUCCESS]\n", 'green', 'bold')
         else:
             print msg + "\n"
 
     def do_whoami (self, line):
         '''Prints console user name\n'''
         print "\n" + self.stateless_client.user + "\n"
-        
+
     def postcmd(self, stop, line):
         if self.stateless_client.is_connected():
             self.prompt = "TRex > "
@@ -452,11 +477,12 @@ class TRexConsole(cmd.Cmd):
                                                                              [StreamPack(v.stream_id, v.stream.dump())
                                                                               for k, v in compiled_streams.items()]))
                 if res_ok:
-                    print "Stream list '{0}' loaded successfully".format(name)
+                    print green("Stream list '{0}' loaded and added successfully".format(name))
                 else:
-                    print "Picked name already exist. Please pick another name."
+                    print magenta("Picked name already exist. Please pick another name.")
             except Exception as e:
                 print "adding new stream failed due to the following error:\n", str(e)
+                print format_text("[FAILED]\n", 'red', 'bold')
 
             # if name in self.user_streams:
             #     print "Picked name already exist. Please pick another name."
@@ -495,71 +521,157 @@ class TRexConsole(cmd.Cmd):
         else:
             return [text]
 
-    def do_show_stream_list(self, line):
+    def do_stream_db_show(self, line):
         '''Shows the loaded stream list named [name] \n'''
         args = line.split()
         if args:
             list_name = args[0]
             try:
-                stream = self.user_streams[list_name]
+                stream = self.streams_db.get_stream_pack(list_name)#user_streams[list_name]
                 if len(args) >= 2 and args[1] == "full":
-                    print self.stateless_client.pretty_json(json.dumps(stream.compiled))
+                    print pretty_json(json.dumps(stream.compiled))
                 else:
-                    print self.stateless_client.pretty_json(json.dumps(stream.loaded))
+                    print pretty_json(json.dumps(stream.loaded))
             except KeyError as e:
                 print "Unknown stream list name provided"
         else:
-            print "\nAvailable stream lists:\n{0}".format(', '.join([x
-                                                                  for x in self.user_streams.keys()]))
+            print "\nAvailable stream lists:\n{0}".format(', '.join(sorted(self.streams_db.get_loaded_streams_names())))
 
-    def complete_show_stream_list(self, text, line, begidx, endidx):
+    def complete_stream_db_show(self, text, line, begidx, endidx):
         return [x
-                for x in self.user_streams.keys()
+                for x in self.streams_db.get_loaded_streams_names()
                 if x.startswith(text)]
+
+    def do_stream_db_remove(self, line):
+        args = line.split()
+        if args:
+            removed_streams = self.streams_db.remove_stream_packs(args)
+            if removed_streams:
+                print green("The following stream packs were removed:")
+                print bold(", ".join(sorted(removed_streams)))
+                print format_text("[SUCCESS]\n", 'green', 'bold')
+            else:
+                print red("No streams were removed. Make sure to provide valid stream pack names.")
+        else:
+            print magenta("Please provide stream pack name(s), separated with spaces.")
+
+    def do_stream_db_clear(self, line):
+        self.streams_db.clear()
+        print format_text("[SUCCESS]\n", 'green', 'bold')
+
+
+    def complete_stream_db_remove(self, text, line, begidx, endidx):
+        return [x
+                for x in self.streams_db.get_loaded_streams_names()
+                if x.startswith(text)]
+
 
     def do_attach(self, line):
         args = line.split()
-        if len(args) >= 1:
-            try:
-                stream_list = self.user_streams[args[0]]
-                port_list = self.parse_ports_from_line(' '.join(args[1:]))
-                owned = set(self.stateless_client.get_owned_ports())
-                if set(port_list).issubset(owned):
-                    rc, resp_list = self.stateless_client.add_stream(port_list, stream_list.compiled)
-                    if not rc:
-                        print "\n*** " + resp_list + "\n"
-                        return
+        if len(args) >= 2:
+            stream_pack_name = args[0]
+            stream_list = self.streams_db.get_stream_pack(stream_pack_name) #user_streams[args[0]]
+            if not stream_list:
+                print "Provided stream list name '{0}' doesn't exists.".format(stream_pack_name)
+                print format_text("[FAILED]\n", 'red', 'bold')
+                return
+            if args[0] == "all":
+                ask = YesNoMenu('Are you sure you want to release all acquired ports ? ')
+                rc = ask.show()
+                if rc == False:
+                    return
                 else:
-                    print "Not all desired ports are aquired.\n" \
-                          "Acquired ports are: {acq}\n" \
-                          "Requested ports:    {req}\n" \
-                          "Missing ports:      {miss}".format(acq=list(owned),
-                                                              req=port_list,
-                                                              miss=list(set(port_list).difference(owned)))
-            except KeyError as e:
-                cause = e.args[0]
-                print "Provided stream list name '{0}' doesn't exists.".format(cause)
+                    port_list = self.stateless_client.get_acquired_ports()
+            else:
+                port_list = self.extract_port_ids_from_line(' '.join(args[1:]))
+            owned = set(self.stateless_client.get_owned_ports())
+            if set(port_list).issubset(owned):
+                res_ok, log = self.stateless_client.add_stream_pack(port_list, stream_list.compiled)
+                # res_ok, msg = self.stateless_client.add_stream(port_list, stream_list.compiled)
+                self.prompt_response(log)
+                if not res_ok:
+                    print format_text("[FAILED]\n", 'red', 'bold')
+                    return
+                print format_text("[SUCCESS]\n", 'green', 'bold')
+                return
+            else:
+                print "Not all desired ports are acquired.\n" \
+                      "Acquired ports are: {acq}\n" \
+                      "Requested ports:    {req}\n" \
+                      "Missing ports:      {miss}".format(acq=list(owned),
+                                                          req=port_list,
+                                                          miss=list(set(port_list).difference(owned)))
+                print format_text("[FAILED]\n", 'red', 'bold')
         else:
-            print "Please provide list name and ports to attach to, or leave empty to attach to all ports."
+            print "Please provide list name and ports to attach to, " \
+                  "or specify 'all' to attach all owned ports."
 
+    def complete_attach(self, text, line, begidx, endidx):
+        arg_num = len(line.split()) - 1
+        if arg_num == 1:
+            # return optional streams packs
+            return [x
+                    for x in self.streams_db.get_loaded_streams_names()
+                    if x.startswith(text)]
+        elif arg_num >= 2:
+            # return optional ports to attach to
+            return [x
+                    for x in self.stateless_client.get_acquired_ports()
+                    if str(x).startswith(text)]
+        else:
+            return [text]
 
     def prompt_response(self, response_obj):
         resp_list = response_obj if isinstance(response_obj, list) else [response_obj]
+        def format_return_status(return_status):
+            if return_status:
+                return green("OK")
+            else:
+                return green("fail")
+
         for response in resp_list:
-            print response
+            response_str = "{id:^3} - {msg} ({stat})".format(id=response.id,
+                                                             msg=response.msg,
+                                                             stat=format_return_status(response.success))
+            print response_str
+        return
 
+    def do_remove_all_streams(self, line):
+        '''Acquire ports\n'''
 
+        # make sure that the user wants to acquire all
+        args = line.split()
+        if len(args) < 1:
+            print "Please provide a list of ports separated by spaces, " \
+                  "or specify 'all' to remove from all acquired ports"
+        if args[0] == "all":
+            ask = YesNoMenu('Are you sure you want to remove all stream packs from all acquired ports? ')
+            rc = ask.show()
+            if rc == False:
+                return
+            else:
+                port_list = self.stateless_client.get_port_ids()
+        else:
+            port_list = self.extract_port_ids_from_line(line)
 
+        print "\nTrying to remove all streams at ports: " + (" ".join(str(x) for x in port_list)) + "\n"
 
+        # rc, resp_list = self.stateless_client.take_ownership(port_list, force)
+        res_ok, log = self.stateless_client.remove_all_streams(port_list)
+        self.prompt_response(log)
+        if not res_ok:
+            print format_text("[FAILED]\n", 'red', 'bold')
+            return
+        print format_text("[SUCCESS]\n", 'green', 'bold')
+        return
 
-
-
-
-
-
+    def complete_remove_all_streams(self, text, line, begidx, endidx):
+        return [x
+                for x in self.stateless_client.get_acquired_ports()
+                if str(x).startswith(text)]
 
     # adds a very simple stream
-    def do_add_simple_stream (self, line):
+    def do_add_simple_stream(self, line):
         if line == "":
             add_stream = AddStreamMenu()
             add_stream.show()
@@ -572,14 +684,14 @@ class TRexConsole(cmd.Cmd):
         packet = [0xFF,0xFF,0xFF]
         rc, msg = self.stateless_client.add_stream(port_id = port_id, stream_id = stream_id, isg = 1.1, next_stream_id = -1, packet = packet)
         if rc:
-            print "\nServer Response:\n\n" + self.stateless_client.pretty_json(json.dumps(msg)) + "\n"
+            print "\nServer Response:\n\n" + pretty_json(json.dumps(msg)) + "\n"
         else:
             print "\n*** " + msg + "\n"
 
     # aliasing
     do_exit = do_EOF = do_q = do_quit
 
-def setParserOptions ():
+def setParserOptions():
     parser = argparse.ArgumentParser(prog="trex_console.py")
 
     parser.add_argument("-s", "--server", help = "TRex Server [default is localhost]",
@@ -600,7 +712,7 @@ def setParserOptions ():
 
     return parser
 
-def main ():
+def main():
     parser = setParserOptions()
     options = parser.parse_args()#sys.argv[1:])
 

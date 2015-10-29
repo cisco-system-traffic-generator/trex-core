@@ -181,6 +181,27 @@ class CTRexStatelessClient(object):
         return self.transmit("add_stream", params)
 
     @force_status(owned=True)
+    def add_stream_pack(self, port_id=None, *stream_packs):
+        if not self._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
+
+        # since almost every run contains more than one transaction with server, handle all as batch mode
+        port_ids = set(port_id)  # convert to set to avoid duplications
+        commands = []
+        for stream_pack in stream_packs:
+            commands.extend([RpcCmdData("add_stream", {"port_id": p_id,
+                                                       "handler": self._conn_handler.get(p_id),
+                                                       "stream_id": stream_pack.stream_id,
+                                                       "stream": stream_pack.stream}
+                                        )
+                            for p_id in port_ids]
+                            )
+        res_ok, resp_list = self.transmit_batch(commands)
+        if res_ok:
+            return self._process_batch_result(commands, resp_list, self._handle_add_stream_response,
+                                              success_test=self.ack_success_test)
+
+    @force_status(owned=True)
     def remove_stream(self, stream_id, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -370,6 +391,14 @@ class CTRexStatelessClient(object):
         if success_test(response):
             self._conn_handler[port_id] = response.data
             return RpcResponseStatus(True, port_id, "Acquired")
+        else:
+            return RpcResponseStatus(False, port_id, response.data)
+
+    def _handle_add_stream_response(self, request, response, success_test):
+        port_id = request.params.get("port_id")
+        stream_id = request.params.get("stream_id")
+        if success_test(response):
+            return RpcResponseStatus(True, port_id, "Stream {0} added".format(stream_id))
         else:
             return RpcResponseStatus(False, port_id, response.data)
 

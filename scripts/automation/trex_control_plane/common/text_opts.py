@@ -1,4 +1,5 @@
-
+import json
+import re
 
 TEXT_CODES = {'bold': {'start': '\x1b[1m',
                        'end': '\x1b[22m'},
@@ -65,7 +66,29 @@ def format_text(text, *args):
         func = FUNC_DICT.get(i)
         if func:
             return_string = func(return_string)
-    return return_string
+    return
+
+# pretty print for JSON
+def pretty_json (json_str, use_colors = True):
+    pretty_str = json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
+
+    if not use_colors:
+        return pretty_str
+
+    try:
+        # int numbers
+        pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*[^.])',r'\1{0}'.format(blue(r'\2')), pretty_str)
+        # float
+        pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*\.[0-9]+)',r'\1{0}'.format(magenta(r'\2')), pretty_str)
+        # # strings
+        #
+        pretty_str = re.sub(r'([ ]*:[ ]+)("[^"]*")',r'\1{0}'.format(red(r'\2')), pretty_str)
+        pretty_str = re.sub(r"('[^']*')", r'{0}\1{1}'.format(TEXT_CODES['magenta']['start'],
+                                                             TEXT_CODES['red']['start']), pretty_str)
+    except :
+        pass
+
+    return pretty_str
 
 
 if __name__ == "__main__":
