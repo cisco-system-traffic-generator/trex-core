@@ -75,6 +75,22 @@ def random_id_gen(length=8):
             return_id += random.choice(id_chars)
         yield return_id
 
+def id_count_gen():
+    """
+    A generator for creating an increasing id for objects, starting from 0
+
+    :parameters:
+        None
+
+    :return:
+        an id (unsigned int) with each next() request.
+    """
+    return_id = 0
+    while True:
+        yield return_id
+        return_id += 1
+
+
 
 if __name__ == "__main__":
     pass
