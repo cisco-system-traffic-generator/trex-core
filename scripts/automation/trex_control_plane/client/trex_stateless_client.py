@@ -62,8 +62,8 @@ class CTRexStatelessClient(object):
                         continue
                 if bad_ids:
                     # Some port IDs are not according to desires status
-                    raise RuntimeError("The requested method ('{0}') cannot be invoked since port IDs {1} are not "
-                                       "at allowed stated".format(func.__name__, list(bad_ids)))
+                    raise ValueError("The requested method ('{0}') cannot be invoked since port IDs {1} are not "
+                                     "at allowed states".format(func.__name__, list(bad_ids)))
                 else:
                     return func(self, *args, **kwargs)
             return wrapper_f
@@ -126,6 +126,9 @@ class CTRexStatelessClient(object):
 
     def get_acquired_ports(self):
         return self._conn_handler.keys()
+
+    def get_active_ports(self):
+        return list(self._active_ports)
 
     def acquire(self, port_id, force=False):
         if not self._is_ports_valid(port_id):

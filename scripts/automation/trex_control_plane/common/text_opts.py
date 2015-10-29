@@ -13,6 +13,8 @@ TEXT_CODES = {'bold': {'start': '\x1b[1m',
                           'end': '\x1b[39m'},
               'green': {'start': '\x1b[32m',
                         'end': '\x1b[39m'},
+              'yellow': {'start': '\x1b[33m',
+                         'end': '\x1b[39m'},
               'underline': {'start': '\x1b[4m',
                             'end': '\x1b[24m'}}
 
@@ -40,6 +42,8 @@ def magenta(text):
 def green(text):
     return text_attribute(text, 'green')
 
+def yellow(text):
+    return text_attribute(text, 'yellow')
 
 def underline(text):
     return text_attribute(text, 'underline')
@@ -54,6 +58,7 @@ def text_attribute(text, attribute):
 FUNC_DICT = {'blue': blue,
              'bold': bold,
              'green': green,
+             'yellow': yellow,
              'cyan': cyan,
              'magenta': magenta,
              'underline': underline,
