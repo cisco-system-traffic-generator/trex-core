@@ -43,6 +43,23 @@ __version__ = "1.0"
 LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 
 
+def readch(choices=[]):
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(sys.stdin.fileno())
+        while True:
+            ch = sys.stdin.read(1)
+            if (ord(ch) == 3) or (ord(ch) == 4):
+                return None
+            if ch in choices:
+                return ch
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    return None
+
 class ConfirmMenu(object):
     def __init__ (self, caption):
         self.caption = "{cap} [confirm] : ".format(cap=caption)
@@ -169,30 +186,31 @@ class TRexConsole(cmd.Cmd):
         elif line == "on":
             self.verbose = True
             self.stateless_client.set_verbose(True)
-            print "\nverbose set to on\n"
+            print green("\nverbose set to on\n")
 
         elif line == "off":
             self.verbose = False
             self.stateless_client.set_verbose(False)
-            print "\nverbose set to off\n"
+            print green("\nverbose set to off\n")
 
         else:
-            print "\nplease specify 'on' or 'off'\n"
+            print magenta("\nplease specify 'on' or 'off'\n")
 
     # query the server for registered commands
     def do_query_server(self, line):
         '''query the RPC server for supported remote commands\n'''
 
-        rc, msg = self.stateless_client.query_rpc_server()
-        if not rc:
-            print "\n*** " + msg + "\n"
+        res_ok, msg = self.stateless_client.get_supported_cmds()
+        if not res_ok:
+            print format_text("[FAILED]\n", 'red', 'bold')
             return
-
-        print "\nRPC server supports the following commands: \n\n"
+        print "\nRPC server supports the following commands:\n"
         for func in msg:
             if func:
                 print func
-        print "\n"
+        print ''
+        print format_text("[SUCCESS]\n", 'green', 'bold')
+        return
 
     def do_ping (self, line):
         '''Pings the RPC server\n'''
@@ -253,13 +271,16 @@ class TRexConsole(cmd.Cmd):
             port_list = self.extract_port_ids_from_line(line)
 
         # rc, resp_list = self.stateless_client.take_ownership(port_list, force)
-        res_ok, log = self.stateless_client.acquire(port_list, force)
-        self.prompt_response(log)
-        if not res_ok:
+        try:
+            res_ok, log = self.stateless_client.acquire(port_list, force)
+            self.prompt_response(log)
+            if not res_ok:
+                print format_text("[FAILED]\n", 'red', 'bold')
+                return
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+        except ValueError as e:
+            print magenta(str(e))
             print format_text("[FAILED]\n", 'red', 'bold')
-            return
-        print format_text("[SUCCESS]\n", 'green', 'bold')
-        return
 
 
     def port_auto_complete(self, text, line, begidx, endidx, acquired=True, active=False):
@@ -533,6 +554,7 @@ class TRexConsole(cmd.Cmd):
                 if x.startswith(text)]
 
     def do_stream_db_remove(self, line):
+        '''Removes a single loaded stream packs from loaded stream pack repository\n'''
         args = line.split()
         if args:
             removed_streams = self.streams_db.remove_stream_packs(*args)
@@ -546,6 +568,7 @@ class TRexConsole(cmd.Cmd):
             print magenta("Please provide stream pack name(s), separated with spaces.")
 
     def do_stream_db_clear(self, line):
+        '''Clears all loaded stream packs from loaded stream pack repository\n'''
         self.streams_db.clear()
         print format_text("[SUCCESS]\n", 'green', 'bold')
 
@@ -557,6 +580,7 @@ class TRexConsole(cmd.Cmd):
 
 
     def do_attach(self, line):
+        '''Assign loaded stream pack into specified ports on TRex\n'''
         args = line.split()
         if len(args) >= 2:
             stream_pack_name = args[0]
@@ -576,22 +600,26 @@ class TRexConsole(cmd.Cmd):
             else:
                 port_list = self.extract_port_ids_from_line(' '.join(args[1:]))
             owned = set(self.stateless_client.get_acquired_ports())
-            if set(port_list).issubset(owned):
-                res_ok, log = self.stateless_client.add_stream_pack(port_list, *stream_list.compiled)
-                # res_ok, msg = self.stateless_client.add_stream(port_list, stream_list.compiled)
-                self.prompt_response(log)
-                if not res_ok:
-                    print format_text("[FAILED]\n", 'red', 'bold')
+            try:
+                if set(port_list).issubset(owned):
+                    res_ok, log = self.stateless_client.add_stream_pack(port_list, *stream_list.compiled)
+                    # res_ok, msg = self.stateless_client.add_stream(port_list, stream_list.compiled)
+                    self.prompt_response(log)
+                    if not res_ok:
+                        print format_text("[FAILED]\n", 'red', 'bold')
+                        return
+                    print format_text("[SUCCESS]\n", 'green', 'bold')
                     return
-                print format_text("[SUCCESS]\n", 'green', 'bold')
-                return
-            else:
-                print "Not all desired ports are acquired.\n" \
-                      "Acquired ports are: {acq}\n" \
-                      "Requested ports:    {req}\n" \
-                      "Missing ports:      {miss}".format(acq=list(owned),
-                                                          req=port_list,
-                                                          miss=list(set(port_list).difference(owned)))
+                else:
+                    print "Not all desired ports are acquired.\n" \
+                          "Acquired ports are: {acq}\n" \
+                          "Requested ports:    {req}\n" \
+                          "Missing ports:      {miss}".format(acq=list(owned),
+                                                              req=port_list,
+                                                              miss=list(set(port_list).difference(owned)))
+                    print format_text("[FAILED]\n", 'red', 'bold')
+            except ValueError as e:
+                print magenta(str(e))
                 print format_text("[FAILED]\n", 'red', 'bold')
         else:
             print magenta("Please provide list name and ports to attach to, "
@@ -648,18 +676,22 @@ class TRexConsole(cmd.Cmd):
             port_list = self.extract_port_ids_from_line(line)
 
         # rc, resp_list = self.stateless_client.take_ownership(port_list, force)
-        res_ok, log = self.stateless_client.remove_all_streams(port_list)
-        self.prompt_response(log)
-        if not res_ok:
+        try:
+            res_ok, log = self.stateless_client.remove_all_streams(port_list)
+            self.prompt_response(log)
+            if not res_ok:
+                print format_text("[FAILED]\n", 'red', 'bold')
+                return
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+        except ValueError as e:
+            print magenta(str(e))
             print format_text("[FAILED]\n", 'red', 'bold')
-            return
-        print format_text("[SUCCESS]\n", 'green', 'bold')
-        return
 
     def complete_remove_all_streams(self, text, line, begidx, endidx):
         return self.port_auto_complete(text, line, begidx, endidx)
 
     def do_start_traffic(self, line):
+        '''Start pre-submitted traffic in specified ports on TRex\n'''
         # make sure that the user wants to acquire all
         args = line.split()
         if len(args) < 1:
@@ -692,6 +724,7 @@ class TRexConsole(cmd.Cmd):
         return self.port_auto_complete(text, line, begidx, endidx)
 
     def do_stop_traffic(self, line):
+        '''Stop active traffic in specified ports on TRex\n'''
         # make sure that the user wants to acquire all
         args = line.split()
         if len(args) < 1:
@@ -722,24 +755,6 @@ class TRexConsole(cmd.Cmd):
 
     def complete_stop_traffic(self, text, line, begidx, endidx):
         return self.port_auto_complete(text, line, begidx, endidx, active=True)
-
-    # adds a very simple stream
-    def do_add_simple_stream(self, line):
-        if line == "":
-            add_stream = AddStreamMenu()
-            add_stream.show()
-            return
-
-        params = line.split()
-        port_id = int(params[0])
-        stream_id = int(params[1])
-
-        packet = [0xFF,0xFF,0xFF]
-        rc, msg = self.stateless_client.add_stream(port_id = port_id, stream_id = stream_id, isg = 1.1, next_stream_id = -1, packet = packet)
-        if rc:
-            print "\nServer Response:\n\n" + pretty_json(json.dumps(msg)) + "\n"
-        else:
-            print "\n*** " + msg + "\n"
 
     # aliasing
     do_exit = do_EOF = do_q = do_quit

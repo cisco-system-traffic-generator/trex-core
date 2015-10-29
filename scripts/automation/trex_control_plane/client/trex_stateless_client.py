@@ -31,6 +31,7 @@ class CTRexStatelessClient(object):
         super(CTRexStatelessClient, self).__init__()
         self.user = username
         self.comm_link = CTRexStatelessClient.CCommLink(server, port, virtual)
+        self.verbose = False
         self._conn_handler = {}
         self._active_ports = set()
         self._stats = CTRexStatsManager("port", "stream")
@@ -129,6 +130,10 @@ class CTRexStatelessClient(object):
 
     def get_active_ports(self):
         return list(self._active_ports)
+
+    def set_verbose(self, mode):
+        self.comm_link.set_verbose(mode)
+        self.verbose = mode
 
     def acquire(self, port_id, force=False):
         if not self._is_ports_valid(port_id):
@@ -490,6 +495,7 @@ class CTRexStatelessClient(object):
             self.virtual = virtual
             self.server = server
             self.port = port
+            self.verbose = False
             self.rpc_link = JsonRpcClient(self.server, self.port)
 
         @property
@@ -498,6 +504,10 @@ class CTRexStatelessClient(object):
                 return self.rpc_link.connected
             else:
                 return True
+
+        def set_verbose(self, mode):
+            self.verbose = mode
+            return self.rpc_link.set_verbose(mode)
 
         def connect(self):
             if not self.virtual:
