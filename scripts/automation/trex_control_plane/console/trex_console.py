@@ -84,9 +84,13 @@ class ConfirmMenu(object):
 
     def show(self):
         sys.stdout.write(self.caption)
+        input = user_input()
+        if input:
+            return False
+        else:
+            # user hit Enter
+            return True
         
-
-
 
 class CStreamsDB(object):
 
@@ -242,6 +246,9 @@ class TRexConsole(cmd.Cmd):
 
         self.do_acquire(line, True)
 
+    def complete_force_acquire(self, text, line, begidx, endidx):
+        return self.port_auto_complete(text, line, begidx, endidx, acquired=False)
+
     def extract_port_ids_from_line(self, line):
         return {int(x) for x in line.split()}
 
@@ -262,7 +269,7 @@ class TRexConsole(cmd.Cmd):
 
         return port_list
 
-    def do_acquire (self, line, force=False):
+    def do_acquire(self, line, force=False):
         '''Acquire ports\n'''
 
         # make sure that the user wants to acquire all
@@ -270,7 +277,7 @@ class TRexConsole(cmd.Cmd):
         if len(args) < 1:
             print "Please provide a list of ports separated by spaces, or specify 'all' to acquire all available ports"
         if args[0] == "all":
-            ask = YesNoMenu('Are you sure you want to acquire all ports ? ')
+            ask = ConfirmMenu('Are you sure you want to acquire all ports ? ')
             rc = ask.show()
             if rc == False:
                 return
@@ -290,6 +297,23 @@ class TRexConsole(cmd.Cmd):
         print format_text("[SUCCESS]\n", 'green', 'bold')
         return
 
+
+    def port_auto_complete(self, text, line, begidx, endidx, acquired=True):
+        if acquired:
+            ret_list = [x
+                        for x in map(str, self.stateless_client.get_acquired_ports())
+                        if x.startswith(text)]
+        else:
+            ret_list = [x
+                        for x in map(str, self.stateless_client.get_port_ids())
+                        if x.startswith(text)]
+        ret_list.append("all")
+        return ret_list
+
+
+    def complete_acquire(self, text, line, begidx, endidx):
+        return self.port_auto_complete(text, line, begidx, endidx, acquired=False)
+
     def do_release (self, line):
         '''Release ports\n'''
 
@@ -301,7 +325,7 @@ class TRexConsole(cmd.Cmd):
         if len(args) < 1:
             print "Please provide a list of ports separated by spaces, or specify 'all' to acquire all available ports"
         if args[0] == "all":
-            ask = YesNoMenu('Are you sure you want to release all acquired ports ? ')
+            ask = ConfirmMenu('Are you sure you want to release all acquired ports? ')
             rc = ask.show()
             if rc == False:
                 return
@@ -318,6 +342,9 @@ class TRexConsole(cmd.Cmd):
         print format_text("[SUCCESS]\n", 'green', 'bold')
         return
 
+    def complete_release(self, text, line, begidx, endidx):
+        return self.port_auto_complete(text, line, begidx, endidx)
+
     def do_connect (self, line):
         '''Connects to the server\n'''
 
@@ -332,9 +359,10 @@ class TRexConsole(cmd.Cmd):
             res_ok, msg = self.stateless_client.connect(sp[0], sp[1])
 
         if res_ok:
-            print "[SUCCESS]\n"
+            print format_text("[SUCCESS]\n", 'green', 'bold')
         else:
             print "\n*** " + msg + "\n"
+            print format_text("[FAILED]\n", 'red', 'bold')
             return
 
         self.supported_rpc = self.stateless_client.get_supported_cmds().data
@@ -477,9 +505,9 @@ class TRexConsole(cmd.Cmd):
                                                                              [StreamPack(v.stream_id, v.stream.dump())
                                                                               for k, v in compiled_streams.items()]))
                 if res_ok:
-                    print green("Stream list '{0}' loaded and added successfully".format(name))
+                    print green("Stream pack '{0}' loaded and added successfully\n".format(name))
                 else:
-                    print magenta("Picked name already exist. Please pick another name.")
+                    print magenta("Picked name already exist. Please pick another name.\n")
             except Exception as e:
                 print "adding new stream failed due to the following error:\n", str(e)
                 print format_text("[FAILED]\n", 'red', 'bold')
@@ -535,7 +563,7 @@ class TRexConsole(cmd.Cmd):
             except KeyError as e:
                 print "Unknown stream list name provided"
         else:
-            print "\nAvailable stream lists:\n{0}".format(', '.join(sorted(self.streams_db.get_loaded_streams_names())))
+            print "Available stream packs:\n{0}".format(', '.join(sorted(self.streams_db.get_loaded_streams_names())))
 
     def complete_stream_db_show(self, text, line, begidx, endidx):
         return [x
@@ -584,9 +612,9 @@ class TRexConsole(cmd.Cmd):
                     port_list = self.stateless_client.get_acquired_ports()
             else:
                 port_list = self.extract_port_ids_from_line(' '.join(args[1:]))
-            owned = set(self.stateless_client.get_owned_ports())
+            owned = set(self.stateless_client.get_acquired_ports())
             if set(port_list).issubset(owned):
-                res_ok, log = self.stateless_client.add_stream_pack(port_list, stream_list.compiled)
+                res_ok, log = self.stateless_client.add_stream_pack(port_list, *stream_list.compiled)
                 # res_ok, msg = self.stateless_client.add_stream(port_list, stream_list.compiled)
                 self.prompt_response(log)
                 if not res_ok:
@@ -615,9 +643,7 @@ class TRexConsole(cmd.Cmd):
                     if x.startswith(text)]
         elif arg_num >= 2:
             # return optional ports to attach to
-            return [x
-                    for x in self.stateless_client.get_acquired_ports()
-                    if str(x).startswith(text)]
+            return self.port_auto_complete(text, line, begidx, endidx)
         else:
             return [text]
 
@@ -627,7 +653,7 @@ class TRexConsole(cmd.Cmd):
             if return_status:
                 return green("OK")
             else:
-                return green("fail")
+                return red("FAIL")
 
         for response in resp_list:
             response_str = "{id:^3} - {msg} ({stat})".format(id=response.id,
@@ -642,15 +668,16 @@ class TRexConsole(cmd.Cmd):
         # make sure that the user wants to acquire all
         args = line.split()
         if len(args) < 1:
-            print "Please provide a list of ports separated by spaces, " \
-                  "or specify 'all' to remove from all acquired ports"
+            print magenta("Please provide a list of ports separated by spaces, "
+                          "or specify 'all' to remove from all acquired ports")
+            return
         if args[0] == "all":
-            ask = YesNoMenu('Are you sure you want to remove all stream packs from all acquired ports? ')
+            ask = ConfirmMenu('Are you sure you want to remove all stream packs from all acquired ports? ')
             rc = ask.show()
             if rc == False:
                 return
             else:
-                port_list = self.stateless_client.get_port_ids()
+                port_list = self.stateless_client.get_acquired_ports()
         else:
             port_list = self.extract_port_ids_from_line(line)
 
@@ -666,9 +693,7 @@ class TRexConsole(cmd.Cmd):
         return
 
     def complete_remove_all_streams(self, text, line, begidx, endidx):
-        return [x
-                for x in self.stateless_client.get_acquired_ports()
-                if str(x).startswith(text)]
+        return self.port_auto_complete(text, line, begidx, endidx)
 
     # adds a very simple stream
     def do_add_simple_stream(self, line):

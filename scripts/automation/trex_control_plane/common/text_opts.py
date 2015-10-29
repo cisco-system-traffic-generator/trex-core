@@ -66,7 +66,7 @@ def format_text(text, *args):
         func = FUNC_DICT.get(i)
         if func:
             return_string = func(return_string)
-    return
+    return return_string
 
 # pretty print for JSON
 def pretty_json (json_str, use_colors = True):
