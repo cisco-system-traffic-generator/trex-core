@@ -1639,62 +1639,6 @@ public:
 } __rte_cache_aligned;
 
 
-/* this is a event for stateless */
-struct CGenNodeStateless : public CGenNodeBase  {
-public:
-
-    inline uint8_t *get_opaque_storage() {
-        return (uint8_t *)&m_pad_end;
-    }
-
-private:
-    void *              m_cache_mbuf;
-
-
-    uint64_t            m_pad_end[13];         
-
-
-public:
-
-    void set_socket_id(socket_id_t socket){
-        m_socket_id=socket;
-    }
-
-    socket_id_t get_socket_id(){
-        return ( m_socket_id );
-    }
-
-    inline void set_mbuf_cache_dir(pkt_dir_t  dir){
-        if (dir) {
-            m_flags |=NODE_FLAGS_DIR;
-        }else{
-            m_flags &=~NODE_FLAGS_DIR;
-        }
-    }
-
-    inline pkt_dir_t get_mbuf_cache_dir(){
-        return ((pkt_dir_t)( m_flags &1));
-    }
-
-
-
-    inline void set_cache_mbuf(rte_mbuf_t * m){
-        m_cache_mbuf=(void *)m;
-        m_flags |= NODE_FLAGS_MBUF_CACHE;
-    }
-
-    inline rte_mbuf_t * get_cache_mbuf(){
-        if ( m_flags &NODE_FLAGS_MBUF_CACHE ) {
-            return ((rte_mbuf_t *)m_cache_mbuf);
-        }else{
-            return ((rte_mbuf_t *)0);
-        }
-    }
-
-
-} __rte_cache_aligned; ;
-
-
 
 #if __x86_64__
 /* size of 64 bytes */
@@ -1765,7 +1709,6 @@ public:
 
 inline int check_objects_sizes(void){
     COMPARE_NODE_OBJECT(CGenNodeDeferPort);
-    COMPARE_NODE_OBJECT_SIZE(CGenNodeStateless);
     return (0);
 }
 

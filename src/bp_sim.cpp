@@ -25,6 +25,8 @@ limitations under the License.
 #include "msg_manager.h"
 #include <common/basic_utils.h> 
 
+#include <trex_stream_node.h>
+
 #undef VALG
 
 #ifdef VALG
@@ -3459,8 +3461,14 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 
         if ( type == CGenNode::STATELESS_PKT ) {
              m_p_queue.pop();
-             // TODO: should this be inlined ? with IPO is this important ?
-             thread->m_stateless_dp_info->handle_pkt_event(node);
+             CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
+
+             /* if the stream has been deactivated - end */
+             if (unlikely(!node_sl->is_active())) {
+                 thread->free_node(node);
+             } else {
+                 node_sl->handle(thread);
+             }
             
         }else{
             if ( likely( type == CGenNode::FLOW_PKT ) ) {

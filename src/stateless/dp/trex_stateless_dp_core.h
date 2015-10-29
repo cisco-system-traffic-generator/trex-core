@@ -29,9 +29,8 @@ limitations under the License.
 class TrexStatelessCpToDpMsgBase;
 class TrexStatelessDpStart;
 class CFlowGenListPerThread;
-class CGenNode;
-class TrexStreamsCompiledObj;
 class CGenNodeStateless;
+class TrexStreamsCompiledObj;
 
 class TrexStatelessDpCore {
 
@@ -50,13 +49,6 @@ public:
      * 
      */
     void start();
-
-    /**
-     * handle pkt event
-     * 
-     * @author imarom (27-Oct-15)
-     */
-    void handle_pkt_event(CGenNode *node);
 
     /**
      * dummy traffic creator

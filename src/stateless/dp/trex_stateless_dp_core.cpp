@@ -21,19 +21,9 @@ limitations under the License.
 #include <trex_stateless_dp_core.h>
 #include <trex_stateless_messaging.h>
 #include <trex_streams_compiler.h>
+#include <trex_stream_node.h>
 
 #include <bp_sim.h>
-
-/**
- * extended info for the stateless node 
- * TODO: 
- * static_assert(sizeof(dp_node_extended_info_st) <= sizeof(CGenNodeStateless::m_pad_end), "hello"); 
- */
-typedef struct dp_node_extended_info_ {
-    double   next_time_offset;
-    uint8_t  is_stream_active;
-
-} dp_node_extended_info_st;
 
 TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core) {
     m_thread_id = thread_id;
@@ -62,29 +52,6 @@ TrexStatelessDpCore::start() {
 }
 
 void
-TrexStatelessDpCore::handle_pkt_event(CGenNode *node) {
-
-    //TODO: optimize the fast path here...
-
-    CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
-    dp_node_extended_info_st *opaque = (dp_node_extended_info_st *)node_sl->get_opaque_storage();
-
-    /* is this stream active ? */
-    if (!opaque->is_stream_active) {
-        m_core->free_node(node);
-        return;
-    }
-
-    m_core->m_node_gen.m_v_if->send_node(node);
-
-    /* in case of continues */
-    node->m_time += opaque->next_time_offset;
-
-    /* insert a new event */
-    m_core->m_node_gen.m_p_queue.push(node);
-}
-
-void
 TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pkt_len) {
     CGenNodeStateless *node = m_core->create_node_sl();
 
@@ -100,9 +67,8 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
     uint16_t pkt_size = pkt_len;
     const uint8_t *stream_pkt = pkt;
 
-    dp_node_extended_info_st *opaque = (dp_node_extended_info_st *)node->get_opaque_storage();
-    opaque->next_time_offset = 1.0 / pps;
-    opaque->is_stream_active = 1;
+    node->m_next_time_offset = 1.0 / pps;
+    node->m_is_stream_active = 1;
 
     /* allocate const mbuf */
     rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
@@ -145,8 +111,7 @@ TrexStatelessDpCore::stop_traffic() {
        for every active node - make sure next time
        the scheduler invokes it, it will be free */
     for (auto node : m_active_nodes) {
-        dp_node_extended_info_st *opaque = (dp_node_extended_info_st *)node->get_opaque_storage();
-        opaque->is_stream_active = 0;
+        node->m_is_stream_active = 0;
     }
     m_active_nodes.clear();
 

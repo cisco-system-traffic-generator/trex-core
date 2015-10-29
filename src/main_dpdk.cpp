@@ -55,7 +55,10 @@ limitations under the License.
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
 #include <common/basic_utils.h>
+
 #include <stateless/cp/trex_stateless.h>
+#include <stateless/dp/trex_stream_node.h>
+
 #include <../linux_dpdk/version.h>
 
 extern "C" {
