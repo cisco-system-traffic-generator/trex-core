@@ -3444,7 +3444,7 @@ bool CGlobalTRex::Create(){
           cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
           cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
           cfg.m_rpc_async_cfg      = NULL;
-          cfg.m_rpc_server_verbose = true;
+          cfg.m_rpc_server_verbose = false;
           cfg.m_platform_api       = new TrexDpdkPlatformApi();
 
           m_trex_stateless = new TrexStateless(cfg);

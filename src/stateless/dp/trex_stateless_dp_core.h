@@ -21,6 +21,8 @@ limitations under the License.
 #ifndef __TREX_STATELESS_DP_CORE_H__
 #define __TREX_STATELESS_DP_CORE_H__
 
+#include <vector>
+
 #include <msg_manager.h>
 #include <pal_utl.h>
 
@@ -29,6 +31,7 @@ class TrexStatelessDpStart;
 class CFlowGenListPerThread;
 class CGenNode;
 class TrexStreamsCompiledObj;
+class CGenNodeStateless;
 
 class TrexStatelessDpCore {
 
@@ -85,11 +88,10 @@ public:
         }
 
         while ( true ) {
-            CGenNode * node;
+            CGenNode * node = NULL;
             if (m_ring_from_cp->Dequeue(node) != 0) {
                 break;
             }
-
             assert(node);
 
             TrexStatelessCpToDpMsgBase * msg = (TrexStatelessCpToDpMsgBase *)node;
@@ -114,6 +116,9 @@ private:
     state_e              m_state;
     CNodeRing           *m_ring_from_cp;
     CNodeRing           *m_ring_to_cp;
+
+    /* holds the current active nodes */
+    std::vector<CGenNodeStateless *> m_active_nodes;
 
     /* pointer to the main object */
     CFlowGenListPerThread *m_core;

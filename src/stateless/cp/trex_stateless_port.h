@@ -62,7 +62,7 @@ public:
      * stop traffic
      * 
      */
-    void stop_traffic(void);
+    rc_e stop_traffic(void);
 
     /**
      * access the stream table

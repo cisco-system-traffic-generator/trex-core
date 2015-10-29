@@ -24,20 +24,27 @@ limitations under the License.
 
 #include <bp_sim.h>
 
+/**
+ * extended info for the stateless node 
+ * TODO: 
+ * static_assert(sizeof(dp_node_extended_info_st) <= sizeof(CGenNodeStateless::m_pad_end), "hello"); 
+ */
 typedef struct dp_node_extended_info_ {
-    double next_time_offset;
+    double   next_time_offset;
+    uint8_t  is_stream_active;
+
 } dp_node_extended_info_st;
 
 TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core) {
     m_thread_id = thread_id;
     m_core = core;
 
-    m_state = STATE_IDLE;
-
     CMessagingManager * cp_dp = CMsgIns::Ins()->getCpDp();
 
     m_ring_from_cp = cp_dp->getRingCpToDp(thread_id);
     m_ring_to_cp   = cp_dp->getRingDpToCp(thread_id);
+
+    m_state = STATE_IDLE;
 }
 
 void
@@ -57,17 +64,20 @@ TrexStatelessDpCore::start() {
 void
 TrexStatelessDpCore::handle_pkt_event(CGenNode *node) {
 
-    /* if port has stopped - no transmition */
-    if (m_state == STATE_IDLE) {
+    //TODO: optimize the fast path here...
+
+    CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
+    dp_node_extended_info_st *opaque = (dp_node_extended_info_st *)node_sl->get_opaque_storage();
+
+    /* is this stream active ? */
+    if (!opaque->is_stream_active) {
+        m_core->free_node(node);
         return;
     }
 
     m_core->m_node_gen.m_v_if->send_node(node);
 
-    CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
-
     /* in case of continues */
-    dp_node_extended_info_st *opaque = (dp_node_extended_info_st *)node_sl->get_opaque_storage();
     node->m_time += opaque->next_time_offset;
 
     /* insert a new event */
@@ -92,6 +102,7 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
 
     dp_node_extended_info_st *opaque = (dp_node_extended_info_st *)node->get_opaque_storage();
     opaque->next_time_offset = 1.0 / pps;
+    opaque->is_stream_active = 1;
 
     /* allocate const mbuf */
     rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
@@ -114,6 +125,10 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
 
     m_state = TrexStatelessDpCore::STATE_TRANSMITTING;
 
+    /* keep track */
+    m_active_nodes.push_back(node);
+
+    /* schedule */
     m_core->m_node_gen.add_node((CGenNode *)node);
 }
 
@@ -126,6 +141,15 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
 
 void
 TrexStatelessDpCore::stop_traffic() {
+    /* we cannot remove nodes not from the top of the queue so
+       for every active node - make sure next time
+       the scheduler invokes it, it will be free */
+    for (auto node : m_active_nodes) {
+        dp_node_extended_info_st *opaque = (dp_node_extended_info_st *)node->get_opaque_storage();
+        opaque->is_stream_active = 0;
+    }
+    m_active_nodes.clear();
+
     m_state = STATE_IDLE;
 }
 

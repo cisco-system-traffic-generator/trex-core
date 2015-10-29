@@ -76,9 +76,6 @@ TrexStatelessPort::start_traffic(void) {
         return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
     }
 
-    /* move the state to transmiting */
-    m_port_state = PORT_STATE_TRANSMITTING;
-
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(compiled_obj);
 
@@ -87,15 +84,18 @@ TrexStatelessPort::start_traffic(void) {
 
     ring->Enqueue((CGenNode *)start_msg);
 
+    /* move the state to transmiting */
+    m_port_state = PORT_STATE_TRANSMITTING;
+
     return (RC_OK);
 }
 
-void 
+TrexStatelessPort::rc_e
 TrexStatelessPort::stop_traffic(void) {
 
     /* real code goes here */
-    if (m_port_state == PORT_STATE_TRANSMITTING) {
-        m_port_state = PORT_STATE_UP_IDLE;
+    if (m_port_state != PORT_STATE_TRANSMITTING) {
+        return (RC_ERR_BAD_STATE_FOR_OP);
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
@@ -105,6 +105,10 @@ TrexStatelessPort::stop_traffic(void) {
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);
 
     ring->Enqueue((CGenNode *)stop_msg);
+
+    m_port_state = PORT_STATE_UP_IDLE;
+
+    return (RC_OK);
 }
 
 /**
