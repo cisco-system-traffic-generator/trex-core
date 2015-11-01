@@ -432,6 +432,7 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_byte(params, "port_id", result);
+    double mul = parse_double(params, "mul", result);
 
     if (port_id >= get_stateless_obj()->get_port_count()) {
         std::stringstream ss;
@@ -441,7 +442,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    TrexStatelessPort::rc_e rc = port->start_traffic();
+    TrexStatelessPort::rc_e rc = port->start_traffic(mul);
 
     if (rc == TrexStatelessPort::RC_OK) {
         result["result"] = "ACK";

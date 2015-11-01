@@ -264,7 +264,7 @@ class CTRexStatelessClient(object):
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [RpcCmdData("start_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
+            commands = [RpcCmdData("start_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id, "mul": 1.0})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
             if rc:
@@ -272,7 +272,8 @@ class CTRexStatelessClient(object):
                                                   success_test=self.ack_success_test)
         else:
             params = {"handler": self._conn_handler.get(port_id),
-                      "port_id": port_id}
+                      "port_id": port_id,
+                      "mul": 1.0}
             command = RpcCmdData("start_traffic", params)
             return self._handle_start_traffic_response(command,
                                                        self.transmit(command.method, command.params),

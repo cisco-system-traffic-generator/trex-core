@@ -53,7 +53,7 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
  * 
  */
 TrexStatelessPort::rc_e
-TrexStatelessPort::start_traffic(void) {
+TrexStatelessPort::start_traffic(double mul) {
 
     if (m_port_state != PORT_STATE_UP_IDLE) {
         return (RC_ERR_BAD_STATE_FOR_OP);
@@ -69,7 +69,7 @@ TrexStatelessPort::start_traffic(void) {
 
     /* compiler it */
     TrexStreamsCompiler compiler;
-    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id);
+    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id, mul);
 
     bool rc = compiler.compile(streams, *compiled_obj);
     if (!rc) {

@@ -36,7 +36,7 @@ class TrexStreamsCompiledObj {
     friend class TrexStreamsCompiler;
 public:
 
-    TrexStreamsCompiledObj(uint8_t port_id);
+    TrexStreamsCompiledObj(uint8_t port_id, double m_mul);
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
@@ -55,6 +55,7 @@ private:
     std::vector<obj_st> m_objs;
 
     uint8_t m_port_id;
+    double  m_mul;
 };
 
 class TrexStreamsCompiler {

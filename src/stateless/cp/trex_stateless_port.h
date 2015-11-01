@@ -56,7 +56,7 @@ public:
      * start traffic
      * 
      */
-    rc_e start_traffic(void);
+    rc_e start_traffic(double mul);
 
     /**
      * stop traffic
