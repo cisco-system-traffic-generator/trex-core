@@ -37,9 +37,30 @@ TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThrea
     m_state = STATE_IDLE;
 }
 
-void
-TrexStatelessDpCore::start() {
+/**
+ * in idle state loop, the processor most of the time sleeps 
+ * and periodically checks for messages 
+ * 
+ * @author imarom (01-Nov-15)
+ */
+void 
+TrexStatelessDpCore::idle_state_loop() {
 
+    while (m_state == STATE_IDLE) {
+        periodic_check_for_cp_messages();
+        delay(200);
+    }
+}
+
+/**
+ * scehduler runs when traffic exists 
+ * it will return when no more transmitting is done on this 
+ * core 
+ * 
+ * @author imarom (01-Nov-15)
+ */
+void
+TrexStatelessDpCore::start_scheduler() {
     /* creates a maintenace job using the scheduler */
     CGenNode * node_sync = m_core->create_node() ;
     node_sync->m_type = CGenNode::FLOW_SYNC;
@@ -48,7 +69,16 @@ TrexStatelessDpCore::start() {
 
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(100000000, 0.0, false, m_core, old_offset);
+}
 
+void
+TrexStatelessDpCore::start() {
+
+    while (true) {
+        idle_state_loop();
+
+        start_scheduler();
+    }
 }
 
 void
@@ -126,6 +156,16 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
 
     if (m_active_nodes.size() == 0) {
         m_state = STATE_IDLE;
+        /* stop the scheduler */
+
+         CGenNode *node = m_core->create_node() ;
+
+         node->m_type = CGenNode::EXIT_SCHED;
+
+         /* make sure it will be scheduled after the current node */
+         node->m_time = m_core->m_node_gen.m_p_queue.top()->m_time;
+
+         m_core->m_node_gen.add_node(node);
     }
     
 }

@@ -3420,19 +3420,14 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         if (  likely ( m_is_realtime ) ){
             dsec_t dt ;
             thread->m_cpu_dp_u.commit();
-            bool once=false;
+
+            thread->check_msgs();
 
             while ( true ) {
                 dt = now_sec() - n_time ;
 
                 if (dt> (-0.00003)) {
                     break;
-                }
-
-                if (!once) {
-                    /* check the msg queue once */
-                    thread->check_msgs();
-                    once=true;
                 }
 
                 rte_pause();
@@ -3453,8 +3448,9 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                 flush_time=now_sec();
             }
         }
+
         #ifndef RTE_DPDK
-        thread->check_msgs();  
+        thread->check_msgs();
         #endif
 
         uint8_t type=node->m_type;
@@ -3530,16 +3526,16 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 }
 
 void CNodeGenerator::handle_slow_messages(uint8_t type,
-                                         CGenNode * node,
-                                         CFlowGenListPerThread * thread,
+                                          CGenNode * node,
+                                          CFlowGenListPerThread * thread,
                                           bool always){
 
     if (unlikely (type == CGenNode::FLOW_DEFER_PORT_RELEASE) ) {
         m_p_queue.pop();
         thread->handler_defer_job(node);
         thread->free_node(node);
-    }else{
-        if (type == CGenNode::FLOW_PKT_NAT) {
+
+    } else if (type == CGenNode::FLOW_PKT_NAT) {
             /*repeat and NAT is not supported */
             if ( node->is_nat_first_state()  ){
                 node->set_nat_wait_state();
@@ -3573,27 +3569,28 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                 m_p_queue.push(node);
             }
 
-        }else{
-            if ( type == CGenNode::FLOW_SYNC ){
+        } else if ( type == CGenNode::FLOW_SYNC ) { 
 
-                m_p_queue.pop();
+            m_p_queue.pop();
 
-                thread->check_msgs();      /* check messages */
-                m_v_if->flush_tx_queue(); /* flush pkt each timeout */
-                
-                if ( always == false) {
-                    node->m_time += SYNC_TIME_OUT;
-                    m_p_queue.push(node);
-                }else{
-                    thread->free_node(node);
-                }
+            thread->check_msgs(); /* check messages */
+            m_v_if->flush_tx_queue(); /* flush pkt each timeout */
 
+            if (always == false) {
+                node->m_time += SYNC_TIME_OUT;
+                m_p_queue.push(node);
             }else{
-                printf(" ERROR type is not valid %d \n",type);
-                assert(0);
+                thread->free_node(node);
             }
+
+          /* must be the last section of processing */
+        } else if ( type == CGenNode::EXIT_SCHED ) {
+            remove_all(thread);
+
+        } else {
+            printf(" ERROR type is not valid %d \n",type);
+            assert(0);
         }
-    }
 }
 
 

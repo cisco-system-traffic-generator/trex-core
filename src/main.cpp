@@ -185,25 +185,6 @@ int curent_time(){
 
 #include <pthread.h>
 
-void delay(int msec){
-
-    if (msec == 0) 
-    {//user that requested that probebly wanted the minimal delay 
-     //but because of scaling problem he have got 0 so we will give the min delay 
-     //printf("\n\n\nERROR-Task delay ticks == 0 found in task %s task id = %d\n\n\n\n", 
-     //       SANB_TaskName(SANB_TaskIdSelf()), SANB_TaskIdSelf());
-     msec =1;
-
-    } 
-
-    struct timespec time1, remain; // 2 sec max delay
-    time1.tv_sec=msec/1000;
-    time1.tv_nsec=(msec - (time1.tv_sec*1000))*1000000;
-
-    nanosleep(&time1,&remain);
-}
-
-
 struct per_thread_t {
     pthread_t  tid;
 };

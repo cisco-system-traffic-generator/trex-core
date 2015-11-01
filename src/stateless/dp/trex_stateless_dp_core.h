@@ -94,6 +94,19 @@ public:
 
 private:
     /**
+     * in idle state loop, the processor most of the time sleeps 
+     * and periodically checks for messages 
+     * 
+     */
+    void idle_state_loop();
+
+    /**
+     * real job is done when scheduler is launched
+     * 
+     */
+    void start_scheduler();
+
+    /**
      * handles a CP to DP message
      * 
      * @author imarom (27-Oct-15)

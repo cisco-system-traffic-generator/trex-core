@@ -1364,7 +1364,8 @@ public:
         FLOW_DEFER_PORT_RELEASE =2,
         FLOW_PKT_NAT            =3,
         FLOW_SYNC               =4,     /* called evey 1 msec */
-        STATELESS_PKT           =5
+        STATELESS_PKT           =5,
+        EXIT_SCHED              =6
 
     };
 
@@ -1680,8 +1681,6 @@ public:
 
 } __rte_cache_aligned ;
 
-
-
 /* run time verification of objects size and offsets 
    need to clean this up and derive this objects from base object but require too much refactoring right now
    hhaim
@@ -1857,6 +1856,7 @@ public:
     CFlowGenListPerThread  *  Parent(){
         return (m_parent);
     }
+
 public:
     void  add_node(CGenNode * mynode);
     void  remove_all(CFlowGenListPerThread * thread);
