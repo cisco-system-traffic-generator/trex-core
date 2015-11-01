@@ -142,6 +142,10 @@ public:
      */
     void encode_stats(Json::Value &port);
 
+    uint8_t get_port_id() {
+        return m_port_id;
+    }
+
 private:
 
     std::string generate_handler();

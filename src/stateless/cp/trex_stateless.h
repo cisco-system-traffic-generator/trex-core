@@ -150,6 +150,10 @@ public:
         return (m_platform_api);
     }
 
+    const std::vector <TrexStatelessPort *> get_port_list() {
+        return m_ports;
+    }
+
 protected:
 
     /* no copy or assignment */

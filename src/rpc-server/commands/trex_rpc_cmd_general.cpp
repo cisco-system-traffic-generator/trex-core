@@ -277,3 +277,42 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+/**
+ * request the server a sync about a specific user
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSyncUser::_run(const Json::Value &params, Json::Value &result) {
+
+    const string &user = parse_string(params, "user", result);
+    bool sync_streams = parse_bool(params, "sync_streams", result);
+
+    result["result"] = Json::arrayValue;
+
+    for (auto port : get_stateless_obj()->get_port_list()) {
+        if (port->get_owner() == user) {
+
+            Json::Value owned_port;
+
+            owned_port["port_id"] = port->get_port_id();
+            owned_port["handler"] = port->get_owner_handler();
+            owned_port["state"]   = port->get_state_as_string();
+            
+            /* if sync streams was asked - sync all the streams */
+            if (sync_streams) {
+                owned_port["streams"] = Json::arrayValue;
+
+                std::vector <TrexStream *> streams;
+                port->get_stream_table()->get_object_list(streams);
+
+                for (auto stream : streams) {
+                    owned_port["streams"].append(stream->get_stream_json());
+                }
+            }
+
+            result["result"].append(owned_port);
+        }
+    }
+
+    return (TREX_RPC_CMD_OK);
+}

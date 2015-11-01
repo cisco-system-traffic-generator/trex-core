@@ -393,9 +393,9 @@ class TRexConsole(cmd.Cmd):
             print "Example: rpc test_add {'x': 12, 'y': 17}\n"
             return
 
-        res_ok, msg = self.stateless_client.invoke_rpc_method(method, params)
+        res_ok, msg = self.stateless_client.transmit(method, params)
         if res_ok:
-            print "\nServer Response:\n\n" + self.stateless_client.pretty_json(json.dumps(msg)) + "\n"
+            print "\nServer Response:\n\n" + pretty_json(json.dumps(msg)) + "\n"
         else:
             print "\n*** " + msg + "\n"
             #print "Please try 'reconnect' to reconnect to server"
