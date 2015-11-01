@@ -69,7 +69,7 @@ TrexStatelessPort::start_traffic(void) {
 
     /* compiler it */
     TrexStreamsCompiler compiler;
-    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj();
+    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id);
 
     bool rc = compiler.compile(streams, *compiled_obj);
     if (!rc) {
@@ -99,7 +99,7 @@ TrexStatelessPort::stop_traffic(void) {
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
-    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop();
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
 
     // FIXME (add the right core list)
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);

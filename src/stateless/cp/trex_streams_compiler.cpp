@@ -26,6 +26,9 @@ limitations under the License.
 /**************************************
  * stream compiled object
  *************************************/
+TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id) : m_port_id(port_id) {
+}
+
 TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
     for (auto &obj : m_objs) {
         delete obj.m_pkt;
@@ -37,6 +40,7 @@ void
 TrexStreamsCompiledObj::add_compiled_stream(double pps, uint8_t *pkt, uint16_t pkt_len) {
     obj_st obj;
 
+    obj.m_port_id = m_port_id;
     obj.m_pps = pps;
     obj.m_pkt_len = pkt_len;
 

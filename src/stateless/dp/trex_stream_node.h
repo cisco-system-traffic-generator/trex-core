@@ -34,9 +34,10 @@ private:
 
     double              m_next_time_offset;
     uint8_t             m_is_stream_active;
+    uint8_t             m_port_id;
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[39];
+    uint8_t             m_pad_end[87];
 
 
 public:
@@ -97,7 +98,7 @@ public:
     }
 
 
-} __rte_cache_aligned; ;
+} __rte_cache_aligned;
 
 static_assert(sizeof(CGenNodeStateless) == sizeof(CGenNode), "sizeof(CGenNodeStateless) != sizeof(CGenNode)");
 

@@ -47,7 +47,7 @@ TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
  ************************/ 
 bool
 TrexStatelessDpStop::handle(TrexStatelessDpCore *dp_core) {
-    dp_core->stop_traffic();
+    dp_core->stop_traffic(m_port_id);
     return true;
 }
 

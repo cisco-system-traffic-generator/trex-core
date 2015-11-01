@@ -36,13 +36,14 @@ class TrexStreamsCompiledObj {
     friend class TrexStreamsCompiler;
 public:
 
-    TrexStreamsCompiledObj() {}
+    TrexStreamsCompiledObj(uint8_t port_id);
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
         double   m_pps;
         uint8_t *m_pkt;
         uint16_t m_pkt_len;
+        uint8_t  m_port_id;
     };
 
     const std::vector<obj_st> & get_objects() {
@@ -52,6 +53,8 @@ public:
 private:
     void add_compiled_stream(double pps, uint8_t *pkt, uint16_t pkt_len);
     std::vector<obj_st> m_objs;
+
+    uint8_t m_port_id;
 };
 
 class TrexStreamsCompiler {

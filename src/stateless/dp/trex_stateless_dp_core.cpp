@@ -89,13 +89,14 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
     /* set the packet as a readonly */
     node->set_cache_mbuf(m);
 
-    m_state = TrexStatelessDpCore::STATE_TRANSMITTING;
-
     /* keep track */
     m_active_nodes.push_back(node);
 
     /* schedule */
     m_core->m_node_gen.add_node((CGenNode *)node);
+
+    m_state = TrexStatelessDpCore::STATE_TRANSMITTING;
+
 }
 
 void
@@ -106,16 +107,27 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
 }
 
 void
-TrexStatelessDpCore::stop_traffic() {
+TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
     /* we cannot remove nodes not from the top of the queue so
        for every active node - make sure next time
        the scheduler invokes it, it will be free */
     for (auto node : m_active_nodes) {
-        node->m_is_stream_active = 0;
+        if (node->m_port_id == port_id) {
+            node->m_is_stream_active = 0;
+        }
     }
-    m_active_nodes.clear();
 
-    m_state = STATE_IDLE;
+    /* remove all the non active nodes */
+    auto pred = std::remove_if(m_active_nodes.begin(),
+                               m_active_nodes.end(), 
+                               [](CGenNodeStateless *node) { return (!node->m_is_stream_active); });
+
+    m_active_nodes.erase(pred, m_active_nodes.end());
+
+    if (m_active_nodes.size() == 0) {
+        m_state = STATE_IDLE;
+    }
+    
 }
 
 /**

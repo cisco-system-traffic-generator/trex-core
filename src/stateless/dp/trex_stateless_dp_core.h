@@ -64,7 +64,7 @@ public:
      * stop all traffic for this core
      * 
      */
-    void stop_traffic();
+    void stop_traffic(uint8_t port_id);
 
     /**
      * check for and handle messages from CP

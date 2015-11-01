@@ -72,7 +72,14 @@ private:
  */
 class TrexStatelessDpStop : public TrexStatelessCpToDpMsgBase {
 public:
+
+    TrexStatelessDpStop(uint8_t port_id) : m_port_id(port_id) {
+    }
+
     virtual bool handle(TrexStatelessDpCore *dp_core);
+
+private:
+    uint8_t m_port_id;
 };
 
 

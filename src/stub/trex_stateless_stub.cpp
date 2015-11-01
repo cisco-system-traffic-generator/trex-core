@@ -20,4 +20,3 @@ void TrexStatelessDpCore::start(){}
 
 void TrexStatelessDpCore::handle_cp_msg(TrexStatelessCpToDpMsgBase*) {}
 
-void TrexStatelessDpCore::handle_pkt_event(CGenNode*) {}
