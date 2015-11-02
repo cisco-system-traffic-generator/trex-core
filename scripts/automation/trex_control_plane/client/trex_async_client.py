@@ -11,6 +11,7 @@ from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 import json
 import threading
 import time
+import datetime
 import zmq
 import re
 
@@ -21,8 +22,13 @@ from common.trex_streams import *
 class TrexAsyncStats(object):
     def __init__ (self):
         self.ref_point = None
+        self.current = {}
+        self.last_update_ts = datetime.datetime.now()
 
     def update (self, snapshot):
+
+        #update
+        self.last_update_ts = datetime.datetime.now()
 
         self.current = snapshot
 
@@ -33,16 +39,21 @@ class TrexAsyncStats(object):
     def get (self, field):
 
         if not field in self.current:
-            return None
+            return 0
 
         return self.current[field]
 
     def get_rel (self, field):
         if not field in self.current:
-            return None
+            return 0
 
         return self.current[field] - self.ref_point[field]
 
+
+    # return true if new data has arrived in the past 2 seconds
+    def is_online (self):
+        delta_ms = (datetime.datetime.now() - self.last_update_ts).total_seconds() * 1000
+        return (delta_ms < 2000)
 
 # describes the general stats provided by TRex
 class TrexAsyncStatsGeneral(TrexAsyncStats):
@@ -58,11 +69,11 @@ class TrexAsyncStatsPort(TrexAsyncStats):
 
 # stats manager
 class TrexAsyncStatsManager():
-    def __init__ (self, port_count):
-        self.port_count = port_count
+    def __init__ (self):
 
         self.general_stats = TrexAsyncStatsGeneral()
         self.port_stats = {}
+
 
     def get_general_stats (self):
         return self.general_stats
@@ -127,7 +138,11 @@ class TrexAsyncClient():
 
         self.raw_snapshot = {}
 
-        self.stats = TrexAsyncStatsManager(1)
+        self.stats = TrexAsyncStatsManager()
+
+
+        self.tr = "tcp://localhost:{0}".format(self.port)
+        print "\nConnecting To ZMQ Publisher At {0}".format(self.tr)
 
         self.active = True
         self.t = threading.Thread(target = self._run)
@@ -143,10 +158,7 @@ class TrexAsyncClient():
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
 
-        self.c = "tcp://localhost:{0}".format(self.port)
-        print "Connecting To ZMQ Publisher At {0}".format(self.c)
-
-        self.socket.connect(self.c)
+        self.socket.connect(self.tr)
         self.socket.setsockopt(zmq.SUBSCRIBE, '')
 
         while self.active:

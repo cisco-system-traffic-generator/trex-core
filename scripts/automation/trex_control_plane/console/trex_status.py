@@ -113,6 +113,10 @@ class GeneralInfoPanel(TrexStatusPanel):
     def draw (self):
         self.clear()
 
+        if not self.general_stats.is_online():
+            self.getwin().addstr(3, 2, "No Published Data From TRex Server")
+            return
+
         self.getwin().addstr(3, 2, "{:<30} {:0.2f} %".format("CPU util.:", self.general_stats.get("m_cpu_util")))
 
         self.getwin().addstr(5, 2, "{:<30} {:} / {:}".format("Total Tx. rate:",
@@ -366,6 +370,10 @@ class TrexStatus():
         self.stdscr = stdscr
 
         self.stateless_client = stateless_client
+
+        self.log = TrexStatusLog()
+        self.cmds = TrexStatusCommands(self)
+
         self.general_stats = stateless_client.get_stats_async().get_general_stats()
 
         # fetch server info
@@ -379,8 +387,7 @@ class TrexStatus():
 
         self.owned_ports = self.stateless_client.get_acquired_ports()
 
-        self.log = TrexStatusLog()
-        self.cmds = TrexStatusCommands(self)
+        
   
     def generate_layout (self):
         self.max_y = self.stdscr.getmaxyx()[0]

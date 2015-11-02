@@ -409,6 +409,10 @@ class TRexConsole(cmd.Cmd):
     def do_status (self, line):
         '''Shows a graphical console\n'''
 
+        if not self.stateless_client.is_connected():
+            print "Not connected to server\n"
+            return
+
         self.do_verbose('off')
         trex_status.show_trex_status(self.stateless_client)
 
