@@ -34,7 +34,6 @@ from common.text_opts import *
 from client_utils.general_utils import user_input
 
 
-from client_utils.jsonrpc_client import TrexStatelessClient
 import trex_status
 from collections import namedtuple
 
@@ -176,6 +175,7 @@ class TRexConsole(cmd.Cmd):
     def completenames(self, text, *ignored):
         dotext = 'do_'+text
         return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
+
 
     # set verbose on / off
     def do_verbose (self, line):
@@ -770,6 +770,10 @@ def setParserOptions():
                         default = 5050,
                         type = int)
 
+    parser.add_argument("-z", "--pub", help = "TRex Async Publisher Port  [default is 4500]\n",
+                        default = 4500,
+                        type = int)
+
     parser.add_argument("-u", "--user", help = "User Name  [default is random generated]\n",
                         default = 'user_' + ''.join(random.choice(string.digits) for _ in range(5)),
                         type = str)
@@ -782,11 +786,10 @@ def setParserOptions():
 
 def main():
     parser = setParserOptions()
-    options = parser.parse_args()#sys.argv[1:])
+    options = parser.parse_args()
 
     # Stateless client connection
-    # stateless_client = TrexStatelessClient(options.server, options.port, options.user)
-    stateless_client = CTRexStatelessClient(options.user, options.server, options.port)
+    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
 
     # console
     try:

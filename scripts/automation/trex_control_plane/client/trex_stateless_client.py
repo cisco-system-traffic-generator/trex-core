@@ -13,6 +13,8 @@ from common.trex_stats import *
 from common.trex_streams import *
 from collections import namedtuple
 
+from trex_async_client import TrexAsyncClient
+
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
 
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):
@@ -27,10 +29,10 @@ class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg']
 class CTRexStatelessClient(object):
     """docstring for CTRexStatelessClient"""
 
-    def __init__(self, username, server="localhost", port=5050, virtual=False):
+    def __init__(self, username, server="localhost", sync_port=5050, async_port = 4500, virtual=False):
         super(CTRexStatelessClient, self).__init__()
         self.user = username
-        self.comm_link = CTRexStatelessClient.CCommLink(server, port, virtual)
+        self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
         self.verbose = False
         self._conn_handler = {}
         self._active_ports = set()
@@ -38,6 +40,9 @@ class CTRexStatelessClient(object):
         self._system_info = None
         self._server_version = None
         self.__err_log = None
+
+        self._async_client = TrexAsyncClient(async_port)
+
 
     # ----- decorator methods ----- #
     def force_status(owned=True, active_and_owned=False):
@@ -99,6 +104,12 @@ class CTRexStatelessClient(object):
         if not rc:
             return rc, err
         return self._init_sync()
+
+    def get_stats_async (self):
+        return self._async_client.get_stats()
+
+    def get_connection_port (self):
+        return self.comm_link.port
 
     def disconnect(self):
         return self.comm_link.disconnect()
@@ -300,10 +311,10 @@ class CTRexStatelessClient(object):
                                                        self.transmit(command.method, command.params),
                                                        self.ack_success_test)
 
-    def get_global_stats(self):
-        command = RpcCmdData("get_global_stats", {})
-        return self._handle_get_global_stats_response(command, self.transmit(command.method, command.params))
-        # return self.transmit("get_global_stats")
+#    def get_global_stats(self):
+#        command = RpcCmdData("get_global_stats", {})
+#        return self._handle_get_global_stats_response(command, self.transmit(command.method, command.params))
+#        # return self.transmit("get_global_stats")
 
     @force_status(owned=True, active_and_owned=True)
     def get_port_stats(self, port_id=None):

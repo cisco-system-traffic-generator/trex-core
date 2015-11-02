@@ -3810,7 +3810,13 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     stats.m_total_clients = total_clients;
     stats.m_total_servers = total_servers;
     stats.m_active_sockets = active_sockets;
-    stats.m_socket_util =100.0*(double)active_sockets/(double)total_sockets;
+
+    if (total_sockets != 0) {
+        stats.m_socket_util =100.0*(double)active_sockets/(double)total_sockets;
+    } else {
+        stats.m_socket_util = 0;
+    }
+    
 
 
     float drop_rate=total_tx-total_rx;
