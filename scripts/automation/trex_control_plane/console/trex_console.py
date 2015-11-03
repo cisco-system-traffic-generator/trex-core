@@ -31,8 +31,7 @@ import trex_root_path
 from common.trex_streams import *
 from client.trex_stateless_client import CTRexStatelessClient
 from common.text_opts import *
-from client_utils.general_utils import user_input
-
+from client_utils.general_utils import user_input, get_current_user
 
 import trex_status
 from collections import namedtuple
@@ -778,8 +777,8 @@ def setParserOptions():
                         default = 4500,
                         type = int)
 
-    parser.add_argument("-u", "--user", help = "User Name  [default is random generated]\n",
-                        default = 'user_' + ''.join(random.choice(string.digits) for _ in range(5)),
+    parser.add_argument("-u", "--user", help = "User Name  [default is currently logged in user]\n",
+                        default = get_current_user(),
                         type = str)
 
     parser.add_argument("--verbose", dest="verbose",

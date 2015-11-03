@@ -13,7 +13,7 @@ from common.trex_stats import *
 from common.trex_streams import *
 from collections import namedtuple
 
-from trex_async_client import TrexAsyncClient
+from trex_async_client import CTRexAsyncClient
 
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
 
@@ -41,7 +41,7 @@ class CTRexStatelessClient(object):
         self._server_version = None
         self.__err_log = None
 
-        self._async_client = TrexAsyncClient(async_port)
+        self._async_client = CTRexAsyncClient(async_port)
 
 
     # ----- decorator methods ----- #
@@ -135,6 +135,10 @@ class CTRexStatelessClient(object):
             return " ".join(str(p) for p in port_ids)
         else:
             return port_ids
+
+    def sync_user(self):
+        return self.transmit("sync_user")
+
 
     def get_acquired_ports(self):
         return self._conn_handler.keys()

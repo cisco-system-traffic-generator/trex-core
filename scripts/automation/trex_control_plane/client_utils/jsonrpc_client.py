@@ -514,3 +514,6 @@ class TrexStatelessClient(JsonRpcClient):
         return True, resp_list
 
         # return self.invoke_rpc_method('add_stream', params = params)
+
+if __name__ == "__main__":
+    pass

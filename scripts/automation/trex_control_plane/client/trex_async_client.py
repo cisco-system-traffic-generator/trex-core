@@ -131,7 +131,7 @@ class TrexAsyncStatsManager():
 
 
 
-class TrexAsyncClient():
+class CTRexAsyncClient():
     def __init__ (self, port):
 
         self.port = port
