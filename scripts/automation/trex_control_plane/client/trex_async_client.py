@@ -25,6 +25,15 @@ class TrexAsyncStats(object):
         self.current = {}
         self.last_update_ts = datetime.datetime.now()
 
+    def __format_num (self, size, suffix = ""):
+
+        for unit in ['','K','M','G','T','P']:
+            if abs(size) < 1000.0:
+                return "%3.2f %s%s" % (size, unit, suffix)
+            size /= 1000.0
+
+        return "NaN"
+
     def update (self, snapshot):
 
         #update
@@ -36,18 +45,25 @@ class TrexAsyncStats(object):
             self.ref_point = self.current
         
 
-    def get (self, field):
+    def get (self, field, format = False, suffix = ""):
 
         if not field in self.current:
-            return 0
+            return "N/A"
 
-        return self.current[field]
+        if not format:
+            return self.current[field]
+        else:
+            return self.__format_num(self.current[field], suffix)
 
-    def get_rel (self, field):
+
+    def get_rel (self, field, format = False, suffix = ""):
         if not field in self.current:
-            return 0
+            return "N/A"
 
-        return self.current[field] - self.ref_point[field]
+        if not format:
+            return (self.current[field] - self.ref_point[field])
+        else:
+            return self.__format_num(self.current[field] - self.ref_point[field], suffix)
 
 
     # return true if new data has arrived in the past 2 seconds
@@ -80,10 +96,10 @@ class TrexAsyncStatsManager():
 
     def get_port_stats (self, port_id):
 
-        if not port_id in self.port_stats:
+        if not str(port_id) in self.port_stats:
             return None
 
-        return self.port_stats[port_id]
+        return self.port_stats[str(port_id)]
 
 
     def update (self, snapshot):
@@ -103,14 +119,16 @@ class TrexAsyncStatsManager():
         for key, value in snapshot.iteritems():
             
             # match a pattern of ports
-            m = re.search('.*\-([0-8])', key)
+            m = re.search('(.*)\-([0-8])', key)
             if m:
-                port_id = m.group(1)
+
+                port_id = m.group(2)
+                field_name = m.group(1)
 
                 if not port_id in port_stats:
                     port_stats[port_id] = {}
 
-                port_stats[port_id][key] = value
+                port_stats[port_id][field_name] = value
 
             else:
                 # no port match - general stats

@@ -18,15 +18,6 @@ def percentage (a, total):
     x = int ((float(a) / total) * 100)
     return str(x) + "%"
 
-# simple float to human readable
-def float_to_human_readable (size, suffix = "bps"):
-    for unit in ['','K','M','G','T']:
-        if abs(size) < 1000.0:
-            return "%3.2f %s%s" % (size, unit, suffix)
-        size /= 1000.0
-    return "NaN"
-
-
 ################### panels #################
 
 # panel object
@@ -37,6 +28,8 @@ class TrexStatusPanel(object):
 
         self.log = status_obj.log
         self.stateless_client = status_obj.stateless_client
+
+        self.stats         = status_obj.stats
         self.general_stats = status_obj.general_stats
 
         self.h = h
@@ -120,17 +113,17 @@ class GeneralInfoPanel(TrexStatusPanel):
         self.getwin().addstr(3, 2, "{:<30} {:0.2f} %".format("CPU util.:", self.general_stats.get("m_cpu_util")))
 
         self.getwin().addstr(5, 2, "{:<30} {:} / {:}".format("Total Tx. rate:",
-                                                               float_to_human_readable(self.general_stats.get("m_tx_bps")),
-                                                               float_to_human_readable(self.general_stats.get("m_tx_pps"), suffix = "pps")))
+                                                               self.general_stats.get("m_tx_bps", format = True, suffix = "bps"),
+                                                               self.general_stats.get("m_tx_pps", format = True, suffix = "pps")))
 
         # missing RX field
         #self.getwin().addstr(5, 2, "{:<30} {:} / {:}".format("Total Rx. rate:",
-        #                                                       float_to_human_readable(self.general_stats.get("m_rx_bps")),
-        #                                                       float_to_human_readable(self.general_stats.get("m_rx_pps"), suffix = "pps")))
+        #                                                       self.general_stats.get("m_rx_bps"),
+        #                                                       self.general_stats.get("m_rx_pps"), suffix = "pps"))
 
         self.getwin().addstr(7, 2, "{:<30} {:} / {:}".format("Total Tx:",
-                                                             float_to_human_readable(self.general_stats.get_rel("m_total_tx_bytes"), suffix = "B"),
-                                                             float_to_human_readable(self.general_stats.get_rel("m_total_tx_pkts"), suffix = "pkts")))
+                                                             self.general_stats.get_rel("m_total_tx_bytes", format = True, suffix = "B"),
+                                                             self.general_stats.get_rel("m_total_tx_pkts", format = True, suffix = "pkts")))
 
 # all ports stats
 class PortsStatsPanel(TrexStatusPanel):
@@ -142,7 +135,6 @@ class PortsStatsPanel(TrexStatusPanel):
     def draw (self):
 
         self.clear()
-        return
 
         owned_ports = self.status_obj.owned_ports
         if not owned_ports:
@@ -153,23 +145,22 @@ class PortsStatsPanel(TrexStatusPanel):
         self.getwin().addstr(3, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
             "Port ID", "Tx [pps]", "Tx [bps]", "Tx [bytes]", "Rx [pps]", "Rx [bps]", "Rx [bytes]"))
 
-        # port loop
-        self.status_obj.stats.query_sync()
+
 
         for i, port_index in enumerate(owned_ports):
 
             port_stats = self.status_obj.stats.get_port_stats(port_index)
 
             if port_stats:
-                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15,.2f} {:^15,.2f} {:^15,} {:^15,.2f} {:^15,.2f} {:^15,}".format(
+                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
                     "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
-                    port_stats["tx_pps"],
-                    port_stats["tx_bps"],
-                    port_stats["total_tx_bytes"],
-                    port_stats["rx_pps"],
-                    port_stats["rx_bps"],
-                    port_stats["total_rx_bytes"]))
-
+                    port_stats.get("m_total_tx_pps", format = True, suffix = "pps"),
+                    port_stats.get("m_total_tx_bps", format = True, suffix = "bps"),
+                    port_stats.get_rel("obytes", format = True, suffix = "B"),
+                    port_stats.get("m_total_rx_pps", format = True, suffix = "pps"),
+                    port_stats.get("m_total_rx_bps", format = True, suffix = "bps"),
+                    port_stats.get_rel("ibytes", format = True, suffix = "B")))
+        
             else:
                 self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
                     "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
@@ -374,6 +365,7 @@ class TrexStatus():
         self.log = TrexStatusLog()
         self.cmds = TrexStatusCommands(self)
 
+        self.stats         = stateless_client.get_stats_async()
         self.general_stats = stateless_client.get_stats_async().get_general_stats()
 
         # fetch server info
