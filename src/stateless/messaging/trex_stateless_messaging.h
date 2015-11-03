@@ -45,6 +45,17 @@ public:
      * 
      */
     virtual bool handle(TrexStatelessDpCore *dp_core) = 0;
+
+
+    /**
+     * clone the current message
+     * 
+     */
+    virtual TrexStatelessCpToDpMsgBase * clone() = 0;
+
+    /* no copy constructor */
+    TrexStatelessCpToDpMsgBase(TrexStatelessCpToDpMsgBase &) = delete;
+
 };
 
 /**
@@ -60,6 +71,8 @@ public:
     ~TrexStatelessDpStart();
 
     virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
 
 private:
     TrexStreamsCompiledObj *m_obj;
@@ -77,6 +90,8 @@ public:
     }
 
     virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
 
 private:
     uint8_t m_port_id;

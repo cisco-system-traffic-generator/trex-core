@@ -29,6 +29,21 @@ limitations under the License.
 TrexStatelessDpStart::TrexStatelessDpStart(TrexStreamsCompiledObj *obj) : m_obj(obj) {
 }
 
+
+/**
+ * clone for DP start message
+ * 
+ */
+TrexStatelessCpToDpMsgBase *
+TrexStatelessDpStart::clone() {
+
+    TrexStreamsCompiledObj *new_obj = m_obj->clone();
+
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStart(new_obj);
+
+    return new_msg;
+}
+
 TrexStatelessDpStart::~TrexStatelessDpStart() {
     if (m_obj) {
         delete m_obj;
@@ -51,3 +66,13 @@ TrexStatelessDpStop::handle(TrexStatelessDpCore *dp_core) {
     return true;
 }
 
+/**
+ * clone for DP stop message
+ * 
+ */
+TrexStatelessCpToDpMsgBase *
+TrexStatelessDpStop::clone() {
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStop(m_port_id);
+
+    return new_msg;
+}

@@ -199,7 +199,7 @@ TrexStatelessPort::send_message_to_dp(TrexStatelessCpToDpMsgBase *msg) {
 
         /* send the message to the core */
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_pair.first);
-        ring->Enqueue((CGenNode *)msg);
+        ring->Enqueue((CGenNode *)msg->clone());
     }
 
 }

@@ -51,6 +51,24 @@ TrexStreamsCompiledObj::add_compiled_stream(double isg_usec, double pps, uint8_t
     m_objs.push_back(obj);
 }
 
+TrexStreamsCompiledObj *
+TrexStreamsCompiledObj::clone() {
+
+    TrexStreamsCompiledObj *new_compiled_obj = new TrexStreamsCompiledObj(m_port_id, m_mul);
+
+    /**
+     * clone each element
+     */
+    for (auto obj : m_objs) {
+        new_compiled_obj->add_compiled_stream(obj.m_isg_usec,
+                                              obj.m_pps,
+                                              obj.m_pkt,
+                                              obj.m_pkt_len);
+    }
+
+    return new_compiled_obj;
+}
+
 /**************************************
  * stream compiler
  *************************************/
@@ -84,4 +102,5 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams, TrexStrea
 
     return true;
 }
+
 
