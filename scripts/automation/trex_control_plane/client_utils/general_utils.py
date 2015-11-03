@@ -24,7 +24,7 @@ def user_input():
 
 def get_current_user():
   if pwd:
-      return pwd.getpwuid( os.geteuid() ).pw_name
+      return pwd.getpwuid(os.geteuid()).pw_name
   else:
       return getpass.getuser()
 

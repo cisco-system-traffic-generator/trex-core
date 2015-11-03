@@ -42,6 +42,8 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdRelease());
     register_command(new TrexRpcCmdGetPortStats());
 
+    register_command(new TrexRpcCmdSyncUser());
+
     /* stream commands */
     register_command(new TrexRpcCmdAddStream());
     register_command(new TrexRpcCmdRemoveStream());

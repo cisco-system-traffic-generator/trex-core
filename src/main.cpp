@@ -185,25 +185,6 @@ int curent_time(){
 
 #include <pthread.h>
 
-void delay(int msec){
-
-    if (msec == 0) 
-    {//user that requested that probebly wanted the minimal delay 
-     //but because of scaling problem he have got 0 so we will give the min delay 
-     //printf("\n\n\nERROR-Task delay ticks == 0 found in task %s task id = %d\n\n\n\n", 
-     //       SANB_TaskName(SANB_TaskIdSelf()), SANB_TaskIdSelf());
-     msec =1;
-
-    } 
-
-    struct timespec time1, remain; // 2 sec max delay
-    time1.tv_sec=msec/1000;
-    time1.tv_nsec=(msec - (time1.tv_sec*1000))*1000000;
-
-    nanosleep(&time1,&remain);
-}
-
-
 struct per_thread_t {
     pthread_t  tid;
 };
@@ -234,7 +215,7 @@ void * thread_task(void *info){
         char buf[100];
         sprintf(buf,"my%d.erf",obj->thread_id);
         volatile int i;
-        lpt->generate_erf(buf,*obj->preview_info);
+        lpt->start_generate_stateful(buf,*obj->preview_info);
         lpt->m_node_gen.DumpHist(stdout);
         printf("end thread %d \n",obj->thread_id);
     }
@@ -325,7 +306,7 @@ void test_load_list_of_cap_files(CParserOption * op){
         lpt=fl.m_threads_info[i];
         char buf[100];
         sprintf(buf,"my%d.erf",i);
-        lpt->generate_erf(buf,op->preview);
+        lpt->start_generate_stateful(buf,op->preview);
         lpt->m_node_gen.DumpHist(stdout);
     }
     //sprintf(buf,"my%d.erf",7);
@@ -353,7 +334,7 @@ int load_list_of_cap_files(CParserOption * op){
     lpt->set_vif(&erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->generate_erf(op->out_file,op->preview);
+        lpt->start_generate_stateful(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);

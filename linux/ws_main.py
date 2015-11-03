@@ -91,12 +91,20 @@ def configure(conf):
     conf.load('g++')
     verify_cc_version(conf.env)
 
+bp_sim_main = SrcGroup(dir='src',
+        src_list=['main.cpp'])
+
+bp_sim_gtest = SrcGroup(dir='src',
+        src_list=[
+             'bp_gtest.cpp',
+             'gtest/tuple_gen_test.cpp',
+             'gtest/nat_test.cpp',
+             'gtest/trex_stateless_gtest.cpp'
+             ])
 
 main_src = SrcGroup(dir='src',
         src_list=[
-             'main.cpp',
              'bp_sim.cpp',
-             'bp_gtest.cpp',
              'os_time.cpp',
              'rx_check.cpp',
              'tuple_gen.cpp',
@@ -110,9 +118,6 @@ main_src = SrcGroup(dir='src',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
 
-             'gtest/tuple_gen_test.cpp',
-             'gtest/nat_test.cpp',
-             'gtest/trex_stateless_gtest.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -146,7 +151,9 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stream_vm.cpp',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
-                                    'dp/trex_stateless_dp_core.cpp'
+                                    'cp/trex_streams_compiler.cpp',
+                                    'dp/trex_stateless_dp_core.cpp',
+                                    'messaging/trex_stateless_messaging.cpp',
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
@@ -168,9 +175,8 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
 rpc_server_mock_src = SrcGroup(dir='src/mock/',
                           src_list=[
                               'trex_rpc_server_mock.cpp',
+                              'trex_platform_api_mock.cpp',
                               '../gtest/rpc_test.cpp',
-                              '../pal/linux/mbuf.cpp',
-                              '../os_time.cpp',
                           ])
 
 # JSON package
@@ -179,12 +185,6 @@ json_src = SrcGroup(dir='external_libs/json',
                         'jsoncpp.cpp'
                         ])
 
-rpc_server_mock = SrcGroups([cmn_src,
-                             rpc_server_src,
-                             rpc_server_mock_src,
-                             stateless_src,
-                             json_src
-                             ])
 
 yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
@@ -216,11 +216,31 @@ yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
             'stream.cpp',
             'tag.cpp']);
 
+
+rpc_server_mock = SrcGroups([
+                             main_src,
+                             cmn_src,
+                             rpc_server_src,
+                             rpc_server_mock_src,
+                             stateless_src,
+                             json_src,
+                             yaml_src,
+                             net_src,
+                             ])
+
+# REMOVE ME - need to decide if stateless is part of bp sim or not
+bp_hack_for_compile = SrcGroup(dir='/src/stub/',
+        src_list=['trex_stateless_stub.cpp'
+            ])
+
 bp =SrcGroups([
+                bp_sim_main,
+                bp_sim_gtest,
                 main_src, 
                 cmn_src ,
                 net_src ,
                 yaml_src,
+                bp_hack_for_compile,
                 ]);
 
 
@@ -242,6 +262,7 @@ includes_path =''' ../src/pal/linux/
                    ../src/rpc-server/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
+                   ../src/stateless/messaging/
                    ../external_libs/json/
                    ../external_libs/zmq/include/
                    ../external_libs/yaml-cpp/include/
@@ -372,13 +393,11 @@ class build_option:
 
 
 build_types = [
-               #build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_32, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
-               #build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_32, is_pie = False),
                build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
 
                build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, 
-                            flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Wno-sign-compare', '-Werror'],
+                            flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Wno-sign-compare'],
                             rpath = ['.']),
               ]
 

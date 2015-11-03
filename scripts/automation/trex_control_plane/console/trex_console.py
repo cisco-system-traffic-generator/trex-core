@@ -31,10 +31,8 @@ import trex_root_path
 from common.trex_streams import *
 from client.trex_stateless_client import CTRexStatelessClient
 from common.text_opts import *
-from client_utils.general_utils import user_input
+from client_utils.general_utils import user_input, get_current_user
 
-
-from client_utils.jsonrpc_client import TrexStatelessClient
 import trex_status
 from collections import namedtuple
 
@@ -176,6 +174,7 @@ class TRexConsole(cmd.Cmd):
     def completenames(self, text, *ignored):
         dotext = 'do_'+text
         return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
+
 
     # set verbose on / off
     def do_verbose (self, line):
@@ -393,9 +392,9 @@ class TRexConsole(cmd.Cmd):
             print "Example: rpc test_add {'x': 12, 'y': 17}\n"
             return
 
-        res_ok, msg = self.stateless_client.invoke_rpc_method(method, params)
+        res_ok, msg = self.stateless_client.transmit(method, params)
         if res_ok:
-            print "\nServer Response:\n\n" + self.stateless_client.pretty_json(json.dumps(msg)) + "\n"
+            print "\nServer Response:\n\n" + pretty_json(json.dumps(msg)) + "\n"
         else:
             print "\n*** " + msg + "\n"
             #print "Please try 'reconnect' to reconnect to server"
@@ -408,6 +407,10 @@ class TRexConsole(cmd.Cmd):
 
     def do_status (self, line):
         '''Shows a graphical console\n'''
+
+        if not self.stateless_client.is_connected():
+            print "Not connected to server\n"
+            return
 
         self.do_verbose('off')
         trex_status.show_trex_status(self.stateless_client)
@@ -770,8 +773,12 @@ def setParserOptions():
                         default = 5050,
                         type = int)
 
-    parser.add_argument("-u", "--user", help = "User Name  [default is random generated]\n",
-                        default = 'user_' + ''.join(random.choice(string.digits) for _ in range(5)),
+    parser.add_argument("-z", "--pub", help = "TRex Async Publisher Port  [default is 4500]\n",
+                        default = 4500,
+                        type = int)
+
+    parser.add_argument("-u", "--user", help = "User Name  [default is currently logged in user]\n",
+                        default = get_current_user(),
                         type = str)
 
     parser.add_argument("--verbose", dest="verbose",
@@ -782,11 +789,10 @@ def setParserOptions():
 
 def main():
     parser = setParserOptions()
-    options = parser.parse_args()#sys.argv[1:])
+    options = parser.parse_args()
 
     # Stateless client connection
-    # stateless_client = TrexStatelessClient(options.server, options.port, options.user)
-    stateless_client = CTRexStatelessClient(options.user, options.server, options.port)
+    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
 
     # console
     try:

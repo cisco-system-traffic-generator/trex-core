@@ -30,6 +30,8 @@ limitations under the License.
 
 using namespace std;
 
+uint16_t gtest_get_mock_server_port();
+
 class RpcTest : public testing::Test {
 
 protected:
@@ -44,7 +46,12 @@ protected:
          
         m_context = zmq_ctx_new ();
         m_socket = zmq_socket (m_context, ZMQ_REQ);
-        zmq_connect (m_socket, "tcp://localhost:5050");
+
+        std::stringstream ss;
+        ss << "tcp://localhost:";
+        ss << gtest_get_mock_server_port();
+
+        zmq_connect (m_socket, ss.str().c_str());
 
     }
 

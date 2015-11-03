@@ -18,8 +18,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
+#include <trex_stateless_messaging.h>
+#include <trex_streams_compiler.h>
+
 #include <string>
 
 #ifndef TREX_RPC_MOCK_SERVER
@@ -49,7 +53,7 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
  * 
  */
 TrexStatelessPort::rc_e
-TrexStatelessPort::start_traffic(void) {
+TrexStatelessPort::start_traffic(double mul) {
 
     if (m_port_state != PORT_STATE_UP_IDLE) {
         return (RC_ERR_BAD_STATE_FOR_OP);
@@ -59,19 +63,52 @@ TrexStatelessPort::start_traffic(void) {
         return (RC_ERR_NO_STREAMS);
     }
 
+    /* fetch all the streams from the table */
+    vector<TrexStream *> streams;
+    get_stream_table()->get_object_list(streams);
+
+    /* compiler it */
+    TrexStreamsCompiler compiler;
+    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id, mul);
+
+    bool rc = compiler.compile(streams, *compiled_obj);
+    if (!rc) {
+        return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
+    }
+
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(compiled_obj);
+
+    // FIXME (add the right core list)
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);
+
+    ring->Enqueue((CGenNode *)start_msg);
+
+    /* move the state to transmiting */
     m_port_state = PORT_STATE_TRANSMITTING;
 
-    /* real code goes here */
     return (RC_OK);
 }
 
-void 
+TrexStatelessPort::rc_e
 TrexStatelessPort::stop_traffic(void) {
 
     /* real code goes here */
-    if (m_port_state == PORT_STATE_TRANSMITTING) {
-        m_port_state = PORT_STATE_UP_IDLE;
+    if (m_port_state != PORT_STATE_TRANSMITTING) {
+        return (RC_ERR_BAD_STATE_FOR_OP);
     }
+
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+
+    // FIXME (add the right core list)
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);
+
+    ring->Enqueue((CGenNode *)stop_msg);
+
+    m_port_state = PORT_STATE_UP_IDLE;
+
+    return (RC_OK);
 }
 
 /**
@@ -130,99 +167,27 @@ TrexStatelessPort::generate_handler() {
     return (ss.str());
 }
 
-/**
- * update stats for the port
- * 
- */
-void 
-TrexStatelessPort::update_stats() {
-    struct rte_eth_stats stats;
-    rte_eth_stats_get(m_port_id, &stats);
-
-    /* copy straight values */
-    m_stats.m_stats.m_total_tx_bytes = stats.obytes;
-    m_stats.m_stats.m_total_rx_bytes = stats.ibytes;
-
-    m_stats.m_stats.m_total_tx_pkts  = stats.opackets;
-    m_stats.m_stats.m_total_rx_pkts  = stats.ipackets;
-
-    /* calculate stats */
-    m_stats.m_stats.m_tx_bps = m_stats.m_bw_tx_bps.add(stats.obytes);
-    m_stats.m_stats.m_rx_bps = m_stats.m_bw_rx_bps.add(stats.ibytes);
-
-    m_stats.m_stats.m_tx_pps = m_stats.m_bw_tx_pps.add(stats.opackets);
-    m_stats.m_stats.m_rx_pps = m_stats.m_bw_rx_pps.add(stats.ipackets);
-
-}
-
-const TrexPortStats &
-TrexStatelessPort::get_stats() {
-    return m_stats;
-}
 
 void
 TrexStatelessPort::encode_stats(Json::Value &port) {
 
-    port["tx_bps"]          = m_stats.m_stats.m_tx_bps;
-    port["rx_bps"]          = m_stats.m_stats.m_rx_bps;
+    const TrexPlatformApi *api = get_stateless_obj()->get_platform_api();
 
-    port["tx_pps"]          = m_stats.m_stats.m_tx_pps;
-    port["rx_pps"]          = m_stats.m_stats.m_rx_pps;
+    TrexPlatformInterfaceStats stats;
+    api->get_interface_stats(m_port_id, stats);
 
-    port["total_tx_pkts"]   = Json::Value::UInt64(m_stats.m_stats.m_total_tx_pkts);
-    port["total_rx_pkts"]   = Json::Value::UInt64(m_stats.m_stats.m_total_rx_pkts);
+    port["tx_bps"]          = stats.m_stats.m_tx_bps;
+    port["rx_bps"]          = stats.m_stats.m_rx_bps;
 
-    port["total_tx_bytes"]  = Json::Value::UInt64(m_stats.m_stats.m_total_tx_bytes);
-    port["total_rx_bytes"]  = Json::Value::UInt64(m_stats.m_stats.m_total_rx_bytes);
+    port["tx_pps"]          = stats.m_stats.m_tx_pps;
+    port["rx_pps"]          = stats.m_stats.m_rx_pps;
+
+    port["total_tx_pkts"]   = Json::Value::UInt64(stats.m_stats.m_total_tx_pkts);
+    port["total_rx_pkts"]   = Json::Value::UInt64(stats.m_stats.m_total_rx_pkts);
+
+    port["total_tx_bytes"]  = Json::Value::UInt64(stats.m_stats.m_total_tx_bytes);
+    port["total_rx_bytes"]  = Json::Value::UInt64(stats.m_stats.m_total_rx_bytes);
     
-    port["tx_rx_errors"]    = Json::Value::UInt64(m_stats.m_stats.m_tx_rx_errors);
+    port["tx_rx_errors"]    = Json::Value::UInt64(stats.m_stats.m_tx_rx_errors);
 }
-
-
-
-/***************************
- * BW measurement
- * 
- **************************/
-/* TODO: move this to a common place */
-BWMeasure::BWMeasure() {
-    reset();
-}
-
-void BWMeasure::reset(void) {
-    m_start=false;
-    m_last_time_msec=0;
-    m_last_bytes=0;
-    m_last_result=0.0;
-};
-
-double BWMeasure::calc_MBsec(uint32_t dtime_msec,
-                             uint64_t dbytes){
-    double rate=0.000008*( (  (double)dbytes*(double)os_get_time_freq())/((double)dtime_msec) );
-    return(rate);
-}
-
-double BWMeasure::add(uint64_t size) {
-    if ( false == m_start ) {
-        m_start=true;
-        m_last_time_msec = os_get_time_msec() ;
-        m_last_bytes=size;
-        return(0.0);
-    }
-
-    uint32_t ctime=os_get_time_msec();
-    if ((ctime - m_last_time_msec) <os_get_time_freq() ) {
-        return(m_last_result);
-    }
-
-    uint32_t dtime_msec = ctime-m_last_time_msec;
-    uint64_t dbytes     = size - m_last_bytes;
-
-    m_last_time_msec    = ctime;
-    m_last_bytes        = size;
-
-    m_last_result= 0.5*calc_MBsec(dtime_msec,dbytes) +0.5*(m_last_result);
-    return( m_last_result );
-}
-
 

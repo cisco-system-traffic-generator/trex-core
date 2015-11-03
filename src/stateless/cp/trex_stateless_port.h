@@ -24,71 +24,6 @@ limitations under the License.
 #include <trex_stream.h>
 
 /**
- * bandwidth measurement class
- * 
- */
-class BWMeasure {
-public:
-    BWMeasure();
-    void reset(void);
-    double add(uint64_t size);
-
-private:
-    double calc_MBsec(uint32_t dtime_msec,
-                      uint64_t dbytes);
-
-public:
-   bool      m_start;
-   uint32_t  m_last_time_msec;
-   uint64_t  m_last_bytes;
-   double    m_last_result;
-};
-
-/**
- * TRex stateless port stats
- * 
- * @author imarom (24-Sep-15)
- */
-class TrexPortStats {
-
-public:
-    TrexPortStats() {
-        m_stats = {0};
-
-        m_bw_tx_bps.reset();
-        m_bw_rx_bps.reset();
-
-        m_bw_tx_pps.reset();
-        m_bw_rx_pps.reset();
-    }
-
-public:
-
-    BWMeasure m_bw_tx_bps;
-    BWMeasure m_bw_rx_bps;
-
-    BWMeasure m_bw_tx_pps;
-    BWMeasure m_bw_rx_pps;
-
-    struct {
-
-        double m_tx_bps;
-        double m_rx_bps;
-       
-        double m_tx_pps;
-        double m_rx_pps;
-       
-        uint64_t m_total_tx_pkts;
-        uint64_t m_total_rx_pkts;
-       
-        uint64_t m_total_tx_bytes;
-        uint64_t m_total_rx_bytes;
-       
-        uint64_t m_tx_rx_errors;
-    } m_stats;
-};
-
-/**
  * describes a stateless port
  * 
  * @author imarom (31-Aug-15)
@@ -121,13 +56,13 @@ public:
      * start traffic
      * 
      */
-    rc_e start_traffic(void);
+    rc_e start_traffic(double mul);
 
     /**
      * stop traffic
      * 
      */
-    void stop_traffic(void);
+    rc_e stop_traffic(void);
 
     /**
      * access the stream table
@@ -203,17 +138,13 @@ public:
     }
 
     /**
-     * update the values of the stats
-     * 
-     */
-    void update_stats();
-
-    const TrexPortStats & get_stats();
-
-    /**
      * encode stats as JSON
      */
     void encode_stats(Json::Value &port);
+
+    uint8_t get_port_id() {
+        return m_port_id;
+    }
 
 private:
 
@@ -224,7 +155,6 @@ private:
     port_state_e     m_port_state;
     std::string      m_owner;
     std::string      m_owner_handler;
-    TrexPortStats    m_stats;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */
