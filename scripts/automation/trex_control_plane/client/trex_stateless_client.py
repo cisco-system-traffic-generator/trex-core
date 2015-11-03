@@ -136,9 +136,8 @@ class CTRexStatelessClient(object):
         else:
             return port_ids
 
-    def sync_user(self):
-        return self.transmit("sync_user")
-
+    def sync_user(self, sync_streams=False):
+        return self.transmit("sync_user", {"user": self.user, "sync_streams": sync_streams})
 
     def get_acquired_ports(self):
         return self._conn_handler.keys()
@@ -363,7 +362,20 @@ class CTRexStatelessClient(object):
         if self.server_version == "Unknown" or self.system_info == "Unknown":
             self.disconnect()
             return False, self.__err_log
+        # sync with previous session
+        res_ok, port_info = self.sync_user()
+        if not res_ok:
+            self.disconnect()
+            return False, port_info
+        else:
+            # handle sync data
+            for port in port_info:
+                self._conn_handler[port.get("port_id")] = port.get("handler")
+                if port.get("state") == "transmitting":
+                    # port is active
+                    self._active_ports.add(port.get("port_id"))
         return True, ""
+
 
     def transmit(self, method_name, params={}):
         return self.comm_link.transmit(method_name, params)
