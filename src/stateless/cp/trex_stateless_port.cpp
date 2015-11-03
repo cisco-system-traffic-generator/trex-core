@@ -36,6 +36,9 @@ limitations under the License.
 #include <rte_ethdev.h>
 #include <os_time.h>
 
+void
+port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list);
+
 using namespace std;
 
 /***************************
@@ -79,10 +82,7 @@ TrexStatelessPort::start_traffic(double mul) {
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(compiled_obj);
 
-    // FIXME (add the right core list)
-    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);
-
-    ring->Enqueue((CGenNode *)start_msg);
+    send_message_to_dp(start_msg);
 
     /* move the state to transmiting */
     m_port_state = PORT_STATE_TRANSMITTING;
@@ -101,10 +101,7 @@ TrexStatelessPort::stop_traffic(void) {
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
 
-    // FIXME (add the right core list)
-    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(0);
-
-    ring->Enqueue((CGenNode *)stop_msg);
+    send_message_to_dp(stop_msg);
 
     m_port_state = PORT_STATE_UP_IDLE;
 
@@ -191,3 +188,18 @@ TrexStatelessPort::encode_stats(Json::Value &port) {
     port["tx_rx_errors"]    = Json::Value::UInt64(stats.m_stats.m_tx_rx_errors);
 }
 
+void 
+TrexStatelessPort::send_message_to_dp(TrexStatelessCpToDpMsgBase *msg) {
+
+    std::vector<std::pair<uint8_t, uint8_t>> cores_id_list;
+
+    get_stateless_obj()->get_platform_api()->port_id_to_cores(m_port_id, cores_id_list);
+
+    for (auto core_pair : cores_id_list) {
+
+        /* send the message to the core */
+        CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_pair.first);
+        ring->Enqueue((CGenNode *)msg);
+    }
+
+}

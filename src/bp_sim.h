@@ -372,6 +372,15 @@ public:
      * @return 
      */
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m)=0;
+
+    /**
+     * translate a port_id to the correct dir on the core
+     * 
+     */
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
+        return (CS_INVALID);
+    }
+
 public:
 
 

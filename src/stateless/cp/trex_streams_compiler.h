@@ -40,6 +40,7 @@ public:
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
+        double   m_isg_usec;
         double   m_pps;
         uint8_t *m_pkt;
         uint16_t m_pkt_len;
@@ -51,7 +52,7 @@ public:
     }
 
 private:
-    void add_compiled_stream(double pps, uint8_t *pkt, uint16_t pkt_len);
+    void add_compiled_stream(double isg_usec, double pps, uint8_t *pkt, uint16_t pkt_len);
     std::vector<obj_st> m_objs;
 
     uint8_t m_port_id;

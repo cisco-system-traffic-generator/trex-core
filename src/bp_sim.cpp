@@ -3421,8 +3421,6 @@ int CNodeGenerator::flush_file(dsec_t max_time,
             dsec_t dt ;
             thread->m_cpu_dp_u.commit();
 
-            thread->check_msgs();
-
             while ( true ) {
                 dt = now_sec() - n_time ;
 
@@ -3569,8 +3567,12 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                 m_p_queue.push(node);
             }
 
-        } else if ( type == CGenNode::FLOW_SYNC ) { 
+        } else if ( type == CGenNode::FLOW_SYNC ) {
 
+            /* flow sync message is a sync point for time */
+            thread->m_cur_time_sec = node->m_time;
+
+            /* first pop the node */
             m_p_queue.pop();
 
             thread->check_msgs(); /* check messages */
@@ -3905,6 +3907,7 @@ const uint8_t test_udp_pkt[]={
 };
 
 void CFlowGenListPerThread::start_stateless_daemon(){
+    m_cur_time_sec = 0;
     m_stateless_dp_info->start();
 }
 

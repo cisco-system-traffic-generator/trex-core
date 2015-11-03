@@ -115,7 +115,11 @@ private:
      */
     void handle_cp_msg(TrexStatelessCpToDpMsgBase *msg);
 
-    void add_cont_stream(double pps, const uint8_t *pkt, uint16_t pkt_len);
+    void add_cont_stream(uint8_t dir,
+                         double isg,
+                         double pps,
+                         const uint8_t *pkt,
+                         uint16_t pkt_len);
 
     uint8_t              m_thread_id;
     state_e              m_state;

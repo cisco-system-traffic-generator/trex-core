@@ -23,6 +23,8 @@ limitations under the License.
 
 #include <trex_stream.h>
 
+class TrexStatelessCpToDpMsgBase;
+
 /**
  * describes a stateless port
  * 
@@ -149,6 +151,8 @@ public:
 private:
 
     std::string generate_handler();
+
+    void send_message_to_dp(TrexStatelessCpToDpMsgBase *msg);
 
     TrexStreamTable  m_stream_table;
     uint8_t          m_port_id;

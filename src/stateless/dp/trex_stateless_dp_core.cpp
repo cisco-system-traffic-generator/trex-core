@@ -25,6 +25,11 @@ limitations under the License.
 
 #include <bp_sim.h>
 
+static inline double
+usec_to_sec(double usec) {
+    return (usec / (1000 * 1000));
+}
+
 TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core) {
     m_thread_id = thread_id;
     m_core = core;
@@ -82,12 +87,20 @@ TrexStatelessDpCore::start() {
 }
 
 void
-TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pkt_len) {
+TrexStatelessDpCore::add_cont_stream(uint8_t port_id,
+                                     double isg_usec,
+                                     double pps,
+                                     const uint8_t *pkt,
+                                     uint16_t pkt_len) {
+
     CGenNodeStateless *node = m_core->create_node_sl();
 
     /* add periodic */
     node->m_type = CGenNode::STATELESS_PKT;
-    node->m_time = m_core->m_cur_time_sec + 0.0 /* STREAM ISG */;
+
+    node->m_time = m_core->m_cur_time_sec + usec_to_sec(isg_usec);
+
+    pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(port_id);
     node->m_flags = 0; 
 
     /* set socket id */
@@ -97,8 +110,10 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
     uint16_t pkt_size = pkt_len;
     const uint8_t *stream_pkt = pkt;
 
+    /* stateless specific fields */
     node->m_next_time_offset = 1.0 / pps;
     node->m_is_stream_active = 1;
+    node->m_port_id = port_id;
 
     /* allocate const mbuf */
     rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
@@ -110,7 +125,6 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
     memcpy(p,stream_pkt,pkt_size);
 
     /* set dir 0 or 1 client or server */
-    pkt_dir_t dir = 0;
     node->set_mbuf_cache_dir(dir);
 
     /* TBD repace the mac if req we should add flag  */
@@ -132,7 +146,11 @@ TrexStatelessDpCore::add_cont_stream(double pps, const uint8_t *pkt, uint16_t pk
 void
 TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
     for (auto single_stream : obj->get_objects()) {
-        add_cont_stream(single_stream.m_pps, single_stream.m_pkt, single_stream.m_pkt_len);
+        add_cont_stream(single_stream.m_port_id,
+                        single_stream.m_isg_usec,
+                        single_stream.m_pps,
+                        single_stream.m_pkt,
+                        single_stream.m_pkt_len);
     }
 }
 

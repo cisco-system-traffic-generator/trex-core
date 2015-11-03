@@ -1849,6 +1849,7 @@ public:
 
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m);
 
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
 
 public:
     void GetCoreCounters(CVirtualIFPerSideStats *stats);
@@ -1859,6 +1860,10 @@ public:
 
     socket_id_t get_socket_id(){
         return ( CGlobalInfo::m_socket.port_to_socket( m_ports[0].m_port->get_port_id() ) );
+    }
+
+    const CCorePerPort * get_ports() {
+        return m_ports;
     }
 
 protected:
@@ -2265,7 +2270,17 @@ int CCoreEthIF::update_mac_addr_from_global_cfg(pkt_dir_t  dir,
     return (0);
 }
 
+pkt_dir_t 
+CCoreEthIF::port_id_to_dir(uint8_t port_id) {
 
+    for (pkt_dir_t dir = 0; dir < CS_NUM; dir++) {
+        if (m_ports[dir].m_port->get_port_id() == port_id) {
+            return dir;
+        }
+    }
+
+    return (CS_INVALID);
+}
 
 class CLatencyHWPort : public CPortLatencyHWBase {
 public:
@@ -5170,5 +5185,23 @@ TrexDpdkPlatformApi::get_interface_stats(uint8_t interface_id, TrexPlatformInter
 uint8_t 
 TrexDpdkPlatformApi::get_dp_core_count() const {
     return CGlobalInfo::m_options.preview.getCores();
+}
+
+
+void
+TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
+
+    cores_id_list.clear();
+
+    /* iterate over all DP cores */
+    for (uint8_t core_id = 0; core_id < g_trex.get_cores_tx(); core_id++) {
+
+        /* iterate over all the directions*/
+        for (uint8_t dir = 0 ; dir < CS_NUM; dir++) {
+            if (g_trex.m_cores_vif[core_id + 1]->get_ports()[dir].m_port->get_port_id() == port_id) {
+                cores_id_list.push_back(std::make_pair(core_id, dir));
+            }
+        }
+    }
 }
 
