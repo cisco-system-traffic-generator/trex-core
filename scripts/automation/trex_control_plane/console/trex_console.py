@@ -257,7 +257,9 @@ class TRexConsole(cmd.Cmd):
         # make sure that the user wants to acquire all
         args = line.split()
         if len(args) < 1:
-            print "Please provide a list of ports separated by spaces, or specify 'all' to acquire all available ports"
+            print magenta("Please provide a list of ports separated by spaces, or specify 'all' to acquire all available ports")
+            return
+
         if args[0] == "all":
             ask = ConfirmMenu('Are you sure you want to acquire all ports ? ')
             rc = ask.show()

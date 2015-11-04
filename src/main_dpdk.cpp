@@ -1177,7 +1177,7 @@ public:
         m_port_id      = portid;
         m_last_rx_rate = 0.0;
         m_last_tx_rate = 0.0;
-        m_last_pps=0.0;
+        m_last_tx_pps  = 0.0;
         return (true);
     }
     void Delete();
@@ -1253,8 +1253,12 @@ public:
         return (m_last_rx_rate);
     }
 
-    float get_last_pps_rate(){
-        return (m_last_pps);
+    float get_last_tx_pps_rate(){
+        return (m_last_tx_pps);
+    }
+
+    float get_last_rx_pps_rate(){
+        return (m_last_rx_pps);
     }
 
     CPhyEthIFStats     & get_stats(){
@@ -1307,12 +1311,14 @@ private:
     CBwMeasure               m_bw_tx;
     CBwMeasure               m_bw_rx;
     CPPSMeasure              m_pps_tx;
+    CPPSMeasure              m_pps_rx;
 
     CPhyEthIFStats           m_stats;
 
-    float                    m_last_rx_rate;
     float                    m_last_tx_rate;
-    float                    m_last_pps;
+    float                    m_last_rx_rate;
+    float                    m_last_tx_pps;
+    float                    m_last_rx_pps;
 public:
     struct rte_eth_dev_info  m_dev_info;   
 };
@@ -1648,7 +1654,8 @@ void CPhyEthIF::get_stats_1g(CPhyEthIFStats *stats){
 
    m_last_tx_rate      =  m_bw_tx.add(stats->obytes);
    m_last_rx_rate      =  m_bw_rx.add(stats->ibytes);
-   m_last_pps          =  m_pps_tx.add(stats->opackets);
+   m_last_tx_pps       =  m_pps_tx.add(stats->opackets);
+   m_last_rx_pps       =  m_pps_rx.add(stats->ipackets);
 
 }
 
@@ -1658,7 +1665,8 @@ void CPhyEthIF::get_stats(CPhyEthIFStats *stats){
 
    m_last_tx_rate      =  m_bw_tx.add(stats->obytes);
    m_last_rx_rate      =  m_bw_rx.add(stats->ibytes);
-   m_last_pps          =  m_pps_tx.add(stats->opackets);
+   m_last_tx_pps       =  m_pps_tx.add(stats->opackets);
+   m_last_rx_pps       =  m_pps_rx.add(stats->ipackets);
 }
 
 
@@ -2468,6 +2476,10 @@ public:
     uint64_t oerrors;     
 
     float     m_total_tx_bps;
+    float     m_total_tx_pps;
+
+    float     m_total_rx_bps;
+    float     m_total_rx_pps;
 };
 
 class CGlobalStats {
@@ -2504,6 +2516,7 @@ public:
     float m_tx_bps;
     float m_rx_bps;
     float m_tx_pps;
+    float m_rx_pps;
     float m_tx_cps;
     float m_tx_expected_cps;
     float m_tx_expected_pps;
@@ -2564,6 +2577,7 @@ void CGlobalStats::dump_json(std::string & json){
     json+=GET_FIELD(m_tx_bps);
     json+=GET_FIELD(m_rx_bps);
     json+=GET_FIELD(m_tx_pps);
+    json+=GET_FIELD(m_rx_pps);
     json+=GET_FIELD(m_tx_cps);
     json+=GET_FIELD(m_tx_expected_cps);
     json+=GET_FIELD(m_tx_expected_pps);
@@ -2598,6 +2612,9 @@ void CGlobalStats::dump_json(std::string & json){
         json+=GET_FIELD_PORT(i,ierrors)  ;
         json+=GET_FIELD_PORT(i,oerrors)  ;
         json+=GET_FIELD_PORT(i,m_total_tx_bps);
+        json+=GET_FIELD_PORT(i,m_total_tx_pps);
+        json+=GET_FIELD_PORT(i,m_total_rx_bps);
+        json+=GET_FIELD_PORT(i,m_total_rx_pps);
     }
     json+=m_template.dump_as_json("template");
     json+="\"unknown\":0}}"  ;
@@ -3728,7 +3745,8 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     int i;
     float total_tx=0.0;
     float total_rx=0.0;
-    float total_pps=0.0;
+    float total_tx_pps=0.0;
+    float total_rx_pps=0.0;
 
     stats.m_total_tx_pkts  = 0;
     stats.m_total_rx_pkts  = 0;
@@ -3756,6 +3774,9 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         stp->ierrors  = st.ierrors;
         stp->oerrors  = st.oerrors;    
         stp->m_total_tx_bps = _if->get_last_tx_rate()*_1Mb_DOUBLE;
+        stp->m_total_tx_pps = _if->get_last_tx_pps_rate();
+        stp->m_total_rx_bps = _if->get_last_rx_rate()*_1Mb_DOUBLE;
+        stp->m_total_rx_pps = _if->get_last_rx_pps_rate();
 
         stats.m_total_tx_pkts  += st.opackets; 
         stats.m_total_rx_pkts  += st.ipackets;
@@ -3764,7 +3785,8 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
         total_tx +=_if->get_last_tx_rate();
         total_rx +=_if->get_last_rx_rate();
-        total_pps +=_if->get_last_pps_rate();
+        total_tx_pps +=_if->get_last_tx_pps_rate();
+        total_rx_pps +=_if->get_last_rx_pps_rate();
 
     }
 
@@ -3847,7 +3869,8 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     stats.m_tx_bps        = total_tx*pf*_1Mb_DOUBLE;
     stats.m_rx_bps        = total_rx*pf*_1Mb_DOUBLE;
-    stats.m_tx_pps        = total_pps*pf;
+    stats.m_tx_pps        = total_tx_pps*pf;
+    stats.m_rx_pps        = total_rx_pps*pf;
     stats.m_tx_cps        = m_last_total_cps*pf;
 
     stats.m_tx_expected_cps        = m_expected_cps*pf;

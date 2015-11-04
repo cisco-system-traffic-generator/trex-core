@@ -112,18 +112,23 @@ class GeneralInfoPanel(TrexStatusPanel):
 
         self.getwin().addstr(3, 2, "{:<30} {:0.2f} %".format("CPU util.:", self.general_stats.get("m_cpu_util")))
 
-        self.getwin().addstr(5, 2, "{:<30} {:} / {:}".format("Total Tx. rate:",
+        self.getwin().addstr(6, 2, "{:<30} {:} / {:}".format("Total Tx. rate:",
                                                                self.general_stats.get("m_tx_bps", format = True, suffix = "bps"),
                                                                self.general_stats.get("m_tx_pps", format = True, suffix = "pps")))
 
-        # missing RX field
-        #self.getwin().addstr(5, 2, "{:<30} {:} / {:}".format("Total Rx. rate:",
-        #                                                       self.general_stats.get("m_rx_bps"),
-        #                                                       self.general_stats.get("m_rx_pps"), suffix = "pps"))
-
-        self.getwin().addstr(7, 2, "{:<30} {:} / {:}".format("Total Tx:",
+      
+        self.getwin().addstr(8, 2, "{:<30} {:} / {:}".format("Total Tx:",
                                                              self.general_stats.get_rel("m_total_tx_bytes", format = True, suffix = "B"),
                                                              self.general_stats.get_rel("m_total_tx_pkts", format = True, suffix = "pkts")))
+
+        self.getwin().addstr(11, 2, "{:<30} {:} / {:}".format("Total Rx. rate:",
+                                                               self.general_stats.get("m_rx_bps", format = True, suffix = "bps"),
+                                                               self.general_stats.get("m_rx_pps", format = True, suffix = "pps")))
+
+      
+        self.getwin().addstr(13, 2, "{:<30} {:} / {:}".format("Total Rx:",
+                                                             self.general_stats.get_rel("m_total_rx_bytes", format = True, suffix = "B"),
+                                                             self.general_stats.get_rel("m_total_rx_pkts", format = True, suffix = "pkts")))
 
 # all ports stats
 class PortsStatsPanel(TrexStatusPanel):
