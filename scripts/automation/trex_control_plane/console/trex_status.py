@@ -147,8 +147,8 @@ class PortsStatsPanel(TrexStatusPanel):
             return
 
         # table header 
-        self.getwin().addstr(3, 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
-            "Port ID", "Tx [pps]", "Tx [bps]", "Tx [bytes]", "Rx [pps]", "Rx [bps]", "Rx [bytes]"))
+        self.getwin().addstr(3, 2, "{:^15} {:^30} {:^30} {:^30}".format(
+            "Port ID", "Tx Rate [bps/pps]", "Rx Rate [bps/pps]", "Total Bytes [tx/rx]"))
 
 
 
@@ -157,24 +157,45 @@ class PortsStatsPanel(TrexStatusPanel):
             port_stats = self.status_obj.stats.get_port_stats(port_index)
 
             if port_stats:
-                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^30} {:^30} {:^30}".format(
                     "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
-                    port_stats.get("m_total_tx_pps", format = True, suffix = "pps"),
-                    port_stats.get("m_total_tx_bps", format = True, suffix = "bps"),
-                    port_stats.get_rel("obytes", format = True, suffix = "B"),
-                    port_stats.get("m_total_rx_pps", format = True, suffix = "pps"),
-                    port_stats.get("m_total_rx_bps", format = True, suffix = "bps"),
-                    port_stats.get_rel("ibytes", format = True, suffix = "B")))
+                    "{0} / {1}".format(port_stats.get("m_total_tx_bps", format = True, suffix = "bps"),
+                                       port_stats.get("m_total_tx_pps", format = True, suffix = "pps")),
+                                       
+                    "{0} / {1}".format(port_stats.get("m_total_rx_bps", format = True, suffix = "bps"),
+                                       port_stats.get("m_total_rx_pps", format = True, suffix = "pps")),
+                    "{0} / {1}".format(port_stats.get_rel("obytes", format = True, suffix = "B"),
+                                       port_stats.get_rel("ibytes", format = True, suffix = "B"))))
         
             else:
-                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+                self.getwin().addstr(5 + (i * 4), 2, 2, "{:^15} {:^30} {:^30} {:^30}".format(
                     "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
-                    "N/A",
-                    "N/A",
                     "N/A",
                     "N/A",
                     "N/A",
                     "N/A"))
+
+
+                # old format
+#            if port_stats:
+#                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+#                    "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
+#                    port_stats.get("m_total_tx_pps", format = True, suffix = "pps"),
+#                    port_stats.get("m_total_tx_bps", format = True, suffix = "bps"),
+#                    port_stats.get_rel("obytes", format = True, suffix = "B"),
+#                    port_stats.get("m_total_rx_pps", format = True, suffix = "pps"),
+#                    port_stats.get("m_total_rx_bps", format = True, suffix = "bps"),
+#                    port_stats.get_rel("ibytes", format = True, suffix = "B")))
+#        
+#            else:
+#                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}".format(
+#                    "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
+#                    "N/A",
+#                    "N/A",
+#                    "N/A",
+#                    "N/A",
+#                    "N/A",
+#                    "N/A"))
 
 # control panel
 class ControlPanel(TrexStatusPanel):
