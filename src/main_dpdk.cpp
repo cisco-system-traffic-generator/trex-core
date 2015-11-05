@@ -3958,7 +3958,9 @@ int CGlobalTRex::run_in_master(){
     std::string json;
     bool was_stopped=false;
 
-    m_trex_stateless->launch_control_plane();
+    if ( get_is_stateless() ) {
+        m_trex_stateless->launch_control_plane();
+    }
 
     while ( true ) {
 
