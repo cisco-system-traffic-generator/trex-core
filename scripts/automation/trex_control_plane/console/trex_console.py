@@ -251,6 +251,7 @@ class TRexConsole(cmd.Cmd):
 
         return port_list
 
+
     def do_acquire(self, line, force=False):
         '''Acquire ports\n'''
 

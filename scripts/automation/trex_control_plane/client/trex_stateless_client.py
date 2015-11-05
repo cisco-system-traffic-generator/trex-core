@@ -254,7 +254,17 @@ class CTRexStatelessClient(object):
                                                         self.ack_success_test)
         pass
 
-    @force_status(owned=True, active_and_owned=True)
+
+    @force_status(owned=True)#, active_and_owned=True)
+    def get_all_streams(self, port_id, get_pkt = False):
+        if not self._is_ports_valid(port_id):
+            raise ValueError("Provided illegal port id input")
+        params = {"handler": self._conn_handler.get(port_id),
+                  "port_id": port_id,
+                  "get_pkt": get_pkt}
+        return self.transmit("get_all_streams", params)
+
+    @force_status(owned=True)#, active_and_owned=True)
     def get_stream_id_list(self, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -263,12 +273,13 @@ class CTRexStatelessClient(object):
         return self.transmit("get_stream_list", params)
 
     @force_status(owned=True, active_and_owned=True)
-    def get_stream(self, stream_id, port_id=None):
+    def get_stream(self, stream_id, port_id, get_pkt = False):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         params = {"handler": self._conn_handler.get(port_id),
                   "port_id": port_id,
-                  "stream_id": stream_id}
+                  "stream_id": stream_id,
+                  "get_pkt": get_pkt}
         return self.transmit("get_stream_list", params)
 
     @force_status(owned=True)

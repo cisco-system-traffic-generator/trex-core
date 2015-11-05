@@ -50,6 +50,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdRemoveAllStreams());
     register_command(new TrexRpcCmdGetStreamList());
     register_command(new TrexRpcCmdGetStream());
+    register_command(new TrexRpcCmdGetAllStreams());
     register_command(new TrexRpcCmdStartTraffic());
     register_command(new TrexRpcCmdStopTraffic());
 }

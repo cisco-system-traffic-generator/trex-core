@@ -397,8 +397,8 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t  port_id = parse_byte(params, "port_id", result);
-
+    uint8_t  port_id   = parse_byte(params, "port_id", result);
+    bool     get_pkt   = parse_bool(params, "get_pkt", result);
     uint32_t stream_id = parse_int(params, "stream_id", result);
 
     if (port_id >= get_stateless_obj()->get_port_count()) {
@@ -418,7 +418,12 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
     }
 
     /* return the stored stream json (instead of decoding it all over again) */
-    result["result"]["stream"] = stream->get_stream_json();
+    Json::Value j = stream->get_stream_json();
+    if (!get_pkt) {
+        j.removeMember("packet");
+    }
+
+    result["result"]["stream"] = j;
 
     return (TREX_RPC_CMD_OK);
 
@@ -488,3 +493,43 @@ TrexRpcCmdStopTraffic::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+/***************************
+ * get all streams
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_byte(params, "port_id", result);
+    bool    get_pkt = parse_bool(params, "get_pkt", result);
+     
+    if (port_id >= get_stateless_obj()->get_port_count()) {
+        std::stringstream ss;
+        ss << "invalid port id - should be between 0 and " << (int)get_stateless_obj()->get_port_count() - 1;
+        generate_execute_err(result, ss.str());
+    }
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    std::vector <TrexStream *> streams;
+    port->get_stream_table()->get_object_list(streams);
+
+    Json::Value streams_json = Json::objectValue;
+    for (auto stream : streams) {
+
+        Json::Value j = stream->get_stream_json();
+
+        /* should we include the packet as well ? */
+        if (!get_pkt) {
+            j.removeMember("packet");
+        }
+
+        std::stringstream ss;
+        ss << stream->m_stream_id;
+
+        streams_json[ss.str()] = j;
+    }
+
+    result["result"]["streams"] = streams_json;
+
+    return (TREX_RPC_CMD_OK);
+}
