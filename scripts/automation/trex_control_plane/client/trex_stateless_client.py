@@ -45,16 +45,57 @@ class CTRexStatelessClient(object):
 
 
     # ----- decorator methods ----- #
+    def acquired(func):
+        def wrapper_f(self, *args, **kwargs):
+            # print func.__name__
+            # print args
+            # print kwargs
+            port_ids = kwargs.get("port_id")
+            if not port_ids:
+                # print "FROM ARGS!"
+                # print args
+                port_ids = args[0]
+            if isinstance(port_ids, int):
+                # make sure port_ids is a list
+                port_ids = [port_ids]
+            bad_ids = set()
+            # print "============="
+            # print port_ids
+            for port_id in port_ids:
+                port_owned = self._conn_handler.get(port_id)
+                if not port_owned:
+                    bad_ids.add(port_id)
+                # elif active_and_owned:    # stronger condition than just owned, hence gets precedence
+                #     if port_owned and port_id in self._active_ports:
+                #         continue
+                #     else:
+                #         bad_ids.add(port_id)
+                else:
+                    continue
+            if bad_ids:
+                # Some port IDs are not according to desires status
+                raise ValueError("The requested method ('{0}') cannot be invoked since port IDs {1} are not "
+                                 "at allowed states".format(func.__name__, list(bad_ids)))
+            else:
+                return func(self, *args, **kwargs)
+        return wrapper_f
+
     def force_status(owned=True, active_and_owned=False):
         def wrapper(func):
             def wrapper_f(self, *args, **kwargs):
+                # print args
+                # print kwargs
                 port_ids = kwargs.get("port_id")
                 if not port_ids:
+                    print "FROM ARGS!"
+                    print args
                     port_ids = args[0]
                 if isinstance(port_ids, int):
                     # make sure port_ids is a list
                     port_ids = [port_ids]
                 bad_ids = set()
+                # print "============="
+                # print port_ids
                 for port_id in port_ids:
                     port_owned = self._conn_handler.get(port_id)
                     if owned and not port_owned:
@@ -271,14 +312,16 @@ class CTRexStatelessClient(object):
                   "stream_id": stream_id}
         return self.transmit("get_stream_list", params)
 
-    @force_status(owned=True)
-    def start_traffic(self, port_id=None):
+    @acquired
+    def start_traffic(self, multiplier, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [RpcCmdData("start_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id, "mul": 1.0})
+            commands = [RpcCmdData("start_traffic", {"handler": self._conn_handler.get(p_id),
+                                                     "port_id": p_id,
+                                                     "mul": multiplier})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
             if rc:
@@ -287,7 +330,7 @@ class CTRexStatelessClient(object):
         else:
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id,
-                      "mul": 1.0}
+                      "mul": multiplier}
             command = RpcCmdData("start_traffic", params)
             return self._handle_start_traffic_response(command,
                                                        self.transmit(command.method, command.params),
