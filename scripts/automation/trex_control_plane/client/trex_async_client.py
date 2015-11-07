@@ -82,6 +82,8 @@ class TrexAsyncStatsPort(TrexAsyncStats):
     def __init__ (self):
         super(TrexAsyncStatsPort, self).__init__()
 
+    def get_stream_stats (self, stream_id):
+        return None
 
 # stats manager
 class TrexAsyncStatsManager():
@@ -100,7 +102,6 @@ class TrexAsyncStatsManager():
             return None
 
         return self.port_stats[str(port_id)]
-
 
     def update (self, snapshot):
 
