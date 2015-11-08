@@ -568,7 +568,7 @@ public:
 
 
 void CMergeCapFileRec::Dump(FILE *fd,int _id){
-    double  time;
+    double time = 0.0;
     bool stop=GetCurPacket(time);
     fprintf (fd," id:%2d  stop : %d index:%4d  %3.4f \n",_id,stop?1:0,m_index,time);
 }
