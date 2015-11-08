@@ -1,0 +1,517 @@
+TRex console - commands proposal 
+=================================
+:author: Hanoch Haim
+:email: <hhaim@cisco.com>
+:revnumber: 0.1
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+
+
+== Console 
+
+=== Overview 
+
+The console will use TRex Client API for controling TRex 
+Some guidelines:
+
+*  Console should not save state - it should sync with server to get the state - in case of crash/exit  in Console it could sync at startup to the server
+*  Let's assume users acquire all ports - for simplicity 
+*  Commands will be like bash shell commands - no order, many flags  
+*  Ability to show stats in real time.  gives the option to open two Console one for stats and one for commands
+
+=== Ports State 
+
+[options="header",cols="^1,3a"]
+|=================
+| state |    meaning
+| IDLE    | no streams, does not work 
+| STREAMS    | with streams, does not work 
+| WORK    | with streams, works 
+| PAUSE    | with streams, pause 
+|=================
+
+
+[source,bash]
+----
+
+  IDLE -> (add streams) -> STREAMS (start) -> WORK (stop) -> STREAMS (start) 
+                                           |   WORK (pause) -> PAUSE (resume )---
+                                           |                                     | 
+                                           |                                     |
+                                        ------------------------------------                                    
+
+-----
+
+=== Commands 
+
+==== Connect 
+
+[source,bash]
+----
+
+$trex-con  [--port $PORT] [--ip  $IP] [--async_port port]
+   --port change the default server - default 4505 for async ZMQ)
+   --async_port for sub/pub ZMQ - default 4506 
+   --ip default 127.0.0.1
+----
+
+This command 
+* try to connect to server 
+* send ping  command 
+* get all the ports info / streams info 
+* read counters stats for a ref  
+
+
+==== reset 
+
+Reset the server and client to a known state - should not be used in a normal scenario 
+
+[source,bash]
+----
+$reset  
+----
+
+- force acuire all the ports
+- Stop all traffic on all the ports
+- Remove all the streams from all the ports
+
+
+==== port 
+
+Configure port state, autoneg, rate etc 
+
+[source,bash]
+----
+$port --port 1 --cfg "auto/10/" 
+
+ -port [id] 
+ --cfg string with the configuration name
+
+----
+
+
+==== clear 
+
+Clear all port stats counters 
+
+[source,bash]
+----
+$clear 
+----
+
+
+
+==== stats 
+
+Shows global and port statistic 
+
+[source,bash]
+----
+$stats  [-g] [-p] [-ps] [--port mask ] 
+
+  -g show only global stats
+  -p only ports stats
+  -ps only port status (type/driver/link-up/down/negotion type etc)
+  --port mask on the port for example --port 2 3 will show only port 2,3 
+  
+----
+
+Examples 
+
+
+[source,bash]
+----
+$stats -g
+
+Connected     : 127.0.0.1 4500
+Version       : 1.78 UUID : 12121212
+CPU           : 12.0 %%     
+Total TX      : 20.2 Gb/sec
+Total Rx      : 20.2 Gb/sec
+Total PPS     :     100MPPS
+Total Streams : 10
+Active ports  : 4
+----
+
+[source,bash]
+----
+$stats -p
+
+ port        0      1       2       3
+ ------------------------------------
+ owner	    my	   my      my       my   - place holder no need to implement as we takes all port avali	
+ active      on    on       off      off
+ tx-bytes   12131  0        0         0
+ rx-bytes    0     0        0         0
+ tx-pkts     0     0        0         0
+ rx-pkts     0     0        0         0
+ tx-errors   0     0        0         0
+ rx-errors   0     0        0         0
+ Tx-Bw       12gb  1.3Gb     0       0
+ Rx-Bw	    10mb   11.2mb   0       0
+----
+
+In case of more than four ports should show only the first ports or by mask ( --port mask)
+
+
+[source,bash]
+----
+$stats -ps
+
+ --- port status
+ port        0      1       2       3
+ ------------------------------------
+ port-type   I350   I350    I350     I350
+ maximum     1Gb	   1Gb	    1Gb     !gb
+ link	    on	    on       off    off
+----
+
+
+==== streams
+
+Shows the configured streams on each port/ports  
+Should show from client cache 
+
+[source,bash]
+----
+$streams [-port mask]  [-port 0xff]  [--streams mask] [-f]  [--full]  [--graph]
+
+   --port mask,  e.g --port 1 2 3 4
+   --streams mask e.g. --streams 1 2 
+   -f /--full  print stream info in a JSON format with all the information 
+   --graph : add the graph in time of each port stream  
+----
+    
+
+example
+  
+[source,bash]
+----
+$streams 
+
+port 0 : imix/a.yaml 
+
+  stream id  , packet type        , length , mode       , rate    , next    
+ + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
+ + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
+ + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
+  
+ 
+
+port 1 : imix/a.yaml
+
+ + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
+ + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
+ + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
+
+----
+
+
+show only port 1 and 2 
+
+[source,bash]
+----
+$streams --port 1 2 
+
+ ..
+ ..
+----
+
+[source,bash]
+----
+$streams --port 0 --streams 0 -f  
+
+
+ show the full info on stream 0 and port 0, print in JSON format
+
+----
+        
+
+
+
+==== start 
+
+* work on a set of ports 
+* remove all streams
+* load new streams
+* start traffic with specific multiplier 
+* limit the traffic to a specific duration  
+* port state should be stopped, in case of --force stop the port 
+* in case one of the port is not stop don't start any port
+
+[source,bash]
+----
+$start [--force] [-a] [-port 1 2 3]  [-port 0xff]  [-port clients/servers] [-f stl/imix.yaml] [-db ab] [-d 100] [-d 10m] [-d 1h] [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+  
+
+  port mask : 
+    [-a]    : all ports 
+    [-port 1 2 3]  : port 1,2 3
+    [-port 0xff]  : port by mask 
+    [-port clients/servers] : clients side or server side 
+    
+
+    
+  stream to load:
+  -f stl/imix.yaml : load from local disk the streams file 
+  --db stream that was loaded to db 
+        
+
+
+  duration:
+   -d 100 : in sec 
+   -d 10m : in min 
+   -d 1h  : in hours
+   
+   in case of no duration, it will stop only if stream should stop 
+   
+   
+  multiplier :
+  
+  -m 100    : multiply stream file by this factor
+  -m 10gb   : from graph calculate the maximum rate as this bandwidth ( for each port )
+  -m 10kpps : from graph calculate the maximum rate as this pps       ( for each port )
+  -m 40%    : from graph calculate the maximum rate as this precent from total port  ( for each port )
+
+
+  force:
+    --force stop ports if they are active 
+
+----
+
+examples
+
+
+[source,bash]
+----
+$start -a -f stl/imix.yaml  -m 10gb
+----
+start this profile on all all ports maximum bandwidth is 10gb
+
+   
+[source,bash]
+----
+$start -port 1 2 -f stl/imix.yaml  -m 100
+----
+start this profile on port 1,2  multiply by 100 
+
+
+[NOTE]
+=====================================
+ in case of start command without args, try to remember the last args given and reprint them 
+=====================================
+
+==== stop
+
+* work on a set of ports 
+* change the mode of the port to stopped
+* do not remove the streams
+* in case port state is already stopped don't do anything 
+
+[source,bash]
+----
+$stop  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] 
+
+ See ports command explanation from the start 
+
+----
+
+
+==== pause 
+
+* work on a set of ports 
+* move a wokring set of ports to a state of pause
+
+
+[source,bash]
+----
+$pause  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] 
+
+ see ports command explanation from start 
+
+----
+
+
+==== resume 
+
+* work on a set of ports 
+* move a wokring set of port to a state of resume 
+
+
+[source,bash]
+----
+$resume  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] 
+
+ see ports command explanation from start 
+
+----
+
+
+==== restart 
+
+* restart the work on the loaded streams
+* same as start without the -f /--db switch 
+
+[source,bash]
+----
+$restart  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] [-d duration] [-m multiplier]
+
+ see ports command explanation from start 
+
+----
+
+==== update 
+
+
+[source,bash]
+----
+>update   [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers]   [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+----
+Update the bandwidth multiplier for a mask of ports
+
+
+[NOTE]
+=====================================
+ Here we could add the ability to disable/enable specific stream, load new stream dynamically etc. 
+=====================================
+
+
+==== async events queue 
+
+there are two ways to know if somthing async happned 
+
+* pool the state 
+* get async event 
+
+example for events  are:
+
+* link is up/down
+* port id stoped 
+* port id start
+* errors 
+* info 
+
+
+[source,bash]
+----
+$clear_events
+----
+
+clear events queue 
+
+[source,bash]
+----
+$show_events
+----
+show a list of events from the queue 
+
+[source,bash]
+----
+$remove --event [event-id]  --top
+  --event : remove the event-id from the list 
+  --top   : remove the even from the top
+----
+
+
+[source,bash]
+----
+$wait_for_event [event-id]
+----
+wait only in script mode, simple way to wait for event like all port stopped
+
+
+==== stream database commands 
+
+* load/remove/show streams from memory 
+
+
+[source,bash]
+----
+$db_load -f [stream ] -name [name] 
+----
+
+[source,bash]
+----
+$db_remove   -name [name] 
+----
+
+[source,bash]
+----
+$db_show  [--all] [--name $name] [--full]
+----
+
+
+==== script
+
+[source,bash]
+----
+$script -f script_name  
+-----
+
+run script of commands 
+
+
+==== tui
+
+shows the stats in a textual window (like top)
+	
+[source,bash]
+----
+$tui
+----
+
+enter to a mode of Stats and present 3 type of windows
+* global/port stats/version/connected etc 
+* per port
+* per port streams info
+
+
+get keyboard 
+ q - quit the gui window
+ c - clear all counters
+
+
+=== Priorty 
+
+* logger - JSON-RPC into a file ( req/res) 
+* start/stop/stats/tui/streams/restart/reset
+* db
+* port
+* events 
+* pause/resume/restart
+
+
+=== More ideas 
+
+* define a YAML format that has ports inside so in away load each YAML to each port 
+* add ability to load range of ip/mac program in YAML file 
+   fields : 
+       name : ipv4.src
+       offset : 12
+       range : 
+          min_ip : 10.0.0.1/ipv6 addr
+          max_ip : 10.0.0.20
+          inc    : 1
+	  dec    : 1 	
+	  start  : 10.0.0.4
+       
+	name : ipv4.dest
+       	offset : 45
+         range : 
+          min_ip : 10.0.0.1
+          max_ip : 10.0.0.2
+
+  
+=== Change log
+
+[options="header",cols="^1,^h,3a"]
+|=================
+| Version |  name   |  meaning
+| 1.00    |  Hanoch Haim (hhaim) |
+- first version
+|=================
+
+
+
