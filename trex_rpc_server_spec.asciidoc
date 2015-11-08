@@ -1,8 +1,8 @@
 The TRex RPC Server
 ===================
-:author: Itay Marom
-:email: <imarom@cisco.com>
-:revnumber: 1.01
+:Author: Itay Marom, Dan Klein
+:email: trex-dev@cisco.com
+:revnumber: 1.1
 :quotes.++:
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex

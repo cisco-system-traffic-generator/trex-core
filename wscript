@@ -86,7 +86,8 @@ def options(opt):
 	opt.add_option('--exe', action='store_true', default=False, help='Execute the program after it is compiled')
 
 def configure(conf):
-	conf.find_program('asciidoc', path='/usr/local/bin/', var='ASCIIDOC')
+	conf.find_program('asciidoc', path_list='/usr/bin/', var='ASCIIDOC')
+	conf.find_program('sphinx-build', path_list='/usr/local/bin/', var='SPHINX')
 	pass;
 
 def convert_to_pdf(task):
@@ -119,17 +120,22 @@ def do_visio(bld):
 	for x in bld.path.ant_glob('visio\\*.vsd'):
 		tg = bld(rule='${VIS} -i ${SRC} -o ${TGT} ', source=x, target=x.change_ext('.png'))
 
-def build_cp_docs (trex_src_dir, dest_dir = "_build", builder = "html"):
-    build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -b {bld} {src} {dst}".format(
-        bld= builder, 
-        src= ".", 
-        dst= dest_dir)
+#def build_cp_docs (trex_src_dir, dest_dir = "_build", builder = "html"):
+def build_cp_docs (task):
+    out_dir = task.outputs[0].abspath()
+    export_path = os.path.join(os.getcwd(), 'build', 'cp_docs')
+    trex_core_git_path = os.path.join(os.getcwd(), os.pardir, "trex-core")
+    if not os.path.isdir(trex_core_git_path):
+        trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
+    if trex_core_git_path: # there exists a default directory or the desired ENV variable.
+        trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc'))
+        build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -W -b {bld} {src} {dst}".format(
+            bld= "html", 
+            src= ".", 
+            dst= out_dir)
         )
-    bld_path = os.path.abspath( os.path.join(trex_src_dir, 'scripts', 'automation', 'trex_control_plane', 'doc') )
-    ret_val = subprocess.call(build_doc_cmd, cwd = bld_path)
-    if ret_val:
-        raise RuntimeError("Build operation of control plain docs failed with return value {ret}".format(ret= ret_val))
-    return
+        return subprocess.call(build_doc_cmd, cwd = trex_core_docs_path)
+    return (1)
 
 
 def build(bld):
@@ -206,11 +212,20 @@ def build(bld):
 	bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
 		source='trex_console.asciidoc waf.css', target='trex_console.html', scan=ascii_doc_scan)
 
+#   bld(rule=build_cp_docs,
+#   	source='1.txt', target='cp_docs', scan=ascii_doc_scan)
+
 	# generate control plane documentation
 	export_path = os.path.join(os.getcwd(), 'build', 'cp_docs')
-	trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
-	if trex_core_git_path: # there exists the desired ENV variable.
-		build_cp_docs(trex_core_git_path, dest_dir= export_path)
+	trex_core_git_path = os.path.join(os.getcwd(), os.pardir, "trex-core")
+	if not os.path.isdir(trex_core_git_path):
+		trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
+	if trex_core_git_path: # there exists a default directory or the desired ENV variable.
+		trex_core_docs_path = os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc', 'index.rst')
+		bld(rule=build_cp_docs,
+#   		source = '1.txt',#trex_core_docs_path,
+			target = 'cp_docs')
+    #       build_cp_docs(trex_core_git_path, dest_dir= export_path)
 	else:
 		raise NameError("Environment variable 'TREX_CORE_GIT' is not defined.")
 
