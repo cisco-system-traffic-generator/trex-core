@@ -161,7 +161,6 @@ TEST(tuple_gen,clientPoolL) {
                0,0);
     CTupleBase result;
     uint32_t result_src;
-    uint32_t result_dest;
     uint16_t result_port;
 
     for(int i=0;i<10;i++) {
@@ -186,7 +185,6 @@ TEST(tuple_gen,clientPool) {
                0,0);
     CTupleBase result;
     uint32_t result_src;
-    uint32_t result_dest;
     uint16_t result_port;
 
     for(int i=0;i<10;i++) {
@@ -436,7 +434,6 @@ TEST(tuple_gen,template1) {
         template_1.GenerateTuple(result);
         uint32_t result_src = result.getClient();
         uint32_t result_dest = result.getServer();
-        uint16_t result_port = result.getClientPort();
         //printf(" %x %x %x \n",result_src,result_dest,result_port);
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i));
         EXPECT_EQ(result_dest, (uint32_t)(((0x12121212)) ));
@@ -489,9 +486,6 @@ TEST(tuple_gen,no_free) {
     int i;
     for (i=0; i<65557; i++) {
         template_1.GenerateTuple(result);
-        uint32_t result_src = result.getClient();
-        uint32_t result_dest = result.getServer();
-        uint16_t result_port = result.getClientPort();
     }
     // should have error
     EXPECT_TRUE((gen.getErrorAllocationCounter()>0)?true:false);
@@ -514,8 +508,6 @@ TEST(tuple_gen,try_to_free) {
     int i;
     for (i=0; i<65557; i++) {
         template_1.GenerateTuple(result);
-        uint32_t result_src = result.getClient();
-        uint32_t result_dest = result.getServer();
         uint16_t result_port = result.getClientPort();
         gen.FreePort(0,result.getClientId(),result_port);
     }

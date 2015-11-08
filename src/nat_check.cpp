@@ -171,8 +171,8 @@ void CNatRxManager::handle_packet_ipv4(CNatOption * option,
 }
 
 
-#define MYDP(f) if (f)  fprintf(fd," %-40s: %llu \n",#f,f)
-#define MYDP_A(f)     fprintf(fd," %-40s: %llu \n",#f,f)
+#define MYDP(f) if (f)  fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)f)
+#define MYDP_A(f)     fprintf(fd," %-40s: %llu \n",#f, (unsigned long long)f)
 
 
 

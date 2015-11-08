@@ -182,10 +182,10 @@ void CTimeHistogram::DumpWinMax(FILE *fd){
 }
 
 void CTimeHistogram::Dump(FILE *fd){
-    fprintf (fd," min_delta  : %lu usec \n",get_usec(m_min_delta));
+    fprintf (fd," min_delta  : %lu usec \n", (ulong)get_usec(m_min_delta));
     fprintf (fd," cnt        : %lu \n",m_cnt);
     fprintf (fd," high_cnt   : %lu \n",m_high_cnt);
-    fprintf (fd," max_d_time : %lu usec\n",get_usec(m_max_dt));
+    fprintf (fd," max_d_time : %lu usec\n", (ulong)get_usec(m_max_dt));
     //fprintf (fd," average    : %.0f usec\n", get_total_average());
     fprintf (fd," sliding_average    : %.0f usec\n", get_average_latency());
     fprintf (fd," precent    : %.1f %%\n",(100.0*(double)m_high_cnt/(double)m_cnt));
@@ -198,7 +198,7 @@ void CTimeHistogram::Dump(FILE *fd){
     for (j=0; j<HISTOGRAM_SIZE_LOG; j++) {
         for (i=0; i<HISTOGRAM_SIZE; i++) {
             if (m_hcnt[j][i] >0 ) {
-                fprintf (fd," h[%lu]  :  %lu \n",(base*(i+1)),m_hcnt[j][i]);
+                fprintf (fd," h[%u]  :  %llu \n",(base*(i+1)),(unsigned long long)m_hcnt[j][i]);
             }
         }
         base=base*10;
