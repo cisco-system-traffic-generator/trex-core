@@ -3203,7 +3203,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     assert(m_ring_to_rx);
 
     /* create the info required for stateless DP core */
-    m_stateless_dp_info = new TrexStatelessDpCore(thread_id, this);
+    m_stateless_dp_info.create(thread_id, this);
 
     return (true);
 }
@@ -3353,8 +3353,6 @@ void CFlowGenListPerThread::Delete(){
     Clean();
     m_cpu_cp_u.Delete();
 
-    delete m_stateless_dp_info;
-    m_stateless_dp_info = NULL;
 }
 
 
@@ -3401,15 +3399,24 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     bool done=false;
 
     thread->m_cpu_dp_u.start_work();
-    while (!m_p_queue.empty()) {
-        node = m_p_queue.top();
-        n_time = node->m_time+  offset;
 
-        if (( (n_time) > max_time ) && 
-            (always==false) ) {
-            /* nothing to do */
-            break;
-        }
+    /**
+     * if a positive value was given to max time 
+     * schedule an exit node 
+     */
+    if (max_time > 0) {
+        CGenNode *exit_node = thread->create_node();
+
+        exit_node->m_type = CGenNode::EXIT_SCHED;
+        exit_node->m_time = max_time;
+        add_node(exit_node);
+    }
+
+    while (true) {
+
+        node = m_p_queue.top();
+        n_time = node->m_time + offset;
+
         events++;
 /*#ifdef VALG
         if (events > 1 ) {
@@ -3507,13 +3514,19 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                     }
 
                 }else{
-                    handle_slow_messages(type,node,thread,always);
+                    bool exit_sccheduler = handle_slow_messages(type,node,thread,always);
+                    if (exit_sccheduler) {
+                        break;
+                    }
                 }
             }
         }
     }
 
   
+    /* cleanup */
+    remove_all(thread);
+
     if (!always) {
         old_offset =offset;
     }else{
@@ -3523,10 +3536,14 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     return (0);
 }
 
-void CNodeGenerator::handle_slow_messages(uint8_t type,
-                                          CGenNode * node,
-                                          CFlowGenListPerThread * thread,
-                                          bool always){
+bool
+CNodeGenerator::handle_slow_messages(uint8_t type,
+                                     CGenNode * node,
+                                     CFlowGenListPerThread * thread,
+                                     bool always){
+
+    /* should we continue after */
+    bool exit_scheduler = false;
 
     if (unlikely (type == CGenNode::FLOW_DEFER_PORT_RELEASE) ) {
         m_p_queue.pop();
@@ -3547,7 +3564,7 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                         m_p_queue.pop();
                         /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
                         thread->terminate_nat_flows(node);
-                        return;
+                        return (exit_scheduler);
 
                     }else{
                         flush_one_node_to_file(node);
@@ -3585,14 +3602,15 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                 thread->free_node(node);
             }
 
-          /* must be the last section of processing */
         } else if ( type == CGenNode::EXIT_SCHED ) {
-            remove_all(thread);
+            exit_scheduler = true;
 
         } else {
             printf(" ERROR type is not valid %d \n",type);
             assert(0);
         }
+
+        return exit_scheduler;
 }
 
 
@@ -3831,7 +3849,7 @@ void CFlowGenListPerThread::handel_nat_msg(CGenNodeNatInfo * msg){
 void CFlowGenListPerThread::check_msgs(void) {
 
     /* inlined for performance */
-    m_stateless_dp_info->periodic_check_for_cp_messages();
+    m_stateless_dp_info.periodic_check_for_cp_messages();
 
     if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return;
@@ -3908,7 +3926,7 @@ const uint8_t test_udp_pkt[]={
 
 void CFlowGenListPerThread::start_stateless_daemon(){
     m_cur_time_sec = 0;
-    m_stateless_dp_info->start();
+    m_stateless_dp_info.start();
 }
 
 

@@ -30,7 +30,9 @@ usec_to_sec(double usec) {
     return (usec / (1000 * 1000));
 }
 
-TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core) {
+
+void
+TrexStatelessDpCore::create(uint8_t thread_id, CFlowGenListPerThread *core) {
     m_thread_id = thread_id;
     m_core = core;
 
@@ -73,7 +75,7 @@ TrexStatelessDpCore::start_scheduler() {
     m_core->m_node_gen.add_node(node_sync);
 
     double old_offset = 0.0;
-    m_core->m_node_gen.flush_file(100000000, 0.0, false, m_core, old_offset);
+    m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
 }
 
 void
@@ -176,14 +178,14 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
         m_state = STATE_IDLE;
         /* stop the scheduler */
 
-         CGenNode *node = m_core->create_node() ;
+        CGenNode *node = m_core->create_node() ;
 
-         node->m_type = CGenNode::EXIT_SCHED;
+        node->m_type = CGenNode::EXIT_SCHED;
 
-         /* make sure it will be scheduled after the current node */
-         node->m_time = m_core->m_node_gen.m_p_queue.top()->m_time;
+        /* make sure it will be scheduled after the current node */
+        node->m_time = m_core->m_cur_time_sec + 0.0001;
 
-         m_core->m_node_gen.add_node(node);
+        m_core->m_node_gen.add_node(node);
     }
     
 }

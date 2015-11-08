@@ -87,8 +87,8 @@ class CTRexStatelessClient(object):
                 # print kwargs
                 port_ids = kwargs.get("port_id")
                 if not port_ids:
-                    print "FROM ARGS!"
-                    print args
+                    #print "FROM ARGS!"
+                    #print args
                     port_ids = args[0]
                 if isinstance(port_ids, int):
                     # make sure port_ids is a list

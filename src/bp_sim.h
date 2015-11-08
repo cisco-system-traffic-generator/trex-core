@@ -1901,9 +1901,10 @@ private:
         return (m_v_if->send_node(node));
     }
     int   update_stats(CGenNode * node);
-    FORCE_NO_INLINE void  handle_slow_messages(uint8_t type,
-                                             CGenNode * node,
-                                             CFlowGenListPerThread * thread,
+
+    FORCE_NO_INLINE bool handle_slow_messages(uint8_t type,
+                                              CGenNode * node,
+                                              CFlowGenListPerThread * thread,
                                               bool always);
 
 
@@ -3500,7 +3501,7 @@ private:
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
 
-    TrexStatelessDpCore              *m_stateless_dp_info;
+    TrexStatelessDpCore              m_stateless_dp_info;
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 
