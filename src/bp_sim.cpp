@@ -3412,7 +3412,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
      * if a positive value was given to max time 
      * schedule an exit node 
      */
-    if (max_time > 0) {
+    if ( (max_time > 0) && (!always) ) {
         CGenNode *exit_node = thread->create_node();
 
         exit_node->m_type = CGenNode::EXIT_SCHED;
@@ -3420,7 +3420,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         add_node(exit_node);
     }
 
-    while (true) {
+    while (!m_p_queue.empty()) {
 
         node = m_p_queue.top();
         n_time = node->m_time + offset;
@@ -3532,9 +3532,6 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     }
 
   
-    /* cleanup */
-    remove_all(thread);
-
     if (!always) {
         old_offset =offset;
     }else{
@@ -3611,8 +3608,10 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
             }
 
         } else if ( type == CGenNode::EXIT_SCHED ) {
+            m_p_queue.pop();
+            thread->free_node(node);
             exit_scheduler = true;
-
+            
         } else {
             printf(" ERROR type is not valid %d \n",type);
             assert(0);

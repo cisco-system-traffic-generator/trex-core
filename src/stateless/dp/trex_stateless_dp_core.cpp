@@ -76,6 +76,7 @@ TrexStatelessDpCore::start_scheduler() {
 
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
+    m_core->m_node_gen.close_file(m_core);
 }
 
 void
