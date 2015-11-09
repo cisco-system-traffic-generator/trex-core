@@ -37,10 +37,6 @@ class TrexRpcCmdAddStream;
  * 
  */
 class TrexStream {
-    /* provide the RPC parser a way to access private fields */
-    friend class TrexRpcCmdAddStream;
-    friend class TrexRpcCmdGetStream;
-    friend class TrexStreamTable;
 
 public:
     TrexStream(uint8_t port_id, uint32_t stream_id);
@@ -56,7 +52,7 @@ public:
     /* access the stream json */
     const Json::Value & get_stream_json();
 
-protected:
+public:
     /* basic */
     uint8_t       m_port_id;
     uint32_t      m_stream_id;
@@ -189,13 +185,22 @@ public:
      * 
      * @param stream_list 
      */
-    void get_stream_list(std::vector<uint32_t> &stream_list);
+    void get_id_list(std::vector<uint32_t> &id_list);
+
+    /**
+     * populate a list with all the stream objects
+     * 
+     */
+    void get_object_list(std::vector<TrexStream *> &object_list);
 
     /**
      * get the table size
      * 
      */
     int size();
+
+    std::unordered_map<int, TrexStream *>::iterator begin() {return m_stream_table.begin();}
+    std::unordered_map<int, TrexStream *>::iterator end() {return m_stream_table.end();}
 
 private:
     /**

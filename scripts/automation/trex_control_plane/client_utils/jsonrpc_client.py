@@ -6,6 +6,9 @@ import json
 import general_utils
 import re
 from time import sleep
+from collections import namedtuple
+
+CmdResponse = namedtuple('CmdResponse', ['success', 'data'])
 
 class bcolors:
     BLUE = '\033[94m'
@@ -23,12 +26,12 @@ class BatchMessage(object):
         self.rpc_client = rpc_client
         self.batch_list = []
 
-    def add (self, method_name, params = {}):
+    def add (self, method_name, params={}):
 
         id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, encode = False)
         self.batch_list.append(msg)
 
-    def invoke (self, block = False):
+    def invoke(self, block = False):
         if not self.rpc_client.connected:
             return False, "Not connected to server"
 
@@ -36,9 +39,9 @@ class BatchMessage(object):
 
         rc, resp_list = self.rpc_client.send_raw_msg(msg, block = False)
         if len(self.batch_list) == 1:
-            return True, [(rc, resp_list)]
+            return CmdResponse(True, [CmdResponse(rc, resp_list)])
         else:
-            return rc, resp_list
+            return CmdResponse(rc, resp_list)
 
 
 # JSON RPC v2.0 client
@@ -47,7 +50,7 @@ class JsonRpcClient(object):
     def __init__ (self, default_server, default_port):
         self.verbose = False
         self.connected = False
-        
+
         # default values
         self.port   = default_port
         self.server = default_server
@@ -73,7 +76,7 @@ class JsonRpcClient(object):
             # float
             pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*\.[0-9]+)',r'\1{0}\2{1}'.format(bcolors.MAGENTA, bcolors.ENDC), pretty_str)
             # strings
-            
+
             pretty_str = re.sub(r'([ ]*:[ ]+)("[^"]*")',r'\1{0}\2{1}'.format(bcolors.RED, bcolors.ENDC), pretty_str)
             pretty_str = re.sub(r"('[^']*')", r'{0}\1{1}'.format(bcolors.MAGENTA, bcolors.RED), pretty_str)
         except :
@@ -115,7 +118,7 @@ class JsonRpcClient(object):
 
         return self.send_raw_msg(msg, block)
 
-    
+
     # low level send of string message
     def send_raw_msg (self, msg, block = False):
         self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
@@ -127,7 +130,7 @@ class JsonRpcClient(object):
                 self.socket.send(msg, flags = zmq.NOBLOCK)
             except zmq.error.ZMQError as e:
                 self.disconnect()
-                return False, "Failed To Get Send Message"
+                return CmdResponse(False, "Failed To Get Send Message")
 
         got_response = False
 
@@ -145,7 +148,7 @@ class JsonRpcClient(object):
 
         if not got_response:
             self.disconnect()
-            return False, "Failed To Get Server Response"
+            return CmdResponse(False, "Failed To Get Server Response")
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
 
@@ -159,13 +162,13 @@ class JsonRpcClient(object):
 
             for single_response in response_json:
                 rc, msg = self.process_single_response(single_response)
-                rc_list.append( (rc, msg) )
+                rc_list.append( CmdResponse(rc, msg) )
 
-            return True, rc_list
+            return CmdResponse(True, rc_list)
 
         else:
             rc, msg = self.process_single_response(response_json)
-            return rc, msg
+            return CmdResponse(rc, msg)
 
 
     def process_single_response (self, response_json):
@@ -182,7 +185,7 @@ class JsonRpcClient(object):
 
         # if no error there should be a result
         if ("result" not in response_json):
-            return False, "Malfromed Response ({0})".format(str(response))
+            return False, "Malformed Response ({0})".format(str(response))
 
         return True, response_json["result"]
 
@@ -200,7 +203,7 @@ class JsonRpcClient(object):
         else:
             return False, "Not connected to server"
 
-    def connect(self, server = None, port = None):
+    def connect(self, server=None, port=None):
         if self.connected:
             self.disconnect()
 
@@ -511,3 +514,6 @@ class TrexStatelessClient(JsonRpcClient):
         return True, resp_list
 
         # return self.invoke_rpc_method('add_stream', params = params)
+
+if __name__ == "__main__":
+    pass

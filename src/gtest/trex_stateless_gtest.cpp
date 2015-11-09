@@ -82,7 +82,7 @@ private:
 
 void CTRexDpStreamModeSingleBurst::dump(FILE *fd){
     fprintf (fd," pps           : %f \n",m_pps);
-    fprintf (fd," total_packets : %llu \n",m_total_packets);
+    fprintf (fd," total_packets : %llu \n", (unsigned long long)m_total_packets);
 }
 
 
@@ -130,9 +130,9 @@ private:
 
 void CTRexDpStreamModeMultiBurst::dump(FILE *fd){
     fprintf (fd," pps           : %f \n",m_pps);
-    fprintf (fd," total_packets : %llu \n",m_pkts_per_burst);
+    fprintf (fd," total_packets : %llu \n", (unsigned long long)m_pkts_per_burst);
     fprintf (fd," ibg           : %f \n",m_ibg);
-    fprintf (fd," num_of_bursts : %llu \n",m_number_of_bursts);
+    fprintf (fd," num_of_bursts : %lu \n", (ulong)m_number_of_bursts);
 }
 
 

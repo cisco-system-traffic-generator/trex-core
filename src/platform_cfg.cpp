@@ -127,7 +127,7 @@ void CPlatformMemoryYamlInfo::Dump(FILE *fd){
 
     int i=0; 
     for (i=0; i<MBUF_SIZE; i++) {
-        fprintf(fd," %-40s  : %lu \n",names[i].c_str(),m_mbuf[i]);
+        fprintf(fd," %-40s  : %lu \n",names[i].c_str(), (ulong)m_mbuf[i]);
     }
 }
              
@@ -300,6 +300,10 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         plat_info.m_telnet_exist=true;
     }
 
+    if ( node.FindValue("zmq_rpc_port") ){
+        node["zmq_rpc_port"] >> plat_info.m_zmq_rpc_port;
+    }
+
     if ( node.FindValue("port_bandwidth_gb") ){
         node["port_bandwidth_gb"] >> plat_info.m_port_bandwidth_gb;
     }
@@ -375,7 +379,7 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     }else{
     fprintf(fd," port limit     :  not configured \n");
     }
-    fprintf(fd," port_bandwidth_gb    :  %lu \n",m_port_bandwidth_gb);
+    fprintf(fd," port_bandwidth_gb    :  %lu \n", (ulong)m_port_bandwidth_gb);
     
     if ( m_if_mask_exist && m_if_mask.size() ) {
     fprintf(fd," if_mask        : ");
@@ -383,7 +387,7 @@ void CPlatformYamlInfo::Dump(FILE *fd){
         for (i=0; i<(int)m_if_mask.size(); i++) {
             fprintf(fd," %s,",m_if_mask[i].c_str());
         }
-        fprintf(fd,"\n",m_if_mask[i].c_str());
+        fprintf(fd,"\n");
 
     }else{
     fprintf(fd," if_mask        : None \n");

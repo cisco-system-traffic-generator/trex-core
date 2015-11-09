@@ -23,7 +23,7 @@ class CStreamList(object):
         if name in self.streams_list:
             raise NameError("A stream with this name already exists on this list.")
         self.streams_list[name]=stream_obj
-        return
+        return name
 
     def remove_stream(self, name):
         popped = self.streams_list.pop(name)
@@ -48,6 +48,7 @@ class CStreamList(object):
         self.streams_list.clear()
         streams_data = load_yaml_to_obj(file_path)
         assert isinstance(streams_data, list)
+        new_streams_data = []
         for stream in streams_data:
             stream_name = stream.get("name")
             raw_stream = stream.get("stream")
@@ -58,10 +59,11 @@ class CStreamList(object):
             new_stream_data = self.yaml_loader.validate_yaml(raw_stream,
                                                              "stream",
                                                              multiplier= multiplier)
+            new_streams_data.append(new_stream_data)
             new_stream_obj = CStream()
             new_stream_obj.load_data(**new_stream_data)
             self.append_stream(stream_name, new_stream_obj)
-        return new_stream_data
+        return new_streams_data
 
     def compile_streams(self):
         # first, assign an id to each stream
@@ -156,7 +158,6 @@ class CStream(object):
     """docstring for CStream"""
 
     FIELDS = ["enabled", "self_start", "next_stream_id", "isg", "mode", "rx_stats", "packet", "vm"]
-    # COMPILE_FIELDS = ["enabled", "self_start", "next_stream_id", "isg", "mode", "rx_stats", "packet", "vm"]
 
     def __init__(self):
         self.is_loaded = False
@@ -183,6 +184,7 @@ class CStream(object):
                     if isinstance(kwargs[k], CTRexPktBuilder):
                         if "vm" not in kwargs:
                             self.load_packet_obj(kwargs[k])
+                            break # vm field check is skipped
                         else:
                             raise ValueError("When providing packet object with a CTRexPktBuilder, vm parameter "
                                              "should not be supplied")
@@ -226,8 +228,7 @@ class CStream(object):
         return
 
 
-    def dump(self, compilation=False):
-        # fields = CStream.COMPILE_FIELDS if compilation else CStream.FIELDS
+    def dump(self):
         if self.is_loaded:
             dump = {}
             for key in CStream.FIELDS:
@@ -238,10 +239,6 @@ class CStream(object):
             return dump
         else:
             raise RuntimeError("CStream object isn't loaded with data. Use 'load_data' method.")
-
-    def dump_compiled(self):
-        return self.dump(compilation=True)
-
 
 
 if __name__ == "__main__":

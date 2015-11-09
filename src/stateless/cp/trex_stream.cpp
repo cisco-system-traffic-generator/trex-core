@@ -20,6 +20,7 @@ limitations under the License.
 */
 #include <trex_stream.h>
 #include <cstddef>
+#include <string.h>
 
 /**************************************
  * stream
@@ -103,14 +104,24 @@ TrexStream * TrexStreamTable::get_stream_by_id(uint32_t stream_id) {
     }
 }
 
-void TrexStreamTable::get_stream_list(std::vector<uint32_t> &stream_list) {
-    stream_list.clear();
+void TrexStreamTable::get_id_list(std::vector<uint32_t> &id_list) {
+    id_list.clear();
 
     for (auto stream : m_stream_table) {
-        stream_list.push_back(stream.first);
+        id_list.push_back(stream.first);
     }
+}
+
+void TrexStreamTable::get_object_list(std::vector<TrexStream *> &object_list) {
+    object_list.clear();
+
+    for (auto stream : m_stream_table) {
+        object_list.push_back(stream.second);
+    }
+
 }
 
 int TrexStreamTable::size() {
     return m_stream_table.size();
 }
+

@@ -22,6 +22,7 @@ limitations under the License.
 */
 
 #include <stdint.h>
+#include <time.h>
 
 typedef uint64_t   hr_time_t; // time in high res tick 
 typedef uint32_t   hr_time_32_t; // time in high res tick 
@@ -128,6 +129,25 @@ static inline dsec_t now_sec(void){
 	return ( ptime_convert_hr_dsec(d) );
 }
 
+
+static inline 
+void delay(int msec){
+
+    if (msec == 0) 
+    {//user that requested that probebly wanted the minimal delay 
+     //but because of scaling problem he have got 0 so we will give the min delay 
+     //printf("\n\n\nERROR-Task delay ticks == 0 found in task %s task id = %d\n\n\n\n", 
+     //       SANB_TaskName(SANB_TaskIdSelf()), SANB_TaskIdSelf());
+     msec =1;
+
+    } 
+
+    struct timespec time1, remain; // 2 sec max delay
+    time1.tv_sec=msec/1000;
+    time1.tv_nsec=(msec - (time1.tv_sec*1000))*1000000;
+
+    nanosleep(&time1,&remain);
+}
 
 
 

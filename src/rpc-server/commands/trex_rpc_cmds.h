@@ -99,11 +99,16 @@ void parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, 
 
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetAllStreams, "get_all_streams", 2, true);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 2, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, true);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic, "start_traffic", 1, true);
+
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic, "start_traffic", 2, true);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic, "stop_traffic", 1, true);
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSyncUser, "sync_user", 2, false);
 
 
 #endif /* __TREX_RPC_CMD_H__ */

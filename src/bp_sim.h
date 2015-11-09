@@ -57,6 +57,8 @@ limitations under the License.
 #include <arpa/inet.h>
 #include "platform_cfg.h"
 
+#include <trex_stateless_dp_core.h>
+
 #undef NAT_TRACE_
 
 
@@ -359,6 +361,25 @@ public:
      * @return 
      */
     virtual int flush_tx_queue(void)=0;
+
+
+    /**
+     * update the source and destination mac-addr of a given mbuf by global database
+     * 
+     * @param dir
+     * @param m
+     * 
+     * @return 
+     */
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m)=0;
+
+    /**
+     * translate a port_id to the correct dir on the core
+     * 
+     */
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
+        return (CS_INVALID);
+    }
 
 public:
 
@@ -721,6 +742,7 @@ public:
         m_run_mode = RUN_MODE_INVALID;
     }
 
+
     CPreviewMode    preview;
     float           m_factor;
     float           m_duration;
@@ -741,8 +763,9 @@ public:
     uint16_t        m_run_flags;
     uint8_t         m_mac_splitter;
     uint8_t         m_pad;
-
     trex_run_mode_e    m_run_mode;
+
+
 
     std::string        cfg_file;
     std::string        mac_file;
@@ -776,6 +799,10 @@ public:
     }
     bool is_latency_disabled(){
         return ( m_latency_rate == 0 ?true:false);
+    }
+
+    bool is_stateless(){
+        return (m_run_mode == RUN_MODE_INTERACTIVE ?true:false);
     }
 
     bool is_latency_enabled(){
@@ -867,6 +894,8 @@ public:
     /* number of main active sockets. socket #0 is always used  */
     virtual socket_id_t max_num_active_sockets()=0;
 
+    virtual ~CPlatformSocketInfoBase() {}
+    
 public:
     /* which socket to allocate memory to each port */
     virtual socket_id_t port_to_socket(port_id_t port)=0;
@@ -1181,12 +1210,15 @@ public:
 public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
 
-    static uint32_t          m_nodes_pool_size;     
-    static CParserOption     m_options;
-    static CGlobalMemory     m_memory_cfg;
-    static CPlatformSocketInfo m_socket;
+    static uint32_t              m_nodes_pool_size;     
+    static CParserOption         m_options;
+    static CGlobalMemory         m_memory_cfg;
+    static CPlatformSocketInfo   m_socket;
 };
 
+static inline int get_is_stateless(){
+    return (CGlobalInfo::m_options.is_stateless() );
+}
 
 static inline int get_is_rx_check_mode(){
     return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);
@@ -1307,8 +1339,8 @@ public:
 
 
 
-#define DP(f) if (f) printf(" %-40s: %llu \n",#f,f)
-#define DP_name(n,f) if (f) printf(" %-40s: %llu \n",n,f)
+#define DP(f) if (f) printf(" %-40s: %llu \n",#f,(unsigned long long)f)
+#define DP_name(n,f) if (f) printf(" %-40s: %llu \n",n,(unsigned long long)f)
 
 #define DP_S(f,f_s) if (f) printf(" %-40s: %s \n",#f,f_s.c_str())
 
@@ -1333,15 +1365,18 @@ class CCapFileFlowInfo ;
 /* this is a simple struct, do not add constructor and destractor here!
    we are optimizing the allocation dealocation !!!
  */
-struct CGenNode  {
+
+struct CGenNodeBase  {
 public:
 
     enum {
-        FLOW_PKT=0,
-        FLOW_FIF=1,
-        FLOW_DEFER_PORT_RELEASE=2,
-        FLOW_PKT_NAT=3,
-        FLOW_SYNC=4     /* called evey 1 msec */
+        FLOW_PKT                =0,
+        FLOW_FIF                =1,
+        FLOW_DEFER_PORT_RELEASE =2,
+        FLOW_PKT_NAT            =3,
+        FLOW_SYNC               =4,     /* called evey 1 msec */
+        STATELESS_PKT           =5,
+        EXIT_SCHED              =6
 
     };
 
@@ -1349,7 +1384,7 @@ public:
     enum {
         NODE_FLAGS_DIR                  =1,
         NODE_FLAGS_MBUF_CACHE           =2,
-		NODE_FLAGS_SAMPLE_RX_CHECK      =4,
+        NODE_FLAGS_SAMPLE_RX_CHECK      =4,
 
         NODE_FLAGS_LEARN_MODE           =8,   /* bits 3,4 MASK 0x18 wait for second direction packet */
         NODE_FLAGS_LEARN_MSG_PROCESSED  =0x10,   /* got NAT msg */
@@ -1360,19 +1395,49 @@ public:
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100 /* init packet start from server side with server addr */
     };
 
+
 public:
-    /* C1 */
+    /*********************************************/
+    /* C1  must */
     uint8_t             m_type;
     uint8_t             m_thread_id; /* zero base */
     uint8_t             m_socket_id;
-    uint8_t            m_pad2;
+    uint8_t             m_pad2;
 
     uint16_t            m_src_port;
     uint16_t            m_flags; /* BIT 0 - DIR ,
                                     BIT 1 - mbug_cache 
 									BIT 2 - SAMPLE DUPLICATE */
 
-    double              m_time;
+    double              m_time;    /* can't change this header - size 16 bytes*/
+
+public:
+    bool operator <(const CGenNodeBase * rsh ) const {
+        return (m_time<rsh->m_time);
+    }
+    bool operator ==(const CGenNodeBase * rsh ) const {
+        return (m_time==rsh->m_time);
+    }
+    bool operator >(const CGenNodeBase * rsh ) const {
+        return (m_time>rsh->m_time);
+    }
+
+public:
+    void set_socket_id(socket_id_t socket){
+        m_socket_id=socket;
+    }
+
+    socket_id_t get_socket_id(){
+        return ( m_socket_id );
+    }
+
+
+};
+
+
+struct CGenNode : public CGenNodeBase  {
+
+public:
 
     uint32_t        m_src_ip;  /* client ip */
     uint32_t        m_dest_ip; /* server ip */
@@ -1402,25 +1467,8 @@ public:
     uint32_t            m_end_of_cache_line[6];
 
 public:
-    bool operator <(const CGenNode * rsh ) const {
-        return (m_time<rsh->m_time);
-    }
-    bool operator ==(const CGenNode * rsh ) const {
-        return (m_time==rsh->m_time);
-    }
-    bool operator >(const CGenNode * rsh ) const {
-        return (m_time>rsh->m_time);
-    }
-public:
     void Dump(FILE *fd);
 
-    void set_socket_id(socket_id_t socket){
-        m_socket_id=socket;
-    }
-
-    socket_id_t get_socket_id(){
-        return ( m_socket_id );
-    }
 
 
     static void DumpHeader(FILE *fd);
@@ -1603,6 +1651,7 @@ public:
 } __rte_cache_aligned;
 
 
+
 #if __x86_64__
 /* size of 64 bytes */
     #define DEFER_CLIENTS_NUM (16)
@@ -1647,19 +1696,29 @@ public:
    need to clean this up and derive this objects from base object but require too much refactoring right now
    hhaim
 */
+
+#define COMPARE_NODE_OBJECT(NODE_NAME)     if ( sizeof(NODE_NAME) != sizeof(CGenNode)  ) { \
+                                            printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same size \n",#NODE_NAME,sizeof(NODE_NAME),sizeof(CGenNode)); \
+                                            assert(0); \
+                                            }\
+                                            if ( (int)offsetof(struct NODE_NAME,m_type)!=offsetof(struct CGenNodeBase,m_type) ){\
+                                            printf("ERROR offsetof(struct %s,m_type)!=offsetof(struct CGenNodeBase,m_type) \n",#NODE_NAME);\
+                                            assert(0);\
+                                            }\
+                                            if ( (int)offsetof(struct CGenNodeDeferPort,m_time)!=offsetof(struct CGenNodeBase,m_time) ){\
+                                            printf("ERROR offsetof(struct %s,m_time)!=offsetof(struct CGenNodeBase,m_time) \n",#NODE_NAME);\
+                                            assert(0);\
+                                            }
+
+#define COMPARE_NODE_OBJECT_SIZE(NODE_NAME)     if ( sizeof(NODE_NAME) != sizeof(CGenNode)  ) { \
+                                            printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same size \n",#NODE_NAME,sizeof(NODE_NAME),sizeof(CGenNode)); \
+                                            assert(0); \
+                                            }
+
+
+
 inline int check_objects_sizes(void){
-    if ( sizeof(CGenNodeDeferPort) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeDeferPort) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeDeferPort),sizeof(CGenNode));
-        assert(0);
-    }
-    if ( (int)offsetof(struct CGenNodeDeferPort,m_type)!=offsetof(struct CGenNode,m_type) ){
-        printf("ERROR offsetof(struct CGenNodeDeferPort,m_type)!=offsetof(struct CGenNode,m_type) \n");
-        assert(0);
-    }
-    if ( (int)offsetof(struct CGenNodeDeferPort,m_time)!=offsetof(struct CGenNode,m_time) ){
-        printf("ERROR offsetof(struct CGenNodeDeferPort,m_time)!=offsetof(struct CGenNode,m_time) \n");
-        assert(0);
-    }
+    COMPARE_NODE_OBJECT(CGenNodeDeferPort);
     return (0);
 }
 
@@ -1717,6 +1776,11 @@ public:
     virtual int open_file(std::string file_name);
     virtual int write_pkt(CCapPktRaw *pkt_raw);
     virtual int close_file(void);
+
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+        return (0);
+    }
+
 
 
     /**
@@ -1779,6 +1843,10 @@ public:
         return (0);
     }
 
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+        return (0);
+    }
+
 
     virtual int send_node(CGenNode * node);
 
@@ -1799,6 +1867,7 @@ public:
     CFlowGenListPerThread  *  Parent(){
         return (m_parent);
     }
+
 public:
     void  add_node(CGenNode * mynode);
     void  remove_all(CFlowGenListPerThread * thread);
@@ -1830,11 +1899,14 @@ public:
 
 
 private:
-    int   flush_one_node_to_file(CGenNode * node);
+    inline int   flush_one_node_to_file(CGenNode * node){
+        return (m_v_if->send_node(node));
+    }
     int   update_stats(CGenNode * node);
-    FORCE_NO_INLINE void  handle_slow_messages(uint8_t type,
-                                             CGenNode * node,
-                                             CFlowGenListPerThread * thread,
+
+    FORCE_NO_INLINE bool handle_slow_messages(uint8_t type,
+                                              CGenNode * node,
+                                              CFlowGenListPerThread * thread,
                                               bool always);
 
 
@@ -2310,6 +2382,7 @@ public:
             return (uint32_t)((uintptr_t)( ((char *)l3.m_ipv4)-getBasePtr()) );
         }else{
             BP_ASSERT(0);
+            return (0);
         }
     }
 
@@ -3325,13 +3398,21 @@ public :
 
 
     inline CGenNode * create_node(void);
+    inline CGenNodeStateless * create_node_sl(void){
+        return ((CGenNodeStateless*)create_node() );
+    }
+
+
     inline void free_node(CGenNode *p);
     inline void free_last_flow_node(CGenNode *p);
 
 
 public:
     void Clean();
-    void generate_erf(std::string erf_file_name,CPreviewMode &preview);
+    void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
+    void start_stateless_daemon();
+
+
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
     void DumpStats(FILE *fd);
@@ -3344,6 +3425,7 @@ public:
 
 private:
     void check_msgs(void);
+
     void handel_nat_msg(CGenNodeNatInfo * msg);
     void handel_latecy_pkt_msg(CGenNodeLatencyPktInfo * msg);
 
@@ -3421,7 +3503,12 @@ private:
     CNodeRing *                      m_ring_to_rx;   /* ring dp -> latency thread */
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
-};
+
+    TrexStatelessDpCore              m_stateless_dp_info;
+
+private:
+    uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 
+} __rte_cache_aligned ;
 
 inline CGenNode * CFlowGenListPerThread::create_node(void){
     CGenNode * res;

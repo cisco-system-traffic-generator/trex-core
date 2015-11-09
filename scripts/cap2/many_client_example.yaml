@@ -1,0 +1,42 @@
+- duration : 1.0
+  generator :  
+          distribution : "random"
+          clients_start : "20.0.0.1"
+          clients_end   : "20.10.85.255"
+          servers_start : "90.0.0.1"
+          servers_end   : "90.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 0
+          udp_aging      : 0
+          generator_clients :
+              - name : "c1"
+                distribution : "random"
+                ip_start : "21.0.0.1"
+                ip_end : "21.10.255.255"
+              - name : "c2"
+                distribution : "random"
+                ip_start : "36.0.0.1"
+                ip_end : "36.0.1.254"
+          generator_servers :
+              - name : "s1"
+                distribution : "random"
+                ip_start : "22.0.0.1"
+                ip_end : "22.1.255.255"
+                track_ports : false
+              - name : "s2"
+                distribution : "random"
+                ip_start : "38.0.0.1"
+                ip_end : "38.0.3.255"
+                track_ports : false
+  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
+  cap_info : 
+     - name: cap2/http_get.pcap
+       client_pool: "c1"
+       server_pool: "s1"
+       cps : 1.0
+       ipg : 100
+       rtt : 10000
+       w   : 1
+       

@@ -52,7 +52,7 @@ void IPHeader::dump(FILE *fd)
 {
     fprintf(fd, "\nIPHeader");
     fprintf(fd, "\nSource 0x%.8lX, Destination 0x%.8lX, Protocol 0x%.1X",
-            getSourceIp(), getDestIp(), getProtocol());
+            (ulong)getSourceIp(), (ulong)getDestIp(), (uint)getProtocol());
     fprintf(fd, "\nTTL : %d, Id : 0x%.2X, Ver %d, Header Length %d, Total Length %d",
             getTimeToLive(), getId(), getVersion(), getHeaderLength(), getTotalLength());
     if(isFragmented())

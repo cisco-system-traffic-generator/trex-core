@@ -42,12 +42,15 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdRelease());
     register_command(new TrexRpcCmdGetPortStats());
 
+    register_command(new TrexRpcCmdSyncUser());
+
     /* stream commands */
     register_command(new TrexRpcCmdAddStream());
     register_command(new TrexRpcCmdRemoveStream());
     register_command(new TrexRpcCmdRemoveAllStreams());
     register_command(new TrexRpcCmdGetStreamList());
     register_command(new TrexRpcCmdGetStream());
+    register_command(new TrexRpcCmdGetAllStreams());
     register_command(new TrexRpcCmdStartTraffic());
     register_command(new TrexRpcCmdStopTraffic());
 }

@@ -30,9 +30,10 @@ limitations under the License.
                                  
 
 typedef enum {
-    CLIENT_SIDE=0,    
-    SERVER_SIDE=1,    
-    CS_NUM=2
+    CLIENT_SIDE = 0,    
+    SERVER_SIDE = 1,    
+    CS_NUM = 2,
+    CS_INVALID = 255
 } pkt_dir_enum_t;
 
 typedef uint8_t   pkt_dir_t  ;

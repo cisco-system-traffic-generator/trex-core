@@ -66,7 +66,7 @@ int test_priorty_queue(void){
     int i;
     for (i=0; i<10; i++) {
          node = new CGenNode();
-         printf(" +%x \n",node);
+         printf(" +%p \n",node);
          node->m_flow_id = 10-i; 
          node->m_pkt_info = (CFlowPktInfo *)(uintptr_t)i; 
          node->m_time = (double)i+0.1; 
@@ -74,7 +74,7 @@ int test_priorty_queue(void){
     }
     while (!p_queue.empty()) {
         node = p_queue.top();
-        printf(" -->%x \n",node);
+        printf(" -->%p \n",node);
         //node->Dump(stdout);
         p_queue.pop();
         //delete node;
@@ -159,7 +159,7 @@ public:
 
     bool  init(void){
 
-        uint16 * ports;
+        uint16 * ports = NULL;
         CTupleBase tuple;
 
         CErfIF erf_vif;
@@ -205,7 +205,7 @@ public:
                 }
             }
 
-            lpt->generate_erf(buf,CGlobalInfo::m_options.preview);
+            lpt->start_generate_stateful(buf,CGlobalInfo::m_options.preview);
             lpt->m_node_gen.DumpHist(stdout);
 
             cmp.d_sec = m_time_diff;
@@ -663,6 +663,7 @@ TEST_F(basic, latency1) {
     po->preview.setFileWrite(true);
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
 
     CErfIF  erf_vif;
     erf_vif.set_review_mode(&CGlobalInfo::m_options.preview);
@@ -714,6 +715,7 @@ TEST_F(basic, latency2) {
 
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
 
     mac[0]=0;
     mac[1]=0;
@@ -728,14 +730,13 @@ TEST_F(basic, latency2) {
 
     int i;
     for (i=0; i<100; i++) {
-        uint8_t *p;
         rte_mbuf_t * m=l.generate_pkt(0);
-        p=rte_pktmbuf_mtod(m, uint8_t*);
+        rte_pktmbuf_mtod(m, uint8_t*);
         //utl_DumpBuffer(stdout,p,l.get_pkt_size(),0);
 
         port0.update_packet(m);
 
-        p=rte_pktmbuf_mtod(m, uint8_t*);
+        rte_pktmbuf_mtod(m, uint8_t*);
         //utl_DumpBuffer(stdout,p,l.get_pkt_size(),0);
         //printf("offset is : %d \n",l.get_payload_offset());
 
@@ -763,6 +764,7 @@ TEST_F(basic, latency3) {
 
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
 
 
     mac[0]=0;
@@ -850,6 +852,7 @@ public:
 TEST_F(basic, latency4) {
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
     
     mac[0]=0;
     mac[1]=0;
@@ -2031,6 +2034,10 @@ public:
     virtual int send_node(CGenNode * node);
 
 
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+        return (0);
+    }
+
 
     /**
      * flush all pending packets into the stream 
@@ -2105,7 +2112,7 @@ public:
         int i;
         for (i=0; i<m_threads; i++) {
             lpt=fl.m_threads_info[i];
-            lpt->generate_erf("t1",CGlobalInfo::m_options.preview);
+            lpt->start_generate_stateful("t1",CGlobalInfo::m_options.preview);
         }
         fl.Delete();
         return (true);
@@ -2121,7 +2128,7 @@ class CRxCheck1 : public CRxCheckCallbackBase {
 public:
 
     virtual void handle_packet(rte_mbuf_t  * m){
-        char *mp=rte_pktmbuf_mtod(m, char*);
+        rte_pktmbuf_mtod(m, char*);
         CRx_check_header * rx_p;
         rte_mbuf_t  * m2 = m->next;
         rx_p=(CRx_check_header *)rte_pktmbuf_mtod(m2, char*);
@@ -2755,7 +2762,7 @@ TEST_F(gt_ring, ring1) {
 
 TEST_F(gt_ring, ring2) {
     CMessagingManager ringmg;
-    ringmg.Create(8);
+    ringmg.Create(8, "test");
 
     int i;
     for (i=0; i<8; i++) {

@@ -55,7 +55,10 @@ limitations under the License.
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
 #include <common/basic_utils.h>
+
 #include <stateless/cp/trex_stateless.h>
+#include <stateless/dp/trex_stream_node.h>
+
 #include <../linux_dpdk/version.h>
 
 extern "C" {
@@ -73,6 +76,7 @@ extern "C" {
 #include "msg_manager.h"
 #include "platform_cfg.h"
 
+#include <internal_api/trex_platform_api.h>
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -103,8 +107,6 @@ extern "C" int vmxnet3_xmit_set_callback(rte_mbuf_convert_to_one_seg_t cb);
 
 #define RTE_TEST_TX_DESC_DEFAULT 512
 #define RTE_TEST_RX_DESC_DROP    0
-
-
 
 static inline int get_vm_one_queue_enable(){
     return (CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ?1:0);
@@ -686,12 +688,13 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
      CSimpleOpt args(argc, argv, parser_options);
 
      bool latency_was_set=false;
+     (void)latency_was_set;
+
      int a=0;
      int node_dump=0;
 
      po->preview.setFileWrite(true);
      po->preview.setRealTime(true);
-     int res1;
      uint32_t tmp_data;
 
      po->m_run_mode = CParserOption::RUN_MODE_INVALID;
@@ -928,6 +931,20 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         }
     }
 
+    if ( get_is_stateless() ) {
+        if ( po->preview.get_is_rx_check_enable() ) {
+            parse_err("Rx check is not supported with interactive mode ");
+        }
+
+        if  ( (! po->is_latency_disabled()) || (po->preview.getOnlyLatency()) ){
+            parse_err("Latecny check is not supported with interactive mode ");
+        }
+
+        if ( po->preview.getSingleCore() ){
+            parse_err("single core is not supported with interactive mode ");
+        }
+
+    }
     return 0;
 }
 
@@ -935,33 +952,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 int main_test(int argc , char * argv[]);
 
 
-
-
-void delay(int msec){
-
-    if (msec == 0) 
-    {//user that requested that probebly wanted the minimal delay 
-     //but because of scaling problem he have got 0 so we will give the min delay 
-     //printf("\n\n\nERROR-Task delay ticks == 0 found in task %s task id = %d\n\n\n\n", 
-     //       SANB_TaskName(SANB_TaskIdSelf()), SANB_TaskIdSelf());
-     msec =1;
-
-    } 
-
-    struct timespec time1, remain; // 2 sec max delay
-    time1.tv_sec=msec/1000;
-    time1.tv_nsec=(msec - (time1.tv_sec*1000))*1000000;
-
-    nanosleep(&time1,&remain);
-}
-
-
-
-static const char * default_argv[] = {"xx","-c", "0x7", "-n","2","-b","0000:0b:01.01"};
-static int argv_num = 7;
-
-
-
+//static const char * default_argv[] = {"xx","-c", "0x7", "-n","2","-b","0000:0b:01.01"};
+//static int argv_num = 7;
+                                             
 
 
 #define RX_PTHRESH 8 /**< Default values of RX prefetch threshold reg. */
@@ -1145,8 +1138,8 @@ void CPhyEthIFStats::Clear(){
 
 void CPhyEthIFStats::DumpAll(FILE *fd){
 
-    #define DP_A4(f) printf(" %-40s : %llu \n",#f,f)
-    #define DP_A(f) if (f) printf(" %-40s : %llu \n",#f,f)
+    #define DP_A4(f) printf(" %-40s : %llu \n",#f, (unsigned long long)f)
+    #define DP_A(f) if (f) printf(" %-40s : %llu \n",#f, (unsigned long long)f)
     DP_A4(opackets);  
     DP_A4(obytes);      
     DP_A4(ipackets);  
@@ -1185,7 +1178,7 @@ public:
         m_port_id      = portid;
         m_last_rx_rate = 0.0;
         m_last_tx_rate = 0.0;
-        m_last_pps=0.0;
+        m_last_tx_pps  = 0.0;
         return (true);
     }
     void Delete();
@@ -1261,8 +1254,12 @@ public:
         return (m_last_rx_rate);
     }
 
-    float get_last_pps_rate(){
-        return (m_last_pps);
+    float get_last_tx_pps_rate(){
+        return (m_last_tx_pps);
+    }
+
+    float get_last_rx_pps_rate(){
+        return (m_last_rx_pps);
     }
 
     CPhyEthIFStats     & get_stats(){
@@ -1315,12 +1312,14 @@ private:
     CBwMeasure               m_bw_tx;
     CBwMeasure               m_bw_rx;
     CPPSMeasure              m_pps_tx;
+    CPPSMeasure              m_pps_rx;
 
     CPhyEthIFStats           m_stats;
 
-    float                    m_last_rx_rate;
     float                    m_last_tx_rate;
-    float                    m_last_pps;
+    float                    m_last_rx_rate;
+    float                    m_last_tx_pps;
+    float                    m_last_rx_pps;
 public:
     struct rte_eth_dev_info  m_dev_info;   
 };
@@ -1615,10 +1614,6 @@ void CPhyEthIF::macaddr_get(struct ether_addr *mac_addr){
 
 void CPhyEthIF::get_stats_1g(CPhyEthIFStats *stats){ 
 
-    int i;
-    uint64_t t=0;
-
-
    stats->ipackets     +=  pci_reg_read(E1000_GPRC) ;
 
    stats->ibytes       +=  (pci_reg_read(E1000_GORCL) );
@@ -1656,7 +1651,8 @@ void CPhyEthIF::get_stats_1g(CPhyEthIFStats *stats){
 
    m_last_tx_rate      =  m_bw_tx.add(stats->obytes);
    m_last_rx_rate      =  m_bw_rx.add(stats->ibytes);
-   m_last_pps          =  m_pps_tx.add(stats->opackets);
+   m_last_tx_pps       =  m_pps_tx.add(stats->opackets);
+   m_last_rx_pps       =  m_pps_rx.add(stats->ipackets);
 
 }
 
@@ -1666,14 +1662,15 @@ void CPhyEthIF::get_stats(CPhyEthIFStats *stats){
 
    m_last_tx_rate      =  m_bw_tx.add(stats->obytes);
    m_last_rx_rate      =  m_bw_rx.add(stats->ibytes);
-   m_last_pps          =  m_pps_tx.add(stats->opackets);
+   m_last_tx_pps       =  m_pps_tx.add(stats->opackets);
+   m_last_rx_pps       =  m_pps_rx.add(stats->ipackets);
 }
 
 
 void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
 
-    #define DP_A1(f) if (hs->f) fprintf(fd," %-40s : %llu \n",#f,hs->f)
-    #define DP_A2(f,m) for (i=0;i<m; i++) { if (hs->f[i]) fprintf(fd," %-40s[%d] : %llu \n",#f,i,hs->f[i]); }
+    #define DP_A1(f) if (hs->f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)hs->f)
+    #define DP_A2(f,m) for (i=0;i<m; i++) { if (hs->f[i]) fprintf(fd," %-40s[%d] : %llu \n",#f,i, (unsigned long long)hs->f[i]); }
        int i;
 
     //for (i=0;i<8; i++) { if (hs->mpc[i]) fprintf(fd," %-40s[%d] : %llu \n","mpc",i,hs->mpc[i]); }
@@ -1855,6 +1852,9 @@ public:
 
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m);
+
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
 
 public:
     void GetCoreCounters(CVirtualIFPerSideStats *stats);
@@ -1867,7 +1867,11 @@ public:
         return ( CGlobalInfo::m_socket.port_to_socket( m_ports[0].m_port->get_port_id() ) );
     }
 
-private:
+    const CCorePerPort * get_ports() {
+        return m_ports;
+    }
+
+protected:
 
     int send_burst(CCorePerPort * lp_port,
                    uint16_t len,
@@ -1878,12 +1882,20 @@ private:
 
 
 
-private:
+protected:
     uint8_t      m_core_id;
     uint16_t     m_mbuf_cache; 
     CCorePerPort m_ports[CS_NUM]; /* each core has 2 tx queues 1. client side and server side */
     CNodeRing *  m_ring_to_rx;
+
+} __rte_cache_aligned; ;
+
+class CCoreEthIFStateless : public CCoreEthIF {
+public:
+    virtual int send_node(CGenNode * node);
 };
+
+
 
 bool CCoreEthIF::Create(uint8_t             core_id,
                         uint16_t            tx_client_queue_id,
@@ -1985,6 +1997,7 @@ void CCoreEthIF::flush_rx_queue(void){
     }
 }
 
+
 int CCoreEthIF::flush_tx_queue(void){
     /* flush both sides */
     pkt_dir_t   dir ;
@@ -2084,6 +2097,8 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
             rte_pktmbuf_free(m);
         }
     }
+
+    return (0);
 }
                          
 
@@ -2104,6 +2119,8 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
         len = 0;
     }
     lp_port->m_len = len;
+
+    return (0);
 }
 
 
@@ -2138,6 +2155,23 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
         }
     }
 }
+
+
+
+int CCoreEthIFStateless::send_node(CGenNode * no){
+    CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
+
+    /* check that we have mbuf  */
+    rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+    assert( m );
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    CCorePerPort *  lp_port=&m_ports[dir];
+    CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
+    rte_pktmbuf_refcnt_update(m,1);
+    send_pkt(lp_port,m,lp_stats);
+    return (0);
+};
+
 
 
 int CCoreEthIF::send_node(CGenNode * node){
@@ -2233,6 +2267,29 @@ int CCoreEthIF::send_node(CGenNode * node){
 }
 
 
+int CCoreEthIF::update_mac_addr_from_global_cfg(pkt_dir_t  dir, 
+                                rte_mbuf_t      *m){
+    assert(m);
+    assert(dir<2);
+    CCorePerPort *  lp_port=&m_ports[dir];
+    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+    uint8_t p_id=lp_port->m_port->get_port_id();
+
+    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
+    return (0);
+}
+
+pkt_dir_t 
+CCoreEthIF::port_id_to_dir(uint8_t port_id) {
+
+    for (pkt_dir_t dir = 0; dir < CS_NUM; dir++) {
+        if (m_ports[dir].m_port->get_port_id() == port_id) {
+            return dir;
+        }
+    }
+
+    return (CS_INVALID);
+}
 
 class CLatencyHWPort : public CPortLatencyHWBase {
 public:
@@ -2420,6 +2477,10 @@ public:
     uint64_t oerrors;     
 
     float     m_total_tx_bps;
+    float     m_total_tx_pps;
+
+    float     m_total_rx_bps;
+    float     m_total_rx_pps;
 };
 
 class CGlobalStats {
@@ -2456,6 +2517,7 @@ public:
     float m_tx_bps;
     float m_rx_bps;
     float m_tx_pps;
+    float m_rx_pps;
     float m_tx_cps;
     float m_tx_expected_cps;
     float m_tx_expected_pps;
@@ -2488,7 +2550,7 @@ std::string CGlobalStats::get_field(std::string name,float &f){
 
 std::string CGlobalStats::get_field(std::string name,uint64_t &f){
     char buff[200];
-    sprintf(buff,"\"%s\":%llu,",name.c_str(),f);
+    sprintf(buff,"\"%s\":%llu,",name.c_str(), (unsigned long long)f);
     return (std::string(buff));
 }
 
@@ -2500,7 +2562,7 @@ std::string CGlobalStats::get_field_port(int port,std::string name,float &f){
 
 std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
     char buff[200];
-    sprintf(buff,"\"%s-%d\":%llu,",name.c_str(),port,f);
+    sprintf(buff,"\"%s-%d\":%llu,",name.c_str(),port, (unsigned long long)f);
     return (std::string(buff));
 }
 
@@ -2516,6 +2578,7 @@ void CGlobalStats::dump_json(std::string & json){
     json+=GET_FIELD(m_tx_bps);
     json+=GET_FIELD(m_rx_bps);
     json+=GET_FIELD(m_tx_pps);
+    json+=GET_FIELD(m_rx_pps);
     json+=GET_FIELD(m_tx_cps);
     json+=GET_FIELD(m_tx_expected_cps);
     json+=GET_FIELD(m_tx_expected_pps);
@@ -2550,6 +2613,9 @@ void CGlobalStats::dump_json(std::string & json){
         json+=GET_FIELD_PORT(i,ierrors)  ;
         json+=GET_FIELD_PORT(i,oerrors)  ;
         json+=GET_FIELD_PORT(i,m_total_tx_bps);
+        json+=GET_FIELD_PORT(i,m_total_tx_pps);
+        json+=GET_FIELD_PORT(i,m_total_rx_bps);
+        json+=GET_FIELD_PORT(i,m_total_rx_pps);
     }
     json+=m_template.dump_as_json("template");
     json+="\"unknown\":0}}"  ;
@@ -2569,7 +2635,7 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
     fprintf (fd," Platform_factor : %2.1f  \n",m_platform_factor);
     fprintf (fd," Total-Tx        : %s  ",double_to_human_str(m_tx_bps,"bps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Nat_time_out    : %8llu \n",m_total_nat_time_out);
+        fprintf (fd," Nat_time_out    : %8llu \n", (unsigned long long)m_total_nat_time_out);
     }else{
         fprintf (fd,"\n");
     }
@@ -2577,49 +2643,52 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
 
     fprintf (fd," Total-Rx        : %s  ",double_to_human_str(m_rx_bps,"bps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Nat_no_fid      : %8llu \n",m_total_nat_no_fid);
+        fprintf (fd," Nat_no_fid      : %8llu \n", (unsigned long long)m_total_nat_no_fid);
     }else{
         fprintf (fd,"\n");
     }
 
     fprintf (fd," Total-PPS       : %s  ",double_to_human_str(m_tx_pps,"pps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Total_nat_active: %8llu \n",m_total_nat_active);
+        fprintf (fd," Total_nat_active: %8llu \n", (unsigned long long)m_total_nat_active);
     }else{
         fprintf (fd,"\n");
     }
 
     fprintf (fd," Total-CPS       : %s  ",double_to_human_str(m_tx_cps,"cps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Total_nat_open  : %8llu \n",m_total_nat_open);
+        fprintf (fd," Total_nat_open  : %8llu \n", (unsigned long long)m_total_nat_open);
     }else{
         fprintf (fd,"\n");
     }
     fprintf (fd,"\n");
     fprintf (fd," Expected-PPS    : %s  ",double_to_human_str(m_tx_expected_pps,"pps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_verify_mode() ) {
-        fprintf (fd," Nat_learn_errors: %8llu \n",m_total_nat_learn_error);
+        fprintf (fd," Nat_learn_errors: %8llu \n", (unsigned long long)m_total_nat_learn_error);
     }else{
         fprintf (fd,"\n");
     }
     fprintf (fd," Expected-CPS    : %s  \n",double_to_human_str(m_tx_expected_cps,"cps",KBYE_1000).c_str());
     fprintf (fd," Expected-BPS    : %s  \n",double_to_human_str(m_tx_expected_bps,"bps",KBYE_1000).c_str());
     fprintf (fd,"\n");
-    fprintf (fd," Active-flows    : %8llu  Clients : %8llu   Socket-util : %3.4f %%    \n",(uint64_t)m_active_flows,m_total_clients,m_socket_util);
+    fprintf (fd," Active-flows    : %8llu  Clients : %8llu   Socket-util : %3.4f %%    \n",
+             (unsigned long long)m_active_flows,
+             (unsigned long long)m_total_clients,
+             m_socket_util);
     fprintf (fd," Open-flows      : %8llu  Servers : %8llu   Socket : %8llu Socket/Clients :  %.1f \n",
-             (uint64_t)m_open_flows,
-              m_total_servers,
-             m_active_sockets,
+             (unsigned long long)m_open_flows,
+             (unsigned long long)m_total_servers,
+             (unsigned long long)m_active_sockets,
              (float)m_active_sockets/(float)m_total_clients);
 
     if (m_total_alloc_error) {
-        fprintf (fd," Total_alloc_err  : %llu         \n",(uint64_t)m_total_alloc_error);
+        fprintf (fd," Total_alloc_err  : %llu         \n", (unsigned long long)m_total_alloc_error);
     }
     if ( m_total_queue_full ){
-        fprintf (fd," Total_queue_full : %llu         \n",(uint64_t)m_total_queue_full);
+        fprintf (fd," Total_queue_full : %llu         \n", (unsigned long long)m_total_queue_full);
     }
     if (m_total_queue_drop) {
-        fprintf (fd," Total_queue_drop : %llu         \n",(uint64_t)m_total_queue_drop);
+        fprintf (fd," Total_queue_drop : %llu         \n", (unsigned long long)m_total_queue_drop);
     }
 
     //m_template.Dump(fd);
@@ -2643,8 +2712,8 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
             CPerPortStats * lp=&m_port[i];
             fprintf(fd,"port : %d \n",(int)i);
             fprintf(fd,"------------\n");
-            #define GS_DP_A4(f) fprintf(fd," %-40s : %llu \n",#f,lp->f)
-            #define GS_DP_A(f) if (lp->f) fprintf(fd," %-40s : %llu \n",#f,lp->f)
+            #define GS_DP_A4(f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)lp->f)
+            #define GS_DP_A(f) if (lp->f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)lp->f)
             GS_DP_A4(opackets);  
             GS_DP_A4(obytes);      
             GS_DP_A4(ipackets);  
@@ -2719,10 +2788,10 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
 
 
 
-struct CGlobalPortCfg  {
+struct CGlobalTRex  {
 
 public:
-    CGlobalPortCfg (){
+    CGlobalTRex (){
        m_max_ports=4;
        m_max_cores=1;
        m_cores_to_dual_ports=0;
@@ -2732,10 +2801,11 @@ public:
        m_expected_pps=0.0;                
        m_expected_cps=0.0;
        m_expected_bps=0.0;
+       m_trex_stateless = NULL;
     }
 public:
 
-    bool Create(bool is_stateless);
+    bool Create();
     void Delete();
 
     int  ixgbe_prob_init();
@@ -2754,6 +2824,8 @@ public:
 
 public:
     int start_send_master();
+    int start_master_stateless();
+
     int run_in_core(virtual_thread_id_t virt_core_id);
     int stop_core(virtual_thread_id_t virt_core_id);
 
@@ -2800,7 +2872,6 @@ public:
 
 
 
-    int test_send1();
     int rcv_send(int port,int queue_id);
     int rcv_send_all(int queue_id);
 
@@ -2866,7 +2937,9 @@ public:
 
 
     CPhyEthIF   m_ports[BP_MAX_PORTS];
-    CCoreEthIF  m_cores_vif[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve*/
+    CCoreEthIF          m_cores_vif_sf[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve - stateful */
+    CCoreEthIFStateless m_cores_vif_sl[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve - stateless*/
+    CCoreEthIF *        m_cores_vif[BP_MAX_CORES];
 
 
     CParserOption m_po ;
@@ -2889,54 +2962,14 @@ private:
 
     CLatencyPktInfo     m_latency_pkt;
     CZMqPublisher       m_zmq_publisher;
+
+public:
+    TrexStateless       *m_trex_stateless;
 };
 
 
 
-int CGlobalPortCfg::test_send1(){
-
-    CParserOption po ;
-    CFlowGenList fl;
-
-    po.cfg_file = "cap2/dns.yaml";
-    //po.cfg_file = "cap2/sfr3.yaml";
-    //po.cfg_file = "cap2/sfr4.yaml";
-    //po.cfg_file = "cap2/sfr.yaml";
-
-    po.preview.setVMode(3);
-    po.preview.setFileWrite(true);
-
-    fl.Create();
-
-    fl.load_from_yaml(po.cfg_file,1);
-    //fl.DumpPktSize();
-
-    fl.generate_p_thread_info(1);
-    CFlowGenListPerThread   * lpt;
-
-    int i;
-    for (i=0; i<1; i++) {
-        lpt = fl.m_threads_info[i];
-        //CNullIF * erf_vif = new CNullIF();
-        CVirtualIF * erf_vif = &m_cores_vif[0];
-        lpt->set_vif(erf_vif);
-        lpt->generate_erf("hey",po.preview);
-        lpt->m_node_gen.DumpHist(stdout);
-        lpt->DumpStats(stdout);
-    }
-
-    m_cores_vif[0].flush_tx_queue();
-    delay(1000);
-    //fprintf(stdout," drop : %llu \n",m_test_drop);
-
-    m_cores_vif[0].DumpCoreStats(stdout);
-    m_cores_vif[0].DumpIfStats(stdout);
-
-    fl.Delete();
-}
-
-
-int  CGlobalPortCfg::rcv_send(int port,int queue_id){
+int  CGlobalTRex::rcv_send(int port,int queue_id){
 
     CPhyEthIF * lp=&m_ports[port];
     rte_mbuf_t * rx_pkts[32];
@@ -2955,7 +2988,7 @@ int  CGlobalPortCfg::rcv_send(int port,int queue_id){
     return (0);
 }
 
-int  CGlobalPortCfg::rcv_send_all(int queue_id){
+int  CGlobalTRex::rcv_send_all(int queue_id){
     int i;
     for (i=0; i<m_max_ports; i++) {
         rcv_send(i,queue_id);
@@ -2966,16 +2999,16 @@ int  CGlobalPortCfg::rcv_send_all(int queue_id){
 
 
 
-int CGlobalPortCfg::test_send(){
+int CGlobalTRex::test_send(){
     int i;
-
-    CPhyEthIF * lp=&m_ports[0];
 
     //set_promisc_all(true);
     //create_sctp_pkt();
     create_udp_pkt();
 
 	CRx_check_header rx_check_header;
+    (void)rx_check_header;
+
 	rx_check_header.m_time_stamp=0x1234567;
 	rx_check_header.m_option_type=RX_CHECK_V4_OPT_TYPE;
 	rx_check_header.m_option_len=RX_CHECK_V4_OPT_LEN;
@@ -3049,7 +3082,7 @@ int CGlobalPortCfg::test_send(){
    }*/
    #endif
 
-    fprintf(stdout," drop : %llu \n",m_test_drop);
+    fprintf(stdout," drop : %llu \n", (unsigned long long)m_test_drop);
     return (0);
 }
 
@@ -3118,7 +3151,7 @@ const uint8_t sctp_pkt1[]={
 
 
 
-int CGlobalPortCfg::create_pkt(uint8_t *pkt,int pkt_size){
+int CGlobalTRex::create_pkt(uint8_t *pkt,int pkt_size){
     rte_mempool_t * mp= CGlobalInfo::m_mem_pool[0].m_big_mbuf_pool ;
 
     rte_mbuf_t * m=rte_pktmbuf_alloc(mp);
@@ -3138,17 +3171,17 @@ int CGlobalPortCfg::create_pkt(uint8_t *pkt,int pkt_size){
     return (0);
 }
 
-int CGlobalPortCfg::create_udp_pkt(){
+int CGlobalTRex::create_udp_pkt(){
     return (create_pkt((uint8_t*)udp_pkt,sizeof(udp_pkt)));
 }
 
-int CGlobalPortCfg::create_sctp_pkt(){
+int CGlobalTRex::create_sctp_pkt(){
     return (create_pkt((uint8_t*)sctp_pkt1,sizeof(sctp_pkt1)));
 }
 
 
 /* test by sending 10 packets ...*/
-int CGlobalPortCfg::test_send_pkts(uint16_t queue_id,
+int CGlobalTRex::test_send_pkts(uint16_t queue_id,
                                       int pkt,
                                       int port){
 
@@ -3174,26 +3207,30 @@ int CGlobalPortCfg::test_send_pkts(uint16_t queue_id,
 
 
 
-int  CGlobalPortCfg::set_promisc_all(bool enable){
+int  CGlobalTRex::set_promisc_all(bool enable){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=&m_ports[i];
         _if->set_promiscuous(enable);
     }
+
+    return (0);
 }
 
 
 
-int  CGlobalPortCfg::reset_counters(){
+int  CGlobalTRex::reset_counters(){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=&m_ports[i];
         _if->stats_clear();
     }
+
+    return (0);
 }
 
 
-bool CGlobalPortCfg::is_all_links_are_up(bool dump){
+bool CGlobalTRex::is_all_links_are_up(bool dump){
     bool all_link_are=true;
     int i;
     for (i=0; i<m_max_ports; i++) {
@@ -3212,7 +3249,7 @@ bool CGlobalPortCfg::is_all_links_are_up(bool dump){
 
 
 
-int  CGlobalPortCfg::ixgbe_rx_queue_flush(){
+int  CGlobalTRex::ixgbe_rx_queue_flush(){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=&m_ports[i];
@@ -3222,7 +3259,7 @@ int  CGlobalPortCfg::ixgbe_rx_queue_flush(){
 }
 
 
-int  CGlobalPortCfg::ixgbe_configure_mg(void){
+int  CGlobalTRex::ixgbe_configure_mg(void){
     int i;
     CLatencyManagerCfg mg_cfg;
     mg_cfg.m_max_ports = m_max_ports;
@@ -3262,10 +3299,12 @@ int  CGlobalPortCfg::ixgbe_configure_mg(void){
 
     m_mg.Create(&mg_cfg);
     m_mg.set_mask(CGlobalInfo::m_options.m_latency_mask);
+
+    return (0);
 }
 
 
-int  CGlobalPortCfg::ixgbe_start(void){
+int  CGlobalTRex::ixgbe_start(void){
     int i;
     for (i=0; i<m_max_ports; i++) {
 
@@ -3384,11 +3423,15 @@ int  CGlobalPortCfg::ixgbe_start(void){
 
     */
     int port_offset=0;
-    int queue_offset=0;
     for (i=0; i<get_cores_tx(); i++) {
         int j=(i+1);
         int queue_id=((j-1)/get_base_num_cores() );   /* for the first min core queue 0 , then queue 1 etc */
-        m_cores_vif[j].Create(j,
+        if ( get_is_stateless() ){
+            m_cores_vif[j]=&m_cores_vif_sl[j];
+        }else{
+            m_cores_vif[j]=&m_cores_vif_sf[j];
+        }
+        m_cores_vif[j]->Create(j,
                               queue_id,
                               &m_ports[port_offset], /* 0,2*/
                               queue_id,
@@ -3403,28 +3446,39 @@ int  CGlobalPortCfg::ixgbe_start(void){
     fprintf(stdout," -------------------------------\n");
     CCoreEthIF::DumpIfCfgHeader(stdout);
     for (i=0; i<get_cores_tx(); i++) {
-        m_cores_vif[i+1].DumpIfCfg(stdout);
+        m_cores_vif[i+1]->DumpIfCfg(stdout);
     }
     fprintf(stdout," -------------------------------\n");
+
+    return (0);
 }
 
 
-bool CGlobalPortCfg::Create(bool is_stateless){
+bool CGlobalTRex::Create(){
+    CFlowsYamlInfo     pre_yaml_info;
 
-    /* hack - need to refactor */
-    if (!is_stateless) {
-        if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
-                                      !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
-            return (false);
-        }
+    if (get_is_stateless()) {
+
+          TrexStatelessCfg cfg;
+
+          TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
+
+          cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
+          cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
+          cfg.m_rpc_async_cfg      = NULL;
+          cfg.m_rpc_server_verbose = false;
+          cfg.m_platform_api       = new TrexDpdkPlatformApi();
+
+          m_trex_stateless = new TrexStateless(cfg);
+
+    } else {
+        pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
     }
 
-   /* We load the YAML twice, 
-     this is the first time. to update global flags  */
-   CFlowsYamlInfo     pre_yaml_info;
-   if (!is_stateless) {
-       pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
-   }
+    if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
+                                  !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
+        return (false);
+    }
 
    if ( pre_yaml_info.m_vlan_info.m_enable ){
        CGlobalInfo::m_options.preview.set_vlan_mode_enable(true);
@@ -3434,16 +3488,17 @@ bool CGlobalPortCfg::Create(bool is_stateless){
    ixgbe_prob_init();
    cores_prob_init();
    queues_prob_init();
-          /* allocate rings */
-    assert( CMsgIns::Ins()->Create(get_cores_tx()) );
 
-    if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeNatInfo) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
-        assert(0);
-    }
+   /* allocate rings */
+   assert( CMsgIns::Ins()->Create(get_cores_tx()) );
+
+   if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
+       printf("ERROR sizeof(CGenNodeNatInfo) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
+       assert(0);
+   }
 
     if ( sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeLatencyPktInfo) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeLatencyPktInfo),sizeof(CGenNode));
+        printf("ERROR sizeof(CGenNodeLatencyPktInfo) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeLatencyPktInfo),sizeof(CGenNode));
         assert(0);
     }
 
@@ -3463,16 +3518,13 @@ bool CGlobalPortCfg::Create(bool is_stateless){
    return (true);
 
 }
-void CGlobalPortCfg::Delete(){
+void CGlobalTRex::Delete(){
     m_zmq_publisher.Delete();
 }
 
 
 
-int  CGlobalPortCfg::ixgbe_prob_init(void){
-
-    uint8_t nb_ports;             
-
+int  CGlobalTRex::ixgbe_prob_init(void){
 
 	m_max_ports  = rte_eth_dev_count();
 	if (m_max_ports == 0)
@@ -3561,13 +3613,13 @@ int  CGlobalPortCfg::ixgbe_prob_init(void){
     return (0);
 }
 
-int  CGlobalPortCfg::cores_prob_init(){
+int  CGlobalTRex::cores_prob_init(){
     m_max_cores = rte_lcore_count();
     assert(m_max_cores>0);
     return (0);
 }
 
-int  CGlobalPortCfg::queues_prob_init(){
+int  CGlobalTRex::queues_prob_init(){
 
     if (m_max_cores < 2) {
           rte_exit(EXIT_FAILURE, "number of cores should be at least 3 \n");
@@ -3608,7 +3660,7 @@ int  CGlobalPortCfg::queues_prob_init(){
 }
 
 
-void CGlobalPortCfg::dump_config(FILE *fd){
+void CGlobalTRex::dump_config(FILE *fd){
     fprintf(fd," number of ports         : %u \n",m_max_ports);
     fprintf(fd," max cores for 2 ports   : %u \n",m_cores_to_dual_ports);
     fprintf(fd," max queue per port      : %u \n",m_max_queues_per_port);
@@ -3616,7 +3668,7 @@ void CGlobalPortCfg::dump_config(FILE *fd){
 
 
 
-void CGlobalPortCfg::dump_post_test_stats(FILE *fd){
+void CGlobalTRex::dump_post_test_stats(FILE *fd){
     uint64_t pkt_out=0;
     uint64_t pkt_out_bytes=0;
     uint64_t pkt_in_bytes=0;
@@ -3627,7 +3679,7 @@ void CGlobalPortCfg::dump_post_test_stats(FILE *fd){
 
     int i;
     for (i=0; i<get_cores_tx(); i++) {
-        CCoreEthIF * erf_vif = &m_cores_vif[i+1];
+        CCoreEthIF * erf_vif = m_cores_vif[i+1];
         CVirtualIFPerSideStats stats;
         erf_vif->GetCoreCounters(&stats);
         sw_pkt_out     += stats.m_tx_pkt;
@@ -3652,17 +3704,17 @@ void CGlobalPortCfg::dump_post_test_stats(FILE *fd){
     fprintf (fd," summary stats \n");
     fprintf (fd," -------------- \n");
 
-    fprintf (fd," Total-pkt-drop       : %d pkts \n",(int64_t)(pkt_out-pkt_in));
-    fprintf (fd," Total-tx-bytes       : %llu bytes \n",pkt_out_bytes);
-    fprintf (fd," Total-tx-sw-bytes    : %llu bytes \n",sw_pkt_out_bytes);
-    fprintf (fd," Total-rx-bytes       : %llu byte \n",pkt_in_bytes);
+    fprintf (fd," Total-pkt-drop       : %llu pkts \n",(unsigned long long)(pkt_out-pkt_in));
+    fprintf (fd," Total-tx-bytes       : %llu bytes \n", (unsigned long long)pkt_out_bytes);
+    fprintf (fd," Total-tx-sw-bytes    : %llu bytes \n", (unsigned long long)sw_pkt_out_bytes);
+    fprintf (fd," Total-rx-bytes       : %llu byte \n", (unsigned long long)pkt_in_bytes);
 
     fprintf (fd," \n");
 
-    fprintf (fd," Total-tx-pkt         : %llu pkts \n",pkt_out);
-    fprintf (fd," Total-rx-pkt         : %llu pkts \n",pkt_in);
-    fprintf (fd," Total-sw-tx-pkt      : %llu pkts \n",sw_pkt_out);
-    fprintf (fd," Total-sw-err         : %llu pkts \n",sw_pkt_out_err);
+    fprintf (fd," Total-tx-pkt         : %llu pkts \n", (unsigned long long)pkt_out);
+    fprintf (fd," Total-rx-pkt         : %llu pkts \n", (unsigned long long)pkt_in);
+    fprintf (fd," Total-sw-tx-pkt      : %llu pkts \n", (unsigned long long)sw_pkt_out);
+    fprintf (fd," Total-sw-err         : %llu pkts \n", (unsigned long long)sw_pkt_out_err);
 
 
     if ( !CGlobalInfo::m_options.is_latency_disabled() ){
@@ -3675,7 +3727,7 @@ void CGlobalPortCfg::dump_post_test_stats(FILE *fd){
 }
 
 
-void CGlobalPortCfg::update_stats(){
+void CGlobalTRex::update_stats(){
 
     int i;
     for (i=0; i<m_max_ports; i++) {
@@ -3696,12 +3748,13 @@ void CGlobalPortCfg::update_stats(){
 }
 
 
-void CGlobalPortCfg::get_stats(CGlobalStats & stats){
+void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     int i;
     float total_tx=0.0;
     float total_rx=0.0;
-    float total_pps=0.0;
+    float total_tx_pps=0.0;
+    float total_rx_pps=0.0;
 
     stats.m_total_tx_pkts  = 0;
     stats.m_total_rx_pkts  = 0;
@@ -3729,6 +3782,9 @@ void CGlobalPortCfg::get_stats(CGlobalStats & stats){
         stp->ierrors  = st.ierrors;
         stp->oerrors  = st.oerrors;    
         stp->m_total_tx_bps = _if->get_last_tx_rate()*_1Mb_DOUBLE;
+        stp->m_total_tx_pps = _if->get_last_tx_pps_rate();
+        stp->m_total_rx_bps = _if->get_last_rx_rate()*_1Mb_DOUBLE;
+        stp->m_total_rx_pps = _if->get_last_rx_pps_rate();
 
         stats.m_total_tx_pkts  += st.opackets; 
         stats.m_total_rx_pkts  += st.ipackets;
@@ -3737,7 +3793,8 @@ void CGlobalPortCfg::get_stats(CGlobalStats & stats){
 
         total_tx +=_if->get_last_tx_rate();
         total_rx +=_if->get_last_rx_rate();
-        total_pps +=_if->get_last_pps_rate();
+        total_tx_pps +=_if->get_last_tx_pps_rate();
+        total_rx_pps +=_if->get_last_rx_pps_rate();
 
     }
 
@@ -3798,7 +3855,13 @@ void CGlobalPortCfg::get_stats(CGlobalStats & stats){
     stats.m_total_clients = total_clients;
     stats.m_total_servers = total_servers;
     stats.m_active_sockets = active_sockets;
-    stats.m_socket_util =100.0*(double)active_sockets/(double)total_sockets;
+
+    if (total_sockets != 0) {
+        stats.m_socket_util =100.0*(double)active_sockets/(double)total_sockets;
+    } else {
+        stats.m_socket_util = 0;
+    }
+    
 
 
     float drop_rate=total_tx-total_rx;
@@ -3814,7 +3877,8 @@ void CGlobalPortCfg::get_stats(CGlobalStats & stats){
 
     stats.m_tx_bps        = total_tx*pf*_1Mb_DOUBLE;
     stats.m_rx_bps        = total_rx*pf*_1Mb_DOUBLE;
-    stats.m_tx_pps        = total_pps*pf;
+    stats.m_tx_pps        = total_tx_pps*pf;
+    stats.m_rx_pps        = total_rx_pps*pf;
     stats.m_tx_cps        = m_last_total_cps*pf;
 
     stats.m_tx_expected_cps        = m_expected_cps*pf;
@@ -3822,7 +3886,7 @@ void CGlobalPortCfg::get_stats(CGlobalStats & stats){
     stats.m_tx_expected_bps        = m_expected_bps*pf;
 }
 
-bool CGlobalPortCfg::sanity_check(){
+bool CGlobalTRex::sanity_check(){
 
     CFlowGenListPerThread   * lpt;
     uint32_t errors=0;
@@ -3842,7 +3906,7 @@ bool CGlobalPortCfg::sanity_check(){
 
 
 /* dump the template info */
-void CGlobalPortCfg::dump_template_info(std::string & json){
+void CGlobalTRex::dump_template_info(std::string & json){
     CFlowGenListPerThread   * lpt = m_fl.m_threads_info[0];
     CFlowsYamlInfo * yaml_info=&lpt->m_yaml_info;
 
@@ -3857,7 +3921,7 @@ void CGlobalPortCfg::dump_template_info(std::string & json){
     json+="]}" ;
 }
 
-void CGlobalPortCfg::dump_stats(FILE *fd,std::string & json,
+void CGlobalTRex::dump_stats(FILE *fd,std::string & json,
                                 CGlobalStats::DumpFormat format){
     CGlobalStats  stats;
     update_stats();
@@ -3897,10 +3961,14 @@ void CGlobalPortCfg::dump_stats(FILE *fd,std::string & json,
 }
 
 
-int CGlobalPortCfg::run_in_master(){
+int CGlobalTRex::run_in_master(){
 
     std::string json;
     bool was_stopped=false;
+
+    if ( get_is_stateless() ) {
+        m_trex_stateless->launch_control_plane();
+    }
 
     while ( true ) {
 
@@ -3953,10 +4021,10 @@ int CGlobalPortCfg::run_in_master(){
         m_fl.m_threads_info[0]->m_node_gen.dump_json(json);
         m_zmq_publisher.publish_json(json);
 
-        dump_template_info(json);
-        m_zmq_publisher.publish_json(json);
-
-
+        if ( !get_is_stateless() ){
+            dump_template_info(json);
+            m_zmq_publisher.publish_json(json);
+        }
 
         if ( !CGlobalInfo::m_options.is_latency_disabled() ){
             m_mg.update();
@@ -4009,6 +4077,10 @@ int CGlobalPortCfg::run_in_master(){
 
         }
 
+        /* stateless info */
+        m_trex_stateless->generate_publish_snapshot(json);
+        m_zmq_publisher.publish_json(json);
+
         delay(500);
 
         if ( is_all_cores_finished() ) {
@@ -4027,7 +4099,7 @@ int CGlobalPortCfg::run_in_master(){
 
 
 
-int CGlobalPortCfg::run_in_laterncy_core(void){
+int CGlobalTRex::run_in_laterncy_core(void){
     if ( !CGlobalInfo::m_options.is_latency_disabled() ){
         m_mg.start(0);
     }
@@ -4035,12 +4107,12 @@ int CGlobalPortCfg::run_in_laterncy_core(void){
 }
 
 
-int CGlobalPortCfg::stop_core(virtual_thread_id_t virt_core_id){
+int CGlobalTRex::stop_core(virtual_thread_id_t virt_core_id){
     m_signal[virt_core_id]=1;
     return (0);
 }
 
-int CGlobalPortCfg::run_in_core(virtual_thread_id_t virt_core_id){
+int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
 
     CPreviewMode *lp=&CGlobalInfo::m_options.preview;
     if ( lp->getSingleCore() && 
@@ -4051,19 +4123,23 @@ int CGlobalPortCfg::run_in_core(virtual_thread_id_t virt_core_id){
         return (0);
     }
 
+
     assert(m_fl_was_init);
     CFlowGenListPerThread   * lpt;
     lpt = m_fl.m_threads_info[virt_core_id-1];
-    lpt->generate_erf(CGlobalInfo::m_options.out_file,*lp);
-    //lpt->m_node_gen.DumpHist(stdout);
-    //lpt->DumpStats(stdout);
+
+    if (get_is_stateless()) {
+        lpt->start_stateless_daemon();
+    }else{
+        lpt->start_generate_stateful(CGlobalInfo::m_options.out_file,*lp);
+    }
 
     m_signal[virt_core_id]=1;
     return (0);
 }
 
 
-int CGlobalPortCfg::stop_master(){
+int CGlobalTRex::stop_master(){
 
     delay(1000);
     std::string json;
@@ -4084,7 +4160,7 @@ int CGlobalPortCfg::stop_master(){
     int i;
     for (i=0; i<get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
-        CCoreEthIF * erf_vif = &m_cores_vif[i+1];
+        CCoreEthIF * erf_vif = m_cores_vif[i+1];
 
         erf_vif->DumpCoreStats(stdout);
         erf_vif->DumpIfStats(stdout);
@@ -4115,9 +4191,10 @@ int CGlobalPortCfg::stop_master(){
     dump_post_test_stats(stdout);
     m_fl.Delete();
 
+    return (0);
 }
 
-bool CGlobalPortCfg::is_all_cores_finished(){
+bool CGlobalTRex::is_all_cores_finished(){
     int i;
     for (i=0; i<get_cores_tx(); i++) {
         if ( m_signal[i+1]==0){
@@ -4128,8 +4205,34 @@ bool CGlobalPortCfg::is_all_cores_finished(){
 }
 
 
+int CGlobalTRex::start_master_stateless(){
+    int i;
+    for (i=0; i<BP_MAX_CORES; i++) {
+        m_signal[i]=0;
+    }
+    m_fl.Create();
+    m_expected_pps = 0;
+    m_expected_cps = 0;
+    m_expected_bps = 0;
 
-int CGlobalPortCfg::start_send_master(){
+    m_fl.generate_p_thread_info(get_cores_tx());
+    CFlowGenListPerThread   * lpt;
+
+    for (i=0; i<get_cores_tx(); i++) {
+        lpt = m_fl.m_threads_info[i];
+        CVirtualIF * erf_vif = m_cores_vif[i+1];
+        lpt->set_vif(erf_vif);
+        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1]->get_socket_id();
+    }
+    m_fl_was_init=true;
+
+    return (0);
+}
+
+
+
+
+int CGlobalTRex::start_send_master(){
     int i;
     for (i=0; i<BP_MAX_CORES; i++) {
         m_signal[i]=0;
@@ -4174,20 +4277,26 @@ int CGlobalPortCfg::start_send_master(){
     for (i=0; i<get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
         //CNullIF * erf_vif = new CNullIF();
-        CVirtualIF * erf_vif = &m_cores_vif[i+1];
+        CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
         /* socket id */
-        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1].get_socket_id();
+        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1]->get_socket_id();
 
     }
     m_fl_was_init=true;
 
+    return (0);
 }
 
 
 ////////////////////////////////////////////
 
-static CGlobalPortCfg ports_cfg;
+static CGlobalTRex g_trex;
+
+
+TrexStateless * get_stateless_obj() {
+    return g_trex.m_trex_stateless;
+}
 
 static int latency_one_lcore(__attribute__((unused)) void *dummy)
 {
@@ -4196,34 +4305,22 @@ static int latency_one_lcore(__attribute__((unused)) void *dummy)
 
 
     if ( lpsock->thread_phy_is_latency( phy_id )  ){
-        ports_cfg.run_in_laterncy_core();
+        g_trex.run_in_laterncy_core();
     }else{
 
         if ( lpsock->thread_phy_is_master( phy_id ) ) {
-            ports_cfg.run_in_master();
+            g_trex.run_in_master();
             delay(1);
         }else{
             delay((uint32_t)(1000.0*CGlobalInfo::m_options.m_duration));
             /* this core has stopped */
-            ports_cfg.m_signal[ lpsock->thread_phy_to_virt( phy_id ) ]=1;
+            g_trex.m_signal[ lpsock->thread_phy_to_virt( phy_id ) ]=1;
         }
     }
 	return 0;
 }
 
 
-static int stateless_entry(__attribute__((unused)) void *dummy) {
-    CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
-    physical_thread_id_t phy_id = rte_lcore_id();
-
-    if (lpsock->thread_phy_is_master( phy_id )) {
-        TrexStateless::get_instance().launch_control_plane();
-    } else {
-        TrexStateless::get_instance().launch_on_dp_core(phy_id);
-    }
-
-    return (0);
-}
 
 static int slave_one_lcore(__attribute__((unused)) void *dummy)
 {
@@ -4232,13 +4329,13 @@ static int slave_one_lcore(__attribute__((unused)) void *dummy)
 
 
     if ( lpsock->thread_phy_is_latency( phy_id )  ){
-        ports_cfg.run_in_laterncy_core();
+        g_trex.run_in_laterncy_core();
     }else{
         if ( lpsock->thread_phy_is_master( phy_id ) ) {
-            ports_cfg.run_in_master();
+            g_trex.run_in_master();
             delay(1);
         }else{
-            ports_cfg.run_in_core( lpsock->thread_phy_to_virt( phy_id ) );
+            g_trex.run_in_core( lpsock->thread_phy_to_virt( phy_id ) );
         }
     }
 	return 0;
@@ -4329,7 +4426,6 @@ int update_global_info_from_platform_file(){
 
 int  update_dpdk_args(void){
 
-    uint32_t cores_number;
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     CParserOption * lpop= &CGlobalInfo::m_options;
 
@@ -4346,7 +4442,7 @@ int  update_dpdk_args(void){
     }
 
 
-    sprintf(global_cores_str,"0x%x",lpsock->get_cores_mask());
+    sprintf(global_cores_str,"0x%llx",(unsigned long long)lpsock->get_cores_mask());
 
     /* set the DPDK options */
     global_dpdk_args_num =7;
@@ -4397,6 +4493,7 @@ int  update_dpdk_args(void){
             printf(" %s \n",global_dpdk_args[i]);
         }
     }
+    return (0);
 }
 
 
@@ -4418,7 +4515,7 @@ int sim_load_list_of_cap_files(CParserOption * op){
     lpt->set_vif(&erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->generate_erf(op->out_file,op->preview);
+        lpt->start_generate_stateful(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);
@@ -4428,42 +4525,6 @@ int sim_load_list_of_cap_files(CParserOption * op){
     fl.Delete();
     return (0);
 }
-
-
-
-
-static int
-launch_stateless_trex() {
-    CPlatformSocketInfo *lpsock=&CGlobalInfo::m_socket;
-    CParserOption       *lpop= &CGlobalInfo::m_options;
-    CPlatformYamlInfo   *cg=&global_platform_cfg_info;
-
-    TrexStatelessCfg cfg;
-
-    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5050);
-    TrexRpcServerConfig rpc_async_cfg(TrexRpcServerConfig::RPC_PROT_TCP, 5051);
-
-    cfg.m_dp_core_count      = lpop->preview.getCores();
-    cfg.m_port_count         = lpop->m_expected_portd;
-    cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-    cfg.m_rpc_async_cfg      = &rpc_async_cfg;
-    cfg.m_rpc_server_verbose = true;
-
-    TrexStateless::configure(cfg);
-
-    printf("\nStarting T-Rex Stateless\n");
-    printf("Starting RPC Server...\n\n");
-
-    rte_eal_mp_remote_launch(stateless_entry, NULL, CALL_MASTER);
-
-    unsigned lcore_id;
-    RTE_LCORE_FOREACH_SLAVE(lcore_id) {
-        if (rte_eal_wait_lcore(lcore_id) < 0)
-            return -1;
-    }
-    return (0);
-}
-
 
 
 int main_test(int argc , char * argv[]){
@@ -4525,17 +4586,9 @@ int main_test(int argc , char * argv[]){
         return ( sim_load_list_of_cap_files(&CGlobalInfo::m_options) );
     }
 
-    bool is_stateless = (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_INTERACTIVE);
-
-    if ( !ports_cfg.Create(is_stateless) ){
+    if ( !g_trex.Create() ){
         exit(1);
     }
-
-    /* patch here */
-    if (is_stateless) {
-        return launch_stateless_trex();
-    }
-
 
     if (po->preview.get_is_rx_check_enable() &&  (po->m_rx_check_sampe< get_min_sample_rate()) ) {
         po->m_rx_check_sampe = get_min_sample_rate();
@@ -4543,45 +4596,37 @@ int main_test(int argc , char * argv[]){
     }
 
     /* set dump mode */
-    ports_cfg.m_io_modes.set_mode((CTrexGlobalIoMode::CliDumpMode)CGlobalInfo::m_options.m_io_mode);
+    g_trex.m_io_modes.set_mode((CTrexGlobalIoMode::CliDumpMode)CGlobalInfo::m_options.m_io_mode);
 
     if ( !CGlobalInfo::m_options.is_latency_disabled() 
          && (CGlobalInfo::m_options.m_latency_prev>0)  ){
         uint32_t pkts = CGlobalInfo::m_options.m_latency_prev*
             CGlobalInfo::m_options.m_latency_rate;
         printf("Start prev latency check - hack for Keren for %d sec \n",CGlobalInfo::m_options.m_latency_prev);
-        ports_cfg.m_mg.start(pkts);
+        g_trex.m_mg.start(pkts);
         printf("Delay now you can call command \n");
         delay(CGlobalInfo::m_options.m_latency_prev* 1000);
         printf("Finish wating  \n");
-        ports_cfg.m_mg.reset();
-        ports_cfg.reset_counters();
+        g_trex.m_mg.reset();
+        g_trex.reset_counters();
     }
 
-    ports_cfg.start_send_master();
+    if ( get_is_stateless() ) {
+        g_trex.start_master_stateless();
 
-    // TBD remove 
-    //ports_cfg.test_latency();
-    /* test seding */
-	//while (1) {
-	//}
+    }else{
+        g_trex.start_send_master();
+    }
 
 
 	/* TBD_FDIR */
 	#if 0
 	printf(" test_send \n");
-	ports_cfg.test_send();
+	g_trex.test_send();
     while (1) {
            delay(10000);
     }
 	#endif
-
-
-
-
-    //ports_cfg.test_latency();
-    //return (0);
-
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
         rte_eal_mp_remote_launch(latency_one_lcore, NULL, CALL_MASTER);
@@ -4589,14 +4634,14 @@ int main_test(int argc , char * argv[]){
             if (rte_eal_wait_lcore(lcore_id) < 0)
                 return -1;
         }
-        ports_cfg.stop_master();
+        g_trex.stop_master();
 
         return (0);
     }
 
     if ( CGlobalInfo::m_options.preview.getSingleCore() ) {
-        ports_cfg.run_in_core(1);
-        ports_cfg.stop_master();
+        g_trex.run_in_core(1);
+        g_trex.stop_master();
         return (0);
     }
 
@@ -4606,8 +4651,8 @@ int main_test(int argc , char * argv[]){
             return -1;
     }
 
-    ports_cfg.stop_master();
-    ports_cfg.Delete();
+    g_trex.stop_master();
+    g_trex.Delete();
     utl_termio_reset();
 
     return (0);
@@ -4732,13 +4777,12 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
 
         /* enable all rules */
         _if->pci_reg_write(E1000_WUFC, (mask<<16) | (1<<14) );
+
+        return (0);
 }
 
 
 void CTRexExtendedDriverBase1G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){ 
-
-   int i;
-   uint64_t t=0;
 
    stats->ipackets     +=  _if->pci_reg_read(E1000_GPRC) ;
 
@@ -4869,6 +4913,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
                  rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_fdir_add_perfect_filter : %d\n",res);
             }
         }
+        return (0);
 }
 
 int CTRexExtendedDriverBase10G::configure_drop_queue(CPhyEthIF * _if){
@@ -4991,6 +5036,8 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
         add_rules(_if,RTE_ETH_FLOW_TYPE_UDPV6,ttl);
         add_rules(_if,RTE_ETH_FLOW_TYPE_TCPV6,ttl);
     }
+
+    return (0);
 }
 
 
@@ -5145,4 +5192,55 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
     return(r);
 }
 
+
+/***********************************************************
+ * platfrom API object 
+ * TODO: REMOVE THIS TO A SEPERATE FILE 
+ * 
+ **********************************************************/
+void
+TrexDpdkPlatformApi::get_global_stats(TrexPlatformGlobalStats &stats) const {
+    CGlobalStats trex_stats;
+    g_trex.get_stats(trex_stats);
+
+    stats.m_stats.m_cpu_util = trex_stats.m_cpu_util;
+
+    stats.m_stats.m_tx_bps             = trex_stats.m_tx_bps;
+    stats.m_stats.m_tx_pps             = trex_stats.m_tx_pps;
+    stats.m_stats.m_total_tx_pkts      = trex_stats.m_total_tx_pkts;
+    stats.m_stats.m_total_tx_bytes     = trex_stats.m_total_tx_bytes;
+
+    stats.m_stats.m_rx_bps             = trex_stats.m_rx_bps;
+    stats.m_stats.m_rx_pps             = /*trex_stats.m_rx_pps*/ 0; /* missing */
+    stats.m_stats.m_total_rx_pkts      = trex_stats.m_total_rx_pkts;
+    stats.m_stats.m_total_rx_bytes     = trex_stats.m_total_rx_bytes;
+}
+
+void 
+TrexDpdkPlatformApi::get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
+
+}
+
+uint8_t 
+TrexDpdkPlatformApi::get_dp_core_count() const {
+    return CGlobalInfo::m_options.preview.getCores();
+}
+
+
+void
+TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
+
+    cores_id_list.clear();
+
+    /* iterate over all DP cores */
+    for (uint8_t core_id = 0; core_id < g_trex.get_cores_tx(); core_id++) {
+
+        /* iterate over all the directions*/
+        for (uint8_t dir = 0 ; dir < CS_NUM; dir++) {
+            if (g_trex.m_cores_vif[core_id + 1]->get_ports()[dir].m_port->get_port_id() == port_id) {
+                cores_id_list.push_back(std::make_pair(core_id, dir));
+            }
+        }
+    }
+}
 
