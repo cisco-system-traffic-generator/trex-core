@@ -22,7 +22,7 @@ import time
 import re
 import copy
 import binascii
-from collections import deque
+from collections import deque, OrderedDict
 from json import JSONDecoder
 from distutils.util import strtobool
 
@@ -497,6 +497,78 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
+    def get_trex_daemon_log (self):
+        """
+        Get Trex daemon log.
+
+        :return: 
+            String representation of TRex daemon log
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case file could not be read.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        try:
+            return binascii.a2b_base64(self.server.get_trex_daemon_log())
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
+    def get_trex_log (self):
+        """
+        Get TRex CLI output log
+
+        :return: 
+            String representation of TRex log
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case file could not be fetched at server side.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        try:
+            return binascii.a2b_base64(self.server.get_trex_log())
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
+    def get_trex_version (self):
+        """
+        Get TRex version details.
+
+        :return: 
+            Trex details (Version, User, Date, Uuid) as ordered dictionary
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex version could not be determined.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+            + General Exception is case one of the keys is missing in response
+        """
+
+        try:
+            version_dict = OrderedDict()
+            result_lines = binascii.a2b_base64(self.server.get_trex_version()).split('\n')
+            for line in result_lines:
+                key, value = line.strip().split(':', 1)
+                version_dict[key.strip()] = value.strip()
+            for key in ('Version', 'User', 'Date', 'Uuid'):
+                if key not in version_dict:
+                    raise Exception('get_trex_version: got server response without key: {0}'.format(key))
+            return version_dict
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
     def reserve_trex (self, user = None):
         """
         Reserves the usage of TRex to a certain user.
@@ -650,8 +722,8 @@ class CTRexClient(object):
         """
         if self.verbose:
             print ('\n')
-            print ("(*) JSON-RPC request:  "+ self.history.request)
-            print ("(*) JSON-RPC response: "+ self.history.response)
+            print ("(*) JSON-RPC request:", self.history.request)
+            print ("(*) JSON-RPC response:", self.history.response)
 
     def __verbose_print(self, print_str):
         """
