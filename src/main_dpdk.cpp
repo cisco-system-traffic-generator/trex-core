@@ -688,12 +688,13 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
      CSimpleOpt args(argc, argv, parser_options);
 
      bool latency_was_set=false;
+     (void)latency_was_set;
+
      int a=0;
      int node_dump=0;
 
      po->preview.setFileWrite(true);
      po->preview.setRealTime(true);
-     int res1;
      uint32_t tmp_data;
 
      po->m_run_mode = CParserOption::RUN_MODE_INVALID;
@@ -951,9 +952,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 int main_test(int argc , char * argv[]);
 
 
-static const char * default_argv[] = {"xx","-c", "0x7", "-n","2","-b","0000:0b:01.01"};
-static int argv_num = 7;
-
+//static const char * default_argv[] = {"xx","-c", "0x7", "-n","2","-b","0000:0b:01.01"};
+//static int argv_num = 7;
+                                             
 
 
 #define RX_PTHRESH 8 /**< Default values of RX prefetch threshold reg. */
@@ -1137,8 +1138,8 @@ void CPhyEthIFStats::Clear(){
 
 void CPhyEthIFStats::DumpAll(FILE *fd){
 
-    #define DP_A4(f) printf(" %-40s : %llu \n",#f,f)
-    #define DP_A(f) if (f) printf(" %-40s : %llu \n",#f,f)
+    #define DP_A4(f) printf(" %-40s : %llu \n",#f, (unsigned long long)f)
+    #define DP_A(f) if (f) printf(" %-40s : %llu \n",#f, (unsigned long long)f)
     DP_A4(opackets);  
     DP_A4(obytes);      
     DP_A4(ipackets);  
@@ -1613,10 +1614,6 @@ void CPhyEthIF::macaddr_get(struct ether_addr *mac_addr){
 
 void CPhyEthIF::get_stats_1g(CPhyEthIFStats *stats){ 
 
-    int i;
-    uint64_t t=0;
-
-
    stats->ipackets     +=  pci_reg_read(E1000_GPRC) ;
 
    stats->ibytes       +=  (pci_reg_read(E1000_GORCL) );
@@ -1672,8 +1669,8 @@ void CPhyEthIF::get_stats(CPhyEthIFStats *stats){
 
 void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
 
-    #define DP_A1(f) if (hs->f) fprintf(fd," %-40s : %llu \n",#f,hs->f)
-    #define DP_A2(f,m) for (i=0;i<m; i++) { if (hs->f[i]) fprintf(fd," %-40s[%d] : %llu \n",#f,i,hs->f[i]); }
+    #define DP_A1(f) if (hs->f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)hs->f)
+    #define DP_A2(f,m) for (i=0;i<m; i++) { if (hs->f[i]) fprintf(fd," %-40s[%d] : %llu \n",#f,i, (unsigned long long)hs->f[i]); }
        int i;
 
     //for (i=0;i<8; i++) { if (hs->mpc[i]) fprintf(fd," %-40s[%d] : %llu \n","mpc",i,hs->mpc[i]); }
@@ -2100,6 +2097,8 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
             rte_pktmbuf_free(m);
         }
     }
+
+    return (0);
 }
                          
 
@@ -2120,6 +2119,8 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
         len = 0;
     }
     lp_port->m_len = len;
+
+    return (0);
 }
 
 
@@ -2549,7 +2550,7 @@ std::string CGlobalStats::get_field(std::string name,float &f){
 
 std::string CGlobalStats::get_field(std::string name,uint64_t &f){
     char buff[200];
-    sprintf(buff,"\"%s\":%llu,",name.c_str(),f);
+    sprintf(buff,"\"%s\":%llu,",name.c_str(), (unsigned long long)f);
     return (std::string(buff));
 }
 
@@ -2561,7 +2562,7 @@ std::string CGlobalStats::get_field_port(int port,std::string name,float &f){
 
 std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
     char buff[200];
-    sprintf(buff,"\"%s-%d\":%llu,",name.c_str(),port,f);
+    sprintf(buff,"\"%s-%d\":%llu,",name.c_str(),port, (unsigned long long)f);
     return (std::string(buff));
 }
 
@@ -2634,7 +2635,7 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
     fprintf (fd," Platform_factor : %2.1f  \n",m_platform_factor);
     fprintf (fd," Total-Tx        : %s  ",double_to_human_str(m_tx_bps,"bps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Nat_time_out    : %8llu \n",m_total_nat_time_out);
+        fprintf (fd," Nat_time_out    : %8llu \n", (unsigned long long)m_total_nat_time_out);
     }else{
         fprintf (fd,"\n");
     }
@@ -2642,49 +2643,52 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
 
     fprintf (fd," Total-Rx        : %s  ",double_to_human_str(m_rx_bps,"bps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Nat_no_fid      : %8llu \n",m_total_nat_no_fid);
+        fprintf (fd," Nat_no_fid      : %8llu \n", (unsigned long long)m_total_nat_no_fid);
     }else{
         fprintf (fd,"\n");
     }
 
     fprintf (fd," Total-PPS       : %s  ",double_to_human_str(m_tx_pps,"pps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Total_nat_active: %8llu \n",m_total_nat_active);
+        fprintf (fd," Total_nat_active: %8llu \n", (unsigned long long)m_total_nat_active);
     }else{
         fprintf (fd,"\n");
     }
 
     fprintf (fd," Total-CPS       : %s  ",double_to_human_str(m_tx_cps,"cps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Total_nat_open  : %8llu \n",m_total_nat_open);
+        fprintf (fd," Total_nat_open  : %8llu \n", (unsigned long long)m_total_nat_open);
     }else{
         fprintf (fd,"\n");
     }
     fprintf (fd,"\n");
     fprintf (fd," Expected-PPS    : %s  ",double_to_human_str(m_tx_expected_pps,"pps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_verify_mode() ) {
-        fprintf (fd," Nat_learn_errors: %8llu \n",m_total_nat_learn_error);
+        fprintf (fd," Nat_learn_errors: %8llu \n", (unsigned long long)m_total_nat_learn_error);
     }else{
         fprintf (fd,"\n");
     }
     fprintf (fd," Expected-CPS    : %s  \n",double_to_human_str(m_tx_expected_cps,"cps",KBYE_1000).c_str());
     fprintf (fd," Expected-BPS    : %s  \n",double_to_human_str(m_tx_expected_bps,"bps",KBYE_1000).c_str());
     fprintf (fd,"\n");
-    fprintf (fd," Active-flows    : %8llu  Clients : %8llu   Socket-util : %3.4f %%    \n",(uint64_t)m_active_flows,m_total_clients,m_socket_util);
+    fprintf (fd," Active-flows    : %8llu  Clients : %8llu   Socket-util : %3.4f %%    \n",
+             (unsigned long long)m_active_flows,
+             (unsigned long long)m_total_clients,
+             m_socket_util);
     fprintf (fd," Open-flows      : %8llu  Servers : %8llu   Socket : %8llu Socket/Clients :  %.1f \n",
-             (uint64_t)m_open_flows,
-              m_total_servers,
-             m_active_sockets,
+             (unsigned long long)m_open_flows,
+             (unsigned long long)m_total_servers,
+             (unsigned long long)m_active_sockets,
              (float)m_active_sockets/(float)m_total_clients);
 
     if (m_total_alloc_error) {
-        fprintf (fd," Total_alloc_err  : %llu         \n",(uint64_t)m_total_alloc_error);
+        fprintf (fd," Total_alloc_err  : %llu         \n", (unsigned long long)m_total_alloc_error);
     }
     if ( m_total_queue_full ){
-        fprintf (fd," Total_queue_full : %llu         \n",(uint64_t)m_total_queue_full);
+        fprintf (fd," Total_queue_full : %llu         \n", (unsigned long long)m_total_queue_full);
     }
     if (m_total_queue_drop) {
-        fprintf (fd," Total_queue_drop : %llu         \n",(uint64_t)m_total_queue_drop);
+        fprintf (fd," Total_queue_drop : %llu         \n", (unsigned long long)m_total_queue_drop);
     }
 
     //m_template.Dump(fd);
@@ -2708,8 +2712,8 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
             CPerPortStats * lp=&m_port[i];
             fprintf(fd,"port : %d \n",(int)i);
             fprintf(fd,"------------\n");
-            #define GS_DP_A4(f) fprintf(fd," %-40s : %llu \n",#f,lp->f)
-            #define GS_DP_A(f) if (lp->f) fprintf(fd," %-40s : %llu \n",#f,lp->f)
+            #define GS_DP_A4(f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)lp->f)
+            #define GS_DP_A(f) if (lp->f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)lp->f)
             GS_DP_A4(opackets);  
             GS_DP_A4(obytes);      
             GS_DP_A4(ipackets);  
@@ -2998,13 +3002,13 @@ int  CGlobalTRex::rcv_send_all(int queue_id){
 int CGlobalTRex::test_send(){
     int i;
 
-    CPhyEthIF * lp=&m_ports[0];
-
     //set_promisc_all(true);
     //create_sctp_pkt();
     create_udp_pkt();
 
 	CRx_check_header rx_check_header;
+    (void)rx_check_header;
+
 	rx_check_header.m_time_stamp=0x1234567;
 	rx_check_header.m_option_type=RX_CHECK_V4_OPT_TYPE;
 	rx_check_header.m_option_len=RX_CHECK_V4_OPT_LEN;
@@ -3078,7 +3082,7 @@ int CGlobalTRex::test_send(){
    }*/
    #endif
 
-    fprintf(stdout," drop : %llu \n",m_test_drop);
+    fprintf(stdout," drop : %llu \n", (unsigned long long)m_test_drop);
     return (0);
 }
 
@@ -3209,6 +3213,8 @@ int  CGlobalTRex::set_promisc_all(bool enable){
         CPhyEthIF * _if=&m_ports[i];
         _if->set_promiscuous(enable);
     }
+
+    return (0);
 }
 
 
@@ -3219,6 +3225,8 @@ int  CGlobalTRex::reset_counters(){
         CPhyEthIF * _if=&m_ports[i];
         _if->stats_clear();
     }
+
+    return (0);
 }
 
 
@@ -3291,6 +3299,8 @@ int  CGlobalTRex::ixgbe_configure_mg(void){
 
     m_mg.Create(&mg_cfg);
     m_mg.set_mask(CGlobalInfo::m_options.m_latency_mask);
+
+    return (0);
 }
 
 
@@ -3413,7 +3423,6 @@ int  CGlobalTRex::ixgbe_start(void){
 
     */
     int port_offset=0;
-    int queue_offset=0;
     for (i=0; i<get_cores_tx(); i++) {
         int j=(i+1);
         int queue_id=((j-1)/get_base_num_cores() );   /* for the first min core queue 0 , then queue 1 etc */
@@ -3440,6 +3449,8 @@ int  CGlobalTRex::ixgbe_start(void){
         m_cores_vif[i+1]->DumpIfCfg(stdout);
     }
     fprintf(stdout," -------------------------------\n");
+
+    return (0);
 }
 
 
@@ -3482,12 +3493,12 @@ bool CGlobalTRex::Create(){
    assert( CMsgIns::Ins()->Create(get_cores_tx()) );
 
    if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
-       printf("ERROR sizeof(CGenNodeNatInfo) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
+       printf("ERROR sizeof(CGenNodeNatInfo) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
        assert(0);
    }
 
     if ( sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)  ) {
-        printf("ERROR sizeof(CGenNodeLatencyPktInfo) %d != sizeof(CGenNode) %d must be the same size \n",sizeof(CGenNodeLatencyPktInfo),sizeof(CGenNode));
+        printf("ERROR sizeof(CGenNodeLatencyPktInfo) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeLatencyPktInfo),sizeof(CGenNode));
         assert(0);
     }
 
@@ -3514,9 +3525,6 @@ void CGlobalTRex::Delete(){
 
 
 int  CGlobalTRex::ixgbe_prob_init(void){
-
-    uint8_t nb_ports;             
-
 
 	m_max_ports  = rte_eth_dev_count();
 	if (m_max_ports == 0)
@@ -3696,17 +3704,17 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
     fprintf (fd," summary stats \n");
     fprintf (fd," -------------- \n");
 
-    fprintf (fd," Total-pkt-drop       : %d pkts \n",(int64_t)(pkt_out-pkt_in));
-    fprintf (fd," Total-tx-bytes       : %llu bytes \n",pkt_out_bytes);
-    fprintf (fd," Total-tx-sw-bytes    : %llu bytes \n",sw_pkt_out_bytes);
-    fprintf (fd," Total-rx-bytes       : %llu byte \n",pkt_in_bytes);
+    fprintf (fd," Total-pkt-drop       : %llu pkts \n",(unsigned long long)(pkt_out-pkt_in));
+    fprintf (fd," Total-tx-bytes       : %llu bytes \n", (unsigned long long)pkt_out_bytes);
+    fprintf (fd," Total-tx-sw-bytes    : %llu bytes \n", (unsigned long long)sw_pkt_out_bytes);
+    fprintf (fd," Total-rx-bytes       : %llu byte \n", (unsigned long long)pkt_in_bytes);
 
     fprintf (fd," \n");
 
-    fprintf (fd," Total-tx-pkt         : %llu pkts \n",pkt_out);
-    fprintf (fd," Total-rx-pkt         : %llu pkts \n",pkt_in);
-    fprintf (fd," Total-sw-tx-pkt      : %llu pkts \n",sw_pkt_out);
-    fprintf (fd," Total-sw-err         : %llu pkts \n",sw_pkt_out_err);
+    fprintf (fd," Total-tx-pkt         : %llu pkts \n", (unsigned long long)pkt_out);
+    fprintf (fd," Total-rx-pkt         : %llu pkts \n", (unsigned long long)pkt_in);
+    fprintf (fd," Total-sw-tx-pkt      : %llu pkts \n", (unsigned long long)sw_pkt_out);
+    fprintf (fd," Total-sw-err         : %llu pkts \n", (unsigned long long)sw_pkt_out_err);
 
 
     if ( !CGlobalInfo::m_options.is_latency_disabled() ){
@@ -4183,6 +4191,7 @@ int CGlobalTRex::stop_master(){
     dump_post_test_stats(stdout);
     m_fl.Delete();
 
+    return (0);
 }
 
 bool CGlobalTRex::is_all_cores_finished(){
@@ -4216,6 +4225,8 @@ int CGlobalTRex::start_master_stateless(){
         lpt->m_node_gen.m_socket_id =m_cores_vif[i+1]->get_socket_id();
     }
     m_fl_was_init=true;
+
+    return (0);
 }
 
 
@@ -4274,6 +4285,7 @@ int CGlobalTRex::start_send_master(){
     }
     m_fl_was_init=true;
 
+    return (0);
 }
 
 
@@ -4414,7 +4426,6 @@ int update_global_info_from_platform_file(){
 
 int  update_dpdk_args(void){
 
-    uint32_t cores_number;
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     CParserOption * lpop= &CGlobalInfo::m_options;
 
@@ -4431,7 +4442,7 @@ int  update_dpdk_args(void){
     }
 
 
-    sprintf(global_cores_str,"0x%x",lpsock->get_cores_mask());
+    sprintf(global_cores_str,"0x%llx",(unsigned long long)lpsock->get_cores_mask());
 
     /* set the DPDK options */
     global_dpdk_args_num =7;
@@ -4482,6 +4493,7 @@ int  update_dpdk_args(void){
             printf(" %s \n",global_dpdk_args[i]);
         }
     }
+    return (0);
 }
 
 
@@ -4765,13 +4777,12 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
 
         /* enable all rules */
         _if->pci_reg_write(E1000_WUFC, (mask<<16) | (1<<14) );
+
+        return (0);
 }
 
 
 void CTRexExtendedDriverBase1G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){ 
-
-   int i;
-   uint64_t t=0;
 
    stats->ipackets     +=  _if->pci_reg_read(E1000_GPRC) ;
 
@@ -4902,6 +4913,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
                  rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_fdir_add_perfect_filter : %d\n",res);
             }
         }
+        return (0);
 }
 
 int CTRexExtendedDriverBase10G::configure_drop_queue(CPhyEthIF * _if){
@@ -5024,6 +5036,8 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
         add_rules(_if,RTE_ETH_FLOW_TYPE_UDPV6,ttl);
         add_rules(_if,RTE_ETH_FLOW_TYPE_TCPV6,ttl);
     }
+
+    return (0);
 }
 
 

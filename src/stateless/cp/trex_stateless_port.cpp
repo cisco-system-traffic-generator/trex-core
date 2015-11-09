@@ -27,9 +27,16 @@ limitations under the License.
 #include <string>
 
 #ifndef TREX_RPC_MOCK_SERVER
+
 // DPDK c++ issue 
-#define UINT8_MAX 255
-#define UINT16_MAX 0xFFFF
+#ifndef UINT8_MAX
+    #define UINT8_MAX 255
+#endif
+
+#ifndef UINT16_MAX
+    #define UINT16_MAX 0xFFFF
+#endif
+
 // DPDK c++ issue 
 #endif
 

@@ -3420,7 +3420,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         add_node(exit_node);
     }
 
-    while (!m_p_queue.empty()) {
+    while (true) {
 
         node = m_p_queue.top();
         n_time = node->m_time + offset;
@@ -3600,12 +3600,16 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
             thread->check_msgs(); /* check messages */
             m_v_if->flush_tx_queue(); /* flush pkt each timeout */
 
-            if (always == false) {
+            /* on always (clean queue path) and queue empty - exit */
+            if ( always && (m_p_queue.empty()) ) {
+                thread->free_node(node);
+                exit_scheduler = true;
+            } else {
+                /* schedule for next maintenace */
                 node->m_time += SYNC_TIME_OUT;
                 m_p_queue.push(node);
-            }else{
-                thread->free_node(node);
             }
+
 
         } else if ( type == CGenNode::EXIT_SCHED ) {
             m_p_queue.pop();

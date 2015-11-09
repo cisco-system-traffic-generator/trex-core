@@ -582,6 +582,12 @@ class build_option:
         # support c++ 2011
         flags += ['-std=c++0x']
 
+        flags += ['-Wall',
+                  '-Werror',
+                  '-Wno-literal-suffix',
+                  '-Wno-sign-compare',
+                  '-Wno-strict-aliasing']
+
         return (flags)
 
     def get_c_flags (self):
