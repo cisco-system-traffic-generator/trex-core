@@ -222,11 +222,11 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
     /* if not free and not you and not force - fail */
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if ( (!port->is_free_to_aquire()) && (port->get_owner() != new_owner) && (!force)) {
-        generate_execute_err(result, "port is already taken by '" + port->get_owner() + "'");
+    try {
+        port->acquire(new_owner, force);
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
     }
-
-    port->set_owner(new_owner);
 
     result["result"] = port->get_owner_handler();
 
@@ -244,11 +244,11 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if (port->get_state() == TrexStatelessPort::PORT_STATE_TRANSMITTING) {
-        generate_execute_err(result, "cannot release a port during transmission");
+    try {
+        port->release();
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
     }
-
-    port->clear_owner();
 
     result["result"] = "ACK";
 
@@ -266,13 +266,13 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if (port->get_state() == TrexStatelessPort::PORT_STATE_DOWN) {
-        generate_execute_err(result, "cannot get stats - port is down");
-    }
-
     result["result"]["status"] = port->get_state_as_string();
 
-    port->encode_stats(result["result"]);
+    try {
+        port->encode_stats(result["result"]);
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
+    }
 
     return (TREX_RPC_CMD_OK);
 }
@@ -303,7 +303,7 @@ TrexRpcCmdSyncUser::_run(const Json::Value &params, Json::Value &result) {
                 owned_port["streams"] = Json::arrayValue;
 
                 std::vector <TrexStream *> streams;
-                port->get_stream_table()->get_object_list(streams);
+                port->get_object_list(streams);
 
                 for (auto stream : streams) {
                     owned_port["streams"].append(stream->get_stream_json());

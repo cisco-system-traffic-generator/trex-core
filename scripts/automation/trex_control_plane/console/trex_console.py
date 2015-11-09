@@ -778,6 +778,9 @@ class TRexConsole(cmd.Cmd):
                 return
             else:
                 port_list = self.stateless_client.get_active_ports()
+                if not port_list:
+                     print magenta("no active ports - operation aborted\n")
+                     return
         else:
             port_list = self.extract_port_ids_from_line(line)
 

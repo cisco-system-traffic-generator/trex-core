@@ -37,9 +37,11 @@ public:
      * port state
      */
     enum port_state_e {
-        PORT_STATE_DOWN,
-        PORT_STATE_UP_IDLE,
-        PORT_STATE_TRANSMITTING
+        PORT_STATE_DOWN = 0x1,
+        PORT_STATE_IDLE = 0x2,
+        PORT_STATE_STREAMS = 0x4,
+        PORT_STATE_TX = 0x8,
+        PORT_STATE_PAUSE = 0x10,
     };
 
     /**
@@ -53,30 +55,54 @@ public:
     };
 
     TrexStatelessPort(uint8_t port_id);
+    
+    /**
+     * acquire port
+     * throws TrexException in case of an error
+     */
+    void acquire(const std::string &user, bool force = false);
+
+    /**
+     * release the port from the current user
+     * throws TrexException in case of an error
+     */
+    void release(void);
 
     /**
      * start traffic
-     * 
+     * throws TrexException in case of an error
      */
-    rc_e start_traffic(double mul);
+    void start_traffic(double mul);
 
     /**
      * stop traffic
-     * 
+     * throws TrexException in case of an error
      */
-    rc_e stop_traffic(void);
+    void stop_traffic(void);
 
     /**
-     * access the stream table
+     * pause traffic
+     * throws TrexException in case of an error
+     */
+    void pause_traffic(void);
+
+    /**
+     * resume traffic
+     * throws TrexException in case of an error
+     */
+    void resume_traffic(void);
+
+    /**
+     * update current traffic on port
      * 
      */
-    TrexStreamTable *get_stream_table();
+    void update_traffic(double mul);
 
     /**
      * get the port state
      * 
      */
-    port_state_e get_state() {
+    port_state_e get_state() const {
         return m_port_state;
     }
 
@@ -84,7 +110,7 @@ public:
      * port state as string
      * 
      */
-    std::string get_state_as_string();
+    std::string get_state_as_string() const;
 
     /**
      * fill up properties of the port
@@ -95,6 +121,7 @@ public:
      * @param speed 
      */
     void get_properties(std::string &driver, std::string &speed);
+
 
     /**
     * query for ownership
@@ -113,9 +140,68 @@ public:
         return m_owner_handler;
     }
 
-    bool is_free_to_aquire() {
-        return (m_owner == "none");
+
+    bool verify_owner_handler(const std::string &handler) {
+
+        return ( (m_owner != "none") && (m_owner_handler == handler) );
+
     }
+
+    /**
+     * encode stats as JSON
+     */
+    void encode_stats(Json::Value &port);
+
+    uint8_t get_port_id() {
+        return m_port_id;
+    }
+
+    /**
+     * delegators
+     * 
+     */
+
+    void add_stream(TrexStream *stream) {
+        verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+
+        m_stream_table.add_stream(stream);
+
+        change_state(PORT_STATE_STREAMS);
+    }
+
+    void remove_stream(TrexStream *stream) {
+        verify_state(PORT_STATE_STREAMS);
+
+        m_stream_table.remove_stream(stream);
+
+        if (m_stream_table.size() == 0) {
+            change_state(PORT_STATE_IDLE);
+        }
+    }
+
+    void remove_and_delete_all_streams() {
+        verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+
+        m_stream_table.remove_and_delete_all_streams();
+
+        change_state(PORT_STATE_IDLE);
+    }
+
+    TrexStream * get_stream_by_id(uint32_t stream_id) {
+        return m_stream_table.get_stream_by_id(stream_id);
+    }
+
+    void get_id_list(std::vector<uint32_t> &id_list) {
+        m_stream_table.get_id_list(id_list);
+    }
+
+    void get_object_list(std::vector<TrexStream *> &object_list) {
+        m_stream_table.get_object_list(object_list);
+    }
+
+private:
+
+  
 
     /**
     * take ownership of the server array 
@@ -133,22 +219,14 @@ public:
         m_owner_handler = "";
     }
 
-    bool verify_owner_handler(const std::string &handler) {
-
-        return ( (m_owner != "none") && (m_owner_handler == handler) );
-
+    bool is_free_to_aquire() {
+        return (m_owner == "none");
     }
 
-    /**
-     * encode stats as JSON
-     */
-    void encode_stats(Json::Value &port);
 
-    uint8_t get_port_id() {
-        return m_port_id;
-    }
+    bool verify_state(int state, bool should_throw = true) const;
 
-private:
+    void change_state(port_state_e new_state);
 
     std::string generate_handler();
 

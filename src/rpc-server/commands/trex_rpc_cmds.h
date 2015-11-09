@@ -105,8 +105,12 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, true);
 
 
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic, "start_traffic", 2, true);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic, "stop_traffic", 1, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic,  "start_traffic", 2, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic,   "stop_traffic", 1, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdPauseTraffic,  "pause_traffic", 1, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdResumeTraffic, "resume_traffic", 1, true);
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdUpdateTraffic, "update_traffic", 1, true);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdSyncUser, "sync_user", 2, false);
 

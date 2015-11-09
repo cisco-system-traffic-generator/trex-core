@@ -53,29 +53,47 @@ using namespace std;
  * 
  **************************/
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : m_port_id(port_id) {
-    m_port_state = PORT_STATE_UP_IDLE;
+    m_port_state = PORT_STATE_IDLE;
     clear_owner();
 }
 
 
 /**
+ * acquire the port
+ * 
+ * @author imarom (09-Nov-15)
+ * 
+ * @param user 
+ * @param force 
+ */
+void 
+TrexStatelessPort::acquire(const std::string &user, bool force) {
+    if ( (!is_free_to_aquire()) && (get_owner() != user) && (!force)) {
+        throw TrexRpcException("port is already taken by '" + get_owner() + "'");
+    }
+
+    set_owner(user);
+}
+
+void
+TrexStatelessPort::release(void) {
+    verify_state( ~(PORT_STATE_TX | PORT_STATE_PAUSE) );
+    clear_owner();
+}
+
+/**
  * starts the traffic on the port
  * 
  */
-TrexStatelessPort::rc_e
+void
 TrexStatelessPort::start_traffic(double mul) {
 
-    if (m_port_state != PORT_STATE_UP_IDLE) {
-        return (RC_ERR_BAD_STATE_FOR_OP);
-    }
-
-    if (get_stream_table()->size() == 0) {
-        return (RC_ERR_NO_STREAMS);
-    }
+    /* command allowed only on state stream */
+    verify_state(PORT_STATE_STREAMS);
 
     /* fetch all the streams from the table */
     vector<TrexStream *> streams;
-    get_stream_table()->get_object_list(streams);
+    get_object_list(streams);
 
     /* compiler it */
     TrexStreamsCompiler compiler;
@@ -83,7 +101,7 @@ TrexStatelessPort::start_traffic(double mul) {
 
     bool rc = compiler.compile(streams, *compiled_obj);
     if (!rc) {
-        return (RC_ERR_FAILED_TO_COMPILE_STREAMS);
+        throw TrexRpcException("Failed to compile streams");
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
@@ -91,51 +109,94 @@ TrexStatelessPort::start_traffic(double mul) {
 
     send_message_to_dp(start_msg);
 
-    /* move the state to transmiting */
-    m_port_state = PORT_STATE_TRANSMITTING;
-
-    return (RC_OK);
+    change_state(PORT_STATE_TX);
 }
 
-TrexStatelessPort::rc_e
+/**
+ * stop traffic on port
+ * 
+ * @author imarom (09-Nov-15)
+ * 
+ * @return TrexStatelessPort::rc_e 
+ */
+void
 TrexStatelessPort::stop_traffic(void) {
 
-    /* real code goes here */
-    if (m_port_state != PORT_STATE_TRANSMITTING) {
-        return (RC_ERR_BAD_STATE_FOR_OP);
-    }
+    verify_state(PORT_STATE_TX);
 
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
 
     send_message_to_dp(stop_msg);
 
+    change_state(PORT_STATE_STREAMS);
+}
+
+void
+TrexStatelessPort::pause_traffic(void) {
+
+    verify_state(PORT_STATE_TX);
+
+    #if 0
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+
+    send_message_to_dp(stop_msg);
+
     m_port_state = PORT_STATE_UP_IDLE;
-
-    return (RC_OK);
+    #endif
+    change_state(PORT_STATE_PAUSE);
 }
 
-/**
-* access the stream table
-* 
-*/
-TrexStreamTable * TrexStatelessPort::get_stream_table() {
-    return &m_stream_table;
+void
+TrexStatelessPort::resume_traffic(void) {
+
+    verify_state(PORT_STATE_PAUSE);
+
+    #if 0
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+
+    send_message_to_dp(stop_msg);
+
+    m_port_state = PORT_STATE_UP_IDLE;
+    #endif
+    change_state(PORT_STATE_TX);
 }
 
+void
+TrexStatelessPort::update_traffic(double mul) {
+
+    verify_state(PORT_STATE_STREAMS | PORT_STATE_TX | PORT_STATE_PAUSE);
+
+    #if 0
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+
+    send_message_to_dp(stop_msg);
+
+    m_port_state = PORT_STATE_UP_IDLE;
+    #endif
+}
 
 std::string 
-TrexStatelessPort::get_state_as_string() {
+TrexStatelessPort::get_state_as_string() const {
 
     switch (get_state()) {
     case PORT_STATE_DOWN:
         return "down";
 
-    case PORT_STATE_UP_IDLE:
-        return  "idle";
+    case PORT_STATE_IDLE:
+        return  "no streams";
 
-    case PORT_STATE_TRANSMITTING:
+    case PORT_STATE_STREAMS:
+        return "with streams, idle";
+
+    case PORT_STATE_TX:
         return "transmitting";
+
+    case PORT_STATE_PAUSE:
+        return "paused";
     }
 
     return "unknown";
@@ -149,6 +210,24 @@ TrexStatelessPort::get_properties(string &driver, string &speed) {
     speed  = "1 Gbps";
 }
 
+bool
+TrexStatelessPort::verify_state(int state, bool should_throw) const {
+    if ( (state & m_port_state) == 0 ) {
+        if (should_throw) {
+            throw TrexRpcException("command cannot be executed on current state: '" + get_state_as_string() + "'");
+        } else {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void
+TrexStatelessPort::change_state(port_state_e new_state) {
+
+    m_port_state = new_state;
+}
 
 /**
  * generate a random connection handler
