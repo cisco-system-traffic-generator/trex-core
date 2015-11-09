@@ -894,6 +894,8 @@ public:
     /* number of main active sockets. socket #0 is always used  */
     virtual socket_id_t max_num_active_sockets()=0;
 
+    virtual ~CPlatformSocketInfoBase() {}
+    
 public:
     /* which socket to allocate memory to each port */
     virtual socket_id_t port_to_socket(port_id_t port)=0;
@@ -1337,8 +1339,8 @@ public:
 
 
 
-#define DP(f) if (f) printf(" %-40s: %llu \n",#f,f)
-#define DP_name(n,f) if (f) printf(" %-40s: %llu \n",n,f)
+#define DP(f) if (f) printf(" %-40s: %llu \n",#f,(unsigned long long)f)
+#define DP_name(n,f) if (f) printf(" %-40s: %llu \n",n,(unsigned long long)f)
 
 #define DP_S(f,f_s) if (f) printf(" %-40s: %s \n",#f,f_s.c_str())
 
@@ -1901,9 +1903,10 @@ private:
         return (m_v_if->send_node(node));
     }
     int   update_stats(CGenNode * node);
-    FORCE_NO_INLINE void  handle_slow_messages(uint8_t type,
-                                             CGenNode * node,
-                                             CFlowGenListPerThread * thread,
+
+    FORCE_NO_INLINE bool handle_slow_messages(uint8_t type,
+                                              CGenNode * node,
+                                              CFlowGenListPerThread * thread,
                                               bool always);
 
 
@@ -2379,6 +2382,7 @@ public:
             return (uint32_t)((uintptr_t)( ((char *)l3.m_ipv4)-getBasePtr()) );
         }else{
             BP_ASSERT(0);
+            return (0);
         }
     }
 
@@ -3500,7 +3504,7 @@ private:
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
 
-    TrexStatelessDpCore              *m_stateless_dp_info;
+    TrexStatelessDpCore              m_stateless_dp_info;
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 

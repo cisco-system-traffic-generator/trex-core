@@ -127,7 +127,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 TrexStream *
 TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result) {
 
-    TrexStream *stream;
+    TrexStream *stream = NULL;
 
     const Json::Value &mode = parse_object(section, "mode", result);
     std::string type = parse_string(mode, "type", result);
@@ -200,9 +200,9 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
     std::string  min_value_str     = parse_string(inst, "min_value", result);
     std::string  max_value_str     = parse_string(inst, "max_value", result);
 
-    uint64_t init_value;
-    uint64_t min_value;
-    uint64_t max_value;
+    uint64_t init_value = 0;
+    uint64_t min_value = 0;
+    uint64_t max_value = 0;
 
     try {
         init_value = str2num(init_value_str);

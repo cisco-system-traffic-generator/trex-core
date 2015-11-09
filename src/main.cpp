@@ -214,11 +214,12 @@ void * thread_task(void *info){
 
         char buf[100];
         sprintf(buf,"my%d.erf",obj->thread_id);
-        volatile int i;
         lpt->start_generate_stateful(buf,*obj->preview_info);
         lpt->m_node_gen.DumpHist(stdout);
         printf("end thread %d \n",obj->thread_id);
     }
+
+    return (NULL);
 }
 
 
@@ -405,8 +406,6 @@ void update_tcp_seq_num(CCapFileFlowInfo * obj,
     int i;
 
     for (i=pkt_id+1; i<s; i++) {
-        uint32_t seq;
-        uint32_t ack;
 
         pkt=obj->GetPacket(i);
         tcp=pkt->m_pkt_indication.l4.m_tcp;
@@ -490,7 +489,7 @@ int manipolate_capfile() {
     CCapFileFlowInfo flow_info;
     flow_info.Create();
 
-    int res=flow_info.load_cap_file("avl/delay_10_rtsp_0.pcap",0,0);
+    flow_info.load_cap_file("avl/delay_10_rtsp_0.pcap",0,0);
 
     change_pkt_len(&flow_info,4-1 ,6);
     change_pkt_len(&flow_info,5-1 ,6);
@@ -515,7 +514,7 @@ int manipolate_capfile_sip() {
     CCapFileFlowInfo flow_info;
     flow_info.Create();
 
-    int res=flow_info.load_cap_file("avl/delay_10_sip_0.pcap",0,0);
+    flow_info.load_cap_file("avl/delay_10_sip_0.pcap",0,0);
 
     change_pkt_len(&flow_info,1-1 ,6+6);
     change_pkt_len(&flow_info,2-1 ,6+6);
@@ -532,8 +531,8 @@ int manipolate_capfile_sip1() {
     CCapFileFlowInfo flow_info;
     flow_info.Create();
 
-    int res=flow_info.load_cap_file("avl/delay_sip_0.pcap",0,0);
-    CFlowPktInfo * pkt=flow_info.GetPacket(1);
+    flow_info.load_cap_file("avl/delay_sip_0.pcap",0,0);
+    flow_info.GetPacket(1);
 
     change_pkt_len(&flow_info,1-1 ,6+6+10);
 
@@ -569,7 +568,7 @@ public:
 
 
 void CMergeCapFileRec::Dump(FILE *fd,int _id){
-    double  time;
+    double time = 0.0;
     bool stop=GetCurPacket(time);
     fprintf (fd," id:%2d  stop : %d index:%4d  %3.4f \n",_id,stop?1:0,m_index,time);
 }
@@ -620,6 +619,8 @@ bool CMergeCapFileRec::Create(std::string cap_file,
    m_limit_number_of_packets =0;
    m_start_time =     pkt->m_packet->get_time() ;
    m_offset = offset;
+
+   return (true);
 }
 
 
@@ -663,12 +664,12 @@ bool CMergeCapFile::run_merge(std::string to_cap_file){
         int    min_index=0;
         double min_time;
 
-        fprintf(stdout," --------------\n",cnt);
+        fprintf(stdout," --------------\n");
         fprintf(stdout," pkt : %d \n",cnt);
         for (i=0; i<MERGE_CAP_FILES; i++) {
             m[i].Dump(stdout,i);
         }
-        fprintf(stdout," --------------\n",cnt);
+        fprintf(stdout," --------------\n");
 
         bool valid = false;
         for (i=0; i<MERGE_CAP_FILES; i++) {
@@ -702,6 +703,8 @@ bool CMergeCapFile::run_merge(std::string to_cap_file){
     };
 
     m_results.save_to_erf(to_cap_file,1);
+
+    return (true);
 }
 
 

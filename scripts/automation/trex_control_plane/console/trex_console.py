@@ -32,7 +32,7 @@ from common.trex_streams import *
 from client.trex_stateless_client import CTRexStatelessClient
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
-
+import parsing_opts
 import trex_status
 from collections import namedtuple
 
@@ -233,6 +233,9 @@ class TRexConsole(cmd.Cmd):
 
     def extract_port_ids_from_line(self, line):
         return {int(x) for x in line.split()}
+
+    def extract_port_ids_from_list(self, port_list):
+        return {int(x) for x in port_list}
 
     def parse_ports_from_line (self, line):
         port_list = set()
@@ -450,42 +453,42 @@ class TRexConsole(cmd.Cmd):
     def default(self, line):
         print "'{0}' is an unrecognized command. type 'help' or '?' for a list\n".format(line)
 
-    def do_help (self, line):
-        '''Shows This Help Screen\n'''
-        if line:
-            try:
-                func = getattr(self, 'help_' + line)
-            except AttributeError:
-                try:
-                    doc = getattr(self, 'do_' + line).__doc__
-                    if doc:
-                        self.stdout.write("%s\n"%str(doc))
-                        return
-                except AttributeError:
-                    pass
-                self.stdout.write("%s\n"%str(self.nohelp % (line,)))
-                return
-            func()
-            return
-
-        print "\nSupported Console Commands:"
-        print "----------------------------\n"
-
-        cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
-        for cmd in cmds:
-            if cmd == "EOF":
-                continue
-
-            try:
-                doc = getattr(self, 'do_' + cmd).__doc__
-                if doc:
-                    help = str(doc)
-                else:
-                    help = "*** Undocumented Function ***\n"
-            except AttributeError:
-                help = "*** Undocumented Function ***\n"
-
-            print "{:<30} {:<30}".format(cmd + " - ", help)
+    # def do_help (self, line):
+    #     '''Shows This Help Screen\n'''
+    #     if line:
+    #         try:
+    #             func = getattr(self, 'help_' + line)
+    #         except AttributeError:
+    #             try:
+    #                 doc = getattr(self, 'do_' + line).__doc__
+    #                 if doc:
+    #                     self.stdout.write("%s\n"%str(doc))
+    #                     return
+    #             except AttributeError:
+    #                 pass
+    #             self.stdout.write("%s\n"%str(self.nohelp % (line,)))
+    #             return
+    #         func()
+    #         return
+    #
+    #     print "\nSupported Console Commands:"
+    #     print "----------------------------\n"
+    #
+    #     cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
+    #     for cmd in cmds:
+    #         if cmd == "EOF":
+    #             continue
+    #
+    #         try:
+    #             doc = getattr(self, 'do_' + cmd).__doc__
+    #             if doc:
+    #                 help = str(doc)
+    #             else:
+    #                 help = "*** Undocumented Function ***\n"
+    #         except AttributeError:
+    #             help = "*** Undocumented Function ***\n"
+    #
+    #         print "{:<30} {:<30}".format(cmd + " - ", help)
 
     def do_stream_db_add(self, line):
         '''Loads a YAML stream list serialization into user console \n'''
@@ -595,7 +598,7 @@ class TRexConsole(cmd.Cmd):
                 print "Provided stream list name '{0}' doesn't exists.".format(stream_pack_name)
                 print format_text("[FAILED]\n", 'red', 'bold')
                 return
-            if args[0] == "all":
+            if args[1] == "all":
                 ask = ConfirmMenu('Are you sure you want to release all acquired ports? ')
                 rc = ask.show()
                 if rc == False:
@@ -699,6 +702,33 @@ class TRexConsole(cmd.Cmd):
     def do_start_traffic(self, line):
         '''Start pre-submitted traffic in specified ports on TRex\n'''
         # make sure that the user wants to acquire all
+        # parser = parsing_opts.gen_parser("start_traffic", self.do_start_traffic.__doc__,
+        #                                  parsing_opts.PORT_LIST_WITH_ALL, parsing_opts.MULTIPLIER)
+        # opts = parser.parse_args(line.split())
+        #
+        # print opts
+        # return
+        # # return
+        # # if not opts.port_list:
+        # #     print magenta("Please provide a list of ports separated by spaces, "
+        # #                   "or specify 'all' to start traffic on all acquired ports")
+        # #     return
+        #
+        # if "all" in opts.port_list:
+        #     ask = ConfirmMenu('Are you sure you want to start traffic at all acquired ports? ')
+        #     rc = ask.show()
+        #     if rc == False:
+        #         print yellow("[ABORTED]\n")
+        #         return
+        #     else:
+        #         port_list = self.stateless_client.get_acquired_ports()
+        # else:
+        #     try:
+        #         port_list = self.extract_port_ids_from_list(opts.port_list)
+        #     except ValueError as e:
+        #         print magenta(e)
+        #         return
+
         args = line.split()
         if len(args) < 1:
             print magenta("Please provide a list of ports separated by spaces, "
@@ -716,7 +746,7 @@ class TRexConsole(cmd.Cmd):
             port_list = self.extract_port_ids_from_line(line)
 
         try:
-            res_ok, log = self.stateless_client.start_traffic(port_list)
+            res_ok, log = self.stateless_client.start_traffic(1.0, port_id=port_list)
             self.prompt_response(log)
             if not res_ok:
                 print format_text("[FAILED]\n", 'red', 'bold')
@@ -728,6 +758,9 @@ class TRexConsole(cmd.Cmd):
 
     def complete_start_traffic(self, text, line, begidx, endidx):
         return self.port_auto_complete(text, line, begidx, endidx)
+
+    def help_start_traffic(self):
+        self.do_start_traffic("-h")
 
     def do_stop_traffic(self, line):
         '''Stop active traffic in specified ports on TRex\n'''

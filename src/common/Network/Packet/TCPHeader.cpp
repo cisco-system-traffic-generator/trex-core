@@ -25,7 +25,7 @@ void TCPHeader::dump(FILE *fd)
     fprintf(fd, "\nSourcePort 0x%.4X, DestPort 0x%.4X",
             getSourcePort(), getDestPort());
     fprintf(fd, "\nSeqNum 0x%.8lX, AckNum 0x%.8lX, Window %d",
-            getSeqNumber(), getAckNumber(), getWindowSize());
+            (ulong)getSeqNumber(), (ulong)getAckNumber(), getWindowSize());
     fprintf(fd, "\nHeader Length : %d, Checksum : 0x%.4X",
             getHeaderLength(), getChecksum());
     fprintf(fd, "\nFlags : SYN - %d, FIN - %d, ACK - %d, URG - %d, RST - %d, PSH - %d",

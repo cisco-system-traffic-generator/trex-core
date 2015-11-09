@@ -42,7 +42,18 @@ public:
         STATE_TRANSMITTING
     };
 
-    TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
+    TrexStatelessDpCore() {
+        m_thread_id = 0;
+        m_core = NULL;
+    }
+
+    /**
+     * "static constructor"
+     * 
+     * @param thread_id 
+     * @param core 
+     */
+    void create(uint8_t thread_id, CFlowGenListPerThread *core);
 
     /**
      * launch the stateless DP core code

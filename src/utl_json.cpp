@@ -25,7 +25,7 @@ limitations under the License.
 
 std::string add_json(std::string name, uint32_t counter,bool last){
     char buff[200];
-    sprintf(buff,"\"%s\":%lu",name.c_str(),counter);
+    sprintf(buff,"\"%s\":%lu",name.c_str(), (ulong)counter);
     std::string s= std::string(buff);
     if (!last) {
         s+=",";
@@ -35,7 +35,7 @@ std::string add_json(std::string name, uint32_t counter,bool last){
 
 std::string add_json(std::string name, uint64_t counter,bool last){
     char buff[200];
-    sprintf(buff,"\"%s\":%llu",name.c_str(),counter);
+    sprintf(buff,"\"%s\":%llu",name.c_str(), (unsigned long long)counter);
     std::string s= std::string(buff);
     if (!last) {
         s+=",";

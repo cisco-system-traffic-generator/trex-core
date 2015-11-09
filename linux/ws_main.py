@@ -393,11 +393,13 @@ class build_option:
 
 
 build_types = [
-               build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
-               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
+               build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False,
+                            flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing']),
+               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False,
+                            flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing']),
 
                build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, 
-                            flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Wno-sign-compare'],
+                            flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Werror', '-Wno-sign-compare'],
                             rpath = ['.']),
               ]
 
