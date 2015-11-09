@@ -7,7 +7,7 @@ TRex console - commands proposal
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
-:toc::[levels=3]
+:toclevels: 4
 
 == Console 
 
