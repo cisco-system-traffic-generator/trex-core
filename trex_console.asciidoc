@@ -7,7 +7,7 @@ TRex console - commands proposal
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
-
+:toc::[levels=3]
 
 == Console 
 
@@ -16,10 +16,13 @@ TRex console - commands proposal
 The console will use TRex Client API for controling TRex 
 Some guidelines:
 
-*  Console should not save state - it should sync with server to get the state - in case of crash/exit  in Console it could sync at startup to the server
-*  Let's assume users acquire all ports - for simplicity 
-*  Commands will be like bash shell commands - no order, many flags  
-*  Ability to show stats in real time.  gives the option to open two Console one for stats and one for commands
+* Console should not save it own state, it should only cache server state. It assumed there is only one console that has R/W capability so once connected as R/W console (per user/port)  it could read the server state and then cache all the operations. 
+* There could be many read-only clients for same user same ports. The ability to enforce it  does not yet exits in the server (will be done).
+* Console should sync with server to get the state in connection time and cache the server information locally once the state was changed 
+* In case of crash/exit  of the Console it should sync again at startup 
+* Let's assume Console acquire all ports - for simplicity, for now. 
+* Commands will be like bash shell - no order args, many flags  
+* Ability to show stats in real time.  gives the option to open two Console one for stats and one for commands ( many readonly clients)
 
 === Ports State 
 
@@ -44,25 +47,78 @@ Some guidelines:
 
 -----
 
+=== Common Arguments 
+
+This section includes arguments that are common to many commands 
+In the command they will be marked like this (arg name)
+
+==== Port mask 
+
+this gives the ability to choose batch of ports 
+
+[source,bash]
+----
+$command   [-a] [-port 1 2 3]  [-port 0xff]  [-port clients/servers] 
+
+  port mask : 
+    [-a]           : all ports 
+    [-port 1 2 3]  : port 1,2 3
+    [-port 0xff]   : port by mask 0x1 for port 0 0x3 for port 0 and 1 
+    [-port clients/servers] : -port clients will choose all the client side ports
+----
+
+==== Duration 
+
+duration in second or in min or hours 
+
+[source,bash]
+----
+$command[-d 100] [-d 10m] [-d 1h] 
+  
+  duration:
+   -d 100 : in sec 
+   -d 10m : in min 
+   -d 1h  : in hours
+----
+
+
+==== Multiplier 
+
+[source,bash]
+----
+$command [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+  
+  multiplier :
+  
+  -m 100    : multiply stream file by this factor
+  -m 10gb   : from graph calculate the maximum rate as this bandwidth ( for each port )
+  -m 10kpps : from graph calculate the maximum rate as this pps       ( for each port )
+  -m 40%    : from graph calculate the maximum rate as this precent from total port  ( for each port )
+----
+
+
 === Commands 
+
 
 ==== Connect 
 
 [source,bash]
 ----
 
-$trex-con  [--port $PORT] [--ip  $IP] [--async_port port]
-   --port change the default server - default 4505 for async ZMQ)
-   --async_port for sub/pub ZMQ - default 4506 
-   --ip default 127.0.0.1
+$trex-con   [--ip  $IP] [--server  $IP] [--rpc-port $PORT] [--async_port port]
+
+   --rpc-port   : change the default server - default 5505 for RPC
+
+   --async_port : for sub/pub ZMQ - default 4505 
+
+   --ip or --server  :default 127.0.0.1 the TRex server ip
 ----
 
 This command 
 * try to connect to server 
 * send ping  command 
-* get all the ports info / streams info 
-* read counters stats for a ref  
-
+* sync with  all the ports info / streams info state 
+* read all counters stats for reference
 
 ==== reset 
 
@@ -84,9 +140,8 @@ Configure port state, autoneg, rate etc
 
 [source,bash]
 ----
-$port --port 1 --cfg "auto/10/" 
+$port (port mask) --cfg "auto/10/" 
 
- -port [id] 
  --cfg string with the configuration name
 
 ----
@@ -98,9 +153,8 @@ Clear all port stats counters
 
 [source,bash]
 ----
-$clear 
+$clear (port mask) 
 ----
-
 
 
 ==== stats 
@@ -109,12 +163,11 @@ Shows global and port statistic
 
 [source,bash]
 ----
-$stats  [-g] [-p] [-ps] [--port mask ] 
+$stats  (port mask) [-g] [-p] [-ps]   
 
   -g show only global stats
   -p only ports stats
   -ps only port status (type/driver/link-up/down/negotion type etc)
-  --port mask on the port for example --port 2 3 will show only port 2,3 
   
 ----
 
@@ -176,7 +229,7 @@ Should show from client cache
 
 [source,bash]
 ----
-$streams [-port mask]  [-port 0xff]  [--streams mask] [-f]  [--full]  [--graph]
+$streams (port mask)  [--streams mask] [-f]  [--full]  [--graph]
 
    --port mask,  e.g --port 1 2 3 4
    --streams mask e.g. --streams 1 2 
@@ -240,42 +293,17 @@ $streams --port 0 --streams 0 -f
 * limit the traffic to a specific duration  
 * port state should be stopped, in case of --force stop the port 
 * in case one of the port is not stop don't start any port
+* all ports should be in state IDLE or STREAMS
 
 [source,bash]
 ----
-$start [--force] [-a] [-port 1 2 3]  [-port 0xff]  [-port clients/servers] [-f stl/imix.yaml] [-db ab] [-d 100] [-d 10m] [-d 1h] [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
-  
-
-  port mask : 
-    [-a]    : all ports 
-    [-port 1 2 3]  : port 1,2 3
-    [-port 0xff]  : port by mask 
-    [-port clients/servers] : clients side or server side 
-    
+$start [--force] (port mask) [-f stl/imix.yaml] [-db ab] (duration) (multiplier)  
 
     
   stream to load:
   -f stl/imix.yaml : load from local disk the streams file 
   --db stream that was loaded to db 
-        
-
-
-  duration:
-   -d 100 : in sec 
-   -d 10m : in min 
-   -d 1h  : in hours
    
-   in case of no duration, it will stop only if stream should stop 
-   
-   
-  multiplier :
-  
-  -m 100    : multiply stream file by this factor
-  -m 10gb   : from graph calculate the maximum rate as this bandwidth ( for each port )
-  -m 10kpps : from graph calculate the maximum rate as this pps       ( for each port )
-  -m 40%    : from graph calculate the maximum rate as this precent from total port  ( for each port )
-
-
   force:
     --force stop ports if they are active 
 
@@ -309,10 +337,12 @@ start this profile on port 1,2  multiply by 100
 * change the mode of the port to stopped
 * do not remove the streams
 * in case port state is already stopped don't do anything 
+* all ports should be in state WORK
+
 
 [source,bash]
 ----
-$stop  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] 
+$stop (port mask)
 
  See ports command explanation from the start 
 
@@ -323,11 +353,13 @@ $stop  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers]
 
 * work on a set of ports 
 * move a wokring set of ports to a state of pause
+* all ports should be in state WORK
+
 
 
 [source,bash]
 ----
-$pause  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] 
+$pause  (port mask)
 
  see ports command explanation from start 
 
@@ -338,11 +370,13 @@ $pause  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers]
 
 * work on a set of ports 
 * move a wokring set of port to a state of resume 
+* all ports should be in state PAUSE
+
 
 
 [source,bash]
 ----
-$resume  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] 
+$resume  (port mask) 
 
  see ports command explanation from start 
 
@@ -353,10 +387,11 @@ $resume  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers]
 
 * restart the work on the loaded streams
 * same as start without the -f /--db switch 
+* all ports should be in state STREAMS
 
 [source,bash]
 ----
-$restart  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] [-d duration] [-m multiplier]
+$restart  (port mask) (duration) (multiplier)  
 
  see ports command explanation from start 
 
@@ -364,10 +399,12 @@ $restart  [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers] [-d duration]
 
 ==== update 
 
+* all ports should be in state WORK
+
 
 [source,bash]
 ----
->update   [-a] [-port 1 2 3]  [-port 0xff] [-port clients/servers]   [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+>update   (port mask) (multiplier)  
 ----
 Update the bandwidth multiplier for a mask of ports
 
@@ -475,17 +512,20 @@ get keyboard
 
 === Priorty 
 
-* logger - JSON-RPC into a file ( req/res) 
-* start/stop/stats/tui/streams/restart/reset
+* Console logger - JSON-RPC into a file ( req/res) 
+* start/stop/stats/tui/streams/reset
 * db
 * port
 * events 
-* pause/resume/restart
-
+* pause/resume/restart/restart
+* scripts
+* move all the debug commands to be dbg_xxx
+* implement advance -m ( by reading graphs)
+* Enforcement of one user/port with R/W capability
 
 === More ideas 
 
-* define a YAML format that has ports inside so in away load each YAML to each port 
+* define a YAML format that include stream per port inside so in away load each YAML to each port 
 * add ability to load range of ip/mac program in YAML file 
    fields : 
        name : ipv4.src
@@ -511,6 +551,8 @@ get keyboard
 | Version |  name   |  meaning
 | 1.00    |  Hanoch Haim (hhaim) |
 - first version
+| 1.01    |  Hanoch Haim (hhaim) |
+- Incorporate Itay comments
 |=================
 
 
