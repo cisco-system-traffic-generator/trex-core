@@ -163,6 +163,7 @@ class TRexConsole(cmd.Cmd):
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
         self.verbose = False
+        self._silent = True
 
         self.postcmd(False, "")
 
@@ -177,7 +178,7 @@ class TRexConsole(cmd.Cmd):
 
 
     # set verbose on / off
-    def do_verbose (self, line):
+    def do_verbose(self, line):
         '''Shows or set verbose mode\n'''
         if line == "":
             print "\nverbose is " + ("on\n" if self.verbose else "off\n")
@@ -211,7 +212,7 @@ class TRexConsole(cmd.Cmd):
         print format_text("[SUCCESS]\n", 'green', 'bold')
         return
 
-    def do_ping (self, line):
+    def do_ping(self, line):
         '''Pings the RPC server\n'''
 
         print "\n-> Pinging RPC server"
@@ -223,7 +224,7 @@ class TRexConsole(cmd.Cmd):
             print "\n*** " + msg + "\n"
             return
 
-    def do_force_acquire (self, line):
+    def do_force_acquire(self, line):
         '''Acquires ports by force\n'''
 
         self.do_acquire(line, True)
@@ -367,49 +368,49 @@ class TRexConsole(cmd.Cmd):
 
         self.supported_rpc = self.stateless_client.get_supported_cmds().data
 
-    def do_rpc (self, line):
-        '''Launches a RPC on the server\n'''
-
-        if line == "":
-            print "\nUsage: [method name] [param dict as string]\n"
-            print "Example: rpc test_add {'x': 12, 'y': 17}\n"
-            return
-
-        sp = line.split(' ', 1)
-        method = sp[0]
-
-        params = None
-        bad_parse = False
-        if len(sp) > 1:
-
-            try:
-                params = ast.literal_eval(sp[1])
-                if not isinstance(params, dict):
-                    bad_parse = True
-
-            except ValueError as e1:
-                bad_parse = True
-            except SyntaxError as e2:
-                bad_parse = True
-
-        if bad_parse:
-            print "\nValue should be a valid dict: '{0}'".format(sp[1])
-            print "\nUsage: [method name] [param dict as string]\n"
-            print "Example: rpc test_add {'x': 12, 'y': 17}\n"
-            return
-
-        res_ok, msg = self.stateless_client.transmit(method, params)
-        if res_ok:
-            print "\nServer Response:\n\n" + pretty_json(json.dumps(msg)) + "\n"
-        else:
-            print "\n*** " + msg + "\n"
-            #print "Please try 'reconnect' to reconnect to server"
-
-
-    def complete_rpc (self, text, line, begidx, endidx):
-        return [x
-                for x in self.supported_rpc
-                if x.startswith(text)]
+    # def do_rpc (self, line):
+    #     '''Launches a RPC on the server\n'''
+    #
+    #     if line == "":
+    #         print "\nUsage: [method name] [param dict as string]\n"
+    #         print "Example: rpc test_add {'x': 12, 'y': 17}\n"
+    #         return
+    #
+    #     sp = line.split(' ', 1)
+    #     method = sp[0]
+    #
+    #     params = None
+    #     bad_parse = False
+    #     if len(sp) > 1:
+    #
+    #         try:
+    #             params = ast.literal_eval(sp[1])
+    #             if not isinstance(params, dict):
+    #                 bad_parse = True
+    #
+    #         except ValueError as e1:
+    #             bad_parse = True
+    #         except SyntaxError as e2:
+    #             bad_parse = True
+    #
+    #     if bad_parse:
+    #         print "\nValue should be a valid dict: '{0}'".format(sp[1])
+    #         print "\nUsage: [method name] [param dict as string]\n"
+    #         print "Example: rpc test_add {'x': 12, 'y': 17}\n"
+    #         return
+    #
+    #     res_ok, msg = self.stateless_client.transmit(method, params)
+    #     if res_ok:
+    #         print "\nServer Response:\n\n" + pretty_json(json.dumps(msg)) + "\n"
+    #     else:
+    #         print "\n*** " + msg + "\n"
+    #         #print "Please try 'reconnect' to reconnect to server"
+    #
+    #
+    # def complete_rpc (self, text, line, begidx, endidx):
+    #     return [x
+    #             for x in self.supported_rpc
+    #             if x.startswith(text)]
 
     def do_status (self, line):
         '''Shows a graphical console\n'''
@@ -611,7 +612,7 @@ class TRexConsole(cmd.Cmd):
             owned = set(self.stateless_client.get_acquired_ports())
             try:
                 if set(port_list).issubset(owned):
-                    res_ok, log = self.stateless_client.add_stream_pack(port_list, *stream_list.compiled)
+                    res_ok, log = self.stateless_client.add_stream_pack(stream_list.compiled, port_id=port_list)
                     # res_ok, msg = self.stateless_client.add_stream(port_list, stream_list.compiled)
                     self.prompt_response(log)
                     if not res_ok:
@@ -699,14 +700,302 @@ class TRexConsole(cmd.Cmd):
     def complete_remove_all_streams(self, text, line, begidx, endidx):
         return self.port_auto_complete(text, line, begidx, endidx)
 
+    def do_start(self, line):
+        '''Start selected traffic in specified ports on TRex\n'''
+        # make sure that the user wants to acquire all
+        parser = parsing_opts.gen_parser("start", self.do_start.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.FORCE,
+                                         parsing_opts.STREAM_FROM_PATH_OR_FILE,
+                                         parsing_opts.DURATION,
+                                         parsing_opts.MULTIPLIER)
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            # avoid further processing in this command
+            return
+        # print opts
+        port_list = self.extract_port_list(opts)
+        # print port_list
+        if opts.force:
+            # stop all active ports, if any
+            res_ok = self.stop_traffic(set(self.stateless_client.get_active_ports()).intersection(port_list))
+            if not res_ok:
+                print yellow("[ABORTED]\n")
+                return
+        # remove all traffic from ports
+        res_ok = self.remove_all_streams(port_list)
+        if not res_ok:
+            print yellow("[ABORTED]\n")
+            return
+        # decide which traffic to use
+        stream_pack_name = None
+        if opts.db:
+            # use pre-loaded traffic
+            print format_text('{:<30}'.format("Load stream pack (from DB):"), 'bold'),
+            if opts.db not in self.streams_db.get_loaded_streams_names():
+                print format_text("[FAILED]\n", 'red', 'bold')
+                print yellow("[ABORTED]\n")
+                return
+            else:
+                stream_pack_name = opts.db
+        else:
+            # try loading a YAML file
+            print format_text('{:<30}'.format("Load stream pack (from file):"), 'bold'),
+            stream_list = CStreamList()
+            loaded_obj = stream_list.load_yaml(opts.file[0])
+            # print self.stateless_client.pretty_json(json.dumps(loaded_obj))
+            try:
+                compiled_streams = stream_list.compile_streams()
+                res_ok = self.streams_db.load_streams(opts.file[1],
+                                                      LoadedStreamList(loaded_obj,
+                                                                       [StreamPack(v.stream_id, v.stream.dump())
+                                                                        for k, v in compiled_streams.items()]))
+                if not res_ok:
+                    print format_text("[FAILED]\n", 'red', 'bold')
+                    print yellow("[ABORTED]\n")
+                    return
+                print format_text("[SUCCESS]\n", 'green', 'bold')
+                stream_pack_name = opts.file[1]
+            except Exception as e:
+                print format_text("[FAILED]\n", 'red', 'bold')
+                print yellow("[ABORTED]\n")
+        res_ok = self.attach_to_port(stream_pack_name, port_list)
+        if not res_ok:
+            print yellow("[ABORTED]\n")
+            return
+        # finally, start the traffic
+        res_ok = self.start_traffic(opts.mult, port_list)
+        if not res_ok:
+            print yellow("[ABORTED]\n")
+            return
+        return
+
+    def help_start(self):
+        self.do_start("-h")
+
+    def do_stop(self, line):
+        '''Stop active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser("stop", self.do_stop.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            # avoid further processing in this command
+            return
+        port_list = self.extract_port_list(opts)
+        res_ok = self.stop_traffic(port_list)
+        return
+
+
+    def help_stop(self):
+        self.do_stop("-h")
+
+
+    def do_debug(self, line):
+        '''Enter DEBUG mode of the console to invoke smaller building blocks with server'''
+        i = DebugTRexConsole(self)
+        i.prompt = self.prompt[:-3] + ':' + blue('debug') + ' > '
+        i.cmdloop()
+
+    # aliasing
+    do_exit = do_EOF = do_q = do_quit
+
+    # ----- utility methods ----- #
+
+    def start_traffic(self, multiplier, port_list):#, silent=True):
+        print format_text('{:<30}'.format("Start traffic:"), 'bold'),
+        try:
+            res_ok, log = self.stateless_client.start_traffic(multiplier, port_id=port_list)
+            if not self._silent:
+                print ''
+                self.prompt_response(log)
+            if not res_ok:
+                print format_text("[FAILED]\n", 'red', 'bold')
+                return False
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+            return True
+        except ValueError as e:
+            print ''
+            print magenta(str(e))
+            print format_text("[FAILED]\n", 'red', 'bold')
+            return False
+
+    def attach_to_port(self, stream_pack_name, port_list):
+        print format_text('{:<30}'.format("Attaching traffic to ports:"), 'bold'),
+        stream_list = self.streams_db.get_stream_pack(stream_pack_name) #user_streams[args[0]]
+        if not stream_list:
+            print "Provided stream list name '{0}' doesn't exists.".format(stream_pack_name)
+            print format_text("[FAILED]\n", 'red', 'bold')
+            return
+        try:
+            res_ok, log = self.stateless_client.add_stream_pack(stream_list.compiled, port_id=port_list)
+            if not self._silent:
+                print ''
+                self.prompt_response(log)
+            if not res_ok:
+                print format_text("[FAILED]\n", 'red', 'bold')
+                return False
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+            return True
+        except ValueError as e:
+            print ''
+            print magenta(str(e))
+            print format_text("[FAILED]\n", 'red', 'bold')
+            return False
+
+    def stop_traffic(self, port_list):
+        print format_text('{:<30}'.format("Stop traffic:"), 'bold'),
+        try:
+            res_ok, log = self.stateless_client.stop_traffic(port_id=port_list)
+            if not self._silent:
+                print ''
+                self.prompt_response(log)
+            if not res_ok:
+                print format_text("[FAILED]\n", 'red', 'bold')
+                return
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+            return True
+        except ValueError as e:
+            print ''
+            print magenta(str(e))
+            print format_text("[FAILED]\n", 'red', 'bold')
+
+    def remove_all_streams(self, port_list):
+        '''Remove all streams from given port_list'''
+        print format_text('{:<30}'.format("Remove all streams:"), 'bold'),
+        try:
+            res_ok, log = self.stateless_client.remove_all_streams(port_id=port_list)
+            if not self._silent:
+                print ''
+                self.prompt_response(log)
+            if not res_ok:
+                print format_text("[FAILED]\n", 'red', 'bold')
+                return
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+            return True
+        except ValueError as e:
+            print ''
+            print magenta(str(e))
+            print format_text("[FAILED]\n", 'red', 'bold')
+
+
+
+
+
+    def extract_port_list(self, opts):
+        if opts.all_ports or "all" in opts.ports:
+            # handling all ports
+            port_list = self.stateless_client.get_acquired_ports()
+        else:
+            port_list = self.extract_port_ids_from_list(opts.ports)
+        return port_list
+
+    def decode_multiplier(self, opts_mult):
+        pass
+
+
+class DebugTRexConsole(cmd.Cmd):
+
+    def __init__(self, trex_main_console):
+        cmd.Cmd.__init__(self)
+        self.trex_console = trex_main_console
+        self.stateless_client = self.trex_console.stateless_client
+        self.streams_db = self.trex_console.streams_db
+        self.register_main_console_methods()
+        self.do_silent("on")
+        pass
+
+    # ----- super methods overriding ----- #
+    def completenames(self, text, *ignored):
+        dotext = 'do_'+text
+        return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
+
+    def get_names(self):
+        result = cmd.Cmd.get_names(self)
+        result += self.trex_console.get_names()
+        return list(set(result))
+
+    def register_main_console_methods(self):
+        main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))
+        for name in main_names:
+            for prefix in 'do_', 'help_', 'complete_':
+                if name.startswith(prefix):
+                    self.__dict__[name] = getattr(self.trex_console, name)
+
+            # if (name[:3] == 'do_') or (name[:5] == 'help_') or (name[:9] == 'complete_'):
+            #     chosen.append(name)
+            #     self.__dict__[name] = getattr(self.trex_console, name)
+            #     # setattr(self, name, classmethod(getattr(self.trex_console, name)))
+
+        # print chosen
+        # self.get_names()
+
+        # return result
+
+
+    # ----- DEBUGGING methods ----- #
+    # set silent on / off
+    def do_silent(self, line):
+        '''Shows or set silent mode\n'''
+        if line == "":
+            print "\nsilent mode is " + ("on\n" if self.trex_console._silent else "off\n")
+
+        elif line == "on":
+            self.verbose = True
+            self.stateless_client.set_verbose(True)
+            print green("\nsilent set to on\n")
+
+        elif line == "off":
+            self.verbose = False
+            self.stateless_client.set_verbose(False)
+            print green("\nsilent set to off\n")
+
+        else:
+            print magenta("\nplease specify 'on' or 'off'\n")
+
+    def do_quit(self, line):
+        '''Exit the debug client back to main console\n'''
+        self.do_silent("off")
+        return True
+
     def do_start_traffic(self, line):
         '''Start pre-submitted traffic in specified ports on TRex\n'''
         # make sure that the user wants to acquire all
-        # parser = parsing_opts.gen_parser("start_traffic", self.do_start_traffic.__doc__,
-        #                                  parsing_opts.PORT_LIST_WITH_ALL, parsing_opts.MULTIPLIER)
-        # opts = parser.parse_args(line.split())
-        #
+        parser = parsing_opts.gen_parser("start_traffic", self.do_start_traffic.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL, parsing_opts.MULTIPLIER)
+        opts = parser.parse_args(line.split())
         # print opts
+        # return
+        if opts is None:
+            # avoid further processing in this command
+            return
+        try:
+            port_list = self.trex_console.extract_port_list(opts)
+            return self.trex_console.start_traffic(opts.mult, port_list)
+        except Exception as e:
+            print e
+            return
+
+    def do_stop_traffic(self, line):
+        '''Stop active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser("stop_traffic", self.do_stop_traffic.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+        opts = parser.parse_args(line.split())
+        # print opts
+        # return
+        if opts is None:
+            # avoid further processing in this command
+            return
+        try:
+            port_list = self.trex_console.extract_port_list(opts)
+            return self.trex_console.stop_traffic(port_list)
+        except Exception as e:
+            print e
+            return
+
+
+    def complete_stop_traffic(self, text, line, begidx, endidx):
+        return self.port_auto_complete(text, line, begidx, endidx, active=True)
+
         # return
         # # return
         # # if not opts.port_list:
@@ -714,21 +1003,9 @@ class TRexConsole(cmd.Cmd):
         # #                   "or specify 'all' to start traffic on all acquired ports")
         # #     return
         #
-        # if "all" in opts.port_list:
-        #     ask = ConfirmMenu('Are you sure you want to start traffic at all acquired ports? ')
-        #     rc = ask.show()
-        #     if rc == False:
-        #         print yellow("[ABORTED]\n")
-        #         return
-        #     else:
-        #         port_list = self.stateless_client.get_acquired_ports()
-        # else:
-        #     try:
-        #         port_list = self.extract_port_ids_from_list(opts.port_list)
-        #     except ValueError as e:
-        #         print magenta(e)
-        #         return
 
+
+        return
         args = line.split()
         if len(args) < 1:
             print magenta("Please provide a list of ports separated by spaces, "
@@ -757,46 +1034,60 @@ class TRexConsole(cmd.Cmd):
             print format_text("[FAILED]\n", 'red', 'bold')
 
     def complete_start_traffic(self, text, line, begidx, endidx):
-        return self.port_auto_complete(text, line, begidx, endidx)
+        # return self.port_auto_complete(text, line, begidx, endidx)
+        return [text]
 
     def help_start_traffic(self):
         self.do_start_traffic("-h")
 
-    def do_stop_traffic(self, line):
-        '''Stop active traffic in specified ports on TRex\n'''
-        # make sure that the user wants to acquire all
-        args = line.split()
-        if len(args) < 1:
-            print magenta("Please provide a list of ports separated by spaces, "
-                          "or specify 'all' to stop traffic on all acquired ports")
+    def help_stop_traffic(self):
+        self.do_stop_traffic("-h")
+
+    # def do_help(self):
+
+    def do_rpc (self, line):
+        '''Launches a RPC on the server\n'''
+
+        if line == "":
+            print "\nUsage: [method name] [param dict as string]\n"
+            print "Example: rpc test_add {'x': 12, 'y': 17}\n"
             return
-        if args[0] == "all":
-            ask = ConfirmMenu('Are you sure you want to start traffic at all acquired ports? ')
-            rc = ask.show()
-            if rc == False:
-                print yellow("[ABORTED]\n")
-                return
-            else:
-                port_list = self.stateless_client.get_active_ports()
-                if not port_list:
-                     print magenta("no active ports - operation aborted\n")
-                     return
+
+        sp = line.split(' ', 1)
+        method = sp[0]
+
+        params = None
+        bad_parse = False
+        if len(sp) > 1:
+
+            try:
+                params = ast.literal_eval(sp[1])
+                if not isinstance(params, dict):
+                    bad_parse = True
+
+            except ValueError as e1:
+                bad_parse = True
+            except SyntaxError as e2:
+                bad_parse = True
+
+        if bad_parse:
+            print "\nValue should be a valid dict: '{0}'".format(sp[1])
+            print "\nUsage: [method name] [param dict as string]\n"
+            print "Example: rpc test_add {'x': 12, 'y': 17}\n"
+            return
+
+        res_ok, msg = self.stateless_client.transmit(method, params)
+        if res_ok:
+            print "\nServer Response:\n\n" + pretty_json(json.dumps(msg)) + "\n"
         else:
-            port_list = self.extract_port_ids_from_line(line)
+            print "\n*** " + msg + "\n"
+            #print "Please try 'reconnect' to reconnect to server"
 
-        try:
-            res_ok, log = self.stateless_client.stop_traffic(port_list)
-            self.prompt_response(log)
-            if not res_ok:
-                print format_text("[FAILED]\n", 'red', 'bold')
-                return
-            print format_text("[SUCCESS]\n", 'green', 'bold')
-        except ValueError as e:
-            print magenta(str(e))
-            print format_text("[FAILED]\n", 'red', 'bold')
 
-    def complete_stop_traffic(self, text, line, begidx, endidx):
-        return self.port_auto_complete(text, line, begidx, endidx, active=True)
+    def complete_rpc (self, text, line, begidx, endidx):
+        return [x
+                for x in self.trex_console.supported_rpc
+                if x.startswith(text)]
 
     # aliasing
     do_exit = do_EOF = do_q = do_quit
@@ -808,12 +1099,13 @@ def setParserOptions():
                         default = "localhost",
                         type = str)
 
-    parser.add_argument("-p", "--port", help = "TRex Server Port  [default is 5050]\n",
-                        default = 5050,
+    parser.add_argument("-p", "--port", help = "TRex Server Port  [default is 4505]\n",
+                        default = 4505,
                         type = int)
 
-    parser.add_argument("-z", "--pub", help = "TRex Async Publisher Port  [default is 4500]\n",
-                        default = 4500,
+    parser.add_argument("--async_port", help = "TRex ASync Publisher Port [default is 4506]\n",
+                        default = 4506,
+                        dest='pub',
                         type = int)
 
     parser.add_argument("-u", "--user", help = "User Name  [default is currently logged in user]\n",
@@ -825,6 +1117,7 @@ def setParserOptions():
                         default = False)
 
     return parser
+
 
 def main():
     parser = setParserOptions()

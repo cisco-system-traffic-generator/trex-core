@@ -51,10 +51,10 @@ class CTRexStatelessClient(object):
             # print args
             # print kwargs
             port_ids = kwargs.get("port_id")
-            if not port_ids:
-                # print "FROM ARGS!"
-                # print args
-                port_ids = args[0]
+            # if not port_ids:
+            #     # print "FROM ARGS!"
+            #     # print args
+            #     port_ids = args[0]
             if isinstance(port_ids, int):
                 # make sure port_ids is a list
                 port_ids = [port_ids]
@@ -74,8 +74,8 @@ class CTRexStatelessClient(object):
                     continue
             if bad_ids:
                 # Some port IDs are not according to desires status
-                raise ValueError("The requested method ('{0}') cannot be invoked since port IDs {1} are not "
-                                 "at allowed states".format(func.__name__, list(bad_ids)))
+                raise ValueError("The requested method ('{0}') cannot be invoked since port IDs {1} aren't "
+                                 "acquired".format(func.__name__, list(bad_ids)))
             else:
                 return func(self, *args, **kwargs)
         return wrapper_f
@@ -232,7 +232,8 @@ class CTRexStatelessClient(object):
                                           self.transmit(command.method, command.params),
                                           self.ack_success_test)
 
-    @force_status(owned=True)
+    # @force_status(owned=True)
+    @acquired
     def add_stream(self, stream_id, stream_obj, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -243,15 +244,16 @@ class CTRexStatelessClient(object):
                   "stream": stream_obj.dump()}
         return self.transmit("add_stream", params)
 
-    @force_status(owned=True)
-    def add_stream_pack(self, port_id=None, *stream_packs):
+    # @force_status(owned=True)
+    @acquired
+    def add_stream_pack(self, stream_pack_list, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
 
         # since almost every run contains more than one transaction with server, handle all as batch mode
         port_ids = set(port_id)  # convert to set to avoid duplications
         commands = []
-        for stream_pack in stream_packs:
+        for stream_pack in stream_pack_list:
             commands.extend([RpcCmdData("add_stream", {"port_id": p_id,
                                                        "handler": self._conn_handler.get(p_id),
                                                        "stream_id": stream_pack.stream_id,
@@ -273,7 +275,8 @@ class CTRexStatelessClient(object):
                   "stream_id": stream_id}
         return self.transmit("remove_stream", params)
 
-    @force_status(owned=True)
+    # @force_status(owned=True)
+    @acquired
     def remove_all_streams(self, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -347,13 +350,17 @@ class CTRexStatelessClient(object):
                                                        self.transmit(command.method, command.params),
                                                        self.ack_success_test)
 
-    @force_status(owned=False, active_and_owned=True)
+    # @force_status(owned=False, active_and_owned=True)
+    @acquired
     def stop_traffic(self, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
         if isinstance(port_id, list) or isinstance(port_id, set):
             # handle as batch mode
             port_ids = set(port_id)  # convert to set to avoid duplications
+            if not port_ids:
+                # don't invoke if port ids is empty
+                return True, []
             commands = [RpcCmdData("stop_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
                         for p_id in port_ids]
             rc, resp_list = self.transmit_batch(commands)
