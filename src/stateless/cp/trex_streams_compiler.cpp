@@ -34,6 +34,7 @@ TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
         delete [] obj.m_pkt;
     }
     m_objs.clear();
+    m_duration_sim=-1.0;
 }
 
 void 
@@ -67,8 +68,9 @@ TrexStreamsCompiledObj::clone() {
                                               obj.m_pkt_len);
     }
 
-    /* fix the multiplier */
     new_compiled_obj->m_mul = m_mul;
+
+    new_compiled_obj->m_duration_sim = m_duration_sim;
 
     return new_compiled_obj;
 }

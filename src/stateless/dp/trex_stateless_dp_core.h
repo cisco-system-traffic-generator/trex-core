@@ -131,8 +131,8 @@ private:
      */
     void handle_cp_msg(TrexStatelessCpToDpMsgBase *msg);
 
-    void add_duration(uint8_t port_id,
-                      double duration);
+    /* add global exit */
+    void add_duration(double duration);
 
     void add_cont_stream(uint8_t dir,
                          double isg,

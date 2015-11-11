@@ -53,6 +53,7 @@ public:
     CBasicStl(){
         m_time_diff=0.001;
         m_threads=1;
+        m_dump_json=false;
     }
 
     bool  init(void){
@@ -90,7 +91,6 @@ public:
 
         lpt->start_stateless_daemon_simulation();
 
-        #if 0
         lpt->m_node_gen.DumpHist(stdout);
 
 
@@ -99,14 +99,12 @@ public:
             res=false;
         }
 
-
         if ( m_dump_json ){
             printf(" dump json ...........\n");
             std::string s;
             fl.m_threads_info[0]->m_node_gen.dump_json(s);
             printf(" %s \n",s.c_str());
         }
-        #endif
 
         fl.Delete();
         return (res);
@@ -156,7 +154,7 @@ TEST_F(basic_stl, limit_single_pkt) {
 
     CBasicStl t1;
     CParserOption * po =&CGlobalInfo::m_options;
-    po->preview.setVMode(0);
+    po->preview.setVMode(7);
     po->preview.setFileWrite(true);
     po->out_file ="exp/stl_single_sctp_pkt";
 
@@ -182,9 +180,11 @@ TEST_F(basic_stl, limit_single_pkt) {
 
      TrexStreamsCompiledObj comp_obj(0,1.0);
 
+     comp_obj.set_simulation_duration( 10.0);
      assert(compile.compile(streams, comp_obj) );
 
      TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+
 
      t1.m_msg = lpstart;
 

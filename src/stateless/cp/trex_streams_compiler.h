@@ -51,6 +51,13 @@ public:
         return m_objs;
     }
 
+    void set_simulation_duration(double duration){
+        m_duration_sim=duration;
+    }
+
+    double get_simulation_duration(){
+        return (m_duration_sim);
+    }
     /**
      * clone the compiled object
      * 
@@ -63,6 +70,7 @@ private:
 
     uint8_t m_port_id;
     double  m_mul;
+    double  m_duration_sim; /* duration for all simulation */
 };
 
 class TrexStreamsCompiler {

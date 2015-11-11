@@ -109,10 +109,8 @@ TrexStatelessDpCore::start() {
 }
 
 void
-TrexStatelessDpCore::add_duration(uint8_t port_id,
-                                  double duration){
+TrexStatelessDpCore::add_duration(double duration){
     if (duration > 0.0) {
-
         CGenNode *node = m_core->create_node() ;
 
         node->m_type = CGenNode::EXIT_SCHED;
@@ -121,7 +119,6 @@ TrexStatelessDpCore::add_duration(uint8_t port_id,
         node->m_time = m_core->m_cur_time_sec + duration ;
 
         m_core->m_node_gen.add_node(node);
-
     }
 }
 
@@ -193,8 +190,12 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
                         single_stream.m_pkt_len);
     }
 
-    /* TBD need to fix this */
-    //add_duration(0,10.0);
+    double duration=obj->get_simulation_duration();
+    printf("duration %f \n",duration);
+
+    if ( duration >0.0){
+        add_duration( duration );
+    }
 }
 
 void
