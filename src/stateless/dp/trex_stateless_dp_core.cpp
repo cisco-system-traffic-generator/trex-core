@@ -194,7 +194,7 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
     }
 
     /* TBD need to fix this */
-    add_duration(0,10.0);
+    //add_duration(0,10.0);
 }
 
 void
