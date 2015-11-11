@@ -54,7 +54,8 @@ TrexStreamsCompiledObj::add_compiled_stream(double isg_usec, double pps, uint8_t
 TrexStreamsCompiledObj *
 TrexStreamsCompiledObj::clone() {
 
-    TrexStreamsCompiledObj *new_compiled_obj = new TrexStreamsCompiledObj(m_port_id, m_mul);
+    /* use multiplier of 1 to avoid double mult */
+    TrexStreamsCompiledObj *new_compiled_obj = new TrexStreamsCompiledObj(m_port_id, 1);
 
     /**
      * clone each element
@@ -65,6 +66,9 @@ TrexStreamsCompiledObj::clone() {
                                               obj.m_pkt,
                                               obj.m_pkt_len);
     }
+
+    /* fix the multiplier */
+    new_compiled_obj->m_mul = m_mul;
 
     return new_compiled_obj;
 }
