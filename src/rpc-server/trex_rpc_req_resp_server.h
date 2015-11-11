@@ -43,7 +43,7 @@ private:
     void handle_request(const std::string &request);
     void handle_server_error(const std::string &specific_err);
 
-    static const int    RPC_MAX_MSG_SIZE = (20 * 1024);
+    static const int    RPC_MAX_MSG_SIZE = (200 * 1024);
     void               *m_context;
     void               *m_socket;
     uint8_t             m_msg_buffer[RPC_MAX_MSG_SIZE];
