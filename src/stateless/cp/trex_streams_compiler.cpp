@@ -31,7 +31,7 @@ TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id, double mul) : m_
 
 TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
     for (auto &obj : m_objs) {
-        delete obj.m_pkt;
+        delete [] obj.m_pkt;
     }
     m_objs.clear();
 }

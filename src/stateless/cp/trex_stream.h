@@ -40,7 +40,7 @@ class TrexStream {
 
 public:
     TrexStream(uint8_t port_id, uint32_t stream_id);
-    virtual ~TrexStream() = 0;
+    virtual ~TrexStream();
 
     /* defines the min max per packet supported */
     static const uint32_t MIN_PKT_SIZE_BYTES = 1;
@@ -88,6 +88,8 @@ public:
 
     /* original template provided by requester */
     Json::Value m_stream_json;
+
+
 };
 
 /**

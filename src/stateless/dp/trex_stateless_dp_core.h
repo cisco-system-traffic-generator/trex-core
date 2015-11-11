@@ -45,6 +45,7 @@ public:
     TrexStatelessDpCore() {
         m_thread_id = 0;
         m_core = NULL;
+        m_duration = -1;
     }
 
     /**
@@ -60,6 +61,10 @@ public:
      * 
      */
     void start();
+
+
+    /* exit after batch of commands */
+    void run_once();
 
     /**
      * dummy traffic creator
@@ -126,6 +131,9 @@ private:
      */
     void handle_cp_msg(TrexStatelessCpToDpMsgBase *msg);
 
+    void add_duration(uint8_t port_id,
+                      double duration);
+
     void add_cont_stream(uint8_t dir,
                          double isg,
                          double pps,
@@ -142,6 +150,8 @@ private:
 
     /* pointer to the main object */
     CFlowGenListPerThread *m_core;
+
+    double                 m_duration;
 };
 
 #endif /* __TREX_STATELESS_DP_CORE_H__ */

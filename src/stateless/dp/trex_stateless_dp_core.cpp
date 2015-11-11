@@ -31,6 +31,18 @@ usec_to_sec(double usec) {
 }
 
 
+
+void CGenNodeStateless::free_stl_node(){
+    /* if we have cache mbuf free it */
+    rte_mbuf_t * m=get_cache_mbuf();
+    if (m) {
+        rte_pktmbuf_free(m);
+        m_cache_mbuf=0;
+    }
+}
+
+
+
 void
 TrexStatelessDpCore::create(uint8_t thread_id, CFlowGenListPerThread *core) {
     m_thread_id = thread_id;
@@ -79,15 +91,40 @@ TrexStatelessDpCore::start_scheduler() {
     m_core->m_node_gen.close_file(m_core);
 }
 
+
+void 
+TrexStatelessDpCore::run_once(){
+
+    idle_state_loop();
+    start_scheduler();
+}
+
+
 void
 TrexStatelessDpCore::start() {
 
     while (true) {
-        idle_state_loop();
-
-        start_scheduler();
+        run_once();
     }
 }
+
+void
+TrexStatelessDpCore::add_duration(uint8_t port_id,
+                                  double duration){
+    if (duration > 0.0) {
+
+        CGenNode *node = m_core->create_node() ;
+
+        node->m_type = CGenNode::EXIT_SCHED;
+
+        /* make sure it will be scheduled after the current node */
+        node->m_time = m_core->m_cur_time_sec + duration ;
+
+        m_core->m_node_gen.add_node(node);
+
+    }
+}
+
 
 void
 TrexStatelessDpCore::add_cont_stream(uint8_t port_id,
@@ -155,6 +192,9 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
                         single_stream.m_pkt,
                         single_stream.m_pkt_len);
     }
+
+    /* TBD need to fix this */
+    add_duration(0,10.0);
 }
 
 void

@@ -22,6 +22,7 @@ limitations under the License.
 #define __TREX_STREAM_NODE_H__
 
 #include <bp_sim.h>
+#include <stdio.h>
 
 class TrexStatelessDpCore;
 
@@ -41,6 +42,7 @@ private:
 
 
 public:
+
 
     inline bool is_active() {
         return m_is_stream_active;
@@ -82,8 +84,6 @@ public:
         return ((pkt_dir_t)( m_flags &1));
     }
 
-
-
     inline void set_cache_mbuf(rte_mbuf_t * m){
         m_cache_mbuf=(void *)m;
         m_flags |= NODE_FLAGS_MBUF_CACHE;
@@ -97,6 +97,12 @@ public:
         }
     }
 
+    void free_stl_node();
+
+
+    void Dump(FILE *fd){
+        fprintf(fd," %f, %lu, %lu \n",m_time,(ulong)m_port_id,(ulong)get_mbuf_cache_dir());
+    }
 
 } __rte_cache_aligned;
 

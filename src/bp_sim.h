@@ -328,6 +328,9 @@ public:
     CVirtualIF (){
         m_preview_mode =NULL;
     }
+
+    virtual ~CVirtualIF(){
+    }
 public:
 
     virtual int open_file(std::string file_name)=0;
@@ -1140,6 +1143,9 @@ public:
 class CGlobalInfo {
 public:
     static void init_pools(uint32_t rx_buffers);
+    /* for simulation */
+    static void free_pools();
+
 
     static inline rte_mbuf_t   * pktmbuf_alloc_small(socket_id_t socket){
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
@@ -1376,7 +1382,9 @@ public:
         FLOW_PKT_NAT            =3,
         FLOW_SYNC               =4,     /* called evey 1 msec */
         STATELESS_PKT           =5,
-        EXIT_SCHED              =6
+        EXIT_SCHED              =6,
+        EXIT_PORT_SCHED         =7
+
 
     };
 
@@ -1432,6 +1440,7 @@ public:
     }
 
 
+    void free_base();
 };
 
 
@@ -1466,6 +1475,9 @@ public:
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
 
+
+public:
+    void free_gen_node();
 public:
     void Dump(FILE *fd);
 
@@ -1652,6 +1664,8 @@ public:
 
 
 
+
+
 #if __x86_64__
 /* size of 64 bytes */
     #define DEFER_CLIENTS_NUM (16)
@@ -1802,10 +1816,23 @@ public:
     virtual int flush_tx_queue(void);
 
 
-private:
+protected:
+
+    void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
+
     CFileWriterBase         * m_writer;
     CCapPktRaw              * m_raw;
 };
+
+/* for stateless we have a small changes in case we send the packets for optimization */
+class CErfIFStl : public CErfIF {
+
+public:
+
+    virtual int send_node(CGenNode * node);
+};
+
+
 
 static inline int fill_pkt(CCapPktRaw  * raw,rte_mbuf_t * m){
     raw->pkt_len = m->pkt_len;
@@ -1903,6 +1930,8 @@ private:
         return (m_v_if->send_node(node));
     }
     int   update_stats(CGenNode * node);
+    int   update_stl_stats(CGenNodeStateless *node_sl);
+
 
     FORCE_NO_INLINE bool handle_slow_messages(uint8_t type,
                                               CGenNode * node,
@@ -3412,6 +3441,14 @@ public:
     void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
     void start_stateless_daemon();
 
+    void start_stateless_daemon_simulation();
+
+    /* open a file for simulation */
+    void start_stateless_simulation_file(std::string erf_file_name,CPreviewMode &preview);
+    /* close a file for simulation */
+    void stop_stateless_simulation_file();
+
+
 
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
@@ -3519,7 +3556,10 @@ inline CGenNode * CFlowGenListPerThread::create_node(void){
     return (res);
 }
 
+
+
 inline void CFlowGenListPerThread::free_node(CGenNode *p){
+    p->free_base();
     rte_mempool_sp_put(m_node_pool, p);
 }
 
@@ -4033,6 +4073,8 @@ enum MINVM_PLUGIN_ID{
 
 class CPluginCallback {
 public:
+    virtual ~CPluginCallback(){
+    }
     virtual void on_node_first(uint8_t plugin_id,CGenNode *     node,CFlowYamlInfo *  template_info, CTupleTemplateGeneratorSmart * tuple_gen,CFlowGenListPerThread  * flow_gen) =0;
     virtual void on_node_last(uint8_t plugin_id,CGenNode *     node)=0;
     virtual rte_mbuf_t * on_node_generate_mbuf(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info)=0;
