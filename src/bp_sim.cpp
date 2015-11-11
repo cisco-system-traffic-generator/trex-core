@@ -3517,7 +3517,6 @@ int CNodeGenerator::flush_file(dsec_t max_time,
              /* if the stream has been deactivated - end */
              if (unlikely(!node_sl->is_active())) {
                  thread->free_node(node);
-
              } else {
                  node_sl->handle(thread);
              }

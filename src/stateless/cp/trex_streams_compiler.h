@@ -40,11 +40,8 @@ public:
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
-        double   m_isg_usec;
-        double   m_pps;
-        uint8_t *m_pkt;
-        uint16_t m_pkt_len;
-        uint8_t  m_port_id;
+
+        TrexStream * m_stream;
     };
 
     const std::vector<obj_st> & get_objects() {
@@ -64,8 +61,12 @@ public:
      */
     TrexStreamsCompiledObj * clone();
 
+    double get_multiplier(){
+        return (m_mul);
+    }
+
 private:
-    void add_compiled_stream(double isg_usec, double pps, uint8_t *pkt, uint16_t pkt_len);
+    void add_compiled_stream(TrexStream * stream);
     std::vector<obj_st> m_objs;
 
     uint8_t m_port_id;

@@ -39,6 +39,15 @@ class TrexRpcCmdAddStream;
 class TrexStream {
 
 public:
+    enum STREAM_TYPE {
+        stNONE         = 0,
+        stCONTINUOUS   = 4,
+        stSINGLE_BURST = 5,
+        stMULTI_BURST  = 6
+    };
+
+
+public:
     TrexStream(uint8_t port_id, uint32_t stream_id);
     virtual ~TrexStream();
 
@@ -52,8 +61,14 @@ public:
     /* access the stream json */
     const Json::Value & get_stream_json();
 
+    double get_pps() {
+        return m_pps;
+    }
+
+
 public:
     /* basic */
+    uint8_t       m_type;
     uint8_t       m_port_id;
     uint32_t      m_stream_id;
     
@@ -85,6 +100,8 @@ public:
 
     } m_rx_check;
 
+    double m_pps;
+
 
     /* original template provided by requester */
     Json::Value m_stream_json;
@@ -98,15 +115,10 @@ public:
  */
 class TrexStreamContinuous : public TrexStream {
 public:
-    TrexStreamContinuous(uint8_t port_id, uint32_t stream_id, double pps) : TrexStream(port_id, stream_id), m_pps(pps) {
+    TrexStreamContinuous(uint8_t port_id, uint32_t stream_id, double pps) : TrexStream(port_id, stream_id) {
+       m_type= TrexStream::stCONTINUOUS;
+       m_pps=pps;
     }
-
-    double get_pps() {
-        return m_pps;
-    }
-
-protected:
-    double m_pps;
 };
 
 /**
@@ -117,13 +129,14 @@ class TrexStreamBurst : public TrexStream {
 public:
     TrexStreamBurst(uint8_t port_id, uint32_t stream_id, uint32_t total_pkts, double pps) : 
         TrexStream(port_id, stream_id),
-        m_total_pkts(total_pkts),
-        m_pps(pps) {
+        m_total_pkts(total_pkts){
+        m_type= TrexStream::stSINGLE_BURST;
+        m_pps=pps;
+
     }
 
-protected:
+public:
     uint32_t   m_total_pkts;
-    double     m_pps;
 };
 
 /**
@@ -138,9 +151,10 @@ public:
                          double   pps,
                          uint32_t num_bursts,
                          double   ibg_usec) : TrexStreamBurst(port_id, stream_id, pkts_per_burst, pps), m_num_bursts(num_bursts), m_ibg_usec(ibg_usec) {
-
+        m_type= TrexStream::stMULTI_BURST;
     }
-protected:
+
+public:
     uint32_t m_num_bursts;
     double   m_ibg_usec;
     

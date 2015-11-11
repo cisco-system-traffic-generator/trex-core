@@ -22,6 +22,7 @@ limitations under the License.
 #include <trex_stateless_messaging.h>
 #include <trex_streams_compiler.h>
 #include <trex_stream_node.h>
+#include <trex_stream.h>
 
 #include <bp_sim.h>
 
@@ -124,33 +125,64 @@ TrexStatelessDpCore::add_duration(double duration){
 
 
 void
-TrexStatelessDpCore::add_cont_stream(uint8_t port_id,
-                                     double isg_usec,
-                                     double pps,
-                                     const uint8_t *pkt,
-                                     uint16_t pkt_len) {
+TrexStatelessDpCore::add_cont_stream(TrexStream * stream,
+                                     TrexStreamsCompiledObj *comp) {
 
     CGenNodeStateless *node = m_core->create_node_sl();
 
     /* add periodic */
     node->m_type = CGenNode::STATELESS_PKT;
 
-    node->m_time = m_core->m_cur_time_sec + usec_to_sec(isg_usec);
+    node->m_time = m_core->m_cur_time_sec + usec_to_sec(stream->m_isg_usec);
 
-    pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(port_id);
+    pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(stream->m_port_id);
     node->m_flags = 0; 
 
     /* set socket id */
     node->set_socket_id(m_core->m_node_gen.m_socket_id);
 
     /* build a mbuf from a packet */
-    uint16_t pkt_size = pkt_len;
-    const uint8_t *stream_pkt = pkt;
+    
+    uint16_t pkt_size = stream->m_pkt.len;
+    const uint8_t *stream_pkt = stream->m_pkt.binary;
+
+    TrexStreamBurst *      lpburst;
+    TrexStreamMultiBurst * lpmulti;
+
+    node->m_stream_type = stream->m_type;
+    node->m_next_time_offset =  1.0 / (stream->get_pps() * comp->get_multiplier()) ;
+
 
     /* stateless specific fields */
-    node->m_next_time_offset = 1.0 / pps;
+    switch ( stream->m_type ) {
+
+    case TrexStream::stCONTINUOUS :
+        break;
+
+    case TrexStream::stSINGLE_BURST :
+        node->m_stream_type             = TrexStream::stMULTI_BURST;
+        lpburst                         = (TrexStreamBurst *)stream;
+        node->m_single_burst            = lpburst->m_total_pkts;
+        node->m_single_burst_refill     = lpburst->m_total_pkts;
+        node->m_multi_bursts            = 1;  /* single burst in multi burst of 1 */
+        node->m_ibg_sec                 = 0.0;
+        break;
+
+    case TrexStream::stMULTI_BURST :
+        lpmulti =(TrexStreamMultiBurst *)stream;
+
+        node->m_single_burst        = lpmulti->m_total_pkts;
+        node->m_single_burst_refill = lpmulti->m_total_pkts ;
+        node->m_multi_bursts        = lpmulti->m_num_bursts;
+        node->m_ibg_sec             = usec_to_sec( lpmulti->m_ibg_usec );
+        break;
+    default:
+
+        assert(0);
+    };
+
     node->m_is_stream_active = 1;
-    node->m_port_id = port_id;
+    node->m_port_id = stream->m_port_id;
 
     /* allocate const mbuf */
     rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
@@ -183,15 +215,10 @@ TrexStatelessDpCore::add_cont_stream(uint8_t port_id,
 void
 TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
     for (auto single_stream : obj->get_objects()) {
-        add_cont_stream(single_stream.m_port_id,
-                        single_stream.m_isg_usec,
-                        single_stream.m_pps,
-                        single_stream.m_pkt,
-                        single_stream.m_pkt_len);
+        add_cont_stream(single_stream.m_stream,obj);
     }
 
     double duration=obj->get_simulation_duration();
-    printf("duration %f \n",duration);
 
     if ( duration >0.0){
         add_duration( duration );

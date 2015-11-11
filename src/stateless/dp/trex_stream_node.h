@@ -25,6 +25,7 @@ limitations under the License.
 #include <stdio.h>
 
 class TrexStatelessDpCore;
+#include <trex_stream.h>
 
 /* this is a event for stateless */
 struct CGenNodeStateless : public CGenNodeBase  {
@@ -33,28 +34,51 @@ friend class TrexStatelessDpCore;
 private:
     void *              m_cache_mbuf;
 
-    double              m_next_time_offset;
+    double              m_next_time_offset; /* in sec */
+    double              m_ibg_sec; /* inter burst time in sec */
+
+
     uint8_t             m_is_stream_active;
     uint8_t             m_port_id;
+    uint8_t             m_stream_type; /* TrexStream::STREAM_TYPE */
+    uint8_t             m_pad;
+
+    uint32_t            m_single_burst; /* the number of bursts in case of burst */
+    uint32_t            m_single_burst_refill; 
+
+    uint32_t            m_multi_bursts; /* in case of multi_burst how many bursts */
+
+
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[87];
+    uint8_t             m_pad_end[65];
 
 
 public:
+
+    inline uint8_t  get_stream_type(){
+        return (m_stream_type);
+    }
+
+    inline uint32_t   get_single_burst_cnt(){
+        return (m_single_burst);
+    }
+
+    inline double   get_multi_ibg_sec(){
+        return (m_ibg_sec);
+    }
+
+    inline uint32_t   get_multi_burst_cnt(){
+        return (m_multi_bursts);
+    }
 
 
     inline bool is_active() {
         return m_is_stream_active;
     }
 
-        
-    /**
-     * main function to handle an event of a packet tx
-     * 
-     */
-    inline void handle(CFlowGenListPerThread *thread) {
 
+    inline void handle_continues(CFlowGenListPerThread *thread) {
         thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
 
         /* in case of continues */
@@ -62,6 +86,51 @@ public:
 
         /* insert a new event */
         thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
+    }
+
+    inline void handle_multi_burst(CFlowGenListPerThread *thread) {
+        thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
+
+        m_single_burst--;
+        if (m_single_burst > 0 ) {
+            /* in case of continues */
+            m_time += m_next_time_offset;
+
+            thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
+        }else{
+            m_multi_bursts--;
+            if ( m_multi_bursts == 0 ) {
+                /* stop */
+                m_is_stream_active =0;
+            }else{
+                m_time += m_ibg_sec;
+                m_single_burst = m_single_burst_refill;
+
+            }
+            thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
+        }
+    }
+
+        
+    /**
+     * main function to handle an event of a packet tx
+     * 
+     * 
+     * 
+     */
+
+    inline void handle(CFlowGenListPerThread *thread) {
+
+        if (m_stream_type == TrexStream::stCONTINUOUS ) {
+            handle_continues(thread) ;
+        }else{
+            if (m_stream_type == TrexStream::stMULTI_BURST) {
+                handle_multi_burst(thread);
+            }else{
+                assert(0);
+            }
+        }
+
     }
 
     void set_socket_id(socket_id_t socket){
@@ -106,6 +175,9 @@ public:
 
 } __rte_cache_aligned;
 
-static_assert(sizeof(CGenNodeStateless) == sizeof(CGenNode), "sizeof(CGenNodeStateless) != sizeof(CGenNode)");
+static_assert(sizeof(CGenNodeStateless) == sizeof(CGenNode), "sizeof(CGenNodeStateless) != sizeof(CGenNode)" );
+
+
+
 
 #endif /* __TREX_STREAM_NODE_H__ */
