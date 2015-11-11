@@ -122,7 +122,9 @@ TrexStatelessPort::start_traffic(double mul) {
 void
 TrexStatelessPort::stop_traffic(void) {
 
-    verify_state(PORT_STATE_TX);
+    if (m_port_state != PORT_STATE_TX) {
+        return;
+    }
 
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);

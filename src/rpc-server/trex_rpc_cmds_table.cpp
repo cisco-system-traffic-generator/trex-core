@@ -56,6 +56,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdStopTraffic());
     register_command(new TrexRpcCmdPauseTraffic());
     register_command(new TrexRpcCmdResumeTraffic());
+    register_command(new TrexRpcCmdUpdateTraffic());
 }
 
 TrexRpcCommandsTable::~TrexRpcCommandsTable() {

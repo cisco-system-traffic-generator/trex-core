@@ -168,7 +168,8 @@ class PortsStatsPanel(TrexStatusPanel):
                                        port_stats.get_rel("ibytes", format = True, suffix = "B"))))
         
             else:
-                self.getwin().addstr(5 + (i * 4), 2, 2, "{:^15} {:^30} {:^30} {:^30}".format(
+
+                self.getwin().addstr(5 + (i * 4), 2, "{:^15} {:^30} {:^30} {:^30}".format(
                     "{0} ({1})".format(str(port_index), self.status_obj.server_sys_info["ports"][port_index]["speed"]),
                     "N/A",
                     "N/A",
@@ -284,7 +285,7 @@ class SinglePortPanel(TrexStatusPanel):
                                    port_stats.get_rel("ibytes", format = True, suffix = "B"))))
         
         else:
-            self.getwin().addstr(y + (i * 4), 2, 2, "{:^15} {:^30} {:^30} {:^30}".format(
+            self.getwin().addstr(y, 2, "{:^15} {:^30} {:^30} {:^30}".format(
                 "{0} ({1})".format(str(self.port_id), self.status_obj.server_sys_info["ports"][self.port_id]["speed"]),
                 "N/A",
                 "N/A",

@@ -2,6 +2,7 @@ import argparse
 from collections import namedtuple
 import sys
 import re
+import os
 
 ArgumentPack = namedtuple('ArgumentPack', ['name_or_flags', 'options'])
 ArgumentGroup = namedtuple('ArgumentGroup', ['type', 'args', 'options'])
@@ -14,9 +15,10 @@ ALL_PORTS = 3
 PORT_LIST_WITH_ALL = 4
 FILE_PATH = 5
 FILE_FROM_DB = 6
-STREAM_FROM_PATH_OR_FILE = 7
-DURATION = 8
-FORCE = 9
+SERVER_IP = 7
+STREAM_FROM_PATH_OR_FILE = 8
+DURATION = 9
+FORCE = 10
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -61,20 +63,27 @@ def match_multiplier(val):
 
 
 
+def is_valid_file(filename):
+    if not os.path.isfile(filename):
+        raise argparse.ArgumentTypeError("The file '%s' does not exist" % filename)
+
+    return filename
+
 
 OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                  {'help': "Set multiplier for stream",
                                   'dest': "mult",
                                   'default': 1.0,
                                   'type': match_multiplier}),
+
               PORT_LIST: ArgumentPack(['--port'],
                                         {"nargs": '+',
-                                         # "action": "store_"
                                          'dest':'ports',
                                          'metavar': 'PORTS',
-                                         # 'type': int,
+                                          'type': int,
                                          'help': "A list of ports on which to apply the command",
                                          'default': []}),
+
               ALL_PORTS: ArgumentPack(['-a'],
                                         {"action": "store_true",
                                          "dest": "all_ports",
@@ -88,15 +97,22 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {"action": "store_true",
                                          'default': False,
                                          'help': "Set if you want to stop active ports before applying new TRex run on them."}),
+
               FILE_PATH: ArgumentPack(['-f'],
-                                      {'metavar': ('FILE', 'DB_NAME'),
+                                      {'metavar': 'FILE',
                                        'dest': 'file',
-                                       'nargs': 2,
-                                       'help': "File path to YAML file that describes a stream pack. "
-                                               "Second argument is a name to store the loaded yaml file into db."}),
+                                       'nargs': 1,
+                                       'type': is_valid_file,
+                                       'help': "File path to YAML file that describes a stream pack. "}),
+
               FILE_FROM_DB: ArgumentPack(['--db'],
                                          {'metavar': 'LOADED_STREAM_PACK',
                                           'help': "A stream pack which already loaded into console cache."}),
+
+              SERVER_IP: ArgumentPack(['--server'],
+                                      {'metavar': 'SERVER',
+                                       'help': "server IP"}),
+
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
@@ -109,33 +125,44 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
 
 class CCmdArgParser(argparse.ArgumentParser):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, stateless_client, *args, **kwargs):
         super(CCmdArgParser, self).__init__(*args, **kwargs)
-
-    # def exit(self, status=0, message=None):
-    #     try:
-    #         return super(CCmdArgParser, self).exit(status, message)   # this will trigger system exit!
-    #     except SystemExit:
-    #         print "Caught system exit!!"
-    #         return -1
-    #     # return
+        self.stateless_client = stateless_client
 
     def parse_args(self, args=None, namespace=None):
         try:
-            return super(CCmdArgParser, self).parse_args(args, namespace)
+            opts = super(CCmdArgParser, self).parse_args(args, namespace)
+            if opts is None:
+                return None
+
+            if opts.all_ports:
+                opts.ports = self.stateless_client.get_port_ids()
+
+            for port in opts.ports:
+                if not self.stateless_client._is_ports_valid(port):
+                    self.error("port id {0} is not a valid\n".format(port))
+
+            return opts
+
         except SystemExit:
             # recover from system exit scenarios, such as "help", or bad arguments.
             return None
 
 
+def get_flags (opt):
+    return OPTIONS_DB[opt].name_or_flags
 
-def gen_parser(op_name, description, *args):
-    parser = CCmdArgParser(prog=op_name, conflict_handler='resolve',
-                           # add_help=False,
+def gen_parser(stateless_client, op_name, description, *args):
+    parser = CCmdArgParser(stateless_client, prog=op_name, conflict_handler='resolve',
                            description=description)
     for param in args:
         try:
-            argument = OPTIONS_DB[param]
+
+            if isinstance(param, int):
+                argument = OPTIONS_DB[param]
+            else:
+                argument = param
+
             if isinstance(argument, ArgumentGroup):
                 if argument.type == MUTEX:
                     # handle as mutually exclusive group
@@ -156,6 +183,7 @@ def gen_parser(op_name, description, *args):
             cause = e.args[0]
             raise KeyError("The attribute '{0}' is missing as a field of the {1} option.\n".format(cause, param))
     return parser
+
 
 if __name__ == "__main__":
     pass

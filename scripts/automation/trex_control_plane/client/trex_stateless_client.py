@@ -232,7 +232,6 @@ class CTRexStatelessClient(object):
                                           self.transmit(command.method, command.params),
                                           self.ack_success_test)
 
-    # @force_status(owned=True)
     @acquired
     def add_stream(self, stream_id, stream_obj, port_id=None):
         if not self._is_ports_valid(port_id):
@@ -244,7 +243,6 @@ class CTRexStatelessClient(object):
                   "stream": stream_obj.dump()}
         return self.transmit("add_stream", params)
 
-    # @force_status(owned=True)
     @acquired
     def add_stream_pack(self, stream_pack_list, port_id=None):
         if not self._is_ports_valid(port_id):
@@ -262,9 +260,11 @@ class CTRexStatelessClient(object):
                             for p_id in port_ids]
                             )
         res_ok, resp_list = self.transmit_batch(commands)
-        if res_ok:
-            return self._process_batch_result(commands, resp_list, self._handle_add_stream_response,
-                                              success_test=self.ack_success_test)
+        if not res_ok:
+            return res_ok, resp_list
+
+        return self._process_batch_result(commands, resp_list, self._handle_add_stream_response,
+                                          success_test=self.ack_success_test)
 
     @force_status(owned=True)
     def remove_stream(self, stream_id, port_id=None):
@@ -275,8 +275,6 @@ class CTRexStatelessClient(object):
                   "stream_id": stream_id}
         return self.transmit("remove_stream", params)
 
-    # @force_status(owned=True)
-    @acquired
     def remove_all_streams(self, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -326,7 +324,6 @@ class CTRexStatelessClient(object):
                   "get_pkt": get_pkt}
         return self.transmit("get_stream_list", params)
 
-    @acquired
     def start_traffic(self, multiplier, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -350,8 +347,6 @@ class CTRexStatelessClient(object):
                                                        self.transmit(command.method, command.params),
                                                        self.ack_success_test)
 
-    # @force_status(owned=False, active_and_owned=True)
-    @acquired
     def stop_traffic(self, port_id=None):
         if not self._is_ports_valid(port_id):
             raise ValueError("Provided illegal port id input")
@@ -371,7 +366,7 @@ class CTRexStatelessClient(object):
             params = {"handler": self._conn_handler.get(port_id),
                       "port_id": port_id}
             command = RpcCmdData("stop_traffic", params)
-            return self._handle_start_traffic_response(command,
+            return self._handle_stop_traffic_response(command,
                                                        self.transmit(command.method, command.params),
                                                        self.ack_success_test)
 
@@ -471,6 +466,88 @@ class CTRexStatelessClient(object):
             return False
 
 
+    ######################### Console (high level) API #########################
+
+    # reset
+    # acquire, stop, remove streams and clear stats
+    #
+    #
+    def cmd_reset (self, annotate_func):
+
+        ports = self.get_port_ids()
+
+        # sync with the server
+        rc, log = self._init_sync()
+        annotate_func("Syncing with the server:", rc, log)
+        if not rc:
+            return False
+
+
+        # force acquire all ports
+        rc, log = self.acquire(ports, force = True)
+        annotate_func("Force acquiring all ports:", rc, log)
+        if not rc:
+            return False
+
+        # force stop
+        rc, log = self.stop_traffic(ports)
+        annotate_func("Stop traffic on all ports:", rc, log)
+        if not rc:
+            return False
+
+        # remove all streams
+        rc, log = self.remove_all_streams(ports)
+        annotate_func("Removing all streams from all ports:", rc, log)
+        if not rc:
+            return False
+
+        # TODO: clear stats
+        return True
+        
+
+    # stop cmd
+    def cmd_stop (self, ports, annotate_func):
+
+        # find the relveant ports
+        active_ports = set(self.get_active_ports()).intersection(ports)
+        if not active_ports:
+            annotate_func("No active traffic on porivded ports")
+            return True
+
+        rc, log = self.stop_traffic(active_ports)
+        annotate_func("Stopping traffic on ports {0}:".format([port for port in active_ports]), rc, log)
+        if not rc:
+            return False
+
+        return True
+
+    # start cmd
+    def cmd_start (self, ports, stream_list, mult, force, annotate_func):
+
+        if force:
+            rc = self.cmd_stop(ports, annotate_func)
+            if not rc:
+                return False
+
+        rc, log = self.remove_all_streams(ports)
+        annotate_func("Removing all streams from ports {0}:".format([port for port in ports]), rc, log,
+                      "Please either retry with --force or stop traffic")
+        if not rc:
+            return False
+
+        rc, log = self.add_stream_pack(stream_list.compiled, port_id= ports)
+        annotate_func("Attaching streams to port {0}:".format([port for port in ports]), rc, log)
+        if not rc:
+            return False
+
+        # finally, start the traffic
+        rc, log = self.start_traffic(mult, ports)
+        annotate_func("Starting traffic on ports {0}:".format([port for port in ports]), rc, log)
+        if not rc:
+            return False
+
+        return True
+
     # ----- handler internal methods ----- #
     def _handle_general_response(self, request, response, msg, success_test=None):
         port_id = request.params.get("port_id")
@@ -525,7 +602,8 @@ class CTRexStatelessClient(object):
     def _handle_stop_traffic_response(self, request, response, success_test):
         port_id = request.params.get("port_id")
         if success_test(response):
-            self._active_ports.remove(port_id)
+            if port_id in self._active_ports:
+                self._active_ports.remove(port_id)
             return RpcResponseStatus(True, port_id, "Traffic stopped")
         else:
             return RpcResponseStatus(False, port_id, response.data)
