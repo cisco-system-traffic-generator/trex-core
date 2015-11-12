@@ -29,7 +29,7 @@ limitations under the License.
 #include <iostream>
 #include <unistd.h>
 
-#ifndef TREX_RPC_MOCK_SERVER
+#ifdef RTE_DPDK
     #include <../linux_dpdk/version.h>
 #endif
 
@@ -73,7 +73,7 @@ TrexRpcCmdGetVersion::_run(const Json::Value &params, Json::Value &result) {
 
     Json::Value &section = result["result"];
 
-    #ifndef TREX_RPC_MOCK_SERVER
+    #ifdef RTE_DPDK
 
     section["version"]       = VERSION_BUILD_NUM;
     section["build_date"]    = get_build_date();
