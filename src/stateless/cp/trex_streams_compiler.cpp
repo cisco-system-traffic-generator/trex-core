@@ -27,18 +27,21 @@ limitations under the License.
  * stream compiled object
  *************************************/
 TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id, double mul) : m_port_id(port_id), m_mul(mul) {
+    m_duration_sim=-1.0;
 }
 
 TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
+    for (auto obj : m_objs) {
+        delete obj.m_stream;
+    }
     m_objs.clear();
-    m_duration_sim=-1.0;
 }
 
 void 
 TrexStreamsCompiledObj::add_compiled_stream(TrexStream * stream) {
     obj_st obj;
 
-    obj.m_stream = stream;
+    obj.m_stream = stream->clone_as_dp();
 
     m_objs.push_back(obj);
 }

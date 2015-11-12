@@ -146,9 +146,6 @@ TrexStatelessDpCore::add_cont_stream(TrexStream * stream,
     uint16_t pkt_size = stream->m_pkt.len;
     const uint8_t *stream_pkt = stream->m_pkt.binary;
 
-    TrexStreamBurst *      lpburst;
-    TrexStreamMultiBurst * lpmulti;
-
     node->m_stream_type = stream->m_type;
     node->m_next_time_offset =  1.0 / (stream->get_pps() * comp->get_multiplier()) ;
 
@@ -161,20 +158,17 @@ TrexStatelessDpCore::add_cont_stream(TrexStream * stream,
 
     case TrexStream::stSINGLE_BURST :
         node->m_stream_type             = TrexStream::stMULTI_BURST;
-        lpburst                         = (TrexStreamBurst *)stream;
-        node->m_single_burst            = lpburst->m_total_pkts;
-        node->m_single_burst_refill     = lpburst->m_total_pkts;
+        node->m_single_burst            = stream->m_burst_total_pkts;
+        node->m_single_burst_refill     = stream->m_burst_total_pkts;
         node->m_multi_bursts            = 1;  /* single burst in multi burst of 1 */
         node->m_ibg_sec                 = 0.0;
         break;
 
     case TrexStream::stMULTI_BURST :
-        lpmulti =(TrexStreamMultiBurst *)stream;
-
-        node->m_single_burst        = lpmulti->m_total_pkts;
-        node->m_single_burst_refill = lpmulti->m_total_pkts ;
-        node->m_multi_bursts        = lpmulti->m_num_bursts;
-        node->m_ibg_sec             = usec_to_sec( lpmulti->m_ibg_usec );
+        node->m_single_burst        = stream->m_burst_total_pkts;
+        node->m_single_burst_refill = stream->m_burst_total_pkts;
+        node->m_multi_bursts        = stream->m_num_bursts;
+        node->m_ibg_sec             = usec_to_sec( stream->m_ibg_usec );
         break;
     default:
 

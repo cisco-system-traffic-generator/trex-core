@@ -414,7 +414,9 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     }
     if ( m_telnet_exist ){
         fprintf(fd," telnet_port    :  %d \n",m_telnet_port);
+
     }
+    fprintf(fd," m_zmq_rpc_port    :  %d \n",m_zmq_rpc_port);
 
     if ( m_mac_info_exist ){
         int i;

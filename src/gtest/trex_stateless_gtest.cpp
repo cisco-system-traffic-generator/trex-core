@@ -237,7 +237,9 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStreamBurst(0,0,5, 1.0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,0);
+     stream1->set_pps(1.0);
+     stream1->set_signle_burtst(5);
      stream1->m_enabled = true;
      stream1->m_self_start = true;
 
@@ -281,7 +283,10 @@ TEST_F(basic_stl, single_pkt) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStreamContinuous(0,0,1.0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
      stream1->m_enabled = true;
      stream1->m_self_start = true;
 
@@ -327,7 +332,10 @@ TEST_F(basic_stl, multi_pkt1) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStreamContinuous(0,0,1.0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
 
@@ -338,8 +346,9 @@ TEST_F(basic_stl, multi_pkt1) {
 
      streams.push_back(stream1);
 
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream2->set_pps(2.0);
 
-     TrexStream * stream2 = new TrexStreamContinuous(0,1,2.0);
      stream2->m_enabled = true;
      stream2->m_self_start = true;
      stream2->m_isg_usec = 1000.0; /* 1 msec */
@@ -385,7 +394,11 @@ TEST_F(basic_stl, multi_pkt2) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStreamContinuous(0,0,1.0);
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
 
@@ -397,7 +410,9 @@ TEST_F(basic_stl, multi_pkt2) {
      streams.push_back(stream1);
 
 
-     TrexStream * stream2 = new TrexStreamContinuous(0,1,2.0);
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,1);
+     stream2->set_pps(2.0);
+
      stream2->m_enabled = false;
      stream2->m_self_start = false;
      stream2->m_isg_usec = 1000.0; /* 1 msec */
@@ -439,9 +454,12 @@ TEST_F(basic_stl, multi_burst1) {
 
      std::vector<TrexStream *> streams;
 
+     TrexStream * stream1 = new TrexStream(TrexStream::stMULTI_BURST,0,0);
+     stream1->set_pps(1.0);
+     stream1->set_multi_burst(5, 
+                              3,
+                              2000000.0);
 
-
-     TrexStream * stream1 = new TrexStreamMultiBurst(0,0,5, 1.0,3,2000000.0);
      stream1->m_enabled = true;
      stream1->m_self_start = true;
 
