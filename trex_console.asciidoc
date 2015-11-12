@@ -47,6 +47,46 @@ Some guidelines:
 
 -----
 
+=== Tutorial 
+
+First run trex in interactive mode
+
+[source,bash]
+----
+$sudo ./t-rex-64 -i
+----
+
+on the same machine from a different window connect to to trex 
+
+[source,bash]
+----
+$sudo ./t-rex-64 -i
+----
+$./trex-console
+----
+
+
+from console you can run this 
+
+[source,bash]
+----
+$sudo ./t-rex-64 -i
+----
+
+# will start traffic on all port 
+>start -a -m 1 -f stl/imix_1pkt.yaml
+# stop traffic on all port
+>stop -a 
+
+# show dynamic statistic 
+>tui
+
+#stop all and remove all stats
+>reset
+
+----
+
+
 === Common Arguments 
 
 This section includes arguments that are common to many commands 
