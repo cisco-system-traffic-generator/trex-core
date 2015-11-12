@@ -160,46 +160,7 @@ class TRexConsole(cmd.Cmd):
                 for x in os.listdir(path)
                 if x.startswith(start_string)]
 
-    ####################### shell commands #######################
-
-    # set verbose on / off
-    def do_verbose(self, line):
-        '''Shows or set verbose mode\n'''
-        if line == "":
-            print "\nverbose is " + ("on\n" if self.verbose else "off\n")
-
-        elif line == "on":
-            self.verbose = True
-            self.stateless_client.set_verbose(True)
-            print green("\nverbose set to on\n")
-
-        elif line == "off":
-            self.verbose = False
-            self.stateless_client.set_verbose(False)
-            print green("\nverbose set to off\n")
-
-        else:
-            print magenta("\nplease specify 'on' or 'off'\n")
-
-    ############### connect
-    def do_connect (self, line):
-        '''Connects to the server\n'''
-
-        res_ok, msg = self.stateless_client.connect()
-        if res_ok:
-            print format_text("[SUCCESS]\n", 'green', 'bold')
-        else:
-            print "\n*** " + msg + "\n"
-            print format_text("[FAILED]\n", 'red', 'bold')
-            return
-
-        self.supported_rpc = self.stateless_client.get_supported_cmds().data
-
-        if self.acquire_all_ports:
-            res_ok, log = self.stateless_client.acquire(self.stateless_client.get_port_ids())
-            if not res_ok:
-                print "\n*** Failed to acquire all ports... exiting..."""
-
+    # annotation method
     @staticmethod
     def annotate (desc, rc = None, err_log = None, ext_err_msg = None):
         print format_text('\n{:<40}'.format(desc), 'bold'),
@@ -230,6 +191,65 @@ class TRexConsole(cmd.Cmd):
             return True
 
 
+    ####################### shell commands #######################
+    def do_ping (self, line):
+        '''Ping the server\n'''
+
+        rc = self.stateless_client.ping()
+        if rc.good():
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+        else:
+            print "\n*** " + rc.err() + "\n"
+            print format_text("[FAILED]\n", 'red', 'bold')
+            return
+
+    def do_test (self, line):
+        print self.stateless_client.get_acquired_ports()
+
+    # set verbose on / off
+    def do_verbose(self, line):
+        '''Shows or set verbose mode\n'''
+        if line == "":
+            print "\nverbose is " + ("on\n" if self.verbose else "off\n")
+
+        elif line == "on":
+            self.verbose = True
+            self.stateless_client.set_verbose(True)
+            print format_text("\nverbose set to on\n", 'green', 'bold')
+
+        elif line == "off":
+            self.verbose = False
+            self.stateless_client.set_verbose(False)
+            print format_text("\nverbose set to off\n", 'green', 'bold')
+
+        else:
+            print format_text("\nplease specify 'on' or 'off'\n", 'bold')
+
+
+    ############### connect
+    def do_connect (self, line):
+        '''Connects to the server\n'''
+
+        rc = self.stateless_client.connect()
+        if rc.good():
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+        else:
+            print "\n*** " + rc.err() + "\n"
+            print format_text("[FAILED]\n", 'red', 'bold')
+            return
+
+
+    def do_disconnect (self, line):
+        '''Disconnect from the server\n'''
+
+        if not self.stateless_client.is_connected():
+            print "Not connected to server\n"
+            return
+
+        self.stateless_client.disconnect()
+        print format_text("[SUCCESS]\n", 'green', 'bold')
+
+ 
     ############### start
 
     def complete_start(self, text, line, begidx, endidx):
