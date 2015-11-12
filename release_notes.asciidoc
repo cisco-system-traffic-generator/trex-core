@@ -20,6 +20,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.79  ==
+
+* initial support for stateless 
+** only continues streams 
+** No VM support  
+** more info how to enable the interactive shell link:trex_console.html
+
+
 == Release 1.78  ==
 
 * some clean up in tuple generator 
