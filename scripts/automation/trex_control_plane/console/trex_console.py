@@ -296,7 +296,7 @@ class TRexConsole(cmd.Cmd):
                 return
 
 
-        self.stateless_client.cmd_start(opts.ports, stream_list, opts.mult, opts.force, self.annotate)
+        self.stateless_client.cmd_start(opts.ports, stream_list, opts.mult, opts.force)
         return
 
 
@@ -315,7 +315,7 @@ class TRexConsole(cmd.Cmd):
         if opts is None:
             return
 
-        self.stateless_client.cmd_stop(opts.ports, self.annotate)
+        self.stateless_client.cmd_stop(opts.ports)
         return
 
     def help_stop(self):
@@ -324,7 +324,7 @@ class TRexConsole(cmd.Cmd):
     ########## reset
     def do_reset (self, line):
         '''force stop all ports\n'''
-        self.stateless_client.cmd_reset(self.annotate)
+        self.stateless_client.cmd_reset()
 
   
     # tui

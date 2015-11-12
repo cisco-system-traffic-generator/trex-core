@@ -139,8 +139,8 @@ class CCmdArgParser(argparse.ArgumentParser):
                 opts.ports = self.stateless_client.get_port_ids()
 
             for port in opts.ports:
-                if not self.stateless_client._is_ports_valid(port):
-                    self.error("port id {0} is not a valid\n".format(port))
+                if not self.stateless_client.validate_port_list(port):
+                    self.error("port id {0} is not a valid port id\n".format(port))
 
             return opts
 
