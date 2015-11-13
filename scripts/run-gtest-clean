@@ -1,0 +1,2 @@
+#! /bin/bash
+valgrind --leak-check=full --show-reachable=yes ./bp-sim-64 --ut --gtest_filter="basic_stl.*"

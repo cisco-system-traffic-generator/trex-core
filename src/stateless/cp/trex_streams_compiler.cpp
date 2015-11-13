@@ -27,26 +27,21 @@ limitations under the License.
  * stream compiled object
  *************************************/
 TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id, double mul) : m_port_id(port_id), m_mul(mul) {
+    m_duration_sim=-1.0;
 }
 
 TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
-    for (auto &obj : m_objs) {
-        delete obj.m_pkt;
+    for (auto obj : m_objs) {
+        delete obj.m_stream;
     }
     m_objs.clear();
 }
 
 void 
-TrexStreamsCompiledObj::add_compiled_stream(double isg_usec, double pps, uint8_t *pkt, uint16_t pkt_len) {
+TrexStreamsCompiledObj::add_compiled_stream(TrexStream * stream) {
     obj_st obj;
 
-    obj.m_isg_usec  = isg_usec;
-    obj.m_port_id   = m_port_id;
-    obj.m_pps       = pps * m_mul;
-    obj.m_pkt_len   = pkt_len;
-
-    obj.m_pkt = new uint8_t[pkt_len];
-    memcpy(obj.m_pkt, pkt, pkt_len);
+    obj.m_stream = stream->clone_as_dp();
 
     m_objs.push_back(obj);
 }
@@ -61,14 +56,12 @@ TrexStreamsCompiledObj::clone() {
      * clone each element
      */
     for (auto obj : m_objs) {
-        new_compiled_obj->add_compiled_stream(obj.m_isg_usec,
-                                              obj.m_pps,
-                                              obj.m_pkt,
-                                              obj.m_pkt_len);
+        new_compiled_obj->add_compiled_stream(obj.m_stream);
     }
 
-    /* fix the multiplier */
     new_compiled_obj->m_mul = m_mul;
+
+    new_compiled_obj->m_duration_sim = m_duration_sim;
 
     return new_compiled_obj;
 }
@@ -91,17 +84,8 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams, TrexStrea
             continue;
         }
 
-        /* for now support only continous ... */
-        TrexStreamContinuous *cont_stream = dynamic_cast<TrexStreamContinuous *>(stream);
-        if (!cont_stream) {
-            continue;
-        }
-
         /* add it */
-        obj.add_compiled_stream(cont_stream->m_isg_usec,
-                                cont_stream->get_pps(),
-                                cont_stream->m_pkt.binary,
-                                cont_stream->m_pkt.len);
+        obj.add_compiled_stream(stream);
     }
 
     return true;

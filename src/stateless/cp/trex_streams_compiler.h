@@ -40,29 +40,38 @@ public:
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
-        double   m_isg_usec;
-        double   m_pps;
-        uint8_t *m_pkt;
-        uint16_t m_pkt_len;
-        uint8_t  m_port_id;
+
+        TrexStream * m_stream;
     };
 
     const std::vector<obj_st> & get_objects() {
         return m_objs;
     }
 
+    void set_simulation_duration(double duration){
+        m_duration_sim=duration;
+    }
+
+    double get_simulation_duration(){
+        return (m_duration_sim);
+    }
     /**
      * clone the compiled object
      * 
      */
     TrexStreamsCompiledObj * clone();
 
+    double get_multiplier(){
+        return (m_mul);
+    }
+
 private:
-    void add_compiled_stream(double isg_usec, double pps, uint8_t *pkt, uint16_t pkt_len);
+    void add_compiled_stream(TrexStream * stream);
     std::vector<obj_st> m_objs;
 
     uint8_t m_port_id;
     double  m_mul;
+    double  m_duration_sim; /* duration for all simulation */
 };
 
 class TrexStreamsCompiler {

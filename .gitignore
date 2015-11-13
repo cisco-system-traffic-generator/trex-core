@@ -15,6 +15,14 @@ scripts/doc/*
 scripts/mock-*
 scripts/automation/trex_control_plane/doc/_build/*
 
+scripts/exp/stl_multi_burst1-0.erf
+scripts/exp/stl_multi_pkt1-0.erf
+scripts/exp/stl_multi_pkt2-0.erf
+scripts/exp/stl_single_pkt_burst1-0.erf
+scripts/exp/stl_single_sctp_pkt-0.erf
+scripts/exp/stl_single_stream-0.erf
+
+
 *.pyc
 
  

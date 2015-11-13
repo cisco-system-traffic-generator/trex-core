@@ -131,16 +131,6 @@ int test_human_p(){
 
 
 
-static bool was_init=false;
-
-void gtest_init_once(){
-
-    if ( !was_init ){
-        CGlobalInfo::init_pools(1000);
-        time_init();
-        was_init=true;
-    }
-}
 
 
 
@@ -259,7 +249,6 @@ public:
 class basic  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
   }
   virtual void TearDown() {
   }
@@ -269,7 +258,6 @@ public:
 class cpu  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
   }
   virtual void TearDown() {
   }
@@ -1199,7 +1187,6 @@ TEST_F(cpu, cpu3) {
 class timerwl  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
   }
   virtual void TearDown() {
   }
@@ -1450,7 +1437,6 @@ TEST_F(timerwl, many_timers_with_stop) {
 class rx_check  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
       m_rx_check.Create();
 
   }
@@ -2142,7 +2128,6 @@ public:
 class rx_check_system  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
 
       m_rx_check.m_callback=&m_callback;
       m_callback.mg   =&m_mg;
@@ -2420,8 +2405,6 @@ public:
 class nat_check_system  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
-
       m_rx_check.m_callback=&m_callback;
       m_callback.mg   =&m_mg;
       m_mg.Create();
@@ -2467,7 +2450,6 @@ class file_flow_info  : public testing::Test {
 
 protected:
   virtual void SetUp() {
-      gtest_init_once();
       assert(m_flow_info.Create());
   }
 

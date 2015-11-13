@@ -22,311 +22,21 @@ limitations under the License.
 #include "bp_sim.h"
 #include <common/gtest.h>
 #include <common/basic_utils.h>
+#include <trex_stateless_dp_core.h>
+#include <trex_stateless_messaging.h>
+#include <trex_streams_compiler.h>
+#include <trex_stream_node.h>
+#include <trex_stream.h>
+#include <trex_stateless_port.h>
+#include <trex_rpc_server_api.h>
 
 
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
-// one stream info with const packet , no VM
-class CTRexDpStatelessVM {
 
-};
 
-//- add dump function 
-// - check one object 
-// create frame work 
-
-class CTRexDpStreamModeContinues{
-public:
-    void set_pps(double pps){
-        m_pps=pps;
-    }
-    double get_pps(){
-        return (m_pps);
-    }
-
-    void dump(FILE *fd);
-private:
-    double      m_pps;
-};
-
-
-void CTRexDpStreamModeContinues::dump(FILE *fd){
-    fprintf (fd," pps       : %f \n",m_pps);
-}
-
-
-class CTRexDpStreamModeSingleBurst{
-public:
-    void set_pps(double pps){
-        m_pps=pps;
-    }
-    double get_pps(){
-        return (m_pps);
-    }
-
-    void set_total_packets(uint64_t total_packets){
-        m_total_packets =total_packets;
-    }
-
-    uint64_t get_total_packets(){
-        return (m_total_packets);
-    }
-
-    void dump(FILE *fd);
-
-private:
-    double      m_pps;
-    uint64_t    m_total_packets;
-};
-
-
-void CTRexDpStreamModeSingleBurst::dump(FILE *fd){
-    fprintf (fd," pps           : %f \n",m_pps);
-    fprintf (fd," total_packets : %llu \n", (unsigned long long)m_total_packets);
-}
-
-
-class CTRexDpStreamModeMultiBurst{
-public:
-    void set_pps(double pps){
-        m_pps=pps;
-    }
-    double get_pps(){
-        return (m_pps);
-    }
-
-    void set_pkts_per_burst(uint64_t pkts_per_burst){
-        m_pkts_per_burst =pkts_per_burst;
-    }
-
-    uint64_t get_pkts_per_burst(){
-        return (m_pkts_per_burst);
-    }
-
-    void set_ibg(double ibg){
-        m_ibg = ibg;
-    }
-
-    double get_ibg(){
-        return ( m_ibg );
-    }
-
-    void set_number_of_bursts(uint32_t number_of_bursts){
-        m_number_of_bursts = number_of_bursts;
-    }
-
-    uint32_t get_number_of_bursts(){
-        return (m_number_of_bursts);
-    }
-
-    void dump(FILE *fd);
-
-private:
-    double      m_pps;
-    double      m_ibg; // inter burst gap 
-    uint64_t    m_pkts_per_burst;
-    uint32_t    m_number_of_bursts;
-};
-
-void CTRexDpStreamModeMultiBurst::dump(FILE *fd){
-    fprintf (fd," pps           : %f \n",m_pps);
-    fprintf (fd," total_packets : %llu \n", (unsigned long long)m_pkts_per_burst);
-    fprintf (fd," ibg           : %f \n",m_ibg);
-    fprintf (fd," num_of_bursts : %lu \n", (ulong)m_number_of_bursts);
-}
-
-
-
-class CTRexDpStreamMode {
-public:
-    enum MODES {
-        moCONTINUES     = 0x0, 
-        moSINGLE_BURST  = 0x1,
-        moMULTI_BURST   = 0x2
-    } ;
-    typedef  uint8_t  MODE_TYPE_t;
-
-    void reset();
-
-    void    set_mode(MODE_TYPE_t mode ){
-        m_type = mode;
-    }
-
-    MODE_TYPE_t get_mode(){
-        return (m_type);
-    }
-
-
-    CTRexDpStreamModeContinues & cont(void){
-        return (m_data.m_cont);
-    }
-    CTRexDpStreamModeSingleBurst & single_burst(void){
-        return (m_data.m_signle_burst);
-    }
-
-    CTRexDpStreamModeMultiBurst & multi_burst(void){
-        return (m_data.m_multi_burst);
-    }
-
-    void dump(FILE *fd);
-
-private:
-    uint8_t                            m_type;
-    union Data {
-        CTRexDpStreamModeContinues     m_cont;
-        CTRexDpStreamModeSingleBurst   m_signle_burst;
-        CTRexDpStreamModeMultiBurst    m_multi_burst;
-    }  m_data;
-};
-
-
-void CTRexDpStreamMode::reset(){
-    m_type =CTRexDpStreamMode::moCONTINUES;
-    memset(&m_data,0,sizeof(m_data));
-}
-    
-void CTRexDpStreamMode::dump(FILE *fd){
-    const char * table[3] = {"CONTINUES","SINGLE_BURST","MULTI_BURST"};
-
-    fprintf(fd," mode      : %s \n", (char*)table[m_type]);
-    switch (m_type) {
-    case CTRexDpStreamMode::moCONTINUES :
-        cont().dump(fd);
-        break;
-    case CTRexDpStreamMode::moSINGLE_BURST :
-        single_burst().dump(fd);
-        break;
-    case CTRexDpStreamMode::moMULTI_BURST :
-        multi_burst().dump(fd);
-        break;
-    default:
-        fprintf(fd," ERROR type if not valid %d \n",m_type);
-        break;
-    }
-}
-
-
-
-
-class CTRexDpStatelessStream {
-
-public:
-    enum FLAGS_0{
-        _ENABLE = 0,
-        _SELF_START = 1,
-        _VM_ENABLE =2,
-        _END_STREAM =-1
-    };
-
-    CTRexDpStatelessStream(){
-        reset();
-    }
-
-    void reset(){
-        m_packet =0;
-        m_vm=0;
-        m_flags=0;
-        m_isg_sec=0.0;
-        m_next_stream = CTRexDpStatelessStream::_END_STREAM ; // END
-        m_mode.reset();
-    }
-
-    void set_enable(bool enable){
-        btSetMaskBit32(m_flags,_ENABLE,_ENABLE,enable?1:0);
-    }
-
-    bool get_enabled(){
-        return (btGetMaskBit32(m_flags,_ENABLE,_ENABLE)?true:false);
-    }
-
-    void set_self_start(bool enable){
-        btSetMaskBit32(m_flags,_SELF_START,_SELF_START,enable?1:0);
-    }
-
-    bool get_self_start(bool enable){
-        return (btGetMaskBit32(m_flags,_SELF_START,_SELF_START)?true:false);
-    }
-
-
-    /* if we don't have VM we could just replicate the mbuf  and allocate it once */
-    void set_vm_enable(bool enable){
-        btSetMaskBit32(m_flags,_VM_ENABLE,_VM_ENABLE,enable?1:0);
-    }
-
-    bool get_vm_enabled(bool enable){
-        return (btGetMaskBit32(m_flags,_VM_ENABLE,_VM_ENABLE)?true:false);
-    }
-
-    void set_inter_stream_gap(double  isg_sec){
-        m_isg_sec =isg_sec;
-    }
-
-    double get_inter_stream_gap(){
-        return (m_isg_sec);
-    }
-
-    CTRexDpStreamMode  &   get_mode();
-
-
-    // CTRexDpStatelessStream::_END_STREAM for END
-    void set_next_stream(int32_t next_stream){
-        m_next_stream =next_stream;
-    }
-
-    int32_t get_next_stream(void){
-        return ( m_next_stream );
-    }
-
-    void dump(FILE *fd);
-
-private:
-    char *                m_packet; 
-    CTRexDpStatelessVM *  m_vm;
-    uint32_t              m_flags;
-    double                m_isg_sec; // in second
-    CTRexDpStreamMode     m_mode;
-    int32_t               m_next_stream; // next stream id
-};
-
-//- list of streams info with const packet , no VM
-// - object that include the stream /scheduler/ packet allocation / need to create an object for one thread that works for test
-// generate pcap file and compare it 
-
-#if 0
-void CTRexDpStatelessStream::dump(FILE *fd){
-
-    fprintf(fd,"  enabled     : %d \n",get_enabled()?1:0);
-    fprintf(fd,"  self_start  : %d \n",get_self_start()?1:0);
-    fprintf(fd,"  vm          : %d \n",get_vm_enabled()?1:0);
-    fprintf("  isg     : %f \n",m_isg_sec);
-    m_mode.dump(fd);
-    if (m_next_stream == CTRexDpStatelessStream::_END_STREAM ) {
-        fprintf(fd," action    : End of Stream \n");
-    }else{
-        fprintf("  next        : %d \n",m_next_stream);
-    }
-}
-
-
-
-class CTRexStatelessBasic {
-
-public:
-    CTRexStatelessBasic(){
-        m_threads=1;
-    }
-
-    bool  init(void){
-        return (true);
-    }
-
-public:
-    bool m_threads;
-};
-
-
-/* stateless basic */
-class dp_sl_basic  : public testing::Test {
+/* basic stateless test */
+class basic_stl  : public testing::Test {
  protected:
   virtual void SetUp() {
   }
@@ -337,17 +47,446 @@ public:
 
 
 
-TEST_F(dp_sl_basic, test1) {
-    CTRexDpStatelessStream s1;
-    s1.set_enable(true);
-    s1.set_self_start(true);
-    s1.set_inter_stream_gap(0.77);
-    s1.get_mode().set_mode(CTRexDpStreamMode::moCONTINUES);
-    s1.get_mode().cont().set_pps(100.2);
-    s1.dump(stdout);
+class CBasicStl {
+
+public:
+    CBasicStl(){
+        m_time_diff=0.001;
+        m_threads=1;
+        m_dump_json=false;
+    }
+
+    bool  init(void){
+
+        CErfIFStl erf_vif;
+        fl.Create();
+        fl.generate_p_thread_info(1);
+        CFlowGenListPerThread   * lpt;
+
+        fl.m_threads_info[0]->set_vif(&erf_vif);
+
+        CErfCmp cmp;
+        cmp.dump=1;
+
+        CMessagingManager * cp_dp = CMsgIns::Ins()->getCpDp();
+
+        m_ring_from_cp = cp_dp->getRingCpToDp(0);
+
+
+        bool res=true;
+
+        lpt=fl.m_threads_info[0];
+
+        char buf[100];
+        char buf_ex[100];
+        sprintf(buf,"%s-%d.erf",CGlobalInfo::m_options.out_file.c_str(),0);
+        sprintf(buf_ex,"%s-%d-ex.erf",CGlobalInfo::m_options.out_file.c_str(),0);
+
+        lpt->start_stateless_simulation_file(buf,CGlobalInfo::m_options.preview);
+
+        /* add stream to the queue */
+        assert(m_msg);
+
+        assert(m_ring_from_cp->Enqueue((CGenNode *)m_msg)==0);
+
+        lpt->start_stateless_daemon_simulation();
+
+        //lpt->m_node_gen.DumpHist(stdout);
+
+        cmp.d_sec = m_time_diff;
+        if ( cmp.compare(std::string(buf),std::string(buf_ex)) != true ) {
+            res=false;
+        }
+
+        if ( m_dump_json ){
+            printf(" dump json ...........\n");
+            std::string s;
+            fl.m_threads_info[0]->m_node_gen.dump_json(s);
+            printf(" %s \n",s.c_str());
+        }
+
+        fl.Delete();
+        return (res);
+    }
+
+
+public:
+    int           m_threads;
+    double        m_time_diff;
+    bool          m_dump_json;
+    TrexStatelessCpToDpMsgBase * m_msg;
+    CNodeRing           *m_ring_from_cp;
+    CFlowGenList  fl;
+};
+
+
+class CPcapLoader {
+public:
+    CPcapLoader();
+    ~CPcapLoader();
+
+
+public:
+    bool load_pcap_file(std::string file,int pkt_id=0);
+    void update_ip_src(uint32_t ip_addr);
+    void clone_packet_into_stream(TrexStream * stream);
+    void dump_packet();
+
+public:
+    bool                    m_valid;
+    CCapPktRaw              m_raw;
+    CPacketIndication       m_pkt_indication;
+};
+
+CPcapLoader::~CPcapLoader(){
+}
+
+bool CPcapLoader::load_pcap_file(std::string cap_file,int pkt_id){
+    m_valid=false;
+    CPacketParser parser;
+
+    CCapReaderBase * lp=CCapReaderFactory::CreateReader((char *)cap_file.c_str(),0);
+
+    if (lp == 0) {
+        printf(" ERROR file %s does not exist or not supported \n",(char *)cap_file.c_str());
+        return false;
+    }
+
+    int cnt=0;
+    bool found =false;
+
+
+    while ( true ) {
+        /* read packet */
+        if ( lp->ReadPacket(&m_raw) ==false ){
+            break;
+        }
+        if (cnt==pkt_id) {
+            found = true;
+            break;
+        }
+        cnt++;
+    }
+    if ( found ){
+        if ( parser.ProcessPacket(&m_pkt_indication, &m_raw) ){
+            m_valid = true;
+        }
+    }
+
+    delete lp;
+    return (m_valid);
+}
+
+void CPcapLoader::update_ip_src(uint32_t ip_addr){
+
+    if ( m_pkt_indication.l3.m_ipv4 ) {
+        m_pkt_indication.l3.m_ipv4->setSourceIp(ip_addr);
+        m_pkt_indication.l3.m_ipv4->updateCheckSum();
+    }
+}           
+
+void CPcapLoader::clone_packet_into_stream(TrexStream * stream){
+
+    uint16_t pkt_size=m_raw.getTotalLen();
+
+    uint8_t      *binary = new uint8_t[pkt_size];
+    memcpy(binary,m_raw.raw,pkt_size);
+    stream->m_pkt.binary = binary;
+    stream->m_pkt.len    = pkt_size;
 }
 
 
 
 
-#endif
+CPcapLoader::CPcapLoader(){
+
+}
+
+void CPcapLoader::dump_packet(){
+    if (m_valid ) {
+        m_pkt_indication.Dump(stdout,1);
+    }else{
+        fprintf(stdout," no packets were found \n");
+    }
+}
+
+
+TEST_F(basic_stl, load_pcap_file) {
+    printf (" stateles %d \n",(int)sizeof(CGenNodeStateless));
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+    pcap.update_ip_src(0x10000001);
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+    pcap.update_ip_src(0x10000001);
+
+    //pcap.dump_packet();
+}
+
+
+TEST_F(basic_stl, single_pkt_burst1) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_single_pkt_burst1";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,0);
+     stream1->set_pps(1.0);
+     stream1->set_signle_burtst(5);
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     comp_obj.set_simulation_duration( 10.0);
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+
+TEST_F(basic_stl, single_pkt) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_single_stream";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     comp_obj.set_simulation_duration( 10.0);
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+TEST_F(basic_stl, multi_pkt1) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_multi_pkt1";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream2->set_pps(2.0);
+
+     stream2->m_enabled = true;
+     stream2->m_self_start = true;
+     stream2->m_isg_usec = 1000.0; /* 1 msec */
+     pcap.update_ip_src(0x20000001);
+     pcap.clone_packet_into_stream(stream2);
+
+     streams.push_back(stream2);
+
+
+     // stream - clean 
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     comp_obj.set_simulation_duration( 10.0);
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+     delete stream2 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+
+
+/* check disabled stream with multiplier of 5*/
+TEST_F(basic_stl, multi_pkt2) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_multi_pkt2";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,1);
+     stream2->set_pps(2.0);
+
+     stream2->m_enabled = false;
+     stream2->m_self_start = false;
+     stream2->m_isg_usec = 1000.0; /* 1 msec */
+     pcap.update_ip_src(0x20000001);
+     pcap.clone_packet_into_stream(stream2);
+
+     streams.push_back(stream2);
+
+
+     // stream - clean 
+     TrexStreamsCompiledObj comp_obj(0,5.0);
+
+     comp_obj.set_simulation_duration( 10.0);
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+     delete stream2 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+TEST_F(basic_stl, multi_burst1) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_multi_burst1";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stMULTI_BURST,0,0);
+     stream1->set_pps(1.0);
+     stream1->set_multi_burst(5, 
+                              3,
+                              2000000.0);
+
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     comp_obj.set_simulation_duration( 40.0);
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+

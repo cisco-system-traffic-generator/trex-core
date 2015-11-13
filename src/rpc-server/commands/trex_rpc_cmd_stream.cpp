@@ -140,14 +140,18 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
     if (type == "continuous") {
 
         double pps = parse_double(mode, "pps", result);
-        stream = new TrexStreamContinuous(port_id, stream_id, pps);
+        stream = new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id);
+        stream->set_pps(pps);
 
     } else if (type == "single_burst") {
 
         uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
         double pps               = parse_double(mode, "pps", result);
 
-        stream = new TrexStreamBurst(port_id, stream_id, total_pkts, pps);
+        stream = new TrexStream(TrexStream::stSINGLE_BURST,port_id, stream_id);
+        stream->set_pps(pps);
+        stream->set_signle_burtst(total_pkts);
+
 
     } else if (type == "multi_burst") {
 
@@ -156,8 +160,10 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         uint32_t  num_bursts       = parse_int(mode, "number_of_bursts", result);
         uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
 
-        stream = new TrexStreamMultiBurst(port_id, stream_id, pkts_per_burst, pps, num_bursts, ibg_usec);
-        
+        stream = new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id );
+        stream->set_pps(pps);
+        stream->set_multi_burst(pkts_per_burst,num_bursts,ibg_usec);
+
 
     } else {
         generate_parse_err(result, "bad stream type provided: '" + type + "'");

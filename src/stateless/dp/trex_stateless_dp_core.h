@@ -31,6 +31,7 @@ class TrexStatelessDpStart;
 class CFlowGenListPerThread;
 class CGenNodeStateless;
 class TrexStreamsCompiledObj;
+class TrexStream;
 
 class TrexStatelessDpCore {
 
@@ -45,6 +46,7 @@ public:
     TrexStatelessDpCore() {
         m_thread_id = 0;
         m_core = NULL;
+        m_duration = -1;
     }
 
     /**
@@ -60,6 +62,10 @@ public:
      * 
      */
     void start();
+
+
+    /* exit after batch of commands */
+    void run_once();
 
     /**
      * dummy traffic creator
@@ -126,11 +132,10 @@ private:
      */
     void handle_cp_msg(TrexStatelessCpToDpMsgBase *msg);
 
-    void add_cont_stream(uint8_t dir,
-                         double isg,
-                         double pps,
-                         const uint8_t *pkt,
-                         uint16_t pkt_len);
+    /* add global exit */
+    void add_duration(double duration);
+
+    void add_cont_stream(TrexStream * stream,TrexStreamsCompiledObj *comp);
 
     uint8_t              m_thread_id;
     state_e              m_state;
@@ -142,6 +147,8 @@ private:
 
     /* pointer to the main object */
     CFlowGenListPerThread *m_core;
+
+    double                 m_duration;
 };
 
 #endif /* __TREX_STATELESS_DP_CORE_H__ */

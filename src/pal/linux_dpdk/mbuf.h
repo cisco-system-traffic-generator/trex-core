@@ -30,6 +30,10 @@ typedef struct rte_mbuf  rte_mbuf_t;
 
 typedef struct rte_mempool rte_mempool_t;
 
+inline void utl_rte_mempool_delete(rte_mempool_t * & pool){
+}
+
+
 rte_mempool_t * utl_rte_mempool_create(const char  *name,
                                       unsigned n, 
                                       unsigned elt_size,

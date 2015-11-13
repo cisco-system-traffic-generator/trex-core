@@ -26,6 +26,8 @@ limitations under the License.
 
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
+#include <stateless/cp/trex_stateless.h>
+
 
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
@@ -94,21 +96,20 @@ static int usage(){
 
 int gtest_main(int argc, char **argv) ;
 
-static int parse_options(int argc, char *argv[], CParserOption* po ) {
+static int parse_options(int argc, char *argv[], CParserOption* po, bool & is_gtest ) {
      CSimpleOpt args(argc, argv, parser_options);
 
      int a=0;
      int node_dump=0;
      po->preview.clean();
      po->preview.setFileWrite(true);
-     int res1;
 
      while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
             switch (args.OptionId()) {
             case OPT_UT :
-                res1=gtest_main(argc, argv);
-                exit(res1);
+                is_gtest=true;
+                return (0);
                 break;
             case OPT_HELP: 
                 usage();
@@ -749,18 +750,50 @@ int merge_2_cap_files_sip() {
     return (0);
 }
 
+static TrexStateless *g_trex_stateless;
+
+
+TrexStateless * get_stateless_obj() {
+    return g_trex_stateless;
+}
+
+extern "C" const char * get_build_date(void){ 
+    return (__DATE__);
+}      
+ 
+extern "C" const char * get_build_time(void){ 
+    return (__TIME__ );
+} 
+
+
 
 int main(int argc , char * argv[]){
+    int res=0;
     time_init();
     CGlobalInfo::m_socket.Create(0);
-
     CGlobalInfo::init_pools(1000);
     assert( CMsgIns::Ins()->Create(4) );
 
-    if ( parse_options(argc, argv, &CGlobalInfo::m_options ) != 0){
+
+    bool is_gtest=false;
+
+    if ( parse_options(argc, argv, &CGlobalInfo::m_options , is_gtest) != 0){
         exit(-1);
     }
-    return (load_list_of_cap_files(&CGlobalInfo::m_options));
+
+    if ( is_gtest ) {
+        res = gtest_main(argc, argv);
+    }else{
+        res = load_list_of_cap_files(&CGlobalInfo::m_options);
+    }
+
+    CMsgIns::Ins()->Free();
+    CGlobalInfo::free_pools();
+    CGlobalInfo::m_socket.Delete();
+
+
+    return (res);
+    
 }
 
 

@@ -74,6 +74,7 @@ public:
 
     virtual TrexStatelessCpToDpMsgBase * clone();
 
+
 private:
     TrexStreamsCompiledObj *m_obj;
 };

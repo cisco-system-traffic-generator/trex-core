@@ -496,6 +496,26 @@ void CRteMemPool::dump(FILE *fd){
 }
 ////////////////////////////////////////
 
+
+void CGlobalInfo::free_pools(){
+    CPlatformSocketInfo * lpSocket =&m_socket;
+    CRteMemPool * lpmem;       
+    int i;
+    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
+        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
+            lpmem= &m_mem_pool[i];
+            utl_rte_mempool_delete(lpmem->m_big_mbuf_pool);
+            utl_rte_mempool_delete(lpmem->m_small_mbuf_pool);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_128);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_256);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_512);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_1024);  
+    }
+    utl_rte_mempool_delete(m_mem_pool[0].m_mbuf_global_nodes);
+  }
+}
+
+
 void CGlobalInfo::init_pools(uint32_t rx_buffers){
         /* this include the pkt from 64- */
     CGlobalMemory * lp=&CGlobalInfo::m_memory_cfg;
@@ -748,9 +768,7 @@ int CErfIF::write_pkt(CCapPktRaw *pkt_raw){
 int CErfIF::close_file(void){
 
     BP_ASSERT(m_raw);
-    m_raw->raw=0;
     delete m_raw;
-
     if ( m_preview_mode->getFileWrite() ){
         BP_ASSERT(m_writer);
         delete m_writer;
@@ -3054,6 +3072,16 @@ void CGenNode::DumpHeader(FILE *fd){
     fprintf(fd," pkt_id,time,fid,pkt_info,pkt,len,type,is_init,is_last,type,thread_id,src_ip,dest_ip,src_port \n");
 }
 
+
+void CGenNode::free_gen_node(){
+    rte_mbuf_t * m=get_cache_mbuf();
+    if ( unlikely(m != NULL) ) {
+        rte_pktmbuf_free(m);
+        m_plugin_info=0;
+    }
+}
+
+
 void CGenNode::Dump(FILE *fd){
     fprintf(fd,"%.6f,%llx,%p,%llu,%d,%d,%d,%d,%d,%d,%x,%x,%d\n",
             m_time,
@@ -3120,6 +3148,15 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
     remove_all(thread);
     BP_ASSERT(m_v_if);
     m_v_if->close_file();
+    return (0);
+}
+
+int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
+    if ( m_preview_mode.getVMode() >2 ){
+        fprintf(stdout," %llu ,", (unsigned long long)m_cnt);
+        node_sl->Dump(stdout);
+        m_cnt++;
+    }
     return (0);
 }
 
@@ -3361,6 +3398,7 @@ void CFlowGenListPerThread::Delete(){
     Clean();
     m_cpu_cp_u.Delete();
 
+    utl_rte_mempool_delete(m_node_pool);
 }
 
 
@@ -3462,15 +3500,19 @@ int CNodeGenerator::flush_file(dsec_t max_time,
             }
         }
 
-        #ifndef RTE_DPDK
-        thread->check_msgs();
-        #endif
+        //#ifndef RTE_DPDK
+        //thread->check_msgs();
+        //#endif
 
         uint8_t type=node->m_type;
 
         if ( type == CGenNode::STATELESS_PKT ) {
              m_p_queue.pop();
              CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
+
+             #ifdef _DEBUG
+             update_stl_stats(node_sl);
+             #endif
 
              /* if the stream has been deactivated - end */
              if (unlikely(!node_sl->is_active())) {
@@ -3899,41 +3941,26 @@ void CFlowGenListPerThread::check_msgs(void) {
     }
 }
 
-void delay(int msec);
+//void delay(int msec);
 
 
-const uint8_t test_udp_pkt[]={ 
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x08,0x00,
 
-    0x45,0x00,0x00,0x81,
-    0xaf,0x7e,0x00,0x00,
-    0x12,0x11,0xd9,0x23,
-    0x01,0x01,0x01,0x01,
-    0x3d,0xad,0x72,0x1b,
+void CFlowGenListPerThread::start_stateless_simulation_file(std::string erf_file_name,
+                                     CPreviewMode &preview){
+    m_preview_mode = preview;
+    m_node_gen.open_file(erf_file_name,&m_preview_mode);
+}
 
-    0x11,0x11,
-    0x11,0x11,
+void CFlowGenListPerThread::stop_stateless_simulation_file(){
+    m_node_gen.close_file(this);
+}
 
-    0x00,0x6d,
-	0x00,0x00,
+void CFlowGenListPerThread::start_stateless_daemon_simulation(){
 
-    0x64,0x31,0x3a,0x61,
-    0x64,0x32,0x3a,0x69,0x64,
-    0x32,0x30,0x3a,0xd0,0x0e,
-    0xa1,0x4b,0x7b,0xbd,0xbd,
-    0x16,0xc6,0xdb,0xc4,0xbb,0x43,
-    0xf9,0x4b,0x51,0x68,0x33,0x72,
-    0x20,0x39,0x3a,0x69,0x6e,0x66,0x6f,
-    0x5f,0x68,0x61,0x73,0x68,0x32,0x30,0x3a,0xee,0xc6,0xa3,
-    0xd3,0x13,0xa8,0x43,0x06,0x03,0xd8,0x9e,0x3f,0x67,0x6f,
-    0xe7,0x0a,0xfd,0x18,0x13,0x8d,0x65,0x31,0x3a,0x71,0x39,
-    0x3a,0x67,0x65,0x74,0x5f,0x70,0x65,0x65,0x72,0x73,0x31,
-    0x3a,0x74,0x38,0x3a,0x3d,0xeb,0x0c,0xbf,0x0d,0x6a,0x0d,
-    0xa5,0x31,0x3a,0x79,0x31,0x3a,0x71,0x65,0x87,0xa6,0x7d,
-    0xe7
-};
+    m_cur_time_sec = 0;
+    m_stateless_dp_info.run_once();
+
+}
 
 void CFlowGenListPerThread::start_stateless_daemon(){
     m_cur_time_sec = 0;
@@ -4002,6 +4029,12 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     m_node_gen.close_file(this);
 }
 
+void CFlowGenList::Delete(){
+    clean_p_thread_info();
+    Clean();
+    delete  CPluginCallback::callback;
+}
+
 
 bool CFlowGenList::Create(){
     check_objects_sizes();
@@ -4033,10 +4066,6 @@ void CFlowGenList::clean_p_thread_info(void){
 }
 
 
-void CFlowGenList::Delete(){
-    clean_p_thread_info();
-    Clean();
-}
 
 int CFlowGenList::load_from_mac_file(std::string file_name) {
     if ( !utl_is_file_exists (file_name)  ){
@@ -4570,24 +4599,54 @@ int CNullIF::send_node(CGenNode * node){
 }
 
 
-int CErfIF::send_node(CGenNode * node){
-   if ( m_preview_mode->getFileWrite() ){
 
-    CFlowPktInfo * lp=node->m_pkt_info;
-    rte_mbuf_t * m=lp->generate_new_mbuf(node);
+void CErfIF::fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir){
 
     fill_pkt(m_raw,m);
+
     CPktNsecTimeStamp t_c(node->m_time);
     m_raw->time_nsec = t_c.m_time_nsec;
     m_raw->time_sec  = t_c.m_time_sec;
-
-    pkt_dir_t dir=node->cur_interface_dir();
     uint8_t p_id = (uint8_t)dir;
-    
     m_raw->setInterface(p_id);
+}
+
+
+int CErfIFStl::send_node(CGenNode * _no_to_use){
+
+    if ( m_preview_mode->getFileWrite() ){
+
+        CGenNodeStateless * node_sl=(CGenNodeStateless *) _no_to_use;
+    
+        /* check that we have mbuf  */
+        rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+        assert( m );
+        pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    
+        fill_raw_packet(m,_no_to_use,dir);
+        BP_ASSERT(m_writer);
+        bool res=m_writer->write_packet(m_raw);
+    
+    
+        BP_ASSERT(res);
+    }
+    return (0);
+}
+
+
+int CErfIF::send_node(CGenNode * node){
+
+    if ( m_preview_mode->getFileWrite() ){
+
+    CFlowPktInfo * lp=node->m_pkt_info;
+    rte_mbuf_t * m=lp->generate_new_mbuf(node);
+    pkt_dir_t dir=node->cur_interface_dir();
+
+    fill_raw_packet(m,node,dir);
 
     /* update mac addr dest/src 12 bytes */
     uint8_t *p=(uint8_t *)m_raw->raw;
+    int p_id=(int)dir;
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
     /* If vlan is enabled, add vlan header */
@@ -6806,6 +6865,24 @@ bool CSimplePacketParser::Parse(){
     return (true);
 }
 
+
+/* free the right object. 
+   it is classic to use virtual function but we can't do it here and we don't even want to use callback function 
+   as we want to save space and in most cases there is nothing to free. 
+   this might be changed in the future  
+ */
+void CGenNodeBase::free_base(){
+    if ( m_type == FLOW_PKT ) {
+         CGenNode* p=(CGenNode*)this;
+         p->free_gen_node();
+        return;
+    }
+    if (m_type==STATELESS_PKT) {
+         CGenNodeStateless* p=(CGenNodeStateless*)this;
+         p->free_stl_node();
+        return;
+    } 
+}
 
 
 

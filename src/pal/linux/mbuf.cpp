@@ -78,6 +78,13 @@ rte_mempool_t * utl_rte_mempool_create(const char  *name,
     return p;
 }
 
+void utl_rte_mempool_delete(rte_mempool_t * & pool){
+    if (pool) {
+        delete pool;
+        pool=0;
+    }
+}
+
 
 uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
 {

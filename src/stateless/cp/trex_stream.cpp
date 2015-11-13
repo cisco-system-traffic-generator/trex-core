@@ -25,9 +25,11 @@ limitations under the License.
 /**************************************
  * stream
  *************************************/
-TrexStream::TrexStream(uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) {
+TrexStream::TrexStream(uint8_t type,
+                       uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) {
 
     /* default values */
+    m_type            = type;
     m_isg_usec        = 0;
     m_next_stream_id  = -1;
     m_enabled    = false;
@@ -38,6 +40,11 @@ TrexStream::TrexStream(uint8_t port_id, uint32_t stream_id) : m_port_id(port_id)
 
     m_rx_check.m_enable = false;
 
+
+    m_pps=-1.0;
+    m_burst_total_pkts=0; 
+    m_num_bursts=1; 
+    m_ibg_usec=0.0;  
 }
 
 TrexStream::~TrexStream() {

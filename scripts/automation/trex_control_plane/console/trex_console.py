@@ -380,12 +380,12 @@ def setParserOptions():
                         default = "localhost",
                         type = str)
 
-    parser.add_argument("-p", "--port", help = "TRex Server Port  [default is 5505]\n",
-                        default = 5505,
+    parser.add_argument("-p", "--port", help = "TRex Server Port  [default is 4501]\n",
+                        default = 4501,
                         type = int)
 
-    parser.add_argument("--async_port", help = "TRex ASync Publisher Port [default is 4505]\n",
-                        default = 4505,
+    parser.add_argument("--async_port", help = "TRex ASync Publisher Port [default is 4500]\n",
+                        default = 4500,
                         dest='pub',
                         type = int)
 

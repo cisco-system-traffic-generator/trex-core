@@ -181,7 +181,8 @@ class CTRexAsyncClient():
         self.socket.setsockopt(zmq.SUBSCRIBE, '')
 
         while self.active:
-            msg = json.loads(self.socket.recv_string())
+            line = self.socket.recv_string();
+            msg = json.loads(line)
 
             key = msg['name']
             self.raw_snapshot[key] = msg['data']

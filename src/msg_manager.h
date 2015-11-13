@@ -98,6 +98,7 @@ public:
     static  CMsgIns  * Ins();
     static  void Free();
     bool Create(uint8_t num_threads);
+    void Delete();
 public:
     CMessagingManager * getRxDp(){
         return (&m_rx_dp);
