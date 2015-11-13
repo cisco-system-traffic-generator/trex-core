@@ -50,15 +50,18 @@ class RC:
     def err (self):
         return all([x.data if not x.rc else "" for x in self.rc_list])
 
-    def annotate (self, desc):
-        print format_text('\n{:<40}'.format(desc), 'bold'),
+    def annotate (self, desc = None):
+        if desc:
+            print format_text('\n{:<40}'.format(desc), 'bold'),
 
         if self.bad():
             # print all the errors
+            print ""
             for x in self.rc_list:
                 if not x.rc:
                     print format_text("\n{0}".format(x.data), 'bold')
 
+            print ""
             print format_text("[FAILED]\n", 'red', 'bold')
 
 
@@ -274,15 +277,14 @@ class CTRexStatelessClient(object):
 
     ############# helper functions section ##############
 
-    def validate_port_list(self, port_id):
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # check each item of the sequence
-            return all([self._is_ports_valid(port)
-                        for port in port_id])
-        elif (isinstance(port_id, int)) and (port_id >= 0) and (port_id <= self.get_port_count()):
-            return True
-        else:
+    def validate_port_list(self, port_id_list):
+        if not isinstance(port_id_list, list):
+            print type(port_id_list)
             return False
+
+        # check each item of the sequence
+        return all([ (port_id >= 0) and (port_id < self.get_port_count())
+                      for port_id in port_id_list ])
 
     # some preprocessing for port argument
     def __ports (self, port_id_list):
@@ -355,6 +357,8 @@ class CTRexStatelessClient(object):
     def disconnect(self):
         self.connected = False
         self.comm_link.disconnect()
+        return RC_OK()
+
 
 
     ########### cached queries (no server traffic) ###########
@@ -383,6 +387,9 @@ class CTRexStatelessClient(object):
 
     def get_connection_port (self):
         return self.comm_link.port
+
+    def get_connection_ip (self):
+        return self.comm_link.server
 
     def get_acquired_ports(self):
         return [port.port_id for port in self.ports if port.is_acquired()]
@@ -543,10 +550,22 @@ class CTRexStatelessClient(object):
 
     ######################### Console (high level) API #########################
 
+    def cmd_ping (self):
+        rc = self.ping()
+        rc.annotate("Pinging the server on '{0}' port '{1}': ".format(self.get_connection_ip(), self.get_connection_port()))
+        return rc
+
+    def cmd_connect (self):
+        rc = self.connect()
+        rc.annotate()
+        return rc
+
+    def cmd_disconnect (self):
+        rc = self.disconnect()
+        rc.annotate()
+        return rc
+
     # reset
-    # acquire, stop, remove streams and clear stats
-    #
-    #
     def cmd_reset (self):
 
 
@@ -631,7 +650,7 @@ class CTRexStatelessClient(object):
 
         return True
 
-   
+    #################################
     # ------ private classes ------ #
     class CCommLink(object):
         """describes the connectivity of the stateless client method"""

@@ -195,12 +195,8 @@ class TRexConsole(cmd.Cmd):
     def do_ping (self, line):
         '''Ping the server\n'''
 
-        rc = self.stateless_client.ping()
-        if rc.good():
-            print format_text("[SUCCESS]\n", 'green', 'bold')
-        else:
-            print "\n*** " + rc.err() + "\n"
-            print format_text("[FAILED]\n", 'red', 'bold')
+        rc = self.stateless_client.cmd_ping()
+        if rc.bad():
             return
 
     def do_test (self, line):
@@ -230,24 +226,17 @@ class TRexConsole(cmd.Cmd):
     def do_connect (self, line):
         '''Connects to the server\n'''
 
-        rc = self.stateless_client.connect()
-        if rc.good():
-            print format_text("[SUCCESS]\n", 'green', 'bold')
-        else:
-            print "\n*** " + rc.err() + "\n"
-            print format_text("[FAILED]\n", 'red', 'bold')
+        rc = self.stateless_client.cmd_connect()
+        if rc.bad():
             return
 
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
 
-        if not self.stateless_client.is_connected():
-            print "Not connected to server\n"
+        rc = self.stateless_client.cmd_disconnect()
+        if rc.bad():
             return
-
-        self.stateless_client.disconnect()
-        print format_text("[SUCCESS]\n", 'green', 'bold')
 
  
     ############### start
@@ -332,7 +321,7 @@ class TRexConsole(cmd.Cmd):
         '''Shows a graphical console\n'''
 
         if not self.stateless_client.is_connected():
-            print "Not connected to server\n"
+            print format_text("\nNot connected to server\n", 'bold')
             return
 
         self.do_verbose('off')
