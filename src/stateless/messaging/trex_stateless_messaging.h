@@ -66,7 +66,7 @@ public:
 class TrexStatelessDpStart : public TrexStatelessCpToDpMsgBase {
 public:
 
-    TrexStatelessDpStart(TrexStreamsCompiledObj *obj);
+    TrexStatelessDpStart(TrexStreamsCompiledObj *obj, double duration);
 
     ~TrexStatelessDpStart();
 
@@ -77,6 +77,7 @@ public:
 
 private:
     TrexStreamsCompiledObj *m_obj;
+    double m_duration;
 };
 
 /**

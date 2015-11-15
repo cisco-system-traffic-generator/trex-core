@@ -75,7 +75,7 @@ public:
      * @param pkt 
      * @param pkt_len 
      */
-    void start_traffic(TrexStreamsCompiledObj *obj);
+    void start_traffic(TrexStreamsCompiledObj *obj, double duration = -1);
 
     /**
      * stop all traffic for this core

@@ -27,7 +27,6 @@ limitations under the License.
  * stream compiled object
  *************************************/
 TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id, double mul) : m_port_id(port_id), m_mul(mul) {
-    m_duration_sim=-1.0;
 }
 
 TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
@@ -60,8 +59,6 @@ TrexStreamsCompiledObj::clone() {
     }
 
     new_compiled_obj->m_mul = m_mul;
-
-    new_compiled_obj->m_duration_sim = m_duration_sim;
 
     return new_compiled_obj;
 }

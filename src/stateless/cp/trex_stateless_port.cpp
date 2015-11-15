@@ -86,7 +86,7 @@ TrexStatelessPort::release(void) {
  * 
  */
 void
-TrexStatelessPort::start_traffic(double mul) {
+TrexStatelessPort::start_traffic(double mul, double duration) {
 
     /* command allowed only on state stream */
     verify_state(PORT_STATE_STREAMS);
@@ -105,7 +105,7 @@ TrexStatelessPort::start_traffic(double mul) {
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
-    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(compiled_obj);
+    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(compiled_obj, duration);
 
     send_message_to_dp(start_msg);
 
