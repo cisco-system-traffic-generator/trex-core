@@ -33,6 +33,7 @@ from client.trex_stateless_client import CTRexStatelessClient
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 import trex_status
+import parsing_opts
 
 
 __version__ = "1.0"

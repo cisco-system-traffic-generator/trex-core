@@ -207,14 +207,12 @@ TrexStatelessDpCore::add_cont_stream(TrexStream * stream,
 }
 
 void
-TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj) {
+TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj, double duration) {
     for (auto single_stream : obj->get_objects()) {
         add_cont_stream(single_stream.m_stream,obj);
     }
 
-    double duration=obj->get_simulation_duration();
-
-    if ( duration >0.0){
+    if ( duration > 0.0 ){
         add_duration( duration );
     }
 }

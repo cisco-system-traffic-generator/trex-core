@@ -72,7 +72,7 @@ public:
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(double mul);
+    void start_traffic(double mul, double duration = -1);
 
     /**
      * stop traffic

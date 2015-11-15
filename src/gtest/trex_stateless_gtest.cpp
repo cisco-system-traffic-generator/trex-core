@@ -252,10 +252,9 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      TrexStreamsCompiledObj comp_obj(0,1.0);
 
-     comp_obj.set_simulation_duration( 10.0);
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10.0 );
 
 
      t1.m_msg = lpstart;
@@ -303,10 +302,9 @@ TEST_F(basic_stl, single_pkt) {
 
      TrexStreamsCompiledObj comp_obj(0,1.0);
 
-     comp_obj.set_simulation_duration( 10.0);
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10 );
 
 
      t1.m_msg = lpstart;
@@ -361,10 +359,9 @@ TEST_F(basic_stl, multi_pkt1) {
      // stream - clean 
      TrexStreamsCompiledObj comp_obj(0,1.0);
 
-     comp_obj.set_simulation_duration( 10.0);
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10 );
 
      t1.m_msg = lpstart;
 
@@ -425,10 +422,9 @@ TEST_F(basic_stl, multi_pkt2) {
      // stream - clean 
      TrexStreamsCompiledObj comp_obj(0,5.0);
 
-     comp_obj.set_simulation_duration( 10.0);
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10 );
 
      t1.m_msg = lpstart;
 
@@ -472,10 +468,9 @@ TEST_F(basic_stl, multi_burst1) {
 
      TrexStreamsCompiledObj comp_obj(0,1.0);
 
-     comp_obj.set_simulation_duration( 40.0);
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone() );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 40 );
 
 
      t1.m_msg = lpstart;

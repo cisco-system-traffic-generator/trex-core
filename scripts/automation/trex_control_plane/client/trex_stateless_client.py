@@ -280,7 +280,7 @@ class Port:
         return self.ok()
 
     # start traffic
-    def start (self, mul):
+    def start (self, mul, duration):
         if self.state == self.STATE_DOWN:
             return self.err("Unable to start traffic - port is down")
 
@@ -292,7 +292,8 @@ class Port:
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
-                  "mul": mul}
+                  "mul": mul,
+                  "duration": duration}
 
         rc, data = self.transmit("start_traffic", params)
         if not rc:
@@ -419,7 +420,7 @@ class CTRexStatelessClient(object):
         return RC_OK()
 
     def is_connected (self):
-        return self.connected
+        return self.connected and self.comm_link.is_connected
 
 
     def disconnect(self):
@@ -580,14 +581,14 @@ class CTRexStatelessClient(object):
         return self.ports[port_id].get_stream_id_list()
 
 
-    def start_traffic (self, multiplier, port_id_list = None):
+    def start_traffic (self, multiplier, duration, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].start(multiplier))
+            rc.add(self.ports[port_id].start(multiplier, duration))
         
         return rc
 
@@ -685,7 +686,7 @@ class CTRexStatelessClient(object):
         return RC_OK()
 
     # start cmd
-    def cmd_start (self, port_id_list, stream_list, mult, force):
+    def cmd_start (self, port_id_list, stream_list, mult, force, duration):
 
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
@@ -713,7 +714,7 @@ class CTRexStatelessClient(object):
 
 
         # finally, start the traffic
-        rc = self.start_traffic(mult, port_id_list)
+        rc = self.start_traffic(mult, duration, port_id_list)
         rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
         if rc.bad():
             return rc
@@ -754,7 +755,7 @@ class CTRexStatelessClient(object):
                 return RC_ERR("Failed to load stream pack")
 
 
-        return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force)
+        return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration)
 
     def cmd_stop_line (self, line):
         '''Stop active traffic in specified ports on TRex\n'''
@@ -820,7 +821,7 @@ class CTRexStatelessClient(object):
         cmd_table['wait']  = self.cmd_wait_line
         cmd_table['exit']  = self.cmd_exit_line
 
-        for index, line in enumerate(script_lines):
+        for index, line in enumerate(script_lines, start = 1):
             line = line.strip()
             if line == "":
                 continue
