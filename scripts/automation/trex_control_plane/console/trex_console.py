@@ -30,72 +30,12 @@ import tty, termios
 import trex_root_path
 from common.trex_streams import *
 from client.trex_stateless_client import CTRexStatelessClient
-from client.trex_stateless_client import RpcResponseStatus
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
-import parsing_opts
 import trex_status
-from collections import namedtuple
+
 
 __version__ = "1.0"
-
-LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
-
-class CStreamsDB(object):
-
-    def __init__(self):
-        self.stream_packs = {}
-
-    def load_yaml_file (self, filename):
-
-        stream_pack_name = filename
-        if stream_pack_name in self.get_loaded_streams_names():
-            self.remove_stream_packs(stream_pack_name)
-
-        stream_list = CStreamList()
-        loaded_obj = stream_list.load_yaml(filename)
-
-        try:
-            compiled_streams = stream_list.compile_streams()
-            rc = self.load_streams(stream_pack_name,
-                                   LoadedStreamList(loaded_obj,
-                                                    [StreamPack(v.stream_id, v.stream.dump())
-                                                     for k, v in compiled_streams.items()]))
-
-        except Exception as e:
-            return None
-
-        return self.get_stream_pack(stream_pack_name)
-
-    def load_streams(self, name, LoadedStreamList_obj):
-        if name in self.stream_packs:
-            return False
-        else:
-            self.stream_packs[name] = LoadedStreamList_obj
-            return True
-
-    def remove_stream_packs(self, *names):
-        removed_streams = []
-        for name in names:
-            removed = self.stream_packs.pop(name)
-            if removed:
-                removed_streams.append(name)
-        return removed_streams
-
-    def clear(self):
-        self.stream_packs.clear()
-
-    def get_loaded_streams_names(self):
-        return self.stream_packs.keys()
-
-    def stream_pack_exists (self, name):
-        return name in self.get_loaded_streams_names()
-
-    def get_stream_pack(self, name):
-        if not self.stream_pack_exists(name):
-            return None
-        else:
-            return self.stream_packs.get(name)
 
 
 #
@@ -111,14 +51,10 @@ class TRexConsole(cmd.Cmd):
         self.verbose = verbose
         self.acquire_all_ports = acquire_all_ports
 
-        self.do_connect("")
-
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
         self.postcmd(False, "")
-
-        self.streams_db = CStreamsDB()
 
 
     ################### internal section ########################
@@ -155,51 +91,23 @@ class TRexConsole(cmd.Cmd):
             path = dir
         else:
             path = "."
+
+
         start_string = os.path.basename(text)
-        return [x
-                for x in os.listdir(path)
-                if x.startswith(start_string)]
+        
+        targets = []
 
-    ####################### shell commands #######################
+        for x in os.listdir(path):
+            if x.startswith(start_string):
+                y = os.path.join(path, x)
+                if os.path.isfile(y):
+                    targets.append(x + ' ')
+                elif os.path.isdir(y):
+                    targets.append(x + '/')
 
-    # set verbose on / off
-    def do_verbose(self, line):
-        '''Shows or set verbose mode\n'''
-        if line == "":
-            print "\nverbose is " + ("on\n" if self.verbose else "off\n")
+        return targets
 
-        elif line == "on":
-            self.verbose = True
-            self.stateless_client.set_verbose(True)
-            print green("\nverbose set to on\n")
-
-        elif line == "off":
-            self.verbose = False
-            self.stateless_client.set_verbose(False)
-            print green("\nverbose set to off\n")
-
-        else:
-            print magenta("\nplease specify 'on' or 'off'\n")
-
-    ############### connect
-    def do_connect (self, line):
-        '''Connects to the server\n'''
-
-        res_ok, msg = self.stateless_client.connect()
-        if res_ok:
-            print format_text("[SUCCESS]\n", 'green', 'bold')
-        else:
-            print "\n*** " + msg + "\n"
-            print format_text("[FAILED]\n", 'red', 'bold')
-            return
-
-        self.supported_rpc = self.stateless_client.get_supported_cmds().data
-
-        if self.acquire_all_ports:
-            res_ok, log = self.stateless_client.acquire(self.stateless_client.get_port_ids())
-            if not res_ok:
-                print "\n*** Failed to acquire all ports... exiting..."""
-
+    # annotation method
     @staticmethod
     def annotate (desc, rc = None, err_log = None, ext_err_msg = None):
         print format_text('\n{:<40}'.format(desc), 'bold'),
@@ -230,6 +138,54 @@ class TRexConsole(cmd.Cmd):
             return True
 
 
+    ####################### shell commands #######################
+    def do_ping (self, line):
+        '''Ping the server\n'''
+
+        rc = self.stateless_client.cmd_ping()
+        if rc.bad():
+            return
+
+    def do_test (self, line):
+        print self.stateless_client.get_acquired_ports()
+
+    # set verbose on / off
+    def do_verbose(self, line):
+        '''Shows or set verbose mode\n'''
+        if line == "":
+            print "\nverbose is " + ("on\n" if self.verbose else "off\n")
+
+        elif line == "on":
+            self.verbose = True
+            self.stateless_client.set_verbose(True)
+            print format_text("\nverbose set to on\n", 'green', 'bold')
+
+        elif line == "off":
+            self.verbose = False
+            self.stateless_client.set_verbose(False)
+            print format_text("\nverbose set to off\n", 'green', 'bold')
+
+        else:
+            print format_text("\nplease specify 'on' or 'off'\n", 'bold')
+
+
+    ############### connect
+    def do_connect (self, line):
+        '''Connects to the server\n'''
+
+        rc = self.stateless_client.cmd_connect()
+        if rc.bad():
+            return
+
+
+    def do_disconnect (self, line):
+        '''Disconnect from the server\n'''
+
+        rc = self.stateless_client.cmd_disconnect()
+        if rc.bad():
+            return
+
+ 
     ############### start
 
     def complete_start(self, text, line, begidx, endidx):
@@ -247,37 +203,7 @@ class TRexConsole(cmd.Cmd):
     def do_start(self, line):
         '''Start selected traffic in specified ports on TRex\n'''
 
-        # make sure that the user wants to acquire all
-        parser = parsing_opts.gen_parser(self.stateless_client,
-                                         "start",
-                                         self.do_start.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.FORCE,
-                                         parsing_opts.STREAM_FROM_PATH_OR_FILE,
-                                         parsing_opts.DURATION,
-                                         parsing_opts.MULTIPLIER)
-
-        opts = parser.parse_args(line.split())
-
-        if opts is None:
-            return
-
-        if opts.db:
-            stream_list = self.stream_db.get_stream_pack(opts.db)
-            self.annotate("Load stream pack (from DB):", (stream_list != None))
-            if stream_list == None:
-                return
-
-        else:
-            # load streams from file
-            stream_list = self.streams_db.load_yaml_file(opts.file[0])
-            self.annotate("Load stream pack (from file):", (stream_list != None))
-            if stream_list == None:
-                return
-
-
-        self.stateless_client.cmd_start(opts.ports, stream_list, opts.mult, opts.force, self.annotate)
-        return
+        self.stateless_client.cmd_start_line(line)
 
 
     def help_start(self):
@@ -285,18 +211,9 @@ class TRexConsole(cmd.Cmd):
 
     ############# stop
     def do_stop(self, line):
-        '''Stop active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self.stateless_client,
-                                         "stop",
-                                         self.do_stop.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+        self.stateless_client.cmd_stop_line(line)
 
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return
-
-        self.stateless_client.cmd_stop(opts.ports, self.annotate)
-        return
+        
 
     def help_stop(self):
         self.do_stop("-h")
@@ -304,7 +221,7 @@ class TRexConsole(cmd.Cmd):
     ########## reset
     def do_reset (self, line):
         '''force stop all ports\n'''
-        self.stateless_client.cmd_reset(self.annotate)
+        self.stateless_client.cmd_reset()
 
   
     # tui
@@ -312,7 +229,7 @@ class TRexConsole(cmd.Cmd):
         '''Shows a graphical console\n'''
 
         if not self.stateless_client.is_connected():
-            print "Not connected to server\n"
+            print format_text("\nNot connected to server\n", 'bold')
             return
 
         self.do_verbose('off')
@@ -364,6 +281,14 @@ class TRexConsole(cmd.Cmd):
     do_exit = do_EOF = do_q = do_quit
 
 
+#
+def is_valid_file(filename):
+    if not os.path.isfile(filename):
+        raise argparse.ArgumentTypeError("The file '%s' does not exist" % filename)
+
+    return filename
+
+
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="trex_console.py")
 
@@ -393,6 +318,12 @@ def setParserOptions():
                         action="store_false", help="Acquire all ports on connect. Default is: ON.",
                         default = True)
 
+    parser.add_argument("--batch", dest="batch",
+                        nargs = 1,
+                        type = is_valid_file,
+                        help = "Run the console in a batch mode with file",
+                        default = None)
+
     return parser
 
 
@@ -402,7 +333,15 @@ def main():
 
     # Stateless client connection
     stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
+    rc = stateless_client.cmd_connect()
+    if rc.bad():
+        return
 
+    if options.batch:
+        cont = stateless_client.run_script_file(options.batch[0])
+        if not cont:
+            return
+        
     # console
     try:
         console = TRexConsole(stateless_client, options.acquire, options.verbose)

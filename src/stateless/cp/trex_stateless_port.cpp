@@ -186,22 +186,22 @@ TrexStatelessPort::get_state_as_string() const {
 
     switch (get_state()) {
     case PORT_STATE_DOWN:
-        return "down";
+        return "DOWN";
 
     case PORT_STATE_IDLE:
-        return  "no streams";
+        return  "IDLE";
 
     case PORT_STATE_STREAMS:
-        return "with streams, idle";
+        return "STREAMS";
 
     case PORT_STATE_TX:
-        return "transmitting";
+        return "TX";
 
     case PORT_STATE_PAUSE:
-        return "paused";
+        return "PAUSE";
     }
 
-    return "unknown";
+    return "UNKNOWN";
 }
 
 void
