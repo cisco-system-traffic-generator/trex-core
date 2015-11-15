@@ -30,72 +30,12 @@ import tty, termios
 import trex_root_path
 from common.trex_streams import *
 from client.trex_stateless_client import CTRexStatelessClient
-from client.trex_stateless_client import RpcResponseStatus
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
-import parsing_opts
 import trex_status
-from collections import namedtuple
+
 
 __version__ = "1.0"
-
-LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
-
-class CStreamsDB(object):
-
-    def __init__(self):
-        self.stream_packs = {}
-
-    def load_yaml_file (self, filename):
-
-        stream_pack_name = filename
-        if stream_pack_name in self.get_loaded_streams_names():
-            self.remove_stream_packs(stream_pack_name)
-
-        stream_list = CStreamList()
-        loaded_obj = stream_list.load_yaml(filename)
-
-        try:
-            compiled_streams = stream_list.compile_streams()
-            rc = self.load_streams(stream_pack_name,
-                                   LoadedStreamList(loaded_obj,
-                                                    [StreamPack(v.stream_id, v.stream.dump())
-                                                     for k, v in compiled_streams.items()]))
-
-        except Exception as e:
-            return None
-
-        return self.get_stream_pack(stream_pack_name)
-
-    def load_streams(self, name, LoadedStreamList_obj):
-        if name in self.stream_packs:
-            return False
-        else:
-            self.stream_packs[name] = LoadedStreamList_obj
-            return True
-
-    def remove_stream_packs(self, *names):
-        removed_streams = []
-        for name in names:
-            removed = self.stream_packs.pop(name)
-            if removed:
-                removed_streams.append(name)
-        return removed_streams
-
-    def clear(self):
-        self.stream_packs.clear()
-
-    def get_loaded_streams_names(self):
-        return self.stream_packs.keys()
-
-    def stream_pack_exists (self, name):
-        return name in self.get_loaded_streams_names()
-
-    def get_stream_pack(self, name):
-        if not self.stream_pack_exists(name):
-            return None
-        else:
-            return self.stream_packs.get(name)
 
 
 #
@@ -111,14 +51,10 @@ class TRexConsole(cmd.Cmd):
         self.verbose = verbose
         self.acquire_all_ports = acquire_all_ports
 
-        self.do_connect("")
-
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
         self.postcmd(False, "")
-
-        self.streams_db = CStreamsDB()
 
 
     ################### internal section ########################
@@ -155,10 +91,21 @@ class TRexConsole(cmd.Cmd):
             path = dir
         else:
             path = "."
+
+
         start_string = os.path.basename(text)
-        return [x
-                for x in os.listdir(path)
-                if x.startswith(start_string)]
+        
+        targets = []
+
+        for x in os.listdir(path):
+            if x.startswith(start_string):
+                y = os.path.join(path, x)
+                if os.path.isfile(y):
+                    targets.append(x + ' ')
+                elif os.path.isdir(y):
+                    targets.append(x + '/')
+
+        return targets
 
     # annotation method
     @staticmethod
@@ -256,37 +203,7 @@ class TRexConsole(cmd.Cmd):
     def do_start(self, line):
         '''Start selected traffic in specified ports on TRex\n'''
 
-        # make sure that the user wants to acquire all
-        parser = parsing_opts.gen_parser(self.stateless_client,
-                                         "start",
-                                         self.do_start.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.FORCE,
-                                         parsing_opts.STREAM_FROM_PATH_OR_FILE,
-                                         parsing_opts.DURATION,
-                                         parsing_opts.MULTIPLIER)
-
-        opts = parser.parse_args(line.split())
-
-        if opts is None:
-            return
-
-        if opts.db:
-            stream_list = self.stream_db.get_stream_pack(opts.db)
-            self.annotate("Load stream pack (from DB):", (stream_list != None))
-            if stream_list == None:
-                return
-
-        else:
-            # load streams from file
-            stream_list = self.streams_db.load_yaml_file(opts.file[0])
-            self.annotate("Load stream pack (from file):", (stream_list != None))
-            if stream_list == None:
-                return
-
-
-        self.stateless_client.cmd_start(opts.ports, stream_list, opts.mult, opts.force)
-        return
+        self.stateless_client.cmd_start_line(line)
 
 
     def help_start(self):
@@ -294,18 +211,9 @@ class TRexConsole(cmd.Cmd):
 
     ############# stop
     def do_stop(self, line):
-        '''Stop active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self.stateless_client,
-                                         "stop",
-                                         self.do_stop.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+        self.stateless_client.cmd_stop_line(line)
 
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return
-
-        self.stateless_client.cmd_stop(opts.ports)
-        return
+        
 
     def help_stop(self):
         self.do_stop("-h")
@@ -373,6 +281,14 @@ class TRexConsole(cmd.Cmd):
     do_exit = do_EOF = do_q = do_quit
 
 
+#
+def is_valid_file(filename):
+    if not os.path.isfile(filename):
+        raise argparse.ArgumentTypeError("The file '%s' does not exist" % filename)
+
+    return filename
+
+
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="trex_console.py")
 
@@ -402,6 +318,12 @@ def setParserOptions():
                         action="store_false", help="Acquire all ports on connect. Default is: ON.",
                         default = True)
 
+    parser.add_argument("--batch", dest="batch",
+                        nargs = 1,
+                        type = is_valid_file,
+                        help = "Run the console in a batch mode with file",
+                        default = None)
+
     return parser
 
 
@@ -411,7 +333,15 @@ def main():
 
     # Stateless client connection
     stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
+    rc = stateless_client.cmd_connect()
+    if rc.bad():
+        return
 
+    if options.batch:
+        cont = stateless_client.run_script_file(options.batch[0])
+        if not cont:
+            return
+        
     # console
     try:
         console = TRexConsole(stateless_client, options.acquire, options.verbose)

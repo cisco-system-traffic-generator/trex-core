@@ -6,6 +6,7 @@ try:
 except ImportError:
     # support import for Python 3
     import client.outer_packages
+
 from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 from client_utils.packet_builder import CTRexPktBuilder
 import json
@@ -13,6 +14,8 @@ from common.trex_stats import *
 from common.trex_streams import *
 from collections import namedtuple
 from common.text_opts import *
+import parsing_opts
+import time
 
 from trex_async_client import CTRexAsyncClient
 
@@ -75,6 +78,66 @@ def RC_ERR (err):
     return RC(False, err)
 
 
+LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
+
+# describes a stream DB
+class CStreamsDB(object):
+
+    def __init__(self):
+        self.stream_packs = {}
+
+    def load_yaml_file (self, filename):
+
+        stream_pack_name = filename
+        if stream_pack_name in self.get_loaded_streams_names():
+            self.remove_stream_packs(stream_pack_name)
+
+        stream_list = CStreamList()
+        loaded_obj = stream_list.load_yaml(filename)
+
+        try:
+            compiled_streams = stream_list.compile_streams()
+            rc = self.load_streams(stream_pack_name,
+                                   LoadedStreamList(loaded_obj,
+                                                    [StreamPack(v.stream_id, v.stream.dump())
+                                                     for k, v in compiled_streams.items()]))
+
+        except Exception as e:
+            return None
+
+        return self.get_stream_pack(stream_pack_name)
+
+    def load_streams(self, name, LoadedStreamList_obj):
+        if name in self.stream_packs:
+            return False
+        else:
+            self.stream_packs[name] = LoadedStreamList_obj
+            return True
+
+    def remove_stream_packs(self, *names):
+        removed_streams = []
+        for name in names:
+            removed = self.stream_packs.pop(name)
+            if removed:
+                removed_streams.append(name)
+        return removed_streams
+
+    def clear(self):
+        self.stream_packs.clear()
+
+    def get_loaded_streams_names(self):
+        return self.stream_packs.keys()
+
+    def stream_pack_exists (self, name):
+        return name in self.get_loaded_streams_names()
+
+    def get_stream_pack(self, name):
+        if not self.stream_pack_exists(name):
+            return None
+        else:
+            return self.stream_packs.get(name)
+
+
 # describes a single port
 class Port:
 
@@ -96,6 +159,9 @@ class Port:
     def err (self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
 
+    def ok (self):
+        return RC_OK()
+
     # take the port
     def acquire (self, force = False):
         params = {"port_id": self.port_id,
@@ -106,9 +172,9 @@ class Port:
         rc = self.transmit(command.method, command.params)
         if rc.success:
             self.handler = rc.data
-            return RC_OK()
+            return self.ok()
         else:
-            return RC_ERR(rc.data)
+            return self.err(rc.data)
 
 
     # release the port
@@ -120,9 +186,9 @@ class Port:
         rc = self.transmit(command.method, command.params)
         if rc.success:
             self.handler = rc.data
-            return RC_OK()
+            return self.ok()
         else:
-            return RC_ERR(rc.data)
+            return self.err(rc.data)
 
     def is_acquired (self):
         return (self.handler != None)
@@ -147,7 +213,7 @@ class Port:
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, sync_data['state']))
 
-        return RC_OK()
+        return self.ok()
         
 
     # return TRUE if write commands
@@ -178,7 +244,7 @@ class Port:
         # the only valid state now
         self.state = self.STATE_STREAMS
 
-        return RC_OK()
+        return self.ok()
 
     # remove stream from port
     def remove_stream (self, stream_id):
@@ -197,7 +263,7 @@ class Port:
 
         self.streams[stream_id] = None
 
-        return RC_OK()
+        return self.ok()
 
     # remove all the streams
     def remove_all_streams (self):
@@ -211,7 +277,7 @@ class Port:
 
         self.streams = {}
 
-        return RC_OK()
+        return self.ok()
 
     # start traffic
     def start (self, mul):
@@ -234,7 +300,7 @@ class Port:
 
         self.state = self.STATE_TX
 
-        return RC_OK()
+        return self.ok()
 
     # stop traffic
     # with force ignores the cached state and sends the command
@@ -253,7 +319,7 @@ class Port:
         # only valid state after stop
         self.state = self.STATE_STREAMS
 
-        return RC_OK()
+        return self.ok()
 
 
 
@@ -272,6 +338,8 @@ class CTRexStatelessClient(object):
         self.__err_log = None
 
         self._async_client = CTRexAsyncClient(async_port)
+
+        self.streams_db = CStreamsDB()
 
         self.connected = False
 
@@ -605,15 +673,16 @@ class CTRexStatelessClient(object):
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
         if not active_ports:
-            print format_text("No active traffic on porvided ports", 'bold')
-            return True
+            msg = "No active traffic on porvided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
 
         rc = self.stop_traffic(active_ports)
         rc.annotate("Stopping traffic on port(s) {0}:".format(port_id_list))
         if rc.bad():
-            return False
+            return rc
 
-        return True
+        return RC_OK()
 
     # start cmd
     def cmd_start (self, port_id_list, stream_list, mult, force):
@@ -622,31 +691,161 @@ class CTRexStatelessClient(object):
 
         if active_ports:
             if not force:
-                print format_text("Port(s) {0} are active - please stop them or add '--force'".format(active_ports), 'bold')
-                return False
+                msg = "Port(s) {0} are active - please stop them or add '--force'".format(active_ports)
+                print format_text(msg, 'bold')
+                return RC_ERR(msg)
             else:
                 rc = self.cmd_stop(active_ports)
                 if not rc:
-                    return False
+                    return rc
 
 
         rc = self.remove_all_streams(port_id_list)
-        rc.annotate("Removing all streams from ports {0}:".format(port_id_list))
+        rc.annotate("Removing all streams from port(s) {0}:".format(port_id_list))
         if rc.bad():
-            return False
+            return rc
 
 
         rc = self.add_stream_pack(stream_list.compiled, port_id_list)
-        rc.annotate("Attaching streams to port {0}:".format(port_id_list))
+        rc.annotate("Attaching streams to port(s) {0}:".format(port_id_list))
         if rc.bad():
-            return False
+            return rc
 
 
         # finally, start the traffic
         rc = self.start_traffic(mult, port_id_list)
-        rc.annotate("Starting traffic on ports {0}:".format(port_id_list))
+        rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
         if rc.bad():
-            return False
+            return rc
+
+        return RC_OK()
+
+    ############## High Level API With Parser ################
+    def cmd_start_line (self, line):
+        '''Start selected traffic in specified ports on TRex\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "start",
+                                         self.cmd_start_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.FORCE,
+                                         parsing_opts.STREAM_FROM_PATH_OR_FILE,
+                                         parsing_opts.DURATION,
+                                         parsing_opts.MULTIPLIER)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        if opts.db:
+            stream_list = self.stream_db.get_stream_pack(opts.db)
+            rc = RC(stream_list != None)
+            rc.annotate("Load stream pack (from DB):")
+            if rc.bad():
+                return RC_ERR("Failed to load stream pack")
+
+        else:
+            # load streams from file
+            stream_list = self.streams_db.load_yaml_file(opts.file[0])
+            rc = RC(stream_list != None)
+            rc.annotate("Load stream pack (from file):")
+            if stream_list == None:
+                return RC_ERR("Failed to load stream pack")
+
+
+        return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force)
+
+    def cmd_stop_line (self, line):
+        '''Stop active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "stop",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        return self.cmd_stop(opts.ports)
+
+
+    def cmd_reset_line (self, line):
+        return self.cmd_reset()
+
+
+    def cmd_exit_line (self, line):
+        print format_text("Exiting\n", 'bold')
+        # a way to exit
+        return RC_ERR("exit")
+
+
+    def cmd_wait_line (self, line):
+        '''wait for a period of time\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "wait",
+                                         self.cmd_wait_line.__doc__,
+                                         parsing_opts.DURATION)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        delay_sec = opts.d if opts.d else 1
+
+        print format_text("Waiting for {0} seconds...\n".format(delay_sec), 'bold')
+        time.sleep(delay_sec)
+
+        return RC_OK()
+
+    # run a script of commands
+    def run_script_file (self, filename):
+
+        print format_text("\nRunning script file '{0}'...".format(filename), 'bold')
+
+        rc = self.cmd_connect()
+        if rc.bad():
+            return
+
+        with open(filename) as f:
+            script_lines = f.readlines()
+
+        cmd_table = {}
+
+        # register all the commands
+        cmd_table['start'] = self.cmd_start_line
+        cmd_table['stop']  = self.cmd_stop_line
+        cmd_table['reset'] = self.cmd_reset_line
+        cmd_table['wait']  = self.cmd_wait_line
+        cmd_table['exit']  = self.cmd_exit_line
+
+        for index, line in enumerate(script_lines):
+            line = line.strip()
+            if line == "":
+                continue
+            if line.startswith("#"):
+                continue
+
+            sp = line.split(' ', 1)
+            cmd = sp[0]
+            if len(sp) == 2:
+                args = sp[1]
+            else:
+                args = ""
+
+            print format_text("Executing line {0} : '{1}'\n".format(index, line))
+
+            if not cmd in cmd_table:
+                print "\n*** Error at line {0} : '{1}'\n".format(index, line)
+                print format_text("unknown command '{0}'\n".format(cmd), 'bold')
+                return False
+
+            rc = cmd_table[cmd](args)
+            if rc.bad():
+                return False
+
+        print format_text("\n[Done]", 'bold')
 
         return True
 
@@ -710,3 +909,4 @@ class CTRexStatelessClient(object):
 
 if __name__ == "__main__":
     pass
+
