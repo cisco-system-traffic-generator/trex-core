@@ -419,7 +419,7 @@ class CTRexStatelessClient(object):
         return RC_OK()
 
     def is_connected (self):
-        return self.connected
+        return self.connected and self.comm_link.is_connected
 
 
     def disconnect(self):
@@ -820,7 +820,7 @@ class CTRexStatelessClient(object):
         cmd_table['wait']  = self.cmd_wait_line
         cmd_table['exit']  = self.cmd_exit_line
 
-        for index, line in enumerate(script_lines):
+        for index, line in enumerate(script_lines, start = 1):
             line = line.strip()
             if line == "":
                 continue
