@@ -29,7 +29,7 @@ limitations under the License.
 #include <trex_stream.h>
 #include <trex_stateless_port.h>
 #include <trex_rpc_server_api.h>
-
+#include <iostream>
 
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
@@ -239,7 +239,7 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,0);
      stream1->set_pps(1.0);
-     stream1->set_signle_burtst(5);
+     stream1->set_single_burst(5);
      stream1->m_enabled = true;
      stream1->m_self_start = true;
 
@@ -344,7 +344,7 @@ TEST_F(basic_stl, multi_pkt1) {
 
      streams.push_back(stream1);
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,1);
      stream2->set_pps(2.0);
 
      stream2->m_enabled = true;
@@ -482,6 +482,200 @@ TEST_F(basic_stl, multi_burst1) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
+/********************************************* Itay Tests Start *************************************/
+
+/**
+ * check that continous stream does not point to another stream 
+ * (makes no sense) 
+ */
+TEST_F(basic_stl, compile_bad_1) {
+
+     TrexStreamsCompiler compile;
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,2);
+     stream1->m_enabled = true;
+     stream1->set_pps(52.0);
+     stream1->m_next_stream_id = 3;
+
+     streams.push_back(stream1);
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     std::string err_msg;
+     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+
+     delete stream1;
+
+}
+
+/**
+ * check for streams pointing to non exsistant streams
+ * 
+ * @author imarom (16-Nov-15)
+ */
+TEST_F(basic_stl, compile_bad_2) {
+
+     TrexStreamsCompiler compile;
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,1);
+     stream1->m_enabled = true;
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(200);
+
+     /* non existant next stream */
+     stream1->m_next_stream_id = 5;
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,2);
+     stream1->set_pps(52.0);
+
+     streams.push_back(stream1);
+     streams.push_back(stream2);
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     std::string err_msg;
+     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+
+     delete stream1;
+     delete stream2;
+
+}
+
+/**
+ * check for "dead streams" in the mesh 
+ * a streams that cannot be reached 
+ * 
+ * @author imarom (16-Nov-15)
+ */
+TEST_F(basic_stl, compile_bad_3) {
+
+     TrexStreamsCompiler compile;
+     std::vector<TrexStream *> streams;
+     TrexStream *stream;
+
+     /* stream 1 */
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 231);
+     stream->m_enabled = true;
+     stream->set_pps(1.0);
+     stream->set_single_burst(200);
+
+     stream->m_next_stream_id = 5481;
+     stream->m_self_start = true;
+
+     streams.push_back(stream);
+
+     /* stream 2 */
+     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, 5481);
+     stream->m_enabled = true;
+     stream->m_next_stream_id = -1;
+     stream->m_self_start = false;
+     stream->set_pps(52.0);
+     
+     streams.push_back(stream);
+
+     /* stream 3 */
+
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 1928);
+     stream->m_enabled = true;
+     stream->set_pps(1.0);
+     stream->set_single_burst(200);
+
+     stream->m_next_stream_id = -1;
+     stream->m_self_start = true;
+
+     streams.push_back(stream);
+
+      /* stream 4 */
+
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 41231);
+     stream->m_enabled = true;
+     stream->set_pps(1.0);
+     stream->set_single_burst(200);
+
+     stream->m_next_stream_id = 3928;
+     stream->m_self_start = false;
+
+     streams.push_back(stream);
+
+     /* stream 5 */
+
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 3928);
+     stream->m_enabled = true;
+     stream->set_pps(1.0);
+     stream->set_single_burst(200);
+
+     stream->m_next_stream_id = 41231;
+     stream->m_self_start = false;
+
+     streams.push_back(stream);
+
+     /* compile */
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     std::string err_msg;
+     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+
+     for (auto stream : streams) {
+         delete stream;
+     }
+
+}
+
+TEST_F(basic_stl, compile_with_warnings) {
+
+    TrexStreamsCompiler compile;
+     std::vector<TrexStream *> streams;
+     TrexStream *stream;
+
+     /* stream 1 */
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 231);
+     stream->m_enabled = true;
+     stream->set_pps(1.0);
+     stream->set_single_burst(200);
+
+     stream->m_next_stream_id = 1928;
+     stream->m_self_start = true;
+
+     streams.push_back(stream);
+
+     /* stream 2 */
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 5481);
+     stream->m_enabled = true;
+     stream->m_next_stream_id = 1928;
+     stream->m_self_start = true;
+     stream->set_pps(52.0);
+     
+     streams.push_back(stream);
+
+     /* stream 3 */
+
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 1928);
+     stream->m_enabled = true;
+     stream->set_pps(1.0);
+     stream->set_single_burst(200);
+
+     stream->m_next_stream_id = -1;
+     stream->m_self_start = true;
+
+     streams.push_back(stream);
 
 
 
+     /* compile */
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     std::string err_msg;
+     EXPECT_TRUE(compile.compile(streams, comp_obj, &err_msg));
+     
+     EXPECT_TRUE(compile.get_last_compile_warnings().size() == 1);
+
+     for (auto stream : streams) {
+         delete stream;
+     }
+
+}
+
+
+/********************************************* Itay Tests End *************************************/

@@ -143,6 +143,10 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         stream = new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id);
         stream->set_pps(pps);
 
+        if (stream->m_next_stream_id != -1) {
+            generate_parse_err(result, "continious stream cannot provide next stream id - only -1 is valid");
+        }
+
     } else if (type == "single_burst") {
 
         uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
@@ -150,7 +154,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
         stream = new TrexStream(TrexStream::stSINGLE_BURST,port_id, stream_id);
         stream->set_pps(pps);
-        stream->set_signle_burtst(total_pkts);
+        stream->set_single_burst(total_pkts);
 
 
     } else if (type == "multi_burst") {
