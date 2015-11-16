@@ -143,6 +143,10 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         stream = new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id);
         stream->set_pps(pps);
 
+        if (stream->m_next_stream_id != -1) {
+            generate_parse_err(result, "continious stream cannot provide next stream id - only -1 is valid");
+        }
+
     } else if (type == "single_burst") {
 
         uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
@@ -150,7 +154,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
         stream = new TrexStream(TrexStream::stSINGLE_BURST,port_id, stream_id);
         stream->set_pps(pps);
-        stream->set_signle_burtst(total_pkts);
+        stream->set_single_burst(total_pkts);
 
 
     } else if (type == "multi_burst") {
@@ -458,8 +462,9 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
-    uint8_t port_id = parse_byte(params, "port_id", result);
-    double mul = parse_double(params, "mul", result);
+    uint8_t port_id  = parse_byte(params, "port_id", result);
+    double mul       = parse_double(params, "mul", result);
+    double duration  = parse_double(params, "duration", result);
 
     if (port_id >= get_stateless_obj()->get_port_count()) {
         std::stringstream ss;
@@ -470,7 +475,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     try {
-        port->start_traffic(mul);
+        port->start_traffic(mul, duration);
     } catch (const TrexRpcException &ex) {
         generate_execute_err(result, ex.what());
     }

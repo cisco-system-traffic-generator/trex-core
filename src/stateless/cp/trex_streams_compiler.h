@@ -23,9 +23,11 @@ limitations under the License.
 
 #include <stdint.h>
 #include <vector>
+#include <string>
 
 class TrexStreamsCompiler;
 class TrexStream;
+class GraphNodeMap;
 
 /**
  * compiled object for a table of streams
@@ -48,13 +50,6 @@ public:
         return m_objs;
     }
 
-    void set_simulation_duration(double duration){
-        m_duration_sim=duration;
-    }
-
-    double get_simulation_duration(){
-        return (m_duration_sim);
-    }
     /**
      * clone the compiled object
      * 
@@ -71,18 +66,39 @@ private:
 
     uint8_t m_port_id;
     double  m_mul;
-    double  m_duration_sim; /* duration for all simulation */
 };
 
 class TrexStreamsCompiler {
 public:
+
     /**
      * compiles a vector of streams to an object passable to the DP
      * 
      * @author imarom (28-Oct-15)
      * 
      */
-    bool compile(const std::vector<TrexStream *> &streams, TrexStreamsCompiledObj &obj);
+    bool compile(const std::vector<TrexStream *> &streams, TrexStreamsCompiledObj &obj, std::string *fail_msg = NULL);
+
+    /**
+     * 
+     * returns a reference pointer to the last compile warnings
+     * if no warnings were produced - the vector is empty
+     */
+    const std::vector<std::string> & get_last_compile_warnings() {
+        return m_warnings;
+    }
+
+private:
+
+    void pre_compile_check(const std::vector<TrexStream *> &streams);
+    void allocate_pass(const std::vector<TrexStream *> &streams, GraphNodeMap *nodes);
+    void direct_pass(GraphNodeMap *nodes);
+    void check_for_unreachable_streams(GraphNodeMap *nodes);
+    void check_stream(const TrexStream *stream);
+    void add_warning(const std::string &warning);
+    void err(const std::string &err);
+
+    std::vector<std::string> m_warnings;
 };
 
 #endif /* __TREX_STREAMS_COMPILER_H__ */

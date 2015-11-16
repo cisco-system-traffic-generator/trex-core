@@ -26,7 +26,7 @@ limitations under the License.
 /*************************
   start traffic message
  ************************/ 
-TrexStatelessDpStart::TrexStatelessDpStart(TrexStreamsCompiledObj *obj) : m_obj(obj) {
+TrexStatelessDpStart::TrexStatelessDpStart(TrexStreamsCompiledObj *obj, double duration) : m_obj(obj), m_duration(duration) {
 }
 
 
@@ -39,7 +39,7 @@ TrexStatelessDpStart::clone() {
 
     TrexStreamsCompiledObj *new_obj = m_obj->clone();
 
-    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStart(new_obj);
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStart(new_obj, m_duration);
 
     return new_msg;
 }
@@ -53,7 +53,7 @@ TrexStatelessDpStart::~TrexStatelessDpStart() {
 bool
 TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
 
-    dp_core->start_traffic(m_obj);
+    dp_core->start_traffic(m_obj, m_duration);
     return true;
 }
 

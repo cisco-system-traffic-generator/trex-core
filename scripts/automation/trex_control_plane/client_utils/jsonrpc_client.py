@@ -110,45 +110,45 @@ class JsonRpcClient(object):
             return id, msg
 
 
-    def invoke_rpc_method (self, method_name, params = {}, block = True):
+    def invoke_rpc_method (self, method_name, params = {}):
         if not self.connected:
             return False, "Not connected to server"
 
         id, msg = self.create_jsonrpc_v2(method_name, params)
 
-        return self.send_raw_msg(msg, block)
+        return self.send_raw_msg(msg)
 
 
     # low level send of string message
-    def send_raw_msg (self, msg, block = True):
+    def send_raw_msg (self, msg):
+
         self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
-        if block:
-            self.socket.send(msg)
-        else:
+        tries = 0
+        while True:
             try:
-                self.socket.send(msg, flags = zmq.NOBLOCK)
-            except zmq.error.ZMQError as e:
-                self.disconnect()
-                return CmdResponse(False, "Failed To Get Send Message")
+                self.socket.send(msg)
+                break
+            except zmq.Again:
+                sleep(0.1)
+                tries += 1
+                if tries > 10:
+                    self.disconnect()
+                    return CmdResponse(False, "Failed to send message to server")
 
-        got_response = False
 
-        if block:
-            response = self.socket.recv()
-            got_response = True
-        else:
-            for i in xrange(0 ,10):
-                try:
-                    response = self.socket.recv(flags = zmq.NOBLOCK)
-                    got_response = True
-                    break
-                except zmq.Again:
-                    sleep(0.2)
+        tries = 0
+        while True:
+            try:
+                response = self.socket.recv()
+                break
+            except zmq.Again:
+                sleep(0.1)
+                tries += 1
+                if tries > 10:
+                    self.disconnect()
+                    return CmdResponse(False, "Failed to get server response")
 
-        if not got_response:
-            self.disconnect()
-            return CmdResponse(False, "Failed To Get Server Response")
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
 
@@ -223,6 +223,8 @@ class JsonRpcClient(object):
         except zmq.error.ZMQError as e:
             return False, "ZMQ Error: Bad server or port name: " + str(e)
 
+        self.socket.setsockopt(zmq.SNDTIMEO, 5)
+        self.socket.setsockopt(zmq.RCVTIMEO, 5)
 
         self.connected = True
 

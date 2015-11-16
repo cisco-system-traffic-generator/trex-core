@@ -92,21 +92,21 @@ public:
         m_type = type;
     }
 
-    uint8_t get_type(void){
+    uint8_t get_type(void) const {
         return ( m_type );
     }
 
 
 
     void set_multi_burst(uint32_t   burst_total_pkts, 
-                     uint32_t   num_bursts,
-                     double     ibg_usec){
+                         uint32_t   num_bursts,
+                         double     ibg_usec) {
         m_burst_total_pkts = burst_total_pkts;
         m_num_bursts       = num_bursts;
         m_ibg_usec         = ibg_usec;
     }
 
-    void set_signle_burtst(uint32_t   burst_total_pkts){
+    void set_single_burst(uint32_t   burst_total_pkts){
         set_multi_burst(burst_total_pkts,1,0.0); 
     }
 
