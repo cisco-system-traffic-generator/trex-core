@@ -72,6 +72,14 @@ TrexStatelessDpCore::idle_state_loop() {
     }
 }
 
+
+
+void TrexStatelessDpCore::quit_main_loop(){
+    m_core->set_terminate_mode(true); /* mark it as terminated */
+    add_duration(0.0001); /* add message to terminate */
+}
+
+
 /**
  * scehduler runs when traffic exists 
  * it will return when no more transmitting is done on this 
@@ -106,6 +114,10 @@ TrexStatelessDpCore::start() {
 
     while (true) {
         run_once();
+
+        if ( m_core->is_terminated_by_master() ) {
+            break;
+        }
     }
 }
 

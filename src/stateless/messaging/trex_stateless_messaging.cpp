@@ -76,3 +76,23 @@ TrexStatelessDpStop::clone() {
 
     return new_msg;
 }
+
+
+
+TrexStatelessCpToDpMsgBase * 
+TrexStatelessDpQuit::clone(){
+
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpQuit();
+
+    return new_msg;
+}
+
+
+
+bool TrexStatelessDpQuit::handle(TrexStatelessDpCore *dp_core){
+    
+    /* quit  */
+    dp_core->quit_main_loop();
+    return (true);
+}
+

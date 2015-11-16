@@ -3177,6 +3177,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           max_threads){
 
 
+    m_terminated_by_master=false;
     m_flow_list =flow_list;
     m_core_id= core_id;
     m_tcp_dpc= 0;
@@ -3573,6 +3574,9 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         }
     }
 
+    if ( thread->is_terminated_by_master() ) {
+        return (0);
+    }
   
     if (!always) {
         old_offset =offset;
@@ -4010,11 +4014,13 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     #endif
     
     m_node_gen.flush_file(c_stop_sec,d_time_flow, false,this,old_offset);
+
+
 #ifdef VALG
     CALLGRIND_STOP_INSTRUMENTATION;
     printf (" %llu \n",os_get_hr_tick_64()-_start_time);
 #endif
-    if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() ){
+    if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() &&  (is_terminated_by_master()==false) ){
         /* clean close */
         m_node_gen.flush_file(m_cur_time_sec, d_time_flow, true,this,old_offset);
     }

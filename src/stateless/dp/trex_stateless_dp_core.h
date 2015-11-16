@@ -109,6 +109,9 @@ public:
 
     }
 
+    /* quit the main loop, work in both stateless in stateful, don't free memory trigger from  master  */
+    void quit_main_loop();
+
 private:
     /**
      * in idle state loop, the processor most of the time sleeps 
