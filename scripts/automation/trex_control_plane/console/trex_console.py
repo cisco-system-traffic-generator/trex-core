@@ -39,6 +39,24 @@ import parsing_opts
 __version__ = "1.0"
 
 
+class TRexGeneralCmd(cmd.Cmd):
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+
+    def emptyline(self):
+        """Called when an empty line is entered in response to the prompt.
+
+        This overriding is such that when empty line is passed, **nothing happens**.
+        """
+        return
+
+    def completenames(self, text, *ignored):
+        """
+        This overriding is such that a space is added to name completion.
+        """
+        dotext = 'do_'+text
+        return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
+
 #
 # main console object
 class TRexConsole(cmd.Cmd):

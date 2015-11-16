@@ -151,16 +151,17 @@ class TrexAsyncStatsManager():
 
 
 class CTRexAsyncClient():
-    def __init__ (self, port):
+    def __init__ (self, server, port):
 
         self.port = port
+        self.server = server
 
         self.raw_snapshot = {}
 
         self.stats = TrexAsyncStatsManager()
 
 
-        self.tr = "tcp://localhost:{0}".format(self.port)
+        self.tr = "tcp://{0}:{1}".format(self.server, self.port)
         print "\nConnecting To ZMQ Publisher At {0}".format(self.tr)
 
         self.active = True

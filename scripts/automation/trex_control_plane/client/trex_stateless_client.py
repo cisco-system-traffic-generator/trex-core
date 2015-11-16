@@ -338,7 +338,7 @@ class CTRexStatelessClient(object):
         self._server_version = None
         self.__err_log = None
 
-        self._async_client = CTRexAsyncClient(async_port)
+        self._async_client = CTRexAsyncClient(server, async_port)
 
         self.streams_db = CStreamsDB()
 
