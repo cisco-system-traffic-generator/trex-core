@@ -1,5 +1,6 @@
 /*
  Itay Marom
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -97,6 +98,22 @@ public:
 
 private:
     uint8_t m_port_id;
+};
+
+/**
+ * a message to Quit the datapath traffic. support only stateless for now 
+ * 
+ * @author hhaim 
+ */
+class TrexStatelessDpQuit : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpQuit()  {
+    }
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
 };
 
 

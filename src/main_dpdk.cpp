@@ -59,6 +59,7 @@ limitations under the License.
 #include <stateless/cp/trex_stateless.h>
 #include <stateless/dp/trex_stream_node.h>
 #include <publisher/trex_publisher.h>
+#include <stateless/messaging/trex_stateless_messaging.h>
 
 #include <../linux_dpdk/version.h>
 
@@ -2757,8 +2758,15 @@ public:
 
     int  reset_counters();
 
-
 public:
+
+private:
+    /* try to stop all datapath cores */
+    void try_stop_all_dp();
+    /* send message to all dp cores */
+    int  send_message_all_dp(TrexStatelessCpToDpMsgBase *msg);
+public:
+
     int start_send_master();
     int start_master_stateless();
 
@@ -3183,6 +3191,40 @@ bool CGlobalTRex::is_all_links_are_up(bool dump){
     return (all_link_are);
 }
 
+
+void CGlobalTRex::try_stop_all_dp(){
+
+    TrexStatelessDpQuit * msg= new TrexStatelessDpQuit();
+    send_message_all_dp(msg);
+    delete msg;
+    bool all_core_finished = false;
+    int i; 
+    for (i=0; i<20; i++) {
+        if ( is_all_cores_finished() ){
+            all_core_finished =true;
+            break;
+        }
+        delay(100);
+    }
+    if ( all_core_finished ){
+        printf(" All cores stopped !! \n");
+    }else{
+        printf(" ERROR one of the DP core is stucked !\n");
+    }
+}
+
+
+int  CGlobalTRex::send_message_all_dp(TrexStatelessCpToDpMsgBase *msg){
+
+        int max_threads=(int)CMsgIns::Ins()->getCpDp()->get_num_threads();
+        int i;
+
+        for (i=0; i<max_threads; i++) {
+            CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp((uint8_t)i);
+            ring->Enqueue((CGenNode*)msg->clone());
+        }
+        return (0);
+}
 
 
 int  CGlobalTRex::ixgbe_rx_queue_flush(){
@@ -4022,6 +4064,11 @@ int CGlobalTRex::run_in_master(){
         if ( is_all_cores_finished() ) {
             break;
         }
+    }
+
+    if (!is_all_cores_finished()) {
+        /* probably CLTR-C */
+        try_stop_all_dp();
     }
 
     m_mg.stop();

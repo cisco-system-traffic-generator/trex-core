@@ -3400,6 +3400,13 @@ public:
                 uint32_t           max_threads);
     void Delete();
 
+    void set_terminate_mode(bool is_terminate){
+        m_terminated_by_master =is_terminate;
+    }
+    bool is_terminated_by_master(){
+        return (m_terminated_by_master);
+    }
+
     void set_vif(CVirtualIF * v_if){
         m_node_gen.set_vif(v_if);
     }
@@ -3542,6 +3549,7 @@ private:
     flow_id_node_t                   m_flow_id_to_node_lookup;
 
     TrexStatelessDpCore              m_stateless_dp_info;
+    bool                             m_terminated_by_master;
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 
