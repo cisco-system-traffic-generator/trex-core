@@ -3271,8 +3271,10 @@ FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job(CGenNode *p){
     CGenNodeDeferPort     *   defer=(CGenNodeDeferPort     *)p;
     int i;
     for (i=0; i<defer->m_cnt; i++) {
-        m_smart_gen.FreePort(defer->m_pool_idx[i],
-                                 defer->m_clients[i],defer->m_ports[i]);
+        m_smart_gen.FreeClientPort(defer->m_c_pool_idx[i],
+                                 defer->m_clients[i],defer->m_c_ports[i]);
+        m_smart_gen.FreeServerPort(defer->m_s_pool_idx[i],
+                                 defer->m_servers[i],defer->m_s_ports[i]);
     }
 }
 
@@ -3291,30 +3293,35 @@ FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job_flush(void){
 }
 
 
-void CFlowGenListPerThread::defer_client_port_free(bool is_tcp,
-                                                   uint32_t c_idx,
-                                                   uint16_t port,
-                                                   uint8_t c_pool_idx,
-                                                   CTupleGeneratorSmart * gen){
+void CFlowGenListPerThread::defer_port_free(bool is_tcp,
+                                            uint32_t c_idx,
+                                            uint16_t c_port,
+                                            uint8_t  c_pool_idx,
+                                            uint32_t s_idx, 
+                                            uint16_t s_port,
+                                            uint8_t  s_pool_idx,
+                                            CTupleGeneratorSmart * gen){
     /* free is not required in this case */
-    if (!gen->IsFreePortRequired(c_pool_idx) ){
+    if (!gen->IsFreePortRequired(c_pool_idx, s_pool_idx) ){
         return;
     }
     CGenNodeDeferPort     *   defer;
     if (is_tcp) {
         if (gen->get_tcp_aging(c_pool_idx)==0) {
-            gen->FreePort(c_pool_idx,c_idx,port);
+            gen->FreeClientPort(c_pool_idx,c_idx,c_port);
+            gen->FreeServerPort(s_pool_idx,s_idx,s_port);
             return;
         }
         defer=get_tcp_defer();
     }else{
         if (gen->get_udp_aging(c_pool_idx)==0) {
-            gen->FreePort(c_pool_idx, c_idx,port);
+            gen->FreeClientPort(c_pool_idx,c_idx,c_port);
+            gen->FreeServerPort(s_pool_idx,s_idx,s_port);
             return;
         }
         defer=get_udp_defer();
     }
-    if ( defer->add_client(c_pool_idx, c_idx,port) ){
+    if ( defer->add_node(c_pool_idx, c_idx,c_port, s_pool_idx, s_idx, s_port) ){
         if (is_tcp) {
             m_node_gen.schedule_node((CGenNode *)defer,gen->get_tcp_aging(c_pool_idx));
             m_tcp_dpc=0;
@@ -3326,10 +3333,11 @@ void CFlowGenListPerThread::defer_client_port_free(bool is_tcp,
 }
 
 
-void CFlowGenListPerThread::defer_client_port_free(CGenNode *p){
-    defer_client_port_free(p->m_pkt_info->m_pkt_indication.m_desc.IsTcp(),
-                           p->m_src_idx,p->m_src_port,p->m_template_info->m_client_pool_idx,
-                           p->m_tuple_gen);
+void CFlowGenListPerThread::defer_port_free(CGenNode *p){
+    defer_port_free(p->m_pkt_info->m_pkt_indication.m_desc.IsTcp(),
+                    p->m_src_idx,p->m_src_port,p->m_template_info->m_client_pool_idx,
+                    p->m_dest_idx,0,p->m_template_info->m_server_pool_idx,
+                    p->m_tuple_gen);
 }
 
 
@@ -4850,15 +4858,16 @@ void CPluginCallbackSimple::on_node_last(uint8_t plugin_id,CGenNode *     node){
         /* free the ports */
         CFlowGenListPerThread  * flow_gen=(CFlowGenListPerThread  *) lpP->m_gen;
         bool is_tcp=node->m_pkt_info->m_pkt_indication.m_desc.IsTcp();
-        flow_gen->defer_client_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_0,
-                                node->m_template_info->m_client_pool_idx,node->m_tuple_gen);
-        flow_gen->defer_client_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_1,
-                                node->m_template_info->m_client_pool_idx,  node->m_tuple_gen);
-        flow_gen->defer_client_port_free(is_tcp,node->m_dest_idx,lpP->rtp_server_0,
-                                node->m_template_info->m_server_pool_idx,node->m_tuple_gen);
-        flow_gen->defer_client_port_free(is_tcp,node->m_dest_idx,lpP->rtp_server_1,
-                                node->m_template_info->m_server_pool_idx,  node->m_tuple_gen);
- 
+        flow_gen->defer_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_0,
+                                node->m_template_info->m_client_pool_idx,
+                                node->m_dest_idx,lpP->rtp_server_0,
+                                node->m_template_info->m_server_pool_idx,
+                                node->m_tuple_gen);
+        flow_gen->defer_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_1,
+                                node->m_template_info->m_client_pool_idx,  
+                                node->m_dest_idx,lpP->rtp_server_1,
+                                node->m_template_info->m_server_pool_idx,
+                                node->m_tuple_gen);
         assert(lpP);
         delete lpP;
         node->m_plugin_info=0;

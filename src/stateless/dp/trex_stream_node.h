@@ -108,8 +108,7 @@ private:
     /* End Fast Field VM Section */
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[20];
-
+    uint8_t             m_pad_end[177];
 
 public:
 

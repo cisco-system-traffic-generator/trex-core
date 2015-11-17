@@ -1487,7 +1487,7 @@ public:
     mac_addr_align_t    m_src_mac;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
-    uint32_t            m_end_of_cache_line[6];
+    uint32_t            m_end_of_cache_line[34];
 
 
 public:
@@ -1697,8 +1697,11 @@ struct CGenNodeDeferPort  {
     double              m_time;
 
     uint32_t            m_clients[DEFER_CLIENTS_NUM];
-    uint16_t            m_ports[DEFER_CLIENTS_NUM];
-    uint8_t             m_pool_idx[DEFER_CLIENTS_NUM];
+    uint16_t            m_c_ports[DEFER_CLIENTS_NUM];
+    uint8_t             m_c_pool_idx[DEFER_CLIENTS_NUM];
+    uint32_t            m_servers[DEFER_CLIENTS_NUM];
+    uint16_t            m_s_ports[DEFER_CLIENTS_NUM];
+    uint8_t             m_s_pool_idx[DEFER_CLIENTS_NUM];
 public:
     void init(void){ 
         m_type=CGenNode::FLOW_DEFER_PORT_RELEASE;
@@ -1706,11 +1709,14 @@ public:
     }
 
     /* return true if object is full */
-    bool add_client(uint8_t pool_idx, uint32_t client,
-                   uint16_t port){
+    bool add_node(uint8_t c_pool_idx, uint32_t client, uint16_t c_port,
+                  uint8_t s_pool_idx, uint32_t server, uint16_t s_port){
         m_clients[m_cnt]=client;
-        m_ports[m_cnt]=port;
-        m_pool_idx[m_cnt] = pool_idx;
+        m_c_ports[m_cnt]=c_port;
+        m_c_pool_idx[m_cnt] = c_pool_idx;
+        m_servers[m_cnt]=server;
+        m_s_ports[m_cnt]=s_port;
+        m_s_pool_idx[m_cnt] = s_pool_idx;
         m_cnt++;
         if ( m_cnt == DEFER_CLIENTS_NUM ) {
             return (true);
@@ -3506,9 +3512,11 @@ private:
 
 
     void init_from_global(CIpPortion &);
-    void defer_client_port_free(CGenNode *p);
-    void defer_client_port_free(bool is_tcp,uint32_t c_ip,uint16_t port,
-                                uint8_t pool_idx, CTupleGeneratorSmart*gen);
+    void defer_port_free(CGenNode *p);
+    void defer_port_free(bool is_tcp,uint32_t c_ip,uint16_t c_port,
+                         uint8_t c_pool_idx, uint32_t s_ip, 
+                         uint16_t s_port, uint8_t s_pool_idx, 
+                         CTupleGeneratorSmart*gen);
 
 
     FORCE_NO_INLINE void   handler_defer_job(CGenNode *p);
@@ -3609,7 +3617,7 @@ inline void CFlowGenListPerThread::free_last_flow_node(CGenNode *p){
         /* free memory of the plugin */
         on_node_last(plugin_id,p);
     }
-    defer_client_port_free(p);
+    defer_port_free(p);
     free_node( p);
 }
 
