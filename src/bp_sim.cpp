@@ -2605,6 +2605,10 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
            flows_info.m_tuple_gen.get_client_pool_id(fi.m_client_pool_name);
        fi.m_server_pool_idx = 
            flows_info.m_tuple_gen.get_server_pool_id(fi.m_server_pool_name);
+
+       /* If server has plugin, we force the server pool to track port allocation*/
+       flows_info.m_tuple_gen.set_server_track_ports(fi.m_server_pool_idx,
+                                                     fi.m_plugin_id);
        flows_info.m_vec.push_back(fi);
    }
 }
@@ -5639,6 +5643,9 @@ public:
     void *   m_gen;
     uint16_t rtp_client_0;
     uint16_t rtp_client_1;
+    /* server port number*/
+    uint16_t rtp_server_0;
+    uint16_t rtp_server_1;
 };
 
 
@@ -5657,6 +5664,8 @@ void CPluginCallbackSimple::on_node_first(uint8_t plugin_id,
         /* TBD need to be fixed using new API */
         lpP->rtp_client_0 = tuple_gen->GenerateOneSourcePort();
         lpP->rtp_client_1 = tuple_gen->GenerateOneSourcePort();
+        lpP->rtp_server_0 = tuple_gen->GenerateOneServerPort();
+        lpP->rtp_server_1 = tuple_gen->GenerateOneServerPort();
         lpP->m_gen=flow_gen;
         node->m_plugin_info = (void *)lpP;
     }else{
@@ -5686,6 +5695,10 @@ void CPluginCallbackSimple::on_node_last(uint8_t plugin_id,CGenNode *     node){
                                 node->m_template_info->m_client_pool_idx,node->m_tuple_gen);
         flow_gen->defer_client_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_1,
                                 node->m_template_info->m_client_pool_idx,  node->m_tuple_gen);
+        flow_gen->defer_client_port_free(is_tcp,node->m_dest_idx,lpP->rtp_server_0,
+                                node->m_template_info->m_server_pool_idx,node->m_tuple_gen);
+        flow_gen->defer_client_port_free(is_tcp,node->m_dest_idx,lpP->rtp_server_1,
+                                node->m_template_info->m_server_pool_idx,  node->m_tuple_gen);
  
         assert(lpP);
         delete lpP;
@@ -6002,7 +6015,7 @@ rte_mbuf_t * CPluginCallbackSimple::sip_voice_plugin(uint8_t plugin_id,CGenNode 
         flow_info.server_ip = node->m_dest_ip;
         flow_info.client_port = lpP->rtp_client_0;
         /* this is tricky ..*/
-        flow_info.server_port = lpP->rtp_client_0;
+        flow_info.server_port = lpP->rtp_server_0;
         flow_info.replace_server_port = true;
         flow_info.is_init_ip_dir = (node->cur_pkt_ip_addr_dir() == CLIENT_SIDE?true:false);
         flow_info.is_init_port_dir = (node->cur_pkt_port_addr_dir() ==CLIENT_SIDE?true:false);
@@ -6181,7 +6194,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                 replace_port_cmd.m_start_port =  247;
                 replace_port_cmd.m_stop_port  = 247+(4*4)+2+13;
                 replace_port_cmd.m_client_port = lpP->rtp_client_0;
-                replace_port_cmd.m_server_port = lpP->rtp_client_0;
+                replace_port_cmd.m_server_port = lpP->rtp_server_0;
 
 
                 eop_cmd.m_cmd = VM_EOP;
@@ -6255,7 +6268,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                 replace_port_cmd.m_start_port =  247;
                 replace_port_cmd.m_stop_port  = 247+(4*4)+2+13;
                 replace_port_cmd.m_client_port = lpP->rtp_client_1;
-                replace_port_cmd.m_server_port = lpP->rtp_client_1;
+                replace_port_cmd.m_server_port = lpP->rtp_server_1;
 
 
                 eop_cmd.m_cmd = VM_EOP;
@@ -6415,7 +6428,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
         flow_info.server_ip = node->m_dest_ip;
         flow_info.client_port = lpP->rtp_client_0;
         /* this is tricky ..*/
-        flow_info.server_port = lpP->rtp_client_0;
+        flow_info.server_port = lpP->rtp_server_0;
         flow_info.replace_server_port = true;
         flow_info.is_init_ip_dir = (node->cur_pkt_ip_addr_dir() == CLIENT_SIDE?true:false);
         flow_info.is_init_port_dir = (node->cur_pkt_port_addr_dir() ==CLIENT_SIDE?true:false);
@@ -6426,7 +6439,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
         flow_info.server_ip = node->m_dest_ip;
         flow_info.client_port = lpP->rtp_client_1;
         /* this is tricky ..*/
-        flow_info.server_port = lpP->rtp_client_1;
+        flow_info.server_port = lpP->rtp_server_1;
         flow_info.replace_server_port =true;
         flow_info.is_init_ip_dir = (node->cur_pkt_ip_addr_dir() == CLIENT_SIDE?true:false);
         flow_info.is_init_port_dir = (node->cur_pkt_port_addr_dir() ==CLIENT_SIDE?true:false);

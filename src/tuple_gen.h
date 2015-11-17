@@ -776,6 +776,11 @@ public:
     uint16_t GenerateOneSourcePort(){
         return ( m_client_gen->GenerateOnePort(m_cache_client_idx) );
     }
+    
+    uint16_t GenerateOneServerPort(){
+        return ( m_server_gen->GenerateOnePort(m_cache_server_idx) );
+    }
+    
 
     inline uint32_t GetThreadId(){
         return ( m_gen->GetThreadId() );
@@ -885,6 +890,16 @@ public:
                 return i;
         }
         return 0;
+    }
+    
+    void set_server_track_ports(uint8_t svr_pool_id, uint8_t plugin_id) {
+        if (plugin_id!=0) {
+            if (m_server_pool[svr_pool_id].m_is_bundling==false) {
+                printf("plugin used in template, "
+                       "force server pool to track ports\n");
+            }
+            m_server_pool[svr_pool_id].m_is_bundling = true;
+        }
     }
 
     uint8_t get_client_pool_id(std::string name){
