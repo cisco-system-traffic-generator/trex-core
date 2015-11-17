@@ -793,7 +793,7 @@ class CTRexStatelessClient(object):
         if opts is None:
             return RC_ERR("bad command line paramters")
 
-        delay_sec = opts.d if opts.d else 1
+        delay_sec = opts.duration if (opts.duration > 0) else 1
 
         print format_text("Waiting for {0} seconds...\n".format(delay_sec), 'bold')
         time.sleep(delay_sec)
