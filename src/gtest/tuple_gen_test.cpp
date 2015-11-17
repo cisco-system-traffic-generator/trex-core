@@ -509,7 +509,7 @@ TEST(tuple_gen,try_to_free) {
     for (i=0; i<65557; i++) {
         template_1.GenerateTuple(result);
         uint16_t result_port = result.getClientPort();
-        gen.FreePort(0,result.getClientId(),result_port);
+        gen.FreeClientPort(0,result.getClientId(),result_port);
     }
     // should have error
     EXPECT_FALSE((gen.getErrorAllocationCounter()>0)?true:false);

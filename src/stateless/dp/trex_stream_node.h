@@ -51,7 +51,7 @@ private:
 
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[65];
+    uint8_t             m_pad_end[177];
 
 
 public:

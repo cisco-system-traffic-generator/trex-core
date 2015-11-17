@@ -213,10 +213,10 @@ public:
 
         if ( m_req_ports ){
             int i;
-            fl.m_threads_info[0]->m_smart_gen.FreePort(0, tuple.getClientId(),tuple.getClientPort());
+            fl.m_threads_info[0]->m_smart_gen.FreeClientPort(0, tuple.getClientId(),tuple.getClientPort());
 
             for (i=0 ; i<m_req_ports;i++) {
-                fl.m_threads_info[0]->m_smart_gen.FreePort(0,tuple.getClientId(),ports[i]);
+                fl.m_threads_info[0]->m_smart_gen.FreeClientPort(0,tuple.getClientId(),ports[i]);
             }
             delete []ports;
         }
