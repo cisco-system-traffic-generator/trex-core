@@ -45,6 +45,12 @@ class CTupleBase {
 public:
        CTupleBase() {
            m_client_mac.inused = UNUSED;
+           m_client_ip    = 0;
+           m_client_idx   = 0;
+           m_server_ip    = 0;
+           m_server_idx   = 0;
+           m_client_port  = 0;
+           m_server_port  = 0;
        }
        uint32_t getClient() {
            return m_client_ip;
@@ -795,10 +801,20 @@ public:
     }
 
     uint16_t GenerateOneSourcePort(){
+        /*
+         * uint16_t port = m_client_gen->GenerateOnePort(m_cache_server_idx);
+         * printf("in GenerateOneClientPort, %d\n",port);
+         * return port;
+         */
         return ( m_client_gen->GenerateOnePort(m_cache_client_idx) );
     }
     
     uint16_t GenerateOneServerPort(){
+        /*
+         * uint16_t port = m_server_gen->GenerateOnePort(m_cache_server_idx);
+         * printf("in GenerateOneServerPort, %d\n",port);
+         * return port;
+         */
         return ( m_server_gen->GenerateOnePort(m_cache_server_idx) );
     }
     
