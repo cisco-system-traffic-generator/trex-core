@@ -58,6 +58,7 @@ limitations under the License.
 
 #include <stateless/cp/trex_stateless.h>
 #include <stateless/dp/trex_stream_node.h>
+#include <publisher/trex_publisher.h>
 
 #include <../linux_dpdk/version.h>
 
@@ -2401,71 +2402,6 @@ private:
 };
 
 
-class CZMqPublisher {
-public:
-    CZMqPublisher(){
-        m_context=0;
-        m_publisher=0;
-    }
-
-    bool Create(uint16_t port,bool disable);
-    void Delete();
-    void publish_json(std::string & s);
-private:
-    void show_zmq_last_error(char *s);
-private:
-    void * m_context;
-    void * m_publisher;
-};
-
-void CZMqPublisher::show_zmq_last_error(char *s){
-    printf(" ERROR %s \n",s);
-    printf(" ZMQ: %s",zmq_strerror (zmq_errno ()));
-    exit(-1);
-}
-
-
-bool CZMqPublisher::Create(uint16_t port,bool disable){
-
-    if (disable) {
-        return(true);
-    }
-    m_context = zmq_ctx_new ();
-    if ( m_context == 0 ) {
-        show_zmq_last_error((char *)"can't connect to ZMQ library");
-    }
-    m_publisher = zmq_socket (m_context, ZMQ_PUB);
-    if ( m_context == 0 ) {
-        show_zmq_last_error((char *)"can't create ZMQ socket");
-    }
-    char buffer[100];
-    sprintf(buffer,"tcp://*:%d",port);
-    int rc=zmq_bind (m_publisher, buffer);
-    if (rc != 0 ) {
-        sprintf(buffer,"can't bind to ZMQ socket %d",port);
-        show_zmq_last_error(buffer);
-    }
-    printf("zmq publisher at: %s \n",buffer);
-    return (true);
-}
-
-
-void CZMqPublisher::Delete(){
-    if (m_publisher) {
-        zmq_close (m_publisher);
-    }
-    if (m_context) {
-        zmq_ctx_destroy (m_context);
-    }
-}
-
-
-void CZMqPublisher::publish_json(std::string & s){
-    if ( m_publisher ){
-        int size = zmq_send (m_publisher, s.c_str(), s.length(), 0);
-        assert(size==s.length());
-    }
-}
 
 class CPerPortStats {
 public:
@@ -2961,7 +2897,7 @@ private:
     CLatencyVmPort      m_latency_vm_vports[BP_MAX_PORTS]; /* vm driver */
 
     CLatencyPktInfo     m_latency_pkt;
-    CZMqPublisher       m_zmq_publisher;
+    TrexPublisher       m_zmq_publisher;
 
 public:
     TrexStateless       *m_trex_stateless;

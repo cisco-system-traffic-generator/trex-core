@@ -248,7 +248,13 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
 
         m_core->m_node_gen.add_node(node);
     }
-    
+ 
+    /* send a message to the control plane to
+       generate an async event that traffic has stopped
+     */
+    //CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
+    //ring->Enqueue((CGenNode *)msg->clone());
+
 }
 
 /**
