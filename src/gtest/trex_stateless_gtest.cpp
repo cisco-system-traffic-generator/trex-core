@@ -1,5 +1,5 @@
 /*
- Hanoh Haim
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -90,6 +90,7 @@ public:
         assert(m_ring_from_cp->Enqueue((CGenNode *)m_msg)==0);
 
         lpt->start_stateless_daemon_simulation();
+
 
         //lpt->m_node_gen.DumpHist(stdout);
 
@@ -279,6 +280,7 @@ TEST_F(basic_stl, single_pkt) {
 
      TrexStreamsCompiler compile;
 
+     uint8_t port_id=0;
 
      std::vector<TrexStream *> streams;
 
@@ -288,23 +290,23 @@ TEST_F(basic_stl, single_pkt) {
      
      stream1->m_enabled = true;
      stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
 
 
      CPcapLoader pcap;
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-
-
+                                    
      streams.push_back(stream1);
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -676,6 +678,53 @@ TEST_F(basic_stl, compile_with_warnings) {
      }
 
 }
+
+
+TEST_F(basic_stl, compile_good_stream_id_compres) {
+
+     TrexStreamsCompiler compile;
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,700);
+     stream1->m_self_start = true;
+     stream1->m_enabled = true;
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(200);
+
+     /* non existant next stream */
+     stream1->m_next_stream_id = 800;
+
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST,0,800);
+     stream2->set_pps(52.0);
+     stream2->m_enabled = true;
+     stream2->m_next_stream_id = 700;
+     stream2->set_single_burst(300);
+
+
+     streams.push_back(stream1);
+     streams.push_back(stream2);
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     std::string err_msg;
+     EXPECT_TRUE(compile.compile(streams, comp_obj, &err_msg));
+
+     printf(" %s \n",err_msg.c_str());
+
+     comp_obj.Dump(stdout);
+
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_stream_id,0);
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_next_stream_id,1);
+
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_stream_id,1);
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_next_stream_id,0);
+
+     delete stream1;
+     delete stream2;
+
+}
+
 
 
 /********************************************* Itay Tests End *************************************/

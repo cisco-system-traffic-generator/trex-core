@@ -1,5 +1,6 @@
 /*
  Itay Marom
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -33,6 +34,52 @@ class CGenNodeStateless;
 class TrexStreamsCompiledObj;
 class TrexStream;
 
+
+class CDpOneStream  {
+public:
+    void Create(){
+    }
+
+    void Delete(CFlowGenListPerThread   * core);
+    void DeleteOnlyStream();
+
+    CGenNodeStateless * m_node;      // schedule node
+    TrexStream *        m_dp_stream; // stream info 
+};
+
+class TrexStatelessDpPerPort {
+
+public:
+        /* states */
+    enum state_e {
+        ppSTATE_IDLE,
+        ppSTATE_TRANSMITTING
+    };
+
+public:
+    TrexStatelessDpPerPort(){
+    }
+
+    void create(CFlowGenListPerThread   *  core);
+
+    void stop_traffic(uint8_t port_id);
+
+    bool update_number_of_active_streams(uint32_t d);
+
+public:
+
+    state_e                   m_state;
+    uint8_t                   m_port_id;
+
+    uint32_t                  m_active_streams; /* how many active streams on this port  */
+                                                
+    std::vector<CDpOneStream> m_active_nodes;   /* holds the current active nodes */
+    CFlowGenListPerThread   *  m_core ;
+};
+
+/* for now */
+#define NUM_PORTS_PER_CORE 2
+
 class TrexStatelessDpCore {
 
 public:
@@ -40,7 +87,9 @@ public:
     /* states */
     enum state_e {
         STATE_IDLE,
-        STATE_TRANSMITTING
+        STATE_TRANSMITTING,
+        STATE_TERMINATE,
+
     };
 
     TrexStatelessDpCore() {
@@ -83,6 +132,11 @@ public:
      */
     void stop_traffic(uint8_t port_id);
 
+
+    /* return if all ports are idel */
+    bool are_all_ports_idle();
+
+
     /**
      * check for and handle messages from CP
      * 
@@ -112,7 +166,23 @@ public:
     /* quit the main loop, work in both stateless in stateful, don't free memory trigger from  master  */
     void quit_main_loop();
 
+    bool set_stateless_next_node(CGenNodeStateless * cur_node,
+                                 CGenNodeStateless * next_node);
+
 private:
+
+
+    TrexStatelessDpPerPort * get_port_db(uint8_t port_id){
+        assert((m_local_port_offset==port_id) ||(m_local_port_offset+1==port_id));
+        uint8_t local_port_id = port_id -m_local_port_offset;
+        assert(local_port_id<NUM_PORTS_PER_CORE);
+        return (&m_ports[local_port_id]);
+    }
+        
+
+    void schedule_exit();
+
+
     /**
      * in idle state loop, the processor most of the time sleeps 
      * and periodically checks for messages 
@@ -135,21 +205,27 @@ private:
      */
     void handle_cp_msg(TrexStatelessCpToDpMsgBase *msg);
 
-    /* add global exit */
-    void add_duration(double duration);
 
-    void add_cont_stream(TrexStream * stream,TrexStreamsCompiledObj *comp);
+    void add_port_duration(double duration,
+                      uint8_t port_id);
+
+    void add_global_duration(double duration);
+
+    void add_cont_stream(TrexStatelessDpPerPort * lp_port,
+                         TrexStream * stream,
+                         TrexStreamsCompiledObj *comp);
 
     uint8_t              m_thread_id;
-    state_e              m_state;
+    uint8_t              m_local_port_offset;
+
+    state_e              m_state; /* state of all ports */
     CNodeRing           *m_ring_from_cp;
     CNodeRing           *m_ring_to_cp;
 
-    /* holds the current active nodes */
-    std::vector<CGenNodeStateless *> m_active_nodes;
+    TrexStatelessDpPerPort   m_ports[NUM_PORTS_PER_CORE]; 
 
     /* pointer to the main object */
-    CFlowGenListPerThread *m_core;
+    CFlowGenListPerThread   * m_core;
 
     double                 m_duration;
 };

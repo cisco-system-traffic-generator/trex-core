@@ -26,6 +26,7 @@ limitations under the License.
 #include <common/basic_utils.h> 
 
 #include <trex_stream_node.h>
+#include <trex_stateless_messaging.h>
 
 #undef VALG
 
@@ -3129,6 +3130,13 @@ void CNodeGenerator::remove_all(CFlowGenListPerThread * thread){
     while (!m_p_queue.empty()) {
         node = m_p_queue.top();
         m_p_queue.pop();
+        /* sanity check */
+        if (node->m_type == CGenNode::STATELESS_PKT) {
+            CGenNodeStateless * p=(CGenNodeStateless *)node;
+            /* need to be changed in Pause support */
+            assert(p->is_mask_for_free());
+        }
+
         thread->free_node( node);
     }
 }
@@ -3144,6 +3152,7 @@ int CNodeGenerator::open_file(std::string file_name,
     return (0);
 }
 
+
 int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
     remove_all(thread);
     BP_ASSERT(m_v_if);
@@ -3153,7 +3162,7 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
 
 int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
     if ( m_preview_mode.getVMode() >2 ){
-        fprintf(stdout," %llu ,", (unsigned long long)m_cnt);
+        fprintf(stdout," %4lu ,", (ulong)m_cnt);
         node_sl->Dump(stdout);
         m_cnt++;
     }
@@ -3516,7 +3525,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
              #endif
 
              /* if the stream has been deactivated - end */
-             if (unlikely(!node_sl->is_active())) {
+             if ( unlikely( node_sl->is_mask_for_free() ) ) {
                  thread->free_node(node);
              } else {
                  node_sl->handle(thread);
@@ -3663,8 +3672,19 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
             exit_scheduler = true;
             
         } else {
-            printf(" ERROR type is not valid %d \n",type);
-            assert(0);
+            if ( type == CGenNode::COMMAND) {
+                m_p_queue.pop();
+                CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
+                {
+                    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
+                    cmd->handle(&thread->m_stateless_dp_info);
+                    exit_scheduler = cmd->is_quit();
+                    thread->free_node((CGenNode *)node_cmd);/* free the node */
+                }
+            }else{
+                printf(" ERROR type is not valid %d \n",type);
+                assert(0);
+            }
         }
 
         return exit_scheduler;
@@ -3956,7 +3976,7 @@ void CFlowGenListPerThread::start_stateless_simulation_file(std::string erf_file
 }
 
 void CFlowGenListPerThread::stop_stateless_simulation_file(){
-    m_node_gen.close_file(this);
+    m_node_gen.m_v_if->close_file();
 }
 
 void CFlowGenListPerThread::start_stateless_daemon_simulation(){
@@ -3965,6 +3985,15 @@ void CFlowGenListPerThread::start_stateless_daemon_simulation(){
     m_stateless_dp_info.run_once();
 
 }
+
+
+/* return true if we need to shedule next_stream,  */
+
+bool CFlowGenListPerThread::set_stateless_next_node( CGenNodeStateless * cur_node,
+                                                     CGenNodeStateless * next_node){
+    return ( m_stateless_dp_info.set_stateless_next_node(cur_node,next_node) );
+}
+
 
 void CFlowGenListPerThread::start_stateless_daemon(){
     m_cur_time_sec = 0;
@@ -6888,6 +6917,11 @@ void CGenNodeBase::free_base(){
          p->free_stl_node();
         return;
     } 
+    if ( m_type == COMMAND ) {
+         CGenNodeCommand* p=(CGenNodeCommand*)this;
+         p->free_command();
+    }
+
 }
 
 

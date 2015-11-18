@@ -1,5 +1,6 @@
 /*
  Itay Marom
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -65,6 +66,9 @@ public:
         stMULTI_BURST  = 6
     };
 
+    typedef uint8_t stream_type_t ;
+
+    static std::string get_stream_type_str(stream_type_t stream_type);
 
 public:
     TrexStream(uint8_t type,uint8_t port_id, uint32_t stream_id);
@@ -80,6 +84,12 @@ public:
     /* access the stream json */
     const Json::Value & get_stream_json();
 
+    /* compress the stream id to be zero based */
+    void fix_dp_stream_id(uint32_t my_stream_id,int next_stream_id){
+        m_stream_id      = my_stream_id;
+        m_next_stream_id = next_stream_id;
+    }
+
     double get_pps() {
         return m_pps;
     }
@@ -94,6 +104,14 @@ public:
 
     uint8_t get_type(void) const {
         return ( m_type );
+    }
+
+    bool is_dp_next_stream(){
+        if (m_next_stream_id<0) {
+            return (false);
+        }else{
+            return (true);
+        }
     }
 
 
@@ -132,11 +150,12 @@ public:
             return (dp);
     }
 
+    void Dump(FILE *fd);
 public:
     /* basic */
     uint8_t       m_type;
     uint8_t       m_port_id;
-    uint32_t      m_stream_id;
+    uint32_t      m_stream_id;              /* id from RPC can be anything */
     
 
     /* config fields */
