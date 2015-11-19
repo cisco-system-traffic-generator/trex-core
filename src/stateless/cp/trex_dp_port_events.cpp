@@ -175,9 +175,9 @@ TrexDpPortEvent::handle_event(int thread_id, int event_id) {
         return;
     }
 
-    /* check the event id is matching the required event */
+    /* check the event id is matching the required event - if not maybe its an old signal */
     if (event_id != m_event_id) {
-        err(thread_id, event_id, "event key mismatch");
+        return;
     }
 
     /* mark sure no double signal */
