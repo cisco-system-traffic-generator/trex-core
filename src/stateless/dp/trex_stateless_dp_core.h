@@ -66,6 +66,18 @@ public:
 
     bool update_number_of_active_streams(uint32_t d);
 
+    state_e get_state() {
+        return m_state;
+    }
+
+    void set_event_id(int event_id) {
+        m_event_id = event_id;
+    }
+
+    int get_event_id() {
+        return m_event_id;
+    }
+
 public:
 
     state_e                   m_state;
@@ -75,6 +87,7 @@ public:
                                                 
     std::vector<CDpOneStream> m_active_nodes;   /* holds the current active nodes */
     CFlowGenListPerThread   *  m_core ;
+    int                        m_event_id;
 };
 
 /* for now */
@@ -166,18 +179,12 @@ public:
     /* quit the main loop, work in both stateless in stateful, don't free memory trigger from  master  */
     void quit_main_loop();
 
-    void set_event_id(int event_id) {
-        m_event_id = event_id;
-    }
-
-    int get_event_id() {
-        return m_event_id;
+    state_e get_state() {
+        return m_state;
     }
 
     bool set_stateless_next_node(CGenNodeStateless * cur_node,
                                  CGenNodeStateless * next_node);
-
-private:
 
 
     TrexStatelessDpPerPort * get_port_db(uint8_t port_id){
@@ -187,6 +194,9 @@ private:
         return (&m_ports[local_port_id]);
     }
         
+
+
+private:
 
     void schedule_exit();
 
@@ -236,7 +246,6 @@ private:
     CFlowGenListPerThread   * m_core;
 
     double                 m_duration;
-    int                    m_event_id;
 };
 
 #endif /* __TREX_STATELESS_DP_CORE_H__ */

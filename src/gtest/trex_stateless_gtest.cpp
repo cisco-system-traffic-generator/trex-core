@@ -331,7 +331,7 @@ TEST_F(basic_stl, simple_prog4) {
 
      EXPECT_TRUE(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 20.0 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 20.0 );
 
 
      t1.m_msg = lpstart;
@@ -401,7 +401,7 @@ TEST_F(basic_stl, simple_prog3) {
 
      EXPECT_TRUE(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 50.0 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 50.0 );
 
 
      t1.m_msg = lpstart;
@@ -463,7 +463,7 @@ TEST_F(basic_stl, simple_prog2) {
 
      EXPECT_TRUE(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
 
 
      t1.m_msg = lpstart;
@@ -525,7 +525,7 @@ TEST_F(basic_stl, simple_prog1) {
 
      EXPECT_TRUE(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
 
 
      t1.m_msg = lpstart;
@@ -570,7 +570,7 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
 
 
      t1.m_msg = lpstart;
@@ -621,7 +621,7 @@ TEST_F(basic_stl, single_pkt) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -678,7 +678,7 @@ TEST_F(basic_stl, multi_pkt1) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10 );
 
      t1.m_msg = lpstart;
 
@@ -741,7 +741,7 @@ TEST_F(basic_stl, multi_pkt2) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10 );
 
      t1.m_msg = lpstart;
 
@@ -787,7 +787,7 @@ TEST_F(basic_stl, multi_burst1) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 40 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 40 );
 
 
      t1.m_msg = lpstart;
@@ -1099,7 +1099,7 @@ TEST_F(basic_stl, dp_stop_event) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(17, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 17, comp_obj.clone(), 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;

@@ -525,7 +525,7 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
     TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                                    port_id,
                                                                    TrexDpPortEvent::EVENT_STOP,
-                                                                   get_event_id());
+                                                                   lp_port->get_event_id());
     ring->Enqueue((CGenNode *)event_msg);
 
 }

@@ -121,11 +121,11 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
-    m_event_id = m_dp_events.generate_event_id();
+    int event_id = m_dp_events.generate_event_id();
     /* mark that DP event of stoppped is possible */
-    m_dp_events.wait_for_event(TrexDpPortEvent::EVENT_STOP, m_event_id);
+    m_dp_events.wait_for_event(TrexDpPortEvent::EVENT_STOP, event_id);
 
-    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(m_event_id, compiled_obj, duration);
+    TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(m_port_id, event_id, compiled_obj, duration);
 
     change_state(PORT_STATE_TX);
 

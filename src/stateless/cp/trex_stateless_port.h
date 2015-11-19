@@ -258,11 +258,9 @@ private:
     std::string        m_owner_handler;
 
     /* holds the DP cores associated with this port */
-    //std::vector<std::pair<uint8_t, uint8_t>> m_cores_id_list;
     std::vector<int> m_cores_id_list;
 
     TrexDpPortEvents   m_dp_events;
-    int                m_event_id;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */
