@@ -88,7 +88,7 @@ public:
     enum state_e {
         STATE_IDLE,
         STATE_TRANSMITTING,
-        STATE_TERMINATE,
+        STATE_TERMINATE
 
     };
 
