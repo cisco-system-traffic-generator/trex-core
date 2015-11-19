@@ -435,9 +435,10 @@ TrexStatelessDpCore::add_cont_stream(TrexStatelessDpPerPort * lp_port,
 
     lp_port->m_active_nodes.push_back(one_stream);
 
-    /* schedule */
-    m_core->m_node_gen.add_node((CGenNode *)node);
-
+    /* schedule only if active */
+    if (node->m_state == CGenNodeStateless::ss_ACTIVE) {
+        m_core->m_node_gen.add_node((CGenNode *)node);
+    }
 }
 
 void
