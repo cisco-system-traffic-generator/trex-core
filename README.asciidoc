@@ -1,5 +1,5 @@
 
-== TRex Low-Cost, High-Speed Stateful, Traffic Generator    
+== TRex Low-Cost, High-Speed Stateful, Pioneer Award Winner Traffic Generator    
 
 Traditionally, network infrastructure devices have been tested using commercial traffic generators, while performance was measured using metrics like packets per second (PPS) and No Drop Rate (NDR). As the network infrastructure functionality has become more complex, stateful traffic generators have become necessary in order to test with more realistic application traffic pattern scenarios.
 Realistic and Stateful traffic generators are needed in order to:
@@ -26,6 +26,7 @@ TRex addresses these problems through an innovative and extendable software impl
 
 === TRex in a Nutshell
 
+* Cisco Pioneer Award Winner 2015
 * Fueled by DPDK 
 * Generates and analyzes L4-7 traffic and able to provide in one tool capabilities provided by commercial L7 tools.
 * Stateful traffic generator based on pre-processing and smart replay of real traffic templates.
