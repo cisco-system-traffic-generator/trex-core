@@ -60,6 +60,10 @@ public:
         return (m_mul);
     }
 
+    uint8_t get_port_id() {
+        return m_port_id;
+    }
+
 private:
     void add_compiled_stream(TrexStream * stream);
     std::vector<obj_st> m_objs;

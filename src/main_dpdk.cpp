@@ -2765,6 +2765,10 @@ private:
     void try_stop_all_dp();
     /* send message to all dp cores */
     int  send_message_all_dp(TrexStatelessCpToDpMsgBase *msg);
+
+    void check_for_dp_message_from_core(int thread_id);
+    void check_for_dp_messages();
+
 public:
 
     int start_send_master();
@@ -3173,6 +3177,46 @@ int  CGlobalTRex::reset_counters(){
     return (0);
 }
 
+/**
+ * check for a single core
+ * 
+ * @author imarom (19-Nov-15)
+ * 
+ * @param thread_id 
+ */
+void 
+CGlobalTRex::check_for_dp_message_from_core(int thread_id) {
+
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(thread_id);
+
+    /* fast path check */
+    if ( likely ( ring->isEmpty() ) ) {
+        return;
+    }
+
+    while ( true ) {
+        CGenNode * node = NULL;
+        if (ring->Dequeue(node) != 0) {
+            break;
+        }
+        assert(node);
+
+        TrexStatelessDpToCpMsgBase * msg = (TrexStatelessDpToCpMsgBase *)node;
+        msg->handle();
+    }
+
+}
+
+
+void 
+CGlobalTRex::check_for_dp_messages() {
+    /* for all the cores - check for a new message */
+    for (int i = 0; i < get_cores_tx(); i++) {
+        check_for_dp_message_from_core(i);
+    }
+
+  
+}
 
 bool CGlobalTRex::is_all_links_are_up(bool dump){
     bool all_link_are=true;
@@ -3435,21 +3479,7 @@ int  CGlobalTRex::ixgbe_start(void){
 bool CGlobalTRex::Create(){
     CFlowsYamlInfo     pre_yaml_info;
 
-    if (get_is_stateless()) {
-
-          TrexStatelessCfg cfg;
-
-          TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
-
-          cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
-          cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-          cfg.m_rpc_async_cfg      = NULL;
-          cfg.m_rpc_server_verbose = false;
-          cfg.m_platform_api       = new TrexDpdkPlatformApi();
-
-          m_trex_stateless = new TrexStateless(cfg);
-
-    } else {
+    if (!get_is_stateless()) {
         pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
     }
 
@@ -3493,6 +3523,23 @@ bool CGlobalTRex::Create(){
    CGlobalInfo::init_pools(rx_mbuf);
    ixgbe_start();
    dump_config(stdout);
+
+   /* start stateless */
+   if (get_is_stateless()) {
+
+       TrexStatelessCfg cfg;
+
+       TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
+
+       cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
+       cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
+       cfg.m_rpc_async_cfg      = NULL;
+       cfg.m_rpc_server_verbose = false;
+       cfg.m_platform_api       = new TrexDpdkPlatformApi();
+
+       m_trex_stateless = new TrexStateless(cfg);
+   }
+
    return (true);
 
 }
@@ -4058,6 +4105,9 @@ int CGlobalTRex::run_in_master(){
         /* stateless info */
         m_trex_stateless->generate_publish_snapshot(json);
         m_zmq_publisher.publish_json(json);
+
+        /* check from messages from DP */
+        check_for_dp_messages();
 
         delay(500);
 

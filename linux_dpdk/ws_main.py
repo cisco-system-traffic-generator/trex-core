@@ -108,6 +108,7 @@ main_src = SrcGroup(dir='src',
              'nat_check.cpp',
              'msg_manager.cpp',
              'publisher/trex_publisher.cpp',
+             'trex_dp_port_events.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp'
              ]);

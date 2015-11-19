@@ -25,36 +25,6 @@ limitations under the License.
 #include <string>
 #include <json/json.h>
 
-/**
- * base event type
- * 
- */
-class TrexPublisherEvent {
-public:
-    virtual void to_json(Json::Value &json) = 0;
-    virtual uint8_t get_type() = 0;
-
-protected:
-    enum {
-        EVENT_PORT_STOPPED = 1
-    };
-
-};
-
-/**
- * port stopped transmitting
- * 
- */
-class TrexEventPortStopped : public TrexPublisherEvent {
-public:
-    TrexEventPortStopped(uint8_t port_id);
-    virtual void to_json(Json::Value &json);
-    virtual uint8_t get_type() {
-        return (EVENT_PORT_STOPPED);
-    }
-};
-
-
 class TrexPublisher {
 
 public:
@@ -68,7 +38,11 @@ public:
     void Delete();
     void publish_json(const std::string &s);
 
-    void publish_event(TrexPublisherEvent *ev);
+    enum event_type_e {
+        EVENT_PORT_STOPPED = 1
+    };
+
+    void publish_event(event_type_e type, const Json::Value &data);
 
 private:
     void show_zmq_last_error(const std::string &err);

@@ -23,6 +23,7 @@ limitations under the License.
 #define __TREX_STATELESS_MESSAGING_H__
 
 #include <msg_manager.h>
+#include <trex_dp_port_events.h>
 
 class TrexStatelessDpCore;
 class TrexStreamsCompiledObj;
@@ -41,12 +42,8 @@ public:
     virtual ~TrexStatelessCpToDpMsgBase() {
     }
 
-    /**
-     * virtual function to handle a message
-     * 
-     */
-    virtual bool handle(TrexStatelessDpCore *dp_core) = 0;
 
+    virtual bool handle(TrexStatelessDpCore *dp_core) = 0;
 
     /**
      * clone the current message
@@ -57,6 +54,8 @@ public:
     /* no copy constructor */
     TrexStatelessCpToDpMsgBase(TrexStatelessCpToDpMsgBase &) = delete;
 
+protected:
+    int m_event_id;
 };
 
 /**
@@ -67,16 +66,17 @@ public:
 class TrexStatelessDpStart : public TrexStatelessCpToDpMsgBase {
 public:
 
-    TrexStatelessDpStart(TrexStreamsCompiledObj *obj, double duration);
+    TrexStatelessDpStart(int m_event_id, TrexStreamsCompiledObj *obj, double duration);
 
     ~TrexStatelessDpStart();
 
-    virtual bool handle(TrexStatelessDpCore *dp_core);
-
     virtual TrexStatelessCpToDpMsgBase * clone();
 
+    virtual bool handle(TrexStatelessDpCore *dp_core);
 
 private:
+
+    int m_event_id;
     TrexStreamsCompiledObj *m_obj;
     double m_duration;
 };
@@ -92,9 +92,9 @@ public:
     TrexStatelessDpStop(uint8_t port_id) : m_port_id(port_id) {
     }
 
-    virtual bool handle(TrexStatelessDpCore *dp_core);
-
     virtual TrexStatelessCpToDpMsgBase * clone();
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
 
 private:
     uint8_t m_port_id;
@@ -111,10 +111,64 @@ public:
     TrexStatelessDpQuit()  {
     }
 
-    virtual bool handle(TrexStatelessDpCore *dp_core);
 
     virtual TrexStatelessCpToDpMsgBase * clone();
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
 };
 
+/************************* messages from DP to CP **********************/
+
+/**
+ * defines the base class for CP to DP messages
+ * 
+ * @author imarom (27-Oct-15)
+ */
+class TrexStatelessDpToCpMsgBase {
+public:
+
+    TrexStatelessDpToCpMsgBase() {
+    }
+
+    virtual ~TrexStatelessDpToCpMsgBase() {
+    }
+
+    /**
+     * virtual function to handle a message
+     * 
+     */
+    virtual bool handle() = 0;
+
+    /* no copy constructor */
+    TrexStatelessDpToCpMsgBase(TrexStatelessDpToCpMsgBase &) = delete;
+
+};
+
+/**
+ * a message indicating an event has happened on a port at the 
+ * DP 
+ * 
+ */
+class TrexDpPortEventMsg : public TrexStatelessDpToCpMsgBase {
+public:
+
+    TrexDpPortEventMsg(int thread_id, uint8_t port_id, TrexDpPortEvent::event_e type, int event_id) {
+        m_thread_id  = thread_id;
+        m_port_id    = port_id;
+        m_event_type = type;
+        m_event_id   = event_id;
+    }
+
+    virtual bool handle();
+
+private:
+    int                         m_thread_id;
+    uint8_t                     m_port_id;
+    TrexDpPortEvent::event_e    m_event_type;
+    int                         m_event_id;
+    
+};
 
 #endif /* __TREX_STATELESS_MESSAGING_H__ */
+

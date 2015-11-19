@@ -81,14 +81,14 @@ TrexPublisher::publish_json(const std::string &s){
 }
 
 void
-TrexPublisher::publish_event(TrexPublisherEvent *ev) {
+TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
     Json::FastWriter writer;
     Json::Value value;
     std::string s;
     
     value["name"] = "event";
-    value["type"] = ev->get_type();
-    ev->to_json(value["data"]);
+    value["type"] = type;
+    value["data"] = data;
 
     s = writer.write(value);
     publish_json(s);

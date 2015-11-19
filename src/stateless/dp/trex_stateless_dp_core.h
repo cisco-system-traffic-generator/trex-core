@@ -112,6 +112,14 @@ public:
     /* quit the main loop, work in both stateless in stateful, don't free memory trigger from  master  */
     void quit_main_loop();
 
+    void set_event_id(int event_id) {
+        m_event_id = event_id;
+    }
+
+    int get_event_id() {
+        return m_event_id;
+    }
+
 private:
     /**
      * in idle state loop, the processor most of the time sleeps 
@@ -152,6 +160,7 @@ private:
     CFlowGenListPerThread *m_core;
 
     double                 m_duration;
+    int                    m_event_id;
 };
 
 #endif /* __TREX_STATELESS_DP_CORE_H__ */

@@ -22,7 +22,9 @@ limitations under the License.
 #define __TREX_STATELESS_PORT_H__
 
 #include <trex_stream.h>
+#include <trex_dp_port_events.h>
 
+class TrexPlatformApi;
 class TrexStatelessCpToDpMsgBase;
 
 /**
@@ -31,6 +33,8 @@ class TrexStatelessCpToDpMsgBase;
  * @author imarom (31-Aug-15)
  */
 class TrexStatelessPort {
+    friend class TrexDpPortEvent;
+
 public:
 
     /**
@@ -54,7 +58,7 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
-    TrexStatelessPort(uint8_t port_id);
+    TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
     
     /**
      * acquire port
@@ -199,6 +203,10 @@ public:
         m_stream_table.get_object_list(object_list);
     }
 
+    TrexDpPortEvents & get_dp_events() {
+        return m_dp_events;
+    }
+
 private:
 
   
@@ -224,6 +232,10 @@ private:
     }
 
 
+    const std::vector<int> get_core_id_list () {
+        return m_cores_id_list;
+    }
+
     bool verify_state(int state, bool should_throw = true) const;
 
     void change_state(port_state_e new_state);
@@ -232,11 +244,25 @@ private:
 
     void send_message_to_dp(TrexStatelessCpToDpMsgBase *msg);
 
-    TrexStreamTable  m_stream_table;
-    uint8_t          m_port_id;
-    port_state_e     m_port_state;
-    std::string      m_owner;
-    std::string      m_owner_handler;
+    /**
+     * triggered when event occurs
+     * 
+     */
+    void on_dp_event_occured(TrexDpPortEvent::event_e event_type);
+
+
+    TrexStreamTable    m_stream_table;
+    uint8_t            m_port_id;
+    port_state_e       m_port_state;
+    std::string        m_owner;
+    std::string        m_owner_handler;
+
+    /* holds the DP cores associated with this port */
+    //std::vector<std::pair<uint8_t, uint8_t>> m_cores_id_list;
+    std::vector<int> m_cores_id_list;
+
+    TrexDpPortEvents   m_dp_events;
+    int                m_event_id;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */
