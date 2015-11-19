@@ -3995,8 +3995,12 @@ bool CFlowGenListPerThread::set_stateless_next_node( CGenNodeStateless * cur_nod
 }
 
 
-void CFlowGenListPerThread::start_stateless_daemon(){
+void CFlowGenListPerThread::start_stateless_daemon(CPreviewMode &preview){
     m_cur_time_sec = 0;
+    /* set per thread global info, for performance */
+    m_preview_mode = preview;
+    m_node_gen.open_file("",&m_preview_mode);
+
     m_stateless_dp_info.start();
 }
 

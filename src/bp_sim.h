@@ -3456,7 +3456,7 @@ public :
 public:
     void Clean();
     void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
-    void start_stateless_daemon();
+    void start_stateless_daemon(CPreviewMode &preview);
 
     void start_stateless_daemon_simulation();
 
