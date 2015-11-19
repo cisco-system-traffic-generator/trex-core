@@ -110,7 +110,6 @@ public:
         return (res);
     }
 
-
 public:
     int           m_threads;
     double        m_time_diff;
@@ -222,6 +221,68 @@ TEST_F(basic_stl, load_pcap_file) {
     pcap.update_ip_src(0x10000001);
 
     //pcap.dump_packet();
+}
+
+
+TEST_F(basic_stl, simple_prog2) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_simple_prog2";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     /* stream1 */
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(5);
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_next_stream_id=200;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+
+     /* stream1 */
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST, 0,200);
+     stream2->set_pps(1.0);
+     stream2->set_single_burst(5);
+     stream2->m_isg_usec = 2000000; /*time betwean stream 1 to stream 2 */
+     stream2->m_enabled = true;
+     stream2->m_self_start = false;
+
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000002);
+     pcap.clone_packet_into_stream(stream2);
+     streams.push_back(stream2);
+
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     EXPECT_TRUE(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10.0 );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+     delete stream2 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
 
