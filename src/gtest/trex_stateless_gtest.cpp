@@ -1,5 +1,5 @@
 /*
- Hanoh Haim
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -91,6 +91,7 @@ public:
 
         lpt->start_stateless_daemon_simulation();
 
+
         //lpt->m_node_gen.DumpHist(stdout);
 
         cmp.d_sec = m_time_diff;
@@ -108,7 +109,6 @@ public:
         fl.Delete();
         return (res);
     }
-
 
 public:
     int           m_threads;
@@ -224,6 +224,200 @@ TEST_F(basic_stl, load_pcap_file) {
 }
 
 
+
+TEST_F(basic_stl, simple_prog3) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_simple_prog3";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     /* stream1 */
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(5);
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_next_stream_id=200;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+
+     /* stream1 */
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stMULTI_BURST, 0,200);
+     stream2->set_pps(1.0);
+     stream2->m_isg_usec = 1000000; /*time betwean stream 1 to stream 2 */
+     stream2->m_enabled = true;
+     stream2->m_self_start = false;
+     stream2->set_multi_burst(5, 
+                              3,
+                              2000000.0);
+
+     // next stream is 100 - loop 
+     stream2->m_next_stream_id=100;
+
+
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000002);
+     pcap.clone_packet_into_stream(stream2);
+     streams.push_back(stream2);
+
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     EXPECT_TRUE(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 50.0 );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+     delete stream2 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+TEST_F(basic_stl, simple_prog2) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_simple_prog2";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     /* stream1 */
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(5);
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_next_stream_id=200;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+
+     /* stream1 */
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST, 0,200);
+     stream2->set_pps(1.0);
+     stream2->set_single_burst(5);
+     stream2->m_isg_usec = 2000000; /*time betwean stream 1 to stream 2 */
+     stream2->m_enabled = true;
+     stream2->m_self_start = false;
+
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000002);
+     pcap.clone_packet_into_stream(stream2);
+     streams.push_back(stream2);
+
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     EXPECT_TRUE(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+     delete stream2 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+TEST_F(basic_stl, simple_prog1) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_simple_prog1";
+
+     TrexStreamsCompiler compile;
+
+
+     std::vector<TrexStream *> streams;
+
+     /* stream1 */
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(5);
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_next_stream_id=200;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+
+     /* stream1 */
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST, 0,200);
+     stream2->set_pps(1.0);
+     stream2->set_single_burst(5);
+     stream2->m_enabled = true;
+     stream2->m_self_start = false;
+
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000002);
+     pcap.clone_packet_into_stream(stream2);
+     streams.push_back(stream2);
+
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     EXPECT_TRUE(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+     delete stream2 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
 TEST_F(basic_stl, single_pkt_burst1) {
 
     CBasicStl t1;
@@ -254,7 +448,7 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10.0 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 );
 
 
      t1.m_msg = lpstart;
@@ -279,6 +473,7 @@ TEST_F(basic_stl, single_pkt) {
 
      TrexStreamsCompiler compile;
 
+     uint8_t port_id=0;
 
      std::vector<TrexStream *> streams;
 
@@ -288,23 +483,23 @@ TEST_F(basic_stl, single_pkt) {
      
      stream1->m_enabled = true;
      stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
 
 
      CPcapLoader pcap;
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-
-
+                                    
      streams.push_back(stream1);
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -361,7 +556,7 @@ TEST_F(basic_stl, multi_pkt1) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10 );
 
      t1.m_msg = lpstart;
 
@@ -424,7 +619,7 @@ TEST_F(basic_stl, multi_pkt2) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 10 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 10 );
 
      t1.m_msg = lpstart;
 
@@ -470,7 +665,7 @@ TEST_F(basic_stl, multi_burst1) {
 
      assert(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 40 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 40 );
 
 
      t1.m_msg = lpstart;
@@ -676,6 +871,53 @@ TEST_F(basic_stl, compile_with_warnings) {
      }
 
 }
+
+
+TEST_F(basic_stl, compile_good_stream_id_compres) {
+
+     TrexStreamsCompiler compile;
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,700);
+     stream1->m_self_start = true;
+     stream1->m_enabled = true;
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(200);
+
+     /* non existant next stream */
+     stream1->m_next_stream_id = 800;
+
+
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST,0,800);
+     stream2->set_pps(52.0);
+     stream2->m_enabled = true;
+     stream2->m_next_stream_id = 700;
+     stream2->set_single_burst(300);
+
+
+     streams.push_back(stream1);
+     streams.push_back(stream2);
+
+     TrexStreamsCompiledObj comp_obj(0,1.0);
+
+     std::string err_msg;
+     EXPECT_TRUE(compile.compile(streams, comp_obj, &err_msg));
+
+     printf(" %s \n",err_msg.c_str());
+
+     comp_obj.Dump(stdout);
+
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_stream_id,0);
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_next_stream_id,1);
+
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_stream_id,1);
+     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_next_stream_id,0);
+
+     delete stream1;
+     delete stream2;
+
+}
+
 
 
 /********************************************* Itay Tests End *************************************/

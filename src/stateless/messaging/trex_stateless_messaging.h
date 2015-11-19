@@ -37,6 +37,7 @@ class TrexStatelessCpToDpMsgBase {
 public:
 
     TrexStatelessCpToDpMsgBase() {
+        m_quit_scheduler=false;
     }
 
     virtual ~TrexStatelessCpToDpMsgBase() {
@@ -51,11 +52,21 @@ public:
      */
     virtual TrexStatelessCpToDpMsgBase * clone() = 0;
 
+    /* do we want to quit scheduler, can be set by handle function  */
+    void set_quit(bool enable){
+        m_quit_scheduler=enable;
+    }
+
+    bool is_quit(){
+        return ( m_quit_scheduler);
+    }
+
     /* no copy constructor */
     TrexStatelessCpToDpMsgBase(TrexStatelessCpToDpMsgBase &) = delete;
 
 protected:
-    int m_event_id;
+    int     m_event_id;
+    bool    m_quit_scheduler;
 };
 
 /**
@@ -118,6 +129,24 @@ public:
 
 };
 
+/**
+ * a message to check if both port are idel and exit 
+ * 
+ * @author hhaim 
+ */
+class TrexStatelessDpCanQuit : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpCanQuit()  {
+    }
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
+};
+
+
+
 /************************* messages from DP to CP **********************/
 
 /**
@@ -144,6 +173,7 @@ public:
     TrexStatelessDpToCpMsgBase(TrexStatelessDpToCpMsgBase &) = delete;
 
 };
+
 
 /**
  * a message indicating an event has happened on a port at the 

@@ -1,5 +1,6 @@
 /*
  Itay Marom
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -98,12 +99,28 @@ TrexStatelessDpQuit::clone(){
 }
 
 
-
 bool TrexStatelessDpQuit::handle(TrexStatelessDpCore *dp_core){
     
     /* quit  */
     dp_core->quit_main_loop();
     return (true);
+}
+
+bool TrexStatelessDpCanQuit::handle(TrexStatelessDpCore *dp_core){
+
+    if ( dp_core->are_all_ports_idle() ){
+        /* if all ports are idle quit now */
+        set_quit(true);
+    }
+    return (true);
+}
+
+TrexStatelessCpToDpMsgBase * 
+TrexStatelessDpCanQuit::clone(){
+
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpCanQuit();
+
+    return new_msg;
 }
 
 
@@ -115,3 +132,4 @@ TrexDpPortEventMsg::handle() {
 
     return (true);
 }
+

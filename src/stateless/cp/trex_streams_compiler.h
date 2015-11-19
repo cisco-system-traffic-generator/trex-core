@@ -50,6 +50,10 @@ public:
         return m_objs;
     }
 
+    uint8_t get_port_id(){
+        return (m_port_id);
+    }
+
     /**
      * clone the compiled object
      * 
@@ -60,12 +64,13 @@ public:
         return (m_mul);
     }
 
-    uint8_t get_port_id() {
-        return m_port_id;
-    }
+    void Dump(FILE *fd);
 
 private:
+    void add_compiled_stream(TrexStream * stream,
+                             uint32_t my_dp_id, int next_dp_id);
     void add_compiled_stream(TrexStream * stream);
+
     std::vector<obj_st> m_objs;
 
     uint8_t m_port_id;
@@ -94,7 +99,8 @@ public:
 
 private:
 
-    void pre_compile_check(const std::vector<TrexStream *> &streams);
+    void pre_compile_check(const std::vector<TrexStream *> &streams,
+                           GraphNodeMap & nodes);
     void allocate_pass(const std::vector<TrexStream *> &streams, GraphNodeMap *nodes);
     void direct_pass(GraphNodeMap *nodes);
     void check_for_unreachable_streams(GraphNodeMap *nodes);

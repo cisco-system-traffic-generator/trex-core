@@ -62,6 +62,12 @@ limitations under the License.
 #undef NAT_TRACE_
 
 
+static inline double
+usec_to_sec(double usec) {
+    return (usec / (1000 * 1000));
+}
+
+
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 
 #define MAX_LATENCY_PORTS 12
@@ -1383,7 +1389,9 @@ public:
         FLOW_SYNC               =4,     /* called evey 1 msec */
         STATELESS_PKT           =5,
         EXIT_SCHED              =6,
-        EXIT_PORT_SCHED         =7
+        COMMAND                 =7,
+
+        EXIT_PORT_SCHED         =8
 
 
     };
@@ -1898,6 +1906,8 @@ public:
 public:
     void  add_node(CGenNode * mynode);
     void  remove_all(CFlowGenListPerThread * thread);
+    void  remove_all_stateless(CFlowGenListPerThread * thread);
+
     int   open_file(std::string file_name,
                     CPreviewMode * preview);
     int   close_file(CFlowGenListPerThread * thread);
@@ -3455,6 +3465,9 @@ public:
     /* close a file for simulation */
     void stop_stateless_simulation_file();
 
+    /* return true if we need to shedule next_stream,  */
+    bool  set_stateless_next_node( CGenNodeStateless * cur_node,
+                                   CGenNodeStateless * next_node);
 
 
     void Dump(FILE *fd);

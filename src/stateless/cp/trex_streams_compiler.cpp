@@ -36,6 +36,7 @@ class GraphNode {
 public:
     GraphNode(TrexStream *stream, GraphNode *next) : m_stream(stream), m_next(next) {
         marked   = false;
+        m_compressed_stream_id=-1;
     }
 
     uint32_t get_stream_id() const {
@@ -46,6 +47,7 @@ public:
     GraphNode *m_next;
     std::vector<const GraphNode *> m_parents;
     bool marked;
+    int m_compressed_stream_id;
 };
 
 /**
@@ -143,14 +145,36 @@ TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
     m_objs.clear();
 }
 
+
 void 
-TrexStreamsCompiledObj::add_compiled_stream(TrexStream * stream) {
+TrexStreamsCompiledObj::add_compiled_stream(TrexStream * stream){
+
     obj_st obj;
 
     obj.m_stream = stream->clone_as_dp();
 
     m_objs.push_back(obj);
 }
+
+void 
+TrexStreamsCompiledObj::add_compiled_stream(TrexStream * stream,
+                                            uint32_t my_dp_id, int next_dp_id) {
+    obj_st obj;
+
+    obj.m_stream = stream->clone_as_dp();
+    /* compress the id's*/
+    obj.m_stream->fix_dp_stream_id(my_dp_id,next_dp_id);
+
+    m_objs.push_back(obj);
+}
+
+void TrexStreamsCompiledObj::Dump(FILE *fd){
+    for (auto obj : m_objs) {
+        obj.m_stream->Dump(fd);
+    }
+}
+
+
 
 TrexStreamsCompiledObj *
 TrexStreamsCompiledObj::clone() {
@@ -197,6 +221,8 @@ void
 TrexStreamsCompiler::allocate_pass(const std::vector<TrexStream *> &streams,
                                    GraphNodeMap *nodes) {
     std::stringstream ss;
+    uint32_t compressed_stream_id=0;
+
 
     /* first pass - allocate all nodes and check for duplicates */
     for (auto stream : streams) {
@@ -216,6 +242,10 @@ TrexStreamsCompiler::allocate_pass(const std::vector<TrexStream *> &streams,
         }
 
         GraphNode *node = new GraphNode(stream, NULL);
+        /* allocate new compressed id */
+        node->m_compressed_stream_id = compressed_stream_id;
+
+        compressed_stream_id++;
 
         /* add to the map */
         assert(nodes->add(node));
@@ -323,9 +353,8 @@ TrexStreamsCompiler::check_for_unreachable_streams(GraphNodeMap *nodes) {
  * @return bool 
  */
 void
-TrexStreamsCompiler::pre_compile_check(const std::vector<TrexStream *> &streams) {
-
-    GraphNodeMap nodes;
+TrexStreamsCompiler::pre_compile_check(const std::vector<TrexStream *> &streams,
+                                       GraphNodeMap & nodes) {
 
     m_warnings.clear();
 
@@ -348,9 +377,20 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
                              TrexStreamsCompiledObj &obj,
                              std::string *fail_msg) {
 
+#if 0
+    fprintf(stdout,"------------pre compile \n");
+    for (auto stream : streams) {
+        stream->Dump(stdout);
+    }
+    fprintf(stdout,"------------pre compile \n");
+#endif
+
+    GraphNodeMap nodes;
+
+
     /* compile checks */
     try {
-        pre_compile_check(streams);
+        pre_compile_check(streams,nodes);
     } catch (const TrexException &ex) {
         if (fail_msg) {
             *fail_msg = ex.what();
@@ -360,6 +400,7 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
         return false;
     }
 
+
     /* for now we do something trivial, */
     for (auto stream : streams) {
 
@@ -368,8 +409,19 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
             continue;
         }
 
+        int new_id= nodes.get(stream->m_stream_id)->m_compressed_stream_id;
+        assert(new_id>=0);
+        uint32_t my_stream_id = (uint32_t)new_id;
+        int my_next_stream_id=-1;
+        if (stream->m_next_stream_id>=0) {
+            my_next_stream_id=nodes.get(stream->m_next_stream_id)->m_compressed_stream_id;
+        }
+
         /* add it */
-        obj.add_compiled_stream(stream);
+        obj.add_compiled_stream(stream,
+                                my_stream_id,
+                                my_next_stream_id
+                                );
     }
 
     return true;
