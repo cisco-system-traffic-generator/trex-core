@@ -153,6 +153,9 @@ TrexStatelessPort::stop_traffic(void) {
     send_message_to_dp(stop_msg);
 
     change_state(PORT_STATE_STREAMS);
+
+    /* mask out the DP stop event */
+    m_dp_events.disable(TrexDpPortEvent::EVENT_STOP);
 }
 
 void

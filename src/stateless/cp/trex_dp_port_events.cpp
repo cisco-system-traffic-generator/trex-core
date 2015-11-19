@@ -64,6 +64,11 @@ TrexDpPortEvents::wait_for_event(TrexDpPortEvent::event_e ev, int event_id, int 
     m_events[ev].wait_for_event(event_id, timeout_ms);
 }
 
+void 
+TrexDpPortEvents::disable(TrexDpPortEvent::event_e ev) {
+    m_events[ev].disable();
+}
+
 /**
  * handle an event
  * 

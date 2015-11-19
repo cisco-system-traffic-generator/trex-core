@@ -147,6 +147,12 @@ public:
     void wait_for_event(TrexDpPortEvent::event_e ev, int event_id, int timeout_ms = -1);
 
     /**
+     * disable an event (don't care)
+     * 
+     */
+    void disable(TrexDpPortEvent::event_e ev);
+
+    /**
      * event has occured
      * 
      */
