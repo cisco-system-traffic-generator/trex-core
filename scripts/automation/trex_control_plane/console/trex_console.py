@@ -23,6 +23,7 @@ import json
 import ast
 import argparse
 import random
+import readline
 import string
 import os
 import sys
@@ -36,18 +37,69 @@ import trex_status
 import parsing_opts
 
 
-__version__ = "1.0"
+__version__ = "1.1"
+
+
+class TRexGeneralCmd(cmd.Cmd):
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+        # configure history behaviour
+        self._history_file_dir = "/tmp/trex/console/"
+        self._history_file = self.get_history_file_full_path()
+        readline.set_history_length(100)
+        # load history, if any
+        self.load_console_history()
+
+
+    def get_console_identifier(self):
+        return self.__class__.__name__
+
+    def get_history_file_full_path(self):
+        return "{dir}{filename}.hist".format(dir=self._history_file_dir,
+                                             filename=self.get_console_identifier())
+
+    def load_console_history(self):
+        if os.path.exists(self._history_file):
+            readline.read_history_file(self._history_file)
+        return
+
+    def save_console_history(self):
+        if not os.path.exists(self._history_file_dir):
+            os.makedirs(self._history_file_dir)
+        # os.mknod(self._history_file)
+        readline.write_history_file(self._history_file)
+        return
+
+    def emptyline(self):
+        """Called when an empty line is entered in response to the prompt.
+
+        This overriding is such that when empty line is passed, **nothing happens**.
+        """
+        return
+
+    def completenames(self, text, *ignored):
+        """
+        This overriding is such that a space is added to name completion.
+        """
+        dotext = 'do_'+text
+        return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
+
+    def precmd(self, line):
+        # before doing anything, save history snapshot of the console
+        # this is done before executing the command in case of ungraceful application exit
+        self.save_console_history()
+        return line
 
 
 #
 # main console object
-class TRexConsole(cmd.Cmd):
+class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, stateless_client, acquire_all_ports = True, verbose = False):
-        cmd.Cmd.__init__(self)
-
+    def __init__(self, stateless_client, acquire_all_ports=True, verbose=False):
         self.stateless_client = stateless_client
+        TRexGeneralCmd.__init__(self)
+
 
         self.verbose = verbose
         self.acquire_all_ports = acquire_all_ports
@@ -60,11 +112,9 @@ class TRexConsole(cmd.Cmd):
 
     ################### internal section ########################
 
-    # a cool hack - i stole this function and added space
-    def completenames(self, text, *ignored):
-        dotext = 'do_'+text
-        return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
-
+    def get_console_identifier(self):
+        return "{context}_{server}".format(context=self.__class__.__name__,
+                                           server=self.stateless_client.get_system_info()['hostname'])
     
     def register_main_console_methods(self):
         main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))

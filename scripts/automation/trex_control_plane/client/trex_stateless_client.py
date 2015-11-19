@@ -139,8 +139,7 @@ class CStreamsDB(object):
 
 
 # describes a single port
-class Port:
-
+class Port(object):
     STATE_DOWN       = 0
     STATE_IDLE       = 1
     STATE_STREAMS    = 2
@@ -156,14 +155,14 @@ class Port:
 
         self.streams = {}
 
-    def err (self, msg):
+    def err(self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
 
-    def ok (self):
+    def ok(self):
         return RC_OK()
 
     # take the port
-    def acquire (self, force = False):
+    def acquire(self, force = False):
         params = {"port_id": self.port_id,
                   "user":    self.user,
                   "force":   force}
@@ -178,7 +177,7 @@ class Port:
 
 
     # release the port
-    def release (self):
+    def release(self):
         params = {"port_id": self.port_id,
                   "handler": self.handler}
 
@@ -190,25 +189,24 @@ class Port:
         else:
             return self.err(rc.data)
 
-    def is_acquired (self):
+    def is_acquired(self):
         return (self.handler != None)
 
-    def is_active (self):
-        return (self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE)
+    def is_active(self):
+        return(self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE)
 
-    def sync (self, sync_data):
-
+    def sync(self, sync_data):
         self.handler = sync_data['handler']
-
-        if sync_data['state'] == "DOWN":
+        port_state = sync_data['state'].upper()
+        if port_state == "DOWN":
             self.state = self.STATE_DOWN
-        elif sync_data['state'] == "IDLE":
+        elif port_state == "IDLE":
             self.state = self.STATE_IDLE
-        elif sync_data['state'] == "STREAMS":
+        elif port_state == "STREAMS":
             self.state = self.STATE_STREAMS
-        elif sync_data['state'] == "TX":
+        elif port_state == "TX":
             self.state = self.STATE_TX
-        elif sync_data['state'] == "PAUSE":
+        elif port_state == "PAUSE":
             self.state = self.STATE_PAUSE
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, sync_data['state']))
@@ -217,14 +215,14 @@ class Port:
         
 
     # return TRUE if write commands
-    def is_port_writeable (self):
-        # operations on port can be done on state idle or state sreams
+    def is_port_writable (self):
+        # operations on port can be done on state idle or state streams
         return ((self.state == self.STATE_IDLE) or (self.state == self.STATE_STREAMS))
 
     # add stream to the port
     def add_stream (self, stream_id, stream_obj):
 
-        if not self.is_port_writeable():
+        if not self.is_port_writable():
             return self.err("Please stop port before attempting to add streams")
 
 
@@ -332,13 +330,14 @@ class CTRexStatelessClient(object):
         self.user = username
         self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
         self.verbose = False
+        self.ports = []
         self._conn_handler = {}
         self._active_ports = set()
         self._system_info = None
         self._server_version = None
         self.__err_log = None
 
-        self._async_client = CTRexAsyncClient(async_port)
+        self._async_client = CTRexAsyncClient(server, async_port)
 
         self.streams_db = CStreamsDB()
 
@@ -378,7 +377,7 @@ class CTRexStatelessClient(object):
     ############ boot up section ################
 
     # connection sequence
-    def connect (self):
+    def connect(self):
 
         self.connected = False
 
@@ -394,7 +393,7 @@ class CTRexStatelessClient(object):
 
         self.system_info = data
 
-        # cache supported cmds
+        # cache supported commands
         rc, data = self.transmit("get_supported_cmds")
         if not rc:
             return RC_ERR(data)
@@ -402,8 +401,7 @@ class CTRexStatelessClient(object):
         self.supported_cmds = data
 
         # create ports
-        self.ports = []
-        for port_id in xrange(0, self.get_port_count()):
+        for port_id in xrange(self.get_port_count()):
             self.ports.append(Port(port_id, self.user, self.transmit))
 
         # acquire all ports
@@ -485,7 +483,6 @@ class CTRexStatelessClient(object):
             return RC_ERR(data)
 
         for port_info in data:
-
             rc = self.ports[port_info['port_id']].sync(port_info)
             if rc.bad():
                 return rc
@@ -619,23 +616,23 @@ class CTRexStatelessClient(object):
 
     ######################### Console (high level) API #########################
 
-    def cmd_ping (self):
+    def cmd_ping(self):
         rc = self.ping()
         rc.annotate("Pinging the server on '{0}' port '{1}': ".format(self.get_connection_ip(), self.get_connection_port()))
         return rc
 
-    def cmd_connect (self):
+    def cmd_connect(self):
         rc = self.connect()
         rc.annotate()
         return rc
 
-    def cmd_disconnect (self):
+    def cmd_disconnect(self):
         rc = self.disconnect()
         rc.annotate()
         return rc
 
     # reset
-    def cmd_reset (self):
+    def cmd_reset(self):
 
 
         # sync with the server
