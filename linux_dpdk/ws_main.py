@@ -572,7 +572,7 @@ class build_option:
         if self.isRelease () :
             flags += ['-O3'];
         else:
-            flags += ['-O0'];
+            flags += ['-O0','-D_DEBUG'];
 
         return (flags)
 

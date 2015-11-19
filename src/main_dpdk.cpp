@@ -4172,7 +4172,7 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     lpt = m_fl.m_threads_info[virt_core_id-1];
 
     if (get_is_stateless()) {
-        lpt->start_stateless_daemon();
+        lpt->start_stateless_daemon(*lp);
     }else{
         lpt->start_generate_stateful(CGlobalInfo::m_options.out_file,*lp);
     }
