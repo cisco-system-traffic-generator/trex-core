@@ -219,7 +219,7 @@ bool CPlatformSocketInfoConfig::init(){
             m_max_threads_per_dual_if = num_threads;
         }else{
             if (lp->m_threads.size() != num_threads) {
-                printf("ERROR number of threads per dual ports should be the same for all dual ports\n");
+                printf("ERROR, the number of threads per dual ports should be the same for all dual ports\n");
                 exit(1);
             }
         }
@@ -231,7 +231,7 @@ bool CPlatformSocketInfoConfig::init(){
                 uint8_t phy_thread  = lp->m_threads[j];
 
                 if (phy_thread>MAX_THREADS_SUPPORTED) {
-                    printf("ERROR physical thread id is %d higher than max %d \n",phy_thread,MAX_THREADS_SUPPORTED);
+                    printf("ERROR, physical thread id is %d higher than max %d \n",phy_thread,MAX_THREADS_SUPPORTED);
                     exit(1);
                 }
 
@@ -479,8 +479,8 @@ void CPlatformSocketInfo::dump(FILE *fd){
 
 
 void CRteMemPool::dump_in_case_of_error(FILE *fd){
-    fprintf(fd," ERROR ERROR there is no enough memory in socket  %d \n",m_pool_id);
-    fprintf(fd," Try to enlarge the memory values in the configuration file /etc/trex_cfg.yaml \n");
+    fprintf(fd," ERROR,there is no enough memory in socket  %d \n",m_pool_id);
+    fprintf(fd," Try to enlarge the memory values in the configuration file -/etc/trex_cfg.yaml ,see manual for more detail  \n");
     dump(fd);
 }
 

@@ -552,19 +552,17 @@ static int usage(){
 
     printf(" --mac [file]               : YAML file with <client ip, mac addr> configuration \n");
     printf(" \n\n");
-    printf(" -r                         : realtime enable \n");
-    printf(" \n\n");
-    printf(" -c [number of cores]       : 1 ,2,3,4,5 numnber of dual cores + master 1 means 1 master and 2 cores \n");
+    printf(" -c [number of threads]     : default is 1. number of threads to allocate for each dual ports. \n");
     printf("  \n");
-    printf(" -s                         : run only one data path core\n");
+    printf(" -s                         : run only one data path core. for debug\n");
     printf("  \n");
-    printf(" --flip                     : flow will  be sent from client->server and server->client for maximum throughput \n");
+    printf(" --flip                     : flow will be sent from client->server and server->client for maximum throughput \n");
     printf("  \n");
-    printf(" -p                         : flow-flip , send all packets flow from the same interface base of client ip \n");
+    printf(" -p                         : flow-flip , send all flow packets from the same interface base of client ip \n");
     printf(" -e                         : like -p but comply to the generator rules  \n");
 
     printf("  \n");
-    printf(" -l [pkt/sec]               : run laterncy daemon in this rate  \n");
+    printf(" -l [pkt/sec]               : run latency daemon in this rate  \n");
     printf("    e.g -l 1000 run 1000 pkt/sec from each interface , zero mean to disable latency check  \n");
     printf(" --lm                         : latency mask  \n");
     printf("    0x1 only port 0 will send traffic  \n");
@@ -572,20 +570,18 @@ static int usage(){
 
     printf("  \n");
 
-    printf(" --limit-ports                : limit number of ports , must be even e.g 2,4  \n");
+    printf(" --limit-ports              : limit number of ports, must be even e.g. 2,4  \n");
     printf("  \n");
-    printf(" --nc                       : if set will not close all the flow , faster   \n");
+    printf(" --nc                       : If set, will not wait for all the flows to be closed, terminate faster- see manual for more information   \n");
     printf("  \n");
-    printf(" -d                         : duration of the test in sec \n");
+    printf(" -d                         : duration of the test in sec. look for --nc  \n");
     printf("  \n");
-    printf(" -pm                        : platform factor , in case you have splitter in the setup you can multiply the total results in this factor  \n");
+    printf(" -pm                        : platform factor ,in case you have splitter in the setup you can multiply the total results in this factor  \n");
     printf("    e.g --pm 2.0 will multiply all the results bps in this factor   \n");
     printf("  \n");
     printf(" -pubd                      : disable monitors publishers  \n");
 
-    printf(" -m                         : factor of bandwidth  \n");
-    printf("  \n");
-    printf(" -1g                        : 1G trex  \n");
+    printf(" -m                         : factor of bandwidth \n");
     printf("  \n");
     printf(" -k  [sec]                  : run latency test before starting the test. it will wait for x sec sending packet and x sec after that  \n");
     printf("  \n");
@@ -595,7 +591,7 @@ static int usage(){
     printf("                              you can copy this file to /etc/trex_cfg.yaml   \n");
     printf("  \n");
 
-    printf(" --ipv6                     : work in ipv6 mode   \n");
+    printf(" --ipv6                     : work in ipv6 mode\n");
 
     printf(" --learn                    : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
     printf(" --learn-verify             : Learn the translation, but intended for verification of the mechanism in cases that NAT does not exist \n");
@@ -610,17 +606,17 @@ static int usage(){
     printf("  Warning : This program can generate huge-files (TB ) watch out! try this only on local drive \n");
     printf(" \n");
 	printf("  \n");
-	printf(" --rx-check  [sample]      :  enable rx check thread , using this thread we sample flows 1/sample and check order,latency and more  \n");
+	printf(" --rx-check  [sample]       :  enable rx check thread, using this thread we sample flows 1/sample and check order,latency and more  \n");
 	printf("                              this feature consume another thread  \n");
     printf("  \n");
-    printf(" --hops [hops]           :  If rx check is enabled, the hop number can be assigned. The default number of hops is 1\n");
-    printf(" --iom  [mode]           :  io mode for interactive mode [0- silent, 1- normal , 2- short]   \n");
+    printf(" --hops [hops]              :  If rx check is enabled, the hop number can be assigned. The default number of hops is 1\n");
+    printf(" --iom  [mode]              :  io mode for interactive mode [0- silent, 1- normal , 2- short]   \n");
     printf("                              this feature consume another thread  \n");
     printf("  \n");
-    printf(" --no-key                  : daemon mode, don't get input from keyboard \n");
-    printf(" --no-flow-control         : In default TRex disables flow-control using this flag it does not touch it \n");
-    printf(" --prefix                  : for multi trex, each instance should have a different name \n");
-    printf(" --mac-spread              : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
+    printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
+    printf(" --no-flow-control          : In default TRex disables flow-control using this flag it does not touch it \n");
+    printf(" --prefix                   : for multi trex, each instance should have a different name \n");
+    printf(" --mac-spread               : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
     printf("                             maximum is up to 128 devices   \n");
     
     
@@ -631,7 +627,7 @@ static int usage(){
     printf("  \n");
     printf(" -o [capfile_name]  simulate trex into pcap file  \n");
     printf(" --pcap             export the file in pcap mode \n");
-    printf(" t-rex-64 -d 10 -f cfg.yaml  -o my.pcap --pcap  # export 10 sec of what Trex will do on real-time to a file my.pcap \n");
+    printf(" bp-sim-64 -d 10 -f cfg.yaml  -o my.pcap --pcap  # export 10 sec of what Trex will do on real-time to a file my.pcap \n");
     printf(" --vm-sim               : simulate vm with driver of one input queue and one output queue \n");
     printf("  \n");
     printf(" Examples: ");
@@ -893,7 +889,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     }
 
     if (po->preview.get_is_rx_check_enable() &&  ( po->is_latency_disabled() ) ) {
-        printf(" rx check must be enable with latency check. try adding '-l 1000'   \n");
+        printf(" rx check must be enabled with latency check. try adding '-l 1000'   \n");
         return -1;
     }
 
@@ -906,7 +902,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
     uint32_t cores=po->preview.getCores();
     if ( cores > ((BP_MAX_CORES)/2-1) ) {
-        printf(" ERROR maximum  cores are : %d \n",((BP_MAX_CORES)/2-1));
+        printf(" ERROR maximum supported cores are : %d \n",((BP_MAX_CORES)/2-1));
         return -1;
     }
 
@@ -4649,11 +4645,10 @@ int main_test(int argc , char * argv[]){
          && (CGlobalInfo::m_options.m_latency_prev>0)  ){
         uint32_t pkts = CGlobalInfo::m_options.m_latency_prev*
             CGlobalInfo::m_options.m_latency_rate;
-        printf("Start prev latency check - hack for Keren for %d sec \n",CGlobalInfo::m_options.m_latency_prev);
+        printf("Start prev latency check- for %d sec \n",CGlobalInfo::m_options.m_latency_prev);
         g_trex.m_mg.start(pkts);
-        printf("Delay now you can call command \n");
         delay(CGlobalInfo::m_options.m_latency_prev* 1000);
-        printf("Finish wating  \n");
+        printf("Finished \n");
         g_trex.m_mg.reset();
         g_trex.reset_counters();
     }
