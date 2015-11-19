@@ -3199,19 +3199,21 @@ CGlobalTRex::check_for_dp_message_from_core(int thread_id) {
 
         TrexStatelessDpToCpMsgBase * msg = (TrexStatelessDpToCpMsgBase *)node;
         msg->handle();
+        delete msg;
     }
 
 }
 
-
+/**
+ * check for messages that arrived from DP to CP
+ * 
+ */
 void 
 CGlobalTRex::check_for_dp_messages() {
     /* for all the cores - check for a new message */
     for (int i = 0; i < get_cores_tx(); i++) {
         check_for_dp_message_from_core(i);
     }
-
-  
 }
 
 bool CGlobalTRex::is_all_links_are_up(bool dump){
@@ -3532,6 +3534,7 @@ bool CGlobalTRex::Create(){
        cfg.m_rpc_async_cfg      = NULL;
        cfg.m_rpc_server_verbose = false;
        cfg.m_platform_api       = new TrexDpdkPlatformApi();
+       cfg.m_publisher          = &m_zmq_publisher;
 
        m_trex_stateless = new TrexStateless(cfg);
    }

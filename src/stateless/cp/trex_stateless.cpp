@@ -51,6 +51,8 @@ TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
     }
 
     m_platform_api = cfg.m_platform_api;
+    m_publisher    = cfg.m_publisher;
+
 }
 
 /** 

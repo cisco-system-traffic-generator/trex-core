@@ -8,6 +8,8 @@ except ImportError:
     import client.outer_packages
 from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 
+from common.text_opts import *
+
 import json
 import threading
 import time
@@ -103,13 +105,9 @@ class TrexAsyncStatsManager():
 
         return self.port_stats[str(port_id)]
 
-    def update (self, snapshot):
-
-        if snapshot['name'] == 'trex-global':
-            self.__handle_snapshot(snapshot['data'])
-        else:
-            # for now ignore the rest
-            return
+   
+    def update (self, data):
+        self.__handle_snapshot(data)
 
     def __handle_snapshot (self, snapshot):
 
@@ -151,10 +149,11 @@ class TrexAsyncStatsManager():
 
 
 class CTRexAsyncClient():
-    def __init__ (self, server, port):
+    def __init__ (self, server, port, stateless_client):
 
         self.port = port
         self.server = server
+        self.stateless_client = stateless_client
 
         self.raw_snapshot = {}
 
@@ -165,14 +164,15 @@ class CTRexAsyncClient():
         print "\nConnecting To ZMQ Publisher At {0}".format(self.tr)
 
         self.active = True
-        self.t = threading.Thread(target = self._run)
+        self.t = threading.Thread(target = self.run)
 
         # kill this thread on exit and don't add it to the join list
         self.t.setDaemon(True)
         self.t.start()
 
 
-    def _run (self):
+
+    def run (self):
 
         #  Socket to talk to server
         self.context = zmq.Context()
@@ -185,10 +185,12 @@ class CTRexAsyncClient():
             line = self.socket.recv_string();
             msg = json.loads(line)
 
-            key = msg['name']
-            self.raw_snapshot[key] = msg['data']
+            name = msg['name']
+            data = msg['data']
+            type = msg['type']
+            self.raw_snapshot[name] = data
 
-            self.stats.update(msg)
+            self.__dispatch(name, type, data)
 
 
     def get_stats (self):
@@ -198,6 +200,26 @@ class CTRexAsyncClient():
         #return str(self.stats.global_stats.get('m_total_tx_bytes')) + " / " + str(self.stats.global_stats.get_rel('m_total_tx_bytes'))
         return self.raw_snapshot
 
+
+    # dispatch the message to the right place
+    def __dispatch (self, name, type, data):
+        # stats
+        if name == "trex-global":
+            self.stats.update(data)
+        # events
+        elif name == "trex-event":
+            self.__handle_async_event(type, data)
+        else:
+            # ignore
+            pass
+
+    def __handle_async_event (self, type, data):
+        # DP stopped
+        if (type == 0):
+            port_id = int(data['port_id'])
+            print format_text("\n[Event] - Port {0} Stopped".format(port_id), 'bold')
+            # call the handler
+            self.stateless_client.async_event_port_stopped(port_id)
 
     def stop (self):
         self.active = False

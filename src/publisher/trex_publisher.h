@@ -39,7 +39,7 @@ public:
     void publish_json(const std::string &s);
 
     enum event_type_e {
-        EVENT_PORT_STOPPED = 1
+        EVENT_PORT_STOPPED = 0
     };
 
     void publish_event(event_type_e type, const Json::Value &data);

@@ -86,7 +86,7 @@ TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
     Json::Value value;
     std::string s;
     
-    value["name"] = "event";
+    value["name"] = "trex-event";
     value["type"] = type;
     value["data"] = data;
 

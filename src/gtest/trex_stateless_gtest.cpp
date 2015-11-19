@@ -46,15 +46,50 @@ public:
 };
 
 
+/**
+ * handler for DP to CP messages
+ * 
+ * @author imarom (19-Nov-15)
+ */
+class DpToCpHandler {
+public:
+    virtual void handle(TrexStatelessDpToCpMsgBase *msg) = 0;
+};
 
 class CBasicStl {
 
 public:
+
+
     CBasicStl(){
         m_time_diff=0.001;
         m_threads=1;
         m_dump_json=false;
+        m_dp_to_cp_handler = NULL;
     }
+
+
+    void flush_dp_to_cp_messages() {
+
+        CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(0);
+
+        while ( true ) {
+            CGenNode * node = NULL;
+            if (ring->Dequeue(node) != 0) {
+                break;
+            }
+            assert(node);
+
+            TrexStatelessDpToCpMsgBase * msg = (TrexStatelessDpToCpMsgBase *)node;
+            if (m_dp_to_cp_handler) {
+                m_dp_to_cp_handler->handle(msg);
+            }
+
+            delete msg;
+        }
+
+    }
+
 
     bool  init(void){
 
@@ -106,14 +141,18 @@ public:
             printf(" %s \n",s.c_str());
         }
 
+        flush_dp_to_cp_messages();
+
         fl.Delete();
         return (res);
     }
 
 public:
-    int           m_threads;
-    double        m_time_diff;
-    bool          m_dump_json;
+    int               m_threads;
+    double            m_time_diff;
+    bool              m_dump_json;
+    DpToCpHandler     *m_dp_to_cp_handler;
+
     TrexStatelessCpToDpMsgBase * m_msg;
     CNodeRing           *m_ring_from_cp;
     CFlowGenList  fl;
@@ -292,7 +331,7 @@ TEST_F(basic_stl, simple_prog4) {
 
      EXPECT_TRUE(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart( comp_obj.clone(), 20.0 );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, comp_obj.clone(), 20.0 );
 
 
      t1.m_msg = lpstart;
@@ -1001,6 +1040,80 @@ TEST_F(basic_stl, compile_good_stream_id_compres) {
 
 }
 
+
+
+class DpToCpHandlerStopEvent: public DpToCpHandler {
+public:
+    DpToCpHandlerStopEvent(int event_id) {
+        m_event_id = event_id;
+    }
+
+    virtual void handle(TrexStatelessDpToCpMsgBase *msg) {
+        /* first the message must be an event */
+        TrexDpPortEventMsg *event = dynamic_cast<TrexDpPortEventMsg *>(msg);
+        EXPECT_TRUE(event != NULL);
+        EXPECT_TRUE(event->get_event_type() == TrexDpPortEvent::EVENT_STOP);
+
+        EXPECT_TRUE(event->get_event_id() == m_event_id);
+        EXPECT_TRUE(event->get_port_id() == 0);
+        
+    }
+
+private:
+    int m_event_id;
+};
+
+TEST_F(basic_stl, dp_stop_event) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/ignore";
+
+    TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,0);
+     stream1->set_pps(1.0);
+     stream1->set_single_burst(100);
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(17, comp_obj.clone(), 10.0 /*sec */ );
+
+
+     t1.m_msg = lpstart;
+
+     /* let me handle these */
+     DpToCpHandlerStopEvent handler(17);
+     t1.m_dp_to_cp_handler = &handler;
+
+     bool res=t1.init();
+     EXPECT_EQ_UINT32(1, res?1:0);
+
+     delete stream1 ;
+     
+}
 
 
 /********************************************* Itay Tests End *************************************/

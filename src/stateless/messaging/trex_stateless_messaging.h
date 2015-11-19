@@ -192,6 +192,22 @@ public:
 
     virtual bool handle();
 
+    int get_thread_id() {
+        return m_thread_id;
+    }
+
+    uint8_t get_port_id() {
+        return m_port_id;
+    }
+
+    TrexDpPortEvent::event_e get_event_type() {
+        return m_event_type;
+    }
+
+    int get_event_id() {
+        return m_event_id;
+    }
+
 private:
     int                         m_thread_id;
     uint8_t                     m_port_id;

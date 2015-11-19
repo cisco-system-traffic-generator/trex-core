@@ -315,17 +315,21 @@ TrexStatelessPort::send_message_to_dp(TrexStatelessCpToDpMsgBase *msg) {
  */
 void 
 TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
+    Json::Value data;
+
     switch (event_type) {
 
     case TrexDpPortEvent::EVENT_STOP:
         /* set a stop event */
         change_state(PORT_STATE_STREAMS);
         /* send a ZMQ event */
+
+        data["port_id"] = m_port_id;
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
         break;
 
     default:
         assert(0);
 
     }
-    printf("hey");
 }

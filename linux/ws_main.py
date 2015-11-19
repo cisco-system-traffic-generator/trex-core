@@ -117,7 +117,7 @@ main_src = SrcGroup(dir='src',
              'utl_json.cpp',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
-
+             'publisher/trex_publisher.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'

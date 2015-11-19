@@ -320,6 +320,9 @@ class Port(object):
 
         return self.ok()
 
+    ################# events handler ######################
+    def async_event_port_stopped (self):
+        self.state = self.STATE_STREAMS
 
 
 class CTRexStatelessClient(object):
@@ -337,11 +340,15 @@ class CTRexStatelessClient(object):
         self._server_version = None
         self.__err_log = None
 
-        self._async_client = CTRexAsyncClient(server, async_port)
+        self._async_client = CTRexAsyncClient(server, async_port, self)
 
         self.streams_db = CStreamsDB()
 
         self.connected = False
+
+    ################# events handler ######################
+    def async_event_port_stopped (self, port_id):
+        self.ports[port_id].async_event_port_stopped()
 
     ############# helper functions section ##############
 
