@@ -126,7 +126,11 @@ bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
 
 void TrexStatelessDpPerPort::stop_traffic(uint8_t port_id){
 
-    assert(m_state==TrexStatelessDpPerPort::ppSTATE_TRANSMITTING);
+    /* there could be race of stop after stop */
+    if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
+        assert(m_active_streams==0);
+        return;
+    }
 
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node; 
@@ -259,8 +263,10 @@ TrexStatelessDpCore::start_scheduler() {
 
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
-    /* TBD do we need that ? */
-    m_core->m_node_gen.close_file(m_core);
+    /* bail out in case of terminate */
+    if (m_state != TrexStatelessDpCore::STATE_TERMINATE) {
+        m_core->m_node_gen.close_file(m_core);
+    }
 }
 
 
