@@ -30,6 +30,7 @@ limitations under the License.
 #include <trex_stream.h>
 #include <trex_stateless_port.h>
 #include <trex_rpc_server_api.h>
+#include <publisher/trex_publisher.h>
 
 #include <internal_api/trex_platform_api.h>
 
@@ -93,6 +94,7 @@ public:
         m_rpc_async_cfg       = NULL;
         m_rpc_server_verbose  = false;
         m_platform_api        = NULL;
+        m_publisher           = NULL;
     }
 
     const TrexRpcServerConfig  *m_rpc_req_resp_cfg;
@@ -100,6 +102,7 @@ public:
     const TrexPlatformApi      *m_platform_api;
     bool                        m_rpc_server_verbose;
     uint8_t                     m_port_count;
+    TrexPublisher              *m_publisher;
 };
 
 /**
@@ -150,6 +153,10 @@ public:
         return (m_platform_api);
     }
 
+    TrexPublisher * get_publisher() {
+        return m_publisher;
+    }
+
     const std::vector <TrexStatelessPort *> get_port_list() {
         return m_ports;
     }
@@ -169,6 +176,8 @@ protected:
 
     /* platform API */
     const TrexPlatformApi                *m_platform_api;
+
+    TrexPublisher                        *m_publisher;
 
     std::mutex m_global_cp_lock;
 };

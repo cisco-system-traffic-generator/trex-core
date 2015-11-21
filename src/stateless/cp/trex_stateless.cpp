@@ -47,10 +47,12 @@ TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
     m_port_count = cfg.m_port_count;
 
     for (int i = 0; i < m_port_count; i++) {
-        m_ports.push_back(new TrexStatelessPort(i));
+        m_ports.push_back(new TrexStatelessPort(i, cfg.m_platform_api));
     }
 
     m_platform_api = cfg.m_platform_api;
+    m_publisher    = cfg.m_publisher;
+
 }
 
 /** 

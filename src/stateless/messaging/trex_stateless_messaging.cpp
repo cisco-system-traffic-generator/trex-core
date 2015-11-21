@@ -22,12 +22,18 @@ limitations under the License.
 #include <trex_stateless_messaging.h>
 #include <trex_stateless_dp_core.h>
 #include <trex_streams_compiler.h>
+#include <trex_stateless.h>
+
 #include <string.h>
 
 /*************************
   start traffic message
  ************************/ 
-TrexStatelessDpStart::TrexStatelessDpStart(TrexStreamsCompiledObj *obj, double duration) : m_obj(obj), m_duration(duration) {
+TrexStatelessDpStart::TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration) {
+    m_port_id = port_id;
+    m_event_id = event_id;
+    m_obj = obj;
+    m_duration = duration;
 }
 
 
@@ -40,7 +46,7 @@ TrexStatelessDpStart::clone() {
 
     TrexStreamsCompiledObj *new_obj = m_obj->clone();
 
-    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStart(new_obj, m_duration);
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStart(m_port_id, m_event_id, new_obj, m_duration);
 
     return new_msg;
 }
@@ -54,7 +60,12 @@ TrexStatelessDpStart::~TrexStatelessDpStart() {
 bool
 TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
 
+    /* mark the event id for DP response */
+    dp_core->get_port_db(m_port_id)->set_event_id(m_event_id);
+
+    /* staet traffic */
     dp_core->start_traffic(m_obj, m_duration);
+
     return true;
 }
 
@@ -63,6 +74,10 @@ TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
  ************************/ 
 bool
 TrexStatelessDpStop::handle(TrexStatelessDpCore *dp_core) {
+    if (dp_core->get_port_db(m_port_id)->get_state() == TrexStatelessDpPerPort::ppSTATE_IDLE) {
+        return true;
+    }
+
     dp_core->stop_traffic(m_port_id);
     return true;
 }
@@ -96,7 +111,6 @@ bool TrexStatelessDpQuit::handle(TrexStatelessDpCore *dp_core){
     return (true);
 }
 
-
 bool TrexStatelessDpCanQuit::handle(TrexStatelessDpCore *dp_core){
 
     if ( dp_core->are_all_ports_idle() ){
@@ -114,4 +128,13 @@ TrexStatelessDpCanQuit::clone(){
     return new_msg;
 }
 
+
+/************************* messages from DP to CP **********************/
+bool
+TrexDpPortEventMsg::handle() {
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_port_id);
+    port->get_dp_events().handle_event(m_event_type, m_thread_id, m_event_id);
+
+    return (true);
+}
 

@@ -492,6 +492,7 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     if ( duration > 0.0 ){
         add_port_duration( duration ,obj->get_port_id() );
     }
+
 }
 
 
@@ -522,6 +523,17 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
 
         schedule_exit();
     }
+ 
+    /* inform the control plane we stopped - this might be a async stop
+       (streams ended)
+     */
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
+    TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
+                                                                   port_id,
+                                                                   TrexDpPortEvent::EVENT_STOP,
+                                                                   lp_port->get_event_id());
+    ring->Enqueue((CGenNode *)event_msg);
+
 }
 
 /**

@@ -117,7 +117,7 @@ main_src = SrcGroup(dir='src',
              'utl_json.cpp',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
-
+             'publisher/trex_publisher.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -152,6 +152,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
                                     'cp/trex_streams_compiler.cpp',
+                                    'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
                                     ])
