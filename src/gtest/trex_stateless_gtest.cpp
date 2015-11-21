@@ -47,6 +47,54 @@ public:
 
 
 /**
+ * Queue of RPC msgs for test 
+ * 
+ * @author hhaim
+ */
+
+class CBasicStl;
+
+
+struct CBasicStlDelayCommand {
+
+    CBasicStlDelayCommand(){
+        m_node=NULL;
+    }
+    CGenNodeCommand * m_node;
+};
+
+
+
+class CBasicStlMsgQueue {
+
+friend CBasicStl;
+
+public:
+    CBasicStlMsgQueue(){
+    }
+
+    /* user will allocate the message,  no need to free it by this module */
+    void add_msg(TrexStatelessCpToDpMsgBase * msg){
+        m_msgs.push_back(msg);
+    }
+    void add_command(CBasicStlDelayCommand & command){
+        m_commands.push_back(command);
+    }
+
+    void clear(){
+        m_msgs.clear();
+        m_commands.clear();
+    }
+
+
+protected:
+    std::vector<TrexStatelessCpToDpMsgBase *> m_msgs;
+
+    std::vector<CBasicStlDelayCommand> m_commands;
+};
+
+
+/**
  * handler for DP to CP messages
  * 
  * @author imarom (19-Nov-15)
@@ -66,6 +114,7 @@ public:
         m_threads=1;
         m_dump_json=false;
         m_dp_to_cp_handler = NULL;
+        m_msg = NULL;
     }
 
 
@@ -120,9 +169,22 @@ public:
         lpt->start_stateless_simulation_file(buf,CGlobalInfo::m_options.preview);
 
         /* add stream to the queue */
-        assert(m_msg);
+        if ( m_msg ) {
+            assert(m_ring_from_cp->Enqueue((CGenNode *)m_msg)==0);
+        }
+        if (m_msg_queue.m_msgs.size()>0) {
+            for (auto msg : m_msg_queue.m_msgs) {
+                assert(m_ring_from_cp->Enqueue((CGenNode *)msg)==0);
+            }
+        }
 
-        assert(m_ring_from_cp->Enqueue((CGenNode *)m_msg)==0);
+        /* add the commands */
+        if (m_msg_queue.m_commands.size()>0) {
+            for (auto cmd : m_msg_queue.m_commands) {
+                /* add commands nodes */
+                lpt->m_node_gen.add_node((CGenNode *)cmd.m_node);
+            }
+        }
 
         lpt->start_stateless_daemon_simulation();
 
@@ -142,6 +204,8 @@ public:
         }
 
         flush_dp_to_cp_messages();
+        m_msg_queue.clear();
+
 
         fl.Delete();
         return (res);
@@ -155,6 +219,7 @@ public:
 
     TrexStatelessCpToDpMsgBase * m_msg;
     CNodeRing           *m_ring_from_cp;
+    CBasicStlMsgQueue    m_msg_queue;   
     CFlowGenList  fl;
 };
 
@@ -261,6 +326,168 @@ TEST_F(basic_stl, load_pcap_file) {
 
     //pcap.dump_packet();
 }
+
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_stl, single_pkt_bb_start_stop3) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_bb_start_stop3";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
+     TrexStatelessDpStop * lpStopCmd1 = new TrexStatelessDpStop(port_id);
+
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+     t1.m_msg_queue.add_msg(lpStopCmd);
+     t1.m_msg_queue.add_msg(lpStopCmd1);
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+TEST_F(basic_stl, single_pkt_bb_start_stop2) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_bb_start_stop2";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
+     TrexStatelessDpStart * lpStartCmd1 = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+     t1.m_msg_queue.add_msg(lpStopCmd);
+     t1.m_msg_queue.add_msg(lpStartCmd1);
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+/* back to back send start/stop */
+TEST_F(basic_stl, single_pkt_bb_start_stop) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_bb_start_stop";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
+
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+     t1.m_msg_queue.add_msg(lpStopCmd);
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
 
 
 

@@ -74,9 +74,6 @@ TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
  ************************/ 
 bool
 TrexStatelessDpStop::handle(TrexStatelessDpCore *dp_core) {
-    if (dp_core->get_port_db(m_port_id)->get_state() == TrexStatelessDpPerPort::ppSTATE_IDLE) {
-        return true;
-    }
 
     dp_core->stop_traffic(m_port_id);
     return true;

@@ -62,7 +62,7 @@ public:
 
     void create(CFlowGenListPerThread   *  core);
 
-    void stop_traffic(uint8_t port_id);
+    bool stop_traffic(uint8_t port_id);
 
     bool update_number_of_active_streams(uint32_t d);
 

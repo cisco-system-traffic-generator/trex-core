@@ -124,12 +124,12 @@ bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
 }
 
 
-void TrexStatelessDpPerPort::stop_traffic(uint8_t port_id){
+bool TrexStatelessDpPerPort::stop_traffic(uint8_t port_id){
 
     /* there could be race of stop after stop */
     if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
         assert(m_active_streams==0);
-        return;
+        return false;
     }
 
     for (auto dp_stream : m_active_nodes) {
@@ -149,6 +149,7 @@ void TrexStatelessDpPerPort::stop_traffic(uint8_t port_id){
     assert(m_active_streams==0);
     m_active_nodes.clear();
     m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
+    return (true);
 }
 
 
@@ -517,7 +518,11 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
-    lp_port->stop_traffic(port_id);
+    if ( lp_port->stop_traffic(port_id) == false){
+        /* nothing to do ! already stopped */
+        return;
+    }
+
 
     if ( are_all_ports_idle() ) {
 
