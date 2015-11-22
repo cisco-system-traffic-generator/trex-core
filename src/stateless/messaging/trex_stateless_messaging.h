@@ -27,6 +27,7 @@ limitations under the License.
 
 class TrexStatelessDpCore;
 class TrexStreamsCompiledObj;
+class CFlowGenListPerThread;
 
 /**
  * defines the base class for CP to DP messages
@@ -59,6 +60,10 @@ public:
 
     bool is_quit(){
         return ( m_quit_scheduler);
+    }
+
+    /* this node is called from scheduler in case the node is free */
+    virtual void on_node_remove(){
     }
 
     /* no copy constructor */
@@ -103,14 +108,50 @@ class TrexStatelessDpStop : public TrexStatelessCpToDpMsgBase {
 public:
 
     TrexStatelessDpStop(uint8_t port_id) : m_port_id(port_id) {
+        m_stop_only_for_event_id=false;
+        m_event_id=0;
+        m_core = NULL;
     }
 
     virtual TrexStatelessCpToDpMsgBase * clone();
 
+
     virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    void set_core_ptr(CFlowGenListPerThread   *  core){
+            m_core = core;
+    }
+
+    CFlowGenListPerThread   * get_core_ptr(){
+        return ( m_core);
+    }
+
+
+    void set_event_id(int event_id){
+        m_event_id                =  event_id;
+    }
+
+    void set_wait_for_event_id(bool wait){
+        m_stop_only_for_event_id  =  wait;
+    }
+
+    virtual void on_node_remove();
+
+
+    bool get_is_stop_by_event_id(){
+        return (m_stop_only_for_event_id);
+    }
+
+    int get_event_id(){
+        return (m_event_id);
+    }
 
 private:
     uint8_t m_port_id;
+    bool    m_stop_only_for_event_id;
+    int     m_event_id;
+    CFlowGenListPerThread   *  m_core ;
+
 };
 
 /**

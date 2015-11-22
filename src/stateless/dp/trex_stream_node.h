@@ -29,6 +29,7 @@ class TrexStatelessDpCore;
 #include <trex_stream.h>
 
 class TrexStatelessCpToDpMsgBase;
+class CFlowGenListPerThread;
 
 struct CGenNodeCommand : public CGenNodeBase  {
 

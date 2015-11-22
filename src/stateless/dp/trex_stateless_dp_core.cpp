@@ -78,9 +78,10 @@ void CGenNodeStateless::refresh(){
 }
 
 
-
 void CGenNodeCommand::free_command(){
+    
     assert(m_cmd);
+    m_cmd->on_node_remove();
     delete m_cmd;
 }
 
@@ -124,12 +125,21 @@ bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
 }
 
 
-bool TrexStatelessDpPerPort::stop_traffic(uint8_t port_id){
+bool TrexStatelessDpPerPort::stop_traffic(uint8_t port_id,
+                                          bool stop_on_id, 
+                                          int event_id){
 
-    /* there could be race of stop after stop */
     if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
         assert(m_active_streams==0);
         return false;
+    }
+
+    /* there could be race of stop after stop */
+    if ( stop_on_id ) {
+        if (event_id != m_event_id){
+            /* we can't stop it is an old message */
+            return false;
+        }
     }
 
     for (auto dp_stream : m_active_nodes) {
@@ -215,7 +225,7 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 
     if ( to_stop_port ) {
         /* call stop port explictly to move the state */
-        stop_traffic(cur_node->m_port_id);
+        stop_traffic(cur_node->m_port_id,false,0);
     }
 
     return ( schedule );
@@ -330,7 +340,8 @@ TrexStatelessDpCore::add_global_duration(double duration){
 /* add per port exit */
 void
 TrexStatelessDpCore::add_port_duration(double duration,
-                                  uint8_t port_id){
+                                       uint8_t port_id,
+                                       int event_id){
     if (duration > 0.0) {
         CGenNodeCommand *node = (CGenNodeCommand *)m_core->create_node() ;
 
@@ -339,7 +350,16 @@ TrexStatelessDpCore::add_port_duration(double duration,
         /* make sure it will be scheduled after the current node */
         node->m_time = m_core->m_cur_time_sec + duration ;
 
-        node->m_cmd = new TrexStatelessDpStop(port_id);
+        TrexStatelessDpStop * cmd=new TrexStatelessDpStop(port_id);
+
+
+        /* test this */
+        m_core->m_non_active_nodes++;
+        cmd->set_core_ptr(m_core);
+        cmd->set_event_id(event_id);
+        cmd->set_wait_for_event_id(true);
+
+        node->m_cmd = cmd;
 
         m_core->m_node_gen.add_node((CGenNode *)node);
     }
@@ -450,15 +470,14 @@ TrexStatelessDpCore::add_cont_stream(TrexStatelessDpPerPort * lp_port,
 
 void
 TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj, 
-                                   double duration) {
+                                   double duration,
+                                   int event_id) {
 
-#if 0
-    /* TBD to remove ! */
-    obj->Dump(stdout);
-#endif
 
     TrexStatelessDpPerPort * lp_port=get_port_db(obj->get_port_id());
     lp_port->m_active_streams = 0;
+    lp_port->set_event_id(event_id);
+
     /* no nodes in the list */
     assert(lp_port->m_active_nodes.size()==0);
 
@@ -491,7 +510,7 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
 
 
     if ( duration > 0.0 ){
-        add_port_duration( duration ,obj->get_port_id() );
+        add_port_duration( duration ,obj->get_port_id(),event_id );
     }
 
 }
@@ -511,23 +530,26 @@ bool TrexStatelessDpCore::are_all_ports_idle(){
 
 
 void
-TrexStatelessDpCore::stop_traffic(uint8_t port_id) {
+TrexStatelessDpCore::stop_traffic(uint8_t port_id,
+                                  bool stop_on_id, 
+                                  int event_id) {
     /* we cannot remove nodes not from the top of the queue so
        for every active node - make sure next time
        the scheduler invokes it, it will be free */
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
-    if ( lp_port->stop_traffic(port_id) == false){
+    if ( lp_port->stop_traffic(port_id,stop_on_id,event_id) == false){
         /* nothing to do ! already stopped */
+        //printf(" skip .. %f\n",m_core->m_cur_time_sec);
         return;
     }
 
-
+#if 0
     if ( are_all_ports_idle() ) {
-
-        schedule_exit();
+        /* just a place holder if we will need to do somthing in that case */
     }
+#endif
  
     /* inform the control plane we stopped - this might be a async stop
        (streams ended)

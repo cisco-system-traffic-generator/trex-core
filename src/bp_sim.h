@@ -3541,6 +3541,7 @@ public:
     CNodeGenerator                   m_node_gen;
 public:
     uint32_t                         m_cur_template;
+    uint32_t                         m_non_active_nodes; /* the number of non active nodes -> nodes that try to stop somthing */
     uint64_t                         m_cur_flow_id;
     double                           m_cur_time_sec;
     double                           m_stop_time_sec;
