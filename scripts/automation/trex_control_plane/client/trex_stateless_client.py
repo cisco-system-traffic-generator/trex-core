@@ -277,6 +277,17 @@ class Port(object):
 
         return self.ok()
 
+    # get a specific stream
+    def get_stream (self, stream_id):
+        if stream_id in self.streams:
+            return self.streams[stream_id]
+        else:
+            return None
+
+    def get_all_streams (self):
+        return self.streams
+
+
     # start traffic
     def start (self, mul, duration):
         if self.state == self.STATE_DOWN:
@@ -392,6 +403,13 @@ class CTRexStatelessClient(object):
         rc, data = self.comm_link.connect()
         if not rc:
             return RC_ERR(data)
+
+        # version
+        rc, data = self.transmit("get_version")
+        if not rc:
+            return RC_ERR(data)
+
+        self.server_version = data
 
         # cache system info
         rc, data = self.transmit("get_system_info")

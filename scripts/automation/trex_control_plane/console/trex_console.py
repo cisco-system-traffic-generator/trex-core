@@ -197,8 +197,6 @@ class TRexConsole(TRexGeneralCmd):
         if rc.bad():
             return
 
-    def do_test (self, line):
-        print self.stateless_client.get_acquired_ports()
 
     # set verbose on / off
     def do_verbose(self, line):
@@ -252,7 +250,7 @@ class TRexConsole(TRexGeneralCmd):
             return TRexConsole.tree_autocomplete(s[l - 1])
 
     def do_start(self, line):
-        '''Start selected traffic in specified ports on TRex\n'''
+        '''Start selected traffic in specified port(s) on TRex\n'''
 
         self.stateless_client.cmd_start_line(line)
 
@@ -262,6 +260,7 @@ class TRexConsole(TRexGeneralCmd):
 
     ############# stop
     def do_stop(self, line):
+        '''stops port(s) transmitting traffic\n'''
         self.stateless_client.cmd_stop_line(line)
 
         

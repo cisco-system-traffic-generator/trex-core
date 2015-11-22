@@ -398,13 +398,9 @@ class TrexStatus():
         self.general_stats = stateless_client.get_stats_async().get_general_stats()
 
         # fetch server info
-        rc, self.server_sys_info = self.stateless_client.get_system_info()
-        if not rc:
-            return
+        self.server_sys_info = self.stateless_client.get_system_info()
 
-        rc, self.server_version = self.stateless_client.get_version()
-        if not rc:
-            return
+        self.server_version = self.stateless_client.get_version()
 
         # list of owned ports
         self.owned_ports_list = self.stateless_client.get_acquired_ports()
@@ -416,9 +412,7 @@ class TrexStatus():
             self.owned_ports[str(port_id)] = {}
             self.owned_ports[str(port_id)]['streams'] = {}
 
-            rc, stream_list = self.stateless_client.get_all_streams(port_id)
-            if not rc:
-                raise Exception("unable to get streams")
+            stream_list = self.stateless_client.get_all_streams(port_id)
 
             self.owned_ports[str(port_id)] = stream_list
         
@@ -481,9 +475,7 @@ class TrexStatus():
             self.owned_ports[str(port_id)] = {}
             self.owned_ports[str(port_id)]['streams'] = {}
 
-            rc, stream_list = self.stateless_client.get_all_streams(port_id)
-            if not rc:
-                raise Exception("unable to get streams")
+            stream_list = self.stateless_client.get_all_streams(port_id)
 
             self.owned_ports[str(port_id)] = stream_list
 
