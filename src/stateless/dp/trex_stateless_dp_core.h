@@ -53,7 +53,9 @@ public:
         /* states */
     enum state_e {
         ppSTATE_IDLE,
-        ppSTATE_TRANSMITTING
+        ppSTATE_TRANSMITTING,
+        ppSTATE_PAUSE
+
     };
 
 public:
@@ -61,6 +63,10 @@ public:
     }
 
     void create(CFlowGenListPerThread   *  core);
+
+    bool pause_traffic(uint8_t port_id);
+
+    bool resume_traffic(uint8_t port_id);
 
     bool stop_traffic(uint8_t port_id,
                       bool stop_on_id, 
@@ -143,7 +149,17 @@ public:
                        double duration,
                        int m_event_id);
 
+
+    /* pause the streams, work only if all are continues  */
+    void pause_traffic(uint8_t port_id);
+
+
+
+    void resume_traffic(uint8_t port_id);
+
+
     /**
+     * 
      * stop all traffic for this core
      * 
      */

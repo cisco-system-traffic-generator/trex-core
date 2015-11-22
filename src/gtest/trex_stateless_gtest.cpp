@@ -379,11 +379,84 @@ TEST_F(basic_stl, load_pcap_file) {
 
 
 
+class CBBStartPause0: public CBasicStlSink {
+public:
+
+    virtual void call_after_init(CBasicStl * m_obj);
+    virtual void call_after_run(CBasicStl * m_obj){
+    };
+    uint8_t m_port_id;
+};
 
 
 
+void CBBStartPause0::call_after_init(CBasicStl * m_obj){
+
+    TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id);
+    TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id);
+
+    m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 5.0); /* command in delay of 5 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 7.0);/* command in delay of 7 sec */
+
+}
 
 
+
+/* start/stop/stop back to back */
+TEST_F(basic_stl, basic_pause_resume0) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_basic_pause_resume0";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+
+
+     CBBStartPause0 sink;
+     sink.m_port_id = port_id;
+     t1.m_sink =  &sink;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+//////////////////////////////////////////////////////////////
 
 
 class CBBStartStopDelay2: public CBasicStlSink {

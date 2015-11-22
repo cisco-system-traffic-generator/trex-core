@@ -124,6 +124,37 @@ bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
     return (false);
 }
 
+bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
+
+    /* we are working with continues streams so we must be in transmit mode */
+    assert(m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE);
+
+    for (auto dp_stream : m_active_nodes) {
+        CGenNodeStateless * node =dp_stream.m_node; 
+        assert(node->get_port_id() == port_id);
+        assert(node->is_pause() == true);
+        node->set_pause(false);
+    }
+    m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    return (true);
+}
+
+
+bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
+
+    /* we are working with continues streams so we must be in transmit mode */
+    assert(m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING);
+
+    for (auto dp_stream : m_active_nodes) {
+        CGenNodeStateless * node =dp_stream.m_node; 
+        assert(node->get_port_id() == port_id);
+        assert(node->is_pause() == false);
+        node->set_pause(true);
+    }
+    m_state = TrexStatelessDpPerPort::ppSTATE_PAUSE;
+    return (true);
+}
+
 
 bool TrexStatelessDpPerPort::stop_traffic(uint8_t port_id,
                                           bool stop_on_id, 
@@ -294,6 +325,8 @@ TrexStatelessDpCore::run_once(){
 }
 
 
+
+
 void
 TrexStatelessDpCore::start() {
 
@@ -402,6 +435,7 @@ TrexStatelessDpCore::add_cont_stream(TrexStatelessDpPerPort * lp_port,
     uint16_t pkt_size = stream->m_pkt.len;
     const uint8_t *stream_pkt = stream->m_pkt.binary;
 
+    node->m_pause =0;
     node->m_stream_type = stream->m_type;
     node->m_next_time_offset =  1.0 / (stream->get_pps() * comp->get_multiplier()) ;
 
@@ -526,6 +560,24 @@ bool TrexStatelessDpCore::are_all_ports_idle(){
         }
     }
     return (res);
+}
+
+
+void 
+TrexStatelessDpCore::resume_traffic(uint8_t port_id){
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+
+    lp_port->resume_traffic(port_id);
+}
+
+
+void 
+TrexStatelessDpCore::pause_traffic(uint8_t port_id){
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+
+    lp_port->pause_traffic(port_id);
 }
 
 

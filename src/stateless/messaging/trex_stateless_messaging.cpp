@@ -87,6 +87,31 @@ void TrexStatelessDpStop::on_node_remove(){
 }
 
 
+TrexStatelessCpToDpMsgBase * TrexStatelessDpPause::clone(){
+
+    TrexStatelessDpPause *new_msg = new TrexStatelessDpPause(m_port_id);
+    return new_msg;
+}
+
+
+bool TrexStatelessDpPause::handle(TrexStatelessDpCore *dp_core){
+    dp_core->pause_traffic(m_port_id);
+    return (true);
+}
+
+
+
+TrexStatelessCpToDpMsgBase * TrexStatelessDpResume::clone(){
+    TrexStatelessDpResume *new_msg = new TrexStatelessDpResume(m_port_id);
+    return new_msg;
+}
+
+bool TrexStatelessDpResume::handle(TrexStatelessDpCore *dp_core){
+    dp_core->resume_traffic(m_port_id);
+    return (true);
+}
+
+
 /**
  * clone for DP stop message
  * 

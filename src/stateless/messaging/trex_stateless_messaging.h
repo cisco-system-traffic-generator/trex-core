@@ -99,6 +99,42 @@ private:
 
 };
 
+class TrexStatelessDpPause : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpPause(uint8_t port_id) : m_port_id(port_id) {
+    }
+
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
+
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+
+private:
+    uint8_t m_port_id;
+};
+
+
+class TrexStatelessDpResume : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpResume(uint8_t port_id) : m_port_id(port_id) {
+    }
+
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
+
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+
+private:
+    uint8_t m_port_id;
+};
+
+
 /**
  * a message to stop traffic
  * 
