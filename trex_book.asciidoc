@@ -124,7 +124,14 @@ TRex curretly works on x86 architecture and can operates well on Cisco UCS hardw
 | E1000    | paravirtualize  | vmWare/KVM/VirtualBox 
 |=================
 
-IMPORTANT: Intel SFP+ 10Gb/Sec is the only one supported by default on the standard Linux driver. TRex also supports Cisco 10Gb/sec SFP+. 
+[IMPORTANT]
+=====================================
+* Intel SFP+ 10Gb/Sec is the only one supported by default on the standard Linux driver. TRex also supports Cisco 10Gb/sec SFP+. 
+* Using different NUMA for different NIC is very important when getting to high speeds, such as using several Intel XL710 40Gb/sec.
+* One can verify NUMA and NIC topology with following command: lstopo (yum install hwloc)
+* NUMAs-CPUs relation is determined with following command: lscpu
+* See real example of NUMA usage xref:numa-example[here]
+=====================================
 
 .Sample order for UCSC-C220-M3S with 4x10Gb ports
 [options="header",cols="2,1^",width="50%"]
@@ -1106,7 +1113,32 @@ a configuration file now has the folowing struct to support multi instance
 <8> Socket of the dual interfaces, in this example of 03:00.0 and 03:00.1, memory should be local to the interface
 <9> Thread to be used, should be local to the NIC 
 
+*Real example:* anchor:numa-example[]
 
+We've connected 2 Intel XL710 NICs close to each other on motherboard, they shared same NUMA:
+
+image:images/same_numa.png[title="2_NICSs_same_NUMA"]
+
+The CPU utilization was very high ~100%, with c=2 and c=4 the results were same.
+
+Then, we moved the cards to different NUMAs:
+
+image:images/different_numa.png[title="2_NICSs_different_NUMAs"]
+
+*+*
+We needed to add configuration to the /etc/trex_cfg.yaml:
+
+[source,python]
+  platform :
+        master_thread_id  : 0
+        latency_thread_id : 8
+        dual_if   :
+             - socket   : 0
+               threads  : [1, 2, 3, 4, 5, 6, 7]
+             - socket   : 1
+               threads  : [9, 10, 11, 12, 13, 14, 15]
+
+This gave best results, and CPU utilization with c=7 at *\~98 Gb/s* TX BW became *~21%*! (40% with c=4)
 
 === Command line options anchor:cml-line[]
 
