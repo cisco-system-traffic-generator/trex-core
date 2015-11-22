@@ -131,6 +131,7 @@ TRex curretly works on x86 architecture and can operates well on Cisco UCS hardw
 * One can verify NUMA and NIC topology with following command: lstopo (yum install hwloc)
 * NUMAs-CPUs relation is determined with following command: lscpu
 * See real example of NUMA usage xref:numa-example[here]
+* Using Intel XL710 with Fedora 18 requires updating Kernel.
 =====================================
 
 .Sample order for UCSC-C220-M3S with 4x10Gb ports
@@ -214,7 +215,7 @@ The following is an example of 4x10Gb/sec TRex with I350 management port and fou
 
 [source,bash]
 ----
-$[root@trex]lspci | grep Network
+$[root@trex]lspci | grep Ethernet
 01:00.0 Ethernet controller: Intel Corporation I350 Gigabit Network Connection (rev 01)                #<1>
 01:00.1 Ethernet controller: Intel Corporation I350 Gigabit Network Connection (rev 01)                #<2>
 03:00.0 Ethernet controller: Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01) #<3>
@@ -1126,7 +1127,7 @@ Then, we moved the cards to different NUMAs:
 image:images/different_numa.png[title="2_NICSs_different_NUMAs"]
 
 *+*
-We needed to add configuration to the /etc/trex_cfg.yaml:
+We added configuration to the /etc/trex_cfg.yaml:
 
 [source,python]
   platform :
@@ -1138,7 +1139,7 @@ We needed to add configuration to the /etc/trex_cfg.yaml:
              - socket   : 1
                threads  : [9, 10, 11, 12, 13, 14, 15]
 
-This gave best results, and CPU utilization with c=7 at *\~98 Gb/s* TX BW became *~21%*! (40% with c=4)
+This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *~21%*! (40% with c=4)
 
 === Command line options anchor:cml-line[]
 
