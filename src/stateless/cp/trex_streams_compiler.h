@@ -64,6 +64,10 @@ public:
         return (m_mul);
     }
 
+    bool get_all_streams_continues(){
+        return (m_all_continues);
+    }
+
     void Dump(FILE *fd);
 
 private:
@@ -73,6 +77,7 @@ private:
 
     std::vector<obj_st> m_objs;
 
+    bool    m_all_continues;
     uint8_t m_port_id;
     double  m_mul;
 };

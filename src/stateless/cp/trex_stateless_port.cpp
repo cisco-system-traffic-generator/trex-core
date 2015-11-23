@@ -127,6 +127,9 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
 
     TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(m_port_id, event_id, compiled_obj, duration);
 
+    m_last_all_streams_continues = compiled_obj->get_all_streams_continues();
+    m_last_duration =duration;
+
     change_state(PORT_STATE_TX);
 
     send_message_to_dp(start_msg);
@@ -143,7 +146,8 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
 void
 TrexStatelessPort::stop_traffic(void) {
 
-    if (m_port_state != PORT_STATE_TX) {
+    if (!( (m_port_state == PORT_STATE_TX) 
+        || (m_port_state ==PORT_STATE_PAUSE) )) {
         return;
     }
 
@@ -164,14 +168,18 @@ TrexStatelessPort::pause_traffic(void) {
 
     verify_state(PORT_STATE_TX);
 
-    #if 0
-    /* generate a message to all the relevant DP cores to start transmitting */
-    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+    if (m_last_all_streams_continues == false) {
+        throw TrexRpcException(" pause is supported when all streams are in continues mode ");
+    }
+
+    if ( m_last_duration>0.0 ) {
+        throw TrexRpcException(" pause is supported when duration is not enable is start command ");
+    }
+
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpPause(m_port_id);
 
     send_message_to_dp(stop_msg);
 
-    m_port_state = PORT_STATE_UP_IDLE;
-    #endif
     change_state(PORT_STATE_PAUSE);
 }
 
@@ -180,14 +188,11 @@ TrexStatelessPort::resume_traffic(void) {
 
     verify_state(PORT_STATE_PAUSE);
 
-    #if 0
     /* generate a message to all the relevant DP cores to start transmitting */
-    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpResume(m_port_id);
 
     send_message_to_dp(stop_msg);
 
-    m_port_state = PORT_STATE_UP_IDLE;
-    #endif
     change_state(PORT_STATE_TX);
 }
 

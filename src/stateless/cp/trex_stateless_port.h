@@ -207,6 +207,8 @@ public:
         return m_dp_events;
     }
 
+
+
 private:
 
   
@@ -259,6 +261,9 @@ private:
 
     /* holds the DP cores associated with this port */
     std::vector<int> m_cores_id_list;
+
+    bool               m_last_all_streams_continues;
+    double             m_last_duration;
 
     TrexDpPortEvents   m_dp_events;
 };

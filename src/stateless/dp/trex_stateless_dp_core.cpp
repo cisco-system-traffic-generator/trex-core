@@ -160,6 +160,7 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t port_id,
                                           bool stop_on_id, 
                                           int event_id){
 
+
     if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
         assert(m_active_streams==0);
         return false;

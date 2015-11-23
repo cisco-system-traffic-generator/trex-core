@@ -331,6 +331,40 @@ class Port(object):
 
         return self.ok()
 
+    def pause (self):
+
+        if (self.state != self.STATE_TX) :
+            return self.err("port is not transmitting")
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id}
+
+        rc, data = self.transmit("pause_traffic", params)
+        if not rc:
+            return self.err(data)
+
+        # only valid state after stop
+        self.state = self.STATE_PAUSE
+
+        return self.ok()
+
+    def resume (self):
+
+        if (self.state != self.STATE_PAUSE) :
+            return self.err("port is not in pause mode")
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id}
+
+        rc, data = self.transmit("resume_traffic", params)
+        if not rc:
+            return self.err(data)
+
+        # only valid state after stop
+        self.state = self.STATE_TX
+
+        return self.ok()
+
     ################# events handler ######################
     def async_event_port_stopped (self):
         self.state = self.STATE_STREAMS
@@ -615,6 +649,25 @@ class CTRexStatelessClient(object):
         return rc
 
 
+    def resume_traffic (self, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].resume())
+
+        return rc
+
+    def pause_traffic (self, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].pause())
+
+        return rc
 
     def stop_traffic (self, port_id_list = None, force = False):
 
@@ -706,6 +759,71 @@ class CTRexStatelessClient(object):
             return rc
 
         return RC_OK()
+
+    # pause cmd
+    def cmd_pause (self, port_id_list):
+
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on porvided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.pause_traffic(active_ports)
+        rc.annotate("Pausing traffic on port(s) {0}:".format(port_id_list))
+        if rc.bad():
+            return rc
+
+        return RC_OK()
+
+    def cmd_pause_line (self, line):
+        '''Pause active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "pause",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        return self.cmd_pause(opts.ports)
+
+
+    # resume cmd
+    def cmd_resume (self, port_id_list):
+
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on porvided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.resume_traffic(active_ports)
+        rc.annotate("Resume traffic on port(s) {0}:".format(port_id_list))
+        if rc.bad():
+            return rc
+
+        return RC_OK()
+
+
+    def cmd_resume_line (self, line):
+        '''Resume active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "resume",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        return self.cmd_resume(opts.ports)
+
 
     # start cmd
     def cmd_start (self, port_id_list, stream_list, mult, force, duration):
