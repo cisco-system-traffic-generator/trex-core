@@ -132,6 +132,15 @@ TRex curretly works on x86 architecture and can operates well on Cisco UCS hardw
 * NUMAs-CPUs relation is determined with following command: lscpu
 * See real example of NUMA usage xref:numa-example[here]
 * Using Intel XL710 with Fedora 18 requires updating Kernel.
+* For Intel XL710 NICs need to verify the FW is v4.42 or v4.53:
+** > sudo ./t-rex-64 -f cap2/dns.yaml -d 0 --no-flow-control *-v 6* --nc | grep FW
+** PMD:  *FW 4.22* API 1.2 NVM 04.02.04 eetrack 800013fc
+** PMD:  *FW 4.22* API 1.2 NVM 04.02.04 eetrack 800013fc
+** PMD:  *FW 4.22* API 1.2 NVM 04.02.04 eetrack 800013fc
+** PMD:  *FW 4.22* API 1.2 NVM 04.02.04 eetrack 800013fc
+
+
+
 =====================================
 
 .Sample order for UCSC-C220-M3S with 4x10Gb ports
@@ -1111,8 +1120,8 @@ a configuration file now has the folowing struct to support multi instance
 <5> the platform section
 <6> The thread_id for control 
 <7> The thread_id for latency if used
-<8> Socket of the dual interfaces, in this example of 03:00.0 and 03:00.1, memory should be local to the interface
-<9> Thread to be used, should be local to the NIC 
+<8> Socket of the dual interfaces, in this example of 03:00.0 and 03:00.1, memory should be local to the interface. (Currently dual interface can't use 2 NUMAs.)
+<9> Thread to be used, should be local to the NIC. The threads are pinned to cores, thus specifying threads is like specifying cores.
 
 *Real example:* anchor:numa-example[]
 
