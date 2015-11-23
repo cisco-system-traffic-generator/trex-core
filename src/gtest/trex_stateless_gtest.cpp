@@ -1342,5 +1342,58 @@ TEST_F(basic_stl, dp_stop_event) {
      
 }
 
+TEST_F(basic_stl, graph_generator) {
+    std::vector<TrexStream *> streams;
+    TrexStreamsGraph graph;
+    TrexStream *stream;
+
+     /* stream 1 */
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 1);
+     stream->m_enabled = true;
+     stream->m_self_start = true;
+
+     stream->m_isg_usec = 42;
+     stream->set_pps(10);
+     stream->set_single_burst(43281);
+     stream->m_pkt.len = 512;
+
+     stream->m_next_stream_id = 2;
+     
+
+     streams.push_back(stream);
+
+     /* stream 2 */
+     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 2);
+     stream->m_enabled = true;
+     stream->m_self_start = false;
+
+     stream->set_pps(20);
+     stream->set_multi_burst(4918, 13, 7);
+     stream->m_next_stream_id = -1;
+     stream->m_pkt.len = 64;
+
+     streams.push_back(stream);
+
+     /* stream 3 */
+     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, 3);
+     stream->m_enabled = true;
+     stream->m_self_start = true;
+
+     stream->m_isg_usec = 50;
+     stream->set_pps(30);
+     stream->m_next_stream_id = -1;
+     stream->m_pkt.len = 1512;
+
+     streams.push_back(stream);
+
+
+     const TrexStreamsGraphObj &obj = graph.generate(streams);
+     EXPECT_TRUE(obj.get_max_bps() == 403840.0);
+     EXPECT_TRUE(obj.get_max_pps() == 50.0);
+
+     for (auto stream : streams) {
+         delete stream;
+     }
+}   
 
 /********************************************* Itay Tests End *************************************/

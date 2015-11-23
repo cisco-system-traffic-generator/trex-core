@@ -44,22 +44,60 @@ def match_time_unit(val):
 
 def match_multiplier(val):
     '''match some val against multiplier  shortcut inputs '''
-    match = re.match("^(\d+)(gb|kpps|%?)$", val)
+
+    match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mbps|%?)$", val)
+
+    result = {}
+
     if match:
-        digit = int(match.group(1))
-        unit = match.group(2)
+
+        value = float(match.group(1))
+        unit = match.group(3)
+
+        # raw type (factor)
         if not unit:
-            return digit
-        elif unit == 'gb':
-            raise NotImplementedError("gb units are not supported yet")
-        else:
-            raise NotImplementedError("kpps units are not supported yet")
+            result['type'] = 'raw'
+            result['factor'] = value
+
+        elif unit == 'bps':
+            result['type'] = 'max_bps'
+            result['max'] = value
+
+        elif unit == 'kbps':
+            result['type'] = 'max_bps'
+            result['max'] = value * 1000
+
+        elif unit == 'mbps':
+            result['type'] = 'max_bps'
+            result['max'] = value * 1000 * 1000
+
+        elif unit == 'gbps':
+            result['type'] = 'max_bps'
+            result['max'] = value * 1000 * 1000 * 1000
+
+        elif unit == 'pps':
+            result['type'] = 'max_pps'
+            result['max'] = value
+
+        elif unit == "kpps":
+            result['type'] = 'max_pps'
+            result['max'] = value * 1000
+
+        elif unit == "mpps":
+            result['type'] = 'max_pps'
+            result['max'] = value * 1000 * 1000
+
+        elif unit == "%":
+            raise argparse.ArgumentTypeError("percetange is currently unsupported...")
+
+        return result
+
     else:
-        raise argparse.ArgumentTypeError("Multiplier should be passed in the following format: \n"
-                                         "-m 100    : multiply stream file by this factor \n"
-                                         "-m 10gb   : from graph calculate the maximum rate as this bandwidth (for each port)\n"
-                                         "-m 10kpps : from graph calculate the maximum rate as this pps       (for each port)\n"
-                                         "-m 40%    : from graph calculate the maximum rate as this percent from total port  (for each port)")
+        raise argparse.ArgumentTypeError("\n\nMultiplier should be passed in the following format: \n\n"
+                                         "-m 100                            : multiply by factor \n"
+                                         "-m 1bps / 1kbps / 1mbps / 1gbps   : normalize to bps \n"
+                                         "-m 1pps / 1kpps / 1mbps           : normalize to pps \n"
+                                         "-m 40%                            : normalize to % from port line rate\n")
 
 
 

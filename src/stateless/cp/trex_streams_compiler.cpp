@@ -34,19 +34,25 @@ limitations under the License.
  */
 class GraphNode {
 public:
-    GraphNode(TrexStream *stream, GraphNode *next) : m_stream(stream), m_next(next) {
-        marked   = false;
+    GraphNode(const TrexStream *stream, GraphNode *next) : m_stream(stream), m_next(next) {
+        m_marked   = false;
         m_compressed_stream_id=-1;
+
     }
 
     uint32_t get_stream_id() const {
         return m_stream->m_stream_id;
     }
 
+    uint32_t get_next_stream_id() const {
+        return m_stream->m_next_stream_id;
+
+    }
+
     const TrexStream *m_stream;
     GraphNode *m_next;
     std::vector<const GraphNode *> m_parents;
-    bool marked;
+    bool m_marked;
     int m_compressed_stream_id;
 };
 
@@ -97,13 +103,13 @@ public:
 
     void clear_marks() {
         for (auto node : m_nodes) {
-            node.second->marked = false;
+            node.second->m_marked = false;
         }
     }
 
     void get_unmarked(std::vector <GraphNode *> &unmarked) {
         for (auto node : m_nodes) {
-            if (!node.second->marked) {
+            if (!node.second->m_marked) {
                 unmarked.push_back(node.second);
             }
         }
@@ -131,6 +137,7 @@ private:
     std::vector <GraphNode *> m_roots;
     GraphNode m_dead_end;
 };
+
 
 /**************************************
  * stream compiled object
@@ -316,11 +323,11 @@ TrexStreamsCompiler::check_for_unreachable_streams(GraphNodeMap *nodes) {
         /* pull one */
         GraphNode *node = next_nodes.back();
         next_nodes.pop_back();
-        if (node->marked) {
+        if (node->m_marked) {
             continue;
         }
 
-        node->marked = true;
+        node->m_marked = true;
 
         if (node->m_next != NULL) {
             next_nodes.push_back(node->m_next);
@@ -422,9 +429,174 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
                                 my_stream_id,
                                 my_next_stream_id
                                 );
+        
     }
 
     return true;
 }
 
+/**************************************
+ * streams graph
+ *************************************/
+
+void
+TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, const TrexStream *stream) {
+    TrexStreamsGraphObj::rate_event_st start_event;
+    TrexStreamsGraphObj::rate_event_st stop_event;
+
+    switch (stream->get_type()) {
+    case TrexStream::stCONTINUOUS:
+
+        start_event.time = offset_usec + stream->m_isg_usec;
+        start_event.diff_pps = stream->get_pps();
+        start_event.diff_bps = stream->get_bps();
+        m_graph_obj.add_rate_event(start_event);
+
+        /* no more events after this stream */
+        offset_usec = -1;
+
+        break;
+        
+    case TrexStream::stSINGLE_BURST:
+
+        /* start event */
+        start_event.time = offset_usec + stream->m_isg_usec;
+        start_event.diff_pps = stream->get_pps();
+        start_event.diff_bps = stream->get_bps();
+        m_graph_obj.add_rate_event(start_event);
+
+        /* stop event */
+        stop_event.time = start_event.time + stream->get_burst_length_usec();
+        stop_event.diff_pps = -(start_event.diff_pps);
+        stop_event.diff_bps = -(start_event.diff_bps);
+        m_graph_obj.add_rate_event(stop_event);
+
+        /* next stream starts from here */
+        offset_usec = stop_event.time;
+
+        break;
+
+    case TrexStream::stMULTI_BURST:
+
+        double delay = stream->m_isg_usec;
+
+        start_event.diff_pps = stream->get_pps();
+        start_event.diff_bps = stream->get_bps();
+
+        stop_event.diff_pps  = -(start_event.diff_pps);
+        stop_event.diff_bps  = -(start_event.diff_bps);
+
+        for (int i = 0; i < stream->m_num_bursts; i++) {
+
+            start_event.time = offset_usec + delay;
+            m_graph_obj.add_rate_event(start_event);
+
+            stop_event.time = start_event.time + stream->get_burst_length_usec();
+            m_graph_obj.add_rate_event(stop_event);
+
+            delay = stream->m_ibg_usec;
+
+            offset_usec = stop_event.time;
+        }
+
+        break;
+    }
+}
+
+void
+TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
+
+
+    std::unordered_map<uint32_t, bool> loop_hash;
+
+    
+    uint32_t stream_id = root_stream_id;
+    double offset = 0;
+
+    while (true) {
+
+        const TrexStream *stream = m_streams_hash.at(stream_id);
+        /* add the node to the hash for loop detection */
+        loop_hash[stream_id] = true;
+
+        add_rate_events_for_stream(offset, stream);
+
+        /* do we have a next stream ? */
+        if (stream->m_next_stream_id == -1) {
+            break;
+        }
+
+        /* loop detection */
+
+        auto search = loop_hash.find(stream->m_next_stream_id);
+        if (search != loop_hash.end()) {
+            break;
+        }
+
+        /* handle the next one */
+        stream_id = stream->m_next_stream_id;
+    }
+}
+
+const TrexStreamsGraphObj &
+TrexStreamsGraph::generate(const std::vector<TrexStream *> &streams) {
+    std::vector <uint32_t> root_streams;
+
+
+    for (TrexStream *stream : streams) {
+          
+        /* for fast search we populate all the streams in a hash */        
+        m_streams_hash[stream->m_stream_id] = stream;
+
+        /* hold all the self start nodes in a vector */
+        if (stream->m_self_start) {
+            root_streams.push_back(stream->m_stream_id);
+        }
+    }
+
+    /* for each node - scan until done or loop */
+    for (uint32_t root_id : root_streams) {
+        generate_graph_for_one_root(root_id);
+    }
+
+
+    m_graph_obj.generate();
+
+    return m_graph_obj;
+}
+
+/**************************************
+ * streams graph object
+ *************************************/
+void
+TrexStreamsGraphObj::find_max_rate() {
+    double max_rate_pps = 0;
+    double current_rate_pps = 0;
+
+    double max_rate_bps = 0;
+    double current_rate_bps = 0;
+
+    /* now we simply walk the list and hold the max */
+    for (auto &ev : m_rate_events) {
+        current_rate_pps += ev.diff_pps;
+        current_rate_bps += ev.diff_bps;
+
+        max_rate_pps = std::max(max_rate_pps, current_rate_pps);
+        max_rate_bps = std::max(max_rate_bps, current_rate_bps);
+    }
+
+    m_max_pps = max_rate_pps;
+    m_max_bps = max_rate_bps;
+}
+
+static 
+bool event_compare (const TrexStreamsGraphObj::rate_event_st &first, const TrexStreamsGraphObj::rate_event_st &second) {
+    return (first.time < second.time);
+}
+
+void
+TrexStreamsGraphObj::generate() {
+    m_rate_events.sort(event_compare);
+    find_max_rate();
+}
 

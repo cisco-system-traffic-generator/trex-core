@@ -463,7 +463,6 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id  = parse_byte(params, "port_id", result);
-    double mul       = parse_double(params, "mul", result);
     double duration  = parse_double(params, "duration", result);
 
     if (port_id >= get_stateless_obj()->get_port_count()) {
@@ -474,8 +473,29 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+
+    const Json::Value &mul = parse_object(params, "mul", result);
+    std::string mul_type = parse_string(mul, "type", result);
+
+    /* dispatch according to type of multiplier  */
+
     try {
-        port->start_traffic(mul, duration);
+        if (mul_type == "raw") {
+
+            double m = parse_double(mul, "factor", result);
+            port->start_traffic(m, duration);
+
+        } else if (mul_type == "max_bps") {
+
+            double max_bps = parse_double(mul, "max", result);
+            port->start_traffic_max_bps(max_bps, duration);
+
+        } else if (mul_type == "max_pps") {
+
+            double max_pps = parse_double(mul, "max", result);
+            port->start_traffic_max_pps(max_pps, duration);
+        }
+
     } catch (const TrexRpcException &ex) {
         generate_execute_err(result, ex.what());
     }

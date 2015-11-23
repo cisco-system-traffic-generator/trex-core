@@ -90,7 +90,7 @@ public:
         m_next_stream_id = next_stream_id;
     }
 
-    double get_pps() {
+    double get_pps() const {
         return m_pps;
     }
 
@@ -148,6 +148,15 @@ public:
             dp->m_num_bursts            =   m_num_bursts;
             dp->m_ibg_usec              =   m_ibg_usec ;
             return (dp);
+    }
+
+
+    double get_burst_length_usec() const {
+        return ( (m_burst_total_pkts / m_pps) * 1000 );
+    }
+
+    double get_bps() const {
+        return (m_pps * m_pkt.len * 8);
     }
 
     void Dump(FILE *fd);

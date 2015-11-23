@@ -77,6 +77,8 @@ public:
      * throws TrexException in case of an error
      */
     void start_traffic(double mul, double duration = -1);
+    void start_traffic_max_bps(double max_bps, double duration = -1);
+    void start_traffic_max_pps(double max_pps, double duration = -1);
 
     /**
      * stop traffic

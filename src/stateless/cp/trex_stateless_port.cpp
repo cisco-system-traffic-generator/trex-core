@@ -111,9 +111,12 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
     vector<TrexStream *> streams;
     get_object_list(streams);
 
+    /* split it per core */
+    double per_core_mul = mul / m_cores_id_list.size();
+
     /* compiler it */
     TrexStreamsCompiler compiler;
-    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id, mul);
+    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id, per_core_mul);
 
     bool rc = compiler.compile(streams, *compiled_obj);
     if (!rc) {
@@ -131,6 +134,34 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
 
     send_message_to_dp(start_msg);
     
+}
+
+void
+TrexStatelessPort::start_traffic_max_bps(double max_bps, double duration) {
+    /* fetch all the streams from the table */
+    vector<TrexStream *> streams;
+    get_object_list(streams);
+
+    TrexStreamsGraph graph;
+    const TrexStreamsGraphObj &obj = graph.generate(streams);
+    double m = (max_bps / obj.get_max_bps());
+
+    /* call the main function */
+    start_traffic(m, duration);
+}
+
+void
+TrexStatelessPort::start_traffic_max_pps(double max_pps, double duration) {
+    /* fetch all the streams from the table */
+    vector<TrexStream *> streams;
+    get_object_list(streams);
+
+    TrexStreamsGraph graph;
+    const TrexStreamsGraphObj &obj = graph.generate(streams);
+    double m = (max_pps / obj.get_max_pps());
+
+    /* call the main function */
+    start_traffic(m, duration);
 }
 
 /**
