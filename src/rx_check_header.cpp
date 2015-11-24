@@ -42,11 +42,11 @@ void CRx_check_header::dump(FILE *fd){
 
 void CNatOption::dump(FILE *fd){
 
-    fprintf(fd,"  op        : %lx \n",get_option_type());
-    fprintf(fd,"  ol        : %lx \n",get_option_len());
-    fprintf(fd,"  thread_id : %lx \n",get_thread_id());
-    fprintf(fd,"  magic     : %lx \n",get_magic());
-    fprintf(fd,"  fid       : %lx \n",get_fid());
+    fprintf(fd,"  op        : %x \n",get_option_type());
+    fprintf(fd,"  ol        : %x \n",get_option_len());
+    fprintf(fd,"  thread_id : %x \n",get_thread_id());
+    fprintf(fd,"  magic     : %x \n",get_magic());
+    fprintf(fd,"  fid       : %x \n",get_fid());
     utl_DumpBuffer(stdout,(void *)&u.m_data[0],8,0);
 }
 

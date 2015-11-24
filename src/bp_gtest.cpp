@@ -66,7 +66,7 @@ int test_priorty_queue(void){
     int i;
     for (i=0; i<10; i++) {
          node = new CGenNode();
-         printf(" +%x \n",node);
+         printf(" +%p \n",node);
          node->m_flow_id = 10-i; 
          node->m_pkt_info = (CFlowPktInfo *)(uintptr_t)i; 
          node->m_time = (double)i+0.1; 
@@ -74,7 +74,7 @@ int test_priorty_queue(void){
     }
     while (!p_queue.empty()) {
         node = p_queue.top();
-        printf(" -->%x \n",node);
+        printf(" -->%p \n",node);
         //node->Dump(stdout);
         p_queue.pop();
         //delete node;
@@ -131,16 +131,6 @@ int test_human_p(){
 
 
 
-static bool was_init=false;
-
-void gtest_init_once(){
-
-    if ( !was_init ){
-        CGlobalInfo::init_pools(1000);
-        time_init();
-        was_init=true;
-    }
-}
 
 
 
@@ -159,7 +149,7 @@ public:
 
     bool  init(void){
 
-        uint16 * ports;
+        uint16 * ports = NULL;
         CTupleBase tuple;
 
         CErfIF erf_vif;
@@ -259,7 +249,6 @@ public:
 class basic  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
   }
   virtual void TearDown() {
   }
@@ -269,7 +258,6 @@ public:
 class cpu  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
   }
   virtual void TearDown() {
   }
@@ -663,6 +651,7 @@ TEST_F(basic, latency1) {
     po->preview.setFileWrite(true);
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
 
     CErfIF  erf_vif;
     erf_vif.set_review_mode(&CGlobalInfo::m_options.preview);
@@ -714,6 +703,7 @@ TEST_F(basic, latency2) {
 
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
 
     mac[0]=0;
     mac[1]=0;
@@ -728,14 +718,13 @@ TEST_F(basic, latency2) {
 
     int i;
     for (i=0; i<100; i++) {
-        uint8_t *p;
         rte_mbuf_t * m=l.generate_pkt(0);
-        p=rte_pktmbuf_mtod(m, uint8_t*);
+        rte_pktmbuf_mtod(m, uint8_t*);
         //utl_DumpBuffer(stdout,p,l.get_pkt_size(),0);
 
         port0.update_packet(m);
 
-        p=rte_pktmbuf_mtod(m, uint8_t*);
+        rte_pktmbuf_mtod(m, uint8_t*);
         //utl_DumpBuffer(stdout,p,l.get_pkt_size(),0);
         //printf("offset is : %d \n",l.get_payload_offset());
 
@@ -763,6 +752,7 @@ TEST_F(basic, latency3) {
 
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
 
 
     mac[0]=0;
@@ -850,6 +840,7 @@ public:
 TEST_F(basic, latency4) {
 
     uint8_t  mac[]={0,0,0,1,0,0};
+    (void)mac;
     
     mac[0]=0;
     mac[1]=0;
@@ -1196,7 +1187,6 @@ TEST_F(cpu, cpu3) {
 class timerwl  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
   }
   virtual void TearDown() {
   }
@@ -1447,7 +1437,6 @@ TEST_F(timerwl, many_timers_with_stop) {
 class rx_check  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
       m_rx_check.Create();
 
   }
@@ -2125,7 +2114,7 @@ class CRxCheck1 : public CRxCheckCallbackBase {
 public:
 
     virtual void handle_packet(rte_mbuf_t  * m){
-        char *mp=rte_pktmbuf_mtod(m, char*);
+        rte_pktmbuf_mtod(m, char*);
         CRx_check_header * rx_p;
         rte_mbuf_t  * m2 = m->next;
         rx_p=(CRx_check_header *)rte_pktmbuf_mtod(m2, char*);
@@ -2139,7 +2128,6 @@ public:
 class rx_check_system  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
 
       m_rx_check.m_callback=&m_callback;
       m_callback.mg   =&m_mg;
@@ -2417,8 +2405,6 @@ public:
 class nat_check_system  : public testing::Test {
  protected:
   virtual void SetUp() {
-      gtest_init_once();
-
       m_rx_check.m_callback=&m_callback;
       m_callback.mg   =&m_mg;
       m_mg.Create();
@@ -2464,7 +2450,6 @@ class file_flow_info  : public testing::Test {
 
 protected:
   virtual void SetUp() {
-      gtest_init_once();
       assert(m_flow_info.Create());
   }
 

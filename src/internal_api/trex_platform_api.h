@@ -23,6 +23,7 @@ limitations under the License.
 #define __TREX_PLATFORM_API_H__
 
 #include <stdint.h>
+#include <vector>
 
 /**
  * Global stats
@@ -96,6 +97,7 @@ public:
 
 class TrexPlatformApi {
 public:
+    virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
@@ -110,6 +112,7 @@ public:
  */
 class TrexDpdkPlatformApi : public TrexPlatformApi {
 public:
+    void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
     uint8_t get_dp_core_count() const;
@@ -122,6 +125,7 @@ public:
  */
 class TrexMockPlatformApi : public TrexPlatformApi {
 public:
+    void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {}
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
     uint8_t get_dp_core_count() const;

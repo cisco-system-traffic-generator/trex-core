@@ -478,6 +478,7 @@ TEST_F(RpcTestOwned, add_remove_stream) {
     create_request(request, "get_stream", 1, 1);
 
     request["params"]["stream_id"] = 5;
+    request["params"]["get_pkt"] = true;
 
     send_request(request, response);
 
@@ -501,6 +502,7 @@ TEST_F(RpcTestOwned, add_remove_stream) {
     create_request(request, "get_stream", 1, 1);
 
     request["params"]["stream_id"] = 5;
+    request["params"]["get_pkt"] = true;
 
     send_request(request, response);
 
@@ -607,17 +609,21 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
 
     /* start port 1 */
     create_request(request, "start_traffic", 1, 1);
+    request["params"]["mul"] = 1.0;
     send_request(request, response);
+
     EXPECT_EQ(response["result"], "ACK");
 
 
     /* start port 3 */
     create_request(request, "start_traffic", 1, 3);
+    request["params"]["mul"] = 1.0;
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
     /* start not configured port */
     create_request(request, "start_traffic", 1, 2);
+    request["params"]["mul"] = 1.0;
     send_request(request, response);
     EXPECT_EQ(response["error"]["code"], -32000);
 
@@ -633,11 +639,13 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
 
     /* start 1 again */
     create_request(request, "start_traffic", 1, 1);
+    request["params"]["mul"] = 1.0;
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
     /* start 1 twice (error) */
     create_request(request, "start_traffic", 1, 1);
+    request["params"]["mul"] = 1.0;
     send_request(request, response);
     EXPECT_EQ(response["error"]["code"], -32000);
 
@@ -657,3 +665,96 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
     EXPECT_EQ(response["result"], "ACK");
 }
 
+
+
+TEST_F(RpcTestOwned, states_check) {
+    Json::Value request;
+    Json::Value response;
+
+    /* add stream #1 */
+    create_request(request, "add_stream", 1, 1);
+    request["params"]["stream_id"] = 5;
+
+    Json::Value stream;
+    create_simple_stream(stream);
+
+    request["params"]["stream"] = stream;
+    
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    /* start traffic */
+    create_request(request, "start_traffic", 1, 1);
+    request["params"]["mul"] = 1.0;
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    /* now we cannot add streams */
+    create_request(request, "add_stream", 1, 1);
+    request["params"]["stream_id"] = 15;
+
+    create_simple_stream(stream);
+
+    request["params"]["stream"] = stream;
+    
+    send_request(request, response);
+    EXPECT_EQ(response["error"]["code"], -32000);
+
+    /* we cannot remove streams */
+    create_request(request, "remove_stream", 1, 1);
+    request["params"]["stream_id"] = 15;
+    send_request(request, response);
+    EXPECT_EQ(response["error"]["code"], -32000);
+
+    /* cannot start again */
+    create_request(request, "start_traffic", 1, 1);
+    request["params"]["mul"] = 1.0;
+    send_request(request, response);
+    EXPECT_EQ(response["error"]["code"], -32000);
+
+    /* we can stop and add stream / remove */
+
+    create_request(request, "stop_traffic", 1, 1);
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    create_request(request, "add_stream", 1, 1);
+    request["params"]["stream_id"] = 328;
+
+    create_simple_stream(stream);
+
+    request["params"]["stream"] = stream;
+
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+
+    create_request(request, "remove_stream", 1, 1);
+    request["params"]["stream_id"] = 15;
+    send_request(request, response);
+    EXPECT_EQ(response["error"]["code"], -32000);
+
+    /* we cannot pause now */
+    create_request(request, "pause_traffic", 1, 1);
+    send_request(request, response);
+    EXPECT_EQ(response["error"]["code"], -32000);
+
+
+    /* start */
+    create_request(request, "start_traffic", 1, 1);
+    request["params"]["mul"] = 1.0;
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    /* now can pause */
+    create_request(request, "pause_traffic", 1, 1);
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+    /* also we can resume*/
+    create_request(request, "resume_traffic", 1, 1);
+    send_request(request, response);
+    EXPECT_EQ(response["result"], "ACK");
+
+
+}

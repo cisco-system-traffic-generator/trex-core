@@ -107,6 +107,7 @@ main_src = SrcGroup(dir='src',
              'utl_yaml.cpp',
              'nat_check.cpp',
              'msg_manager.cpp',
+             'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp'
              ]);
@@ -159,6 +160,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
                                     'cp/trex_streams_compiler.cpp',
+                                    'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp'
                                     ])
@@ -572,7 +574,7 @@ class build_option:
         if self.isRelease () :
             flags += ['-O3'];
         else:
-            flags += ['-O0'];
+            flags += ['-O0','-D_DEBUG'];
 
         return (flags)
 
@@ -581,6 +583,12 @@ class build_option:
 
         # support c++ 2011
         flags += ['-std=c++0x']
+
+        flags += ['-Wall',
+                  '-Werror',
+                  '-Wno-literal-suffix',
+                  '-Wno-sign-compare',
+                  '-Wno-strict-aliasing']
 
         return (flags)
 
@@ -768,7 +776,7 @@ files_list=[
             'trex-console'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl']
 
 
 class Env(object):
@@ -853,7 +861,7 @@ def publish(bld):
     from_        = exec_p+'/'+release_name;
     os.system("rsync -av %s %s:%s/%s " %(from_,Env().get_local_web_server(),Env().get_remote_release_path (), release_name))
     os.system("ssh %s 'cd %s;rm be_latest; ln -P %s be_latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
-    os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
+    #os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
 
 
 def publish_ext(bld):
@@ -864,7 +872,7 @@ def publish_ext(bld):
     from_        = exec_p+'/'+release_name;
     os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/release/%s' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ,release_name) )
     os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
-    os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
+    #os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
 
 
 

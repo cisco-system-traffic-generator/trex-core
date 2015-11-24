@@ -62,6 +62,12 @@ limitations under the License.
 #undef NAT_TRACE_
 
 
+static inline double
+usec_to_sec(double usec) {
+    return (usec / (1000 * 1000));
+}
+
+
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 
 #define MAX_LATENCY_PORTS 12
@@ -328,6 +334,9 @@ public:
     CVirtualIF (){
         m_preview_mode =NULL;
     }
+
+    virtual ~CVirtualIF(){
+    }
 public:
 
     virtual int open_file(std::string file_name)=0;
@@ -372,6 +381,15 @@ public:
      * @return 
      */
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m)=0;
+
+    /**
+     * translate a port_id to the correct dir on the core
+     * 
+     */
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
+        return (CS_INVALID);
+    }
+
 public:
 
 
@@ -885,6 +903,8 @@ public:
     /* number of main active sockets. socket #0 is always used  */
     virtual socket_id_t max_num_active_sockets()=0;
 
+    virtual ~CPlatformSocketInfoBase() {}
+    
 public:
     /* which socket to allocate memory to each port */
     virtual socket_id_t port_to_socket(port_id_t port)=0;
@@ -1129,6 +1149,9 @@ public:
 class CGlobalInfo {
 public:
     static void init_pools(uint32_t rx_buffers);
+    /* for simulation */
+    static void free_pools();
+
 
     static inline rte_mbuf_t   * pktmbuf_alloc_small(socket_id_t socket){
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
@@ -1328,8 +1351,8 @@ public:
 
 
 
-#define DP(f) if (f) printf(" %-40s: %llu \n",#f,f)
-#define DP_name(n,f) if (f) printf(" %-40s: %llu \n",n,f)
+#define DP(f) if (f) printf(" %-40s: %llu \n",#f,(unsigned long long)f)
+#define DP_name(n,f) if (f) printf(" %-40s: %llu \n",n,(unsigned long long)f)
 
 #define DP_S(f,f_s) if (f) printf(" %-40s: %s \n",#f,f_s.c_str())
 
@@ -1365,7 +1388,11 @@ public:
         FLOW_PKT_NAT            =3,
         FLOW_SYNC               =4,     /* called evey 1 msec */
         STATELESS_PKT           =5,
-        EXIT_SCHED              =6
+        EXIT_SCHED              =6,
+        COMMAND                 =7,
+
+        EXIT_PORT_SCHED         =8
+
 
     };
 
@@ -1421,6 +1448,7 @@ public:
     }
 
 
+    void free_base();
 };
 
 
@@ -1455,6 +1483,9 @@ public:
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
 
+
+public:
+    void free_gen_node();
 public:
     void Dump(FILE *fd);
 
@@ -1641,6 +1672,8 @@ public:
 
 
 
+
+
 #if __x86_64__
 /* size of 64 bytes */
     #define DEFER_CLIENTS_NUM (16)
@@ -1791,10 +1824,23 @@ public:
     virtual int flush_tx_queue(void);
 
 
-private:
+protected:
+
+    void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
+
     CFileWriterBase         * m_writer;
     CCapPktRaw              * m_raw;
 };
+
+/* for stateless we have a small changes in case we send the packets for optimization */
+class CErfIFStl : public CErfIF {
+
+public:
+
+    virtual int send_node(CGenNode * node);
+};
+
+
 
 static inline int fill_pkt(CCapPktRaw  * raw,rte_mbuf_t * m){
     raw->pkt_len = m->pkt_len;
@@ -1860,6 +1906,8 @@ public:
 public:
     void  add_node(CGenNode * mynode);
     void  remove_all(CFlowGenListPerThread * thread);
+    void  remove_all_stateless(CFlowGenListPerThread * thread);
+
     int   open_file(std::string file_name,
                     CPreviewMode * preview);
     int   close_file(CFlowGenListPerThread * thread);
@@ -1892,9 +1940,12 @@ private:
         return (m_v_if->send_node(node));
     }
     int   update_stats(CGenNode * node);
-    FORCE_NO_INLINE void  handle_slow_messages(uint8_t type,
-                                             CGenNode * node,
-                                             CFlowGenListPerThread * thread,
+    int   update_stl_stats(CGenNodeStateless *node_sl);
+
+
+    FORCE_NO_INLINE bool handle_slow_messages(uint8_t type,
+                                              CGenNode * node,
+                                              CFlowGenListPerThread * thread,
                                               bool always);
 
 
@@ -2370,6 +2421,7 @@ public:
             return (uint32_t)((uintptr_t)( ((char *)l3.m_ipv4)-getBasePtr()) );
         }else{
             BP_ASSERT(0);
+            return (0);
         }
     }
 
@@ -3358,6 +3410,13 @@ public:
                 uint32_t           max_threads);
     void Delete();
 
+    void set_terminate_mode(bool is_terminate){
+        m_terminated_by_master =is_terminate;
+    }
+    bool is_terminated_by_master(){
+        return (m_terminated_by_master);
+    }
+
     void set_vif(CVirtualIF * v_if){
         m_node_gen.set_vif(v_if);
     }
@@ -3397,7 +3456,18 @@ public :
 public:
     void Clean();
     void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
-    void start_stateless_daemon();
+    void start_stateless_daemon(CPreviewMode &preview);
+
+    void start_stateless_daemon_simulation();
+
+    /* open a file for simulation */
+    void start_stateless_simulation_file(std::string erf_file_name,CPreviewMode &preview);
+    /* close a file for simulation */
+    void stop_stateless_simulation_file();
+
+    /* return true if we need to shedule next_stream,  */
+    bool  set_stateless_next_node( CGenNodeStateless * cur_node,
+                                   CGenNodeStateless * next_node);
 
 
     void Dump(FILE *fd);
@@ -3471,6 +3541,7 @@ public:
     CNodeGenerator                   m_node_gen;
 public:
     uint32_t                         m_cur_template;
+    uint32_t                         m_non_active_nodes; /* the number of non active nodes -> nodes that try to stop somthing */
     uint64_t                         m_cur_flow_id;
     double                           m_cur_time_sec;
     double                           m_stop_time_sec;
@@ -3491,7 +3562,8 @@ private:
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
 
-    TrexStatelessDpCore              *m_stateless_dp_info;
+    TrexStatelessDpCore              m_stateless_dp_info;
+    bool                             m_terminated_by_master;
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 
@@ -3506,7 +3578,10 @@ inline CGenNode * CFlowGenListPerThread::create_node(void){
     return (res);
 }
 
+
+
 inline void CFlowGenListPerThread::free_node(CGenNode *p){
+    p->free_base();
     rte_mempool_sp_put(m_node_pool, p);
 }
 
@@ -4020,6 +4095,8 @@ enum MINVM_PLUGIN_ID{
 
 class CPluginCallback {
 public:
+    virtual ~CPluginCallback(){
+    }
     virtual void on_node_first(uint8_t plugin_id,CGenNode *     node,CFlowYamlInfo *  template_info, CTupleTemplateGeneratorSmart * tuple_gen,CFlowGenListPerThread  * flow_gen) =0;
     virtual void on_node_last(uint8_t plugin_id,CGenNode *     node)=0;
     virtual rte_mbuf_t * on_node_generate_mbuf(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info)=0;

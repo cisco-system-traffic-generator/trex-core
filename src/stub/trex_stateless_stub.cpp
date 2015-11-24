@@ -4,7 +4,8 @@
 class CFlowGenListPerThread;
 class TrexStatelessCpToDpMsgBase;
 
-TrexStatelessDpCore::TrexStatelessDpCore(unsigned char, CFlowGenListPerThread*) {
+void
+TrexStatelessDpCore::create(unsigned char, CFlowGenListPerThread*) {
     m_thread_id = 0;
     m_core = NULL;
 

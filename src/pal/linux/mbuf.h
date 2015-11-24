@@ -65,6 +65,8 @@ typedef struct rte_mempool rte_mempool_t;
 
 #define RTE_PKTMBUF_HEADROOM  0
 
+void utl_rte_mempool_delete(rte_mempool_t  * &pool);
+
 rte_mempool_t * utl_rte_mempool_create(const char  *name,
                                       unsigned n, 
                                       unsigned elt_size,

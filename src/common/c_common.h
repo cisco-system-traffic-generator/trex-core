@@ -46,7 +46,7 @@ typedef void*           c_pvoid;
 #ifdef _DEBUG
     #define BP_ASSERT(a) assert(a)
 #else
-    #define BP_ASSERT(a) 
+    #define BP_ASSERT(a) (void (a))
 #endif
 
 #endif

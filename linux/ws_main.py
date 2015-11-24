@@ -117,7 +117,7 @@ main_src = SrcGroup(dir='src',
              'utl_json.cpp',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
-
+             'publisher/trex_publisher.cpp',
 
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp'
@@ -152,6 +152,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
                                     'cp/trex_streams_compiler.cpp',
+                                    'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
                                     ])
@@ -238,9 +239,15 @@ bp =SrcGroups([
                 bp_sim_gtest,
                 main_src, 
                 cmn_src ,
+
                 net_src ,
                 yaml_src,
-                bp_hack_for_compile,
+                json_src,
+                stateless_src,
+                rpc_server_src
+                #rpc_server_mock_src,
+
+                #bp_hack_for_compile,
                 ]);
 
 
@@ -393,11 +400,16 @@ class build_option:
 
 
 build_types = [
-               build_option(name = "bp-sim", src = bp, debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False),
-               build_option(name = "bp-sim", src = bp, debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False),
+               build_option(name = "bp-sim", src = bp, use = ['zmq'],debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False,
+                            flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
+                            rpath = ['.']),
+
+               build_option(name = "bp-sim", src = bp, use = ['zmq'],debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False,
+                            flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
+                            rpath = ['.']),
 
                build_option(name = "mock-rpc-server", use = ['zmq'], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, 
-                            flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Wno-sign-compare'],
+                            flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Werror', '-Wno-sign-compare'],
                             rpath = ['.']),
               ]
 

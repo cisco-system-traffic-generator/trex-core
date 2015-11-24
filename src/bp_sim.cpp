@@ -26,6 +26,7 @@ limitations under the License.
 #include <common/basic_utils.h> 
 
 #include <trex_stream_node.h>
+#include <trex_stateless_messaging.h>
 
 #undef VALG
 
@@ -72,11 +73,11 @@ void CGlobalMemory::Dump(FILE *fd){
             c_size=c_size*2;
         }
 
-        fprintf(fd," %-40s  : %lu \n",names[i].c_str(),m_mbuf[i]);
+        fprintf(fd," %-40s  : %lu \n",names[i].c_str(),(ulong)m_mbuf[i]);
     }
     c_total += (m_mbuf[MBUF_DP_FLOWS] * sizeof(CGenNode));
 
-    fprintf(fd," %-40s  : %lu \n","get_each_core_dp_flows",get_each_core_dp_flows());
+    fprintf(fd," %-40s  : %lu \n","get_each_core_dp_flows",(ulong)get_each_core_dp_flows());
     fprintf(fd," %-40s  : %s  \n","Total memory",double_to_human_str(c_total,"bytes",KBYE_1024).c_str() );
 }
 
@@ -218,7 +219,7 @@ bool CPlatformSocketInfoConfig::init(){
             m_max_threads_per_dual_if = num_threads;
         }else{
             if (lp->m_threads.size() != num_threads) {
-                printf("ERROR number of threads per dual ports should be the same for all dual ports\n");
+                printf("ERROR, the number of threads per dual ports should be the same for all dual ports\n");
                 exit(1);
             }
         }
@@ -230,7 +231,7 @@ bool CPlatformSocketInfoConfig::init(){
                 uint8_t phy_thread  = lp->m_threads[j];
 
                 if (phy_thread>MAX_THREADS_SUPPORTED) {
-                    printf("ERROR physical thread id is %d higher than max %d \n",phy_thread,MAX_THREADS_SUPPORTED);
+                    printf("ERROR, physical thread id is %d higher than max %d \n",phy_thread,MAX_THREADS_SUPPORTED);
                     exit(1);
                 }
 
@@ -240,7 +241,7 @@ bool CPlatformSocketInfoConfig::init(){
                 }
 
                 if ( m_thread_phy_to_virtual[phy_thread] ){
-                    printf("ERROR physical thread %d defined twice %d \n",phy_thread);
+                    printf("ERROR physical thread %d defined twice\n",phy_thread);
                     exit(1);
                 }
                 m_thread_phy_to_virtual[phy_thread]=virt_thread;
@@ -269,7 +270,7 @@ bool CPlatformSocketInfoConfig::init(){
 
 
 void CPlatformSocketInfoConfig::dump(FILE *fd){
-    fprintf(fd," core_mask  %x  \n",get_cores_mask());
+    fprintf(fd," core_mask  %llx  \n",(unsigned long long)get_cores_mask());
     fprintf(fd," sockets :");
     int i;
     for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
@@ -478,8 +479,8 @@ void CPlatformSocketInfo::dump(FILE *fd){
 
 
 void CRteMemPool::dump_in_case_of_error(FILE *fd){
-    fprintf(fd," ERROR ERROR there is no enough memory in socket  %d \n",m_pool_id);
-    fprintf(fd," Try to enlarge the memory values in the configuration file /etc/trex_cfg.yaml \n");
+    fprintf(fd," ERROR,there is no enough memory in socket  %d \n",m_pool_id);
+    fprintf(fd," Try to enlarge the memory values in the configuration file -/etc/trex_cfg.yaml ,see manual for more detail  \n");
     dump(fd);
 }
 
@@ -495,6 +496,26 @@ void CRteMemPool::dump(FILE *fd){
     DUMP_MBUF("mbuf_2048",m_big_mbuf_pool);
 }
 ////////////////////////////////////////
+
+
+void CGlobalInfo::free_pools(){
+    CPlatformSocketInfo * lpSocket =&m_socket;
+    CRteMemPool * lpmem;       
+    int i;
+    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
+        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
+            lpmem= &m_mem_pool[i];
+            utl_rte_mempool_delete(lpmem->m_big_mbuf_pool);
+            utl_rte_mempool_delete(lpmem->m_small_mbuf_pool);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_128);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_256);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_512);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_1024);  
+    }
+    utl_rte_mempool_delete(m_mem_pool[0].m_mbuf_global_nodes);
+  }
+}
+
 
 void CGlobalInfo::init_pools(uint32_t rx_buffers){
         /* this include the pkt from 64- */
@@ -748,9 +769,7 @@ int CErfIF::write_pkt(CCapPktRaw *pkt_raw){
 int CErfIF::close_file(void){
 
     BP_ASSERT(m_raw);
-    m_raw->raw=0;
     delete m_raw;
-
     if ( m_preview_mode->getFileWrite() ){
         BP_ASSERT(m_writer);
         delete m_writer;
@@ -821,7 +840,6 @@ void CPacketIndication::UpdatePacketPadding(){
 void CPacketIndication::RefreshPointers(){
 
     char *pobase=getBasePtr();                       
-    CPacketIndication * obj=this;
 
     m_ether = (EthernetHeader *) (pobase + m_ether_offset);
     l3.m_ipv4  = (IPHeader       *) (pobase + m_ip_offset);
@@ -1672,7 +1690,6 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
 
 
 void   CFlowPktInfo::mask_as_learn(){
-    char *p;
     CNatOption *lpNat;
     if ( m_pkt_indication.is_ipv6() ){
         lpNat=(CNatOption *)push_ipv6_option_offline(CNatOption::noOPTION_LEN);
@@ -2266,7 +2283,7 @@ void CCCapFileMemoryUsage::dump(FILE *fd){
     int c_total=0;
 
     for (i=0; i<CCCapFileMemoryUsage::MASK_SIZE; i++) {
-        fprintf(fd," size_%-7d   : %lu \n",c_size,m_buf[i]);
+        fprintf(fd," size_%-7d   : %lu \n",c_size, (ulong)m_buf[i]);
         c_total +=m_buf[i]*c_size;
         c_size = c_size*2;
     }
@@ -2441,7 +2458,6 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
 
 
     if ( node.FindValue("dyn_pyload") ){
-        int i;
         const YAML::Node& dyn_pyload = node["dyn_pyload"];
         for(unsigned i=0;i<dyn_pyload.size();i++) {
             CFlowYamlDpPkt fd;
@@ -2840,8 +2856,20 @@ void CFlowStats::DumpHeader(FILE *fd){
 void CFlowStats::Dump(FILE *fd){
                  //"name","cps","f-pkts","f-bytes","Mb/sec","MB/sec","c-flows","PPS","total-Mbytes-duration","errors","flows"
     fprintf(fd," %02d, %-40s ,%4.2f,%4.2f, %5.0f , %7.0f ,%7.2f ,%7.2f , %7.2f , %10.0f , %5.0f , %7.0f , %llu , %llu \n",
-            m_id,m_name.c_str(),m_cps,get_normal_cps(),
-            m_pkt,m_bytes,duration_sec,m_mb_sec,m_mB_sec,m_c_flows,m_pps,m_total_Mbytes,m_errors,m_flows);
+            m_id,
+            m_name.c_str(),
+            m_cps,
+            get_normal_cps(),
+            m_pkt,
+            m_bytes,
+            duration_sec,
+            m_mb_sec,
+            m_mB_sec,
+            m_c_flows,
+            m_pps,
+            m_total_Mbytes,
+            (unsigned long long)m_errors,
+            (unsigned long long)m_flows);
 }
 
 bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen, 
@@ -3045,22 +3073,31 @@ void CGenNode::DumpHeader(FILE *fd){
     fprintf(fd," pkt_id,time,fid,pkt_info,pkt,len,type,is_init,is_last,type,thread_id,src_ip,dest_ip,src_port \n");
 }
 
+
+void CGenNode::free_gen_node(){
+    rte_mbuf_t * m=get_cache_mbuf();
+    if ( unlikely(m != NULL) ) {
+        rte_pktmbuf_free(m);
+        m_plugin_info=0;
+    }
+}
+
+
 void CGenNode::Dump(FILE *fd){
-    fprintf(fd,"%.6f,%llx,%p,%llu,%d,%d,%d,%d,%d,%d,%x,%x,%d\n",m_time,m_flow_id,m_pkt_info,
-    m_pkt_info->m_pkt_indication.m_packet->pkt_cnt,
-    m_pkt_info->m_pkt_indication.m_packet->pkt_len,
-    m_pkt_info->m_pkt_indication.m_desc.getId(),
-    (m_pkt_info->m_pkt_indication.m_desc.IsInitSide()?1:0),
-     m_pkt_info->m_pkt_indication.m_desc.IsLastPkt(),
+    fprintf(fd,"%.6f,%llx,%p,%llu,%d,%d,%d,%d,%d,%d,%x,%x,%d\n",
+            m_time,
+            (unsigned long long)m_flow_id,
+            m_pkt_info,
+            (unsigned long long)m_pkt_info->m_pkt_indication.m_packet->pkt_cnt,
+            m_pkt_info->m_pkt_indication.m_packet->pkt_len,
+            m_pkt_info->m_pkt_indication.m_desc.getId(),
+            (m_pkt_info->m_pkt_indication.m_desc.IsInitSide()?1:0),
+            m_pkt_info->m_pkt_indication.m_desc.IsLastPkt(),
             m_type,
             m_thread_id,
             m_src_ip,
             m_dest_ip,
-            m_src_port
-
-
-
-            );
+            m_src_port);
 
 }
 
@@ -3093,6 +3130,13 @@ void CNodeGenerator::remove_all(CFlowGenListPerThread * thread){
     while (!m_p_queue.empty()) {
         node = m_p_queue.top();
         m_p_queue.pop();
+        /* sanity check */
+        if (node->m_type == CGenNode::STATELESS_PKT) {
+            CGenNodeStateless * p=(CGenNodeStateless *)node;
+            /* need to be changed in Pause support */
+            assert(p->is_mask_for_free());
+        }
+
         thread->free_node( node);
     }
 }
@@ -3108,6 +3152,7 @@ int CNodeGenerator::open_file(std::string file_name,
     return (0);
 }
 
+
 int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
     remove_all(thread);
     BP_ASSERT(m_v_if);
@@ -3115,10 +3160,19 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
     return (0);
 }
 
+int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
+    if ( m_preview_mode.getVMode() >2 ){
+        fprintf(stdout," %4lu ,", (ulong)m_cnt);
+        node_sl->Dump(stdout);
+        m_cnt++;
+    }
+    return (0);
+}
+
 
 int CNodeGenerator::update_stats(CGenNode * node){
     if ( m_preview_mode.getVMode() >2 ){
-        fprintf(stdout," %llu ,",m_cnt);
+        fprintf(stdout," %llu ,", (unsigned long long)m_cnt);
         node->Dump(stdout);
         m_cnt++;
     }
@@ -3132,6 +3186,8 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           max_threads){
 
 
+    m_non_active_nodes = 0;
+    m_terminated_by_master=false;
     m_flow_list =flow_list;
     m_core_id= core_id;
     m_tcp_dpc= 0;
@@ -3203,7 +3259,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     assert(m_ring_to_rx);
 
     /* create the info required for stateless DP core */
-    m_stateless_dp_info = new TrexStatelessDpCore(thread_id, this);
+    m_stateless_dp_info.create(thread_id, this);
 
     return (true);
 }
@@ -3353,8 +3409,7 @@ void CFlowGenListPerThread::Delete(){
     Clean();
     m_cpu_cp_u.Delete();
 
-    delete m_stateless_dp_info;
-    m_stateless_dp_info = NULL;
+    utl_rte_mempool_delete(m_node_pool);
 }
 
 
@@ -3401,15 +3456,24 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     bool done=false;
 
     thread->m_cpu_dp_u.start_work();
-    while (!m_p_queue.empty()) {
-        node = m_p_queue.top();
-        n_time = node->m_time+  offset;
 
-        if (( (n_time) > max_time ) && 
-            (always==false) ) {
-            /* nothing to do */
-            break;
-        }
+    /**
+     * if a positive value was given to max time 
+     * schedule an exit node 
+     */
+    if ( (max_time > 0) && (!always) ) {
+        CGenNode *exit_node = thread->create_node();
+
+        exit_node->m_type = CGenNode::EXIT_SCHED;
+        exit_node->m_time = max_time;
+        add_node(exit_node);
+    }
+
+    while (true) {
+
+        node = m_p_queue.top();
+        n_time = node->m_time + offset;
+
         events++;
 /*#ifdef VALG
         if (events > 1 ) {
@@ -3420,8 +3484,6 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         if (  likely ( m_is_realtime ) ){
             dsec_t dt ;
             thread->m_cpu_dp_u.commit();
-
-            thread->check_msgs();
 
             while ( true ) {
                 dt = now_sec() - n_time ;
@@ -3449,9 +3511,9 @@ int CNodeGenerator::flush_file(dsec_t max_time,
             }
         }
 
-        #ifndef RTE_DPDK
-        thread->check_msgs();
-        #endif
+        //#ifndef RTE_DPDK
+        //thread->check_msgs();
+        //#endif
 
         uint8_t type=node->m_type;
 
@@ -3459,8 +3521,12 @@ int CNodeGenerator::flush_file(dsec_t max_time,
              m_p_queue.pop();
              CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
 
+             #ifdef _DEBUG
+             update_stl_stats(node_sl);
+             #endif
+
              /* if the stream has been deactivated - end */
-             if (unlikely(!node_sl->is_active())) {
+             if ( unlikely( node_sl->is_mask_for_free() ) ) {
                  thread->free_node(node);
              } else {
                  node_sl->handle(thread);
@@ -3509,12 +3575,18 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                     }
 
                 }else{
-                    handle_slow_messages(type,node,thread,always);
+                    bool exit_sccheduler = handle_slow_messages(type,node,thread,always);
+                    if (exit_sccheduler) {
+                        break;
+                    }
                 }
             }
         }
     }
 
+    if ( thread->is_terminated_by_master() ) {
+        return (0);
+    }
   
     if (!always) {
         old_offset =offset;
@@ -3525,10 +3597,14 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     return (0);
 }
 
-void CNodeGenerator::handle_slow_messages(uint8_t type,
-                                          CGenNode * node,
-                                          CFlowGenListPerThread * thread,
-                                          bool always){
+bool
+CNodeGenerator::handle_slow_messages(uint8_t type,
+                                     CGenNode * node,
+                                     CFlowGenListPerThread * thread,
+                                     bool always){
+
+    /* should we continue after */
+    bool exit_scheduler = false;
 
     if (unlikely (type == CGenNode::FLOW_DEFER_PORT_RELEASE) ) {
         m_p_queue.pop();
@@ -3549,7 +3625,7 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                         m_p_queue.pop();
                         /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
                         thread->terminate_nat_flows(node);
-                        return;
+                        return (exit_scheduler);
 
                     }else{
                         flush_one_node_to_file(node);
@@ -3569,28 +3645,50 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                 m_p_queue.push(node);
             }
 
-        } else if ( type == CGenNode::FLOW_SYNC ) { 
+        } else if ( type == CGenNode::FLOW_SYNC ) {
 
+            /* flow sync message is a sync point for time */
+            thread->m_cur_time_sec = node->m_time;
+
+            /* first pop the node */
             m_p_queue.pop();
 
             thread->check_msgs(); /* check messages */
             m_v_if->flush_tx_queue(); /* flush pkt each timeout */
 
-            if (always == false) {
+            /* exit in case this is the last node*/
+            if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
+                thread->free_node(node);
+                exit_scheduler = true;
+            } else {
+                /* schedule for next maintenace */
                 node->m_time += SYNC_TIME_OUT;
                 m_p_queue.push(node);
-            }else{
-                thread->free_node(node);
             }
 
-          /* must be the last section of processing */
-        } else if ( type == CGenNode::EXIT_SCHED ) {
-            remove_all(thread);
 
+        } else if ( type == CGenNode::EXIT_SCHED ) {
+            m_p_queue.pop();
+            thread->free_node(node);
+            exit_scheduler = true;
+            
         } else {
-            printf(" ERROR type is not valid %d \n",type);
-            assert(0);
+            if ( type == CGenNode::COMMAND) {
+                m_p_queue.pop();
+                CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
+                {
+                    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
+                    cmd->handle(&thread->m_stateless_dp_info);
+                    exit_scheduler = cmd->is_quit();
+                    thread->free_node((CGenNode *)node_cmd);/* free the node */
+                }
+            }else{
+                printf(" ERROR type is not valid %d \n",type);
+                assert(0);
+            }
         }
+
+        return exit_scheduler;
 }
 
 
@@ -3829,7 +3927,7 @@ void CFlowGenListPerThread::handel_nat_msg(CGenNodeNatInfo * msg){
 void CFlowGenListPerThread::check_msgs(void) {
 
     /* inlined for performance */
-    m_stateless_dp_info->periodic_check_for_cp_messages();
+    m_stateless_dp_info.periodic_check_for_cp_messages();
 
     if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return;
@@ -3868,44 +3966,43 @@ void CFlowGenListPerThread::check_msgs(void) {
     }
 }
 
-void delay(int msec);
+//void delay(int msec);
 
 
-const uint8_t test_udp_pkt[]={ 
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x08,0x00,
 
-    0x45,0x00,0x00,0x81,
-    0xaf,0x7e,0x00,0x00,
-    0x12,0x11,0xd9,0x23,
-    0x01,0x01,0x01,0x01,
-    0x3d,0xad,0x72,0x1b,
+void CFlowGenListPerThread::start_stateless_simulation_file(std::string erf_file_name,
+                                     CPreviewMode &preview){
+    m_preview_mode = preview;
+    m_node_gen.open_file(erf_file_name,&m_preview_mode);
+}
 
-    0x11,0x11,
-    0x11,0x11,
+void CFlowGenListPerThread::stop_stateless_simulation_file(){
+    m_node_gen.m_v_if->close_file();
+}
 
-    0x00,0x6d,
-	0x00,0x00,
+void CFlowGenListPerThread::start_stateless_daemon_simulation(){
 
-    0x64,0x31,0x3a,0x61,
-    0x64,0x32,0x3a,0x69,0x64,
-    0x32,0x30,0x3a,0xd0,0x0e,
-    0xa1,0x4b,0x7b,0xbd,0xbd,
-    0x16,0xc6,0xdb,0xc4,0xbb,0x43,
-    0xf9,0x4b,0x51,0x68,0x33,0x72,
-    0x20,0x39,0x3a,0x69,0x6e,0x66,0x6f,
-    0x5f,0x68,0x61,0x73,0x68,0x32,0x30,0x3a,0xee,0xc6,0xa3,
-    0xd3,0x13,0xa8,0x43,0x06,0x03,0xd8,0x9e,0x3f,0x67,0x6f,
-    0xe7,0x0a,0xfd,0x18,0x13,0x8d,0x65,0x31,0x3a,0x71,0x39,
-    0x3a,0x67,0x65,0x74,0x5f,0x70,0x65,0x65,0x72,0x73,0x31,
-    0x3a,0x74,0x38,0x3a,0x3d,0xeb,0x0c,0xbf,0x0d,0x6a,0x0d,
-    0xa5,0x31,0x3a,0x79,0x31,0x3a,0x71,0x65,0x87,0xa6,0x7d,
-    0xe7
-};
+    m_cur_time_sec = 0;
+    m_stateless_dp_info.run_once();
 
-void CFlowGenListPerThread::start_stateless_daemon(){
-    m_stateless_dp_info->start();
+}
+
+
+/* return true if we need to shedule next_stream,  */
+
+bool CFlowGenListPerThread::set_stateless_next_node( CGenNodeStateless * cur_node,
+                                                     CGenNodeStateless * next_node){
+    return ( m_stateless_dp_info.set_stateless_next_node(cur_node,next_node) );
+}
+
+
+void CFlowGenListPerThread::start_stateless_daemon(CPreviewMode &preview){
+    m_cur_time_sec = 0;
+    /* set per thread global info, for performance */
+    m_preview_mode = preview;
+    m_node_gen.open_file("",&m_preview_mode);
+
+    m_stateless_dp_info.start();
 }
 
 
@@ -3951,11 +4048,13 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     #endif
     
     m_node_gen.flush_file(c_stop_sec,d_time_flow, false,this,old_offset);
+
+
 #ifdef VALG
     CALLGRIND_STOP_INSTRUMENTATION;
     printf (" %llu \n",os_get_hr_tick_64()-_start_time);
 #endif
-    if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() ){
+    if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() &&  (is_terminated_by_master()==false) ){
         /* clean close */
         m_node_gen.flush_file(m_cur_time_sec, d_time_flow, true,this,old_offset);
     }
@@ -3968,6 +4067,12 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         m_stats.dump(stdout);
     }
     m_node_gen.close_file(this);
+}
+
+void CFlowGenList::Delete(){
+    clean_p_thread_info();
+    Clean();
+    delete  CPluginCallback::callback;
 }
 
 
@@ -4001,10 +4106,6 @@ void CFlowGenList::clean_p_thread_info(void){
 }
 
 
-void CFlowGenList::Delete(){
-    clean_p_thread_info();
-    Clean();
-}
 
 int CFlowGenList::load_from_mac_file(std::string file_name) {
     if ( !utl_is_file_exists (file_name)  ){
@@ -4499,9 +4600,12 @@ void CTupleTemplateGenerator::Generate(){
 
 #endif
 
+static uint32_t get_rand_32(uint32_t MinimumRange,
+                            uint32_t MaximumRange) __attribute__ ((unused));
 
-static uint32_t  get_rand_32(uint32_t MinimumRange , 
-					  uint32_t MaximumRange ){
+static uint32_t get_rand_32(uint32_t MinimumRange,
+                            uint32_t MaximumRange) {
+
 	enum {RANDS_NUM = 2 , RAND_MAX_BITS = 0xf , UNSIGNED_INT_BITS = 0x20 , TWO_BITS_MASK = 0x3};
 	
 	const double TWO_POWER_32_BITS = 0x10000000 * (double)0x10;
@@ -4535,24 +4639,54 @@ int CNullIF::send_node(CGenNode * node){
 }
 
 
-int CErfIF::send_node(CGenNode * node){
-   if ( m_preview_mode->getFileWrite() ){
 
-    CFlowPktInfo * lp=node->m_pkt_info;
-    rte_mbuf_t * m=lp->generate_new_mbuf(node);
+void CErfIF::fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir){
 
     fill_pkt(m_raw,m);
+
     CPktNsecTimeStamp t_c(node->m_time);
     m_raw->time_nsec = t_c.m_time_nsec;
     m_raw->time_sec  = t_c.m_time_sec;
-
-    pkt_dir_t dir=node->cur_interface_dir();
     uint8_t p_id = (uint8_t)dir;
-    
     m_raw->setInterface(p_id);
+}
+
+
+int CErfIFStl::send_node(CGenNode * _no_to_use){
+
+    if ( m_preview_mode->getFileWrite() ){
+
+        CGenNodeStateless * node_sl=(CGenNodeStateless *) _no_to_use;
+    
+        /* check that we have mbuf  */
+        rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+        assert( m );
+        pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    
+        fill_raw_packet(m,_no_to_use,dir);
+        BP_ASSERT(m_writer);
+        bool res=m_writer->write_packet(m_raw);
+    
+    
+        BP_ASSERT(res);
+    }
+    return (0);
+}
+
+
+int CErfIF::send_node(CGenNode * node){
+
+    if ( m_preview_mode->getFileWrite() ){
+
+    CFlowPktInfo * lp=node->m_pkt_info;
+    rte_mbuf_t * m=lp->generate_new_mbuf(node);
+    pkt_dir_t dir=node->cur_interface_dir();
+
+    fill_raw_packet(m,node,dir);
 
     /* update mac addr dest/src 12 bytes */
     uint8_t *p=(uint8_t *)m_raw->raw;
+    int p_id=(int)dir;
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
     /* If vlan is enabled, add vlan header */
@@ -4734,7 +4868,6 @@ void CCPortLatency::reset(){
 
 
 static uint8_t nat_is_port_can_send(uint8_t port_id){
-    uint8_t offset= ((port_id>>1)<<1);
     uint8_t client_index = (port_id %2);
     return (client_index ==0 ?1:0);
 }
@@ -4856,7 +4989,7 @@ void CCPortLatency::dump_counters_json(std::string & json ){
 }
 
 void CCPortLatency::DumpCounters(FILE *fd){
-    #define DP_A1(f) if (f) fprintf(fd," %-40s : %llu \n",#f,f)
+    #define DP_A1(f) if (f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)f)
 
     fprintf(fd," counter  \n");
     fprintf(fd," -----------\n");
@@ -4875,7 +5008,7 @@ void CCPortLatency::DumpCounters(FILE *fd){
 
     fprintf(fd," -----------\n");
     m_hist.Dump(fd);
-    fprintf(fd," %-40s : %llu \n","jitter",get_jitter_usec());
+    fprintf(fd," %-40s : %lu \n","jitter", (ulong)get_jitter_usec());
 }
 
 bool CCPortLatency::dump_packet(rte_mbuf_t * m){
@@ -4899,6 +5032,9 @@ bool CCPortLatency::dump_packet(rte_mbuf_t * m){
 	if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
 		vlan_offset=4;
 	}
+
+    (void)vlan_offset;
+
 //	utl_DumpBuffer(stdout,p,pkt_size,0);
 	return (0);
 
@@ -4934,9 +5070,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p){
     uint16_t vlan_offset=parser.m_vlan_offset;
     uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
 
-    rx_p=(CRx_check_header *)0;
-    bool managed_by_ip_options=false;
-    bool is_rx_check=true;
+    rx_p = (CRx_check_header *)0;
 
     if ( !parser.IsLatencyPkt() ){
 
@@ -5053,7 +5187,7 @@ void CLatencyManager::Delete(){
 static uint8_t swap_port(uint8_t port_id){
     uint8_t offset= ((port_id>>1)<<1);
     uint8_t client_index = (port_id %2);
-    return (offset+client_index^1);
+    return (offset + (client_index ^ 1));
 }
 
 
@@ -5175,8 +5309,6 @@ void  CLatencyManager::run_rx_queue_msgs(uint8_t thread_id,
         assert(node);
 
         CGenNodeMsgBase * msg=(CGenNodeMsgBase *)node;
-
-        CGenNodeLatencyPktInfo * msg1=(CGenNodeLatencyPktInfo *)msg;
 
         uint8_t   msg_type =  msg->m_msg_type;
         switch (msg_type ) {
@@ -5300,7 +5432,7 @@ void  CLatencyManager::start(int iter){
         }
         if ( iter>0   ){
             if ( ( cnt>iter) ){
-                printf("stop due iter %d %d \n",iter);
+                printf("stop due iter %d\n",iter);
                 break;
             }
         } 
@@ -5469,8 +5601,8 @@ void CLatencyManager::DumpRxCheckVerification(FILE *fd,
         fprintf(fd," rx_checker is disabled  \n");
         return;
     }
-    fprintf(fd," rx_check Tx : %u \n",total_tx_rx_check);
-    fprintf(fd," rx_check Rx : %u \n",m_rx_check_manager.getTotalRx() );
+    fprintf(fd," rx_check Tx : %llu \n", (unsigned long long)total_tx_rx_check);
+    fprintf(fd," rx_check Rx : %llu \n", (unsigned long long)m_rx_check_manager.getTotalRx() );
     fprintf(fd," rx_check verification :" );
     if (m_rx_check_manager.getTotalRx() == total_tx_rx_check) {
         fprintf(fd," OK \n" );
@@ -6723,7 +6855,6 @@ bool CSimplePacketParser::Parse(){
     EthernetHeader *m_ether = (EthernetHeader *)p;
     IPHeader * ipv4=0;
     IPv6Header * ipv6=0;
-    uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     m_vlan_offset=0;
     m_option_offset=0;
 
@@ -6774,6 +6905,29 @@ bool CSimplePacketParser::Parse(){
     return (true);
 }
 
+
+/* free the right object. 
+   it is classic to use virtual function but we can't do it here and we don't even want to use callback function 
+   as we want to save space and in most cases there is nothing to free. 
+   this might be changed in the future  
+ */
+void CGenNodeBase::free_base(){
+    if ( m_type == FLOW_PKT ) {
+         CGenNode* p=(CGenNode*)this;
+         p->free_gen_node();
+        return;
+    }
+    if (m_type==STATELESS_PKT) {
+         CGenNodeStateless* p=(CGenNodeStateless*)this;
+         p->free_stl_node();
+        return;
+    } 
+    if ( m_type == COMMAND ) {
+         CGenNodeCommand* p=(CGenNodeCommand*)this;
+         p->free_command();
+    }
+
+}
 
 
 

@@ -180,11 +180,11 @@ public:
         m_enable_zmq_pub_exist=false;
         m_enable_zmq_pub=true;
         m_zmq_pub_port=4500;
+        m_zmq_rpc_port = 4501;
 
 
         m_telnet_exist=false;
         m_telnet_port=4502  ;
-        m_zmq_rpc_port = 5050;
 
         m_mac_info_exist=false;
         m_port_bandwidth_gb = 10;
