@@ -263,12 +263,12 @@ class TRexConsole(TRexGeneralCmd):
         '''stops port(s) transmitting traffic\n'''
         self.stateless_client.cmd_stop_line(line)
 
-    ############# stop
+    ############# pause
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
         self.stateless_client.cmd_pause_line(line)
 
-    ############# stop
+    ############# resume
     def do_resume(self, line):
         '''resume port(s) transmitting traffic\n'''
         self.stateless_client.cmd_resume_line(line)
