@@ -23,6 +23,7 @@ limitations under the License.
 #include <trex_stateless_dp_core.h>
 #include <trex_streams_compiler.h>
 #include <trex_stateless.h>
+#include <bp_sim.h>
 
 #include <string.h>
 
@@ -60,11 +61,8 @@ TrexStatelessDpStart::~TrexStatelessDpStart() {
 bool
 TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
 
-    /* mark the event id for DP response */
-    dp_core->get_port_db(m_port_id)->set_event_id(m_event_id);
-
     /* staet traffic */
-    dp_core->start_traffic(m_obj, m_duration);
+    dp_core->start_traffic(m_obj, m_duration,m_event_id);
 
     return true;
 }
@@ -75,9 +73,44 @@ TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
 bool
 TrexStatelessDpStop::handle(TrexStatelessDpCore *dp_core) {
 
-    dp_core->stop_traffic(m_port_id);
+
+    dp_core->stop_traffic(m_port_id,m_stop_only_for_event_id,m_event_id);
     return true;
 }
+
+
+void TrexStatelessDpStop::on_node_remove(){
+    if ( m_core ) {
+        assert(m_core->m_non_active_nodes>0);
+        m_core->m_non_active_nodes--;
+    }
+}
+
+
+TrexStatelessCpToDpMsgBase * TrexStatelessDpPause::clone(){
+
+    TrexStatelessDpPause *new_msg = new TrexStatelessDpPause(m_port_id);
+    return new_msg;
+}
+
+
+bool TrexStatelessDpPause::handle(TrexStatelessDpCore *dp_core){
+    dp_core->pause_traffic(m_port_id);
+    return (true);
+}
+
+
+
+TrexStatelessCpToDpMsgBase * TrexStatelessDpResume::clone(){
+    TrexStatelessDpResume *new_msg = new TrexStatelessDpResume(m_port_id);
+    return new_msg;
+}
+
+bool TrexStatelessDpResume::handle(TrexStatelessDpCore *dp_core){
+    dp_core->resume_traffic(m_port_id);
+    return (true);
+}
+
 
 /**
  * clone for DP stop message
@@ -85,7 +118,12 @@ TrexStatelessDpStop::handle(TrexStatelessDpCore *dp_core) {
  */
 TrexStatelessCpToDpMsgBase *
 TrexStatelessDpStop::clone() {
-    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStop(m_port_id);
+    TrexStatelessDpStop *new_msg = new TrexStatelessDpStop(m_port_id);
+
+    new_msg->set_event_id(m_event_id);
+    new_msg->set_wait_for_event_id(m_stop_only_for_event_id);
+    /* set back pointer to master */
+    new_msg->set_core_ptr(m_core);
 
     return new_msg;
 }

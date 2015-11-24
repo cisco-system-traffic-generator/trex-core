@@ -53,7 +53,9 @@ public:
         /* states */
     enum state_e {
         ppSTATE_IDLE,
-        ppSTATE_TRANSMITTING
+        ppSTATE_TRANSMITTING,
+        ppSTATE_PAUSE
+
     };
 
 public:
@@ -62,7 +64,13 @@ public:
 
     void create(CFlowGenListPerThread   *  core);
 
-    bool stop_traffic(uint8_t port_id);
+    bool pause_traffic(uint8_t port_id);
+
+    bool resume_traffic(uint8_t port_id);
+
+    bool stop_traffic(uint8_t port_id,
+                      bool stop_on_id, 
+                      int event_id);
 
     bool update_number_of_active_streams(uint32_t d);
 
@@ -137,13 +145,25 @@ public:
      * @param pkt 
      * @param pkt_len 
      */
-    void start_traffic(TrexStreamsCompiledObj *obj, double duration = -1);
+    void start_traffic(TrexStreamsCompiledObj *obj, 
+                       double duration,
+                       int m_event_id);
+
+
+    /* pause the streams, work only if all are continues  */
+    void pause_traffic(uint8_t port_id);
+
+
+
+    void resume_traffic(uint8_t port_id);
+
 
     /**
+     * 
      * stop all traffic for this core
      * 
      */
-    void stop_traffic(uint8_t port_id);
+    void stop_traffic(uint8_t port_id,bool stop_on_id, int event_id);
 
 
     /* return if all ports are idel */
@@ -225,7 +245,8 @@ private:
 
 
     void add_port_duration(double duration,
-                      uint8_t port_id);
+                           uint8_t port_id,
+                           int event_id);
 
     void add_global_duration(double duration);
 

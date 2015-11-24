@@ -143,6 +143,7 @@ private:
  * stream compiled object
  *************************************/
 TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id, double mul) : m_port_id(port_id), m_mul(mul) {
+      m_all_continues=false;
 }
 
 TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
@@ -408,12 +409,16 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
     }
 
 
+    bool all_continues=true;
     /* for now we do something trivial, */
     for (auto stream : streams) {
 
         /* skip non-enabled streams */
         if (!stream->m_enabled) {
             continue;
+        }
+        if (stream->get_type() != TrexStream::stCONTINUOUS ) {
+            all_continues=false;
         }
 
         int new_id= nodes.get(stream->m_stream_id)->m_compressed_stream_id;
@@ -431,7 +436,7 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
                                 );
         
     }
-
+    obj.m_all_continues =all_continues;
     return true;
 }
 

@@ -77,9 +77,31 @@ public:
     void add_msg(TrexStatelessCpToDpMsgBase * msg){
         m_msgs.push_back(msg);
     }
+
     void add_command(CBasicStlDelayCommand & command){
         m_commands.push_back(command);
     }
+
+        /* only if both port are idle we can exit */
+    void add_command(CFlowGenListPerThread   * core,
+                     TrexStatelessCpToDpMsgBase * msg, 
+                     double time){
+
+        CGenNodeCommand *node = (CGenNodeCommand *)core->create_node() ;
+
+        node->m_type = CGenNode::COMMAND;
+
+        node->m_cmd = msg;
+
+        /* make sure it will be scheduled after the current node */
+        node->m_time = time ;
+
+        CBasicStlDelayCommand command;
+        command.m_node =node;
+
+        add_command(command);
+    }
+
 
     void clear(){
         m_msgs.clear();
@@ -91,6 +113,20 @@ protected:
     std::vector<TrexStatelessCpToDpMsgBase *> m_msgs;
 
     std::vector<CBasicStlDelayCommand> m_commands;
+};
+
+
+
+class CBasicStlSink {
+    
+public:
+    CBasicStlSink(){
+        m_core=0;
+    }
+    virtual void call_after_init(CBasicStl * m_obj)=0;
+    virtual void call_after_run(CBasicStl * m_obj)=0;
+
+    CFlowGenListPerThread   * m_core;
 };
 
 
@@ -115,6 +151,7 @@ public:
         m_dump_json=false;
         m_dp_to_cp_handler = NULL;
         m_msg = NULL;
+        m_sink = NULL;
     }
 
 
@@ -161,6 +198,10 @@ public:
 
         lpt=fl.m_threads_info[0];
 
+        if ( m_sink ){
+            m_sink->m_core =lpt;
+        }
+
         char buf[100];
         char buf_ex[100];
         sprintf(buf,"%s-%d.erf",CGlobalInfo::m_options.out_file.c_str(),0);
@@ -176,6 +217,10 @@ public:
             for (auto msg : m_msg_queue.m_msgs) {
                 assert(m_ring_from_cp->Enqueue((CGenNode *)msg)==0);
             }
+        }
+
+        if (m_sink) {
+            m_sink->call_after_init(this);
         }
 
         /* add the commands */
@@ -203,6 +248,10 @@ public:
             printf(" %s \n",s.c_str());
         }
 
+        if (m_sink) {
+            m_sink->call_after_run(this);
+        }
+
         flush_dp_to_cp_messages();
         m_msg_queue.clear();
 
@@ -216,6 +265,7 @@ public:
     double            m_time_diff;
     bool              m_dump_json;
     DpToCpHandler     *m_dp_to_cp_handler;
+    CBasicStlSink     * m_sink;
 
     TrexStatelessCpToDpMsgBase * m_msg;
     CNodeRing           *m_ring_from_cp;
@@ -327,6 +377,282 @@ TEST_F(basic_stl, load_pcap_file) {
     //pcap.dump_packet();
 }
 
+
+
+class CBBStartPause0: public CBasicStlSink {
+public:
+
+    virtual void call_after_init(CBasicStl * m_obj);
+    virtual void call_after_run(CBasicStl * m_obj){
+    };
+    uint8_t m_port_id;
+};
+
+
+
+void CBBStartPause0::call_after_init(CBasicStl * m_obj){
+
+    TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id);
+    TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id);
+
+    m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 5.0); /* command in delay of 5 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 7.0);/* command in delay of 7 sec */
+
+}
+
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_stl, basic_pause_resume0) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_basic_pause_resume0";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+
+
+     CBBStartPause0 sink;
+     sink.m_port_id = port_id;
+     t1.m_sink =  &sink;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+//////////////////////////////////////////////////////////////
+
+
+class CBBStartStopDelay2: public CBasicStlSink {
+public:
+
+    virtual void call_after_init(CBasicStl * m_obj);
+    virtual void call_after_run(CBasicStl * m_obj){
+    };
+    uint8_t m_port_id;
+};
+
+
+
+void CBBStartStopDelay2::call_after_init(CBasicStl * m_obj){
+
+    TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(m_port_id);
+    TrexStatelessDpStop * lpStopCmd1 = new TrexStatelessDpStop(m_port_id);
+
+
+    TrexStreamsCompiler compile;
+
+    uint8_t port_id=0;
+
+    std::vector<TrexStream *> streams;
+
+    TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+    stream1->set_pps(1.0);
+
+
+    stream1->m_enabled = true;
+    stream1->m_self_start = true;
+    stream1->m_port_id= port_id;
+
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+    pcap.update_ip_src(0x10000002);
+    pcap.clone_packet_into_stream(stream1);
+
+    streams.push_back(stream1);
+
+    // stream - clean 
+
+    TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+    assert(compile.compile(streams, comp_obj) );
+
+
+    /* start with different event id */
+    TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(m_port_id, 1, comp_obj.clone(), 10.0 /*sec */ );
+
+
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd, 5.0); /* command in delay of 5 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd1, 7.0);/* command in delay of 7 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpStartCmd, 7.5);/* command in delay of 7 sec */
+
+    delete stream1 ;
+
+
+}
+
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_stl, single_pkt_bb_start_stop_delay2) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_bb_start_stop_delay2";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+
+
+     CBBStartStopDelay2 sink;
+     sink.m_port_id = port_id;
+     t1.m_sink =  &sink;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+
+
+
+
+class CBBStartStopDelay1: public CBasicStlSink {
+public:
+
+    virtual void call_after_init(CBasicStl * m_obj);
+    virtual void call_after_run(CBasicStl * m_obj){
+    };
+    uint8_t m_port_id;
+};
+
+
+
+void CBBStartStopDelay1::call_after_init(CBasicStl * m_obj){
+
+    TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(m_port_id);
+    TrexStatelessDpStop * lpStopCmd1 = new TrexStatelessDpStop(m_port_id);
+
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd, 5.0); /* command in delay of 5 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd1, 7.0);/* command in delay of 7 sec */
+}
+
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_stl, single_pkt_bb_start_stop_delay1) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_bb_start_stop_delay1";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+
+
+     CBBStartStopDelay1 sink;
+     sink.m_port_id = port_id;
+     t1.m_sink =  &sink;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
 
 
 /* start/stop/stop back to back */

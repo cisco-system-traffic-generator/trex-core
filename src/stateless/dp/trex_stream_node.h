@@ -29,6 +29,7 @@ class TrexStatelessDpCore;
 #include <trex_stream.h>
 
 class TrexStatelessCpToDpMsgBase;
+class CFlowGenListPerThread;
 
 struct CGenNodeCommand : public CGenNodeBase  {
 
@@ -46,6 +47,7 @@ public:
 
 
 static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
+
 
 /* this is a event for stateless */
 struct CGenNodeStateless : public CGenNodeBase  {
@@ -73,7 +75,7 @@ private:
     stream_state_t      m_state;
     uint8_t             m_port_id;
     uint8_t             m_stream_type; /* see TrexStream::STREAM_TYPE ,stream_type_t */
-    uint8_t             m_pad;
+    uint8_t             m_pause;
 
     uint32_t            m_single_burst; /* the number of bursts in case of burst */
     uint32_t            m_single_burst_refill; 
@@ -111,7 +113,18 @@ public:
         /* only to be safe */
         m_ref_stream_info= NULL;
         m_next_stream= NULL;
+    }
 
+    bool is_pause(){
+        return (m_pause==1?true:false);
+    }
+
+    void set_pause(bool enable){
+        if ( enable ){
+            m_pause=1;
+        }else{
+            m_pause=0;
+        }
     }
 
     inline uint8_t  get_stream_type(){
@@ -142,7 +155,10 @@ public:
     void refresh();
 
     inline void handle_continues(CFlowGenListPerThread *thread) {
-        thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
+
+        if (unlikely (is_pause()==false)) {
+            thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
+        }
 
         /* in case of continues */
         m_time += m_next_time_offset;

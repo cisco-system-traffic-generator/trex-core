@@ -636,6 +636,18 @@ class TRexConsole1(cmd.Cmd):
         res_ok = self.stop_traffic(port_list)
         return
 
+    def do_pause(self, line):
+        '''Pause active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser("stop", self.do_stop.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            # avoid further processing in this command
+            return
+        port_list = self.extract_port_list(opts)
+        res_ok = self.stop_traffic(port_list)
+        return
+
 
     def help_stop(self):
         self.do_stop("-h")

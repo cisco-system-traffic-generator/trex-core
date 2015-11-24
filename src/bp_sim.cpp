@@ -3186,6 +3186,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           max_threads){
 
 
+    m_non_active_nodes = 0;
     m_terminated_by_master=false;
     m_flow_list =flow_list;
     m_core_id= core_id;
@@ -3655,8 +3656,8 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
             thread->check_msgs(); /* check messages */
             m_v_if->flush_tx_queue(); /* flush pkt each timeout */
 
-            /* on always (clean queue path) and queue empty - exit */
-            if ( always && (m_p_queue.empty()) ) {
+            /* exit in case this is the last node*/
+            if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
                 thread->free_node(node);
                 exit_scheduler = true;
             } else {
