@@ -439,86 +439,154 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
  * streams graph
  *************************************/
 
+/**
+ * for each stream we create the right rate events (up/down)
+ * 
+ * @author imarom (24-Nov-15)
+ * 
+ * @param offset_usec 
+ * @param stream 
+ */
 void
 TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, const TrexStream *stream) {
-    TrexStreamsGraphObj::rate_event_st start_event;
-    TrexStreamsGraphObj::rate_event_st stop_event;
 
     switch (stream->get_type()) {
+   
     case TrexStream::stCONTINUOUS:
-
-        start_event.time = offset_usec + stream->m_isg_usec;
-        start_event.diff_pps = stream->get_pps();
-        start_event.diff_bps = stream->get_bps();
-        m_graph_obj.add_rate_event(start_event);
-
-        /* no more events after this stream */
-        offset_usec = -1;
-
-        break;
+        add_rate_events_for_stream_cont(offset_usec, stream);
+        return;
         
     case TrexStream::stSINGLE_BURST:
-
-        /* start event */
-        start_event.time = offset_usec + stream->m_isg_usec;
-        start_event.diff_pps = stream->get_pps();
-        start_event.diff_bps = stream->get_bps();
-        m_graph_obj.add_rate_event(start_event);
-
-        /* stop event */
-        stop_event.time = start_event.time + stream->get_burst_length_usec();
-        stop_event.diff_pps = -(start_event.diff_pps);
-        stop_event.diff_bps = -(start_event.diff_bps);
-        m_graph_obj.add_rate_event(stop_event);
-
-        /* next stream starts from here */
-        offset_usec = stop_event.time;
-
-        break;
+        add_rate_events_for_stream_single_burst(offset_usec, stream);
+        return;
 
     case TrexStream::stMULTI_BURST:
-
-        double delay = stream->m_isg_usec;
-
-        start_event.diff_pps = stream->get_pps();
-        start_event.diff_bps = stream->get_bps();
-
-        stop_event.diff_pps  = -(start_event.diff_pps);
-        stop_event.diff_bps  = -(start_event.diff_bps);
-
-        for (int i = 0; i < stream->m_num_bursts; i++) {
-
-            start_event.time = offset_usec + delay;
-            m_graph_obj.add_rate_event(start_event);
-
-            stop_event.time = start_event.time + stream->get_burst_length_usec();
-            m_graph_obj.add_rate_event(stop_event);
-
-            delay = stream->m_ibg_usec;
-
-            offset_usec = stop_event.time;
-        }
-
-        break;
+        add_rate_events_for_stream_multi_burst(offset_usec, stream);
+        return;
     }
 }
 
+/**
+ * continous stream
+ * 
+ */
+void
+TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const TrexStream *stream) {
+
+    TrexStreamsGraphObj::rate_event_st start_event;
+
+    /* for debug purposes */
+    start_event.stream_id = stream->m_stream_id;
+
+    start_event.time = offset_usec + stream->m_isg_usec;
+    start_event.diff_pps = stream->get_pps();
+    start_event.diff_bps = stream->get_bps();
+    m_graph_obj.add_rate_event(start_event);
+
+    /* no more events after this stream */
+    offset_usec = -1;
+}
+
+/**
+ * single burst stream
+ * 
+ */
+void
+TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, const TrexStream *stream) {
+    TrexStreamsGraphObj::rate_event_st start_event;
+    TrexStreamsGraphObj::rate_event_st stop_event;
+
+
+    /* for debug purposes */
+    start_event.stream_id = stream->m_stream_id;
+    stop_event.stream_id   = stream->m_stream_id;
+
+     /* start event */
+    start_event.time = offset_usec + stream->m_isg_usec;
+    start_event.diff_pps = stream->get_pps();
+    start_event.diff_bps = stream->get_bps();
+    m_graph_obj.add_rate_event(start_event);
+
+    /* stop event */
+    stop_event.time = start_event.time + stream->get_burst_length_usec();
+    stop_event.diff_pps = -(start_event.diff_pps);
+    stop_event.diff_bps = -(start_event.diff_bps);
+    m_graph_obj.add_rate_event(stop_event);
+
+    /* next stream starts from here */
+    offset_usec = stop_event.time;
+
+}
+
+/**
+ * multi burst stream
+ * 
+ */
+void
+TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, const TrexStream *stream) {
+    TrexStreamsGraphObj::rate_event_st start_event;
+    TrexStreamsGraphObj::rate_event_st stop_event;
+
+    /* first the delay is the inter stream gap */
+    double delay = stream->m_isg_usec;
+
+    /* for debug purposes */
+    
+    start_event.diff_pps   = stream->get_pps();
+    start_event.diff_bps   = stream->get_bps();
+    start_event.stream_id  = stream->m_stream_id;
+
+    stop_event.diff_pps    = -(start_event.diff_pps);
+    stop_event.diff_bps    = -(start_event.diff_bps);
+    stop_event.stream_id   = stream->m_stream_id;
+
+    /* for each burst create up/down events */
+    for (int i = 0; i < stream->m_num_bursts; i++) {
+
+        start_event.time = offset_usec + delay;
+        m_graph_obj.add_rate_event(start_event);
+
+        stop_event.time = start_event.time + stream->get_burst_length_usec();
+        m_graph_obj.add_rate_event(stop_event);
+
+        /* after the first burst, the delay is inter burst gap */
+        delay = stream->m_ibg_usec;
+
+        offset_usec = stop_event.time;
+    }
+}
+
+/**
+ * for a single root we can until done or a loop detected
+ * 
+ * @author imarom (24-Nov-15)
+ * 
+ * @param root_stream_id 
+ */
 void
 TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
 
-
     std::unordered_map<uint32_t, bool> loop_hash;
-
+    std::stringstream ss;
     
     uint32_t stream_id = root_stream_id;
     double offset = 0;
 
     while (true) {
+        const TrexStream *stream;
+        
+        /* fetch the stream from the hash - if it is not present, report an error */
+        try {
+            stream = m_streams_hash.at(stream_id);
+        } catch (const std::out_of_range &e) {
+            ss << "stream id " << stream_id << " does not exists";
+            throw TrexException(ss.str());
+        }
 
-        const TrexStream *stream = m_streams_hash.at(stream_id);
         /* add the node to the hash for loop detection */
         loop_hash[stream_id] = true;
 
+        /* create the right rate events for the stream */
         add_rate_events_for_stream(offset, stream);
 
         /* do we have a next stream ? */
@@ -527,7 +595,6 @@ TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
         }
 
         /* loop detection */
-
         auto search = loop_hash.find(stream->m_next_stream_id);
         if (search != loop_hash.end()) {
             break;
@@ -538,13 +605,25 @@ TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
     }
 }
 
+/**
+ * for a vector of streams generate a graph of BW 
+ * see graph object for more details 
+ * 
+ */
 const TrexStreamsGraphObj &
 TrexStreamsGraph::generate(const std::vector<TrexStream *> &streams) {
     std::vector <uint32_t> root_streams;
 
-
+    /* before anything we create a hash streams ID
+       and grab the root nodes
+     */
     for (TrexStream *stream : streams) {
-          
+
+        /* skip non enabled streams */
+        if (!stream->m_enabled) {
+            continue;
+        }
+
         /* for fast search we populate all the streams in a hash */        
         m_streams_hash[stream->m_stream_id] = stream;
 
@@ -578,6 +657,7 @@ TrexStreamsGraphObj::find_max_rate() {
 
     /* now we simply walk the list and hold the max */
     for (auto &ev : m_rate_events) {
+
         current_rate_pps += ev.diff_pps;
         current_rate_bps += ev.diff_bps;
 

@@ -137,6 +137,7 @@ public:
         double time;
         double diff_pps;
         double diff_bps;
+        uint32_t stream_id;
     };
 
     double get_max_pps() const {
@@ -147,6 +148,9 @@ public:
         return m_max_bps;
     }
 
+    const std::list<rate_event_st> & get_events() const {
+        return m_rate_events;
+    }
 
 private:
 
@@ -183,6 +187,9 @@ private:
     void generate_graph_for_one_root(uint32_t root_stream_id);
 
     void add_rate_events_for_stream(double &offset, const TrexStream *stream);
+    void add_rate_events_for_stream_cont(double &offset_usec, const TrexStream *stream);
+    void add_rate_events_for_stream_single_burst(double &offset_usec, const TrexStream *stream);
+    void add_rate_events_for_stream_multi_burst(double &offset_usec, const TrexStream *stream);
 
     /* for fast processing of streams */
     std::unordered_map<uint32_t, const TrexStream *> m_streams_hash;

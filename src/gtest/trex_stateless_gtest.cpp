@@ -1342,7 +1342,7 @@ TEST_F(basic_stl, dp_stop_event) {
      
 }
 
-TEST_F(basic_stl, graph_generator) {
+TEST_F(basic_stl, graph_generator1) {
     std::vector<TrexStream *> streams;
     TrexStreamsGraph graph;
     TrexStream *stream;
@@ -1388,12 +1388,134 @@ TEST_F(basic_stl, graph_generator) {
 
 
      const TrexStreamsGraphObj &obj = graph.generate(streams);
-     EXPECT_TRUE(obj.get_max_bps() == 403840.0);
-     EXPECT_TRUE(obj.get_max_pps() == 50.0);
+     EXPECT_EQ(obj.get_max_bps(), 405120);
+     EXPECT_EQ(obj.get_max_pps(), 50);
 
      for (auto stream : streams) {
          delete stream;
      }
 }   
+
+
+TEST_F(basic_stl, graph_generator2) {
+    std::vector<TrexStream *> streams;
+    TrexStreamsGraph graph;
+    TrexStream *stream;
+
+    /* add some multi burst streams */
+    stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 1);
+    stream->m_enabled = true;
+    stream->m_self_start = true;
+    
+
+    stream->set_pps(1000);
+
+    /* a burst of 2000 packets with a delay of 1 second */
+    stream->m_isg_usec = 0;
+    stream->set_multi_burst(1000, 500, 1000 * 1000);
+    stream->m_pkt.len = 64;
+
+    stream->m_next_stream_id = -1;
+
+    streams.push_back(stream);
+
+    /* another multi burst stream but with a shorter burst ( less 2 ms ) and
+       higher ibg (2 ms) , one milli for each side
+     */
+    stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 2);
+    stream->m_enabled = true;
+    stream->m_self_start = true;
+
+    stream->set_pps(1000);
+    stream->m_isg_usec = 1000 * 1000 + 1000;
+    stream->set_multi_burst(1000 - 2, 1000, 1000 * 1000 + 2000);
+    stream->m_pkt.len = 128;
+
+    stream->m_next_stream_id = -1;
+
+    streams.push_back(stream);
+
+    const TrexStreamsGraphObj &obj = graph.generate(streams);
+    EXPECT_EQ(obj.get_max_pps(), 1000.0);
+
+    EXPECT_EQ(obj.get_max_bps(), (1000 * (128 + 4) * 8));
+    
+
+    for (auto stream : streams) {
+        delete stream;
+    }
+}
+
+/* stress test */
+#if 0 
+TEST_F(basic_stl, graph_generator2) {
+    std::vector<TrexStream *> streams;
+    TrexStreamsGraph graph;
+    TrexStream *stream;
+
+     /* add some multi burst streams */
+     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 1);
+     stream->m_enabled = true;
+     stream->m_self_start = true;
+     stream->m_isg_usec = 100;
+
+     stream->set_pps(20);
+     stream->set_multi_burst(4918, 321312, 15);
+     stream->m_next_stream_id = -1;
+     stream->m_pkt.len = 64;
+
+     streams.push_back(stream);
+
+     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 2);
+     stream->m_enabled = true;
+     stream->m_self_start = true;
+     stream->m_isg_usec = 59281;
+
+     stream->set_pps(30);
+     stream->set_multi_burst(4918, 51040, 27);
+     stream->m_next_stream_id = -1;
+     stream->m_pkt.len = 64;
+
+     streams.push_back(stream);
+
+     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 3);
+     stream->m_enabled = true;
+     stream->m_self_start = true;
+     stream->m_isg_usec = 59281492;
+
+     stream->set_pps(40);
+     stream->set_multi_burst(4918, 412312, 2917);
+     stream->m_next_stream_id = -1;
+     stream->m_pkt.len = 64;
+
+     streams.push_back(stream);
+
+
+     /* stream 3 */
+     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, 4);
+     stream->m_enabled = true;
+     stream->m_self_start = true;
+
+     stream->m_isg_usec = 50;
+     stream->set_pps(30);
+     stream->m_next_stream_id = -1;
+     stream->m_pkt.len = 1512;
+
+     streams.push_back(stream);
+
+
+     const TrexStreamsGraphObj &obj = graph.generate(streams);
+     printf("event_count is: %lu, max BPS: %f, max PPS: %f\n", obj.get_events().size(), obj.get_max_bps(), obj.get_max_pps());
+
+//     for (const TrexStreamsGraphObj::rate_event_st &ev : obj.get_events()) {
+//         printf("time: %f, diff bps: %f, diff pps: %f\n", ev.time, ev.diff_bps, ev.diff_pps);
+//     }
+
+     for (auto stream : streams) {
+         delete stream;
+     }
+}   
+
+#endif
 
 /********************************************* Itay Tests End *************************************/

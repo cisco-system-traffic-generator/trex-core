@@ -152,11 +152,12 @@ public:
 
 
     double get_burst_length_usec() const {
-        return ( (m_burst_total_pkts / m_pps) * 1000 );
+        return ( (m_burst_total_pkts / m_pps) * 1000 * 1000);
     }
 
     double get_bps() const {
-        return (m_pps * m_pkt.len * 8);
+        /* packet length + 4 CRC bytes to bits and multiplied by PPS */
+        return (m_pps * (m_pkt.len + 4) * 8);
     }
 
     void Dump(FILE *fd);
