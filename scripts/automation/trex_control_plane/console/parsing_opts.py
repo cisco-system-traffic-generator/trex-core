@@ -42,6 +42,12 @@ def match_time_unit(val):
                                          "-d 10m : in min \n"
                                          "-d 1h  : in hours")
 
+match_multiplier_help = """Multiplier should be passed in the following format:
+                          [number][<empty> | bps | kbps | mbps | gbps | pps | kpps | mpps | %% ].
+                          no suffix will provide an absoulute factor and percentage 
+                          will provide a percentage of the line rate. examples
+                          : '-m 10', '-m 10kbps', '-m 10mpps', '-m 23%%' """
+
 def match_multiplier(val):
     '''match some val against multiplier  shortcut inputs '''
 
@@ -88,16 +94,14 @@ def match_multiplier(val):
             result['max'] = value * 1000 * 1000
 
         elif unit == "%":
-            raise argparse.ArgumentTypeError("percetange is currently unsupported...")
+            # will be translated by the port object
+            result['type'] = 'percentage'
+            result['max']  = value
 
         return result
 
     else:
-        raise argparse.ArgumentTypeError("\n\nMultiplier should be passed in the following format: \n\n"
-                                         "-m 100                            : multiply by factor \n"
-                                         "-m 1bps / 1kbps / 1mbps / 1gbps   : normalize to bps \n"
-                                         "-m 1pps / 1kpps / 1mbps           : normalize to pps \n"
-                                         "-m 40%                            : normalize to % from port line rate\n")
+        raise argparse.ArgumentTypeError(match_multiplier_help)
 
 
 
@@ -109,7 +113,7 @@ def is_valid_file(filename):
 
 
 OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
-                                 {'help': "Set multiplier for stream",
+                                 {'help': match_multiplier_help,
                                   'dest': "mult",
                                   'default': 1.0,
                                   'type': match_multiplier}),

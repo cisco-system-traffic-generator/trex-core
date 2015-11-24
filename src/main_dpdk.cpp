@@ -127,6 +127,9 @@ class CPhyEthIFStats ;
 
 class CTRexExtendedDriverBase {
 public:
+
+    virtual TrexPlatformApi::driver_speed_e get_driver_speed() = 0;
+
     virtual int get_min_sample_rate(void)=0;
     virtual void update_configuration(port_cfg_t * cfg)=0;
     virtual void update_global_config_fdir(port_cfg_t * cfg)=0;
@@ -151,6 +154,10 @@ class CTRexExtendedDriverBase1G : public CTRexExtendedDriverBase {
 
 public:
     CTRexExtendedDriverBase1G(){
+    }
+
+    TrexPlatformApi::driver_speed_e get_driver_speed() {
+        return TrexPlatformApi::SPEED_1G;
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -191,6 +198,10 @@ public:
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
     }
 
+    TrexPlatformApi::driver_speed_e get_driver_speed() {
+        return TrexPlatformApi::SPEED_1G;
+    }
+
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBase1GVm() );
     }
@@ -229,6 +240,11 @@ class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase10G(){
     }
+
+    TrexPlatformApi::driver_speed_e get_driver_speed() {
+        return TrexPlatformApi::SPEED_10G;
+    }
+
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBase10G() );
     }
@@ -259,6 +275,10 @@ public:
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
 public:
     CTRexExtendedDriverBase40G(){
+    }
+
+    TrexPlatformApi::driver_speed_e get_driver_speed() {
+        return TrexPlatformApi::SPEED_40G;
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -303,6 +323,11 @@ public:
 
 class CTRexExtendedDriverDb {
 public:
+
+   const std::string & get_driver_name() {
+       return m_driver_name;
+   }
+
    bool is_driver_exists(std::string name);
 
 
@@ -5275,3 +5300,11 @@ TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uin
     }
 }
 
+void
+TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id,
+                                        std::string &driver_name,
+                                        driver_speed_e &speed) const {
+
+    driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
+    speed = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed();
+}

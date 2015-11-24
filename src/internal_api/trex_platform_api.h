@@ -24,6 +24,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include <vector>
+#include <string>
 
 /**
  * Global stats
@@ -97,10 +98,20 @@ public:
 
 class TrexPlatformApi {
 public:
+
+    enum driver_speed_e {
+        SPEED_INVALID,
+        SPEED_1G,
+        SPEED_10G,
+        SPEED_40G,
+    };
+
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const = 0;
+    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
+    
     virtual ~TrexPlatformApi() {}
 };
 
@@ -115,7 +126,9 @@ public:
     void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
+    void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const;
     uint8_t get_dp_core_count() const;
+    
 };
 
 /**
@@ -128,6 +141,11 @@ public:
     void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {}
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
+    void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+        driver_name = "MOCK";
+        speed = SPEED_INVALID;
+    }
+
     uint8_t get_dp_core_count() const;
 };
 

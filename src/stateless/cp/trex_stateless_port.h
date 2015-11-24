@@ -23,8 +23,8 @@ limitations under the License.
 
 #include <trex_stream.h>
 #include <trex_dp_port_events.h>
+#include <internal_api/trex_platform_api.h>
 
-class TrexPlatformApi;
 class TrexStatelessCpToDpMsgBase;
 
 /**
@@ -126,7 +126,7 @@ public:
      * @param driver 
      * @param speed 
      */
-    void get_properties(std::string &driver, std::string &speed);
+    void get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed);
 
 
     /**
@@ -260,6 +260,9 @@ private:
     port_state_e       m_port_state;
     std::string        m_owner;
     std::string        m_owner_handler;
+    std::string        m_driver_name;
+
+    TrexPlatformApi::driver_speed_e m_speed;
 
     /* holds the DP cores associated with this port */
     std::vector<int> m_cores_id_list;

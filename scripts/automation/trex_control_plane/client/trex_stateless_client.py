@@ -146,13 +146,14 @@ class Port(object):
     STATE_TX         = 3
     STATE_PAUSE      = 4
 
-    def __init__ (self, port_id, user, transmit):
+    def __init__ (self, port_id, speed, driver, user, transmit):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
         self.transmit = transmit
         self.user = user
-
+        self.driver = driver
+        self.speed = speed
         self.streams = {}
 
     def err(self, msg):
@@ -160,6 +161,9 @@ class Port(object):
 
     def ok(self):
         return RC_OK()
+
+    def get_speed_bps (self):
+        return (self.speed * 1000 * 1000)
 
     # take the port
     def acquire(self, force = False):
@@ -298,6 +302,11 @@ class Port(object):
 
         if self.state == self.STATE_TX:
             return self.err("Unable to start traffic - port is already transmitting")
+
+        # if percentage - translate 
+        if mul['type'] == 'percentage':
+            mul['type'] = 'max_bps'
+            mul['max']  = self.get_speed_bps() * (mul['max'] / 100)
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -461,7 +470,9 @@ class CTRexStatelessClient(object):
 
         # create ports
         for port_id in xrange(self.get_port_count()):
-            self.ports.append(Port(port_id, self.user, self.transmit))
+            speed = self.system_info['ports'][port_id]['speed']
+            driver = self.system_info['ports'][port_id]['driver']
+            self.ports.append(Port(port_id, speed, driver, self.user, self.transmit))
 
         # acquire all ports
         rc = self.acquire()

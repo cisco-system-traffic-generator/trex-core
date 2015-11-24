@@ -56,9 +56,11 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
     m_port_id = port_id;
-
     m_port_state = PORT_STATE_IDLE;
     clear_owner();
+
+    /* get the platform specific data */
+    api->get_interface_info(port_id, m_driver_name, m_speed);
 
     /* get the DP cores belonging to this port */
     api->port_id_to_cores(m_port_id, core_pair_list);
@@ -266,11 +268,10 @@ TrexStatelessPort::get_state_as_string() const {
 }
 
 void
-TrexStatelessPort::get_properties(string &driver, string &speed) {
+TrexStatelessPort::get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed) {
 
-    /* take this from DPDK */
-    driver = "e1000";
-    speed  = "1 Gbps";
+    driver = m_driver_name;
+    speed  = m_speed;
 }
 
 bool
