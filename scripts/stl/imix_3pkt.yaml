@@ -4,7 +4,7 @@
   stream:
     self_start: True
     packet:
-      binary: cap2/udp_64B.pcap
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
     mode:
       type: continuous
       pps: 100
@@ -13,7 +13,7 @@
   stream:
     self_start: True
     packet:
-      binary: cap2/udp_594B.pcap
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
     mode:
       type: continuous
       pps: 100
@@ -22,7 +22,7 @@
   stream:
     self_start: True
     packet:
-      binary: cap2/udp_1518B.pcap
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
     mode:
       type: continuous
       pps: 100
