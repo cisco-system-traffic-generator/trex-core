@@ -70,6 +70,23 @@ class TRexGeneralCmd(cmd.Cmd):
         readline.write_history_file(self._history_file)
         return
 
+    def print_history (self):
+        
+        length = readline.get_current_history_length()
+
+        for i in xrange(1, length + 1):
+            cmd = readline.get_history_item(i)
+            print "{:<5}   {:}".format(i, cmd)
+
+    def get_history_item (self, index):
+        length = readline.get_current_history_length()
+        if index > length:
+            print format_text("please select an index between {0} and {1}".format(0, length))
+            return None
+
+        return readline.get_history_item(index)
+
+
     def emptyline(self):
         """Called when an empty line is entered in response to the prompt.
 
@@ -217,6 +234,41 @@ class TRexConsole(TRexGeneralCmd):
         else:
             print format_text("\nplease specify 'on' or 'off'\n", 'bold')
 
+    # show history
+    def help_history (self):
+        self.do_history("-h")
+
+    def do_history (self, line):
+        '''Manage the command history\n'''
+
+        item = parsing_opts.ArgumentPack(['item'],
+                                         {"nargs": '?',
+                                          'metavar': 'item',
+                                          'type': parsing_opts.check_negative,
+                                          'help': "an history item index",
+                                          'default': 0})
+
+        parser = parsing_opts.gen_parser(self,
+                                         "history",
+                                         self.do_history.__doc__,
+                                         item)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        if opts.item == 0:
+            self.print_history()
+        else:
+            cmd = self.get_history_item(opts.item)
+            print cmd
+            if cmd == None:
+                return
+
+            print cmd
+            self.onecmd(cmd)
+
+
 
     ############### connect
     def do_connect (self, line):
@@ -324,7 +376,7 @@ class TRexConsole(TRexGeneralCmd):
     
          cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
          for cmd in cmds:
-             if ( (cmd == "EOF") or (cmd == "q") or (cmd == "exit")):
+             if ( (cmd == "EOF") or (cmd == "q") or (cmd == "exit") or (cmd == "h")):
                  continue
     
              try:
@@ -338,8 +390,9 @@ class TRexConsole(TRexGeneralCmd):
     
              print "{:<30} {:<30}".format(cmd + " - ", help)
 
+    # aliases
     do_exit = do_EOF = do_q = do_quit
-
+    do_h = do_history
 
 #
 def is_valid_file(filename):

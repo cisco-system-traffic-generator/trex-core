@@ -23,6 +23,11 @@ FORCE = 10
 # list of ArgumentGroup types
 MUTEX = 1
 
+def check_negative(value):
+    ivalue = int(value)
+    if ivalue < 0:
+        raise argparse.ArgumentTypeError("non positive value provided: '{0}'".format(value))
+    return ivalue
 
 def match_time_unit(val):
     '''match some val against time shortcut inputs '''
