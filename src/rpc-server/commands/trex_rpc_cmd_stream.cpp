@@ -475,25 +475,21 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
 
     const Json::Value &mul = parse_object(params, "mul", result);
+
     std::string mul_type = parse_string(mul, "type", result);
+    double max_rate = parse_double(mul, "max", result);
 
     /* dispatch according to type of multiplier  */
 
     try {
         if (mul_type == "raw") {
-
-            double m = parse_double(mul, "factor", result);
-            port->start_traffic(m, duration);
+            port->start_traffic(max_rate, duration);
 
         } else if (mul_type == "max_bps") {
-
-            double max_bps = parse_double(mul, "max", result);
-            port->start_traffic_max_bps(max_bps, duration);
+            port->start_traffic_max_bps(max_rate, duration);
 
         } else if (mul_type == "max_pps") {
-
-            double max_pps = parse_double(mul, "max", result);
-            port->start_traffic_max_pps(max_pps, duration);
+            port->start_traffic_max_pps(max_rate, duration);
         }
 
     } catch (const TrexRpcException &ex) {

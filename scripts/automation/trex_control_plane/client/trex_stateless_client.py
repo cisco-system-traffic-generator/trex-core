@@ -880,6 +880,7 @@ class CTRexStatelessClient(object):
                                          "start",
                                          self.cmd_start_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.TOTAL,
                                          parsing_opts.FORCE,
                                          parsing_opts.STREAM_FROM_PATH_OR_FILE,
                                          parsing_opts.DURATION,
@@ -905,6 +906,10 @@ class CTRexStatelessClient(object):
             if stream_list == None:
                 return RC_ERR("Failed to load stream pack")
 
+
+        if opts.total:
+            # if total was set - divide it between the ports
+            opts.mult['max'] = opts.mult['max'] / len(opts.ports)
 
         return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration)
 

@@ -19,6 +19,7 @@ SERVER_IP = 7
 STREAM_FROM_PATH_OR_FILE = 8
 DURATION = 9
 FORCE = 10
+TOTAL = 11
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -56,7 +57,7 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 def match_multiplier(val):
     '''match some val against multiplier  shortcut inputs '''
 
-    match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mbps|%?)$", val)
+    match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
 
     result = {}
 
@@ -68,7 +69,7 @@ def match_multiplier(val):
         # raw type (factor)
         if not unit:
             result['type'] = 'raw'
-            result['factor'] = value
+            result['max'] = value
 
         elif unit == 'bps':
             result['type'] = 'max_bps'
@@ -122,6 +123,13 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                   'dest': "mult",
                                   'default': 1.0,
                                   'type': match_multiplier}),
+
+
+              TOTAL: ArgumentPack(['-t', '--total'],
+                                 {'help': "traffic will be divided between all ports specified",
+                                  'dest': "total",
+                                  'default': False,
+                                  'action': "store_true"}),
 
               PORT_LIST: ArgumentPack(['--port'],
                                         {"nargs": '+',
