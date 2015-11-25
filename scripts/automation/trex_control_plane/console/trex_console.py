@@ -334,6 +334,12 @@ class TRexConsole(TRexGeneralCmd):
         self.stateless_client.cmd_reset()
 
   
+    def do_events (self, line):
+        '''shows events recieved from server\n'''
+        events = self.stateless_client.get_events()
+        for ev in events:
+            print ev
+
     # tui
     def do_tui (self, line):
         '''Shows a graphical console\n'''

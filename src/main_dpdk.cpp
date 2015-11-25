@@ -3274,6 +3274,7 @@ void CGlobalTRex::try_stop_all_dp(){
         delay(100);
     }
     if ( all_core_finished ){
+        m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED);
         printf(" All cores stopped !! \n");
     }else{
         printf(" ERROR one of the DP core is stucked !\n");

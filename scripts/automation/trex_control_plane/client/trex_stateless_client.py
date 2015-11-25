@@ -16,6 +16,7 @@ from collections import namedtuple
 from common.text_opts import *
 import parsing_opts
 import time
+import datetime
 
 from trex_async_client import CTRexAsyncClient
 
@@ -400,9 +401,43 @@ class CTRexStatelessClient(object):
 
         self.connected = False
 
+        self.events = []
+
     ################# events handler ######################
+  
+    def handle_async_event (self, type, data):
+        # DP stopped
+
+        ev = "[event] - "
+
+        if (type == 0):
+            port_id = int(data['port_id'])
+            ev += "Port {0} has stopped".format(port_id)
+            # call the handler
+            self.async_event_port_stopped(port_id)
+
+        elif (type == 1):
+            ev += "Server has stopped"
+            self.async_event_server_stopped()
+
+        else:
+            # unknown event - ignore
+            return
+
+        print format_text("\n" + ev, 'bold')
+
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        self.events.append("{0} - ".format(st) + format_text(ev, 'bold'))
+
     def async_event_port_stopped (self, port_id):
         self.ports[port_id].async_event_port_stopped()
+
+    def async_event_server_stopped (self):
+        self.disconnect()
+
+    def get_events (self):
+        return self.events
 
     ############# helper functions section ##############
 

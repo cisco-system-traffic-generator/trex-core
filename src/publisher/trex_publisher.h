@@ -39,10 +39,11 @@ public:
     void publish_json(const std::string &s);
 
     enum event_type_e {
-        EVENT_PORT_STOPPED = 0
+        EVENT_PORT_STOPPED = 0,
+        EVENT_SERVER_STOPPED = 1
     };
 
-    void publish_event(event_type_e type, const Json::Value &data);
+    void publish_event(event_type_e type, const Json::Value &data = Json::nullValue);
 
 private:
     void show_zmq_last_error(const std::string &err);
