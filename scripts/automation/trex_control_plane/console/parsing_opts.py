@@ -121,7 +121,7 @@ def is_valid_file(filename):
 OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                  {'help': match_multiplier_help,
                                   'dest': "mult",
-                                  'default': 1.0,
+                                  'default': {'type':'raw', 'max':1},
                                   'type': match_multiplier}),
 
 

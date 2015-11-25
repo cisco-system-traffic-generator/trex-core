@@ -334,11 +334,33 @@ class TRexConsole(TRexGeneralCmd):
         self.stateless_client.cmd_reset()
 
   
+    def help_events (self):
+        self.do_events("-h")
+
     def do_events (self, line):
         '''shows events recieved from server\n'''
+
+        x = parsing_opts.ArgumentPack(['-c','--clear'],
+                                      {'action' : "store_true",
+                                       'default': False,
+                                       'help': "clear the events log"})
+
+        parser = parsing_opts.gen_parser(self,
+                                         "events",
+                                         self.do_events.__doc__,
+                                         x)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
         events = self.stateless_client.get_events()
         for ev in events:
             print ev
+
+        if opts.clear:
+            self.stateless_client.clear_events()
+            print format_text("\n\nEvent log was cleared\n\n")
 
     # tui
     def do_tui (self, line):

@@ -139,6 +139,9 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
 
     send_message_to_dp(start_msg);
     
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
 }
 
 void
@@ -194,6 +197,10 @@ TrexStatelessPort::stop_traffic(void) {
 
     change_state(PORT_STATE_STREAMS);
     
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
+
 }
 
 void
@@ -366,7 +373,7 @@ TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
         /* send a ZMQ event */
 
         data["port_id"] = m_port_id;
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FINISHED_TX, data);
         break;
 
     default:
