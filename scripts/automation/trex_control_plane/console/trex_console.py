@@ -261,11 +261,9 @@ class TRexConsole(TRexGeneralCmd):
             self.print_history()
         else:
             cmd = self.get_history_item(opts.item)
-            print cmd
             if cmd == None:
                 return
 
-            print cmd
             self.onecmd(cmd)
 
 
