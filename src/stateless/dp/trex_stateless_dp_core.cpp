@@ -309,6 +309,7 @@ TrexStatelessDpCore::start_scheduler() {
     /* bail out in case of terminate */
     if (m_state != TrexStatelessDpCore::STATE_TERMINATE) {
         m_core->m_node_gen.close_file(m_core);
+        m_state = STATE_IDLE; /* we exit from all ports and we have nothing to do, we move to IDLE state */
     }
 }
 
