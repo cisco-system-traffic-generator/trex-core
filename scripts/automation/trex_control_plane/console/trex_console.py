@@ -71,6 +71,23 @@ class TRexGeneralCmd(cmd.Cmd):
         readline.write_history_file(self._history_file)
         return
 
+    def print_history (self):
+        
+        length = readline.get_current_history_length()
+
+        for i in xrange(1, length + 1):
+            cmd = readline.get_history_item(i)
+            print "{:<5}   {:}".format(i, cmd)
+
+    def get_history_item (self, index):
+        length = readline.get_current_history_length()
+        if index > length:
+            print format_text("please select an index between {0} and {1}".format(0, length))
+            return None
+
+        return readline.get_history_item(index)
+
+
     def emptyline(self):
         """Called when an empty line is entered in response to the prompt.
 
@@ -218,6 +235,39 @@ class TRexConsole(TRexGeneralCmd):
         else:
             print format_text("\nplease specify 'on' or 'off'\n", 'bold')
 
+    # show history
+    def help_history (self):
+        self.do_history("-h")
+
+    def do_history (self, line):
+        '''Manage the command history\n'''
+
+        item = parsing_opts.ArgumentPack(['item'],
+                                         {"nargs": '?',
+                                          'metavar': 'item',
+                                          'type': parsing_opts.check_negative,
+                                          'help': "an history item index",
+                                          'default': 0})
+
+        parser = parsing_opts.gen_parser(self,
+                                         "history",
+                                         self.do_history.__doc__,
+                                         item)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        if opts.item == 0:
+            self.print_history()
+        else:
+            cmd = self.get_history_item(opts.item)
+            if cmd == None:
+                return
+
+            self.onecmd(cmd)
+
+
 
     ############### connect
     def do_connect (self, line):
@@ -264,20 +314,28 @@ class TRexConsole(TRexGeneralCmd):
         '''stops port(s) transmitting traffic\n'''
         self.stateless_client.cmd_stop_line(line)
 
-    ############# stop
+    def help_stop(self):
+        self.do_stop("-h")
+
+    ############# update
+    def do_update(self, line):
+        '''update speed of port(s)currently transmitting traffic\n'''
+        self.stateless_client.cmd_update_line(line)
+
+    def help_update (self):
+        self.do_update("-h")
+
+    ############# pause
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
         self.stateless_client.cmd_pause_line(line)
 
-    ############# stop
+    ############# resume
     def do_resume(self, line):
         '''resume port(s) transmitting traffic\n'''
         self.stateless_client.cmd_resume_line(line)
 
-        
-
-    def help_stop(self):
-        self.do_stop("-h")
+   
 
     ########## reset
     def do_reset (self, line):
@@ -293,6 +351,34 @@ class TRexConsole(TRexGeneralCmd):
         self.do_stats("-h")
 
   
+    def help_events (self):
+        self.do_events("-h")
+
+    def do_events (self, line):
+        '''shows events recieved from server\n'''
+
+        x = parsing_opts.ArgumentPack(['-c','--clear'],
+                                      {'action' : "store_true",
+                                       'default': False,
+                                       'help': "clear the events log"})
+
+        parser = parsing_opts.gen_parser(self,
+                                         "events",
+                                         self.do_events.__doc__,
+                                         x)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        events = self.stateless_client.get_events()
+        for ev in events:
+            print ev
+
+        if opts.clear:
+            self.stateless_client.clear_events()
+            print format_text("\n\nEvent log was cleared\n\n")
+
     # tui
     def do_tui (self, line):
         '''Shows a graphical console\n'''
@@ -333,7 +419,7 @@ class TRexConsole(TRexGeneralCmd):
     
          cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
          for cmd in cmds:
-             if ( (cmd == "EOF") or (cmd == "q") or (cmd == "exit")):
+             if ( (cmd == "EOF") or (cmd == "q") or (cmd == "exit") or (cmd == "h")):
                  continue
     
              try:
@@ -347,8 +433,9 @@ class TRexConsole(TRexGeneralCmd):
     
              print "{:<30} {:<30}".format(cmd + " - ", help)
 
+    # aliases
     do_exit = do_EOF = do_q = do_quit
-
+    do_h = do_history
 
 #
 def is_valid_file(filename):

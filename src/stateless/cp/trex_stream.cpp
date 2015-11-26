@@ -21,6 +21,7 @@ limitations under the License.
 #include <trex_stream.h>
 #include <cstddef>
 #include <string.h>
+#include <assert.h>
 
 /**************************************
  * stream
@@ -128,6 +129,7 @@ const Json::Value &
 TrexStream::get_stream_json() {
     return m_stream_json;
 }
+
 
 /**************************************
  * stream table

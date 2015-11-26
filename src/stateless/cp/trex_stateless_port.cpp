@@ -56,9 +56,11 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
     m_port_id = port_id;
-
     m_port_state = PORT_STATE_IDLE;
     clear_owner();
+
+    /* get the platform specific data */
+    api->get_interface_info(port_id, m_driver_name, m_speed);
 
     /* get the DP cores belonging to this port */
     api->port_id_to_cores(m_port_id, core_pair_list);
@@ -111,9 +113,12 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
     vector<TrexStream *> streams;
     get_object_list(streams);
 
+    /* split it per core */
+    double per_core_mul = mul / m_cores_id_list.size();
+
     /* compiler it */
     TrexStreamsCompiler compiler;
-    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id, mul);
+    TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id, per_core_mul);
 
     bool rc = compiler.compile(streams, *compiled_obj);
     if (!rc) {
@@ -134,6 +139,34 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
 
     send_message_to_dp(start_msg);
     
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
+}
+
+
+double
+TrexStatelessPort::calculate_m_from_bps(double max_bps) {
+    /* fetch all the streams from the table */
+    vector<TrexStream *> streams;
+    get_object_list(streams);
+
+    TrexStreamsGraph graph;
+    const TrexStreamsGraphObj &obj = graph.generate(streams);
+
+    return (max_bps / obj.get_max_bps());
+}
+
+double
+TrexStatelessPort::calculate_m_from_pps(double max_pps) {
+    /* fetch all the streams from the table */
+    vector<TrexStream *> streams;
+    get_object_list(streams);
+
+    TrexStreamsGraph graph;
+    const TrexStreamsGraphObj &obj = graph.generate(streams);
+
+    return (max_pps / obj.get_max_pps());
 }
 
 /**
@@ -161,6 +194,10 @@ TrexStatelessPort::stop_traffic(void) {
 
     change_state(PORT_STATE_STREAMS);
     
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
+
 }
 
 void
@@ -199,16 +236,14 @@ TrexStatelessPort::resume_traffic(void) {
 void
 TrexStatelessPort::update_traffic(double mul) {
 
-    verify_state(PORT_STATE_STREAMS | PORT_STATE_TX | PORT_STATE_PAUSE);
+    verify_state(PORT_STATE_TX | PORT_STATE_PAUSE);
 
-    #if 0
     /* generate a message to all the relevant DP cores to start transmitting */
-    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+    double per_core_mul = mul / m_cores_id_list.size();
+    TrexStatelessCpToDpMsgBase *update_msg = new TrexStatelessDpUpdate(m_port_id, per_core_mul);
 
-    send_message_to_dp(stop_msg);
+    send_message_to_dp(update_msg);
 
-    m_port_state = PORT_STATE_UP_IDLE;
-    #endif
 }
 
 std::string 
@@ -235,11 +270,10 @@ TrexStatelessPort::get_state_as_string() const {
 }
 
 void
-TrexStatelessPort::get_properties(string &driver, string &speed) {
+TrexStatelessPort::get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed) {
 
-    /* take this from DPDK */
-    driver = "e1000";
-    speed  = "1 Gbps";
+    driver = m_driver_name;
+    speed  = m_speed;
 }
 
 bool
@@ -334,7 +368,7 @@ TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
         /* send a ZMQ event */
 
         data["port_id"] = m_port_id;
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FINISHED_TX, data);
         break;
 
     default:

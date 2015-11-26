@@ -86,8 +86,9 @@ private:
     TrexStream *        m_ref_stream_info; /* the stream info */
     CGenNodeStateless  * m_next_stream;
 
+    double              m_base_pps;
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[56];
+    uint8_t             m_pad_end[48];
 
 
 
@@ -98,6 +99,15 @@ public:
         return (m_port_id);
     }
 
+
+    /**
+     * calculate the time offset based 
+     * on the PPS and multiplier 
+     * 
+     */
+    void set_multiplier(double mul) {
+        m_next_time_offset =  1.0 / (m_base_pps * mul) ;
+    }
 
     /* we restart the stream, schedule it using stream isg */
     inline void update_refresh_time(double cur_time){

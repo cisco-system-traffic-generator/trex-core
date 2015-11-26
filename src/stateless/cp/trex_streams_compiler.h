@@ -23,7 +23,9 @@ limitations under the License.
 
 #include <stdint.h>
 #include <vector>
+#include <list>
 #include <string>
+#include <unordered_map>
 
 class TrexStreamsCompiler;
 class TrexStream;
@@ -114,6 +116,91 @@ private:
     void err(const std::string &err);
 
     std::vector<std::string> m_warnings;
+    
+};
+
+class TrexStreamsGraph;
+
+/**************************************
+ * streams graph object 
+ *  
+ * holds the step graph for bandwidth 
+ *************************************/
+class TrexStreamsGraphObj {
+    friend class TrexStreamsGraph;
+
+public:
+
+    /**
+     * rate event is defined by those: 
+     * time - the time of the event on the timeline 
+     * diff - what is the nature of the change ? 
+     * 
+     * @author imarom (23-Nov-15)
+     */
+    struct rate_event_st {
+        double time;
+        double diff_pps;
+        double diff_bps;
+        uint32_t stream_id;
+    };
+
+    double get_max_pps() const {
+        return m_max_pps;
+    }
+
+    double get_max_bps() const {
+        return m_max_bps;
+    }
+
+    const std::list<rate_event_st> & get_events() const {
+        return m_rate_events;
+    }
+
+private:
+
+    void add_rate_event(const rate_event_st &ev) {
+        m_rate_events.push_back(ev);
+    }
+
+    void generate();
+    void find_max_rate();
+
+    double m_max_pps;
+    double m_max_bps;
+
+    /* list of rate events */
+    std::list<rate_event_st> m_rate_events;
+};
+
+/**
+ * graph creator 
+ * 
+ * @author imarom (23-Nov-15)
+ */
+class TrexStreamsGraph {
+public:
+
+    /**
+     * generate a sequence graph for streams
+     * 
+     */
+    const TrexStreamsGraphObj & generate(const std::vector<TrexStream *> &streams);
+
+private:
+
+    void generate_graph_for_one_root(uint32_t root_stream_id);
+
+    void add_rate_events_for_stream(double &offset, const TrexStream *stream);
+    void add_rate_events_for_stream_cont(double &offset_usec, const TrexStream *stream);
+    void add_rate_events_for_stream_single_burst(double &offset_usec, const TrexStream *stream);
+    void add_rate_events_for_stream_multi_burst(double &offset_usec, const TrexStream *stream);
+
+    /* for fast processing of streams */
+    std::unordered_map<uint32_t, const TrexStream *> m_streams_hash;
+
+    /* main object to hold the graph - returned to the user */
+    TrexStreamsGraphObj m_graph_obj;
 };
 
 #endif /* __TREX_STREAMS_COMPILER_H__ */

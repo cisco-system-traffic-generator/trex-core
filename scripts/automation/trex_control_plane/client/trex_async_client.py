@@ -195,7 +195,6 @@ class CTRexAsyncClient():
         return self.stats
 
     def get_raw_snapshot (self):
-        #return str(self.stats.global_stats.get('m_total_tx_bytes')) + " / " + str(self.stats.global_stats.get_rel('m_total_tx_bytes'))
         return self.raw_snapshot
 
     # dispatch the message to the right place
@@ -205,18 +204,10 @@ class CTRexAsyncClient():
             self.stats.update(data)
         # events
         elif name == "trex-event":
-            self.__handle_async_event(type, data)
+            self.stateless_client.handle_async_event(type, data)
         else:
-            # ignore
             pass
 
-    def __handle_async_event (self, type, data):
-        # DP stopped
-        if (type == 0):
-            port_id = int(data['port_id'])
-            print format_text("\n[Event] - Port {0} Stopped".format(port_id), 'bold')
-            # call the handler
-            self.stateless_client.async_event_port_stopped(port_id)
 
     def stop (self):
         self.active = False

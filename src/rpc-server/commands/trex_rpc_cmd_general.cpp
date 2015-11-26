@@ -25,6 +25,8 @@ limitations under the License.
 #include <trex_stateless_port.h>
 #include <trex_rpc_cmds_table.h>
 
+#include <internal_api/trex_platform_api.h>
+
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
@@ -167,14 +169,34 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
     for (int i = 0; i < main->get_port_count(); i++) {
         string driver;
-        string speed;
+        TrexPlatformApi::driver_speed_e speed;
 
         TrexStatelessPort *port = main->get_port_by_id(i);
         port->get_properties(driver, speed);
 
         section["ports"][i]["index"]   = i;
+
         section["ports"][i]["driver"]  = driver;
-        section["ports"][i]["speed"]   = speed;
+
+        switch (speed) {
+        case TrexPlatformApi::SPEED_1G:
+            section["ports"][i]["speed"]   = 1;
+            break;
+
+        case TrexPlatformApi::SPEED_10G:
+            section["ports"][i]["speed"]   = 10;
+            break;
+
+        case TrexPlatformApi::SPEED_40G:
+            section["ports"][i]["speed"]   = 40;
+            break;
+
+        default:
+            /* unknown value */
+            section["ports"][i]["speed"]   = 0;
+            break;
+        }
+
 
         section["ports"][i]["owner"] = port->get_owner();
 

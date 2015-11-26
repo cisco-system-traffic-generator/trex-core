@@ -139,6 +139,20 @@ bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
     return (true);
 }
 
+bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double mul) {
+
+    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING || 
+            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+
+    for (auto dp_stream : m_active_nodes) {
+        CGenNodeStateless * node = dp_stream.m_node; 
+        assert(node->get_port_id() == port_id);
+
+        node->set_multiplier(mul);
+    }
+
+    return (true);
+}
 
 bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
 
@@ -309,6 +323,7 @@ TrexStatelessDpCore::start_scheduler() {
     /* bail out in case of terminate */
     if (m_state != TrexStatelessDpCore::STATE_TERMINATE) {
         m_core->m_node_gen.close_file(m_core);
+        m_state = STATE_IDLE; /* we exit from all ports and we have nothing to do, we move to IDLE state */
     }
 }
 
@@ -401,9 +416,9 @@ TrexStatelessDpCore::add_port_duration(double duration,
 
 
 void
-TrexStatelessDpCore::add_cont_stream(TrexStatelessDpPerPort * lp_port,
-                                     TrexStream * stream,
-                                     TrexStreamsCompiledObj *comp) {
+TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
+                                TrexStream * stream,
+                                TrexStreamsCompiledObj *comp) {
 
     CGenNodeStateless *node = m_core->create_node_sl();
 
@@ -438,8 +453,8 @@ TrexStatelessDpCore::add_cont_stream(TrexStatelessDpPerPort * lp_port,
 
     node->m_pause =0;
     node->m_stream_type = stream->m_type;
-    node->m_next_time_offset =  1.0 / (stream->get_pps() * comp->get_multiplier()) ;
-
+    node->m_base_pps = stream->get_pps();
+    node->set_multiplier(comp->get_multiplier());
 
     /* stateless specific fields */
     switch ( stream->m_type ) {
@@ -519,7 +534,7 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     for (auto single_stream : obj->get_objects()) {
         /* all commands should be for the same port */
         assert(obj->get_port_id() == single_stream.m_stream->m_port_id);
-        add_cont_stream(lp_port,single_stream.m_stream,obj);
+        add_stream(lp_port,single_stream.m_stream,obj);
     }
 
     uint32_t nodes = lp_port->m_active_nodes.size();
@@ -579,6 +594,14 @@ TrexStatelessDpCore::pause_traffic(uint8_t port_id){
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
     lp_port->pause_traffic(port_id);
+}
+
+void 
+TrexStatelessDpCore::update_traffic(uint8_t port_id, double mul) {
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+
+    lp_port->update_traffic(port_id, mul);
 }
 
 

@@ -18,6 +18,7 @@ from common.text_opts import *
 from common import trex_stats
 from client_utils import parsing_opts, text_tables
 import time
+import datetime
 
 from trex_async_client import CTRexAsyncClient
 
@@ -148,13 +149,14 @@ class Port(object):
     STATE_TX         = 3
     STATE_PAUSE      = 4
 
-    def __init__ (self, port_id, user, transmit):
+    def __init__ (self, port_id, speed, driver, user, transmit):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
         self.transmit = transmit
         self.user = user
-
+        self.driver = driver
+        self.speed = speed
         self.streams = {}
 
     def err(self, msg):
@@ -162,6 +164,9 @@ class Port(object):
 
     def ok(self):
         return RC_OK()
+
+    def get_speed_bps (self):
+        return (self.speed * 1000 * 1000 * 1000)
 
     # take the port
     def acquire(self, force = False):
@@ -290,6 +295,13 @@ class Port(object):
         return self.streams
 
 
+    def process_mul (self, mul):
+        # if percentage - translate 
+        if mul['type'] == 'percentage':
+            mul['type'] = 'max_bps'
+            mul['max']  = self.get_speed_bps() * (mul['max'] / 100)
+
+
     # start traffic
     def start (self, mul, duration):
         if self.state == self.STATE_DOWN:
@@ -301,6 +313,8 @@ class Port(object):
         if self.state == self.STATE_TX:
             return self.err("Unable to start traffic - port is already transmitting")
 
+        self.process_mul(mul)
+         
         params = {"handler": self.handler,
                   "port_id": self.port_id,
                   "mul": mul,
@@ -350,6 +364,7 @@ class Port(object):
 
         return self.ok()
 
+
     def resume (self):
 
         if (self.state != self.STATE_PAUSE) :
@@ -364,6 +379,23 @@ class Port(object):
 
         # only valid state after stop
         self.state = self.STATE_TX
+
+        return self.ok()
+
+
+    def update (self, mul):
+        if (self.state != self.STATE_TX) :
+            return self.err("port is not transmitting")
+
+        self.process_mul(mul)
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id,
+                  "mul": mul}
+
+        rc, data = self.transmit("update_traffic", params)
+        if not rc:
+            return self.err(data)
 
         return self.ok()
 
@@ -399,9 +431,69 @@ class CTRexStatelessClient(object):
 
         self.connected = False
 
+        self.events = []
+
     ################# events handler ######################
+  
+    def handle_async_event (self, type, data):
+        # DP stopped
+
+        ev = "[event] - "
+
+        show_event = False
+
+        # port started
+        if (type == 0):
+            port_id = int(data['port_id'])
+            ev += "Port {0} has started".format(port_id)
+
+        # port stopped
+        elif (type == 1):
+            port_id = int(data['port_id'])
+            ev += "Port {0} has stopped".format(port_id)
+
+            # call the handler
+            self.async_event_port_stopped(port_id)
+            
+
+        # server stopped
+        elif (type == 2):
+            ev += "Server has stopped"
+            self.async_event_server_stopped()
+            show_event = True
+
+        # port finished traffic
+        elif (type == 3):
+            port_id = int(data['port_id'])
+            ev += "Port {0} job done".format(port_id)
+
+            # call the handler
+            self.async_event_port_stopped(port_id)
+            show_event = True
+
+        else:
+            # unknown event - ignore
+            return
+
+        if show_event:
+            print format_text("\n" + ev, 'bold')
+
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        self.events.append("{0} - ".format(st) + format_text(ev, 'bold'))
+
+
     def async_event_port_stopped (self, port_id):
         self.ports[port_id].async_event_port_stopped()
+
+    def async_event_server_stopped (self):
+        self.disconnect()
+
+    def get_events (self):
+        return self.events
+
+    def clear_events (self):
+        self.events = []
 
     ############# helper functions section ##############
 
@@ -471,7 +563,9 @@ class CTRexStatelessClient(object):
 
         # create ports
         for port_id in xrange(self.get_port_count()):
-            self.ports.append(Port(port_id, self.user, self.transmit))
+            speed = self.system_info['ports'][port_id]['speed']
+            driver = self.system_info['ports'][port_id]['driver']
+            self.ports.append(Port(port_id, speed, driver, self.user, self.transmit))
 
         # acquire all ports
         rc = self.acquire()
@@ -693,6 +787,17 @@ class CTRexStatelessClient(object):
         return rc
 
 
+    def update_traffic (self, mult, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].update(mult))
+        
+        return rc
+
+
     def get_port_stats(self, port_id=None):
         pass
 
@@ -772,6 +877,25 @@ class CTRexStatelessClient(object):
             return rc
 
         return RC_OK()
+
+    # update cmd
+    def cmd_update (self, port_id_list, mult):
+
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on porvided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.update_traffic(mult, active_ports)
+        rc.annotate("Updating traffic on port(s) {0}:".format(port_id_list))
+        if rc.bad():
+            return rc
+
+        return RC_OK()
+
 
     # pause cmd
     def cmd_pause (self, port_id_list):
@@ -894,6 +1018,7 @@ class CTRexStatelessClient(object):
                                          "start",
                                          self.cmd_start_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.TOTAL,
                                          parsing_opts.FORCE,
                                          parsing_opts.STREAM_FROM_PATH_OR_FILE,
                                          parsing_opts.DURATION,
@@ -920,6 +1045,11 @@ class CTRexStatelessClient(object):
                 return RC_ERR("Failed to load stream pack")
 
 
+        # total has no meaning with percentage - its linear
+        if opts.total and (mult['type'] != 'percentage'):
+            # if total was set - divide it between the ports
+            opts.mult['max'] = opts.mult['max'] / len(opts.ports)
+
         return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration)
 
     def cmd_stop_line (self, line):
@@ -934,6 +1064,27 @@ class CTRexStatelessClient(object):
             return RC_ERR("bad command line parameters")
 
         return self.cmd_stop(opts.ports)
+
+
+    def cmd_update_line (self, line):
+        '''Update port(s) speed currently active\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "update",
+                                         self.cmd_update_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.MULTIPLIER,
+                                         parsing_opts.TOTAL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        # total has no meaning with percentage - its linear
+        if opts.total and (opts.mult['type'] != 'percentage'):
+            # if total was set - divide it between the ports
+            opts.mult['max'] = opts.mult['max'] / len(opts.ports)
+
+        return self.cmd_update(opts.ports, opts.mult)
 
 
     def cmd_reset_line (self, line):

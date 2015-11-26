@@ -19,14 +19,22 @@ SERVER_IP = 7
 STREAM_FROM_PATH_OR_FILE = 8
 DURATION = 9
 FORCE = 10
-GLOBAL_STATS = 11
-PORT_STATS = 12
-PORT_STATUS = 13
-STATS_MASK = 14
+
+TOTAL = 11
+
+GLOBAL_STATS = 12
+PORT_STATS = 13
+PORT_STATUS = 14
+STATS_MASK = 15
 
 # list of ArgumentGroup types
 MUTEX = 1
 
+def check_negative(value):
+    ivalue = int(value)
+    if ivalue < 0:
+        raise argparse.ArgumentTypeError("non positive value provided: '{0}'".format(value))
+    return ivalue
 
 def match_time_unit(val):
     '''match some val against time shortcut inputs '''
@@ -46,24 +54,66 @@ def match_time_unit(val):
                                          "-d 10m : in min \n"
                                          "-d 1h  : in hours")
 
+match_multiplier_help = """Multiplier should be passed in the following format:
+                          [number][<empty> | bps | kbps | mbps | gbps | pps | kpps | mpps | %% ].
+                          no suffix will provide an absoulute factor and percentage 
+                          will provide a percentage of the line rate. examples
+                          : '-m 10', '-m 10kbps', '-m 10mpps', '-m 23%%' """
+
 def match_multiplier(val):
     '''match some val against multiplier  shortcut inputs '''
-    match = re.match("^(\d+)(gb|kpps|%?)$", val)
+
+    match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
+
+    result = {}
+
     if match:
-        digit = int(match.group(1))
-        unit = match.group(2)
+
+        value = float(match.group(1))
+        unit = match.group(3)
+
+        # raw type (factor)
         if not unit:
-            return digit
-        elif unit == 'gb':
-            raise NotImplementedError("gb units are not supported yet")
-        else:
-            raise NotImplementedError("kpps units are not supported yet")
+            result['type'] = 'raw'
+            result['max'] = value
+
+        elif unit == 'bps':
+            result['type'] = 'max_bps'
+            result['max'] = value
+
+        elif unit == 'kbps':
+            result['type'] = 'max_bps'
+            result['max'] = value * 1000
+
+        elif unit == 'mbps':
+            result['type'] = 'max_bps'
+            result['max'] = value * 1000 * 1000
+
+        elif unit == 'gbps':
+            result['type'] = 'max_bps'
+            result['max'] = value * 1000 * 1000 * 1000
+
+        elif unit == 'pps':
+            result['type'] = 'max_pps'
+            result['max'] = value
+
+        elif unit == "kpps":
+            result['type'] = 'max_pps'
+            result['max'] = value * 1000
+
+        elif unit == "mpps":
+            result['type'] = 'max_pps'
+            result['max'] = value * 1000 * 1000
+
+        elif unit == "%":
+            # will be translated by the port object
+            result['type'] = 'percentage'
+            result['max']  = value
+
+        return result
+
     else:
-        raise argparse.ArgumentTypeError("Multiplier should be passed in the following format: \n"
-                                         "-m 100    : multiply stream file by this factor \n"
-                                         "-m 10gb   : from graph calculate the maximum rate as this bandwidth (for each port)\n"
-                                         "-m 10kpps : from graph calculate the maximum rate as this pps       (for each port)\n"
-                                         "-m 40%    : from graph calculate the maximum rate as this percent from total port  (for each port)")
+        raise argparse.ArgumentTypeError(match_multiplier_help)
 
 
 
@@ -75,10 +125,17 @@ def is_valid_file(filename):
 
 
 OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
-                                 {'help': "Set multiplier for stream",
+                                 {'help': match_multiplier_help,
                                   'dest': "mult",
-                                  'default': 1.0,
+                                  'default': {'type':'raw', 'max':1},
                                   'type': match_multiplier}),
+
+
+              TOTAL: ArgumentPack(['-t', '--total'],
+                                 {'help': "traffic will be divided between all ports specified",
+                                  'dest': "total",
+                                  'default': False,
+                                  'action': "store_true"}),
 
               PORT_LIST: ArgumentPack(['--port'],
                                         {"nargs": '+',
