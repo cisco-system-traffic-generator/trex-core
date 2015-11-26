@@ -77,8 +77,18 @@ public:
      * throws TrexException in case of an error
      */
     void start_traffic(double mul, double duration = -1);
-    void start_traffic_max_bps(double max_bps, double duration = -1);
-    void start_traffic_max_pps(double max_pps, double duration = -1);
+
+    /**
+     * given a BPS rate calculate ther correct M for this port
+     * 
+     */
+    double calculate_m_from_bps(double max_bps);
+
+    /**
+     * given a PPS rate calculate the correct M for this port
+     * 
+     */
+    double calculate_m_from_pps(double max_pps);
 
     /**
      * stop traffic

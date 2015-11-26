@@ -144,32 +144,29 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
     get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
 }
 
-void
-TrexStatelessPort::start_traffic_max_bps(double max_bps, double duration) {
+
+double
+TrexStatelessPort::calculate_m_from_bps(double max_bps) {
     /* fetch all the streams from the table */
     vector<TrexStream *> streams;
     get_object_list(streams);
 
     TrexStreamsGraph graph;
     const TrexStreamsGraphObj &obj = graph.generate(streams);
-    double m = (max_bps / obj.get_max_bps());
 
-    /* call the main function */
-    start_traffic(m, duration);
+    return (max_bps / obj.get_max_bps());
 }
 
-void
-TrexStatelessPort::start_traffic_max_pps(double max_pps, double duration) {
+double
+TrexStatelessPort::calculate_m_from_pps(double max_pps) {
     /* fetch all the streams from the table */
     vector<TrexStream *> streams;
     get_object_list(streams);
 
     TrexStreamsGraph graph;
     const TrexStreamsGraphObj &obj = graph.generate(streams);
-    double m = (max_pps / obj.get_max_pps());
 
-    /* call the main function */
-    start_traffic(m, duration);
+    return (max_pps / obj.get_max_pps());
 }
 
 /**
@@ -239,16 +236,14 @@ TrexStatelessPort::resume_traffic(void) {
 void
 TrexStatelessPort::update_traffic(double mul) {
 
-    verify_state(PORT_STATE_STREAMS | PORT_STATE_TX | PORT_STATE_PAUSE);
+    verify_state(PORT_STATE_TX | PORT_STATE_PAUSE);
 
-    #if 0
     /* generate a message to all the relevant DP cores to start transmitting */
-    TrexStatelessCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id);
+    double per_core_mul = mul / m_cores_id_list.size();
+    TrexStatelessCpToDpMsgBase *update_msg = new TrexStatelessDpUpdate(m_port_id, per_core_mul);
 
-    send_message_to_dp(stop_msg);
+    send_message_to_dp(update_msg);
 
-    m_port_state = PORT_STATE_UP_IDLE;
-    #endif
 }
 
 std::string 

@@ -163,6 +163,22 @@ TrexStatelessDpCanQuit::clone(){
     return new_msg;
 }
 
+/*************************
+  update traffic message
+ ************************/ 
+bool
+TrexStatelessDpUpdate::handle(TrexStatelessDpCore *dp_core) {
+    dp_core->update_traffic(m_port_id, m_mul);
+
+    return true;
+}
+
+TrexStatelessCpToDpMsgBase *
+TrexStatelessDpUpdate::clone() {
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpUpdate(m_port_id, m_mul);
+
+    return new_msg;
+}
 
 /************************* messages from DP to CP **********************/
 bool

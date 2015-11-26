@@ -68,6 +68,8 @@ public:
 
     bool resume_traffic(uint8_t port_id);
 
+    bool update_traffic(uint8_t port_id, double mul);
+
     bool stop_traffic(uint8_t port_id,
                       bool stop_on_id, 
                       int event_id);
@@ -157,6 +159,14 @@ public:
 
     void resume_traffic(uint8_t port_id);
 
+
+    /**
+     * update current traffic rate
+     * 
+     * @author imarom (25-Nov-15)
+     * 
+     */
+    void update_traffic(uint8_t port_id, double mul);
 
     /**
      * 
@@ -250,9 +260,9 @@ private:
 
     void add_global_duration(double duration);
 
-    void add_cont_stream(TrexStatelessDpPerPort * lp_port,
-                         TrexStream * stream,
-                         TrexStreamsCompiledObj *comp);
+    void add_stream(TrexStatelessDpPerPort * lp_port,
+                    TrexStream * stream,
+                    TrexStreamsCompiledObj *comp);
 
     uint8_t              m_thread_id;
     uint8_t              m_local_port_offset;

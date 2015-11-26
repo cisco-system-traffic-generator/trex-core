@@ -225,6 +225,26 @@ public:
 };
 
 
+/**
+ * update message
+ */
+class TrexStatelessDpUpdate : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpUpdate(uint8_t port_id, double mul)  {
+        m_port_id = port_id;
+        m_mul = mul;
+    }
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
+
+private:
+    uint8_t  m_port_id;
+    double   m_mul;
+};
+
 
 /************************* messages from DP to CP **********************/
 

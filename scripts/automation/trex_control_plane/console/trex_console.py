@@ -313,6 +313,17 @@ class TRexConsole(TRexGeneralCmd):
         '''stops port(s) transmitting traffic\n'''
         self.stateless_client.cmd_stop_line(line)
 
+    def help_stop(self):
+        self.do_stop("-h")
+
+    ############# update
+    def do_update(self, line):
+        '''update speed of port(s)currently transmitting traffic\n'''
+        self.stateless_client.cmd_update_line(line)
+
+    def help_update (self):
+        self.do_update("-h")
+
     ############# pause
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
@@ -323,10 +334,7 @@ class TRexConsole(TRexGeneralCmd):
         '''resume port(s) transmitting traffic\n'''
         self.stateless_client.cmd_resume_line(line)
 
-        
-
-    def help_stop(self):
-        self.do_stop("-h")
+   
 
     ########## reset
     def do_reset (self, line):

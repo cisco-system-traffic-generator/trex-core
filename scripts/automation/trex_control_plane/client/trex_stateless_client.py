@@ -164,7 +164,7 @@ class Port(object):
         return RC_OK()
 
     def get_speed_bps (self):
-        return (self.speed * 1000 * 1000)
+        return (self.speed * 1000 * 1000 * 1000)
 
     # take the port
     def acquire(self, force = False):
@@ -293,6 +293,13 @@ class Port(object):
         return self.streams
 
 
+    def process_mul (self, mul):
+        # if percentage - translate 
+        if mul['type'] == 'percentage':
+            mul['type'] = 'max_bps'
+            mul['max']  = self.get_speed_bps() * (mul['max'] / 100)
+
+
     # start traffic
     def start (self, mul, duration):
         if self.state == self.STATE_DOWN:
@@ -304,11 +311,8 @@ class Port(object):
         if self.state == self.STATE_TX:
             return self.err("Unable to start traffic - port is already transmitting")
 
-        # if percentage - translate 
-        if mul['type'] == 'percentage':
-            mul['type'] = 'max_bps'
-            mul['max']  = self.get_speed_bps() * (mul['max'] / 100)
-
+        self.process_mul(mul)
+         
         params = {"handler": self.handler,
                   "port_id": self.port_id,
                   "mul": mul,
@@ -358,6 +362,7 @@ class Port(object):
 
         return self.ok()
 
+
     def resume (self):
 
         if (self.state != self.STATE_PAUSE) :
@@ -372,6 +377,23 @@ class Port(object):
 
         # only valid state after stop
         self.state = self.STATE_TX
+
+        return self.ok()
+
+
+    def update (self, mul):
+        if (self.state != self.STATE_TX) :
+            return self.err("port is not transmitting")
+
+        self.process_mul(mul)
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id,
+                  "mul": mul}
+
+        rc, data = self.transmit("update_traffic", params)
+        if not rc:
+            return self.err(data)
 
         return self.ok()
 
@@ -752,6 +774,17 @@ class CTRexStatelessClient(object):
         return rc
 
 
+    def update_traffic (self, mult, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].update(mult))
+        
+        return rc
+
+
     def get_port_stats(self, port_id=None):
         pass
 
@@ -831,6 +864,25 @@ class CTRexStatelessClient(object):
             return rc
 
         return RC_OK()
+
+    # update cmd
+    def cmd_update (self, port_id_list, mult):
+
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on porvided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.update_traffic(mult, active_ports)
+        rc.annotate("Updating traffic on port(s) {0}:".format(port_id_list))
+        if rc.bad():
+            return rc
+
+        return RC_OK()
+
 
     # pause cmd
     def cmd_pause (self, port_id_list):
@@ -968,7 +1020,8 @@ class CTRexStatelessClient(object):
                 return RC_ERR("Failed to load stream pack")
 
 
-        if opts.total:
+        # total has no meaning with percentage - its linear
+        if opts.total and (mult['type'] != 'percentage'):
             # if total was set - divide it between the ports
             opts.mult['max'] = opts.mult['max'] / len(opts.ports)
 
@@ -986,6 +1039,27 @@ class CTRexStatelessClient(object):
             return RC_ERR("bad command line paramters")
 
         return self.cmd_stop(opts.ports)
+
+
+    def cmd_update_line (self, line):
+        '''Update port(s) speed currently active\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "update",
+                                         self.cmd_update_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.MULTIPLIER,
+                                         parsing_opts.TOTAL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        # total has no meaning with percentage - its linear
+        if opts.total and (opts.mult['type'] != 'percentage'):
+            # if total was set - divide it between the ports
+            opts.mult['max'] = opts.mult['max'] / len(opts.ports)
+
+        return self.cmd_update(opts.ports, opts.mult)
 
 
     def cmd_reset_line (self, line):

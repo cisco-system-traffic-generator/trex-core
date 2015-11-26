@@ -479,18 +479,26 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     std::string mul_type = parse_string(mul, "type", result);
     double max_rate = parse_double(mul, "max", result);
 
+
+    double m = 0;
+
     /* dispatch according to type of multiplier  */
+    if (mul_type == "raw") {
+        m = max_rate;
+
+    } else if (mul_type == "max_bps") {
+        m = port->calculate_m_from_bps(max_rate);
+
+    } else if (mul_type == "max_pps") {
+        m = port->calculate_m_from_pps(max_rate);
+
+    } else {
+        generate_parse_err(result, "multiplier type can be either 'raw', 'max_bps' or 'max_pps'");
+    }
+
 
     try {
-        if (mul_type == "raw") {
-            port->start_traffic(max_rate, duration);
-
-        } else if (mul_type == "max_bps") {
-            port->start_traffic_max_bps(max_rate, duration);
-
-        } else if (mul_type == "max_pps") {
-            port->start_traffic_max_pps(max_rate, duration);
-        }
+        port->start_traffic(m, duration);
 
     } catch (const TrexRpcException &ex) {
         generate_execute_err(result, ex.what());
@@ -633,7 +641,6 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_byte(params, "port_id", result);
-    double mul = parse_double(params, "mul", result);
 
     if (port_id >= get_stateless_obj()->get_port_count()) {
         std::stringstream ss;
@@ -643,8 +650,30 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    /* multiplier */
+    const Json::Value &mul = parse_object(params, "mul", result);
+
+    std::string mul_type = parse_string(mul, "type", result);
+    double max_rate = parse_double(mul, "max", result);
+
+    double m = 0;
+
+    /* dispatch according to type of multiplier  */
+    if (mul_type == "raw") {
+        m = max_rate;
+
+    } else if (mul_type == "max_bps") {
+        m = port->calculate_m_from_bps(max_rate);
+
+    } else if (mul_type == "max_pps") {
+        m = port->calculate_m_from_pps(max_rate);
+
+    } else {
+        generate_parse_err(result, "multiplier type can be either 'raw', 'max_bps' or 'max_pps'");
+    }
+
     try {
-        port->update_traffic(mul);
+        port->update_traffic(m);
     } catch (const TrexRpcException &ex) {
         generate_execute_err(result, ex.what());
     }
