@@ -168,14 +168,14 @@ TrexStatelessDpCanQuit::clone(){
  ************************/ 
 bool
 TrexStatelessDpUpdate::handle(TrexStatelessDpCore *dp_core) {
-    dp_core->update_traffic(m_port_id, m_mul);
+    dp_core->update_traffic(m_port_id, m_factor);
 
     return true;
 }
 
 TrexStatelessCpToDpMsgBase *
 TrexStatelessDpUpdate::clone() {
-    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpUpdate(m_port_id, m_mul);
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpUpdate(m_port_id, m_factor);
 
     return new_msg;
 }

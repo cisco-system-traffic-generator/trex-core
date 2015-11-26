@@ -104,17 +104,21 @@ TrexStatelessPort::release(void) {
  * 
  */
 void
-TrexStatelessPort::start_traffic(double mul, double duration) {
+TrexStatelessPort::start_traffic(const TrexStatelessPort::mul_st &mul, double duration) {
 
     /* command allowed only on state stream */
     verify_state(PORT_STATE_STREAMS);
+
+    /* just making sure no leftovers... */
+    delete_streams_graph();
+
+    /* calculate the effective M */
+    double per_core_mul = calculate_effective_mul(mul);
 
     /* fetch all the streams from the table */
     vector<TrexStream *> streams;
     get_object_list(streams);
 
-    /* split it per core */
-    double per_core_mul = mul / m_cores_id_list.size();
 
     /* compiler it */
     TrexStreamsCompiler compiler;
@@ -127,6 +131,7 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
 
     /* generate a message to all the relevant DP cores to start transmitting */
     int event_id = m_dp_events.generate_event_id();
+
     /* mark that DP event of stoppped is possible */
     m_dp_events.wait_for_event(TrexDpPortEvent::EVENT_STOP, event_id);
 
@@ -142,32 +147,11 @@ TrexStatelessPort::start_traffic(double mul, double duration) {
     Json::Value data;
     data["port_id"] = m_port_id;
     get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
+
+    /* save the per core multiplier for update messages */
+    m_current_per_core_m = per_core_mul;
 }
 
-
-double
-TrexStatelessPort::calculate_m_from_bps(double max_bps) {
-    /* fetch all the streams from the table */
-    vector<TrexStream *> streams;
-    get_object_list(streams);
-
-    TrexStreamsGraph graph;
-    const TrexStreamsGraphObj &obj = graph.generate(streams);
-
-    return (max_bps / obj.get_max_bps());
-}
-
-double
-TrexStatelessPort::calculate_m_from_pps(double max_pps) {
-    /* fetch all the streams from the table */
-    vector<TrexStream *> streams;
-    get_object_list(streams);
-
-    TrexStreamsGraph graph;
-    const TrexStreamsGraphObj &obj = graph.generate(streams);
-
-    return (max_pps / obj.get_max_pps());
-}
 
 /**
  * stop traffic on port
@@ -180,9 +164,12 @@ void
 TrexStatelessPort::stop_traffic(void) {
 
     if (!( (m_port_state == PORT_STATE_TX) 
-        || (m_port_state ==PORT_STATE_PAUSE) )) {
+        || (m_port_state == PORT_STATE_PAUSE) )) {
         return;
     }
+
+    /* delete any previous graphs */
+    delete_streams_graph();
 
     /* mask out the DP stop event */
     m_dp_events.disable(TrexDpPortEvent::EVENT_STOP);
@@ -234,15 +221,19 @@ TrexStatelessPort::resume_traffic(void) {
 }
 
 void
-TrexStatelessPort::update_traffic(double mul) {
+TrexStatelessPort::update_traffic(const TrexStatelessPort::mul_st &mul) {
 
     verify_state(PORT_STATE_TX | PORT_STATE_PAUSE);
 
     /* generate a message to all the relevant DP cores to start transmitting */
-    double per_core_mul = mul / m_cores_id_list.size();
-    TrexStatelessCpToDpMsgBase *update_msg = new TrexStatelessDpUpdate(m_port_id, per_core_mul);
+    double new_per_core_m = calculate_effective_mul(mul);
+    double factor = new_per_core_m / m_current_per_core_m;
+
+    TrexStatelessCpToDpMsgBase *update_msg = new TrexStatelessDpUpdate(m_port_id, factor);
 
     send_message_to_dp(update_msg);
+
+    m_current_per_core_m = new_per_core_m;
 
 }
 
@@ -376,3 +367,55 @@ TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
 
     }
 }
+
+/**
+ * calculate an effective M based on requirments
+ * 
+ */
+double
+TrexStatelessPort::calculate_effective_mul(const mul_st &mul) {
+
+    /* for a simple factor request - calculate the multiplier per core */
+    if (mul.type == MUL_FACTOR) {
+        return (mul.value /  m_cores_id_list.size());
+    }
+
+    /* we now need the graph - generate it if we don't have it (happens once) */
+    if (!m_graph_obj) {
+        generate_streams_graph();
+    }
+
+    /* now we can calculate the effective M */
+    if (mul.type == MUL_MAX_BPS) {
+        return ( (mul.value / m_graph_obj->get_max_bps()) /  m_cores_id_list.size());
+    } else if (mul.type == MUL_MAX_PPS) {
+        return ( (mul.value / m_graph_obj->get_max_pps()) /  m_cores_id_list.size());
+    } else {
+        assert(0);
+    }
+}
+
+void
+TrexStatelessPort::generate_streams_graph() {
+
+    /* dispose of the old one */
+    if (m_graph_obj) {
+        delete_streams_graph();
+    }
+
+    /* fetch all the streams from the table */
+    vector<TrexStream *> streams;
+    get_object_list(streams);
+
+    TrexStreamsGraph graph;
+    m_graph_obj = graph.generate(streams);
+}
+
+void
+TrexStatelessPort::delete_streams_graph() {
+    if (m_graph_obj) {
+        delete m_graph_obj;
+        m_graph_obj = NULL;
+    }
+}
+

@@ -86,9 +86,8 @@ private:
     TrexStream *        m_ref_stream_info; /* the stream info */
     CGenNodeStateless  * m_next_stream;
 
-    double              m_base_pps;
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[48];
+    uint8_t             m_pad_end[56];
 
 
 
@@ -105,8 +104,9 @@ public:
      * on the PPS and multiplier 
      * 
      */
-    void set_multiplier(double mul) {
-        m_next_time_offset =  1.0 / (m_base_pps * mul) ;
+    void update_rate(double factor) {
+        /* update the inter packet gap */
+        m_next_time_offset         =  m_next_time_offset / factor;
     }
 
     /* we restart the stream, schedule it using stream isg */

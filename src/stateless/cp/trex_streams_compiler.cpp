@@ -486,7 +486,7 @@ TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const Tre
     start_event.time = offset_usec + stream->m_isg_usec;
     start_event.diff_pps = stream->get_pps();
     start_event.diff_bps = stream->get_bps();
-    m_graph_obj.add_rate_event(start_event);
+    m_graph_obj->add_rate_event(start_event);
 
     /* no more events after this stream */
     offset_usec = -1;
@@ -510,13 +510,13 @@ TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, c
     start_event.time = offset_usec + stream->m_isg_usec;
     start_event.diff_pps = stream->get_pps();
     start_event.diff_bps = stream->get_bps();
-    m_graph_obj.add_rate_event(start_event);
+    m_graph_obj->add_rate_event(start_event);
 
     /* stop event */
     stop_event.time = start_event.time + stream->get_burst_length_usec();
     stop_event.diff_pps = -(start_event.diff_pps);
     stop_event.diff_bps = -(start_event.diff_bps);
-    m_graph_obj.add_rate_event(stop_event);
+    m_graph_obj->add_rate_event(stop_event);
 
     /* next stream starts from here */
     offset_usec = stop_event.time;
@@ -549,10 +549,10 @@ TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, co
     for (int i = 0; i < stream->m_num_bursts; i++) {
 
         start_event.time = offset_usec + delay;
-        m_graph_obj.add_rate_event(start_event);
+        m_graph_obj->add_rate_event(start_event);
 
         stop_event.time = start_event.time + stream->get_burst_length_usec();
-        m_graph_obj.add_rate_event(stop_event);
+        m_graph_obj->add_rate_event(stop_event);
 
         /* after the first burst, the delay is inter burst gap */
         delay = stream->m_ibg_usec;
@@ -615,8 +615,12 @@ TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
  * see graph object for more details 
  * 
  */
-const TrexStreamsGraphObj &
+const TrexStreamsGraphObj *
 TrexStreamsGraph::generate(const std::vector<TrexStream *> &streams) {
+
+    /* main object to hold the graph - returned to the user */
+    m_graph_obj = new TrexStreamsGraphObj();
+
     std::vector <uint32_t> root_streams;
 
     /* before anything we create a hash streams ID
@@ -644,7 +648,7 @@ TrexStreamsGraph::generate(const std::vector<TrexStream *> &streams) {
     }
 
 
-    m_graph_obj.generate();
+    m_graph_obj->generate();
 
     return m_graph_obj;
 }

@@ -26,6 +26,7 @@ limitations under the License.
 #include <internal_api/trex_platform_api.h>
 
 class TrexStatelessCpToDpMsgBase;
+class TrexStreamsGraphObj;
 
 /**
  * describes a stateless port
@@ -58,6 +59,24 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
+    /**
+     * defines the type of multipler passed to start
+     */
+    enum mul_type_e {
+        MUL_FACTOR,
+        MUL_MAX_BPS,
+        MUL_MAX_PPS
+    };
+
+    /**
+     * multiplier object
+     */
+    typedef struct {
+        mul_type_e  type;
+        double      value;
+    } mul_st;
+
+
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
     
     /**
@@ -76,19 +95,7 @@ public:
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(double mul, double duration = -1);
-
-    /**
-     * given a BPS rate calculate ther correct M for this port
-     * 
-     */
-    double calculate_m_from_bps(double max_bps);
-
-    /**
-     * given a PPS rate calculate the correct M for this port
-     * 
-     */
-    double calculate_m_from_pps(double max_pps);
+    void start_traffic(const mul_st &mul, double duration = -1);
 
     /**
      * stop traffic
@@ -112,7 +119,7 @@ public:
      * update current traffic on port
      * 
      */
-    void update_traffic(double mul);
+    void update_traffic(const mul_st &mul);
 
     /**
      * get the port state
@@ -265,6 +272,26 @@ private:
     void on_dp_event_occured(TrexDpPortEvent::event_e event_type);
 
 
+    /**
+     * calculate effective M per core
+     * 
+     */
+    double calculate_effective_mul(const mul_st &mul);
+
+    /**
+     * generates a graph of streams graph
+     * 
+     */
+    void generate_streams_graph();
+
+    /**
+     * dispose of it
+     * 
+     * @author imarom (26-Nov-15)
+     */
+    void delete_streams_graph();
+
+
     TrexStreamTable    m_stream_table;
     uint8_t            m_port_id;
     port_state_e       m_port_state;
@@ -279,8 +306,12 @@ private:
 
     bool               m_last_all_streams_continues;
     double             m_last_duration;
+    double             m_current_per_core_m;
 
     TrexDpPortEvents   m_dp_events;
+
+    /* holds a graph of streams rate*/
+    const TrexStreamsGraphObj  *m_graph_obj;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */

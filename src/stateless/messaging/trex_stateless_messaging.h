@@ -231,9 +231,9 @@ public:
 class TrexStatelessDpUpdate : public TrexStatelessCpToDpMsgBase {
 public:
 
-    TrexStatelessDpUpdate(uint8_t port_id, double mul)  {
+    TrexStatelessDpUpdate(uint8_t port_id, double factor)  {
         m_port_id = port_id;
-        m_mul = mul;
+        m_factor = factor;
     }
 
     virtual bool handle(TrexStatelessDpCore *dp_core);
@@ -242,7 +242,7 @@ public:
 
 private:
     uint8_t  m_port_id;
-    double   m_mul;
+    double   m_factor;
 };
 
 

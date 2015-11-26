@@ -1713,13 +1713,15 @@ TEST_F(basic_stl, graph_generator1) {
      streams.push_back(stream);
 
 
-     const TrexStreamsGraphObj &obj = graph.generate(streams);
-     EXPECT_EQ(obj.get_max_bps(), 405120);
-     EXPECT_EQ(obj.get_max_pps(), 50);
+     const TrexStreamsGraphObj *obj = graph.generate(streams);
+     EXPECT_EQ(obj->get_max_bps(), 405120);
+     EXPECT_EQ(obj->get_max_pps(), 50);
 
      for (auto stream : streams) {
          delete stream;
      }
+
+     delete obj;
 }   
 
 
@@ -1761,15 +1763,17 @@ TEST_F(basic_stl, graph_generator2) {
 
     streams.push_back(stream);
 
-    const TrexStreamsGraphObj &obj = graph.generate(streams);
-    EXPECT_EQ(obj.get_max_pps(), 1000.0);
+    const TrexStreamsGraphObj *obj = graph.generate(streams);
+    EXPECT_EQ(obj->get_max_pps(), 1000.0);
 
-    EXPECT_EQ(obj.get_max_bps(), (1000 * (128 + 4) * 8));
+    EXPECT_EQ(obj->get_max_bps(), (1000 * (128 + 4) * 8));
     
 
     for (auto stream : streams) {
         delete stream;
     }
+
+    delete obj;
 }
 
 /* stress test */

@@ -171,6 +171,7 @@ private:
 
     /* list of rate events */
     std::list<rate_event_st> m_rate_events;
+
 };
 
 /**
@@ -181,11 +182,15 @@ private:
 class TrexStreamsGraph {
 public:
 
+    TrexStreamsGraph() {
+        m_graph_obj = NULL;
+    }
+
     /**
      * generate a sequence graph for streams
      * 
      */
-    const TrexStreamsGraphObj & generate(const std::vector<TrexStream *> &streams);
+    const TrexStreamsGraphObj * generate(const std::vector<TrexStream *> &streams);
 
 private:
 
@@ -200,7 +205,7 @@ private:
     std::unordered_map<uint32_t, const TrexStream *> m_streams_hash;
 
     /* main object to hold the graph - returned to the user */
-    TrexStreamsGraphObj m_graph_obj;
+    TrexStreamsGraphObj *m_graph_obj;
 };
 
 #endif /* __TREX_STREAMS_COMPILER_H__ */

@@ -139,7 +139,7 @@ bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
     return (true);
 }
 
-bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double mul) {
+bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
 
     assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING || 
             (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
@@ -148,7 +148,7 @@ bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double mul) {
         CGenNodeStateless * node = dp_stream.m_node; 
         assert(node->get_port_id() == port_id);
 
-        node->set_multiplier(mul);
+        node->update_rate(factor);
     }
 
     return (true);
@@ -453,8 +453,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
     node->m_pause =0;
     node->m_stream_type = stream->m_type;
-    node->m_base_pps = stream->get_pps();
-    node->set_multiplier(comp->get_multiplier());
+    node->m_next_time_offset = 1.0 / (stream->get_pps() * comp->get_multiplier());
 
     /* stateless specific fields */
     switch ( stream->m_type ) {
@@ -597,11 +596,11 @@ TrexStatelessDpCore::pause_traffic(uint8_t port_id){
 }
 
 void 
-TrexStatelessDpCore::update_traffic(uint8_t port_id, double mul) {
+TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
-    lp_port->update_traffic(port_id, mul);
+    lp_port->update_traffic(port_id, factor);
 }
 
 
