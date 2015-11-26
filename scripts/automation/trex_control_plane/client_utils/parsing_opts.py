@@ -19,6 +19,10 @@ SERVER_IP = 7
 STREAM_FROM_PATH_OR_FILE = 8
 DURATION = 9
 FORCE = 10
+GLOBAL_STATS = 11
+PORT_STATS = 12
+PORT_STATUS = 13
+STATS_MASK = 14
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -116,13 +120,29 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                       {'metavar': 'SERVER',
                                        'help': "server IP"}),
 
+              GLOBAL_STATS: ArgumentPack(['-g'],
+                                         {'action': 'store_true',
+                                          'help': "Fetch only global statistics"}),
+
+              PORT_STATS: ArgumentPack(['-p'],
+                                       {'action': 'store_true',
+                                        'help': "Fetch only port statistics"}),
+
+              PORT_STATUS: ArgumentPack(['--ps'],
+                                        {'action': 'store_true',
+                                         'help': "Fetch only port status data"}),
+
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
                                                 {'required': True}),
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
                                                               FILE_FROM_DB],
-                                                      {'required': True})
+                                                      {'required': True}),
+              STATS_MASK: ArgumentGroup(MUTEX, [GLOBAL_STATS,
+                                                PORT_STATS,
+                                                PORT_STATUS],
+                                        {})
               }
 
 

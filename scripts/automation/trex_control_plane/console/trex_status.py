@@ -385,7 +385,7 @@ class TrexStatusCommands():
 # 
 #
 #
-class TrexStatus():
+class CTRexStatus():
     def __init__ (self, stdscr, stateless_client):
         self.stdscr = stdscr
 
@@ -506,7 +506,7 @@ def show_trex_status_internal (stdscr, stateless_client):
     global trex_status
 
     if trex_status == None:
-        trex_status = TrexStatus(stdscr, stateless_client)
+        trex_status = CTRexStatus(stdscr, stateless_client)
 
     trex_status.run()
 

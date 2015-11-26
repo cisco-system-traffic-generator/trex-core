@@ -10,11 +10,13 @@ except ImportError:
 from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 from client_utils.packet_builder import CTRexPktBuilder
 import json
-from common.trex_stats import *
+
 from common.trex_streams import *
 from collections import namedtuple
 from common.text_opts import *
-import parsing_opts
+# import trex_stats
+from common import trex_stats
+from client_utils import parsing_opts, text_tables
 import time
 
 from trex_async_client import CTRexAsyncClient
@@ -29,7 +31,7 @@ class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg']
                                                   stat="success" if self.success else "fail")
 
 # simple class to represent complex return value
-class RC:
+class RC():
 
     def __init__ (self, rc = None, data = None):
         self.rc_list = []
@@ -74,7 +76,7 @@ class RC:
 
 def RC_OK():
     return RC(True, "")
-def RC_ERR (err):
+def RC_ERR(err):
     return RC(False, err)
 
 
@@ -86,7 +88,7 @@ class CStreamsDB(object):
     def __init__(self):
         self.stream_packs = {}
 
-    def load_yaml_file (self, filename):
+    def load_yaml_file(self, filename):
 
         stream_pack_name = filename
         if stream_pack_name in self.get_loaded_streams_names():
@@ -376,6 +378,7 @@ class CTRexStatelessClient(object):
     def __init__(self, username, server="localhost", sync_port = 5050, async_port = 4500, virtual=False):
         super(CTRexStatelessClient, self).__init__()
         self.user = username
+        self.system_info = None
         self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
         self.verbose = False
         self.ports = []
@@ -388,6 +391,11 @@ class CTRexStatelessClient(object):
         self._async_client = CTRexAsyncClient(server, async_port, self)
 
         self.streams_db = CStreamsDB()
+        self.info_and_stats = trex_stats.CTRexInformationCenter({"server": server,
+                                                                 "sync_port": sync_port,
+                                                                 "async_port": async_port},
+                                                                self.ports,
+                                                                self.get_stats_async())
 
         self.connected = False
 
@@ -444,13 +452,15 @@ class CTRexStatelessClient(object):
             return RC_ERR(data)
 
         self.server_version = data
+        self.info_and_stats.server_version = data
 
         # cache system info
+        # self.get_system_info(refresh=True)
         rc, data = self.transmit("get_system_info")
         if not rc:
             return RC_ERR(data)
-
         self.system_info = data
+        self.info_and_stats.system_info = data
 
         # cache supported commands
         rc, data = self.transmit("get_supported_cmds")
@@ -508,7 +518,7 @@ class CTRexStatelessClient(object):
         else:
             return port_ids
 
-    def get_stats_async (self):
+    def get_stats_async(self):
         return self._async_client.get_stats()
 
     def get_connection_port (self):
@@ -548,6 +558,9 @@ class CTRexStatelessClient(object):
 
         return RC_OK()
 
+    def get_global_stats(self):
+        rc, info = self.transmit("get_global_stats")
+        return RC(rc, info)
 
 
     ########## port commands ##############
@@ -787,7 +800,7 @@ class CTRexStatelessClient(object):
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
         return self.cmd_pause(opts.ports)
 
@@ -820,7 +833,7 @@ class CTRexStatelessClient(object):
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
         return self.cmd_resume(opts.ports)
 
@@ -861,6 +874,18 @@ class CTRexStatelessClient(object):
 
         return RC_OK()
 
+    def cmd_stats(self, port_id_list, stats_mask=set()):
+        print port_id_list
+        print stats_mask
+        stats_opts = trex_stats.ALL_STATS_OPTS.intersection(stats_mask)
+        print stats_opts
+
+        stats_obj = {}
+        for stats_type in stats_opts:
+            stats_obj.update(self.info_and_stats.generate_single_statistic(stats_type))
+        return stats_obj
+        pass
+
     ############## High Level API With Parser ################
     def cmd_start_line (self, line):
         '''Start selected traffic in specified ports on TRex\n'''
@@ -877,10 +902,10 @@ class CTRexStatelessClient(object):
         opts = parser.parse_args(line.split())
 
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
         if opts.db:
-            stream_list = self.stream_db.get_stream_pack(opts.db)
+            stream_list = self.streams_db.get_stream_pack(opts.db)
             rc = RC(stream_list != None)
             rc.annotate("Load stream pack (from DB):")
             if rc.bad():
@@ -906,7 +931,7 @@ class CTRexStatelessClient(object):
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
         return self.cmd_stop(opts.ports)
 
@@ -914,6 +939,49 @@ class CTRexStatelessClient(object):
     def cmd_reset_line (self, line):
         return self.cmd_reset()
 
+
+    def cmd_stats_line (self, line):
+        '''Fetch statistics from TRex server by port\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "stats",
+                                         self.cmd_stats_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STATS_MASK)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        print opts
+        print self.get_global_stats()
+        # determine stats mask
+        mask = self._get_mask_keys(**self._filter_namespace_args(opts, ['p', 'g', 'ps']))
+        # get stats objects, as dictionary
+        stats = self.cmd_stats(opts.ports, mask)
+        # print stats to screen
+        for stat_type, stat_data in stats.iteritems():
+            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+        return
+
+        # if opts.db:
+        #     stream_list = self.streams_db.get_stream_pack(opts.db)
+        #     rc = RC(stream_list != None)
+        #     rc.annotate("Load stream pack (from DB):")
+        #     if rc.bad():
+        #         return RC_ERR("Failed to load stream pack")
+        #
+        # else:
+        #     # load streams from file
+        #     stream_list = self.streams_db.load_yaml_file(opts.file[0])
+        #     rc = RC(stream_list != None)
+        #     rc.annotate("Load stream pack (from file):")
+        #     if stream_list == None:
+        #         return RC_ERR("Failed to load stream pack")
+        #
+        #
+        # return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration)
 
     def cmd_exit_line (self, line):
         print format_text("Exiting\n", 'bold')
@@ -931,7 +999,7 @@ class CTRexStatelessClient(object):
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
         delay_sec = opts.duration if (opts.duration > 0) else 1
 
@@ -989,6 +1057,20 @@ class CTRexStatelessClient(object):
         print format_text("\n[Done]", 'bold')
 
         return True
+
+    #################################
+    # ------ private methods ------ #
+    @staticmethod
+    def _get_mask_keys(ok_values={True}, **kwargs):
+        masked_keys = set()
+        for key, val in kwargs.iteritems():
+            if val in ok_values:
+                masked_keys.add(key)
+        return masked_keys
+
+    @staticmethod
+    def _filter_namespace_args(namespace, ok_values):
+        return {k: v for k, v in namespace.__dict__.items() if k in ok_values}
 
     #################################
     # ------ private classes ------ #

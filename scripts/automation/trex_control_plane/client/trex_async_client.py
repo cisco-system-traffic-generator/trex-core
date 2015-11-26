@@ -21,13 +21,14 @@ from common.trex_stats import *
 from common.trex_streams import *
 
 # basic async stats class
-class TrexAsyncStats(object):
+class CTRexAsyncStats(object):
     def __init__ (self):
         self.ref_point = None
         self.current = {}
         self.last_update_ts = datetime.datetime.now()
 
-    def __format_num (self, size, suffix = ""):
+    @staticmethod
+    def format_num (size, suffix = ""):
 
         for unit in ['','K','M','G','T','P']:
             if abs(size) < 1000.0:
@@ -47,7 +48,7 @@ class TrexAsyncStats(object):
             self.ref_point = self.current
         
 
-    def get (self, field, format = False, suffix = ""):
+    def get(self, field, format = False, suffix = ""):
 
         if not field in self.current:
             return "N/A"
@@ -55,7 +56,7 @@ class TrexAsyncStats(object):
         if not format:
             return self.current[field]
         else:
-            return self.__format_num(self.current[field], suffix)
+            return self.format_num(self.current[field], suffix)
 
 
     def get_rel (self, field, format = False, suffix = ""):
@@ -65,7 +66,7 @@ class TrexAsyncStats(object):
         if not format:
             return (self.current[field] - self.ref_point[field])
         else:
-            return self.__format_num(self.current[field] - self.ref_point[field], suffix)
+            return self.format_num(self.current[field] - self.ref_point[field], suffix)
 
 
     # return true if new data has arrived in the past 2 seconds
@@ -74,28 +75,28 @@ class TrexAsyncStats(object):
         return (delta_ms < 2000)
 
 # describes the general stats provided by TRex
-class TrexAsyncStatsGeneral(TrexAsyncStats):
+class CTRexAsyncStatsGeneral(CTRexAsyncStats):
     def __init__ (self):
-        super(TrexAsyncStatsGeneral, self).__init__()
+        super(CTRexAsyncStatsGeneral, self).__init__()
 
 
 # per port stats
-class TrexAsyncStatsPort(TrexAsyncStats):
+class CTRexAsyncStatsPort(CTRexAsyncStats):
     def __init__ (self):
-        super(TrexAsyncStatsPort, self).__init__()
+        super(CTRexAsyncStatsPort, self).__init__()
 
     def get_stream_stats (self, stream_id):
         return None
 
 # stats manager
-class TrexAsyncStatsManager():
+class CTRexAsyncStatsManager():
     def __init__ (self):
 
-        self.general_stats = TrexAsyncStatsGeneral()
+        self.general_stats = CTRexAsyncStatsGeneral()
         self.port_stats = {}
 
 
-    def get_general_stats (self):
+    def get_general_stats(self):
         return self.general_stats
 
     def get_port_stats (self, port_id):
@@ -106,10 +107,10 @@ class TrexAsyncStatsManager():
         return self.port_stats[str(port_id)]
 
    
-    def update (self, data):
+    def update(self, data):
         self.__handle_snapshot(data)
 
-    def __handle_snapshot (self, snapshot):
+    def __handle_snapshot(self, snapshot):
 
         general_stats = {}
         port_stats = {}
@@ -140,7 +141,7 @@ class TrexAsyncStatsManager():
         for port_id, data in port_stats.iteritems():
 
             if not port_id in self.port_stats:
-                self.port_stats[port_id] = TrexAsyncStatsPort()
+                self.port_stats[port_id] = CTRexAsyncStatsPort()
 
             self.port_stats[port_id].update(data)
 
@@ -157,22 +158,20 @@ class CTRexAsyncClient():
 
         self.raw_snapshot = {}
 
-        self.stats = TrexAsyncStatsManager()
+        self.stats = CTRexAsyncStatsManager()
 
 
         self.tr = "tcp://{0}:{1}".format(self.server, self.port)
         print "\nConnecting To ZMQ Publisher At {0}".format(self.tr)
 
         self.active = True
-        self.t = threading.Thread(target = self.run)
+        self.t = threading.Thread(target= self.run)
 
         # kill this thread on exit and don't add it to the join list
         self.t.setDaemon(True)
         self.t.start()
 
-
-
-    def run (self):
+    def run(self):
 
         #  Socket to talk to server
         self.context = zmq.Context()
@@ -182,7 +181,7 @@ class CTRexAsyncClient():
         self.socket.setsockopt(zmq.SUBSCRIBE, '')
 
         while self.active:
-            line = self.socket.recv_string();
+            line = self.socket.recv_string()
             msg = json.loads(line)
 
             name = msg['name']
@@ -192,14 +191,12 @@ class CTRexAsyncClient():
 
             self.__dispatch(name, type, data)
 
-
-    def get_stats (self):
+    def get_stats(self):
         return self.stats
 
     def get_raw_snapshot (self):
         #return str(self.stats.global_stats.get('m_total_tx_bytes')) + " / " + str(self.stats.global_stats.get_rel('m_total_tx_bytes'))
         return self.raw_snapshot
-
 
     # dispatch the message to the right place
     def __dispatch (self, name, type, data):
@@ -225,3 +222,6 @@ class CTRexAsyncClient():
         self.active = False
         self.t.join()
 
+
+if __name__ == "__main__":
+    pass
