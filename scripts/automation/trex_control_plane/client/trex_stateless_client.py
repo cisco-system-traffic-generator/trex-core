@@ -425,24 +425,36 @@ class CTRexStatelessClient(object):
 
         self.events = []
 
+
     ################# events handler ######################
-  
+    def add_event_log (self, msg, ev_type, show = False):
+
+        if ev_type == "server":
+            prefix = "[server]"
+        elif ev_type == "local":
+            prefix = "[local]"
+
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        self.events.append("{:<10} - {:^8} - {:}".format(st, prefix, format_text(msg, 'bold')))
+
+        if show:
+            print format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold')))
+
     def handle_async_event (self, type, data):
         # DP stopped
-
-        ev = "[event] - "
 
         show_event = False
 
         # port started
         if (type == 0):
             port_id = int(data['port_id'])
-            ev += "Port {0} has started".format(port_id)
+            ev = "Port {0} has started".format(port_id)
 
         # port stopped
         elif (type == 1):
             port_id = int(data['port_id'])
-            ev += "Port {0} has stopped".format(port_id)
+            ev = "Port {0} has stopped".format(port_id)
 
             # call the handler
             self.async_event_port_stopped(port_id)
@@ -450,14 +462,14 @@ class CTRexStatelessClient(object):
 
         # server stopped
         elif (type == 2):
-            ev += "Server has stopped"
+            ev = "Server has stopped"
             self.async_event_server_stopped()
             show_event = True
 
         # port finished traffic
         elif (type == 3):
             port_id = int(data['port_id'])
-            ev += "Port {0} job done".format(port_id)
+            ev = "Port {0} job done".format(port_id)
 
             # call the handler
             self.async_event_port_stopped(port_id)
@@ -467,12 +479,8 @@ class CTRexStatelessClient(object):
             # unknown event - ignore
             return
 
-        if show_event:
-            print format_text("\n" + ev, 'bold')
 
-        ts = time.time()
-        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-        self.events.append("{0} - ".format(st) + format_text(ev, 'bold'))
+        self.add_event_log(ev, 'server', show_event)
 
 
     def async_event_port_stopped (self, port_id):
@@ -580,6 +588,19 @@ class CTRexStatelessClient(object):
         return RC_OK()
 
 
+    def on_async_dead (self):
+        if self.is_connected():
+            msg = 'lost connection to server'
+            self.add_event_log(msg, 'local', True)
+
+            self.disconnect()
+
+    def on_async_alive (self):
+        if not self.is_connected():
+            msg = 'server connection restored'
+            self.add_event_log(msg, 'local', True)
+
+            self.cmd_connect()
 
     ########### cached queries (no server traffic) ###########
 
@@ -1021,7 +1042,7 @@ class CTRexStatelessClient(object):
 
 
         # total has no meaning with percentage - its linear
-        if opts.total and (mult['type'] != 'percentage'):
+        if opts.total and (opts.mult['type'] != 'percentage'):
             # if total was set - divide it between the ports
             opts.mult['max'] = opts.mult['max'] / len(opts.ports)
 
@@ -1202,3 +1223,4 @@ class CTRexStatelessClient(object):
 if __name__ == "__main__":
     pass
 
+                                                                                                                                    

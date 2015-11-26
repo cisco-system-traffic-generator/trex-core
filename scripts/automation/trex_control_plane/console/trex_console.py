@@ -210,6 +210,10 @@ class TRexConsole(TRexGeneralCmd):
     def do_ping (self, line):
         '''Ping the server\n'''
 
+        if not self.stateless_client.is_connected():
+            print format_text("\nNot connected to server\n", 'bold')
+            return
+
         rc = self.stateless_client.cmd_ping()
         if rc.bad():
             return
@@ -302,6 +306,10 @@ class TRexConsole(TRexGeneralCmd):
     def do_start(self, line):
         '''Start selected traffic in specified port(s) on TRex\n'''
 
+        if not self.stateless_client.is_connected():
+            print format_text("\nNot connected to server\n", 'bold')
+            return
+
         self.stateless_client.cmd_start_line(line)
 
 
@@ -311,6 +319,11 @@ class TRexConsole(TRexGeneralCmd):
     ############# stop
     def do_stop(self, line):
         '''stops port(s) transmitting traffic\n'''
+
+        if not self.stateless_client.is_connected():
+            print format_text("\nNot connected to server\n", 'bold')
+            return
+
         self.stateless_client.cmd_stop_line(line)
 
     def help_stop(self):
@@ -319,6 +332,11 @@ class TRexConsole(TRexGeneralCmd):
     ############# update
     def do_update(self, line):
         '''update speed of port(s)currently transmitting traffic\n'''
+
+        if not self.stateless_client.is_connected():
+            print format_text("\nNot connected to server\n", 'bold')
+            return
+
         self.stateless_client.cmd_update_line(line)
 
     def help_update (self):
@@ -327,11 +345,21 @@ class TRexConsole(TRexGeneralCmd):
     ############# pause
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
+
+        if not self.stateless_client.is_connected():
+            print format_text("\nNot connected to server\n", 'bold')
+            return
+
         self.stateless_client.cmd_pause_line(line)
 
     ############# resume
     def do_resume(self, line):
         '''resume port(s) transmitting traffic\n'''
+
+        if not self.stateless_client.is_connected():
+            print format_text("\nNot connected to server\n", 'bold')
+            return
+
         self.stateless_client.cmd_resume_line(line)
 
    
@@ -339,6 +367,11 @@ class TRexConsole(TRexGeneralCmd):
     ########## reset
     def do_reset (self, line):
         '''force stop all ports\n'''
+
+        if not self.stateless_client.is_connected():
+            print format_text("\nNot connected to server\n", 'bold')
+            return
+
         self.stateless_client.cmd_reset()
 
   

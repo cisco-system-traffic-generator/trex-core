@@ -180,9 +180,18 @@ class CTRexAsyncClient():
 
         self.socket.connect(self.tr)
         self.socket.setsockopt(zmq.SUBSCRIBE, '')
+        self.socket.setsockopt(zmq.RCVTIMEO, 3000)
 
         while self.active:
-            line = self.socket.recv_string();
+            try:
+
+                line = self.socket.recv_string();
+                self.stateless_client.on_async_alive()
+
+            except zmq.Again:
+                self.stateless_client.on_async_dead()
+                continue
+
             msg = json.loads(line)
 
             name = msg['name']
