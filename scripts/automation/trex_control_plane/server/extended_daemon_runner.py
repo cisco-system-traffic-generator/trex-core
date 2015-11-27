@@ -19,7 +19,6 @@ def daemonize_parser(parser_obj, action_funcs, help_menu):
     parser_obj.usage = None
     parser_obj.add_argument("action", choices=action_funcs,
                             action="store", help=help_menu)
-    return
 
 
 class ExtendedDaemonRunner(runner.DaemonRunner):
@@ -76,7 +75,11 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
         self.app = app
         self.daemon_context = daemon.DaemonContext()
         self.daemon_context.stdin = open(app.stdin_path, 'rt')
-        self.daemon_context.stdout = open(app.stdout_path, 'w+t')
+        try:
+            self.daemon_context.stdout = open(app.stdout_path, 'w+t')
+        except IOError as err:
+            app.stdout_path = "/dev/null"
+            self.daemon_context.stdout = open(app.stdout_path, 'w+t')
         self.daemon_context.stderr = open(app.stderr_path,
                                           'a+t', buffering=0)
 
