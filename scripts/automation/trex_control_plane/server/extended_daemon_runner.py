@@ -78,6 +78,7 @@ class ExtendedDaemonRunner(runner.DaemonRunner):
         try:
             self.daemon_context.stdout = open(app.stdout_path, 'w+t')
         except IOError as err:
+            # catch 'tty' error when launching server from remote location
             app.stdout_path = "/dev/null"
             self.daemon_context.stdout = open(app.stdout_path, 'w+t')
         self.daemon_context.stderr = open(app.stderr_path,
