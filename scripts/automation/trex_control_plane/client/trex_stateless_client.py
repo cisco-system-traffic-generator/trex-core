@@ -148,6 +148,13 @@ class Port(object):
     STATE_STREAMS    = 2
     STATE_TX         = 3
     STATE_PAUSE      = 4
+    PortState = namedtuple('PortState', ['state_id', 'state_name'])
+    STATES_MAP = {STATE_DOWN: "DOWN",
+                  STATE_IDLE: "IDLE",
+                  STATE_STREAMS: "STREAMS",
+                  STATE_TX: "ACTIVE",
+                  STATE_PAUSE: "PAUSE"}
+
 
     def __init__ (self, port_id, speed, driver, user, transmit):
         self.port_id = port_id
@@ -399,6 +406,10 @@ class Port(object):
 
         return self.ok()
 
+    def get_port_state_name(self):
+        return self.STATES_MAP.get(self.state, "Unknown")
+
+
     ################# events handler ######################
     def async_event_port_stopped (self):
         self.state = self.STATE_STREAMS
@@ -423,7 +434,8 @@ class CTRexStatelessClient(object):
         self._async_client = CTRexAsyncClient(server, async_port, self)
 
         self.streams_db = CStreamsDB()
-        self.info_and_stats = trex_stats.CTRexInformationCenter({"server": server,
+        self.info_and_stats = trex_stats.CTRexInformationCenter(self.user,
+                                                                {"server": server,
                                                                  "sync_port": sync_port,
                                                                  "async_port": async_port},
                                                                 self.ports,
@@ -885,7 +897,7 @@ class CTRexStatelessClient(object):
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
         if not active_ports:
-            msg = "No active traffic on porvided ports"
+            msg = "No active traffic on provided ports"
             print format_text(msg, 'bold')
             return RC_ERR(msg)
 
@@ -895,6 +907,11 @@ class CTRexStatelessClient(object):
             return rc
 
         return RC_OK()
+
+    def cmd_clear(self, port_id_list):
+        self.info_and_stats.clear(port_id_list)
+        return RC_OK()
+
 
 
     # pause cmd
@@ -999,16 +1016,13 @@ class CTRexStatelessClient(object):
         return RC_OK()
 
     def cmd_stats(self, port_id_list, stats_mask=set()):
-        print port_id_list
-        print stats_mask
         stats_opts = trex_stats.ALL_STATS_OPTS.intersection(stats_mask)
-        print stats_opts
 
         stats_obj = {}
         for stats_type in stats_opts:
-            stats_obj.update(self.info_and_stats.generate_single_statistic(stats_type))
+            stats_obj.update(self.info_and_stats.generate_single_statistic(port_id_list, stats_type))
         return stats_obj
-        pass
+
 
     ############## High Level API With Parser ################
     def cmd_start_line (self, line):
@@ -1090,6 +1104,19 @@ class CTRexStatelessClient(object):
     def cmd_reset_line (self, line):
         return self.cmd_reset()
 
+    def cmd_clear_line (self, line):
+        '''Clear cached local statistics\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "clear",
+                                         self.cmd_clear_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+        return self.cmd_clear(opts.ports)
 
     def cmd_stats_line (self, line):
         '''Fetch statistics from TRex server by port\n'''
@@ -1105,10 +1132,11 @@ class CTRexStatelessClient(object):
         if opts is None:
             return RC_ERR("bad command line parameters")
 
-        print opts
-        print self.get_global_stats()
         # determine stats mask
-        mask = self._get_mask_keys(**self._filter_namespace_args(opts, ['p', 'g', 'ps']))
+        mask = self._get_mask_keys(**self._filter_namespace_args(opts, trex_stats.ALL_STATS_OPTS))
+        if not mask:
+            # set to show all stats if no filter was given
+            mask = trex_stats.ALL_STATS_OPTS
         # get stats objects, as dictionary
         stats = self.cmd_stats(opts.ports, mask)
         # print stats to screen

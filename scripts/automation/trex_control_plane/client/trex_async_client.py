@@ -46,6 +46,9 @@ class CTRexAsyncStats(object):
 
         if self.ref_point == None:
             self.ref_point = self.current
+
+    def clear(self):
+        self.ref_point = self.current
         
 
     def get(self, field, format = False, suffix = ""):

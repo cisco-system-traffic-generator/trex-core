@@ -1,6 +1,8 @@
 #!/router/bin/python
 from collections import namedtuple, OrderedDict
 from client_utils import text_tables
+from common.text_opts import format_text
+from client.trex_async_client import CTRexAsyncStats
 import copy
 
 GLOBAL_STATS = 'g'
@@ -12,7 +14,8 @@ ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
 class CTRexInformationCenter(object):
 
-    def __init__(self, connection_info, ports_ref, async_stats_ref):
+    def __init__(self, username, connection_info, ports_ref, async_stats_ref):
+        self.user = username
         self.connection_info = connection_info
         self.server_version = None
         self.system_info = None
@@ -26,14 +29,20 @@ class CTRexInformationCenter(object):
     #     else:
     #         return None
 
-    def generate_single_statistic(self, statistic_type):
+    def clear(self, port_id_list):
+        self._async_stats.get_general_stats().clear()
+        for port_id in port_id_list:
+            self._async_stats.get_port_stats(port_id).clear()
+        pass
+
+    def generate_single_statistic(self, port_id_list, statistic_type):
         if statistic_type == GLOBAL_STATS:
             return self._generate_global_stats()
         elif statistic_type == PORT_STATS:
-            # return generate_global_stats()
+            return self._generate_port_stats(port_id_list)
             pass
         elif statistic_type == PORT_STATUS:
-            pass
+            return self._generate_port_status(port_id_list)
         else:
             # ignore by returning empty object
             return {}
@@ -43,26 +52,11 @@ class CTRexInformationCenter(object):
         return_stats_data = \
             OrderedDict([("connection", "{host}, Port {port}".format(host=self.connection_info.get("server"),
                                                                      port=self.connection_info.get("sync_port"))),
-                         ("version", self.server_version.get("version", "N/A")),
-                         ("cpu_util", stats_obj.get("m_cpu_util")),
+                         ("version", "{ver}, UUID: {uuid}".format(ver=self.server_version.get("version", "N/A"),
+                                                                  uuid="N/A")),
+                         ("cpu_util", "{0}%".format(stats_obj.get("m_cpu_util"))),
                          ("total_tx", stats_obj.get("m_tx_bps", format=True, suffix="b/sec")),
-                                    # {'m_tx_bps': stats_obj.get("m_tx_bps", format= True, suffix= "b/sec"),
-                                    #   'm_tx_pps': stats_obj.get("m_tx_pps", format= True, suffix= "pkt/sec"),
-                                    #   'm_total_tx_bytes':stats_obj.get_rel("m_total_tx_bytes",
-                                    #                                        format= True,
-                                    #                                        suffix = "B"),
-                                    #   'm_total_tx_pkts': stats_obj.get_rel("m_total_tx_pkts",
-                                    #                                        format= True,
-                                    #                                        suffix = "pkts")},
                          ("total_rx", stats_obj.get("m_rx_bps", format=True, suffix="b/sec")),
-                                    # {'m_rx_bps': stats_obj.get("m_rx_bps", format= True, suffix= "b/sec"),
-                                    #   'm_rx_pps': stats_obj.get("m_rx_pps", format= True, suffix= "pkt/sec"),
-                                    #   'm_total_rx_bytes': stats_obj.get_rel("m_total_rx_bytes",
-                                    #                                        format= True,
-                                    #                                        suffix = "B"),
-                                    #   'm_total_rx_pkts': stats_obj.get_rel("m_total_rx_pkts",
-                                    #                                        format= True,
-                                    #                                        suffix = "pkts")},
                          ("total_pps", stats_obj.format_num(stats_obj.get("m_tx_pps") + stats_obj.get("m_rx_pps"),
                                                            suffix="pkt/sec")),
                          ("total_streams", sum([len(port.streams)
@@ -80,6 +74,122 @@ class CTRexInformationCenter(object):
                              header=False)
 
         return {"global_statistics": ExportableStats(return_stats_data, stats_table)}
+
+    def _generate_port_stats(self, port_id_list):
+        relevant_ports = self.__get_relevant_ports(port_id_list)
+
+        return_stats_data = {}
+        per_field_stats = OrderedDict([("owner", []),
+                                       ("active", []),
+                                       ("tx-bytes", []),
+                                       ("rx-bytes", []),
+                                       ("tx-pkts", []),
+                                       ("rx-pkts", []),
+                                       ("tx-errors", []),
+                                       ("rx-errors", []),
+                                       ("tx-BW", []),
+                                       ("rx-BW", [])
+                                      ]
+                                      )
+
+        for port_obj in relevant_ports:
+            # fetch port data
+            port_stats = self._async_stats.get_port_stats(port_obj.port_id)
+
+            owner = self.user
+            active = "YES" if port_obj.is_active() else "NO"
+            tx_bytes = port_stats.get_rel("obytes", format = True, suffix = "B")
+            rx_bytes = port_stats.get_rel("ibytes", format = True, suffix = "B")
+            tx_pkts = port_stats.get_rel("opackets", format = True, suffix = "pkts")
+            rx_pkts = port_stats.get_rel("ipackets", format = True, suffix = "pkts")
+            tx_errors = port_stats.get_rel("oerrors", format = True)
+            rx_errors = port_stats.get_rel("ierrors", format = True)
+            tx_bw = port_stats.get("m_total_tx_bps", format = True, suffix = "bps")
+            rx_bw = port_stats.get("m_total_rx_bps", format = True, suffix = "bps")
+
+            # populate to data structures
+            return_stats_data[port_obj.port_id] = {"owner": owner,
+                                                   "active": active,
+                                                   "tx-bytes": tx_bytes,
+                                                   "rx-bytes": rx_bytes,
+                                                   "tx-pkts": tx_pkts,
+                                                   "rx-pkts": rx_pkts,
+                                                   "tx-errors": tx_errors,
+                                                   "rx-errors": rx_errors,
+                                                   "Tx-BW": tx_bw,
+                                                   "Rx-BW": rx_bw
+                                                   }
+            per_field_stats["owner"].append(owner)
+            per_field_stats["active"].append(active)
+            per_field_stats["tx-bytes"].append(tx_bytes)
+            per_field_stats["rx-bytes"].append(rx_bytes)
+            per_field_stats["tx-pkts"].append(tx_pkts)
+            per_field_stats["rx-pkts"].append(rx_pkts)
+            per_field_stats["tx-errors"].append(tx_errors)
+            per_field_stats["rx-errors"].append(rx_errors)
+            per_field_stats["tx-BW"].append(tx_bw)
+            per_field_stats["rx-BW"].append(rx_bw)
+
+        stats_table = text_tables.TRexTextTable()
+        stats_table.set_cols_align(["l"] + ["r"]*len(relevant_ports))
+        stats_table.add_rows([[k] + v
+                              for k, v in per_field_stats.iteritems()],
+                             header=False)
+        stats_table.header(["port"] + [port.port_id
+                                       for port in relevant_ports])
+
+        return {"port_statistics": ExportableStats(return_stats_data, stats_table)}
+
+    def _generate_port_status(self, port_id_list):
+        relevant_ports = self.__get_relevant_ports(port_id_list)
+
+        return_stats_data = {}
+        per_field_status = OrderedDict([("port-type", []),
+                                        ("maximum", []),
+                                        ("port-status", [])
+                                        ]
+                                       )
+
+        for port_obj in relevant_ports:
+            # fetch port data
+            port_stats = self._async_stats.get_port_stats(port_obj.port_id)
+
+
+            port_type = port_obj.driver
+            maximum = "{speed} Gb/s".format(speed=port_obj.speed)#CTRexAsyncStats.format_num(port_obj.get_speed_bps(), suffix="bps")
+            port_status = port_obj.get_port_state_name()
+
+            # populate to data structures
+            return_stats_data[port_obj.port_id] = {"port-type": port_type,
+                                                   "maximum": maximum,
+                                                   "port-status": port_status,
+                                                   }
+            per_field_status["port-type"].append(port_type)
+            per_field_status["maximum"].append(maximum)
+            per_field_status["port-status"].append(port_status)
+
+        stats_table = text_tables.TRexTextTable()
+        stats_table.set_cols_align(["l"] + ["c"]*len(relevant_ports))
+        stats_table.add_rows([[k] + v
+                              for k, v in per_field_status.iteritems()],
+                             header=False)
+        stats_table.header(["port"] + [port.port_id
+                                       for port in relevant_ports])
+
+        return {"port_status": ExportableStats(return_stats_data, stats_table)}
+
+    def __get_relevant_ports(self, port_id_list):
+        # fetch owned ports
+        ports = [port_obj
+                 for port_obj in self._ports
+                 if port_obj.is_acquired() and port_obj.port_id in port_id_list]
+        # display only the first FOUR options, by design
+        if len(ports) > 4:
+            print format_text("[WARNING]: ", 'magenta', 'bold'), format_text("displaying up to 4 ports", 'magenta')
+            ports = ports[:4]
+        return ports
+
+
 
 
 class CTRexStatsManager(object):
