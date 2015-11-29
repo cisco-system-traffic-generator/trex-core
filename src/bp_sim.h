@@ -4079,6 +4079,24 @@ enum MINVM_PLUGIN_ID{
     mpAVL_HTTP_BROWSIN=4  /* this is a way to change the host ip by client ip */
 };
 
+/* 
+ * return true if the plguin needs to track server ports 
+ */
+inline bool is_tracked_svr_port(uint8_t plugin_id) {
+    switch (plugin_id) {
+        case mpRTSP:
+        case mpSIP_VOICE:
+            return true;
+        case mpDYN_PYLOAD:
+        case mpAVL_HTTP_BROWSIN:
+            return false;
+        default:
+            printf("ERROR. Invalid plugin id: %d\n",
+                   plugin_id);
+            return false;
+    }
+}
+
 class CPluginCallback {
 public:
     virtual ~CPluginCallback(){

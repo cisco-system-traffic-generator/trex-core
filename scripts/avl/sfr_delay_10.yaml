@@ -10,6 +10,7 @@
           dual_port_mask : "1.0.0.0" 
           tcp_aging      : 0
           udp_aging      : 0
+          track_ports    : true
   mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
   #vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 }
   #mac_override_by_ip : true

@@ -10,6 +10,7 @@
           dual_port_mask : "1.0.0.0" 
           tcp_aging      : 1
           udp_aging      : 1
+          track_ports    : true
   cap_ipg    : true
   #cap_ipg_min    : 100
   #cap_override_ipg    : 200
