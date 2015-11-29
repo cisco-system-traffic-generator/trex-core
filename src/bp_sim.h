@@ -4073,6 +4073,7 @@ inline void CGenNode::replace_tuple(void){
 }
 
 enum MINVM_PLUGIN_ID{
+    mpNO_PLUGIN=0,
     mpRTSP=1,
     mpSIP_VOICE=2,
     mpDYN_PYLOAD=3,
@@ -4087,6 +4088,7 @@ inline bool is_tracked_svr_port(uint8_t plugin_id) {
         case mpRTSP:
         case mpSIP_VOICE:
             return true;
+        case mpNO_PLUGIN:
         case mpDYN_PYLOAD:
         case mpAVL_HTTP_BROWSIN:
             return false;
