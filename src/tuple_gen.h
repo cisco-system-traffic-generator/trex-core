@@ -928,16 +928,16 @@ public:
         }
         return 0;
     }
-    
-    void set_server_track_ports(uint8_t svr_pool_id, uint8_t plugin_id) {
-        if (plugin_id!=0) {
-            if (m_server_pool[svr_pool_id].m_is_bundling==false) {
-                printf("plugin used in template, "
-                       "force server pool to track ports\n");
-            }
-            m_server_pool[svr_pool_id].m_is_bundling = true;
+
+    void chk_server_track_ports(uint8_t svr_pool_id, bool is_svr_tracked) {
+        if (is_svr_tracked==true && 
+            m_server_pool[svr_pool_id].m_is_bundling==false) {
+            printf("plugin requires to track server ports, "
+                   "check the YAML, server pool:%d\n",
+                    svr_pool_id);
+            assert(0);
         }
-    }
+    }   
 
     uint8_t get_client_pool_id(std::string name){
         for (uint8_t i=0;i<m_client_pool.size();i++) {
