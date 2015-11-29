@@ -51,6 +51,7 @@ limitations under the License.
 #include <rte_mbuf.h>
 #include <rte_random.h>
 #include "bp_sim.h"
+#include "latency.h"
 #include "os_time.h"
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
@@ -77,6 +78,7 @@ extern "C" {
 #include "utl_term_io.h"
 #include "msg_manager.h"
 #include "platform_cfg.h"
+#include "latency.h"
 
 #include <internal_api/trex_platform_api.h>
 
@@ -118,12 +120,9 @@ static inline int get_is_latency_thread_enable(){
     return (CGlobalInfo::m_options.is_latency_enabled() ?1:0);
 }
 
-
-
 struct port_cfg_t;
 class  CPhyEthIF;
 class CPhyEthIFStats ;
-
 
 class CTRexExtendedDriverBase {
 public:
@@ -436,12 +435,6 @@ static inline int get_min_sample_rate(void){
     return ( get_ex_drv()->get_min_sample_rate());
 }
 
-
-
-
-
-
-
 #define MAX_DPDK_ARGS 40
 static CPlatformYamlInfo global_platform_cfg_info;
 static int global_dpdk_args_num ;
@@ -449,9 +442,6 @@ static char * global_dpdk_args[MAX_DPDK_ARGS];
 static char global_cores_str[100];
 static char global_prefix_str[100];
 static char global_loglevel_str[20];
-
-
-
 
 // cores =0==1,1*2,2,3,4,5,6
 // An enum for all the option types
@@ -487,6 +477,7 @@ enum { OPT_HELP,
     OPT_IPV6,
     OPT_LEARN,
     OPT_LEARN_VERIFY,
+    OPT_L_PKT_MODE,
     OPT_NO_FLOW_CONTROL,
     OPT_RX_CHECK_HOPS,
 	OPT_MAC_FILE,
@@ -498,9 +489,6 @@ enum { OPT_HELP,
 
 };
 
-
-
-      
 
 /* these are the argument types:
    SO_NONE --    no argument needed
@@ -549,6 +537,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_IPV6,       "--ipv6",       SO_NONE   },
     { OPT_LEARN, "--learn",       SO_NONE   },
     { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
+    { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
     { OPT_NO_FLOW_CONTROL, "--no-flow-control",       SO_NONE   },
     { OPT_VLAN,       "--vlan",       SO_NONE   },
     { OPT_MAC_FILE, "--mac", SO_REQ_SEP }, 
@@ -622,7 +611,11 @@ static int usage(){
     printf(" --learn                    : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
     printf(" --learn-verify             : Learn the translation, but intended for verification of the mechanism in cases that NAT does not exist \n");
     printf("  \n");
-    
+    printf(" --l-pkt-mode [0-3]         : Set mode for sending latency packets.\n");
+    printf("      0 (default)    send SCTP packets  \n");
+    printf("      1              Send ICMP request packets  \n");
+    printf("      2              Send ICMP requests from client side, and response from server side (for working with firewall) \n");
+    printf("      3              Send ICMP requests with sequence ID 0 from both sides \n");
     printf(" -v  [1-3]                  :  verbose mode ( works only on the debug image ! )  \n");
     printf("      1    show only stats  \n");
     printf("      2    run preview do not write to file  \n");
@@ -780,6 +773,11 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_LEARN_VERIFY :
                 po->preview.set_lean_mode_enable(true);
                 po->preview.set_lean_and_verify_mode_enable(true);
+                break;
+
+            case OPT_L_PKT_MODE :
+                sscanf(args.OptionArg(),"%d", &tmp_data);
+                po->m_l_pkt_mode=(uint8_t)tmp_data;
                 break;
 
             case OPT_REAL_TIME  :
@@ -1448,11 +1446,11 @@ void CPhyEthIF::configure(uint16_t nb_rx_queue,
 
 /*
 
-rx-queue 0 - default- all traffic no SCTP 
+rx-queue 0 - default- all traffic not goint to queue 1
              will be drop as queue is disable 
              
 
-rx-queue 1 - SCTP traffic will go to here  
+rx-queue 1 - Latency measurement packets will go here  
 
             pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));
 
@@ -1918,8 +1916,6 @@ public:
     virtual int send_node(CGenNode * node);
 };
 
-
-
 bool CCoreEthIF::Create(uint8_t             core_id,
                         uint16_t            tx_client_queue_id,
                         CPhyEthIF  *        tx_client_port, 
@@ -1938,54 +1934,6 @@ bool CCoreEthIF::Create(uint8_t             core_id,
     assert( m_ring_to_rx);
     return (true);
 }
-
-bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
-                                rte_mbuf_t * m){
-
-    CSimplePacketParser parser(m);
-    if ( !parser.Parse()  ){
-        return false;
-    }
-    bool send=false;
-    if ( parser.IsLatencyPkt() ){
-        send=true;
-
-    }else{
-        if ( get_is_rx_filter_enable() ){
-            uint8_t max_ttl = 0xff - get_rx_check_hops();
-            uint8_t pkt_ttl = parser.getTTl();
-            if ( (pkt_ttl==max_ttl) || (pkt_ttl==(max_ttl-1) ) ) {
-               send=true;
-            }
-        }
-    }
-
-
-    if (send) {
-        CGenNodeLatencyPktInfo * node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
-        if ( node ) {
-            node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
-            node->m_dir      = dir;
-            node->m_latency_offset = 0xdead;
-            node->m_pkt      = m;
-            if ( m_ring_to_rx->Enqueue((CGenNode*)node)==0 ){
-            }else{
-                CGlobalInfo::free_node((CGenNode *)node);
-                send=false;
-            }
-
-            #ifdef LATENCY_QUEUE_TRACE_
-            printf("rx to cp --\n");
-            rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
-            #endif
-        }else{
-            send=false;
-        }
-    }
-   return (send);
-}
-
-
 
 void CCoreEthIF::flush_rx_queue(void){
     pkt_dir_t   dir ;
@@ -2020,7 +1968,6 @@ void CCoreEthIF::flush_rx_queue(void){
     }
 }
 
-
 int CCoreEthIF::flush_tx_queue(void){
     /* flush both sides */
     pkt_dir_t   dir ;
@@ -2039,7 +1986,6 @@ int CCoreEthIF::flush_tx_queue(void){
     }
     return (0);
 }
-
 
 void CCoreEthIF::GetCoreCounters(CVirtualIFPerSideStats *stats){
     stats->Clear();
@@ -2854,7 +2800,7 @@ private:
 
     int create_pkt(uint8_t *pkt,int pkt_size);
     int create_udp_pkt();
-    int create_sctp_pkt();
+    int create_icmp_pkt();
 
 
 
@@ -2972,7 +2918,6 @@ int CGlobalTRex::test_send(){
     int i;
 
     //set_promisc_all(true);
-    //create_sctp_pkt();
     create_udp_pkt();
 
 	CRx_check_header rx_check_header;
@@ -2995,18 +2940,7 @@ int CGlobalTRex::test_send(){
         //test_send_pkts(m_latency_tx_queue_id,1,2);
         //test_send_pkts(m_latency_tx_queue_id,1,3);
         test_send_pkts(0,1,0);
-		test_send_pkts(0,1,1);
-        //test_send_pkts(2,1,0);
-
-
-        //test_send_pkts(0,1,1);
-        //test_send_pkts(0,1,2);
-        //test_send_pkts(0,1,3);
-
-        /*test_send_pkts(2,1,0);
-        test_send_pkts(2,1,1);
-        test_send_pkts(2,1,2);
-        test_send_pkts(2,1,3);*/
+        test_send_pkts(0,2,1);
 
         /*delay(1000);
         fprintf(stdout," --------------------------------\n");
@@ -3091,22 +3025,21 @@ const uint8_t udp_pkt[]={
 };
 
 
-const uint8_t sctp_pkt1[]={ 
-
+const uint8_t icmp_pkt1[]={
     0x00,0x00,0x00,0x01,0x00,0x00,
     0x00,0x00,0x00,0x01,0x00,0x00,
     0x08,0x00,
 
     0x45,0x02,0x00,0x30,
     0x00,0x00,0x40,0x00,
-    0x40,0x84,0xbd,0x04,
-    0x01,0x01,0x01,0x01, //sIP
-    0x02,0x02,0x02,0x02, //DIP
+    0xaa,0x01,0xbd,0x04,
+    0x9b,0xe6,0x18,0x9b, //SIP
+    0xcb,0xff,0xfc,0xc2, //DIP
 
-    0x80,0x44,//SPORT
-    0x00,0x50,//DPORT
-
-    0x00,0x00,0x00,0x00, //checksum 
+    0x08, 0x00, 
+    0x01, 0x02,  //checksum
+    0xaa, 0xbb,  // id
+    0x00, 0x00,  // Sequence number
 
     0x11,0x22,0x33,0x44, // magic 
     0x00,0x00,0x00,0x00, //64 bit counter
@@ -3114,8 +3047,7 @@ const uint8_t sctp_pkt1[]={
     0x00,0x01,0xa0,0x00, //seq
     0x00,0x00,0x00,0x00,
 
-};
-
+}; 
 
 
 
@@ -3144,8 +3076,8 @@ int CGlobalTRex::create_udp_pkt(){
     return (create_pkt((uint8_t*)udp_pkt,sizeof(udp_pkt)));
 }
 
-int CGlobalTRex::create_sctp_pkt(){
-    return (create_pkt((uint8_t*)sctp_pkt1,sizeof(sctp_pkt1)));
+int CGlobalTRex::create_icmp_pkt(){
+    return (create_pkt((uint8_t*)icmp_pkt1,sizeof(icmp_pkt1)));
 }
 
 
@@ -3392,7 +3324,7 @@ int  CGlobalTRex::ixgbe_start(void){
                           m_cores_to_dual_ports+1,
                           &m_port_cfg.m_port_conf);
 
-            /* the latency queue for SCTP */
+            /* the latency queue for latency measurement packets */
             m_latency_tx_queue_id= m_cores_to_dual_ports;
 
             socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
@@ -3409,7 +3341,7 @@ int  CGlobalTRex::ixgbe_start(void){
 
             /* set the filter queue */
             _if->set_rx_queue(1);
-            /* sctp ring is 1 */
+            /* latency measurement ring is 1 */
             _if->rx_queue_setup(1,
                                 RTE_TEST_RX_LATENCY_DESC_DEFAULT,
                                 socket_id, 
@@ -4351,6 +4283,54 @@ int CGlobalTRex::start_send_master(){
 
 static CGlobalTRex g_trex;
 
+bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
+                                rte_mbuf_t * m){
+
+    CSimplePacketParser parser(m);
+    if ( !parser.Parse()  ){
+        return false;
+    }
+    bool send=false;
+    CLatencyPktMode *c_l_pkt_mode = g_trex.m_mg.c_l_pkt_mode;
+    bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & parser.IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len());
+
+    if (is_lateancy_pkt){
+        send=true;
+    }else{
+        if ( get_is_rx_filter_enable() ){
+            uint8_t max_ttl = 0xff - get_rx_check_hops();
+            uint8_t pkt_ttl = parser.getTTl();
+            if ( (pkt_ttl==max_ttl) || (pkt_ttl==(max_ttl-1) ) ) {
+               send=true;
+            }
+        }
+    }
+
+
+    if (send) {
+        CGenNodeLatencyPktInfo * node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
+        if ( node ) {
+            node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
+            node->m_dir      = dir;
+            node->m_latency_offset = 0xdead;
+            node->m_pkt      = m;
+            if ( m_ring_to_rx->Enqueue((CGenNode*)node)==0 ){
+            }else{
+                CGlobalInfo::free_node((CGenNode *)node);
+                send=false;
+            }
+
+            #ifdef LATENCY_QUEUE_TRACE_
+            printf("rx to cp --\n");
+            rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
+            #endif
+        }else{
+            send=false;
+        }
+    }
+   return (send);
+}
+
 
 TrexStateless * get_stateless_obj() {
     return g_trex.m_trex_stateless;
@@ -4476,8 +4456,7 @@ int update_global_info_from_platform_file(){
 
     CGlobalInfo::m_memory_cfg.set(cg->m_memory,mul);
     CGlobalInfo::m_memory_cfg.set_number_of_dp_cors(
-        CGlobalInfo::m_options.get_number_of_dp_cores_needed() );
-
+    CGlobalInfo::m_options.get_number_of_dp_cores_needed() );
     return (0);
 }
 
@@ -4736,15 +4715,19 @@ int CTRexExtendedDriverBase1G::wait_for_stable_link(){
 }
 
 int CTRexExtendedDriverBase1G::configure_drop_queue(CPhyEthIF * _if){
+    uint8_t protocol;
+    if (CGlobalInfo::m_options.m_l_pkt_mode == 0) {
+        protocol = 0x84;
+    } else {
+        protocol = 0x1;
+    }
+
     _if->pci_reg_write( E1000_RXDCTL(0) , 0);
 
     /* enable filter to pass packet to rx queue 1 */
-
     _if->pci_reg_write( E1000_IMIR(0), 0x00020000);
-
     _if->pci_reg_write( E1000_IMIREXT(0), 0x00081000);
-
-    _if->pci_reg_write( E1000_TTQF(0),   0x00000084 /* protocol */
+    _if->pci_reg_write( E1000_TTQF(0),   protocol
                                   | 0x00008100 /* enable */
                                   | 0xE0010000 /* RX queue is 1 */
                                     );
@@ -4772,11 +4755,13 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
         */
         int i;
         // IPv4: bytes being compared are {TTL, Protocol}
-        uint16_t ff_rules_v4[4]={
+        uint16_t ff_rules_v4[6]={
             (uint16_t)(0xFF06 - v4_hops),
             (uint16_t)(0xFE11 - v4_hops),
             (uint16_t)(0xFF11 - v4_hops),
             (uint16_t)(0xFE06 - v4_hops),
+            (uint16_t)(0xFF01 - v4_hops),
+            (uint16_t)(0xFE01 - v4_hops),
         }  ;
         // IPv6: bytes being compared are {NextHdr, HopLimit}
         uint16_t ff_rules_v6[2]={
@@ -4917,24 +4902,30 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
 
 
         // IPv4: bytes being compared are {TTL, Protocol}
-        uint16_t ff_rules_v4[4]={
+        uint16_t ff_rules_v4[6]={
             (uint16_t)(0xFF11 - v4_hops),
             (uint16_t)(0xFE11 - v4_hops),
             (uint16_t)(0xFF06 - v4_hops),
             (uint16_t)(0xFE06 - v4_hops),
+            (uint16_t)(0xFF01 - v4_hops),
+            (uint16_t)(0xFE01 - v4_hops),
         }  ;
         // IPv6: bytes being compared are {NextHdr, HopLimit}
-        uint16_t ff_rules_v6[4]={
+        uint16_t ff_rules_v6[6]={
+            (uint16_t)(0x3CFF - hops),
+            (uint16_t)(0x3CFE - hops),
             (uint16_t)(0x3CFF - hops),
             (uint16_t)(0x3CFE - hops),
             (uint16_t)(0x3CFF - hops),
             (uint16_t)(0x3CFE - hops),
         }  ;
-        const rte_l4type ff_rules_type[4]={
+        const rte_l4type ff_rules_type[6]={
             RTE_FDIR_L4TYPE_UDP,
             RTE_FDIR_L4TYPE_UDP,
             RTE_FDIR_L4TYPE_TCP,
-            RTE_FDIR_L4TYPE_TCP
+            RTE_FDIR_L4TYPE_TCP,
+            RTE_FDIR_L4TYPE_NONE,
+            RTE_FDIR_L4TYPE_NONE
         }  ;
 
         uint16_t *ff_rules;
@@ -4974,8 +4965,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
 }
 
 int CTRexExtendedDriverBase10G::configure_drop_queue(CPhyEthIF * _if){
-
-        /* enable rule 0 SCTP -> queue 1 for latency  */
+    /* enable rule 0 SCTP -> queue 1 for latency  */
     /* 1<<21 means that queue 1 is for SCTP */
     _if->pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));
 
@@ -4985,7 +4975,6 @@ int CTRexExtendedDriverBase10G::configure_drop_queue(CPhyEthIF * _if){
                       ((0x0f)<<IXGBE_FTQF_5TUPLE_MASK_SHIFT)|IXGBE_FTQF_QUEUE_ENABLE);
 
     /* disable queue zero - default all traffic will go to here and will be dropped */
-
     _if->pci_reg_write( IXGBE_RXDCTL(0) , 0);
     return (0);
 }
@@ -5046,10 +5035,15 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
 }
 
 
-
+/* Add rule to send packets with protocol 'type', and ttl 'ttl' to rx queue 1 */
 void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
                                            enum rte_eth_flow_type type,
                                            uint8_t ttl){
+    if (CGlobalInfo::m_options.m_l_pkt_mode != 0) {
+        printf("Currently, on 40G, only SCTP latency pkt mode is supported. Please remove --l-pkt-mode option.\n");
+        exit(-1);
+    }
+
     uint8_t port_id = _if->get_port_id();
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
 
@@ -5100,6 +5094,8 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
 
 int CTRexExtendedDriverBase40G::configure_drop_queue(CPhyEthIF * _if){
 
+    /* ??? support ICMP in the driver */
+    /* Configure queue for latency packets */
     add_rules(_if,RTE_ETH_FLOW_TYPE_SCTPV4,0);
     return (0);
 }
