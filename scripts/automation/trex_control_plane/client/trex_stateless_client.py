@@ -292,14 +292,6 @@ class Port(object):
     def get_all_streams (self):
         return self.streams
 
-
-    def process_mul (self, mul):
-        # if percentage - translate 
-        if mul['type'] == 'percentage':
-            mul['type'] = 'max_bps'
-            mul['max']  = self.get_speed_bps() * (mul['max'] / 100)
-
-
     # start traffic
     def start (self, mul, duration):
         if self.state == self.STATE_DOWN:
@@ -311,8 +303,6 @@ class Port(object):
         if self.state == self.STATE_TX:
             return self.err("Unable to start traffic - port is already transmitting")
 
-        self.process_mul(mul)
-         
         params = {"handler": self.handler,
                   "port_id": self.port_id,
                   "mul": mul,
@@ -384,8 +374,6 @@ class Port(object):
     def update (self, mul):
         if (self.state != self.STATE_TX) :
             return self.err("port is not transmitting")
-
-        self.process_mul(mul)
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -1018,12 +1006,13 @@ class CTRexStatelessClient(object):
                                          parsing_opts.FORCE,
                                          parsing_opts.STREAM_FROM_PATH_OR_FILE,
                                          parsing_opts.DURATION,
-                                         parsing_opts.MULTIPLIER)
+                                         parsing_opts.MULTIPLIER_STRICT)
 
         opts = parser.parse_args(line.split())
 
         if opts is None:
             return RC_ERR("bad command line paramters")
+
 
         if opts.db:
             stream_list = self.stream_db.get_stream_pack(opts.db)
@@ -1044,7 +1033,7 @@ class CTRexStatelessClient(object):
         # total has no meaning with percentage - its linear
         if opts.total and (opts.mult['type'] != 'percentage'):
             # if total was set - divide it between the ports
-            opts.mult['max'] = opts.mult['max'] / len(opts.ports)
+            opts.mult['value'] = opts.mult['value'] / len(opts.ports)
 
         return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration)
 
@@ -1078,7 +1067,7 @@ class CTRexStatelessClient(object):
         # total has no meaning with percentage - its linear
         if opts.total and (opts.mult['type'] != 'percentage'):
             # if total was set - divide it between the ports
-            opts.mult['max'] = opts.mult['max'] / len(opts.ports)
+            opts.mult['value'] = opts.mult['value'] / len(opts.ports)
 
         return self.cmd_update(opts.ports, opts.mult)
 

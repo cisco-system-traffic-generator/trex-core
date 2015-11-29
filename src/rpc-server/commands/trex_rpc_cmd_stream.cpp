@@ -475,27 +475,16 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     /* multiplier */
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
-    std::string mul_type        = parse_string(mul_obj, "type", result);
-    double mul_value            = parse_double(mul_obj, "max", result);
 
-    /* now create an object for multiplier */
-    TrexStatelessPort::mul_st mul;
-    
-    mul.value = mul_value;
+    std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
+    std::string op     = parse_string(mul_obj, "op", result);
+    double      value  = parse_double(mul_obj, "value", result);
 
-    /* dispatch according to type of multiplier  */
-    if (mul_type == "raw") {
-        mul.type = TrexStatelessPort::MUL_FACTOR; 
-
-    } else if (mul_type == "max_bps") {
-        mul.type = TrexStatelessPort::MUL_MAX_BPS;
-
-    } else if (mul_type == "max_pps") {
-        mul.type = TrexStatelessPort::MUL_MAX_PPS;
-
-    } else {
-        generate_parse_err(result, "multiplier type can be either 'raw', 'max_bps' or 'max_pps'");
+    if (op != "abs") {
+        generate_parse_err(result, "start message can only specify absolute speed rate");
     }
+
+    TrexPortMultiplier mul(type, op, value);
 
     try {
         port->start_traffic(mul, duration);
@@ -651,28 +640,15 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     /* multiplier */
+
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
-    std::string mul_type        = parse_string(mul_obj, "type", result);
-    double mul_value            = parse_double(mul_obj, "max", result);
 
-    /* now create an object for multiplier */
-    TrexStatelessPort::mul_st mul;
-    
-    mul.value = mul_value;
+    std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
+    std::string op     = parse_choice(mul_obj, "op", TrexPortMultiplier::g_ops, result);
+    double      value  = parse_double(mul_obj, "value", result);
 
-    /* dispatch according to type of multiplier  */
-    if (mul_type == "raw") {
-        mul.type = TrexStatelessPort::MUL_FACTOR; 
+    TrexPortMultiplier mul(type, op, value);
 
-    } else if (mul_type == "max_bps") {
-        mul.type = TrexStatelessPort::MUL_MAX_BPS;
-
-    } else if (mul_type == "max_pps") {
-        mul.type = TrexStatelessPort::MUL_MAX_PPS;
-
-    } else {
-        generate_parse_err(result, "multiplier type can be either 'raw', 'max_bps' or 'max_pps'");
-    }
 
     try {
         port->update_traffic(mul);

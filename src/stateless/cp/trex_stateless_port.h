@@ -27,6 +27,7 @@ limitations under the License.
 
 class TrexStatelessCpToDpMsgBase;
 class TrexStreamsGraphObj;
+class TrexPortMultiplier;
 
 /**
  * describes a stateless port
@@ -59,24 +60,7 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
-    /**
-     * defines the type of multipler passed to start
-     */
-    enum mul_type_e {
-        MUL_FACTOR,
-        MUL_MAX_BPS,
-        MUL_MAX_PPS
-    };
-
-    /**
-     * multiplier object
-     */
-    typedef struct {
-        mul_type_e  type;
-        double      value;
-    } mul_st;
-
-
+  
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
     
     /**
@@ -95,7 +79,7 @@ public:
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(const mul_st &mul, double duration = -1);
+    void start_traffic(const TrexPortMultiplier &mul, double duration = -1);
 
     /**
      * stop traffic
@@ -119,7 +103,7 @@ public:
      * update current traffic on port
      * 
      */
-    void update_traffic(const mul_st &mul);
+    void update_traffic(const TrexPortMultiplier &mul);
 
     /**
      * get the port state
@@ -227,7 +211,6 @@ public:
     }
 
 
-
 private:
 
   
@@ -276,7 +259,13 @@ private:
      * calculate effective M per core
      * 
      */
-    double calculate_effective_mul(const mul_st &mul);
+    double calculate_effective_mul(const TrexPortMultiplier &mul);
+
+    /**
+     * get port speed in bits per second
+     * 
+     */
+    uint64_t get_port_speed_bps();
 
     /**
      * generates a graph of streams graph
@@ -312,6 +301,55 @@ private:
 
     /* holds a graph of streams rate*/
     const TrexStreamsGraphObj  *m_graph_obj;
+};
+
+
+
+/**
+ * port multiplier object
+ * 
+ */
+class TrexPortMultiplier {
+public:
+
+
+    /**
+     * defines the type of multipler passed to start
+     */
+    enum mul_type_e {
+        MUL_FACTOR,
+        MUL_BPS,
+        MUL_PPS,
+        MUL_PERCENTAGE
+    };
+
+    /**
+     * multiplier can be absolute value 
+     * increment value or subtract value 
+     */
+    enum mul_op_e {
+        OP_ABS,
+        OP_ADD,
+        OP_SUB
+    };
+
+
+    TrexPortMultiplier(mul_type_e type, mul_op_e op, double value) {
+        m_type   = type;
+        m_op     = op;
+        m_value  = value;
+    }
+
+    TrexPortMultiplier(const std::string &type_str, const std::string &op_str, double value);
+
+
+public:
+    static const std::initializer_list<std::string> g_types;
+    static const std::initializer_list<std::string> g_ops;
+
+    mul_type_e  m_type;
+    mul_op_e    m_op;
+    double      m_value;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */

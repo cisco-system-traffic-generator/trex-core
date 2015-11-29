@@ -159,7 +159,7 @@ protected:
      * parse a field from choices 
      * 
      */
-    template<typename T> T parse_choice(const Json::Value &params, const std::string &name, std::initializer_list<T> choices, Json::Value &result) {
+    template<typename T> T parse_choice(const Json::Value &params, const std::string &name, const std::initializer_list<T> choices, Json::Value &result) {
         const Json::Value &field = params[name];
 
         if (field == Json::Value::null) {

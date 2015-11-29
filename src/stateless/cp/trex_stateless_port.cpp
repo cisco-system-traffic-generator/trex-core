@@ -104,7 +104,7 @@ TrexStatelessPort::release(void) {
  * 
  */
 void
-TrexStatelessPort::start_traffic(const TrexStatelessPort::mul_st &mul, double duration) {
+TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration) {
 
     /* command allowed only on state stream */
     verify_state(PORT_STATE_STREAMS);
@@ -112,7 +112,9 @@ TrexStatelessPort::start_traffic(const TrexStatelessPort::mul_st &mul, double du
     /* just making sure no leftovers... */
     delete_streams_graph();
 
-    /* calculate the effective M */
+    /* on start - we can only provide absolute values */
+    assert(mul.m_op == TrexPortMultiplier::OP_ABS);
+
     double per_core_mul = calculate_effective_mul(mul);
 
     /* fetch all the streams from the table */
@@ -221,19 +223,41 @@ TrexStatelessPort::resume_traffic(void) {
 }
 
 void
-TrexStatelessPort::update_traffic(const TrexStatelessPort::mul_st &mul) {
+TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul) {
+
+    double factor;
 
     verify_state(PORT_STATE_TX | PORT_STATE_PAUSE);
 
     /* generate a message to all the relevant DP cores to start transmitting */
     double new_per_core_m = calculate_effective_mul(mul);
-    double factor = new_per_core_m / m_current_per_core_m;
+
+    switch (mul.m_op) {
+    case TrexPortMultiplier::OP_ABS:
+        factor = new_per_core_m / m_current_per_core_m;
+        break;
+
+    case TrexPortMultiplier::OP_ADD:
+        factor = (m_current_per_core_m + new_per_core_m) / m_current_per_core_m;
+        break;
+
+    case TrexPortMultiplier::OP_SUB:
+        factor = (m_current_per_core_m - new_per_core_m) / m_current_per_core_m;
+        if (factor <= 0) {
+            throw TrexRpcException("Update request will lower traffic to less than zero");
+        }
+        break;
+
+    default:
+        assert(0);
+        break;
+    }
 
     TrexStatelessCpToDpMsgBase *update_msg = new TrexStatelessDpUpdate(m_port_id, factor);
 
     send_message_to_dp(update_msg);
 
-    m_current_per_core_m = new_per_core_m;
+    m_current_per_core_m *= factor;
 
 }
 
@@ -368,16 +392,29 @@ TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
     }
 }
 
-/**
- * calculate an effective M based on requirments
- * 
- */
+uint64_t
+TrexStatelessPort::get_port_speed_bps() {
+    switch (m_speed) {
+    case TrexPlatformApi::SPEED_1G:
+        return (1LLU * 1000 * 1000 * 1000);
+
+    case TrexPlatformApi::SPEED_10G:
+        return (10LLU * 1000 * 1000 * 1000);
+
+    case TrexPlatformApi::SPEED_40G:
+        return (40LLU * 1000 * 1000 * 1000);
+
+    default:
+        return 0;
+    }
+}
+
 double
-TrexStatelessPort::calculate_effective_mul(const mul_st &mul) {
+TrexStatelessPort::calculate_effective_mul(const TrexPortMultiplier &mul) {
 
     /* for a simple factor request - calculate the multiplier per core */
-    if (mul.type == MUL_FACTOR) {
-        return (mul.value /  m_cores_id_list.size());
+    if (mul.m_type == TrexPortMultiplier::MUL_FACTOR) {
+        return (mul.m_value /  m_cores_id_list.size());
     }
 
     /* we now need the graph - generate it if we don't have it (happens once) */
@@ -385,15 +422,29 @@ TrexStatelessPort::calculate_effective_mul(const mul_st &mul) {
         generate_streams_graph();
     }
 
-    /* now we can calculate the effective M */
-    if (mul.type == MUL_MAX_BPS) {
-        return ( (mul.value / m_graph_obj->get_max_bps()) /  m_cores_id_list.size());
-    } else if (mul.type == MUL_MAX_PPS) {
-        return ( (mul.value / m_graph_obj->get_max_pps()) /  m_cores_id_list.size());
-    } else {
+    switch (mul.m_type) {
+    case TrexPortMultiplier::MUL_BPS:
+        return ( (mul.m_value / m_graph_obj->get_max_bps()) / m_cores_id_list.size());
+
+    case TrexPortMultiplier::MUL_PPS:
+         return ( (mul.m_value / m_graph_obj->get_max_pps()) / m_cores_id_list.size());
+
+    case TrexPortMultiplier::MUL_PERCENTAGE:
+        /* if abs percentage is from the line speed - otherwise its from the current speed */
+
+        if (mul.m_op == TrexPortMultiplier::OP_ABS) {
+            double required = (mul.m_value / 100.0) * get_port_speed_bps();
+            return ( (required / m_graph_obj->get_max_bps()) / m_cores_id_list.size());
+        } else {
+            return (m_current_per_core_m * (mul.m_value / 100.0));
+        }
+
+    default:
         assert(0);
     }
+
 }
+
 
 void
 TrexStatelessPort::generate_streams_graph() {
@@ -417,5 +468,53 @@ TrexStatelessPort::delete_streams_graph() {
         delete m_graph_obj;
         m_graph_obj = NULL;
     }
+}
+
+
+
+/***************************
+ * port multiplier
+ * 
+ **************************/
+const std::initializer_list<std::string> TrexPortMultiplier::g_types = {"raw", "bps", "pps", "percentage"};
+const std::initializer_list<std::string> TrexPortMultiplier::g_ops   = {"abs", "add", "sub"};
+
+TrexPortMultiplier::
+TrexPortMultiplier(const std::string &type_str, const std::string &op_str, double value) {
+    mul_type_e type;
+    mul_op_e   op;
+
+    if (type_str == "raw") {
+        type = MUL_FACTOR; 
+
+    } else if (type_str == "bps") {
+        type = MUL_BPS;
+
+    } else if (type_str == "pps") {
+        type = MUL_PPS;
+
+    } else if (type_str == "percentage") {
+        type = MUL_PERCENTAGE;
+    } else {
+        throw TrexException("bad type str: " + type_str);
+    }
+
+    if (op_str == "abs") {
+        op = OP_ABS;
+
+    } else if (op_str == "add") {
+        op = OP_ADD;
+
+    } else if (op_str == "sub") {
+        op = OP_SUB;
+
+    } else {
+        throw TrexException("bad op str: " + op_str);
+    }
+
+    m_type  = type;
+    m_op    = op;
+    m_value = value;
+
 }
 
