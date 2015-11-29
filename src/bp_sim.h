@@ -3823,9 +3823,9 @@ inline bool is_tracked_svr_port(uint8_t plugin_id) {
         case mpAVL_HTTP_BROWSIN:
             return false;
         default:
-            printf("ERROR. Invalid plugin id: %d\n",
+            printf("ERROR. Invalid plugin id(%d) in is_tracked_svr_port\n",
                    plugin_id);
-            return false;
+            assert(0);
     }
 }
 
