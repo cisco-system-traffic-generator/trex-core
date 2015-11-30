@@ -133,6 +133,9 @@ public:
             TrexStream * dp=new TrexStream(m_type,m_port_id,m_stream_id);
         
 
+            dp->m_has_vm = m_has_vm;
+            dp->m_vm_prefix_size = m_vm_prefix_size;
+
             dp->m_isg_usec      = m_isg_usec;
             dp->m_next_stream_id = m_next_stream_id;
 
@@ -165,6 +168,7 @@ public:
     /* basic */
     uint8_t       m_type;
     uint8_t       m_port_id;
+    uint16_t      m_vm_prefix_size;
     uint32_t      m_stream_id;              /* id from RPC can be anything */
     
 
@@ -175,6 +179,8 @@ public:
     /* indicators */
     bool          m_enabled;
     bool          m_self_start;
+    bool          m_has_vm; /* do we have instructions to run */
+
 
     CStreamPktData   m_pkt;
     /* pkt */

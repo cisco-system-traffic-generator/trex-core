@@ -380,7 +380,7 @@ public:
      * 
      * @return 
      */
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m)=0;
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p)=0;
 
     /**
      * translate a port_id to the correct dir on the core
@@ -1799,7 +1799,7 @@ public:
     virtual int write_pkt(CCapPktRaw *pkt_raw);
     virtual int close_file(void);
 
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p){
         return (0);
     }
 
@@ -1878,7 +1878,7 @@ public:
         return (0);
     }
 
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p){
         return (0);
     }
 

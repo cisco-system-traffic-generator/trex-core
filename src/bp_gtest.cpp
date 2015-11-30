@@ -2020,7 +2020,7 @@ public:
     virtual int send_node(CGenNode * node);
 
 
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p){
         return (0);
     }
 

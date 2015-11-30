@@ -103,6 +103,8 @@ TrexStream::TrexStream(uint8_t type,
 
     m_pkt.binary = NULL;
     m_pkt.len    = 0;
+    m_has_vm = false;
+    m_vm_prefix_size = 0;
 
     m_rx_check.m_enable = false;
 

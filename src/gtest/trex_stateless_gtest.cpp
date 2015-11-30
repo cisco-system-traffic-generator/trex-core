@@ -1246,6 +1246,60 @@ TEST_F(basic_stl, multi_pkt1) {
 
 
 
+TEST_F(basic_stl, vm_enable0) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/stl_vm_enable0";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->m_has_vm = true;
+     stream1->m_vm_prefix_size =64;
+     stream1->set_pps(1.0);
+
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+
+     assert(compile.compile(streams, comp_obj) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+
+
 
 /* check disabled stream with multiplier of 5*/
 TEST_F(basic_stl, multi_pkt2) {

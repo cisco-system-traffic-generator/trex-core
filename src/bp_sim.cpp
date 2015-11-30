@@ -4657,13 +4657,24 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
     if ( m_preview_mode->getFileWrite() ){
 
         CGenNodeStateless * node_sl=(CGenNodeStateless *) _no_to_use;
-    
+
+        pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+
         /* check that we have mbuf  */
         rte_mbuf_t *    m=node_sl->get_cache_mbuf();
-        assert( m );
-        pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+        if (m) {
+            /* cache packet */
+            fill_raw_packet(m,_no_to_use,dir);
+            /* can't free the m, it is cached*/
+        }else{
+
+            m=node_sl->alloc_node_with_vm();
+            assert(m);
+            fill_raw_packet(m,_no_to_use,dir);
+            rte_pktmbuf_free(m);
+
+        }
     
-        fill_raw_packet(m,_no_to_use,dir);
         BP_ASSERT(m_writer);
         bool res=m_writer->write_packet(m_raw);
     

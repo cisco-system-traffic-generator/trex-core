@@ -106,13 +106,45 @@ std::string CGenNodeStateless::get_stream_state_str(stream_state_t stream_state)
 }
 
 
+rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
+
+    rte_mbuf_t        * m;
+    /* alloc small packet buffer*/
+    uint16_t prefix_size = prefix_header_size();
+    m = CGlobalInfo::pktmbuf_alloc( get_socket_id(), prefix_size );
+    if (m==0) {
+        return (m);
+    }
+    /* TBD remove this, should handle cases of error */
+    assert(m);
+    char *p=rte_pktmbuf_append(m, prefix_size);
+    memcpy( p ,m_original_packet_data_prefix, prefix_size); 
+
+    /* TBD run VM on the pointer p */
+
+    rte_mbuf_t * m_const = get_const_mbuf();
+    if (  m_const != NULL) {
+        utl_rte_pktmbuf_add_after(m,m_const);
+    }
+    return (m);
+}
+
+
 void CGenNodeStateless::free_stl_node(){
     /* if we have cache mbuf free it */
     rte_mbuf_t * m=get_cache_mbuf();
     if (m) {
         rte_pktmbuf_free(m);
         m_cache_mbuf=0;
+    }else{
+        /* non cache - must have an header */
+         m=get_const_mbuf();
+         if (m) {
+             rte_pktmbuf_free(m); /* reduce the ref counter */
+         }
+         free_prefix_header();
     }
+
 }
 
 
@@ -442,6 +474,10 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
     pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(stream->m_port_id);
     node->m_flags = 0; 
+    node->m_src_port =0;
+    node->m_original_packet_data_prefix = 0;
+
+
 
     /* set socket id */
     node->set_socket_id(m_core->m_node_gen.m_socket_id);
@@ -486,23 +522,59 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
     node->m_port_id = stream->m_port_id;
 
-    /* allocate const mbuf */
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
-    assert(m);
-
-    char *p = rte_pktmbuf_append(m, pkt_size);
-    assert(p);
-    /* copy the packet */
-    memcpy(p,stream_pkt,pkt_size);
-
     /* set dir 0 or 1 client or server */
     node->set_mbuf_cache_dir(dir);
 
-    /* TBD repace the mac if req we should add flag  */
-    m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, m);
 
-    /* set the packet as a readonly */
-    node->set_cache_mbuf(m);
+    if (stream->m_has_vm  == false ) {
+                /* allocate const mbuf */
+        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
+        assert(m);
+    
+        char *p = rte_pktmbuf_append(m, pkt_size);
+        assert(p);
+        /* copy the packet */
+        memcpy(p,stream_pkt,pkt_size);
+    
+        /* TBD repace the mac if req we should add flag  */
+        m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,(uint8_t*) p);
+    
+        /* set the packet as a readonly */
+        node->set_cache_mbuf(m);
+    }else{
+        /* we need to copy the object */
+
+        if ( pkt_size > stream->m_vm_prefix_size  ) {
+            /* we need const packet */
+            uint16_t const_pkt_size  = pkt_size - stream->m_vm_prefix_size ;
+            rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), const_pkt_size );
+            assert(m);
+
+            char *p = rte_pktmbuf_append(m, const_pkt_size);
+            assert(p);
+
+            /* copy packet data */
+            memcpy(p,(stream_pkt+ stream->m_vm_prefix_size),const_pkt_size);
+
+            node->set_const_mbuf(m);
+        }
+
+
+        if (stream->m_vm_prefix_size > pkt_size ) {
+            stream->m_vm_prefix_size = pkt_size;
+        }
+        /* copy the headr */
+        uint16_t header_size = stream->m_vm_prefix_size;
+        assert(header_size);
+        node->alloc_prefix_header(header_size);
+        uint8_t *p=node->m_original_packet_data_prefix;
+        assert(p);
+
+        memcpy(p,stream_pkt , header_size);
+        /* TBD repace the mac if req we should add flag  */
+        m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, p);
+    }
+
 
     CDpOneStream one_stream;
 
