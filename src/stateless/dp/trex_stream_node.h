@@ -289,7 +289,7 @@ public:
     }
 
     /* prefix header exits only in non cache mode size is 64/128/512  other are not possible right now */
-    inline void alloc_prefix_header(uint8_t size){
+    inline void alloc_prefix_header(uint16_t size){
          set_prefix_header_size(size);
          m_original_packet_data_prefix = (uint8_t *)malloc(size);
          assert(m_original_packet_data_prefix);

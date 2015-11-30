@@ -455,6 +455,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     CGenNodeStateless *node = m_core->create_node_sl();
 
     /* add periodic */
+    node->m_cache_mbuf=0;
     node->m_type = CGenNode::STATELESS_PKT;
 
     node->m_ref_stream_info  =   stream->clone_as_dp();
@@ -541,6 +542,8 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     
         /* set the packet as a readonly */
         node->set_cache_mbuf(m);
+
+        node->m_original_packet_data_prefix =0;
     }else{
         /* we need to copy the object */
 
