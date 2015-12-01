@@ -20,6 +20,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.81  ==
+
+** Support for specifying different modes for the packets used for latency measurement. Details link:trex_manual.html#_measure_jitter_latency[here].
+
+* link:http://csi-wiki-01:8090/issue/trex-149[trex-149] 
+
 == Release 1.80  ==
 
 * more stateless support
