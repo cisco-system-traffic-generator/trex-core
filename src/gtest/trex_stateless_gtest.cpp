@@ -31,6 +31,38 @@ limitations under the License.
 #include <trex_rpc_server_api.h>
 #include <iostream>
 
+
+class basic_vm  : public testing::Test {
+    protected:
+     virtual void SetUp() {
+     }
+     virtual void TearDown() {
+     }
+   public:
+};
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_vm, vm0) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(20) );
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",14, 0,true)
+                        );
+
+    vm.Dump(stdout);
+
+
+}
+
+
+//////////////////////////////////////////////////////
+
+                                           
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
 

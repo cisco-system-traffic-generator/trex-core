@@ -2299,6 +2299,7 @@ int CCoreEthIF::send_node(CGenNode * node){
 int CCoreEthIF::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
     assert(p);
     assert(dir<2);
+
     CCorePerPort *  lp_port=&m_ports[dir];
     uint8_t p_id=lp_port->m_port->get_port_id();
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);

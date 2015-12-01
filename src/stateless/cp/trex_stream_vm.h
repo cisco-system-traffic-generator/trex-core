@@ -24,6 +24,148 @@ limitations under the License.
 #include <string>
 #include <stdint.h>
 #include <vector>
+#include <unordered_map>
+
+
+
+class StreamVm;
+
+
+/* in memory program */
+
+struct StreamDPOpFlowVar8 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint8_t m_min_val;
+    uint8_t m_max_val;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed)) ;
+
+struct StreamDPOpFlowVar16 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint16_t m_min_val;
+    uint16_t m_max_val;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed)) ;
+
+struct StreamDPOpFlowVar32 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint32_t m_min_val;
+    uint32_t m_max_val;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed)) ;
+
+struct StreamDPOpFlowVar64 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint64_t m_min_val;
+    uint64_t m_max_val;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed)) ;
+
+
+struct StreamDPOpPktWr8 {
+    uint8_t m_op;
+    uint8_t m_flags;
+    uint8_t  m_offset;
+    uint16_t m_pkt_offset;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed)) ;
+
+
+struct StreamDPOpPktWr16 {
+    uint8_t m_op;
+    uint8_t m_flags;
+    uint16_t m_pkt_offset;
+    uint16_t  m_offset;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed));
+
+struct StreamDPOpPktWr32 {
+    uint8_t m_op;
+    uint8_t m_flags;
+    uint16_t m_pkt_offset;
+    uint32_t  m_offset;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed));
+
+struct StreamDPOpPktWr64 {
+    uint8_t m_op;
+    uint8_t m_flags;
+    uint16_t m_pkt_offset;
+    uint32_t  m_offset;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed));
+
+struct StreamDPOpIpv4Fix {
+    uint8_t m_op;
+    uint32_t  m_offset;
+public:
+    void dump(FILE *fd);
+
+} __attribute__((packed));
+
+
+/* datapath instructions */
+class StreamDPVmInstructions {
+public:
+    enum INS_TYPE {
+        ditINC8         ,
+        ditINC16        ,
+        ditINC32        ,
+        ditINC64        ,
+
+        ditDEC8         ,
+        ditDEC16        ,
+        ditDEC32        ,
+        ditDEC64        ,
+
+        ditRANDOM8      ,
+        ditRANDOM16     ,
+        ditRANDOM32     ,
+        ditRANDOM64     ,
+
+        ditFIX_IPV4_CS  ,
+
+        itPKT_WR8       ,
+        itPKT_WR16       ,
+        itPKT_WR32       ,
+        itPKT_WR64       
+    };
+
+
+public:
+    void add_command(void *buffer,uint16_t size);
+    uint8_t * get_program();
+    uint32_t get_program_size();
+
+
+    void Dump(FILE *fd);
+
+
+private:
+    std::vector<uint8_t> m_inst_list;
+};
+
+
 
 /**
  * interface for stream VM instruction
@@ -32,7 +174,21 @@ limitations under the License.
 class StreamVmInstruction {
 public:
 
+    enum INS_TYPE {
+        itNONE         = 0,
+        itFIX_IPV4_CS  = 4,
+        itFLOW_MAN     = 5,
+        itPKT_WR       = 6
+    };
+
+    typedef uint8_t instruction_type_t ;
+
+    virtual instruction_type_t get_instruction_type()=0;
+
     virtual ~StreamVmInstruction();
+
+    virtual void Dump(FILE *fd)=0;
+    
 
 private:
     static const std::string m_name;
@@ -48,7 +204,13 @@ public:
 
     }
 
-private:
+    virtual instruction_type_t get_instruction_type(){
+        return ( StreamVmInstruction::itFIX_IPV4_CS);
+    }
+
+    virtual void Dump(FILE *fd);
+
+public:
     uint16_t m_pkt_offset;
 };
 
@@ -60,6 +222,10 @@ private:
 class StreamVmInstructionFlowMan : public StreamVmInstruction {
 
 public:
+
+    virtual instruction_type_t get_instruction_type(){
+        return ( StreamVmInstruction::itFLOW_MAN);
+    }
 
     /**
      * different types of operations on the object
@@ -85,7 +251,16 @@ public:
 
     }
 
+    virtual void Dump(FILE *fd);
+
+    void sanity_check(uint32_t ins_id,StreamVm *lp);
+
 private:
+    void sanity_check_valid_range(uint32_t ins_id,StreamVm *lp);
+    void sanity_check_valid_size(uint32_t ins_id,StreamVm *lp);
+    void sanity_check_valid_opt(uint32_t ins_id,StreamVm *lp);
+
+public:
 
 
     /* flow var name */
@@ -105,6 +280,16 @@ private:
 
 };
 
+
+class VmFlowVarRec {
+public:
+    uint32_t    m_offset;
+    StreamVmInstructionFlowMan * m_instruction;
+};
+
+
+
+
 /**
  * write flow var to packet
  * 
@@ -121,7 +306,14 @@ public:
                                                         m_pkt_offset(pkt_offset),
                                                         m_add_value(add_value),
                                                         m_is_big_endian(is_big_endian) {}
-private:
+
+    virtual instruction_type_t get_instruction_type(){
+        return ( StreamVmInstruction::itPKT_WR);
+    }
+
+    virtual void Dump(FILE *fd);
+
+public:
 
     /* flow var name to write */
     std::string   m_flow_var_name;
@@ -142,6 +334,29 @@ private:
  */
 class StreamVm {
 public:
+    enum STREAM_VM {
+        svMAX_FLOW_VAR   = 64 /* maximum flow varible */
+    };
+
+
+
+    StreamVm(){
+        m_bss=0;
+        m_pkt_size=0;
+        m_cur_var_offset=0;
+    }
+
+
+    /* set packet size */
+    void set_packet_size(uint16_t pkt_size){
+        m_pkt_size = pkt_size;
+    }
+
+    uint16_t get_packet_size(){
+        return ( m_pkt_size);
+    }
+
+
 
     /**
      * add new instruction to the VM
@@ -162,10 +377,44 @@ public:
      */
     bool compile();
 
+
+    void compile_next();
+
+
     ~StreamVm();
 
+    void Dump(FILE *fd);
+
+    /* raise exception */
+    void  err(const std::string &err);
+
 private:
+
+    /* lookup for varible offset, */
+    bool var_lookup(const std::string &var_name,VmFlowVarRec & var);
+
+    void  var_clear_table();
+
+    bool  var_add(const std::string &var_name,VmFlowVarRec & var);
+    
+    void build_flow_var_table() ;
+
+    void build_bss();
+
+    void build_program();
+
+    void alloc_bss();
+
+    void free_bss();
+
+
+private:
+    uint16_t                           m_pkt_size;
+    uint16_t                           m_cur_var_offset;
     std::vector<StreamVmInstruction *> m_inst_list;
+    std::unordered_map<std::string, VmFlowVarRec> m_flow_var_offset;
+    uint8_t *                          m_bss;
+    
 };
 
 #endif /* __TREX_STREAM_VM_API_H__ */
