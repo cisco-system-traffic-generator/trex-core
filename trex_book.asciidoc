@@ -7,20 +7,8 @@ TRex
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
 
-
-== Change log
-
-[options="header",cols="^1,^h,3a"]
-|=================
-| Version |  name   |  meaning
-| 1.77-0.0    |  Hanoh Haim (hhaim) |
-- initail versions
-| 1.77.1    | Dan Klein (danklei)
-|
-- fixed ISO images references and supported linux supported OS
-
-|=================
 
 
 == Introduction

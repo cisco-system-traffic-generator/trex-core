@@ -20,13 +20,20 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.80  ==
+
+* more stateless support
+** All type of streams are supported (Continues/Burst/Multi-burst)
+** Stream can call to other streams
+** start/stop/pause/resume work from the Console
+** -m[rate] is supported for example -m10gbps or -m10kpps from console 
+** update XL710 installation support 
+
 == Release 1.79  ==
 
-* initial support for stateless 
-** only continues streams 
-** No VM support  
-** more info how to enable the interactive shell link:trex_console.html
-
+* Initial support for stateless 
+** Only continues streams are supported 
+** more info how to enable the interactive shell link:trex_console.html[here]
 
 == Release 1.78  ==
 

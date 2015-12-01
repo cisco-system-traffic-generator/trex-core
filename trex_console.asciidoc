@@ -60,8 +60,6 @@ on the same machine from a different window connect to to trex
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -i
-----
 $./trex-console
 ----
 
@@ -70,11 +68,10 @@ from console you can run this
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -i
-----
 
-# will start traffic on all port 
+# start traffic on all port 
 >start -a -m 1 -f stl/imix_1pkt.yaml
+
 # stop traffic on all port
 >stop -a 
 
@@ -83,9 +80,7 @@ $sudo ./t-rex-64 -i
 
 #stop all and remove all stats
 >reset
-
 ----
-
 
 === Common Arguments 
 
