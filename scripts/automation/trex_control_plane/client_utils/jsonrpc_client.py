@@ -37,7 +37,7 @@ class BatchMessage(object):
 
         msg = json.dumps(self.batch_list)
 
-        rc, resp_list = self.rpc_client.send_raw_msg(msg, block = False)
+        rc, resp_list = self.rpc_client.send_raw_msg(msg)
         if len(self.batch_list) == 1:
             return CmdResponse(True, [CmdResponse(rc, resp_list)])
         else:
@@ -130,7 +130,6 @@ class JsonRpcClient(object):
                 self.socket.send(msg)
                 break
             except zmq.Again:
-                sleep(0.1)
                 tries += 1
                 if tries > 10:
                     self.disconnect()
@@ -143,7 +142,6 @@ class JsonRpcClient(object):
                 response = self.socket.recv()
                 break
             except zmq.Again:
-                sleep(0.1)
                 tries += 1
                 if tries > 10:
                     self.disconnect()
@@ -223,8 +221,8 @@ class JsonRpcClient(object):
         except zmq.error.ZMQError as e:
             return False, "ZMQ Error: Bad server or port name: " + str(e)
 
-        self.socket.setsockopt(zmq.SNDTIMEO, 5)
-        self.socket.setsockopt(zmq.RCVTIMEO, 5)
+        self.socket.setsockopt(zmq.SNDTIMEO, 1000)
+        self.socket.setsockopt(zmq.RCVTIMEO, 1000)
 
         self.connected = True
 

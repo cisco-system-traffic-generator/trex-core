@@ -122,7 +122,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -350,7 +350,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     
     delete stream;
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -379,7 +379,7 @@ TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result)
     }
 
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -493,7 +493,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"]["multiplier"] = port->get_multiplier();
 
     return (TREX_RPC_CMD_OK);
 }
@@ -520,7 +520,7 @@ TrexRpcCmdStopTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -589,7 +589,7 @@ TrexRpcCmdPauseTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -617,7 +617,7 @@ TrexRpcCmdResumeTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -656,7 +656,7 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"]["multiplier"] = port->get_multiplier();
 
     return (TREX_RPC_CMD_OK);
 }

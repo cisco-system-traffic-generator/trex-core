@@ -26,6 +26,7 @@ limitations under the License.
 #include <unistd.h>
 #include <sstream>
 #include <iostream>
+#include <assert.h>
 
 #include <zmq.h>
 #include <json/json.h>
@@ -70,27 +71,13 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
 
     /* server main loop */
     while (m_is_running) {
-        int msg_size = zmq_recv (m_socket, m_msg_buffer, sizeof(m_msg_buffer), 0);
+        std::string request;
 
-        /* msg_size of -1 is an error - decode it */
-        if (msg_size == -1) {
-            /* normal shutdown and zmq_term was called */
-            if (errno == ETERM) {
-                break;
-            } else {
-                throw TrexRpcException("Unhandled error of zmq_recv");
-            }
+        /* get the next request */
+        bool rc = fetch_one_request(request);
+        if (!rc) {
+            break;
         }
-
-        if (msg_size >= sizeof(m_msg_buffer)) {
-            std::stringstream ss;
-            ss << "RPC request of '" << msg_size << "' exceeds maximum message size which is '" << sizeof(m_msg_buffer) << "'";
-            handle_server_error(ss.str());
-            continue;
-        }
-
-        /* transform it to a string */
-        std::string request((const char *)m_msg_buffer, msg_size);
 
         verbose_json("Server Received: ", TrexJsonRpcV2Parser::pretty_json_str(request));
 
@@ -99,6 +86,35 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
 
     /* must be done from the same thread */
     zmq_close(m_socket);
+}
+
+bool
+TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
+
+    zmq_msg_t zmq_msg;
+    int rc;
+
+    rc = zmq_msg_init(&zmq_msg);
+    assert(rc == 0);
+
+    rc = zmq_msg_recv (&zmq_msg, m_socket, 0);
+
+    if (rc == -1) {
+        zmq_msg_close(&zmq_msg);
+        /* normal shutdown and zmq_term was called */
+        if (errno == ETERM) {
+            return false;
+        } else {
+            throw TrexRpcException("Unhandled error of zmq_recv");
+        }
+    }
+
+    const char *data =  (const char *)zmq_msg_data(&zmq_msg);
+    size_t len = zmq_msg_size(&zmq_msg);
+    msg.append(data, len);
+
+    zmq_msg_close(&zmq_msg);
+    return true;
 }
 
 /**

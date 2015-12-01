@@ -18,10 +18,22 @@ class CStreamList(object):
         self.yaml_loader = CTRexYAMLLoader(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
                                                         "rpc_defaults.yaml"))
 
+    def generate_numbered_name (self, name):
+        prefix = name.rstrip('01234567890')
+        suffix = name[len(prefix):]
+        if suffix == "":
+            n = "_1"
+        else:
+            n = int(suffix) + 1
+        return prefix + str(n)
+
     def append_stream(self, name, stream_obj):
         assert isinstance(stream_obj, CStream)
-        if name in self.streams_list:
-            raise NameError("A stream with this name already exists on this list.")
+
+        # if name exists simply add numbered suffix to it
+        while name in self.streams_list:
+            name = self.generate_numbered_name(name)
+
         self.streams_list[name]=stream_obj
         return name
 

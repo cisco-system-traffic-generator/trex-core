@@ -79,7 +79,7 @@ public:
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(const TrexPortMultiplier &mul, double duration = -1);
+    void start_traffic(const TrexPortMultiplier &mul, double duration);
 
     /**
      * stop traffic
@@ -210,6 +210,14 @@ public:
         return m_dp_events;
     }
 
+
+    /**
+     * returns the traffic multiplier currently being used by the DP
+     * 
+     */
+    double get_multiplier() {
+        return (m_current_per_core_m * m_cores_id_list.size()); 
+    }
 
 private:
 

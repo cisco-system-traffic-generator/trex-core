@@ -372,7 +372,7 @@ class TRexConsole(TRexGeneralCmd):
             print format_text("\nNot connected to server\n", 'bold')
             return
 
-        self.stateless_client.cmd_reset()
+        self.stateless_client.cmd_reset_line(line)
 
   
     def help_events (self):

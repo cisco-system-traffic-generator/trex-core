@@ -56,7 +56,7 @@ class RC:
 
     def annotate (self, desc = None):
         if desc:
-            print format_text('\n{:<40}'.format(desc), 'bold'),
+            print format_text('\n{:<60}'.format(desc), 'bold'),
 
         if self.bad():
             # print all the errors
@@ -147,11 +147,13 @@ class Port(object):
     STATE_TX         = 3
     STATE_PAUSE      = 4
 
-    def __init__ (self, port_id, speed, driver, user, transmit):
+    def __init__ (self, port_id, speed, driver, user, comm_link):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
-        self.transmit = transmit
+        self.comm_link = comm_link
+        self.transmit = comm_link.transmit
+        self.transmit_batch = comm_link.transmit_batch
         self.user = user
         self.driver = driver
         self.speed = speed
@@ -249,6 +251,33 @@ class Port(object):
 
         return self.ok()
 
+    # add multiple streams
+    def add_streams (self, streams_list):
+        batch = []
+
+        for stream in streams_list:
+            params = {"handler": self.handler,
+                      "port_id": self.port_id,
+                      "stream_id": stream.stream_id,
+                      "stream": stream.stream}
+
+            cmd = RpcCmdData('add_stream', params)
+            batch.append(cmd)
+
+        rc, data = self.transmit_batch(batch)
+
+        if not rc:
+            return self.err(data)
+
+        # add the stream
+        for stream in streams_list:
+            self.streams[stream.stream_id] = stream.stream
+
+        # the only valid state now
+        self.state = self.STATE_STREAMS
+
+        return self.ok()
+             
     # remove stream from port
     def remove_stream (self, stream_id):
 
@@ -485,6 +514,24 @@ class CTRexStatelessClient(object):
 
     ############# helper functions section ##############
 
+    # measure time for functions
+    def timing(f):
+        def wrap(*args):
+            time1 = time.time()
+            ret = f(*args)
+            delta = time.time() - time1
+
+            for unit in ['sec','ms','usec']:
+                
+                if delta > 1.0:
+                    print '{:,.2f} [{:}]\n'.format(delta, unit)
+                    break
+                delta *= 1000.0
+            return ret
+
+        return wrap
+
+
     def validate_port_list(self, port_id_list):
         if not isinstance(port_id_list, list):
             print type(port_id_list)
@@ -551,7 +598,7 @@ class CTRexStatelessClient(object):
         for port_id in xrange(self.get_port_count()):
             speed = self.system_info['ports'][port_id]['speed']
             driver = self.system_info['ports'][port_id]['driver']
-            self.ports.append(Port(port_id, speed, driver, self.user, self.transmit))
+            self.ports.append(Port(port_id, speed, driver, self.user, self.comm_link))
 
         # acquire all ports
         rc = self.acquire()
@@ -689,15 +736,16 @@ class CTRexStatelessClient(object):
         return rc
 
       
+
     def add_stream_pack(self, stream_pack_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
-        for stream_pack in stream_pack_list:
-            rc.add(self.add_stream(stream_pack.stream_id, stream_pack.stream, port_id_list))
-        
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].add_streams(stream_pack_list))
+
         return rc
 
 
@@ -805,9 +853,12 @@ class CTRexStatelessClient(object):
         return self.comm_link.transmit(method_name, params)
 
 
+    def transmit_batch(self, batch_list):
+        return self.comm_link.transmit_batch(batch_list)
 
     ######################### Console (high level) API #########################
 
+    @timing
     def cmd_ping(self):
         rc = self.ping()
         rc.annotate("Pinging the server on '{0}' port '{1}': ".format(self.get_connection_ip(), self.get_connection_port()))
@@ -957,7 +1008,6 @@ class CTRexStatelessClient(object):
 
         return self.cmd_resume(opts.ports)
 
-
     # start cmd
     def cmd_start (self, port_id_list, stream_list, mult, force, duration):
 
@@ -981,10 +1031,9 @@ class CTRexStatelessClient(object):
 
 
         rc = self.add_stream_pack(stream_list.compiled, port_id_list)
-        rc.annotate("Attaching streams to port(s) {0}:".format(port_id_list))
+        rc.annotate("Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
         if rc.bad():
             return rc
-
 
         # finally, start the traffic
         rc = self.start_traffic(mult, duration, port_id_list)
@@ -995,6 +1044,7 @@ class CTRexStatelessClient(object):
         return RC_OK()
 
     ############## High Level API With Parser ################
+    @timing
     def cmd_start_line (self, line):
         '''Start selected traffic in specified ports on TRex\n'''
         # define a parser
@@ -1037,6 +1087,7 @@ class CTRexStatelessClient(object):
 
         return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration)
 
+    @timing
     def cmd_stop_line (self, line):
         '''Stop active traffic in specified ports on TRex\n'''
         parser = parsing_opts.gen_parser(self,
@@ -1050,7 +1101,7 @@ class CTRexStatelessClient(object):
 
         return self.cmd_stop(opts.ports)
 
-
+    @timing
     def cmd_update_line (self, line):
         '''Update port(s) speed currently active\n'''
         parser = parsing_opts.gen_parser(self,
@@ -1071,11 +1122,11 @@ class CTRexStatelessClient(object):
 
         return self.cmd_update(opts.ports, opts.mult)
 
-
+    @timing
     def cmd_reset_line (self, line):
         return self.cmd_reset()
 
-
+    
     def cmd_exit_line (self, line):
         print format_text("Exiting\n", 'bold')
         # a way to exit

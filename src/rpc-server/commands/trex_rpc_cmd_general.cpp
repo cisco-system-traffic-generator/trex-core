@@ -43,7 +43,7 @@ using namespace std;
 trex_rpc_cmd_rc_e 
 TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
 }
 
@@ -272,7 +272,7 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
