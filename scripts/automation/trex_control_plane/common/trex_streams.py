@@ -14,7 +14,7 @@ StreamPack = namedtuple('StreamPack', ['stream_id', 'stream'])
 class CStreamList(object):
 
     def __init__(self):
-        self.streams_list = {}
+        self.streams_list = OrderedDict()
         self.yaml_loader = CTRexYAMLLoader(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
                                                         "rpc_defaults.yaml"))
 
@@ -82,6 +82,7 @@ class CStreamList(object):
         stream_ids = {}
         for idx, stream_name in enumerate(self.streams_list):
             stream_ids[stream_name] = idx
+
         # next, iterate over the streams and transform them from working with names to ids.
         # with that build a new dict with old stream_name as the key, and StreamPack as the stored value 
         compiled_streams = {}

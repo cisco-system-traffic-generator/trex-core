@@ -35,7 +35,7 @@ from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 import trex_status
 import parsing_opts
-
+from functools import wraps
 
 __version__ = "1.1"
 
@@ -128,6 +128,18 @@ class TRexConsole(TRexGeneralCmd):
 
 
     ################### internal section ########################
+    def verify_connected(f):
+        @wraps(f)
+        def wrap(*args):
+            inst = args[0]
+            if not inst.stateless_client.is_connected():
+                print format_text("\nNot connected to server\n", 'bold')
+                return
+
+            ret = f(*args)
+            return ret
+
+        return wrap
 
     def get_console_identifier(self):
         return "{context}_{server}".format(context=self.__class__.__name__,
@@ -207,13 +219,9 @@ class TRexConsole(TRexGeneralCmd):
 
 
     ####################### shell commands #######################
+    @verify_connected
     def do_ping (self, line):
         '''Ping the server\n'''
-
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
-
         rc = self.stateless_client.cmd_ping()
         if rc.bad():
             return
@@ -303,12 +311,9 @@ class TRexConsole(TRexGeneralCmd):
         if (l > 2) and (s[l - 2] in file_flags):
             return TRexConsole.tree_autocomplete(s[l - 1])
 
+    @verify_connected
     def do_start(self, line):
         '''Start selected traffic in specified port(s) on TRex\n'''
-
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
 
         self.stateless_client.cmd_start_line(line)
 
@@ -317,12 +322,9 @@ class TRexConsole(TRexGeneralCmd):
         self.do_start("-h")
 
     ############# stop
+    @verify_connected
     def do_stop(self, line):
         '''stops port(s) transmitting traffic\n'''
-
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
 
         self.stateless_client.cmd_stop_line(line)
 
@@ -330,12 +332,9 @@ class TRexConsole(TRexGeneralCmd):
         self.do_stop("-h")
 
     ############# update
+    @verify_connected
     def do_update(self, line):
         '''update speed of port(s)currently transmitting traffic\n'''
-
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
 
         self.stateless_client.cmd_update_line(line)
 
@@ -343,38 +342,37 @@ class TRexConsole(TRexGeneralCmd):
         self.do_update("-h")
 
     ############# pause
+    @verify_connected
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
-
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
 
         self.stateless_client.cmd_pause_line(line)
 
     ############# resume
+    @verify_connected
     def do_resume(self, line):
         '''resume port(s) transmitting traffic\n'''
-
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
 
         self.stateless_client.cmd_resume_line(line)
 
    
 
     ########## reset
+    @verify_connected
     def do_reset (self, line):
         '''force stop all ports\n'''
 
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
-
         self.stateless_client.cmd_reset_line(line)
 
-  
+
+    ######### validate
+    @verify_connected
+    def do_validate (self, line):
+        '''validates port(s) stream configuration\n'''
+
+        self.stateless_client.cmd_validate_line(line)
+
+
     def help_events (self):
         self.do_events("-h")
 
@@ -404,12 +402,9 @@ class TRexConsole(TRexGeneralCmd):
             print format_text("\n\nEvent log was cleared\n\n")
 
     # tui
+    @verify_connected
     def do_tui (self, line):
         '''Shows a graphical console\n'''
-
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
-            return
 
         self.do_verbose('off')
         trex_status.show_trex_status(self.stateless_client)

@@ -219,7 +219,7 @@ TrexStreamsCompiler::check_stream(const TrexStream *stream) {
     /* cont. stream can point only on itself */
     if (stream->get_type() == TrexStream::stCONTINUOUS) {
         if (stream->m_next_stream_id != -1) {
-            ss << "continous stream '" << stream->m_stream_id << "' cannot point on another stream";
+            ss << "continous stream '" << stream->m_stream_id << "' cannot point to another stream";
             err(ss.str());
         }
     }

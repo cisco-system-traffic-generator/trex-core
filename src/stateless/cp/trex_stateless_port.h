@@ -76,6 +76,16 @@ public:
     void release(void);
 
     /**
+     * validate the state of the port before start 
+     * it will return a stream graph 
+     * containing information about the streams 
+     * configured on this port 
+     *  
+     * on error it throws TrexException
+     */
+    const TrexStreamsGraphObj *validate(void);
+
+    /**
      * start traffic
      * throws TrexException in case of an error
      */
@@ -172,6 +182,7 @@ public:
         verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
         m_stream_table.add_stream(stream);
+        delete_streams_graph();
 
         change_state(PORT_STATE_STREAMS);
     }
@@ -180,6 +191,7 @@ public:
         verify_state(PORT_STATE_STREAMS);
 
         m_stream_table.remove_stream(stream);
+        delete_streams_graph();
 
         if (m_stream_table.size() == 0) {
             change_state(PORT_STATE_IDLE);
@@ -190,6 +202,7 @@ public:
         verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
         m_stream_table.remove_and_delete_all_streams();
+        delete_streams_graph();
 
         change_state(PORT_STATE_IDLE);
     }
@@ -218,6 +231,12 @@ public:
     double get_multiplier() {
         return (m_current_per_core_m * m_cores_id_list.size()); 
     }
+
+    /**
+     * get port speed in bits per second
+     * 
+     */
+    uint64_t get_port_speed_bps() const;
 
 private:
 
@@ -269,11 +288,7 @@ private:
      */
     double calculate_effective_mul(const TrexPortMultiplier &mul);
 
-    /**
-     * get port speed in bits per second
-     * 
-     */
-    uint64_t get_port_speed_bps();
+  
 
     /**
      * generates a graph of streams graph

@@ -157,6 +157,7 @@ public:
         return m_rate_events;
     }
 
+
 private:
 
     void add_rate_event(const rate_event_st &ev) {

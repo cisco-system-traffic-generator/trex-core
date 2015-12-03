@@ -126,9 +126,10 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration)
     TrexStreamsCompiler compiler;
     TrexStreamsCompiledObj *compiled_obj = new TrexStreamsCompiledObj(m_port_id, per_core_mul);
 
-    bool rc = compiler.compile(streams, *compiled_obj);
+    std::string fail_msg;
+    bool rc = compiler.compile(streams, *compiled_obj, &fail_msg);
     if (!rc) {
-        throw TrexRpcException("Failed to compile streams");
+        throw TrexRpcException(fail_msg);
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
@@ -393,7 +394,7 @@ TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
 }
 
 uint64_t
-TrexStatelessPort::get_port_speed_bps() {
+TrexStatelessPort::get_port_speed_bps() const {
     switch (m_speed) {
     case TrexPlatformApi::SPEED_1G:
         return (1LLU * 1000 * 1000 * 1000);
@@ -518,3 +519,31 @@ TrexPortMultiplier(const std::string &type_str, const std::string &op_str, doubl
 
 }
 
+const TrexStreamsGraphObj *
+TrexStatelessPort::validate(void) {
+
+    /* first compile the graph */
+
+    vector<TrexStream *> streams;
+    get_object_list(streams);
+
+    if (streams.size() == 0) {
+        throw TrexException("no streams attached to port");
+    }
+
+    TrexStreamsCompiler compiler;
+    TrexStreamsCompiledObj compiled_obj(m_port_id, 1);
+
+    std::string fail_msg;
+    bool rc = compiler.compile(streams, compiled_obj, &fail_msg);
+    if (!rc) {
+        throw TrexException(fail_msg);
+    }
+
+    /* now create a stream graph */
+    if (!m_graph_obj) {
+        generate_streams_graph();
+    }
+
+    return m_graph_obj;
+}
