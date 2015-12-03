@@ -3283,7 +3283,26 @@ This feature gives user more flexibility to define the IP generator.
 
 === Measure Jitter/Latency 
 
-To measure jitter/latency on high priorty packets (one SCTP or ICMP flow), use `-l [Hz]` where Hz defines the number of packets to send from each port per second. This option measures latency and jitter. We can define the type of traffic used for the latency measurement using the --l-pkt-mode option. The default it to use SCTP packets. We can change this to use ICMP echo request packets by specifying --l-pkt-mode 1. Can send ICMP requests from one side, and matching ICMP responses from other side, by specifying --l-pkt-mode 2. This is particulary usefull if your DUT drops traffic from outside, and you need to open pin hole to get the outside traffic in (for example when testing a firewall). There is another mode (--l-pkt-mode 3) which send ICMP request packets with a constant 0 sequence number.
+To measure jitter/latency on high priorty packets (one SCTP or ICMP flow), use `-l [Hz]` where Hz defines the number of packets to send from each port per second. 
+This option measures latency and jitter. We can define the type of traffic used for the latency measurement using the `--l-pkt-mode` option. 
+
+
+[options="header",cols="^1,10a"]
+|=================
+| Option ID|  Type
+| 0 |  
+*default*, SCTP packets 
+| 1 | 
+ICMP echo request packets from both sides
+| 2 | 
+*Stateful*, send ICMP requests from one side, and matching ICMP responses from other side.
+
+This is particulary usefull if your DUT drops traffic from outside, and you need to open pin hole to get the outside traffic in (for example when testing a firewall)
+
+| 3 | 
+send ICMP request packets with a constant 0 sequence number.
+|=================
+
 
 The shell output is similar to the following: 
 

@@ -22,7 +22,11 @@ endif::backend-docbook[]
 
 == Release 1.81  ==
 
-** Support for specifying different modes for the packets used for latency measurement. Details link:trex_manual.html#_measure_jitter_latency[here].
+* more stateless support and fixes 
+** change the JSON-RPC result format 
+* Support for specifying different modes for the packets used for latency measurement. Details link:trex_manual.html#_measure_jitter_latency[here].
+
+=== fix issues: ===
 
 * link:http://csi-wiki-01:8090/issue/trex-149[trex-149] 
 
