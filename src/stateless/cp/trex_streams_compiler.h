@@ -38,9 +38,10 @@ class GraphNodeMap;
  */
 class TrexStreamsCompiledObj {
     friend class TrexStreamsCompiler;
+
 public:
 
-    TrexStreamsCompiledObj(uint8_t port_id, double m_mul);
+    TrexStreamsCompiledObj(uint8_t port_id);
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
@@ -56,32 +57,22 @@ public:
         return (m_port_id);
     }
 
-    /**
-     * clone the compiled object
-     * 
-     */
-    TrexStreamsCompiledObj * clone();
-
-    double get_multiplier(){
-        return (m_mul);
-    }
-
     bool get_all_streams_continues(){
         return (m_all_continues);
     }
 
     void Dump(FILE *fd);
 
+    TrexStreamsCompiledObj* clone();
+
 private:
-    void add_compiled_stream(TrexStream * stream,
-                             uint32_t my_dp_id, int next_dp_id);
-    void add_compiled_stream(TrexStream * stream);
+    void add_compiled_stream(TrexStream *stream);
+
 
     std::vector<obj_st> m_objs;
 
     bool    m_all_continues;
     uint8_t m_port_id;
-    double  m_mul;
 };
 
 class TrexStreamsCompiler {
@@ -93,7 +84,13 @@ public:
      * @author imarom (28-Oct-15)
      * 
      */
-    bool compile(const std::vector<TrexStream *> &streams, TrexStreamsCompiledObj &obj, std::string *fail_msg = NULL);
+    bool compile(uint8_t                                port_id,
+                 uint8_t                                dp_core_count,
+                 double                                 factor,
+                 const std::vector<TrexStream *>        &streams,
+                 std::vector<TrexStreamsCompiledObj *>  &objs,
+                 std::string                            *fail_msg = NULL);
+
 
     /**
      * 
@@ -115,8 +112,13 @@ private:
     void add_warning(const std::string &warning);
     void err(const std::string &err);
 
+    void compile_stream(const TrexStream *stream,
+                        double factor,
+                        uint8_t dp_core_count,
+                        std::vector<TrexStreamsCompiledObj *> &objs,
+                        GraphNodeMap &nodes);
+
     std::vector<std::string> m_warnings;
-    
 };
 
 class TrexStreamsGraph;

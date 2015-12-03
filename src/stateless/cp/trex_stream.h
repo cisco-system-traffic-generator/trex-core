@@ -129,12 +129,13 @@ public:
     }
 
     /* create new stream */
-    TrexStream * clone_as_dp(){
-            TrexStream * dp=new TrexStream(m_type,m_port_id,m_stream_id);
+    TrexStream * clone_as_dp() const {
+
+            TrexStream *dp = new TrexStream(m_type,m_port_id,m_stream_id);
         
 
-            dp->m_isg_usec      = m_isg_usec;
-            dp->m_next_stream_id = m_next_stream_id;
+            dp->m_isg_usec        = m_isg_usec;
+            dp->m_next_stream_id  = m_next_stream_id;
 
             dp->m_enabled    = m_enabled;
             dp->m_self_start = m_self_start;

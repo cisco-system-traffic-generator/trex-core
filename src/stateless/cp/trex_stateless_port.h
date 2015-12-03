@@ -225,11 +225,19 @@ public:
 
 
     /**
+     * returns the number of DP cores linked to this port
+     * 
+     */
+    uint8_t get_dp_core_count() {
+        return m_cores_id_list.size();
+    }
+
+    /**
      * returns the traffic multiplier currently being used by the DP
      * 
      */
     double get_multiplier() {
-        return (m_current_per_core_m * m_cores_id_list.size()); 
+        return (m_factor);
     }
 
     /**
@@ -273,7 +281,17 @@ private:
 
     std::string generate_handler();
 
-    void send_message_to_dp(TrexStatelessCpToDpMsgBase *msg);
+    /**
+     * send message to all cores using duplicate
+     * 
+     */
+    void send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg);
+
+    /**
+     * send message to specific DP core
+     * 
+     */
+    void send_message_to_dp(uint8_t core_id, TrexStatelessCpToDpMsgBase *msg);
 
     /**
      * triggered when event occurs
@@ -286,7 +304,7 @@ private:
      * calculate effective M per core
      * 
      */
-    double calculate_effective_mul(const TrexPortMultiplier &mul);
+    double calculate_effective_factor(const TrexPortMultiplier &mul);
 
   
 
@@ -318,7 +336,7 @@ private:
 
     bool               m_last_all_streams_continues;
     double             m_last_duration;
-    double             m_current_per_core_m;
+    double             m_factor;
 
     TrexDpPortEvents   m_dp_events;
 

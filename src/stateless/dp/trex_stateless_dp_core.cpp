@@ -453,7 +453,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
     node->m_pause =0;
     node->m_stream_type = stream->m_type;
-    node->m_next_time_offset = 1.0 / (stream->get_pps() * comp->get_multiplier());
+    node->m_next_time_offset = 1.0 / stream->get_pps();
 
     /* stateless specific fields */
     switch ( stream->m_type ) {
