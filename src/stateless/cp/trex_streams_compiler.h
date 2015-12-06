@@ -85,10 +85,10 @@ public:
      * 
      */
     bool compile(uint8_t                                port_id,
-                 uint8_t                                dp_core_count,
-                 double                                 factor,
                  const std::vector<TrexStream *>        &streams,
                  std::vector<TrexStreamsCompiledObj *>  &objs,
+                 uint8_t                                dp_core_count = 1,
+                 double                                 factor = 1.0,
                  std::string                            *fail_msg = NULL);
 
 

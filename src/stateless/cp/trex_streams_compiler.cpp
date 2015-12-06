@@ -370,10 +370,10 @@ TrexStreamsCompiler::pre_compile_check(const std::vector<TrexStream *> &streams,
  *************************************/
 bool 
 TrexStreamsCompiler::compile(uint8_t                                port_id,
-                             uint8_t                                dp_core_count,
-                             double                                 factor,
                              const std::vector<TrexStream *>        &streams,
                              std::vector<TrexStreamsCompiledObj *>  &objs,
+                             uint8_t                                dp_core_count,
+                             double                                 factor,
                              std::string                            *fail_msg) {
 
 #if 0

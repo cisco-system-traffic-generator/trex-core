@@ -128,10 +128,10 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration)
 
     TrexStreamsCompiler compiler;
     bool rc = compiler.compile(m_port_id,
-                               get_dp_core_count(),
-                               factor,
                                streams,
                                compiled_objs,
+                               get_dp_core_count(),
+                               factor,
                                &fail_msg);
     if (!rc) {
         throw TrexRpcException(fail_msg);
@@ -556,10 +556,10 @@ TrexStatelessPort::validate(void) {
 
     std::string fail_msg;
     bool rc = compiler.compile(m_port_id,
-                               get_dp_core_count(),
-                               1.0,
                                streams,
                                compiled_objs,
+                               get_dp_core_count(),
+                               1.0,
                                &fail_msg);
     if (!rc) {
         throw TrexException(fail_msg);
