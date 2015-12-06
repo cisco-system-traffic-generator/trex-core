@@ -445,14 +445,13 @@ class CTRexStatelessClient(object):
         self._server_version = None
         self.__err_log = None
 
-        self._async_client = CTRexAsyncClient(server, async_port, self)
+        self.async_client = CTRexAsyncClient(server, async_port, self)
 
         self.streams_db = CStreamsDB()
 
-        self.connected = False
-
         self.events = []
 
+        self.connected = False
 
     ################# events handler ######################
     def add_event_log (self, msg, ev_type, show = False):
@@ -515,7 +514,8 @@ class CTRexStatelessClient(object):
         self.ports[port_id].async_event_port_stopped()
 
     def async_event_server_stopped (self):
-        self.disconnect()
+        self.connected = False
+
 
     def get_events (self):
         return self.events
@@ -582,10 +582,16 @@ class CTRexStatelessClient(object):
     # connection sequence
     def connect(self):
 
+        # clear this flag
         self.connected = False
 
-        # connect
+        # connect sync channel
         rc, data = self.comm_link.connect()
+        if not rc:
+            return RC_ERR(data)
+
+        # connect async channel
+        rc, data = self.async_client.connect()
         if not rc:
             return RC_ERR(data)
 
@@ -634,24 +640,19 @@ class CTRexStatelessClient(object):
 
 
     def disconnect(self):
-        self.connected = False
         self.comm_link.disconnect()
+        self.async_client.disconnect()
         return RC_OK()
 
 
     def on_async_dead (self):
-        if self.is_connected():
+        if self.connected:
             msg = 'lost connection to server'
             self.add_event_log(msg, 'local', True)
-
-            self.disconnect()
+            self.connected = False
 
     def on_async_alive (self):
-        if not self.is_connected():
-            msg = 'server connection restored'
-            self.add_event_log(msg, 'local', True)
-
-            self.cmd_connect()
+        pass
 
     ########### cached queries (no server traffic) ###########
 
@@ -675,7 +676,7 @@ class CTRexStatelessClient(object):
             return port_ids
 
     def get_stats_async (self):
-        return self._async_client.get_stats()
+        return self.async_client.get_stats()
 
     def get_connection_port (self):
         return self.comm_link.port

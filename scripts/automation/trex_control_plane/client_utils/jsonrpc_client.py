@@ -133,7 +133,7 @@ class JsonRpcClient(object):
                 tries += 1
                 if tries > 10:
                     self.disconnect()
-                    return CmdResponse(False, "Failed to send message to server")
+                    return CmdResponse(False, "*** [RPC] - Failed to send message to server")
 
 
         tries = 0
@@ -145,7 +145,7 @@ class JsonRpcClient(object):
                 tries += 1
                 if tries > 10:
                     self.disconnect()
-                    return CmdResponse(False, "Failed to get server response")
+                    return CmdResponse(False, "*** [RPC] - Failed to get server response")
 
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")

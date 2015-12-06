@@ -153,6 +153,7 @@ class TRexConsole(TRexGeneralCmd):
                     self.__dict__[name] = getattr(self.trex_console, name)
 
     def postcmd(self, stop, line):
+
         if self.stateless_client.is_connected():
             self.prompt = "TRex > "
         else:
