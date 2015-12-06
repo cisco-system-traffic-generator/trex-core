@@ -306,7 +306,7 @@ You could copy a basic configuration file from cfg folder by running this comman
 
 [source,bash]
 ----
-$cp  cfg/vm1.yaml /etc/trex_cfg.yaml
+$cp  cfg/simple_cfg.yaml /etc/trex_cfg.yaml
 ----
 
 Now edit the configuration file with the right values from the previous section
