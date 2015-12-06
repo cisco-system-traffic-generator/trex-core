@@ -131,7 +131,9 @@ class CTRexClient(object):
             raise ValueError('d parameter must be integer, specifying how long TRex run, and must be larger than 30 secs.')
 
         trex_cmd_options.update( {'f' : f, 'd' : d} )
-        
+        if not trex_cmd_options.get('l'):
+            self.result_obj.latency_checked = False
+
         self.result_obj.clear_results()
         try:
             issue_time = time.time()
@@ -767,6 +769,7 @@ class CTRexResult(object):
         """
         self._history = deque(maxlen = max_history_size)
         self.clear_results()
+        self.latency_checked = True
 
     def __repr__(self):
         return ("Is valid history?       {arg}\n".format( arg = self.is_valid_hist() ) +
@@ -1032,18 +1035,19 @@ class CTRexResult(object):
                     self._done_warmup = True
             
             # handle latency data
-            latency_pre = "trex-latency"
-            self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")#None # TBC
-            # support old typo
-            if self._max_latency is None:
-                latency_pre = "trex-latecny"
-                self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")
+            if self.latency_checked:
+                latency_pre = "trex-latency"
+                self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")#None # TBC
+                # support old typo
+                if self._max_latency is None:
+                    latency_pre = "trex-latecny"
+                    self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")
 
-            self._avg_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "avg-")#None # TBC
-            self._avg_latency = CTRexResult.__avg_all_and_rename_keys(self._avg_latency)
+                self._avg_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "avg-")#None # TBC
+                self._avg_latency = CTRexResult.__avg_all_and_rename_keys(self._avg_latency)
 
-            avg_win_latency_list     = self.get_value_list("{latency}.data".format(latency = latency_pre), "avg-")
-            self._avg_window_latency = CTRexResult.__calc_latency_win_stats(avg_win_latency_list)
+                avg_win_latency_list     = self.get_value_list("{latency}.data".format(latency = latency_pre), "avg-")
+                self._avg_window_latency = CTRexResult.__calc_latency_win_stats(avg_win_latency_list)
 
             tx_pkts = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_total_tx_pkts")
             rx_pkts = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_total_rx_pkts")
