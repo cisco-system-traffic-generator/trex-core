@@ -30,6 +30,7 @@ limitations under the License.
 #include <trex_stateless_port.h>
 #include <trex_rpc_server_api.h>
 #include <iostream>
+#include <vector>
 
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
@@ -435,11 +436,9 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *> objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
@@ -499,14 +498,9 @@ void CBBStartStopDelay2::call_after_init(CBasicStl * m_obj){
     streams.push_back(stream1);
 
     // stream - clean 
-
-    TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-    assert(compile.compile(streams, comp_obj) );
-
-
-    /* start with different event id */
-    TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(m_port_id, 1, comp_obj.clone(), 10.0 /*sec */ );
+    std::vector<TrexStreamsCompiledObj *>objs;
+    assert(compile.compile(port_id, streams, objs));
+    TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 1, objs[0], 10.0 /*sec */ );
 
 
     m_obj->m_msg_queue.add_command(m_core,lpStopCmd, 5.0); /* command in delay of 5 sec */
@@ -552,12 +546,9 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay2) {
      streams.push_back(stream1);
 
      // stream - clean 
-
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
@@ -633,12 +624,9 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay1) {
      streams.push_back(stream1);
 
      // stream - clean 
-
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
@@ -687,12 +675,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop3) {
      streams.push_back(stream1);
 
      // stream - clean 
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
      TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
      TrexStatelessDpStop * lpStopCmd1 = new TrexStatelessDpStop(port_id);
 
@@ -740,14 +726,12 @@ TEST_F(basic_stl, single_pkt_bb_start_stop2) {
      streams.push_back(stream1);
 
      // stream - clean 
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
      TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
-     TrexStatelessDpStart * lpStartCmd1 = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStart * lpStartCmd1 = new TrexStatelessDpStart(port_id, 0, objs[0]->clone(), 10.0 /*sec */ );
 
 
      t1.m_msg_queue.add_msg(lpStartCmd);
@@ -795,12 +779,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop) {
      streams.push_back(stream1);
 
      // stream - clean 
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
      TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
 
 
@@ -880,14 +862,13 @@ TEST_F(basic_stl, simple_prog4) {
      streams.push_back(stream2);
 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 20.0 /*sec */ );
 
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 20.0 );
-
-
-     t1.m_msg = lpstart;
+     t1.m_msg = lpStartCmd;
 
      bool res=t1.init();
 
@@ -950,11 +931,10 @@ TEST_F(basic_stl, simple_prog3) {
      streams.push_back(stream2);
 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 50.0 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 50.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1011,13 +991,10 @@ TEST_F(basic_stl, simple_prog2) {
      pcap.clone_packet_into_stream(stream2);
      streams.push_back(stream2);
 
-
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
-
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1074,11 +1051,10 @@ TEST_F(basic_stl, simple_prog1) {
      streams.push_back(stream2);
 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1119,12 +1095,10 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      streams.push_back(stream1);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
-
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1170,11 +1144,9 @@ TEST_F(basic_stl, single_pkt) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1226,12 +1198,11 @@ TEST_F(basic_stl, multi_pkt1) {
      streams.push_back(stream2);
 
 
-     // stream - clean 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10 );
+     // stream - clean
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1290,11 +1261,10 @@ TEST_F(basic_stl, multi_pkt2) {
 
 
      // stream - clean 
-     TrexStreamsCompiledObj comp_obj(0,5.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs, 1, 5.0));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1336,11 +1306,10 @@ TEST_F(basic_stl, multi_burst1) {
 
      streams.push_back(stream1);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 40 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 40.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1370,10 +1339,9 @@ TEST_F(basic_stl, compile_bad_1) {
 
      streams.push_back(stream1);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
      std::string err_msg;
-     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_FALSE(compile.compile(0, streams, objs, 1, 1, &err_msg));
 
      delete stream1;
 
@@ -1403,10 +1371,12 @@ TEST_F(basic_stl, compile_bad_2) {
      streams.push_back(stream1);
      streams.push_back(stream2);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
 
+     uint8_t port_id = 0;
      std::string err_msg;
-     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_FALSE(compile.compile(port_id, streams, objs, 1, 1, &err_msg));
+
 
      delete stream1;
      delete stream2;
@@ -1482,10 +1452,10 @@ TEST_F(basic_stl, compile_bad_3) {
      streams.push_back(stream);
 
      /* compile */
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
      std::string err_msg;
-     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_FALSE(compile.compile(0, streams, objs, 1, 1, &err_msg));
+
 
      for (auto stream : streams) {
          delete stream;
@@ -1534,11 +1504,11 @@ TEST_F(basic_stl, compile_with_warnings) {
 
 
      /* compile */
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
      std::string err_msg;
-     EXPECT_TRUE(compile.compile(streams, comp_obj, &err_msg));
-     
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_TRUE(compile.compile(0, streams, objs, 1, 1, &err_msg));
+     delete objs[0];
+
      EXPECT_TRUE(compile.get_last_compile_warnings().size() == 1);
 
      for (auto stream : streams) {
@@ -1573,20 +1543,22 @@ TEST_F(basic_stl, compile_good_stream_id_compres) {
      streams.push_back(stream1);
      streams.push_back(stream2);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
+     uint8_t port_id = 0;
      std::string err_msg;
-     EXPECT_TRUE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_TRUE(compile.compile(port_id, streams, objs, 1, 1, &err_msg));
 
      printf(" %s \n",err_msg.c_str());
 
-     comp_obj.Dump(stdout);
+     objs[0]->Dump(stdout);
 
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_stream_id,0);
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_next_stream_id,1);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[0].m_stream->m_stream_id,0);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[0].m_stream->m_next_stream_id,1);
 
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_stream_id,1);
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_next_stream_id,0);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[1].m_stream->m_stream_id,1);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[1].m_stream->m_next_stream_id,0);
+
+     delete objs[0];
 
      delete stream1;
      delete stream2;
@@ -1648,14 +1620,12 @@ TEST_F(basic_stl, dp_stop_event) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 17, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 17, objs[0], 10.0 /*sec */ );
 
 
-     t1.m_msg = lpstart;
+     t1.m_msg = lpStartCmd;
 
      /* let me handle these */
      DpToCpHandlerStopEvent handler(17);

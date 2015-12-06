@@ -76,6 +76,16 @@ public:
     void release(void);
 
     /**
+     * validate the state of the port before start 
+     * it will return a stream graph 
+     * containing information about the streams 
+     * configured on this port 
+     *  
+     * on error it throws TrexException
+     */
+    const TrexStreamsGraphObj *validate(void);
+
+    /**
      * start traffic
      * throws TrexException in case of an error
      */
@@ -172,6 +182,7 @@ public:
         verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
         m_stream_table.add_stream(stream);
+        delete_streams_graph();
 
         change_state(PORT_STATE_STREAMS);
     }
@@ -180,6 +191,7 @@ public:
         verify_state(PORT_STATE_STREAMS);
 
         m_stream_table.remove_stream(stream);
+        delete_streams_graph();
 
         if (m_stream_table.size() == 0) {
             change_state(PORT_STATE_IDLE);
@@ -190,6 +202,7 @@ public:
         verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
         m_stream_table.remove_and_delete_all_streams();
+        delete_streams_graph();
 
         change_state(PORT_STATE_IDLE);
     }
@@ -212,12 +225,26 @@ public:
 
 
     /**
+     * returns the number of DP cores linked to this port
+     * 
+     */
+    uint8_t get_dp_core_count() {
+        return m_cores_id_list.size();
+    }
+
+    /**
      * returns the traffic multiplier currently being used by the DP
      * 
      */
     double get_multiplier() {
-        return (m_current_per_core_m * m_cores_id_list.size()); 
+        return (m_factor);
     }
+
+    /**
+     * get port speed in bits per second
+     * 
+     */
+    uint64_t get_port_speed_bps() const;
 
 private:
 
@@ -254,7 +281,17 @@ private:
 
     std::string generate_handler();
 
-    void send_message_to_dp(TrexStatelessCpToDpMsgBase *msg);
+    /**
+     * send message to all cores using duplicate
+     * 
+     */
+    void send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg);
+
+    /**
+     * send message to specific DP core
+     * 
+     */
+    void send_message_to_dp(uint8_t core_id, TrexStatelessCpToDpMsgBase *msg);
 
     /**
      * triggered when event occurs
@@ -267,13 +304,9 @@ private:
      * calculate effective M per core
      * 
      */
-    double calculate_effective_mul(const TrexPortMultiplier &mul);
+    double calculate_effective_factor(const TrexPortMultiplier &mul);
 
-    /**
-     * get port speed in bits per second
-     * 
-     */
-    uint64_t get_port_speed_bps();
+  
 
     /**
      * generates a graph of streams graph
@@ -303,7 +336,7 @@ private:
 
     bool               m_last_all_streams_continues;
     double             m_last_duration;
-    double             m_current_per_core_m;
+    double             m_factor;
 
     TrexDpPortEvents   m_dp_events;
 

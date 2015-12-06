@@ -414,6 +414,17 @@ class Port(object):
 
         return self.ok()
 
+
+    def validate (self):
+        params = {"handler": self.handler,
+                  "port_id": self.port_id}
+
+        rc, data = self.transmit("validate", params)
+        if not rc:
+            return self.err(data)
+
+        return self.ok()
+
     ################# events handler ######################
     def async_event_port_stopped (self):
         self.state = self.STATE_STREAMS
@@ -434,14 +445,13 @@ class CTRexStatelessClient(object):
         self._server_version = None
         self.__err_log = None
 
-        self._async_client = CTRexAsyncClient(server, async_port, self)
+        self.async_client = CTRexAsyncClient(server, async_port, self)
 
         self.streams_db = CStreamsDB()
 
-        self.connected = False
-
         self.events = []
 
+        self.connected = False
 
     ################# events handler ######################
     def add_event_log (self, msg, ev_type, show = False):
@@ -504,7 +514,8 @@ class CTRexStatelessClient(object):
         self.ports[port_id].async_event_port_stopped()
 
     def async_event_server_stopped (self):
-        self.disconnect()
+        self.connected = False
+
 
     def get_events (self):
         return self.events
@@ -519,6 +530,11 @@ class CTRexStatelessClient(object):
         def wrap(*args):
             time1 = time.time()
             ret = f(*args)
+
+            # don't want to print on error
+            if ret.bad():
+                return ret
+
             delta = time.time() - time1
 
             for unit in ['sec','ms','usec']:
@@ -566,10 +582,16 @@ class CTRexStatelessClient(object):
     # connection sequence
     def connect(self):
 
+        # clear this flag
         self.connected = False
 
-        # connect
+        # connect sync channel
         rc, data = self.comm_link.connect()
+        if not rc:
+            return RC_ERR(data)
+
+        # connect async channel
+        rc, data = self.async_client.connect()
         if not rc:
             return RC_ERR(data)
 
@@ -618,24 +640,19 @@ class CTRexStatelessClient(object):
 
 
     def disconnect(self):
-        self.connected = False
         self.comm_link.disconnect()
+        self.async_client.disconnect()
         return RC_OK()
 
 
     def on_async_dead (self):
-        if self.is_connected():
+        if self.connected:
             msg = 'lost connection to server'
             self.add_event_log(msg, 'local', True)
-
-            self.disconnect()
+            self.connected = False
 
     def on_async_alive (self):
-        if not self.is_connected():
-            msg = 'server connection restored'
-            self.add_event_log(msg, 'local', True)
-
-            self.cmd_connect()
+        pass
 
     ########### cached queries (no server traffic) ###########
 
@@ -659,7 +676,7 @@ class CTRexStatelessClient(object):
             return port_ids
 
     def get_stats_async (self):
-        return self._async_client.get_stats()
+        return self.async_client.get_stats()
 
     def get_connection_port (self):
         return self.comm_link.port
@@ -842,6 +859,17 @@ class CTRexStatelessClient(object):
         return rc
 
 
+    def validate (self, port_id_list = None):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].validate())
+     
+        return rc
+
+
     def get_port_stats(self, port_id=None):
         pass
 
@@ -962,19 +990,6 @@ class CTRexStatelessClient(object):
 
         return RC_OK()
 
-    def cmd_pause_line (self, line):
-        '''Pause active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self,
-                                         "pause",
-                                         self.cmd_stop_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return RC_ERR("bad command line paramters")
-
-        return self.cmd_pause(opts.ports)
-
 
     # resume cmd
     def cmd_resume (self, port_id_list):
@@ -994,19 +1009,6 @@ class CTRexStatelessClient(object):
 
         return RC_OK()
 
-
-    def cmd_resume_line (self, line):
-        '''Resume active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self,
-                                         "resume",
-                                         self.cmd_stop_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return RC_ERR("bad command line paramters")
-
-        return self.cmd_resume(opts.ports)
 
     # start cmd
     def cmd_start (self, port_id_list, stream_list, mult, force, duration):
@@ -1038,6 +1040,15 @@ class CTRexStatelessClient(object):
         # finally, start the traffic
         rc = self.start_traffic(mult, duration, port_id_list)
         rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
+        if rc.bad():
+            return rc
+
+        return RC_OK()
+
+
+    def cmd_validate (self, port_id_list):
+        rc = self.validate(port_id_list)
+        rc.annotate("Validating streams on port(s) {0}:".format(port_id_list))
         if rc.bad():
             return rc
 
@@ -1126,7 +1137,53 @@ class CTRexStatelessClient(object):
     def cmd_reset_line (self, line):
         return self.cmd_reset()
 
-    
+
+    @timing
+    def cmd_pause_line (self, line):
+        '''Pause active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "pause",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        return self.cmd_pause(opts.ports)
+
+
+    @timing
+    def cmd_resume_line (self, line):
+        '''Resume active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "resume",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        return self.cmd_resume(opts.ports)
+
+
+    @timing
+    def cmd_validate_line (self, line):
+        '''validates port(s) stream configuration\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "validate",
+                                         self.cmd_validate_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        return self.cmd_validate(opts.ports)
+
+
     def cmd_exit_line (self, line):
         print format_text("Exiting\n", 'bold')
         # a way to exit
@@ -1262,5 +1319,3 @@ class CTRexStatelessClient(object):
 
 if __name__ == "__main__":
     pass
-
-                                                                                                                                    

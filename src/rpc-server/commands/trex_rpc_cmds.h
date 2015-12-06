@@ -114,5 +114,6 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdUpdateTraffic, "update_traffic", 2, true);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdSyncUser, "sync_user", 2, false);
 
+TREX_RPC_CMD_DEFINE(TrexRpcCmdValidate, "validate", 2, false);
 
 #endif /* __TREX_RPC_CMD_H__ */

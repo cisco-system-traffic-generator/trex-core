@@ -159,38 +159,93 @@ class CTRexAsyncClient():
 
         self.stats = TrexAsyncStatsManager()
 
+        self.connected = False
+ 
+    # connects the async channel
+    def connect (self):
+
+        if self.connected:
+            self.disconnect()
 
         self.tr = "tcp://{0}:{1}".format(self.server, self.port)
-        print "\nConnecting To ZMQ Publisher At {0}".format(self.tr)
-
-        self.active = True
-        self.t = threading.Thread(target = self.run)
-
-        # kill this thread on exit and don't add it to the join list
-        self.t.setDaemon(True)
-        self.t.start()
-
-
-
-    def run (self):
+        print "\nConnecting To ZMQ Publisher On {0}".format(self.tr)
 
         #  Socket to talk to server
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
 
+
+        # before running the thread - mark as active
+        self.active = True
+        self.alive = False
+        self.t = threading.Thread(target = self._run)
+
+        # kill this thread on exit and don't add it to the join list
+        self.t.setDaemon(True)
+        self.t.start()
+
+        self.connected = True
+
+
+        # wait for data streaming from the server
+        timeout = time.time() + 5
+        while not self.alive:
+            time.sleep(0.01)
+            if time.time() > timeout:
+                self.disconnect()
+                return False, "*** [subscriber] - no data flow from server at : " + self.tr
+
+        return True, ""
+
+
+    # disconnect
+    def disconnect (self):
+        if not self.connected:
+            return
+
+        # signal that the context was destroyed (exit the thread loop)
+        self.context.term()
+
+        # mark for join and join
+        self.active = False
+        self.t.join()
+
+        # done
+        self.connected = False
+
+    # thread function
+    def _run (self):
+
+        # no data yet...
+        self.alive = False
+
+        # socket must be created on the same thread 
         self.socket.connect(self.tr)
         self.socket.setsockopt(zmq.SUBSCRIBE, '')
-        self.socket.setsockopt(zmq.RCVTIMEO, 3000)
+        self.socket.setsockopt(zmq.RCVTIMEO, 5000)
 
         while self.active:
             try:
 
                 line = self.socket.recv_string();
-                self.stateless_client.on_async_alive()
 
+                if not self.alive:
+                    self.stateless_client.on_async_alive()
+                    self.alive = True
+
+            # got a timeout - mark as not alive and retry
             except zmq.Again:
-                self.stateless_client.on_async_dead()
+
+                if self.alive:
+                    self.stateless_client.on_async_dead()
+                    self.alive = False
+
                 continue
+
+            except zmq.ContextTerminated:
+                # outside thread signaled us to exit
+                self.alive = False
+                break
 
             msg = json.loads(line)
 
@@ -200,6 +255,10 @@ class CTRexAsyncClient():
             self.raw_snapshot[name] = data
 
             self.__dispatch(name, type, data)
+
+        
+        # closing of socket must be from the same thread
+        self.socket.close(linger = 0)
 
 
     def get_stats (self):
@@ -219,9 +278,4 @@ class CTRexAsyncClient():
             self.stateless_client.handle_async_event(type, data)
         else:
             pass
-
-
-    def stop (self):
-        self.active = False
-        self.t.join()
 
