@@ -421,6 +421,9 @@ class Port(object):
                 "port-status": self.get_port_state_name()
                 }
 
+    def clear_stats(self):
+        return self.port_stats.clear_stats()
+
     ################# events handler ######################
     def async_event_port_stopped (self):
         self.state = self.STATE_STREAMS
@@ -951,9 +954,10 @@ class CTRexStatelessClient(object):
         return RC_OK()
 
     def cmd_clear(self, port_id_list):
-        # self.info_and_stats.clear(port_id_list)
+        for port_id in port_id_list:
+            self.ports[port_id].clear_stats()
+        self.global_stats.clear_stats()
         return RC_OK()
-
 
     # pause cmd
     def cmd_pause (self, port_id_list):
@@ -962,7 +966,7 @@ class CTRexStatelessClient(object):
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
         if not active_ports:
-            msg = "No active traffic on porvided ports"
+            msg = "No active traffic on provided ports"
             print format_text(msg, 'bold')
             return RC_ERR(msg)
 
