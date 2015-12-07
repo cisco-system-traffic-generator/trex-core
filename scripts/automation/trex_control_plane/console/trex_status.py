@@ -494,7 +494,7 @@ class CTRexStatus():
             self.stats_panel.panel.top()
             self.stats_panel.draw()
 
-            panel.update_panels(); 
+            panel.update_panels()
             self.stdscr.refresh()
             sleep(0.01)
 

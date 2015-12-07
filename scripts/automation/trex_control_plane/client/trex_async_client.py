@@ -51,7 +51,7 @@ class CTRexAsyncStats(object):
         self.ref_point = self.current
         
 
-    def get(self, field, format = False, suffix = ""):
+    def get(self, field, format=False, suffix=""):
 
         if not field in self.current:
             return "N/A"
@@ -61,8 +61,7 @@ class CTRexAsyncStats(object):
         else:
             return self.format_num(self.current[field], suffix)
 
-
-    def get_rel (self, field, format = False, suffix = ""):
+    def get_rel (self, field, format=False, suffix=""):
         if not field in self.current:
             return "N/A"
 
@@ -204,7 +203,8 @@ class CTRexAsyncClient():
     def __dispatch (self, name, type, data):
         # stats
         if name == "trex-global":
-            self.stats.update(data)
+            # self.stats.update(data)
+            self.stateless_client.handle_async_stats_update(data)
         # events
         elif name == "trex-event":
             self.stateless_client.handle_async_event(type, data)
