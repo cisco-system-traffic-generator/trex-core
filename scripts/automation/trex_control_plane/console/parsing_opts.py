@@ -20,7 +20,8 @@ SERVER_IP = 8
 STREAM_FROM_PATH_OR_FILE = 9
 DURATION = 10
 FORCE = 11
-TOTAL = 12
+DRY_RUN = 12
+TOTAL = 13
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -197,6 +198,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               SERVER_IP: ArgumentPack(['--server'],
                                       {'metavar': 'SERVER',
                                        'help': "server IP"}),
+
+              DRY_RUN: ArgumentPack(['-n', '--dry'],
+                                    {'action': 'store_true',
+                                     'dest': 'dry',
+                                     'default': False,
+                                     'help': "Dry run - no traffic will be injected"}),
 
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,

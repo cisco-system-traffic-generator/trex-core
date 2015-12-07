@@ -619,6 +619,7 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["rate"]["max_pps"] = graph->get_max_pps();
     result["result"]["rate"]["max_line_util"] = graph->get_max_bps() / port->get_port_speed_bps();
 
+    result["result"]["graph"]["expected_duration"] = graph->get_duration();
     result["result"]["graph"]["events_count"] = (int)graph->get_events().size();
 
     result["result"]["graph"]["events"] = Json::arrayValue;

@@ -133,6 +133,12 @@ class TrexStreamsGraphObj {
 
 public:
 
+    TrexStreamsGraphObj() {
+        m_max_pps           = 0;
+        m_max_bps           = 0;
+        m_expected_duration = 0;
+    }
+
     /**
      * rate event is defined by those: 
      * time - the time of the event on the timeline 
@@ -155,12 +161,20 @@ public:
         return m_max_bps;
     }
 
+    int get_duration() const {
+        return m_expected_duration;
+    }
+
     const std::list<rate_event_st> & get_events() const {
         return m_rate_events;
     }
 
 
 private:
+
+    void on_loop_detection() {
+        m_expected_duration = -1;
+    }
 
     void add_rate_event(const rate_event_st &ev) {
         m_rate_events.push_back(ev);
@@ -169,8 +183,9 @@ private:
     void generate();
     void find_max_rate();
 
-    double m_max_pps;
-    double m_max_bps;
+    double  m_max_pps;
+    double  m_max_bps;
+    int     m_expected_duration;
 
     /* list of rate events */
     std::list<rate_event_st> m_rate_events;

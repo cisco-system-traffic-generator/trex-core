@@ -81,6 +81,22 @@ def RC_ERR (err):
 
 LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 
+########## utlity ############
+def mult_to_factor (mult, max_bps, max_pps, line_util):
+    if mult['type'] == 'raw':
+        return mult['value']
+
+    if mult['type'] == 'bps':
+        return mult['value'] / max_bps
+
+    if mult['type'] == 'pps':
+        return mult['value'] / max_pps
+
+    if mult['type'] == 'percentage':
+        return mult['value'] / line_util
+
+
+
 # describes a stream DB
 class CStreamsDB(object):
 
@@ -438,6 +454,44 @@ class Port(object):
     def get_profile (self):
         return self.profile
 
+
+    def print_profile (self, mult, duration):
+        if not self.get_profile():
+            return
+
+        rate = self.get_profile()['rate']
+        graph = self.get_profile()['graph']
+
+        print format_text("Profile Map Per Port\n", 'underline', 'bold')
+
+        factor = mult_to_factor(mult, rate['max_bps'], rate['max_pps'], rate['max_line_util'])
+
+        print "Profile max BPS    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps'], suffix = "bps"),
+                                                                          format_num(rate['max_bps'] * factor, suffix = "bps"))
+
+        print "Profile max PPS    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_pps'], suffix = "pps"),
+                                                                          format_num(rate['max_pps'] * factor, suffix = "pps"),)
+
+        print "Profile line util. (base / req):   {:^12} / {:^12}".format(format_percentage(rate['max_line_util'] * 100),
+                                                                          format_percentage(rate['max_line_util'] * factor * 100))
+
+
+        # duration
+        exp_time_base_sec = graph['expected_duration'] / (1000 * 1000)
+        exp_time_factor_sec = exp_time_base_sec / factor
+
+        # user configured a duration
+        if duration > 0:
+            if exp_time_factor_sec > 0:
+                exp_time_factor_sec = min(exp_time_factor_sec, duration)
+            else:
+                exp_time_factor_sec = duration
+
+
+        print "Duration           (base / req):   {:^12} / {:^12}".format(format_time(exp_time_base_sec),
+                                                                          format_time(exp_time_factor_sec))
+        print "\n"
+
     ################# events handler ######################
     def async_event_port_stopped (self):
         self.state = self.STATE_STREAMS
@@ -549,13 +603,8 @@ class CTRexStatelessClient(object):
                 return ret
 
             delta = time.time() - time1
+            print format_time(delta) + "\n"
 
-            for unit in ['sec','ms','usec']:
-                
-                if delta > 1.0:
-                    print '{:,.2f} [{:}]\n'.format(delta, unit)
-                    break
-                delta *= 1000.0
             return ret
 
         return wrap
@@ -1018,7 +1067,7 @@ class CTRexStatelessClient(object):
 
 
     # start cmd
-    def cmd_start (self, port_id_list, stream_list, mult, force, duration):
+    def cmd_start (self, port_id_list, stream_list, mult, force, duration, dry):
 
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
@@ -1044,11 +1093,23 @@ class CTRexStatelessClient(object):
         if rc.bad():
             return rc
 
-        # finally, start the traffic
-        rc = self.start_traffic(mult, duration, port_id_list)
-        rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
+        # when not on dry - start the traffic , otherwise validate only
+        if not dry:
+            rc = self.start_traffic(mult, duration, port_id_list)
+            rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
 
-        return rc
+            return rc
+        else:
+            rc = self.validate(port_id_list)
+            rc.annotate("Validating traffic profile on port(s) {0}:".format(port_id_list))
+
+            if rc.bad():
+                return rc
+
+            # show a profile on one port for illustration
+            self.ports[port_id_list[0]].print_profile(mult, duration)
+
+            return rc
 
 
 
@@ -1070,13 +1131,17 @@ class CTRexStatelessClient(object):
                                          parsing_opts.FORCE,
                                          parsing_opts.STREAM_FROM_PATH_OR_FILE,
                                          parsing_opts.DURATION,
-                                         parsing_opts.MULTIPLIER_STRICT)
+                                         parsing_opts.MULTIPLIER_STRICT,
+                                         parsing_opts.DRY_RUN)
 
         opts = parser.parse_args(line.split())
 
         if opts is None:
             return RC_ERR("bad command line paramters")
 
+
+        if opts.dry:
+            print format_text("\n*** DRY RUN ***", 'bold')
 
         if opts.db:
             stream_list = self.stream_db.get_stream_pack(opts.db)
@@ -1099,7 +1164,7 @@ class CTRexStatelessClient(object):
             # if total was set - divide it between the ports
             opts.mult['value'] = opts.mult['value'] / len(opts.ports)
 
-        return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration)
+        return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration, opts.dry)
 
     @timing
     def cmd_stop_line (self, line):
@@ -1185,20 +1250,6 @@ class CTRexStatelessClient(object):
             return RC_ERR("bad command line paramters")
 
         rc = self.cmd_validate(opts.ports)
-        if rc.bad():
-            return rc
-
-        # for each port - print the profile
-        port_id_list = self.__ports(opts.ports)
-        for port_id in port_id_list:
-            port = self.ports[port_id]
-            rate = port.get_profile()['rate']
-            print format_text("Port {0}:\n".format(port_id), 'underline', 'bold')
-            print "Profile max BPS    (m = 1): {:>15}".format(format_num(rate['max_bps'], suffix = "bps"))
-            print "Profile max PPS    (m = 1): {:>15}".format(format_num(rate['max_pps'], suffix = "pps"))
-            print "Profile line util. (m = 1): {:>15}".format(format_percentage(rate['max_line_util'] * 100))
-            print "\n"
-
         return rc
 
 
@@ -1276,6 +1327,7 @@ class CTRexStatelessClient(object):
         print format_text("\n[Done]", 'bold')
 
         return True
+
 
     #################################
     # ------ private classes ------ #

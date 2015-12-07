@@ -536,6 +536,9 @@ TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const Tre
 
     /* no more events after this stream */
     offset_usec = -1;
+
+    /* also mark we have an inifite time */
+    m_graph_obj->m_expected_duration = -1;
 }
 
 /**
@@ -648,6 +651,7 @@ TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
         /* loop detection */
         auto search = loop_hash.find(stream->m_next_stream_id);
         if (search != loop_hash.end()) {
+            m_graph_obj->on_loop_detection();
             break;
         }
 
@@ -718,6 +722,11 @@ TrexStreamsGraphObj::find_max_rate() {
 
         max_rate_pps = std::max(max_rate_pps, current_rate_pps);
         max_rate_bps = std::max(max_rate_bps, current_rate_bps);
+    }
+
+    /* if not mark as inifite - get the last event time */
+    if (m_expected_duration != -1) {
+        m_expected_duration = m_rate_events.back().time;
     }
 
     m_max_pps = max_rate_pps;
