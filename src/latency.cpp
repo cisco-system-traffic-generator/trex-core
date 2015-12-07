@@ -615,11 +615,13 @@ void  CLatencyManager::wait_for_rx_dump(){
 
 void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
                                     rte_mbuf_t * m){
-    CRx_check_header *rxc=NULL;
+    CRx_check_header *rxc = NULL;
+
     lp->m_port.check_packet(m,rxc);
     if ( unlikely(rxc!=NULL) ){
         m_rx_check_manager.handle_packet(rxc);
     }
+
     rte_pktmbuf_free(m);
 }
 
