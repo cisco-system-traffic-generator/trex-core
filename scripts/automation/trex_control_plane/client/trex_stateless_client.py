@@ -49,10 +49,10 @@ class RC:
         return not self.good()
 
     def data (self):
-        return all([x.data if x.rc else "" for x in self.rc_list])
+        return [x.data if x.rc else "" for x in self.rc_list]
 
     def err (self):
-        return all([x.data if not x.rc else "" for x in self.rc_list])
+        return [x.data if not x.rc else "" for x in self.rc_list]
 
     def annotate (self, desc = None):
         if desc:
@@ -73,8 +73,8 @@ class RC:
             print format_text("[SUCCESS]\n", 'green', 'bold')
 
 
-def RC_OK():
-    return RC(True, "")
+def RC_OK(data = None):
+    return RC(True, data)
 def RC_ERR (err):
     return RC(False, err)
 
@@ -158,12 +158,13 @@ class Port(object):
         self.driver = driver
         self.speed = speed
         self.streams = {}
+        self.profile = None
 
     def err(self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
 
-    def ok(self):
-        return RC_OK()
+    def ok(self, data = None):
+        return RC_OK(data)
 
     def get_speed_bps (self):
         return (self.speed * 1000 * 1000 * 1000)
@@ -416,6 +417,13 @@ class Port(object):
 
 
     def validate (self):
+
+        if (self.state == self.STATE_DOWN):
+            return self.err("port is down")
+
+        if (self.state == self.STATE_IDLE):
+            return self.err("no streams attached to port")
+
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
@@ -423,7 +431,12 @@ class Port(object):
         if not rc:
             return self.err(data)
 
+        self.profile = data
+
         return self.ok()
+
+    def get_profile (self):
+        return self.profile
 
     ################# events handler ######################
     def async_event_port_stopped (self):
@@ -942,7 +955,7 @@ class CTRexStatelessClient(object):
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
         if not active_ports:
-            msg = "No active traffic on porvided ports"
+            msg = "No active traffic on provided ports"
             print format_text(msg, 'bold')
             return RC_ERR(msg)
 
@@ -966,10 +979,8 @@ class CTRexStatelessClient(object):
 
         rc = self.update_traffic(mult, active_ports)
         rc.annotate("Updating traffic on port(s) {0}:".format(port_id_list))
-        if rc.bad():
-            return rc
 
-        return RC_OK()
+        return rc
 
 
     # pause cmd
@@ -985,10 +996,8 @@ class CTRexStatelessClient(object):
 
         rc = self.pause_traffic(active_ports)
         rc.annotate("Pausing traffic on port(s) {0}:".format(port_id_list))
-        if rc.bad():
-            return rc
 
-        return RC_OK()
+        return rc
 
 
     # resume cmd
@@ -1004,10 +1013,8 @@ class CTRexStatelessClient(object):
 
         rc = self.resume_traffic(active_ports)
         rc.annotate("Resume traffic on port(s) {0}:".format(port_id_list))
-        if rc.bad():
-            return rc
 
-        return RC_OK()
+        return rc
 
 
     # start cmd
@@ -1040,19 +1047,15 @@ class CTRexStatelessClient(object):
         # finally, start the traffic
         rc = self.start_traffic(mult, duration, port_id_list)
         rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
-        if rc.bad():
-            return rc
 
-        return RC_OK()
+        return rc
+
 
 
     def cmd_validate (self, port_id_list):
         rc = self.validate(port_id_list)
         rc.annotate("Validating streams on port(s) {0}:".format(port_id_list))
-        if rc.bad():
-            return rc
-
-        return RC_OK()
+        return rc
 
     ############## High Level API With Parser ################
     @timing
@@ -1181,7 +1184,22 @@ class CTRexStatelessClient(object):
         if opts is None:
             return RC_ERR("bad command line paramters")
 
-        return self.cmd_validate(opts.ports)
+        rc = self.cmd_validate(opts.ports)
+        if rc.bad():
+            return rc
+
+        # for each port - print the profile
+        port_id_list = self.__ports(opts.ports)
+        for port_id in port_id_list:
+            port = self.ports[port_id]
+            rate = port.get_profile()['rate']
+            print format_text("Port {0}:\n".format(port_id), 'underline', 'bold')
+            print "Profile max BPS    (m = 1): {:>15}".format(format_num(rate['max_bps'], suffix = "bps"))
+            print "Profile max PPS    (m = 1): {:>15}".format(format_num(rate['max_pps'], suffix = "pps"))
+            print "Profile line util. (m = 1): {:>15}".format(format_percentage(rate['max_line_util'] * 100))
+            print "\n"
+
+        return rc
 
 
     def cmd_exit_line (self, line):

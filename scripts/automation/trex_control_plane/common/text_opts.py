@@ -19,6 +19,17 @@ TEXT_CODES = {'bold': {'start': '\x1b[1m',
                             'end': '\x1b[24m'}}
 
 
+def format_num (size, suffix = ""):
+    for unit in ['','K','M','G','T','P']:
+        if abs(size) < 1000.0:
+            return "%3.2f %s%s" % (size, unit, suffix)
+        size /= 1000.0
+
+    return "NaN"
+
+def format_percentage (size):
+    return "%0.2f %%" % (size)
+
 def bold(text):
     return text_attribute(text, 'bold')
 
