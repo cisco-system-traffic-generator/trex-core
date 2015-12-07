@@ -1374,37 +1374,6 @@ class CTRexStatelessClient(object):
 
 
 
-
-    @timing
-    def cmd_pause_line (self, line):
-        '''Pause active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self,
-                                         "pause",
-                                         self.cmd_stop_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return RC_ERR("bad command line paramters")
-
-        return self.cmd_pause(opts.ports)
-
-
-    @timing
-    def cmd_resume_line (self, line):
-        '''Resume active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self,
-                                         "resume",
-                                         self.cmd_stop_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return RC_ERR("bad command line paramters")
-
-        return self.cmd_resume(opts.ports)
-
-
     @timing
     def cmd_validate_line (self, line):
         '''validates port(s) stream configuration\n'''
