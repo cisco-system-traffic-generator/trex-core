@@ -355,6 +355,20 @@ static inline void i40e_flex_payload_reg_init(struct i40e_hw *hw)
 #define I40E_PRTQF_FD_INSET(_i, _j)    (0x00250000 + ((_i) * 64 + (_j) * 32))
 #define I40E_GLQF_FD_MSK(_i, _j)       (0x00267200 + ((_i) * 4 + (_j) * 8))
 
+void dump_regs(struct i40e_hw *hw)
+{
+    int reg_nums[] = {31, 33, 34, 35, 41, 43};
+    int i;
+    uint32_t reg;
+
+    for (i =0; i < sizeof (reg_nums)/sizeof(int); i++) {
+	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 0));
+        printf("I40E_PRTQF_FD_INSET(%d, 0): 0x%08x\n", reg_nums[i], reg);
+	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 1));
+        printf("I40E_PRTQF_FD_INSET(%d, 1): 0x%08x\n", reg_nums[i], reg);
+    }
+}
+
 static inline void i40e_fillter_fields_reg_init(struct i40e_hw *hw)
 {
 	uint32_t reg;
@@ -403,6 +417,10 @@ static inline void i40e_fillter_fields_reg_init(struct i40e_hw *hw)
 	//printf("I40E_PRTQF_FD_INSET(34, 1) = 0x%08x\n", reg);
 	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(34, 1), 0x00040000);
 
+        // filter IP according to ttl and L4 protocol
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(35, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(35, 1), 0x00040000);
+
 	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(44, 0));
 	//printf("I40E_PRTQF_FD_INSET(44, 0) = 0x%08x\n", reg);
 	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(44, 0), 0);
@@ -419,8 +437,6 @@ static inline void i40e_fillter_fields_reg_init(struct i40e_hw *hw)
 
 	I40E_WRITE_FLUSH(hw);
 }
-
-
 
 static int
 eth_i40e_dev_init(__rte_unused struct eth_driver *eth_drv,

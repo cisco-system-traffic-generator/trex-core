@@ -4717,9 +4717,9 @@ int CTRexExtendedDriverBase1G::wait_for_stable_link(){
 int CTRexExtendedDriverBase1G::configure_drop_queue(CPhyEthIF * _if){
     uint8_t protocol;
     if (CGlobalInfo::m_options.m_l_pkt_mode == 0) {
-        protocol = 0x84;
+        protocol = IPPROTO_SCTP;
     } else {
-        protocol = 0x1;
+        protocol = IPPROTO_ICMP;
     }
 
     _if->pci_reg_write( E1000_RXDCTL(0) , 0);
@@ -5039,11 +5039,6 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
 void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
                                            enum rte_eth_flow_type type,
                                            uint8_t ttl){
-    if (CGlobalInfo::m_options.m_l_pkt_mode != 0) {
-        printf("Currently, on 40G, only SCTP latency pkt mode is supported. Please remove --l-pkt-mode option.\n");
-        exit(-1);
-    }
-
     uint8_t port_id = _if->get_port_id();
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
 
@@ -5065,7 +5060,11 @@ void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
     filter.input.flow_type = type;
     filter.input.ttl=ttl;
 
-    /* any SCTP move to queue number 1 */
+    if (type == RTE_ETH_FLOW_TYPE_IPV4_OTHER) {
+        filter.input.flow.ip4_flow.l4_proto = IPPROTO_ICMP; // In this case we want filter for icmp packets
+    }
+
+    /* We want to place latency packets in queue 1 */
     ret=rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR,
                 RTE_ETH_FILTER_ADD, (void*)&filter);
 
@@ -5094,9 +5093,9 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
 
 int CTRexExtendedDriverBase40G::configure_drop_queue(CPhyEthIF * _if){
 
-    /* ??? support ICMP in the driver */
     /* Configure queue for latency packets */
-    add_rules(_if,RTE_ETH_FLOW_TYPE_SCTPV4,0);
+    add_rules(_if,RTE_ETH_FLOW_TYPE_IPV4_OTHER,255);
+    add_rules(_if,RTE_ETH_FLOW_TYPE_SCTPV4,255);
     return (0);
 }
 
