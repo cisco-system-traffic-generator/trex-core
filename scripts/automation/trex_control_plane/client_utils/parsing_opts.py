@@ -23,6 +23,11 @@ FORCE = 11
 DRY_RUN = 12
 TOTAL = 13
 
+GLOBAL_STATS = 14
+PORT_STATS = 15
+PORT_STATUS = 16
+STATS_MASK = 17
+
 # list of ArgumentGroup types
 MUTEX = 1
 
@@ -205,13 +210,30 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                      'default': False,
                                      'help': "Dry run - no traffic will be injected"}),
 
+              GLOBAL_STATS: ArgumentPack(['-g'],
+                                         {'action': 'store_true',
+                                          'help': "Fetch only global statistics"}),
+
+              PORT_STATS: ArgumentPack(['-p'],
+                                       {'action': 'store_true',
+                                        'help': "Fetch only port statistics"}),
+
+              PORT_STATUS: ArgumentPack(['--ps'],
+                                        {'action': 'store_true',
+                                         'help': "Fetch only port status data"}),
+
+
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
                                                 {'required': True}),
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
                                                               FILE_FROM_DB],
-                                                      {'required': True})
+                                                      {'required': True}),
+              STATS_MASK: ArgumentGroup(MUTEX, [GLOBAL_STATS,
+                                                PORT_STATS,
+                                                PORT_STATUS],
+                                        {})
               }
 
 

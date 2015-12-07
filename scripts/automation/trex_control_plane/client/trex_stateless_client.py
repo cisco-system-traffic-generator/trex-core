@@ -10,13 +10,15 @@ except ImportError:
 from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 from client_utils.packet_builder import CTRexPktBuilder
 import json
-from common.trex_stats import *
+
 from common.trex_streams import *
 from collections import namedtuple
 from common.text_opts import *
-import parsing_opts
+from common import trex_stats
+from client_utils import parsing_opts, text_tables
 import time
 import datetime
+import re
 
 from trex_async_client import CTRexAsyncClient
 
@@ -30,7 +32,7 @@ class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg']
                                                   stat="success" if self.success else "fail")
 
 # simple class to represent complex return value
-class RC:
+class RC():
 
     def __init__ (self, rc = None, data = None):
         self.rc_list = []
@@ -78,7 +80,6 @@ def RC_OK(data = None):
 def RC_ERR (err):
     return RC(False, err)
 
-
 LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 
 ########## utlity ############
@@ -103,7 +104,7 @@ class CStreamsDB(object):
     def __init__(self):
         self.stream_packs = {}
 
-    def load_yaml_file (self, filename):
+    def load_yaml_file(self, filename):
 
         stream_pack_name = filename
         if stream_pack_name in self.get_loaded_streams_names():
@@ -162,6 +163,13 @@ class Port(object):
     STATE_STREAMS    = 2
     STATE_TX         = 3
     STATE_PAUSE      = 4
+    PortState = namedtuple('PortState', ['state_id', 'state_name'])
+    STATES_MAP = {STATE_DOWN: "DOWN",
+                  STATE_IDLE: "IDLE",
+                  STATE_STREAMS: "STREAMS",
+                  STATE_TX: "ACTIVE",
+                  STATE_PAUSE: "PAUSE"}
+
 
     def __init__ (self, port_id, speed, driver, user, comm_link):
         self.port_id = port_id
@@ -175,6 +183,8 @@ class Port(object):
         self.speed = speed
         self.streams = {}
         self.profile = None
+
+        self.port_stats = trex_stats.CPortStats(self)
 
     def err(self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
@@ -198,7 +208,6 @@ class Port(object):
             return self.ok()
         else:
             return self.err(rc.data)
-
 
     # release the port
     def release(self):
@@ -492,6 +501,25 @@ class Port(object):
                                                                           format_time(exp_time_factor_sec))
         print "\n"
 
+
+    def get_port_state_name(self):
+        return self.STATES_MAP.get(self.state, "Unknown")
+
+    ################# stats handler ######################
+    def generate_port_stats(self):
+        return self.port_stats.generate_stats()
+        pass
+
+    def generate_port_status(self):
+        return {"port-type": self.driver,
+                "maximum": "{speed} Gb/s".format(speed=self.speed),
+                "port-status": self.get_port_state_name()
+                }
+
+    def clear_stats(self):
+        return self.port_stats.clear_stats()
+
+
     ################# events handler ######################
     def async_event_port_stopped (self):
         self.state = self.STATE_STREAMS
@@ -505,16 +533,22 @@ class CTRexStatelessClient(object):
         self.user = username
         self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
         self.verbose = False
-        self.ports = []
-        self._conn_handler = {}
-        self._active_ports = set()
-        self._system_info = None
-        self._server_version = None
+        self.ports = {}
+        self._connection_info = {"server": server,
+                                 "sync_port": sync_port,
+                                 "async_port": async_port}
+        self.system_info = {}
+        self.server_version = {}
         self.__err_log = None
 
         self.async_client = CTRexAsyncClient(server, async_port, self)
 
         self.streams_db = CStreamsDB()
+        self.global_stats = trex_stats.CGlobalStats(self._connection_info,
+                                                    self.server_version,
+                                                    self.ports)
+        self.stats_generator = trex_stats.CTRexStatsGenerator(self.global_stats,
+                                                              self.ports)
 
         self.events = []
 
@@ -534,6 +568,36 @@ class CTRexStatelessClient(object):
 
         if show:
             print format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold')))
+  
+
+    def handle_async_stats_update(self, dump_data):
+        global_stats = {}
+        port_stats = {}
+
+        # filter the values per port and general
+        for key, value in dump_data.iteritems():
+            # match a pattern of ports
+            m = re.search('(.*)\-([0-8])', key)
+            if m:
+                port_id = int(m.group(2))
+                field_name = m.group(1)
+                if self.ports.has_key(port_id):
+                    if not port_id in port_stats:
+                        port_stats[port_id] = {}
+                    port_stats[port_id][field_name] = value
+                else:
+                    continue
+            else:
+                # no port match - general stats
+                global_stats[key] = value
+
+        # update the general object with the snapshot
+        self.global_stats.update(global_stats)
+        # update all ports
+        for port_id, data in port_stats.iteritems():
+            self.ports[port_id].port_stats.update(data)
+
+
 
     def handle_async_event (self, type, data):
         # DP stopped
@@ -663,12 +727,12 @@ class CTRexStatelessClient(object):
             return RC_ERR(data)
 
         self.server_version = data
+        self.global_stats.server_version = data
 
         # cache system info
         rc, data = self.transmit("get_system_info")
         if not rc:
             return RC_ERR(data)
-
         self.system_info = data
 
         # cache supported commands
@@ -682,7 +746,9 @@ class CTRexStatelessClient(object):
         for port_id in xrange(self.get_port_count()):
             speed = self.system_info['ports'][port_id]['speed']
             driver = self.system_info['ports'][port_id]['driver']
-            self.ports.append(Port(port_id, speed, driver, self.user, self.comm_link))
+
+            self.ports[port_id] = Port(port_id, speed, driver, self.user, self.comm_link)
+
 
         # acquire all ports
         rc = self.acquire()
@@ -747,11 +813,14 @@ class CTRexStatelessClient(object):
         return self.comm_link.server
 
     def get_acquired_ports(self):
-        return [port.port_id for port in self.ports if port.is_acquired()]
-
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_acquired()]
 
     def get_active_ports(self):
-        return [port.port_id for port in self.ports if port.is_active()]
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_active()]
 
     def set_verbose(self, mode):
         self.comm_link.set_verbose(mode)
@@ -777,6 +846,9 @@ class CTRexStatelessClient(object):
 
         return RC_OK()
 
+    def get_global_stats(self):
+        rc, info = self.transmit("get_global_stats")
+        return RC(rc, info)
 
 
     ########## port commands ##############
@@ -1018,11 +1090,11 @@ class CTRexStatelessClient(object):
     # update cmd
     def cmd_update (self, port_id_list, mult):
 
-        # find the relveant ports
+        # find the relevant ports
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
         if not active_ports:
-            msg = "No active traffic on porvided ports"
+            msg = "No active traffic on provided ports"
             print format_text(msg, 'bold')
             return RC_ERR(msg)
 
@@ -1031,22 +1103,32 @@ class CTRexStatelessClient(object):
 
         return rc
 
+    # clear stats
+    def cmd_clear(self, port_id_list):
+
+        for port_id in port_id_list:
+            self.ports[port_id].clear_stats()
+
+        self.global_stats.clear_stats()
+
+        return RC_OK()
+
 
     # pause cmd
     def cmd_pause (self, port_id_list):
 
-        # find the relveant ports
+        # find the relevant ports
         active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
         if not active_ports:
-            msg = "No active traffic on porvided ports"
+            msg = "No active traffic on provided ports"
             print format_text(msg, 'bold')
             return RC_ERR(msg)
 
         rc = self.pause_traffic(active_ports)
         rc.annotate("Pausing traffic on port(s) {0}:".format(port_id_list))
-
         return rc
+
 
 
     # resume cmd
@@ -1062,7 +1144,6 @@ class CTRexStatelessClient(object):
 
         rc = self.resume_traffic(active_ports)
         rc.annotate("Resume traffic on port(s) {0}:".format(port_id_list))
-
         return rc
 
 
@@ -1112,11 +1193,22 @@ class CTRexStatelessClient(object):
             return rc
 
 
-
+    # validate port(s) profile
     def cmd_validate (self, port_id_list):
         rc = self.validate(port_id_list)
         rc.annotate("Validating streams on port(s) {0}:".format(port_id_list))
         return rc
+
+
+    # stats
+    def cmd_stats(self, port_id_list, stats_mask=set()):
+        stats_opts = trex_stats.ALL_STATS_OPTS.intersection(stats_mask)
+
+        stats_obj = {}
+        for stats_type in stats_opts:
+            stats_obj.update(self.stats_generator.generate_single_statistic(port_id_list, stats_type))
+        return stats_obj
+
 
     ############## High Level API With Parser ################
     @timing
@@ -1137,14 +1229,14 @@ class CTRexStatelessClient(object):
         opts = parser.parse_args(line.split())
 
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
 
         if opts.dry:
             print format_text("\n*** DRY RUN ***", 'bold')
 
         if opts.db:
-            stream_list = self.stream_db.get_stream_pack(opts.db)
+            stream_list = self.streams_db.get_stream_pack(opts.db)
             rc = RC(stream_list != None)
             rc.annotate("Load stream pack (from DB):")
             if rc.bad():
@@ -1167,6 +1259,21 @@ class CTRexStatelessClient(object):
         return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration, opts.dry)
 
     @timing
+    def cmd_resume_line (self, line):
+        '''Resume active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "resume",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        return self.cmd_resume(opts.ports)
+
+
+    @timing
     def cmd_stop_line (self, line):
         '''Stop active traffic in specified ports on TRex\n'''
         parser = parsing_opts.gen_parser(self,
@@ -1176,9 +1283,25 @@ class CTRexStatelessClient(object):
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
         return self.cmd_stop(opts.ports)
+
+
+    @timing
+    def cmd_pause_line (self, line):
+        '''Pause active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "pause",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        return self.cmd_pause(opts.ports)
+
 
     @timing
     def cmd_update_line (self, line):
@@ -1204,6 +1327,52 @@ class CTRexStatelessClient(object):
     @timing
     def cmd_reset_line (self, line):
         return self.cmd_reset()
+
+
+    def cmd_clear_line (self, line):
+        '''Clear cached local statistics\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "clear",
+                                         self.cmd_clear_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+        return self.cmd_clear(opts.ports)
+
+
+    def cmd_stats_line (self, line):
+        '''Fetch statistics from TRex server by port\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "stats",
+                                         self.cmd_stats_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STATS_MASK)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        # determine stats mask
+        mask = self._get_mask_keys(**self._filter_namespace_args(opts, trex_stats.ALL_STATS_OPTS))
+        if not mask:
+            # set to show all stats if no filter was given
+            mask = trex_stats.ALL_STATS_OPTS
+
+        # get stats objects, as dictionary
+        stats = self.cmd_stats(opts.ports, mask)
+        # print stats to screen
+        for stat_type, stat_data in stats.iteritems():
+            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+
+        return RC_OK()
+
+
 
 
     @timing
@@ -1269,7 +1438,7 @@ class CTRexStatelessClient(object):
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return RC_ERR("bad command line parameters")
 
         delay_sec = opts.duration if (opts.duration > 0) else 1
 
@@ -1328,6 +1497,20 @@ class CTRexStatelessClient(object):
 
         return True
 
+
+    #################################
+    # ------ private methods ------ #
+    @staticmethod
+    def _get_mask_keys(ok_values={True}, **kwargs):
+        masked_keys = set()
+        for key, val in kwargs.iteritems():
+            if val in ok_values:
+                masked_keys.add(key)
+        return masked_keys
+
+    @staticmethod
+    def _filter_namespace_args(namespace, ok_values):
+        return {k: v for k, v in namespace.__dict__.items() if k in ok_values}
 
     #################################
     # ------ private classes ------ #

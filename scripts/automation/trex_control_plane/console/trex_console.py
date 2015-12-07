@@ -33,9 +33,11 @@ from common.trex_streams import *
 from client.trex_stateless_client import CTRexStatelessClient
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
+from client_utils import parsing_opts
 import trex_status
 import parsing_opts
 from functools import wraps
+
 
 __version__ = "1.1"
 
@@ -362,7 +364,6 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_reset (self, line):
         '''force stop all ports\n'''
-
         self.stateless_client.cmd_reset_line(line)
 
 
@@ -374,6 +375,22 @@ class TRexConsole(TRexGeneralCmd):
         self.stateless_client.cmd_validate_line(line)
 
 
+    def do_stats(self, line):
+        '''Fetch statistics from TRex server by port\n'''
+        self.stateless_client.cmd_stats_line(line)
+
+
+    def help_stats(self):
+        self.do_stats("-h")
+
+    def do_clear(self, line):
+        '''Clear cached local statistics\n'''
+        self.stateless_client.cmd_clear_line(line)
+
+    def help_clear(self):
+        self.do_clear("-h")
+
+  
     def help_events (self):
         self.do_events("-h")
 

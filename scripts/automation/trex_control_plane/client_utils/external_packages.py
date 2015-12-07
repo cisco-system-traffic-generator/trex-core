@@ -9,7 +9,8 @@ PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pard
 
 CLIENT_UTILS_MODULES = ['zmq',
                         'dpkt-1.8.6',
-                        'PyYAML-3.01/lib'
+                        'PyYAML-3.01/lib',
+                        'texttable-0.8.4'
                         ]
 
 def import_client_utils_modules():
