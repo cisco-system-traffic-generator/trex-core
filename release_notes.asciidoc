@@ -28,7 +28,8 @@ endif::backend-docbook[]
 
 === fix issues: ===
 
-* link:http://csi-wiki-01:8090/issue/trex-149[trex-149] 
+* link:http://csi-wiki-01:8090/issue/trex-149[trex-149]
+* link:http://csi-wiki-01:8090/issue/trex-110[trex-110]
 
 == Release 1.80  ==
 

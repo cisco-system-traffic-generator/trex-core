@@ -115,18 +115,20 @@ TRex curretly works on x86 architecture and can operates well on Cisco UCS hardw
 [IMPORTANT]
 =====================================
 * Intel SFP+ 10Gb/Sec is the only one supported by default on the standard Linux driver. TRex also supports Cisco 10Gb/sec SFP+. 
-* Using different NUMA for different NIC is very important when getting to high speeds, such as using several Intel XL710 40Gb/sec.
-* One can verify NUMA and NIC topology with following command: lstopo (yum install hwloc)
-* NUMAs-CPUs relation is determined with following command: lscpu
-* See real example of NUMA usage xref:numa-example[here]
-* Using Intel XL710 with Fedora 18 requires updating Kernel.
-* For Intel XL710 NICs there is a need to verify the FW is v4.42 or v4.53 see  xref:xl710-firmware[here] for more info 
-** > sudo ./t-rex-64 -f cap2/dns.yaml -d 0 --no-flow-control *-v 6* --nc | grep FW
-** PMD:  FW 4.22 API 1.2 NVM *04.04.02* eetrack 800013fc
-** PMD:  FW 4.22 API 1.2 NVM *04.04.02* eetrack 800013fc
-** PMD:  FW 4.22 API 1.2 NVM *04.04.02* eetrack 800013fc
-** PMD:  FW 4.22 API 1.2 NVM *04.04.02* eetrack 800013fc
-
+* Using different NUMA for different NIC is very important when getting to high speeds, such as using several Intel XL710 40Gb/sec. +
+    One can verify NUMA and NIC topology with following command: lstopo (yum install hwloc) +
+    NUMAs-CPUs relation is determined with following command: lscpu +
+    See real example of NUMA usage xref:numa-example[here]
+* Using Intel XL710 with Fedora 18 requires updating Kernel:
+** > sudo yum update kernel
+** > sudo yum update kernel-devel
+** > sudo yum update kernel-headers
+* For Intel XL710 NICs there is a need to verify the NVM is v4.42 or v4.53 see  xref:xl710-firmware[here] for more info
+**  > sudo ./t-rex-64 -f cap2/dns.yaml -d 0 --no-flow-control *-v 6* --nc | grep NVM +
+    PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc +
+    PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc +
+    PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc +
+    PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc
 
 
 =====================================
@@ -1144,7 +1146,9 @@ This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *
        Traffic YAML configuration file.
 
 *-c=CORES*::
-  Number of cores. Use 4 for TRex 40Gb/sec. Monitor the CPU% of TRex - it should be ~50%.
+  Number of cores _per dual interface_. Use 4 for TRex 40Gb/sec. Monitor the CPU% of TRex - it should be ~50%. +
+  TRex uses 2 cores for inner needs, the rest of cores can be used divided by number of dual interfaces. +
+  For virtual NICs the limit is -c=1.
 
 *-l=HZ*::
     Run the latency daemon in this Hz rate. Example: -l 1000 runs 1000 pkt/sec from each interface. A value of zero (0) disables the latency check.
