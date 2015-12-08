@@ -33,16 +33,18 @@ class TrexTUIDashBoard(TrexTUIPanel):
         super(TrexTUIDashBoard, self).__init__(mng, "dashboard")
 
         self.key_actions = OrderedDict()
-        self.key_actions['p'] = {'action': self.action_pause, 'legend': 'pause', 'show': True}
+
+        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
+        self.key_actions['p'] = {'action': self.action_pause,  'legend': 'pause', 'show': True}
         self.key_actions['r'] = {'action': self.action_resume, 'legend': 'resume', 'show': True}
-        self.key_actions['+'] = {'action': self.action_raise, 'legend': 'up 5%', 'show': True}
-        self.key_actions['-'] = {'action': self.action_lower, 'legend': 'low 5%', 'show': True}
+        self.key_actions['+'] = {'action': self.action_raise,  'legend': 'up 5%', 'show': True}
+        self.key_actions['-'] = {'action': self.action_lower,  'legend': 'low 5%', 'show': True}
 
         self.ports = self.stateless_client.get_acquired_ports()
 
 
     def show (self):
-        stats = self.stateless_client.cmd_stats(self.ports, trex_stats.ALL_STATS_OPTS)
+        stats = self.stateless_client.cmd_stats(self.ports, trex_stats.COMPACT)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -50,6 +52,8 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     def get_key_actions (self):
         allowed = {}
+
+        allowed['c'] = self.key_actions['c']
 
         if len(self.stateless_client.get_transmitting_ports()) > 0:
             allowed['p'] = self.key_actions['p']
@@ -121,6 +125,11 @@ class TrexTUIDashBoard(TrexTUIPanel):
             return ""
 
 
+    def action_clear (self):
+        self.stateless_client.cmd_clear(self.mng.acquired_ports)
+        return "cleared all stats"
+
+
 # port panel
 class TrexTUIPort(TrexTUIPanel):
     def __init__ (self, mng, port_id):
@@ -130,6 +139,8 @@ class TrexTUIPort(TrexTUIPanel):
         self.port = self.mng.stateless_client.get_port(port_id)
 
         self.key_actions = OrderedDict()
+
+        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
         self.key_actions['p'] = {'action': self.action_pause, 'legend': 'pause', 'show': True}
         self.key_actions['r'] = {'action': self.action_resume, 'legend': 'resume', 'show': True}
         self.key_actions['+'] = {'action': self.action_raise, 'legend': 'up 5%', 'show': True}
@@ -138,7 +149,7 @@ class TrexTUIPort(TrexTUIPanel):
 
     def show (self):
 
-        stats = self.stateless_client.cmd_stats([self.port_id], trex_stats.ALL_STATS_OPTS)
+        stats = self.stateless_client.cmd_stats([self.port_id], trex_stats.COMPACT)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -146,6 +157,8 @@ class TrexTUIPort(TrexTUIPanel):
     def get_key_actions (self):
 
         allowed = {}
+
+        allowed['c'] = self.key_actions['c']
 
         if self.port.state == self.port.STATE_TX:
             allowed['p'] = self.key_actions['p']
@@ -190,6 +203,10 @@ class TrexTUIPort(TrexTUIPanel):
             return "port {0}: lowered B/W by 5%".format(self.port_id)
         else:
             return ""
+
+    def action_clear (self):
+        self.stateless_client.cmd_clear([self.port_id])
+        return "port {0}: cleared stats".format(self.port_id)
 
 # log
 class TrexTUILog():
@@ -239,7 +256,7 @@ class TrexTUIPanelManager():
 
 
     def generate_legend (self):
-        self.legend = "{:<12}".format("browse:")
+        self.legend = "\n{:<12}".format("browse:")
 
         for k, v in self.key_actions.iteritems():
             if v['show']:

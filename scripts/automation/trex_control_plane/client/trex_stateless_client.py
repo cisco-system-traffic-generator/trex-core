@@ -539,11 +539,19 @@ class Port(object):
 class CTRexStatelessClient(object):
     """docstring for CTRexStatelessClient"""
 
+    # verbose levels
+    VERBOSE_SILENCE = 0
+    VERBOSE_REGULAR = 1
+    VERBOSE_HIGH    = 2
+    
     def __init__(self, username, server="localhost", sync_port = 5050, async_port = 4500, virtual=False):
         super(CTRexStatelessClient, self).__init__()
         self.user = username
         self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
-        self.verbose = False
+
+        # default verbose level
+        self.verbose = self.VERBOSE_REGULAR
+
         self.ports = {}
         self._connection_info = {"server": server,
                                  "sync_port": sync_port,
@@ -571,6 +579,7 @@ class CTRexStatelessClient(object):
     def get_port (self, port_id):
         return self.ports.get(port_id, None)
 
+
     ################# events handler ######################
     def add_event_log (self, msg, ev_type, show = False):
 
@@ -583,7 +592,7 @@ class CTRexStatelessClient(object):
         st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
         self.events.append("{:<10} - {:^8} - {:}".format(st, prefix, format_text(msg, 'bold')))
 
-        if show:
+        if show and self.check_verbose(self.VERBOSE_REGULAR):
             print format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold')))
   
 
@@ -850,8 +859,21 @@ class CTRexStatelessClient(object):
                 if port_obj.is_transmitting()]
 
     def set_verbose(self, mode):
-        self.comm_link.set_verbose(mode)
+
+        # on high - enable link verbose
+        if mode == self.VERBOSE_HIGH:
+            self.comm_link.set_verbose(True)
+        else:
+            self.comm_link.set_verbose(False)
+
         self.verbose = mode
+
+
+    def check_verbose (self, level):
+        return (self.verbose >= level)
+
+    def get_verbose (self):
+        return self.verbose
 
     ############# server actions ################
 

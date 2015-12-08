@@ -11,6 +11,8 @@ GLOBAL_STATS = 'g'
 PORT_STATS = 'p'
 PORT_STATUS = 'ps'
 ALL_STATS_OPTS = {GLOBAL_STATS, PORT_STATS, PORT_STATUS}
+COMPACT = {GLOBAL_STATS, PORT_STATS}
+
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
 
@@ -54,15 +56,24 @@ class CTRexStatsGenerator(object):
 
         return_stats_data = {}
         per_field_stats = OrderedDict([("owner", []),
-                                       ("active", []),
+                                       ("state", []),
+                                       ("--", []),
+                                       ("opackets", []),
+                                       ("obytes", []),
+                                       ("ipackets", []),
+                                       ("ibytes", []),
+                                       ("ierrors", []),
+                                       ("oerrors", []),
                                        ("tx-bytes", []),
                                        ("rx-bytes", []),
                                        ("tx-pkts", []),
                                        ("rx-pkts", []),
-                                       ("tx-errors", []),
-                                       ("rx-errors", []),
-                                       ("tx-BW", []),
-                                       ("rx-BW", [])
+                                       ("---", []),
+                                       ("Tx bps", []),
+                                       ("Rx bps", []),
+                                       ("----", []),
+                                       ("Tx pps", []),
+                                       ("Rx pps", [])
                                       ]
                                       )
 
@@ -76,6 +87,9 @@ class CTRexStatsGenerator(object):
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["r"]*len(relevant_ports))
+        stats_table.set_cols_width([10] + [20] * len(relevant_ports))
+        stats_table.set_cols_dtype(['t'] + ['t'] * len(relevant_ports))
+
         stats_table.add_rows([[k] + v
                               for k, v in per_field_stats.iteritems()],
                              header=False)
@@ -106,6 +120,8 @@ class CTRexStatsGenerator(object):
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["c"]*len(relevant_ports))
+        stats_table.set_cols_width([10] + [20] * len(relevant_ports))
+
         stats_table.add_rows([[k] + v
                               for k, v in per_field_status.iteritems()],
                              header=False)
@@ -250,15 +266,26 @@ class CPortStats(CTRexStats):
 
     def generate_stats(self):
         return {"owner": self._port_obj.user,
-                "active": "YES" if self._port_obj.is_active() else "NO",
+                "state": self._port_obj.get_port_state_name(),
+                "--": "",
+                "opackets" : self.get_rel("opackets"),
+                "obytes"   : self.get_rel("obytes"),
+                "ipackets" : self.get_rel("ipackets"),
+                "ibytes"   : self.get_rel("ibytes"),
+                "ierrors"  : self.get_rel("ierrors"),
+                "oerrors"  : self.get_rel("oerrors"),
+
                 "tx-bytes": self.get_rel("obytes", format = True, suffix = "B"),
                 "rx-bytes": self.get_rel("ibytes", format = True, suffix = "B"),
                 "tx-pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
                 "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
-                "tx-errors": self.get_rel("oerrors", format = True),
-                "rx-errors": self.get_rel("ierrors", format = True),
-                "tx-BW": self.get("m_total_tx_bps", format = True, suffix = "bps"),
-                "rx-BW": self.get("m_total_rx_bps", format = True, suffix = "bps")
+
+                "---": "",
+                "Tx bps": self.get("m_total_tx_bps", format = True, suffix = "bps"),
+                "Rx bps": self.get("m_total_rx_bps", format = True, suffix = "bps"),
+                "----": "",
+                "Tx pps": self.get("m_total_tx_pps", format = True, suffix = "pps"),
+                "Rx pps": self.get("m_total_rx_pps", format = True, suffix = "pps"),
                 }
 
 

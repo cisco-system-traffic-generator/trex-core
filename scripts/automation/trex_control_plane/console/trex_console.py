@@ -238,12 +238,12 @@ class TRexConsole(TRexGeneralCmd):
 
         elif line == "on":
             self.verbose = True
-            self.stateless_client.set_verbose(True)
+            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_HIGH)
             print format_text("\nverbose set to on\n", 'green', 'bold')
 
         elif line == "off":
             self.verbose = False
-            self.stateless_client.set_verbose(False)
+            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_REGULAR)
             print format_text("\nverbose set to off\n", 'green', 'bold')
 
         else:
@@ -424,8 +424,11 @@ class TRexConsole(TRexGeneralCmd):
     def do_tui (self, line):
         '''Shows a graphical console\n'''
 
-        self.do_verbose('off')
+        save_verbose = self.stateless_client.get_verbose()
+
+        self.stateless_client.set_verbose(self.stateless_client.VERBOSE_SILENCE)
         self.tui.show()
+        self.stateless_client.set_verbose(save_verbose)
 
     # quit function
     def do_quit(self, line):
