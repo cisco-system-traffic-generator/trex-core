@@ -20,6 +20,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.82  ==
+
+* more stateless support
+** stats function works now 
+
+=== fix issues: ===
+
+* link:http://csi-wiki-01:8090/issue/trex-110[trex-110]
+
+
 == Release 1.81  ==
 
 * more stateless support and fixes 
@@ -29,7 +39,6 @@ endif::backend-docbook[]
 === fix issues: ===
 
 * link:http://csi-wiki-01:8090/issue/trex-149[trex-149]
-* link:http://csi-wiki-01:8090/issue/trex-110[trex-110]
 
 == Release 1.80  ==
 
