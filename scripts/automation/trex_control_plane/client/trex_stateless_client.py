@@ -228,6 +228,13 @@ class Port(object):
     def is_active(self):
         return(self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE)
 
+    def is_transmitting (self):
+        return (self.state == self.STATE_TX)
+
+    def is_paused (self):
+        return (self.state == self.STATE_PAUSE)
+
+
     def sync(self, sync_data):
         self.handler = sync_data['handler']
         port_state = sync_data['state'].upper()
@@ -558,6 +565,12 @@ class CTRexStatelessClient(object):
 
         self.connected = False
 
+
+
+    # returns the port object
+    def get_port (self, port_id):
+        return self.ports.get(port_id, None)
+
     ################# events handler ######################
     def add_event_log (self, msg, ev_type, show = False):
 
@@ -825,6 +838,16 @@ class CTRexStatelessClient(object):
         return [port_id
                 for port_id, port_obj in self.ports.iteritems()
                 if port_obj.is_active()]
+
+    def get_paused_ports (self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_paused()]
+
+    def get_transmitting_ports (self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_transmitting()]
 
     def set_verbose(self, mode):
         self.comm_link.set_verbose(mode)

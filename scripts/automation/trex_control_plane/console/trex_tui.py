@@ -38,17 +38,32 @@ class TrexTUIDashBoard(TrexTUIPanel):
         self.key_actions['+'] = {'action': self.action_raise, 'legend': 'up 5%', 'show': True}
         self.key_actions['-'] = {'action': self.action_lower, 'legend': 'low 5%', 'show': True}
 
+        self.ports = self.stateless_client.get_acquired_ports()
+
+
     def show (self):
-        ports = self.stateless_client.get_acquired_ports()
-        stats = self.stateless_client.cmd_stats(ports, trex_stats.ALL_STATS_OPTS)
+        stats = self.stateless_client.cmd_stats(self.ports, trex_stats.ALL_STATS_OPTS)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
 
-    def get_key_actions (self):
-        return self.key_actions
 
-    # actions
+    def get_key_actions (self):
+        allowed = {}
+
+        if len(self.stateless_client.get_transmitting_ports()) > 0:
+            allowed['p'] = self.key_actions['p']
+            allowed['+'] = self.key_actions['+']
+            allowed['-'] = self.key_actions['-']
+
+
+        if len(self.stateless_client.get_paused_ports()) > 0:
+            allowed['r'] = self.key_actions['r']
+
+        return allowed
+
+
+    ######### actions
     def action_pause (self):
         rc = self.stateless_client.pause_traffic(self.mng.acquired_ports)
 
@@ -110,7 +125,9 @@ class TrexTUIDashBoard(TrexTUIPanel):
 class TrexTUIPort(TrexTUIPanel):
     def __init__ (self, mng, port_id):
         super(TrexTUIPort, self).__init__(mng, "port {0}".format(port_id))
+
         self.port_id = port_id
+        self.port = self.mng.stateless_client.get_port(port_id)
 
         self.key_actions = OrderedDict()
         self.key_actions['p'] = {'action': self.action_pause, 'legend': 'pause', 'show': True}
@@ -118,27 +135,41 @@ class TrexTUIPort(TrexTUIPanel):
         self.key_actions['+'] = {'action': self.action_raise, 'legend': 'up 5%', 'show': True}
         self.key_actions['-'] = {'action': self.action_lower, 'legend': 'low 5%', 'show': True}
 
+
     def show (self):
+
         stats = self.stateless_client.cmd_stats([self.port_id], trex_stats.ALL_STATS_OPTS)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
 
     def get_key_actions (self):
-        return self.key_actions
+
+        allowed = {}
+
+        if self.port.state == self.port.STATE_TX:
+            allowed['p'] = self.key_actions['p']
+            allowed['+'] = self.key_actions['+']
+            allowed['-'] = self.key_actions['-']
+
+        elif self.port.state == self.port.STATE_PAUSE:
+            allowed['r'] = self.key_actions['r']
+
+
+        return allowed
 
     # actions
     def action_pause (self):
         rc = self.stateless_client.pause_traffic([self.port_id])
         if rc.good():
-            return "paused traffic on port {0}".format(self.port_id)
+            return "port {0}: paused traffic".format(self.port_id)
         else:
             return ""
 
     def action_resume (self):
         rc = self.stateless_client.resume_traffic([self.port_id])
         if rc.good():
-            return "resumed traffic on port {0}".format(self.port_id)
+            return "port {0}: resumed traffic".format(self.port_id)
         else:
             return ""
 
@@ -147,7 +178,7 @@ class TrexTUIPort(TrexTUIPanel):
         rc = self.stateless_client.update_traffic(mul, [self.port_id])
 
         if rc.good():
-            return "raised B/W by 5% on port {0}".format(self.port_id)
+            return "port {0}: raised B/W by 5%".format(self.port_id)
         else:
             return ""
 
@@ -156,7 +187,7 @@ class TrexTUIPort(TrexTUIPanel):
         rc = self.stateless_client.update_traffic(mul, [self.port_id])
 
         if rc.good():
-            return "lowered B/W by 5% on port {0}".format(self.port_id)
+            return "port {0}: lowered B/W by 5%".format(self.port_id)
         else:
             return ""
 
@@ -185,6 +216,7 @@ class TrexTUIPanelManager():
         self.tui = tui
         self.stateless_client = tui.stateless_client
         self.acquired_ports = self.stateless_client.get_acquired_ports()
+        
 
         self.panels = {}
         self.panels['dashboard'] = TrexTUIDashBoard(self)
@@ -200,9 +232,10 @@ class TrexTUIPanelManager():
         # start with dashboard
         self.main_panel = self.panels['dashboard']
 
-        self.generate_legend()
-
+        # log object
         self.log = TrexTUILog()
+
+        self.generate_legend()
 
 
     def generate_legend (self):
@@ -215,9 +248,6 @@ class TrexTUIPanelManager():
 
         self.legend += "'0-{0}' - port display".format(len(self.acquired_ports) - 1)
 
-        panel_actions = self.main_panel.get_key_actions()
-        if not panel_actions:
-            return
 
         self.legend += "\n{:<12}".format(self.main_panel.get_name() + ":")
         for k, v in self.main_panel.get_key_actions().iteritems():
@@ -229,6 +259,10 @@ class TrexTUIPanelManager():
     def print_legend (self):
         print format_text(self.legend, 'bold')
 
+
+    # on window switch or turn on / off of the TUI we call this
+    def init (self):
+        self.generate_legend()
 
     def show (self):
         self.main_panel.show()
@@ -265,11 +299,13 @@ class TrexTUIPanelManager():
 
     def action_show_dash (self):
         self.main_panel = self.panels['dashboard']
+        self.init()
         return ""
 
     def action_show_port (self, port_id):
         def action_show_port_x ():
             self.main_panel = self.panels['port {0}'.format(port_id)]
+            self.init()
             return ""
 
         return action_show_port_x
@@ -308,6 +344,8 @@ class TrexTUI():
         new_settings[6][termios.VMIN] = 0  # cc
         new_settings[6][termios.VTIME] = 0 # cc
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
+
+        self.pm.init()
 
         try:
             while True:
