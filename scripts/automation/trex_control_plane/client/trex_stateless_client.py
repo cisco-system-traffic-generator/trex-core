@@ -321,6 +321,8 @@ class Port(object):
 
         self.streams[stream_id] = None
 
+        self.state = self.STATE_STREAMS if len(self.streams > 0) else self.STATE_IDLE
+
         return self.ok()
 
     # remove all the streams
@@ -334,6 +336,8 @@ class Port(object):
             return self.err(data)
 
         self.streams = {}
+
+        self.state = self.STATE_IDLE
 
         return self.ok()
 
@@ -1364,11 +1368,12 @@ class CTRexStatelessClient(object):
             # set to show all stats if no filter was given
             mask = trex_stats.ALL_STATS_OPTS
 
-        # get stats objects, as dictionary
         stats = self.cmd_stats(opts.ports, mask)
+
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
+
 
         return RC_OK()
 
@@ -1480,6 +1485,7 @@ class CTRexStatelessClient(object):
     @staticmethod
     def _filter_namespace_args(namespace, ok_values):
         return {k: v for k, v in namespace.__dict__.items() if k in ok_values}
+
 
     #################################
     # ------ private classes ------ #

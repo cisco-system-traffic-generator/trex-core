@@ -34,8 +34,7 @@ from client.trex_stateless_client import CTRexStatelessClient
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 from client_utils import parsing_opts
-import trex_status
-import parsing_opts
+import trex_tui
 from functools import wraps
 
 
@@ -119,6 +118,7 @@ class TRexConsole(TRexGeneralCmd):
         self.stateless_client = stateless_client
         TRexGeneralCmd.__init__(self)
 
+        self.tui = trex_tui.TrexTUI(stateless_client)
 
         self.verbose = verbose
         self.acquire_all_ports = acquire_all_ports
@@ -425,7 +425,7 @@ class TRexConsole(TRexGeneralCmd):
         '''Shows a graphical console\n'''
 
         self.do_verbose('off')
-        trex_status.show_trex_status(self.stateless_client)
+        self.tui.show()
 
     # quit function
     def do_quit(self, line):
