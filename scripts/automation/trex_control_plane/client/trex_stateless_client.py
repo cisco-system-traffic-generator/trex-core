@@ -75,7 +75,7 @@ class RC():
             print format_text("[SUCCESS]\n", 'green', 'bold')
 
 
-def RC_OK(data = None):
+def RC_OK(data = ""):
     return RC(True, data)
 def RC_ERR (err):
     return RC(False, err)
@@ -189,7 +189,7 @@ class Port(object):
     def err(self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
 
-    def ok(self, data = None):
+    def ok(self, data = "ACK"):
         return RC_OK(data)
 
     def get_speed_bps (self):

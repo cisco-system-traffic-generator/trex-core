@@ -51,24 +51,43 @@ class TrexTUIDashBoard(TrexTUIPanel):
     # actions
     def action_pause (self):
         rc = self.stateless_client.pause_traffic(self.mng.acquired_ports)
-        if rc.good():
-            return "paused traffic on all ports"
+
+        ports_succeeded = []
+        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+            if rc_single.rc:
+                ports_succeeded.append(port_id)
+
+        if len(ports_succeeded) > 0:
+            return "paused traffic on port(s): {0}".format(ports_succeeded)
         else:
             return ""
 
+
     def action_resume (self):
         rc = self.stateless_client.resume_traffic(self.mng.acquired_ports)
-        if rc.good():
-            return "resumed traffic on all ports"
+
+        ports_succeeded = []
+        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+            if rc_single.rc:
+                ports_succeeded.append(port_id)
+
+        if len(ports_succeeded) > 0:
+            return "resumed traffic on port(s): {0}".format(ports_succeeded)
         else:
             return ""
+
 
     def action_raise (self):
         mul = {'type': 'percentage', 'value': 5, 'op': 'add'}
         rc = self.stateless_client.update_traffic(mul, self.mng.acquired_ports)
 
-        if rc.good():
-            return "raised B/W by 5% on all ports"
+        ports_succeeded = []
+        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+            if rc_single.rc:
+                ports_succeeded.append(port_id)
+
+        if len(ports_succeeded) > 0:
+            return "raised B/W by %5 on port(s): {0}".format(ports_succeeded)
         else:
             return ""
 
@@ -76,8 +95,13 @@ class TrexTUIDashBoard(TrexTUIPanel):
         mul = {'type': 'percentage', 'value': 5, 'op': 'sub'}
         rc = self.stateless_client.update_traffic(mul, self.mng.acquired_ports)
 
-        if rc.good():
-            return "lowered B/W by 5% on all ports"
+        ports_succeeded = []
+        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+            if rc_single.rc:
+                ports_succeeded.append(port_id)
+
+        if len(ports_succeeded) > 0:
+            return "lowered B/W by %5 on port(s): {0}".format(ports_succeeded)
         else:
             return ""
 
