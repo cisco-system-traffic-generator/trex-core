@@ -65,9 +65,9 @@ limitations under the License.
 #include <../linux_dpdk/version.h>
 
 extern "C" {
-  #include <dpdk_lib18/librte_pmd_ixgbe/ixgbe/ixgbe_type.h>
+#include <dpdk22/drivers/net/ixgbe/base/ixgbe_type.h>
 }
-#include <dpdk_lib18/librte_pmd_e1000/e1000/e1000_regs.h>
+#include <dpdk22/drivers/net/e1000/base/e1000_regs.h>
 #include <zmq.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -106,8 +106,6 @@ extern "C" {
 typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
 struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
 extern "C" int vmxnet3_xmit_set_callback(rte_mbuf_convert_to_one_seg_t cb);
-
-
 
 #define RTE_TEST_TX_DESC_DEFAULT 512
 #define RTE_TEST_RX_DESC_DROP    0
@@ -307,7 +305,7 @@ public:
     virtual int wait_for_stable_link();
 private:
     void add_rules(CPhyEthIF * _if,
-                   enum rte_eth_flow_type type,
+                   uint16_t type,
                    uint8_t ttl);
 };
 
@@ -1037,6 +1035,9 @@ struct port_cfg_t {
 
 	/* enable FDIR */
 	inline void update_global_config_fdir_10g_1g(void){
+#if 0
+fix me
+    //????????
 		m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
 		m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
 		m_port_conf.fdir_conf.status=RTE_FDIR_NO_REPORT_STATUS; 
@@ -1053,8 +1054,8 @@ struct port_cfg_t {
 	        	m_port_conf.fdir_conf.flexbytes_offset+=(4/2);
 		}
 		m_port_conf.fdir_conf.drop_queue=1;
+#endif
 	}
-
     inline void update_global_config_fdir_40g(void){
         m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
         m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
@@ -3580,10 +3581,13 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 
     CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
 
+#if 0
+    //??? fixme
     /* register driver callback to convert mseg to signle seg */
     if (strcmp(dev_info.driver_name,"rte_vmxnet3_pmd")==0 ) {
         vmxnet3_xmit_set_callback(rte_mbuf_convert_to_one_seg);
     }
+#endif
 
 
     m_port_cfg.update_var();
@@ -4898,7 +4902,10 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
 }
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
+
+    // ??? fixme
         /* 10Gb/sec 82599 */
+#if 0
         uint8_t port_id=_if->get_rte_port_id();
 
         uint16_t hops = get_rx_check_hops();
@@ -4906,7 +4913,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
 
 
       /* set the mask only for flex-data */
-        rte_fdir_masks fdir_mask;
+        rte_eth_fdir_masks fdir_mask;
         memset(&fdir_mask,0,sizeof(rte_fdir_masks));
         fdir_mask.flexbytes=1;
         //fdir_mask.dst_port_mask=0xffff; /* enable of 
@@ -4977,6 +4984,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
                  rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_fdir_add_perfect_filter : %d\n",res);
             }
         }
+#endif
         return (0);
 }
 
@@ -5053,7 +5061,7 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
 
 /* Add rule to send packets with protocol 'type', and ttl 'ttl' to rx queue 1 */
 void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
-                                           enum rte_eth_flow_type type,
+                                           uint16_t type,
                                            uint8_t ttl){
     uint8_t port_id = _if->get_port_id();
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
@@ -5074,11 +5082,13 @@ void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
     filter.soft_id=0;
     
     filter.input.flow_type = type;
-    filter.input.ttl=ttl;
+    /* // ??? fixme
+    filter.input.flow.ip4_flow.ttl=ttl;
 
-    if (type == RTE_ETH_FLOW_TYPE_IPV4_OTHER) {
+    if (type == RTE_ETH_FLOW_NONFRAG_IPV4_OTHER) {
         filter.input.flow.ip4_flow.l4_proto = IPPROTO_ICMP; // In this case we want filter for icmp packets
     }
+    */
 
     /* We want to place latency packets in queue 1 */
     ret=rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR,
@@ -5097,10 +5107,10 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
     int i;
     for (i=0; i<2; i++) {
         uint8_t ttl=0xff-i-hops;
-        add_rules(_if,RTE_ETH_FLOW_TYPE_UDPV4,ttl);
-        add_rules(_if,RTE_ETH_FLOW_TYPE_TCPV4,ttl);
-        add_rules(_if,RTE_ETH_FLOW_TYPE_UDPV6,ttl);
-        add_rules(_if,RTE_ETH_FLOW_TYPE_TCPV6,ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl);
     }
 
     return (0);
@@ -5110,8 +5120,8 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
 int CTRexExtendedDriverBase40G::configure_drop_queue(CPhyEthIF * _if){
 
     /* Configure queue for latency packets */
-    add_rules(_if,RTE_ETH_FLOW_TYPE_IPV4_OTHER,255);
-    add_rules(_if,RTE_ETH_FLOW_TYPE_SCTPV4,255);
+    add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 255);
+    add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 255);
     return (0);
 }
 

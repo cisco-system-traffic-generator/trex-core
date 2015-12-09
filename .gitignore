@@ -7,8 +7,12 @@
 *.o
 *.so
 .lock*
-linux_dpdk*
-linux*
+linux_dpdk/.waf*
+linux_dpdk/build*
+linux_dpdk/version*
+linux/.waf*
+linux/build*
+linux/version*
 scripts/_t-rex-*
 scripts/bp-sim-*
 scripts/doc/*
