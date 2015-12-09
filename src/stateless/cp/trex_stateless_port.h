@@ -29,6 +29,82 @@ class TrexStatelessCpToDpMsgBase;
 class TrexStreamsGraphObj;
 class TrexPortMultiplier;
 
+/** 
+ * TRex port owner can perform
+ * write commands
+ * while port is owned - others can
+ * do read only commands
+ * 
+ */
+class TrexPortOwner {
+public:
+
+    TrexPortOwner();
+
+    /**
+     * is port free to acquire
+     */
+    bool is_free() {
+        return m_is_free;
+    }
+
+    void release() {
+        m_is_free = true;
+        m_owner_name = "";
+        m_handler = "";
+    }
+
+    bool is_owned_by(const std::string &user) {
+        return ( !m_is_free && (m_owner_name == user) );
+    }
+
+    void own(const std::string &owner_name, uint32_t session_id) {
+
+        /* save user data */
+        m_owner_name = owner_name;
+        m_session_id = session_id;
+
+        /* internal data */
+        m_handler = generate_handler();
+        m_is_free = false;
+    }
+
+    bool verify(const std::string &handler) {
+        return ( (!m_is_free) && (m_handler == handler) );
+    }
+
+    const std::string &get_name() {
+        return (!m_is_free ? m_owner_name : g_unowned_name);
+    }
+
+    const std::string &get_handler() {
+        return (!m_is_free ? m_handler : g_unowned_handler);
+    }
+
+    uint32_t get_session_id() {
+        return m_session_id;
+    }
+
+private:
+    std::string  generate_handler();
+
+    /* is this port owned by someone ? */
+    bool         m_is_free;
+
+    /* user provided info - name and session id */
+    std::string  m_owner_name;
+    uint32_t     m_session_id;
+
+    /* handler genereated internally */
+    std::string  m_handler;
+    
+
+    /* just references defaults... */
+    static const std::string g_unowned_name;
+    static const std::string g_unowned_handler;
+};
+
+
 /**
  * describes a stateless port
  * 
@@ -67,7 +143,7 @@ public:
      * acquire port
      * throws TrexException in case of an error
      */
-    void acquire(const std::string &user, bool force = false);
+    void acquire(const std::string &user, uint32_t session_id, bool force = false);
 
     /**
      * release the port from the current user
@@ -140,29 +216,6 @@ public:
     void get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed);
 
 
-    /**
-    * query for ownership
-    * 
-    */
-    const std::string &get_owner() {
-        return m_owner;
-    }
-
-    /**
-     * owner handler 
-     * for the connection 
-     * 
-     */
-    const std::string &get_owner_handler() {
-        return m_owner_handler;
-    }
-
-
-    bool verify_owner_handler(const std::string &handler) {
-
-        return ( (m_owner != "none") && (m_owner_handler == handler) );
-
-    }
 
     /**
      * encode stats as JSON
@@ -246,29 +299,11 @@ public:
      */
     uint64_t get_port_speed_bps() const;
 
+    TrexPortOwner & get_owner() {
+        return m_owner;
+    }
+
 private:
-
-  
-
-    /**
-    * take ownership of the server array 
-    * this is static 
-    * ownership is total 
-    * 
-    */
-    void set_owner(const std::string &owner) {
-        m_owner = owner;
-        m_owner_handler = generate_handler();
-    }
-
-    void clear_owner() {
-        m_owner = "none";
-        m_owner_handler = "";
-    }
-
-    bool is_free_to_aquire() {
-        return (m_owner == "none");
-    }
 
 
     const std::vector<int> get_core_id_list () {
@@ -325,14 +360,12 @@ private:
     TrexStreamTable    m_stream_table;
     uint8_t            m_port_id;
     port_state_e       m_port_state;
-    std::string        m_owner;
-    std::string        m_owner_handler;
     std::string        m_driver_name;
 
     TrexPlatformApi::driver_speed_e m_speed;
 
     /* holds the DP cores associated with this port */
-    std::vector<int> m_cores_id_list;
+    std::vector<int>   m_cores_id_list;
 
     bool               m_last_all_streams_continues;
     double             m_last_duration;
@@ -342,8 +375,10 @@ private:
 
     /* holds a graph of streams rate*/
     const TrexStreamsGraphObj  *m_graph_obj;
-};
 
+    /* owner information */
+    TrexPortOwner       m_owner;
+};
 
 
 /**

@@ -40,7 +40,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
         self.key_actions['+'] = {'action': self.action_raise,  'legend': 'up 5%', 'show': True}
         self.key_actions['-'] = {'action': self.action_lower,  'legend': 'low 5%', 'show': True}
 
-        self.ports = self.stateless_client.get_acquired_ports()
+        self.ports = self.stateless_client.get_all_ports()
 
 
     def show (self):
@@ -54,6 +54,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
         allowed = {}
 
         allowed['c'] = self.key_actions['c']
+
+        # thats it for read only
+        if self.stateless_client.is_read_only():
+            return allowed
 
         if len(self.stateless_client.get_transmitting_ports()) > 0:
             allowed['p'] = self.key_actions['p']
@@ -69,10 +73,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     ######### actions
     def action_pause (self):
-        rc = self.stateless_client.pause_traffic(self.mng.acquired_ports)
+        rc = self.stateless_client.pause_traffic(self.mng.ports)
 
         ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
             if rc_single.rc:
                 ports_succeeded.append(port_id)
 
@@ -83,10 +87,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
 
     def action_resume (self):
-        rc = self.stateless_client.resume_traffic(self.mng.acquired_ports)
+        rc = self.stateless_client.resume_traffic(self.mng.ports)
 
         ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
             if rc_single.rc:
                 ports_succeeded.append(port_id)
 
@@ -98,10 +102,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     def action_raise (self):
         mul = {'type': 'percentage', 'value': 5, 'op': 'add'}
-        rc = self.stateless_client.update_traffic(mul, self.mng.acquired_ports)
+        rc = self.stateless_client.update_traffic(mul, self.mng.ports)
 
         ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
             if rc_single.rc:
                 ports_succeeded.append(port_id)
 
@@ -112,10 +116,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     def action_lower (self):
         mul = {'type': 'percentage', 'value': 5, 'op': 'sub'}
-        rc = self.stateless_client.update_traffic(mul, self.mng.acquired_ports)
+        rc = self.stateless_client.update_traffic(mul, self.mng.ports)
 
         ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.acquired_ports):
+        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
             if rc_single.rc:
                 ports_succeeded.append(port_id)
 
@@ -126,7 +130,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
 
     def action_clear (self):
-        self.stateless_client.cmd_clear(self.mng.acquired_ports)
+        self.stateless_client.cmd_clear(self.mng.ports)
         return "cleared all stats"
 
 
@@ -148,7 +152,6 @@ class TrexTUIPort(TrexTUIPanel):
 
 
     def show (self):
-
         stats = self.stateless_client.cmd_stats([self.port_id], trex_stats.COMPACT)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
@@ -159,6 +162,10 @@ class TrexTUIPort(TrexTUIPanel):
         allowed = {}
 
         allowed['c'] = self.key_actions['c']
+
+        # thats it for read only
+        if self.stateless_client.is_read_only():
+            return allowed
 
         if self.port.state == self.port.STATE_TX:
             allowed['p'] = self.key_actions['p']
@@ -232,7 +239,7 @@ class TrexTUIPanelManager():
     def __init__ (self, tui):
         self.tui = tui
         self.stateless_client = tui.stateless_client
-        self.acquired_ports = self.stateless_client.get_acquired_ports()
+        self.ports = self.stateless_client.get_all_ports()
         
 
         self.panels = {}
@@ -242,7 +249,7 @@ class TrexTUIPanelManager():
         self.key_actions['q'] = {'action': self.action_quit, 'legend': 'quit', 'show': True}
         self.key_actions['g'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
 
-        for port_id in self.acquired_ports:
+        for port_id in self.ports:
             self.key_actions[str(port_id)] = {'action': self.action_show_port(port_id), 'legend': 'port {0}'.format(port_id), 'show': False}
             self.panels['port {0}'.format(port_id)] = TrexTUIPort(self, port_id)
 
@@ -263,7 +270,7 @@ class TrexTUIPanelManager():
                 x = "'{0}' - {1}, ".format(k, v['legend'])
                 self.legend += "{:}".format(x)
 
-        self.legend += "'0-{0}' - port display".format(len(self.acquired_ports) - 1)
+        self.legend += "'0-{0}' - port display".format(len(self.ports) - 1)
 
 
         self.legend += "\n{:<12}".format(self.main_panel.get_name() + ":")
@@ -282,6 +289,7 @@ class TrexTUIPanelManager():
         self.generate_legend()
 
     def show (self):
+        print self.ports
         self.main_panel.show()
         self.print_legend()
         self.log.show()

@@ -10,6 +10,7 @@ import copy
 import os
 
 StreamPack = namedtuple('StreamPack', ['stream_id', 'stream'])
+LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 
 class CStreamList(object):
 
@@ -254,5 +255,61 @@ class CStream(object):
             raise RuntimeError("CStream object isn't loaded with data. Use 'load_data' method.")
 
 
-if __name__ == "__main__":
-    pass
+
+# describes a stream DB
+class CStreamsDB(object):
+
+    def __init__(self):
+        self.stream_packs = {}
+
+    def load_yaml_file(self, filename):
+
+        stream_pack_name = filename
+        if stream_pack_name in self.get_loaded_streams_names():
+            self.remove_stream_packs(stream_pack_name)
+
+        stream_list = CStreamList()
+        loaded_obj = stream_list.load_yaml(filename)
+
+        try:
+            compiled_streams = stream_list.compile_streams()
+            rc = self.load_streams(stream_pack_name,
+                                   LoadedStreamList(loaded_obj,
+                                                    [StreamPack(v.stream_id, v.stream.dump())
+                                                     for k, v in compiled_streams.items()]))
+
+        except Exception as e:
+            return None
+
+        return self.get_stream_pack(stream_pack_name)
+
+    def load_streams(self, name, LoadedStreamList_obj):
+        if name in self.stream_packs:
+            return False
+        else:
+            self.stream_packs[name] = LoadedStreamList_obj
+            return True
+
+    def remove_stream_packs(self, *names):
+        removed_streams = []
+        for name in names:
+            removed = self.stream_packs.pop(name)
+            if removed:
+                removed_streams.append(name)
+        return removed_streams
+
+    def clear(self):
+        self.stream_packs.clear()
+
+    def get_loaded_streams_names(self):
+        return self.stream_packs.keys()
+
+    def stream_pack_exists (self, name):
+        return name in self.get_loaded_streams_names()
+
+    def get_stream_pack(self, name):
+        if not self.stream_pack_exists(name):
+            return None
+        else:
+            return self.stream_packs.get(name)
+

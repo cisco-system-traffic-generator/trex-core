@@ -5,6 +5,7 @@ from common.text_opts import format_text
 from client.trex_async_client import CTRexAsyncStats
 import copy
 import datetime
+import time
 import re
 
 GLOBAL_STATS = 'g'
@@ -134,7 +135,8 @@ class CTRexStatsGenerator(object):
         # fetch owned ports
         ports = [port_obj
                  for _, port_obj in self._ports_dict.iteritems()
-                 if port_obj.is_acquired() and port_obj.port_id in port_id_list]
+                 if port_obj.port_id in port_id_list]
+        
         # display only the first FOUR options, by design
         if len(ports) > 4:
             print format_text("[WARNING]: ", 'magenta', 'bold'), format_text("displaying up to 4 ports", 'magenta')
@@ -155,7 +157,7 @@ class CTRexStats(object):
     def __init__(self):
         self.reference_stats = None
         self.latest_stats = {}
-        self.last_update_ts = datetime.datetime.now()
+        self.last_update_ts = time.time()
 
 
     def __getitem__(self, item):
@@ -204,12 +206,15 @@ class CTRexStats(object):
 
     def update(self, snapshot):
         # update
-        self.last_update_ts = datetime.datetime.now()
-
         self.latest_stats = snapshot
 
-        if self.reference_stats == None:
+        diff_time = time.time() - self.last_update_ts
+
+        # 3 seconds is too much - this is the new reference
+        if (self.reference_stats == None) or (diff_time > 3):
             self.reference_stats = self.latest_stats
+
+        self.last_update_ts = time.time()
 
     def clear_stats(self):
         self.reference_stats = self.latest_stats
@@ -225,6 +230,7 @@ class CTRexStats(object):
     def get_rel(self, field, format=False, suffix=""):
         if not field in self.latest_stats:
             return "N/A"
+
         if not format:
             return (self.latest_stats[field] - self.reference_stats[field])
         else:

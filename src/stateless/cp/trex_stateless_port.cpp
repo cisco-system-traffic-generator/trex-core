@@ -57,7 +57,6 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
 
     m_port_id = port_id;
     m_port_state = PORT_STATE_IDLE;
-    clear_owner();
 
     /* get the platform specific data */
     api->get_interface_info(port_id, m_driver_name, m_speed);
@@ -85,18 +84,42 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
  * @param force 
  */
 void 
-TrexStatelessPort::acquire(const std::string &user, bool force) {
-    if ( (!is_free_to_aquire()) && (get_owner() != user) && (!force)) {
-        throw TrexRpcException("port is already taken by '" + get_owner() + "'");
+TrexStatelessPort::acquire(const std::string &user, uint32_t session_id, bool force) {
+
+    /* if port is free - just take it */
+    if (get_owner().is_free()) {
+        get_owner().own(user, session_id);
+        return;
     }
 
-    set_owner(user);
+    /* not free - but it might be the same user that owns the port */
+    if ( (get_owner().get_name() == user) && (get_owner().get_session_id() == session_id) ) {
+        return;
+    }
+
+    /* so different session id or different user */
+    if (force) {
+        get_owner().own(user, session_id);
+
+        /* inform the other client of the steal... */
+        Json::Value data;
+        data["port_id"] = m_port_id;
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FORCE_ACQUIRED, data);
+
+    } else {
+        /* not same user or session id and not force - report error */
+        if (get_owner().get_name() == user) {
+            throw TrexRpcException("port is already owned by another session of '" + user + "'");
+        } else {
+            throw TrexRpcException("port is already taken by '" + get_owner().get_name() + "'");
+        }
+    }
+
 }
 
 void
 TrexStatelessPort::release(void) {
-    verify_state( ~(PORT_STATE_TX | PORT_STATE_PAUSE) );
-    clear_owner();
+    get_owner().release();
 }
 
 /**
@@ -221,6 +244,10 @@ TrexStatelessPort::pause_traffic(void) {
     send_message_to_all_dp(pause_msg);
 
     change_state(PORT_STATE_PAUSE);
+
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_PAUSED, data);
 }
 
 void
@@ -234,6 +261,11 @@ TrexStatelessPort::resume_traffic(void) {
     send_message_to_all_dp(resume_msg);
 
     change_state(PORT_STATE_TX);
+
+
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_RESUMED, data);
 }
 
 void
@@ -322,27 +354,6 @@ void
 TrexStatelessPort::change_state(port_state_e new_state) {
 
     m_port_state = new_state;
-}
-
-/**
- * generate a random connection handler
- * 
- */
-std::string 
-TrexStatelessPort::generate_handler() {
-    std::stringstream ss;
-
-    static const char alphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
-
-    /* generate 8 bytes of random handler */
-    for (int i = 0; i < 8; ++i) {
-        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
-    }
-
-    return (ss.str());
 }
 
 
@@ -576,3 +587,37 @@ TrexStatelessPort::validate(void) {
 
     return m_graph_obj;
 }
+
+
+/************* Trex Port Owner **************/
+
+TrexPortOwner::TrexPortOwner() {
+    m_is_free = true;
+
+    /* for handlers random generation */
+    srand(time(NULL));
+}
+
+/**
+ * generate a random connection handler
+ * 
+ */
+std::string 
+TrexPortOwner::generate_handler() {
+    std::stringstream ss;
+
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+
+    /* generate 8 bytes of random handler */
+    for (int i = 0; i < 8; ++i) {
+        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    return (ss.str());
+}
+
+const std::string TrexPortOwner::g_unowned_name = "<FREE>";
+const std::string TrexPortOwner::g_unowned_handler = "";
