@@ -58,11 +58,10 @@ public:
         return ( !m_is_free && (m_owner_name == user) );
     }
 
-    void own(const std::string &owner_name, uint32_t session_id) {
+    void own(const std::string &owner_name) {
 
         /* save user data */
         m_owner_name = owner_name;
-        m_session_id = session_id;
 
         /* internal data */
         m_handler = generate_handler();
@@ -81,9 +80,6 @@ public:
         return (!m_is_free ? m_handler : g_unowned_handler);
     }
 
-    uint32_t get_session_id() {
-        return m_session_id;
-    }
 
 private:
     std::string  generate_handler();
@@ -91,9 +87,8 @@ private:
     /* is this port owned by someone ? */
     bool         m_is_free;
 
-    /* user provided info - name and session id */
+    /* user provided info */
     std::string  m_owner_name;
-    uint32_t     m_session_id;
 
     /* handler genereated internally */
     std::string  m_handler;
@@ -143,7 +138,7 @@ public:
      * acquire port
      * throws TrexException in case of an error
      */
-    void acquire(const std::string &user, uint32_t session_id, bool force = false);
+    void acquire(const std::string &user, bool force = false);
 
     /**
      * release the port from the current user

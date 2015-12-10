@@ -235,14 +235,13 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
 
     const string  &new_owner  = parse_string(params, "user", result);
-    uint32_t      session_id  = parse_uint32(params, "session_id", result);
     bool force = parse_bool(params, "force", result);
 
     /* if not free and not you and not force - fail */
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     try {
-        port->acquire(new_owner, session_id, force);
+        port->acquire(new_owner, force);
     } catch (const TrexRpcException &ex) {
         generate_execute_err(result, ex.what());
     }

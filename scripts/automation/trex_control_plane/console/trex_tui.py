@@ -289,7 +289,6 @@ class TrexTUIPanelManager():
         self.generate_legend()
 
     def show (self):
-        print self.ports
         self.main_panel.show()
         self.print_legend()
         self.log.show()

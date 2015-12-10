@@ -18,7 +18,7 @@ class Port(object):
                   STATE_PAUSE: "PAUSE"}
 
 
-    def __init__ (self, port_id, speed, driver, user, session_id, comm_link):
+    def __init__ (self, port_id, speed, driver, user, comm_link):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
@@ -26,7 +26,6 @@ class Port(object):
         self.transmit = comm_link.transmit
         self.transmit_batch = comm_link.transmit_batch
         self.user = user
-        self.session_id = session_id
         self.driver = driver
         self.speed = speed
         self.streams = {}
@@ -48,7 +47,6 @@ class Port(object):
     def acquire(self, force = False):
         params = {"port_id":     self.port_id,
                   "user":        self.user,
-                  "session_id":  self.session_id,
                   "force":       force}
 
         command = RpcCmdData("acquire", params)

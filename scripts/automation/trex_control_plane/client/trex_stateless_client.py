@@ -54,7 +54,6 @@ class CTRexStatelessClient(object):
         super(CTRexStatelessClient, self).__init__()
 
         self.user = username
-        self.session_id = random.getrandbits(32) 
 
         self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
 
@@ -84,10 +83,6 @@ class CTRexStatelessClient(object):
         self.read_only = False
         self.connected = False
 
-
-    # when the client gets out
-    def shutdown (self):
-        self.release(self.get_acquired_ports())
 
 
     # returns the port object
@@ -296,6 +291,9 @@ class CTRexStatelessClient(object):
     # connection sequence
     def connect(self, force = False):
 
+        if self.is_connected():
+            self.disconnect()
+
         # clear this flag
         self.connected = False
 
@@ -335,7 +333,7 @@ class CTRexStatelessClient(object):
             speed = self.system_info['ports'][port_id]['speed']
             driver = self.system_info['ports'][port_id]['driver']
 
-            self.ports[port_id] = Port(port_id, speed, driver, self.user, self.session_id, self.comm_link)
+            self.ports[port_id] = Port(port_id, speed, driver, self.user, self.comm_link)
 
 
         # sync the ports
@@ -365,8 +363,15 @@ class CTRexStatelessClient(object):
 
 
     def disconnect(self):
+        # release any previous acquired ports
+        if self.is_connected():
+            self.release(self.get_acquired_ports())
+
         self.comm_link.disconnect()
         self.async_client.disconnect()
+
+        self.connected = False
+
         return RC_OK()
 
 

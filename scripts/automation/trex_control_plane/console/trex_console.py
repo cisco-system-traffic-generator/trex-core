@@ -575,6 +575,7 @@ def main():
             rc.annotate()
         else:
             rc.annotate(show_status = False)
+            print format_text("Switching to read only mode - only few commands will be available", 'bold')
 
 
     if options.batch:
@@ -590,7 +591,7 @@ def main():
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
         
     finally:
-        stateless_client.shutdown()
+        stateless_client.disconnect()
 
 if __name__ == '__main__':
     main()

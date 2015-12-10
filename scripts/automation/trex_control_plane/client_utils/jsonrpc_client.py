@@ -112,7 +112,7 @@ class JsonRpcClient(object):
 
     def invoke_rpc_method (self, method_name, params = {}):
         if not self.connected:
-            return False, "Not connected to server"
+            return CmdResponse(False, "Not connected to server")
 
         id, msg = self.create_jsonrpc_v2(method_name, params)
 

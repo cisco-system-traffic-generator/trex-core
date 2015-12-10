@@ -84,22 +84,16 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
  * @param force 
  */
 void 
-TrexStatelessPort::acquire(const std::string &user, uint32_t session_id, bool force) {
+TrexStatelessPort::acquire(const std::string &user, bool force) {
 
     /* if port is free - just take it */
     if (get_owner().is_free()) {
-        get_owner().own(user, session_id);
+        get_owner().own(user);
         return;
     }
 
-    /* not free - but it might be the same user that owns the port */
-    if ( (get_owner().get_name() == user) && (get_owner().get_session_id() == session_id) ) {
-        return;
-    }
-
-    /* so different session id or different user */
     if (force) {
-        get_owner().own(user, session_id);
+        get_owner().own(user);
 
         /* inform the other client of the steal... */
         Json::Value data;
