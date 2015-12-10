@@ -289,7 +289,9 @@ class CTRexStatelessClient(object):
     ############ boot up section ################
 
     # connection sequence
-    def connect(self, force = False):
+
+    # mode can be RW - read / write, RWF - read write with force , RO - read only
+    def connect(self, mode = "RW"):
 
         if self.is_connected():
             self.disconnect()
@@ -342,17 +344,34 @@ class CTRexStatelessClient(object):
             return rc
 
         # acquire all ports
-        rc = self.acquire(force = force)
-        if rc.bad():
-            # release all the succeeded ports and set as read only
-            self.release(self.get_acquired_ports())
-            self.read_only = True
-        else:
+        if mode == "RW":
+            rc = self.acquire(force = False)
+
+            # fallback to read only if failed
+            if rc.bad():
+                rc.annotate(show_status = False)
+                print format_text("Switching to read only mode - only few commands will be available", 'bold')
+
+                self.release(self.get_acquired_ports())
+                self.read_only = True
+            else:
+                self.read_only = False
+
+        elif mode == "RWF":
+            rc = self.acquire(force = True)
+            if rc.bad():
+                return rc
             self.read_only = False
+
+        elif mode == "RO":
+            # no acquire on read only
+            rc = RC_OK()
+            self.read_only = True
+
 
         
         self.connected = True
-        return rc
+        return RC_OK()
 
 
     def is_read_only (self):
@@ -653,8 +672,8 @@ class CTRexStatelessClient(object):
         rc.annotate("Pinging the server on '{0}' port '{1}': ".format(self.get_connection_ip(), self.get_connection_port()))
         return rc
 
-    def cmd_connect(self, force):
-        rc = self.connect(force)
+    def cmd_connect(self, mode = "RW"):
+        rc = self.connect(mode)
         rc.annotate()
         return rc
 
@@ -846,7 +865,10 @@ class CTRexStatelessClient(object):
         if opts is None:
             return RC_ERR("bad command line parameters")
 
-        return self.cmd_connect(opts.force)
+        if opts.force:
+            rc = self.cmd_connect(mode = "RWF")
+        else:
+            rc = self.cmd_connect(mode = "RW")
 
     @timing
     def cmd_start_line (self, line):

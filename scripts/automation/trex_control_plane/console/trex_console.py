@@ -114,14 +114,13 @@ class TRexGeneralCmd(cmd.Cmd):
 class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, stateless_client, acquire_all_ports=True, verbose=False):
+    def __init__(self, stateless_client, verbose=False):
         self.stateless_client = stateless_client
         TRexGeneralCmd.__init__(self)
 
         self.tui = trex_tui.TrexTUI(stateless_client)
 
         self.verbose = verbose
-        self.acquire_all_ports = acquire_all_ports
 
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
@@ -321,17 +320,13 @@ class TRexConsole(TRexGeneralCmd):
     def do_connect (self, line):
         '''Connects to the server\n'''
 
-        rc = self.stateless_client.cmd_connect_line(line)
-        if rc.bad():
-            return
+        self.stateless_client.cmd_connect_line(line)
 
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
 
-        rc = self.stateless_client.cmd_disconnect()
-        if rc.bad():
-            return
+        self.stateless_client.cmd_disconnect()
 
  
     ############### start
@@ -556,6 +551,10 @@ def setParserOptions():
                         help = "Run the console in a batch mode with file",
                         default = None)
 
+    parser.add_argument("-t", "--tui", dest="tui",
+                        action="store_true", help="Starts with TUI mode",
+                        default = False)
+
     return parser
 
 
@@ -567,17 +566,20 @@ def main():
     stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
 
     print "\nlogged as {0}".format(format_text(options.user, 'bold'))
-    rc = stateless_client.connect()
 
-    # error can be either no able to connect or a read only
+    # TUI or no acquire will give us READ ONLY mode
+    if options.tui or not options.acquire:
+        rc = stateless_client.connect("RO")
+    else:
+        rc = stateless_client.connect("RW")
+
+    # unable to connect - bye
     if rc.bad():
-        if not stateless_client.is_connected():
-            rc.annotate()
-        else:
-            rc.annotate(show_status = False)
-            print format_text("Switching to read only mode - only few commands will be available", 'bold')
+        rc.annotate()
+        return
 
 
+    # a script mode
     if options.batch:
         cont = stateless_client.run_script_file(options.batch[0])
         if not cont:
@@ -585,8 +587,12 @@ def main():
         
     # console
     try:
-        console = TRexConsole(stateless_client, options.acquire, options.verbose)
-        console.cmdloop()
+        console = TRexConsole(stateless_client, options.verbose)
+        if options.tui:
+            console.do_tui("")
+        else:
+            console.cmdloop()
+
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
         
