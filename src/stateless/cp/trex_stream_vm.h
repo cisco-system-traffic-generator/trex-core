@@ -25,7 +25,8 @@ limitations under the License.
 #include <stdint.h>
 #include <vector>
 #include <unordered_map>
-
+#include <assert.h>
+#include <common/Network/Packet/IPHeader.h>
 
 
 class StreamVm;
@@ -41,6 +42,28 @@ struct StreamDPOpFlowVar8 {
 public:
     void dump(FILE *fd,std::string opt);
 
+    inline void run_inc(uint8_t * flow_var) {
+        uint8_t * p=(flow_var+m_flow_offset);
+        *p=*p+1;
+        if (*p>m_max_val) {
+            *p=m_min_val;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint8_t * p=(flow_var+m_flow_offset);
+        *p=*p-1;
+        if (*p<m_min_val) {
+            *p=m_max_val;
+        }
+    }
+
+    inline void run_rand(uint8_t * flow_var) {
+        uint8_t * p=(flow_var+m_flow_offset);
+        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+    }
+
+
 } __attribute__((packed)) ;
 
 struct StreamDPOpFlowVar16 {
@@ -50,6 +73,29 @@ struct StreamDPOpFlowVar16 {
     uint16_t m_max_val;
 public:
     void dump(FILE *fd,std::string opt);
+
+    inline void run_inc(uint8_t * flow_var) {
+        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
+        *p=*p+1;
+        if (*p>m_max_val) {
+            *p=m_min_val;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
+        *p=*p-1;
+        if (*p<m_min_val) {
+            *p=m_max_val;
+        }
+    }
+
+    inline void run_rand(uint8_t * flow_var) {
+        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
+        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+    }
+
+
 
 } __attribute__((packed)) ;
 
@@ -61,6 +107,27 @@ struct StreamDPOpFlowVar32 {
 public:
     void dump(FILE *fd,std::string opt);
 
+    inline void run_inc(uint8_t * flow_var) {
+        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
+        *p=*p+1;
+        if (*p>m_max_val) {
+            *p=m_min_val;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
+        *p=*p-1;
+        if (*p<m_min_val) {
+            *p=m_max_val;
+        }
+    }
+
+    inline void run_rand(uint8_t * flow_var) {
+        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
+        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+    }
+
 } __attribute__((packed)) ;
 
 struct StreamDPOpFlowVar64 {
@@ -70,6 +137,28 @@ struct StreamDPOpFlowVar64 {
     uint64_t m_max_val;
 public:
     void dump(FILE *fd,std::string opt);
+
+    inline void run_inc(uint8_t * flow_var) {
+        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
+        *p=*p+1;
+        if (*p>m_max_val) {
+            *p=m_min_val;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
+        *p=*p-1;
+        if (*p<m_min_val) {
+            *p=m_max_val;
+        }
+    }
+
+    inline void run_rand(uint8_t * flow_var) {
+        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
+        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+    }
+
 
 } __attribute__((packed)) ;
 
@@ -88,6 +177,13 @@ struct StreamDPOpPktWr8 : public StreamDPOpPktWrBase {
 public:
     void dump(FILE *fd,std::string opt);
 
+    inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
+        uint8_t * p_pkt      = (pkt_base+m_pkt_offset);
+        uint8_t * p_flow_var = (flow_var_base+m_offset);
+        *p_pkt=(*p_flow_var+m_val_offset);
+    }
+
+
 } __attribute__((packed)) ;
 
 
@@ -97,6 +193,13 @@ struct StreamDPOpPktWr16 : public StreamDPOpPktWrBase {
 public:
     void dump(FILE *fd,std::string opt);
 
+    inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
+        uint16_t * p_pkt      = (uint16_t*)(pkt_base+m_pkt_offset);
+        uint16_t * p_flow_var = (uint16_t*)(flow_var_base+m_offset);
+        *p_pkt=(*p_flow_var+m_val_offset);
+    }
+
+
 } __attribute__((packed));
 
 struct StreamDPOpPktWr32 : public StreamDPOpPktWrBase {
@@ -104,6 +207,13 @@ struct StreamDPOpPktWr32 : public StreamDPOpPktWrBase {
     int32_t  m_val_offset;
 public:
     void dump(FILE *fd,std::string opt);
+
+    inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
+        uint32_t * p_pkt      = (uint32_t*)(pkt_base+m_pkt_offset);
+        uint32_t * p_flow_var = (uint32_t*)(flow_var_base+m_offset);
+        *p_pkt=(*p_flow_var+m_val_offset);
+    }
+
 
 } __attribute__((packed));
 
@@ -114,13 +224,24 @@ struct StreamDPOpPktWr64 : public StreamDPOpPktWrBase {
 public:
     void dump(FILE *fd,std::string opt);
 
+    inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
+        uint64_t * p_pkt      = (uint64_t*)(pkt_base+m_pkt_offset);
+        uint64_t * p_flow_var = (uint64_t*)(flow_var_base+m_offset);
+        *p_pkt=(*p_flow_var+m_val_offset);
+    }
+
+
 } __attribute__((packed));
 
 struct StreamDPOpIpv4Fix {
     uint8_t m_op;
-    uint32_t  m_offset;
+    uint16_t  m_offset;
 public:
     void dump(FILE *fd,std::string opt);
+    void run(uint8_t * pkt_base){
+        IPHeader *      ipv4=  (IPHeader *)(pkt_base+m_offset);
+        ipv4->updateCheckSum();
+    }
 
 } __attribute__((packed));
 
@@ -166,6 +287,143 @@ public:
 private:
     std::vector<uint8_t> m_inst_list;
 };
+
+
+class StreamDPVmInstructionsRunner {
+public:
+    inline void run(uint32_t program_size,
+                    uint8_t * program,  /* program */
+                    uint8_t * flow_var, /* flow var */
+                    uint8_t * pkt);      /* pkt */
+
+};
+
+
+inline void StreamDPVmInstructionsRunner::run(uint32_t program_size,
+                                              uint8_t * program,  /* program */
+                                              uint8_t * flow_var, /* flow var */
+                                              uint8_t * pkt){
+
+
+    uint8_t * p=program;
+    uint8_t * p_end=p+program_size;
+
+
+    union  ua_ {
+        StreamDPOpFlowVar8  *lpv8;
+        StreamDPOpFlowVar16 *lpv16;
+        StreamDPOpFlowVar32 *lpv32;
+        StreamDPOpFlowVar64 *lpv64;
+        StreamDPOpIpv4Fix   *lpIpv4Fix;
+        StreamDPOpPktWr8     *lpw8;
+        StreamDPOpPktWr16    *lpw16;
+        StreamDPOpPktWr32    *lpw32;
+        StreamDPOpPktWr64    *lpw64;
+    } ua ;
+
+    while ( p < p_end) {
+        uint8_t op_code=*p;
+        switch (op_code) {
+
+        case   StreamDPVmInstructions::ditINC8  :
+            ua.lpv8 =(StreamDPOpFlowVar8 *)p;
+            ua.lpv8->run_inc(flow_var);
+            p+=sizeof(StreamDPOpFlowVar8);
+            break;
+
+        case  StreamDPVmInstructions::ditINC16  :
+            ua.lpv16 =(StreamDPOpFlowVar16 *)p;
+            ua.lpv16->run_inc(flow_var);
+            p+=sizeof(StreamDPOpFlowVar16);
+            break;
+        case  StreamDPVmInstructions::ditINC32 :
+            ua.lpv32 =(StreamDPOpFlowVar32 *)p;
+            ua.lpv32->run_inc(flow_var);
+            p+=sizeof(StreamDPOpFlowVar32);
+             break;
+        case  StreamDPVmInstructions::ditINC64 :
+            ua.lpv64 =(StreamDPOpFlowVar64 *)p;
+            ua.lpv64->run_inc(flow_var);
+            p+=sizeof(StreamDPOpFlowVar64);
+            break;
+
+        case  StreamDPVmInstructions::ditDEC8 :
+            ua.lpv8 =(StreamDPOpFlowVar8 *)p;
+            ua.lpv8->run_dec(flow_var);
+            p+=sizeof(StreamDPOpFlowVar8);
+            break;
+        case  StreamDPVmInstructions::ditDEC16 :
+            ua.lpv16 =(StreamDPOpFlowVar16 *)p;
+            ua.lpv16->run_dec(flow_var);
+            p+=sizeof(StreamDPOpFlowVar16);
+            break;
+        case  StreamDPVmInstructions::ditDEC32 :
+            ua.lpv32 =(StreamDPOpFlowVar32 *)p;
+            ua.lpv32->run_dec(flow_var);
+            p+=sizeof(StreamDPOpFlowVar32);
+            break;
+        case  StreamDPVmInstructions::ditDEC64 :
+            ua.lpv64 =(StreamDPOpFlowVar64 *)p;
+            ua.lpv64->run_dec(flow_var);
+            p+=sizeof(StreamDPOpFlowVar64);
+            break;
+
+        case  StreamDPVmInstructions::ditRANDOM8 :
+            ua.lpv8 =(StreamDPOpFlowVar8 *)p;
+            ua.lpv8->run_rand(flow_var);
+            p+=sizeof(StreamDPOpFlowVar8);
+            break;
+        case  StreamDPVmInstructions::ditRANDOM16 :
+            ua.lpv16 =(StreamDPOpFlowVar16 *)p;
+            ua.lpv16->run_rand(flow_var);
+            p+=sizeof(StreamDPOpFlowVar16);
+            break;
+        case  StreamDPVmInstructions::ditRANDOM32 :
+            ua.lpv32 =(StreamDPOpFlowVar32 *)p;
+            ua.lpv32->run_rand(flow_var);
+            p+=sizeof(StreamDPOpFlowVar32);
+            break;
+        case  StreamDPVmInstructions::ditRANDOM64 :
+            ua.lpv64 =(StreamDPOpFlowVar64 *)p;
+            ua.lpv64->run_rand(flow_var);
+            p+=sizeof(StreamDPOpFlowVar64);
+            break;
+
+        case  StreamDPVmInstructions::ditFIX_IPV4_CS :
+            ua.lpIpv4Fix =(StreamDPOpIpv4Fix *)p;
+            ua.lpIpv4Fix->run(pkt);
+            p+=sizeof(StreamDPOpIpv4Fix);
+            break;
+
+        case  StreamDPVmInstructions::itPKT_WR8  :
+            ua.lpw8 =(StreamDPOpPktWr8 *)p;
+            ua.lpw8->wr(flow_var,pkt);
+            p+=sizeof(StreamDPOpPktWr8);
+            break;
+
+        case  StreamDPVmInstructions::itPKT_WR16 :
+            ua.lpw16 =(StreamDPOpPktWr16 *)p;
+            ua.lpw16->wr(flow_var,pkt);
+            p+=sizeof(StreamDPOpPktWr16);
+            break;
+
+        case  StreamDPVmInstructions::itPKT_WR32 :
+            ua.lpw32 =(StreamDPOpPktWr32 *)p;
+            ua.lpw32->wr(flow_var,pkt);
+            p+=sizeof(StreamDPOpPktWr32);
+            break;
+
+        case  StreamDPVmInstructions::itPKT_WR64 :      
+            ua.lpw64 =(StreamDPOpPktWr64 *)p;
+            ua.lpw64->wr(flow_var,pkt);
+            p+=sizeof(StreamDPOpPktWr64);
+            break;
+        default:
+            assert(0);
+        }
+    };
+};
+
 
 
 
@@ -373,7 +631,7 @@ public:
      */
     const std::vector<StreamVmInstruction *> & get_instruction_list();
 
-    const StreamDPVmInstructions  &           get_dp_instruction_buffer();
+    StreamDPVmInstructions  *           get_dp_instruction_buffer();
 
     uint16_t                                  get_bss_size(){
         return (m_cur_var_offset );

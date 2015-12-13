@@ -61,16 +61,23 @@ TEST_F(basic_vm, vm1) {
 
     StreamVm vm;
 
-    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
     vm.set_packet_size(128);
 
     vm.compile_next();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
 
 }
 

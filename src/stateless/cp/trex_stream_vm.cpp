@@ -131,9 +131,9 @@ void StreamVm::add_instruction(StreamVmInstruction *inst) {
     m_inst_list.push_back(inst);
 }
 
-const StreamDPVmInstructions  &   
+StreamDPVmInstructions  *
 StreamVm::get_dp_instruction_buffer(){
-    return m_instructions;
+    return &m_instructions;
 }
 
 
@@ -517,7 +517,7 @@ void StreamVm::Dump(FILE *fd){
     }
 
     if ( get_bss_size() ) {
-        fprintf(fd," BSS \n");
+        fprintf(fd," BSS  size %lu\n",(ulong)get_bss_size());
         utl_DumpBuffer(fd,get_bss_ptr(),get_bss_size(),0);
     }
 
@@ -673,40 +673,40 @@ void StreamDPVmInstructions::Dump(FILE *fd){
 
 
 void StreamDPOpFlowVar8::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
+    fprintf(fd," %10s  op:%lu, of:%lu, (%lu- %lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
 }
 
 void StreamDPOpFlowVar16::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
+    fprintf(fd," %10s  op:%lu, of:%lu, (%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
 }
 
 void StreamDPOpFlowVar32::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
+    fprintf(fd," %10s  op:%lu, of:%lu, (%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
 }
 
 void StreamDPOpFlowVar64::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
+    fprintf(fd," %10s  op:%lu, of:%lu, (%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
 }
 
 void StreamDPOpPktWr8::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
+    fprintf(fd," %10s  op:%lu, flags:%lu, pkt_of:%lu,  f_of:%lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
 }
 
 void StreamDPOpPktWr16::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
+    fprintf(fd," %10s  op:%lu, flags:%lu, pkt_of:%lu , f_of:%lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
 }
 
 void StreamDPOpPktWr32::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
+    fprintf(fd," %10s  op:%lu, flags:%lu, pkt_of:%lu , f_of:%lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
 }
 
 void StreamDPOpPktWr64::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu, %lu , %lu \n",  (ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
+    fprintf(fd," %10s  op:%lu, flags:%lu, pkt_of:%lu , f_of:%lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
 }
 
 
 void StreamDPOpIpv4Fix::dump(FILE *fd,std::string opt){
-    fprintf(fd," %lu, %lu \n",  (ulong)m_op,(ulong)m_offset);
+    fprintf(fd," %10s  op:%lu, offset: %lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_offset);
 }
 
 
