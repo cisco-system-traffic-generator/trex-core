@@ -59,6 +59,25 @@ TEST_F(basic_vm, vm0) {
 
 }
 
+TEST_F(basic_vm, vm1) {
+
+    StreamVm vm;
+
+    vm.set_packet_size(512);
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(20) );
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",14, 0,true)
+                        );
+
+    vm.Dump(stdout);
+
+    vm.compile_next();
+
+}
+
 
 //////////////////////////////////////////////////////
 

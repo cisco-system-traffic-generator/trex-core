@@ -106,7 +106,7 @@ void StreamVmInstructionFlowMan::Dump(FILE *fd){
 
 void StreamVmInstructionWriteToPkt::Dump(FILE *fd){
 
-    fprintf(fd," write_pkt , %s ,%lu, add, %ld, big, %lu",m_flow_var_name.c_str(),(ulong)m_pkt_offset,(long)m_add_value,(ulong)(m_is_big_endian?1:0));
+    fprintf(fd," write_pkt , %s ,%lu, add, %ld, big, %lu \n",m_flow_var_name.c_str(),(ulong)m_pkt_offset,(long)m_add_value,(ulong)(m_is_big_endian?1:0));
 }
 
 
@@ -279,7 +279,8 @@ bool StreamVm::compile() {
 StreamVm::~StreamVm() {
     for (auto inst : m_inst_list) {
         delete inst;
-    }
+    }          
+    free_bss();
 }
 
 
