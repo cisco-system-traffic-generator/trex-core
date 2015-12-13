@@ -546,7 +546,7 @@ class CTRexClient(object):
         Get TRex version details.
 
         :return: 
-            Trex details (Version, User, Date, Uuid) as ordered dictionary
+            Trex details (Version, User, Date, Uuid, Git SHA) as ordered dictionary
 
         :raises:
             + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex version could not be determined.
@@ -558,9 +558,11 @@ class CTRexClient(object):
             version_dict = OrderedDict()
             result_lines = binascii.a2b_base64(self.server.get_trex_version()).split('\n')
             for line in result_lines:
+                if not line:
+                    continue
                 key, value = line.strip().split(':', 1)
                 version_dict[key.strip()] = value.strip()
-            for key in ('Version', 'User', 'Date', 'Uuid'):
+            for key in ('Version', 'User', 'Date', 'Uuid', 'Git SHA'):
                 if key not in version_dict:
                     raise Exception('get_trex_version: got server response without key: {0}'.format(key))
             return version_dict
