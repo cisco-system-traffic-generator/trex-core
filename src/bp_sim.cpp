@@ -20,11 +20,14 @@ limitations under the License.
 */
 
 #include "bp_sim.h"
+#include "latency.h"
 #include "utl_json.h"
 #include "utl_yaml.h"
 #include "msg_manager.h"
 #include <common/basic_utils.h> 
 
+#include <trex_stream_node.h>
+#include <trex_stateless_messaging.h>
 
 #undef VALG
 
@@ -71,11 +74,11 @@ void CGlobalMemory::Dump(FILE *fd){
             c_size=c_size*2;
         }
 
-        fprintf(fd," %-40s  : %lu \n",names[i].c_str(),m_mbuf[i]);
+        fprintf(fd," %-40s  : %lu \n",names[i].c_str(),(ulong)m_mbuf[i]);
     }
     c_total += (m_mbuf[MBUF_DP_FLOWS] * sizeof(CGenNode));
 
-    fprintf(fd," %-40s  : %lu \n","get_each_core_dp_flows",get_each_core_dp_flows());
+    fprintf(fd," %-40s  : %lu \n","get_each_core_dp_flows",(ulong)get_each_core_dp_flows());
     fprintf(fd," %-40s  : %s  \n","Total memory",double_to_human_str(c_total,"bytes",KBYE_1024).c_str() );
 }
 
@@ -217,7 +220,7 @@ bool CPlatformSocketInfoConfig::init(){
             m_max_threads_per_dual_if = num_threads;
         }else{
             if (lp->m_threads.size() != num_threads) {
-                printf("ERROR number of threads per dual ports should be the same for all dual ports\n");
+                printf("ERROR, the number of threads per dual ports should be the same for all dual ports\n");
                 exit(1);
             }
         }
@@ -229,7 +232,7 @@ bool CPlatformSocketInfoConfig::init(){
                 uint8_t phy_thread  = lp->m_threads[j];
 
                 if (phy_thread>MAX_THREADS_SUPPORTED) {
-                    printf("ERROR physical thread id is %d higher than max %d \n",phy_thread,MAX_THREADS_SUPPORTED);
+                    printf("ERROR, physical thread id is %d higher than max %d \n",phy_thread,MAX_THREADS_SUPPORTED);
                     exit(1);
                 }
 
@@ -239,7 +242,7 @@ bool CPlatformSocketInfoConfig::init(){
                 }
 
                 if ( m_thread_phy_to_virtual[phy_thread] ){
-                    printf("ERROR physical thread %d defined twice %d \n",phy_thread);
+                    printf("ERROR physical thread %d defined twice\n",phy_thread);
                     exit(1);
                 }
                 m_thread_phy_to_virtual[phy_thread]=virt_thread;
@@ -268,7 +271,7 @@ bool CPlatformSocketInfoConfig::init(){
 
 
 void CPlatformSocketInfoConfig::dump(FILE *fd){
-    fprintf(fd," core_mask  %x  \n",get_cores_mask());
+    fprintf(fd," core_mask  %llx  \n",(unsigned long long)get_cores_mask());
     fprintf(fd," sockets :");
     int i;
     for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
@@ -279,7 +282,7 @@ void CPlatformSocketInfoConfig::dump(FILE *fd){
     fprintf(fd," \n");
     fprintf(fd," active sockets : %d \n",max_num_active_sockets());
 
-    fprintf(fd," ports_sockets : \n",max_num_active_sockets());
+    fprintf(fd," ports_sockets : %d \n",max_num_active_sockets());
 
     for (i=0; i<(MAX_LATENCY_PORTS); i++) {
         fprintf(fd,"%d,",port_to_socket(i));
@@ -477,8 +480,8 @@ void CPlatformSocketInfo::dump(FILE *fd){
 
 
 void CRteMemPool::dump_in_case_of_error(FILE *fd){
-    fprintf(fd," ERROR ERROR there is no enough memory in socket  %d \n",m_pool_id);
-    fprintf(fd," Try to enlarge the memory values in the configuration file /etc/trex_cfg.yaml \n");
+    fprintf(fd," ERROR,there is no enough memory in socket  %d \n",m_pool_id);
+    fprintf(fd," Try to enlarge the memory values in the configuration file -/etc/trex_cfg.yaml ,see manual for more detail  \n");
     dump(fd);
 }
 
@@ -494,6 +497,26 @@ void CRteMemPool::dump(FILE *fd){
     DUMP_MBUF("mbuf_2048",m_big_mbuf_pool);
 }
 ////////////////////////////////////////
+
+
+void CGlobalInfo::free_pools(){
+    CPlatformSocketInfo * lpSocket =&m_socket;
+    CRteMemPool * lpmem;       
+    int i;
+    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
+        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
+            lpmem= &m_mem_pool[i];
+            utl_rte_mempool_delete(lpmem->m_big_mbuf_pool);
+            utl_rte_mempool_delete(lpmem->m_small_mbuf_pool);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_128);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_256);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_512);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_1024);  
+    }
+    utl_rte_mempool_delete(m_mem_pool[0].m_mbuf_global_nodes);
+  }
+}
+
 
 void CGlobalInfo::init_pools(uint32_t rx_buffers){
         /* this include the pkt from 64- */
@@ -747,9 +770,7 @@ int CErfIF::write_pkt(CCapPktRaw *pkt_raw){
 int CErfIF::close_file(void){
 
     BP_ASSERT(m_raw);
-    m_raw->raw=0;
     delete m_raw;
-
     if ( m_preview_mode->getFileWrite() ){
         BP_ASSERT(m_writer);
         delete m_writer;
@@ -820,7 +841,6 @@ void CPacketIndication::UpdatePacketPadding(){
 void CPacketIndication::RefreshPointers(){
 
     char *pobase=getBasePtr();                       
-    CPacketIndication * obj=this;
 
     m_ether = (EthernetHeader *) (pobase + m_ether_offset);
     l3.m_ipv4  = (IPHeader       *) (pobase + m_ip_offset);
@@ -1292,7 +1312,6 @@ bool CPacketIndication::ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
     return (true);
 }
 
-
 void CPacketIndication::ProcessPacket(CPacketParser *parser,
                                       CCapPktRaw * pkt){
     _ProcessPacket(parser,pkt);
@@ -1300,8 +1319,6 @@ void CPacketIndication::ProcessPacket(CPacketParser *parser,
         UpdateOffsets(); /* update fast offsets */
     }
 }
-
-
 
 /* process packet */
 void CPacketIndication::_ProcessPacket(CPacketParser *parser,
@@ -1671,7 +1688,6 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
 
 
 void   CFlowPktInfo::mask_as_learn(){
-    char *p;
     CNatOption *lpNat;
     if ( m_pkt_indication.is_ipv6() ){
         lpNat=(CNatOption *)push_ipv6_option_offline(CNatOption::noOPTION_LEN);
@@ -2265,7 +2281,7 @@ void CCCapFileMemoryUsage::dump(FILE *fd){
     int c_total=0;
 
     for (i=0; i<CCCapFileMemoryUsage::MASK_SIZE; i++) {
-        fprintf(fd," size_%-7d   : %lu \n",c_size,m_buf[i]);
+        fprintf(fd," size_%-7d   : %lu \n",c_size, (ulong)m_buf[i]);
         c_total +=m_buf[i]*c_size;
         c_size = c_size*2;
     }
@@ -2440,7 +2456,6 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
 
 
     if ( node.FindValue("dyn_pyload") ){
-        int i;
         const YAML::Node& dyn_pyload = node["dyn_pyload"];
         for(unsigned i=0;i<dyn_pyload.size();i++) {
             CFlowYamlDpPkt fd;
@@ -2839,8 +2854,20 @@ void CFlowStats::DumpHeader(FILE *fd){
 void CFlowStats::Dump(FILE *fd){
                  //"name","cps","f-pkts","f-bytes","Mb/sec","MB/sec","c-flows","PPS","total-Mbytes-duration","errors","flows"
     fprintf(fd," %02d, %-40s ,%4.2f,%4.2f, %5.0f , %7.0f ,%7.2f ,%7.2f , %7.2f , %10.0f , %5.0f , %7.0f , %llu , %llu \n",
-            m_id,m_name.c_str(),m_cps,get_normal_cps(),
-            m_pkt,m_bytes,duration_sec,m_mb_sec,m_mB_sec,m_c_flows,m_pps,m_total_Mbytes,m_errors,m_flows);
+            m_id,
+            m_name.c_str(),
+            m_cps,
+            get_normal_cps(),
+            m_pkt,
+            m_bytes,
+            duration_sec,
+            m_mb_sec,
+            m_mB_sec,
+            m_c_flows,
+            m_pps,
+            m_total_Mbytes,
+            (unsigned long long)m_errors,
+            (unsigned long long)m_flows);
 }
 
 bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen, 
@@ -3044,22 +3071,31 @@ void CGenNode::DumpHeader(FILE *fd){
     fprintf(fd," pkt_id,time,fid,pkt_info,pkt,len,type,is_init,is_last,type,thread_id,src_ip,dest_ip,src_port \n");
 }
 
+
+void CGenNode::free_gen_node(){
+    rte_mbuf_t * m=get_cache_mbuf();
+    if ( unlikely(m != NULL) ) {
+        rte_pktmbuf_free(m);
+        m_plugin_info=0;
+    }
+}
+
+
 void CGenNode::Dump(FILE *fd){
-    fprintf(fd,"%.6f,%llx,%p,%llu,%d,%d,%d,%d,%d,%d,%x,%x,%d\n",m_time,m_flow_id,m_pkt_info,
-    m_pkt_info->m_pkt_indication.m_packet->pkt_cnt,
-    m_pkt_info->m_pkt_indication.m_packet->pkt_len,
-    m_pkt_info->m_pkt_indication.m_desc.getId(),
-    (m_pkt_info->m_pkt_indication.m_desc.IsInitSide()?1:0),
-     m_pkt_info->m_pkt_indication.m_desc.IsLastPkt(),
+    fprintf(fd,"%.6f,%llx,%p,%llu,%d,%d,%d,%d,%d,%d,%x,%x,%d\n",
+            m_time,
+            (unsigned long long)m_flow_id,
+            m_pkt_info,
+            (unsigned long long)m_pkt_info->m_pkt_indication.m_packet->pkt_cnt,
+            m_pkt_info->m_pkt_indication.m_packet->pkt_len,
+            m_pkt_info->m_pkt_indication.m_desc.getId(),
+            (m_pkt_info->m_pkt_indication.m_desc.IsInitSide()?1:0),
+            m_pkt_info->m_pkt_indication.m_desc.IsLastPkt(),
             m_type,
             m_thread_id,
             m_src_ip,
             m_dest_ip,
-            m_src_port
-
-
-
-            );
+            m_src_port);
 
 }
 
@@ -3092,6 +3128,13 @@ void CNodeGenerator::remove_all(CFlowGenListPerThread * thread){
     while (!m_p_queue.empty()) {
         node = m_p_queue.top();
         m_p_queue.pop();
+        /* sanity check */
+        if (node->m_type == CGenNode::STATELESS_PKT) {
+            CGenNodeStateless * p=(CGenNodeStateless *)node;
+            /* need to be changed in Pause support */
+            assert(p->is_mask_for_free());
+        }
+
         thread->free_node( node);
     }
 }
@@ -3107,6 +3150,7 @@ int CNodeGenerator::open_file(std::string file_name,
     return (0);
 }
 
+
 int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
     remove_all(thread);
     BP_ASSERT(m_v_if);
@@ -3114,14 +3158,19 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
     return (0);
 }
 
-int CNodeGenerator::flush_one_node_to_file(CGenNode * node){
-    BP_ASSERT(m_v_if);
-    return (m_v_if->send_node(node));
+int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
+    if ( m_preview_mode.getVMode() >2 ){
+        fprintf(stdout," %4lu ,", (ulong)m_cnt);
+        node_sl->Dump(stdout);
+        m_cnt++;
+    }
+    return (0);
 }
+
 
 int CNodeGenerator::update_stats(CGenNode * node){
     if ( m_preview_mode.getVMode() >2 ){
-        fprintf(stdout," %llu ,",m_cnt);
+        fprintf(stdout," %llu ,", (unsigned long long)m_cnt);
         node->Dump(stdout);
         m_cnt++;
     }
@@ -3135,6 +3184,8 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           max_threads){
 
 
+    m_non_active_nodes = 0;
+    m_terminated_by_master=false;
     m_flow_list =flow_list;
     m_core_id= core_id;
     m_tcp_dpc= 0;
@@ -3204,6 +3255,10 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
     assert(m_ring_from_rx);
     assert(m_ring_to_rx);
+
+    /* create the info required for stateless DP core */
+    m_stateless_dp_info.create(thread_id, this);
+
     return (true);
 }
 
@@ -3351,6 +3406,8 @@ void CFlowGenListPerThread::Delete(){
     m_node_gen.Delete();
     Clean();
     m_cpu_cp_u.Delete();
+
+    utl_rte_mempool_delete(m_node_pool);
 }
 
 
@@ -3397,15 +3454,24 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     bool done=false;
 
     thread->m_cpu_dp_u.start_work();
-    while (!m_p_queue.empty()) {
-        node = m_p_queue.top();
-        n_time = node->m_time+  offset;
 
-        if (( (n_time) > max_time ) && 
-            (always==false) ) {
-            /* nothing to do */
-            break;
-        }
+    /**
+     * if a positive value was given to max time 
+     * schedule an exit node 
+     */
+    if ( (max_time > 0) && (!always) ) {
+        CGenNode *exit_node = thread->create_node();
+
+        exit_node->m_type = CGenNode::EXIT_SCHED;
+        exit_node->m_time = max_time;
+        add_node(exit_node);
+    }
+
+    while (true) {
+
+        node = m_p_queue.top();
+        n_time = node->m_time + offset;
+
         events++;
 /*#ifdef VALG
         if (events > 1 ) {
@@ -3416,19 +3482,12 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         if (  likely ( m_is_realtime ) ){
             dsec_t dt ;
             thread->m_cpu_dp_u.commit();
-            bool once=false;
 
             while ( true ) {
                 dt = now_sec() - n_time ;
 
                 if (dt> (-0.00003)) {
                     break;
-                }
-
-                if (!once) {
-                    /* check the msg queue once */
-                    thread->check_msgs();
-                    once=true;
                 }
 
                 rte_pause();
@@ -3449,59 +3508,83 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                 flush_time=now_sec();
             }
         }
-        #ifndef RTE_DPDK
-        thread->check_msgs();  
-        #endif
+
+        //#ifndef RTE_DPDK
+        //thread->check_msgs();
+        //#endif
 
         uint8_t type=node->m_type;
 
-        if ( likely( type == CGenNode::FLOW_PKT ) ) {
-            /* PKT */
-            if ( !(node->is_repeat_flow()) || (always==false)) {
-                flush_one_node_to_file(node);
-                #ifdef _DEBUG
-                update_stats(node);
-                #endif
-            }
-            m_p_queue.pop();
-            if ( node->is_last_in_flow() ) {
-                if ((node->is_repeat_flow()) && (always==false)) {
-                    /* Flow is repeated, reschedule it */
-                    thread->reschedule_flow( node);
+        if ( type == CGenNode::STATELESS_PKT ) {
+             m_p_queue.pop();
+             CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
+
+             #ifdef _DEBUG
+             update_stl_stats(node_sl);
+             #endif
+
+             /* if the stream has been deactivated - end */
+             if ( unlikely( node_sl->is_mask_for_free() ) ) {
+                 thread->free_node(node);
+             } else {
+                 node_sl->handle(thread);
+             }
+            
+        }else{
+            if ( likely( type == CGenNode::FLOW_PKT ) ) {
+                /* PKT */
+                if ( !(node->is_repeat_flow()) || (always==false)) {
+                    flush_one_node_to_file(node);
+                    #ifdef _DEBUG
+                    update_stats(node);
+                    #endif
+                }
+                m_p_queue.pop();
+                if ( node->is_last_in_flow() ) {
+                    if ((node->is_repeat_flow()) && (always==false)) {
+                        /* Flow is repeated, reschedule it */
+                        thread->reschedule_flow( node);
+                    }else{
+                        /* Flow will not be repeated, so free node */
+                        thread->free_last_flow_node( node);
+                    }
                 }else{
-                    /* Flow will not be repeated, so free node */
-                    thread->free_last_flow_node( node);
+                    node->update_next_pkt_in_flow();
+                    m_p_queue.push(node);
                 }
             }else{
-                node->update_next_pkt_in_flow();
-                m_p_queue.push(node);
-            }
-        }else{
-            if ((type == CGenNode::FLOW_FIF)) {
-               /* callback to our method */
-                m_p_queue.pop();
-                if ( always == false) {
-                    thread->m_cur_time_sec = node->m_time ;
-    
-                    if ( thread->generate_flows_roundrobin(&done) <0){
-                        break;
-                    }
-                    if (!done) {
-                        node->m_time +=d_time;
-                        m_p_queue.push(node);
+                if ((type == CGenNode::FLOW_FIF)) {
+                   /* callback to our method */
+                    m_p_queue.pop();
+                    if ( always == false) {
+                        thread->m_cur_time_sec = node->m_time ;
+
+                        if ( thread->generate_flows_roundrobin(&done) <0){
+                            break;
+                        }
+                        if (!done) {
+                            node->m_time +=d_time;
+                            m_p_queue.push(node);
+                        }else{
+                            thread->free_node(node);
+                        }
                     }else{
                         thread->free_node(node);
                     }
-                }else{
-                    thread->free_node(node);
-                }
 
-            }else{
-                handle_slow_messages(type,node,thread,always);
+                }else{
+                    bool exit_sccheduler = handle_slow_messages(type,node,thread,always);
+                    if (exit_sccheduler) {
+                        break;
+                    }
+                }
             }
         }
     }
 
+    if ( thread->is_terminated_by_master() ) {
+        return (0);
+    }
   
     if (!always) {
         old_offset =offset;
@@ -3512,17 +3595,21 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     return (0);
 }
 
-void CNodeGenerator::handle_slow_messages(uint8_t type,
-                                         CGenNode * node,
-                                         CFlowGenListPerThread * thread,
-                                          bool always){
+bool
+CNodeGenerator::handle_slow_messages(uint8_t type,
+                                     CGenNode * node,
+                                     CFlowGenListPerThread * thread,
+                                     bool always){
+
+    /* should we continue after */
+    bool exit_scheduler = false;
 
     if (unlikely (type == CGenNode::FLOW_DEFER_PORT_RELEASE) ) {
         m_p_queue.pop();
         thread->handler_defer_job(node);
         thread->free_node(node);
-    }else{
-        if (type == CGenNode::FLOW_PKT_NAT) {
+
+    } else if (type == CGenNode::FLOW_PKT_NAT) {
             /*repeat and NAT is not supported */
             if ( node->is_nat_first_state()  ){
                 node->set_nat_wait_state();
@@ -3536,7 +3623,7 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                         m_p_queue.pop();
                         /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
                         thread->terminate_nat_flows(node);
-                        return;
+                        return (exit_scheduler);
 
                     }else{
                         flush_one_node_to_file(node);
@@ -3556,24 +3643,50 @@ void CNodeGenerator::handle_slow_messages(uint8_t type,
                 m_p_queue.push(node);
             }
 
-        }else{
-            if ( type == CGenNode::FLOW_SYNC ){
-                thread->check_msgs();      /* check messages */
-                m_v_if->flush_tx_queue(); /* flush pkt each timeout */
-                m_p_queue.pop();
-                if ( always == false) {
-                    node->m_time += SYNC_TIME_OUT;
-                    m_p_queue.push(node);
-                }else{
-                    thread->free_node(node);
-                }
+        } else if ( type == CGenNode::FLOW_SYNC ) {
 
+            /* flow sync message is a sync point for time */
+            thread->m_cur_time_sec = node->m_time;
+
+            /* first pop the node */
+            m_p_queue.pop();
+
+            thread->check_msgs(); /* check messages */
+            m_v_if->flush_tx_queue(); /* flush pkt each timeout */
+
+            /* exit in case this is the last node*/
+            if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
+                thread->free_node(node);
+                exit_scheduler = true;
+            } else {
+                /* schedule for next maintenace */
+                node->m_time += SYNC_TIME_OUT;
+                m_p_queue.push(node);
+            }
+
+
+        } else if ( type == CGenNode::EXIT_SCHED ) {
+            m_p_queue.pop();
+            thread->free_node(node);
+            exit_scheduler = true;
+            
+        } else {
+            if ( type == CGenNode::COMMAND) {
+                m_p_queue.pop();
+                CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
+                {
+                    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
+                    cmd->handle(&thread->m_stateless_dp_info);
+                    exit_scheduler = cmd->is_quit();
+                    thread->free_node((CGenNode *)node_cmd);/* free the node */
+                }
             }else{
                 printf(" ERROR type is not valid %d \n",type);
                 assert(0);
             }
         }
-    }
+
+        return exit_scheduler;
 }
 
 
@@ -3809,11 +3922,15 @@ void CFlowGenListPerThread::handel_nat_msg(CGenNodeNatInfo * msg){
     }
 }
 
+void CFlowGenListPerThread::check_msgs(void) {
 
-void CFlowGenListPerThread::check_msgs(void){
-    if ( likely ( m_ring_from_rx->isEmpty() ) ){
+    /* inlined for performance */
+    m_stateless_dp_info.periodic_check_for_cp_messages();
+
+    if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return;
     }
+
     #ifdef  NAT_TRACE_
     printf(" %.03f got message from RX \n",now_sec());
     #endif
@@ -3833,9 +3950,11 @@ void CFlowGenListPerThread::check_msgs(void){
         case CGenNodeMsgBase::NAT_FIRST:
             handel_nat_msg((CGenNodeNatInfo * )msg);
             break;
+
         case CGenNodeMsgBase::LATENCY_PKT:
             handel_latecy_pkt_msg((CGenNodeLatencyPktInfo *) msg);
             break;
+
         default:
             printf("ERROR pkt-thread message type is not valid %d \n",msg_type);
             assert(0);
@@ -3845,8 +3964,47 @@ void CFlowGenListPerThread::check_msgs(void){
     }
 }
 
+//void delay(int msec);
 
-void CFlowGenListPerThread::generate_erf(std::string erf_file_name,
+
+
+void CFlowGenListPerThread::start_stateless_simulation_file(std::string erf_file_name,
+                                     CPreviewMode &preview){
+    m_preview_mode = preview;
+    m_node_gen.open_file(erf_file_name,&m_preview_mode);
+}
+
+void CFlowGenListPerThread::stop_stateless_simulation_file(){
+    m_node_gen.m_v_if->close_file();
+}
+
+void CFlowGenListPerThread::start_stateless_daemon_simulation(){
+
+    m_cur_time_sec = 0;
+    m_stateless_dp_info.run_once();
+
+}
+
+
+/* return true if we need to shedule next_stream,  */
+
+bool CFlowGenListPerThread::set_stateless_next_node( CGenNodeStateless * cur_node,
+                                                     CGenNodeStateless * next_node){
+    return ( m_stateless_dp_info.set_stateless_next_node(cur_node,next_node) );
+}
+
+
+void CFlowGenListPerThread::start_stateless_daemon(CPreviewMode &preview){
+    m_cur_time_sec = 0;
+    /* set per thread global info, for performance */
+    m_preview_mode = preview;
+    m_node_gen.open_file("",&m_preview_mode);
+
+    m_stateless_dp_info.start();
+}
+
+
+void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
                                 CPreviewMode & preview){
     /* now we are ready to generate*/
     if ( m_cap_gen.size()==0 ){
@@ -3888,11 +4046,13 @@ void CFlowGenListPerThread::generate_erf(std::string erf_file_name,
     #endif
     
     m_node_gen.flush_file(c_stop_sec,d_time_flow, false,this,old_offset);
+
+
 #ifdef VALG
     CALLGRIND_STOP_INSTRUMENTATION;
     printf (" %llu \n",os_get_hr_tick_64()-_start_time);
 #endif
-    if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() ){
+    if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() &&  (is_terminated_by_master()==false) ){
         /* clean close */
         m_node_gen.flush_file(m_cur_time_sec, d_time_flow, true,this,old_offset);
     }
@@ -3905,6 +4065,12 @@ void CFlowGenListPerThread::generate_erf(std::string erf_file_name,
         m_stats.dump(stdout);
     }
     m_node_gen.close_file(this);
+}
+
+void CFlowGenList::Delete(){
+    clean_p_thread_info();
+    Clean();
+    delete  CPluginCallback::callback;
 }
 
 
@@ -3938,10 +4104,6 @@ void CFlowGenList::clean_p_thread_info(void){
 }
 
 
-void CFlowGenList::Delete(){
-    clean_p_thread_info();
-    Clean();
-}
 
 int CFlowGenList::load_from_mac_file(std::string file_name) {
     if ( !utl_is_file_exists (file_name)  ){
@@ -3963,6 +4125,7 @@ int CFlowGenList::load_from_mac_file(std::string file_name) {
          exit(-1);
      }
 
+     return (0);
 }
 
 
@@ -4435,9 +4598,12 @@ void CTupleTemplateGenerator::Generate(){
 
 #endif
 
+static uint32_t get_rand_32(uint32_t MinimumRange,
+                            uint32_t MaximumRange) __attribute__ ((unused));
 
-static uint32_t  get_rand_32(uint32_t MinimumRange , 
-					  uint32_t MaximumRange ){
+static uint32_t get_rand_32(uint32_t MinimumRange,
+                            uint32_t MaximumRange) {
+
 	enum {RANDS_NUM = 2 , RAND_MAX_BITS = 0xf , UNSIGNED_INT_BITS = 0x20 , TWO_BITS_MASK = 0x3};
 	
 	const double TWO_POWER_32_BITS = 0x10000000 * (double)0x10;
@@ -4471,24 +4637,54 @@ int CNullIF::send_node(CGenNode * node){
 }
 
 
-int CErfIF::send_node(CGenNode * node){
-   if ( m_preview_mode->getFileWrite() ){
 
-    CFlowPktInfo * lp=node->m_pkt_info;
-    rte_mbuf_t * m=lp->generate_new_mbuf(node);
+void CErfIF::fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir){
 
     fill_pkt(m_raw,m);
+
     CPktNsecTimeStamp t_c(node->m_time);
     m_raw->time_nsec = t_c.m_time_nsec;
     m_raw->time_sec  = t_c.m_time_sec;
-
-    pkt_dir_t dir=node->cur_interface_dir();
     uint8_t p_id = (uint8_t)dir;
-    
     m_raw->setInterface(p_id);
+}
+
+
+int CErfIFStl::send_node(CGenNode * _no_to_use){
+
+    if ( m_preview_mode->getFileWrite() ){
+
+        CGenNodeStateless * node_sl=(CGenNodeStateless *) _no_to_use;
+    
+        /* check that we have mbuf  */
+        rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+        assert( m );
+        pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    
+        fill_raw_packet(m,_no_to_use,dir);
+        BP_ASSERT(m_writer);
+        bool res=m_writer->write_packet(m_raw);
+    
+    
+        BP_ASSERT(res);
+    }
+    return (0);
+}
+
+
+int CErfIF::send_node(CGenNode * node){
+
+    if ( m_preview_mode->getFileWrite() ){
+
+    CFlowPktInfo * lp=node->m_pkt_info;
+    rte_mbuf_t * m=lp->generate_new_mbuf(node);
+    pkt_dir_t dir=node->cur_interface_dir();
+
+    fill_raw_packet(m,node,dir);
 
     /* update mac addr dest/src 12 bytes */
     uint8_t *p=(uint8_t *)m_raw->raw;
+    int p_id=(int)dir;
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
     /* If vlan is enabled, add vlan header */
@@ -4521,901 +4717,9 @@ int CErfIF::send_node(CGenNode * node){
    return (0);
 }
 
-
 int CErfIF::flush_tx_queue(void){
     return (0);
 }
-
-
-
-const uint8_t sctp_pkt[]={ 
-
-    0x00,0x04,0x96,0x08,0xe0,0x40,
-    0x00,0x0e,0x2e,0x24,0x37,0x5f,
-    0x08,0x00,
-
-    0x45,0x02,0x00,0x30,
-    0x00,0x00,0x40,0x00,
-    0x40,0x84,0xbd,0x04,
-    0x9b,0xe6,0x18,0x9b, //sIP
-    0xcb,0xff,0xfc,0xc2, //DIP
-
-    0x80,0x44,//SPORT
-    0x00,0x50,//DPORT
-
-    0x00,0x00,0x00,0x00, //checksum 
-
-    0x11,0x22,0x33,0x44, // magic 
-    0x00,0x00,0x00,0x00, //64 bit counter
-    0x00,0x00,0x00,0x00,
-    0x00,0x01,0xa0,0x00, //seq
-    0x00,0x00,0x00,0x00,
-
-};
-
-// 20+8+20`
-
-void CLatencyPktInfo::Create(){
-    m_packet = new CCapPktRaw( sizeof(sctp_pkt) );
-    m_packet->pkt_cnt=0;
-    m_packet->time_sec=0;
-    m_packet->time_nsec=0;
-    memcpy(m_packet->raw,sctp_pkt,sizeof(sctp_pkt));
-    m_packet->pkt_len=sizeof(sctp_pkt);
-
-    m_pkt_indication.m_packet  =m_packet;
-
-    m_pkt_indication.m_ether = (EthernetHeader *)m_packet->raw;
-    m_pkt_indication.l3.m_ipv4=(IPHeader       *)(m_packet->raw+14);
-    m_pkt_indication.m_is_ipv6 = false;
-    m_pkt_indication.l4.m_udp=(UDPHeader *)m_packet->raw+14+20;
-    m_pkt_indication.m_payload=(uint8_t *)m_packet->raw+14+20+16;
-    m_pkt_indication.m_payload_len=0;
-    m_pkt_indication.m_packet_padding=4;
-
-
-    m_pkt_indication.m_ether_offset =0;
-    m_pkt_indication.m_ip_offset =14;
-    m_pkt_indication.m_udp_tcp_offset = 34;
-    m_pkt_indication.m_payload_offset = 34+8;
-
-    CPacketDescriptor * lpd=&m_pkt_indication.m_desc;
-    lpd->Clear();
-    lpd->SetInitSide(true);
-    lpd->SetSwapTuple(false);
-    lpd->SetIsValidPkt(true);
-    lpd->SetIsUdp(true);
-    lpd->SetIsLastPkt(true);
-    m_pkt_info.Create(&m_pkt_indication);
-
-    memset(&m_dummy_node,0,sizeof(m_dummy_node));
-
-    m_dummy_node.set_socket_id( CGlobalInfo::m_socket.port_to_socket(0) );
-
-    m_dummy_node.m_time =0.1;
-    m_dummy_node.m_pkt_info = &m_pkt_info;
-    m_dummy_node.m_dest_ip  = 0;
-    m_dummy_node.m_src_ip   = 0;
-    m_dummy_node.m_src_port =  0x11;
-    m_dummy_node.m_flow_id =0;
-    m_dummy_node.m_flags =CGenNode::NODE_FLAGS_LATENCY;
-    
-}
-
-
-rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id,uint32_t extern_ip){
-
-    bool is_client_to_serever=(port_id%2==0)?true:false;
-
-    int dual_port_index=(port_id>>1);
-    uint32_t c=m_client_ip.v4;
-    uint32_t s=m_server_ip.v4;
-    if ( extern_ip ){
-        c=extern_ip;
-    }
-
-    if (!is_client_to_serever) {
-        /*swap */
-        uint32_t t=c;
-        c=s;
-        s=t;
-    }
-    uint32_t mask=dual_port_index*m_dual_port_mask;
-    if ( extern_ip==0 ){
-       c+=mask;
-    }
-    s+=mask;
-    m_dummy_node.m_src_ip  = c;
-    m_dummy_node.m_dest_ip   = s;
-
-    rte_mbuf_t * m=m_pkt_info.generate_new_mbuf(&m_dummy_node);
-    return (m);
-
-
-}
-
-
-void CLatencyPktInfo::set_ip(uint32_t src,
-                             uint32_t dst,
-                             uint32_t dual_port_mask){
-
-    m_client_ip.v4=src;
-    m_server_ip.v4=dst;
-    m_dual_port_mask=dual_port_mask;
-
-}
-
-
-void CLatencyPktInfo::Delete(){
-    m_pkt_info.Delete();
-    delete m_packet;
-}
-
-void CCPortLatency::reset(){
-    m_rx_seq    =m_tx_seq;
-    m_pad       = 0;
-
-    m_tx_pkt_err=0;
-    m_tx_pkt_ok =0;
-    m_pkt_ok=0;
-    m_rx_check=0;
-    m_no_magic=0;
-    m_unsup_prot=0;
-    m_no_id=0;
-    m_seq_error=0;
-    m_length_error=0;
-    m_no_ipv4_option=0;
-    m_hist.Reset();
-}
-
-
-static uint8_t nat_is_port_can_send(uint8_t port_id){
-    uint8_t offset= ((port_id>>1)<<1);
-    uint8_t client_index = (port_id %2);
-    return (client_index ==0 ?1:0);
-}
-
-
-bool CCPortLatency::Create(CLatencyManager * parent,
-                           uint8_t id,
-                           uint16_t offset,
-                           uint16_t pkt_size,
-                           CCPortLatency * rx_port){
-    m_parent    = parent;
-    m_id        = id;
-    m_tx_seq    =0x12345678;
-    m_offset    = offset;
-    m_pkt_size  = pkt_size;
-    m_rx_port   = rx_port;
-    m_nat_can_send = nat_is_port_can_send(m_id);
-    m_nat_learn    = m_nat_can_send;
-    m_nat_external_ip=0;
-
-    m_hist.Create();
-    reset();
-    return (true);
-}
-
-void CCPortLatency::Delete(){
-    m_hist.Delete();
-}
-
-void CCPortLatency::update_packet(rte_mbuf_t * m){
-    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
-    /* update mac addr dest/src 12 bytes */
-    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(m_id),12);
-
-    latency_header * h=(latency_header *)(p+m_offset);
-    h->magic = LATENCY_MAGIC | m_id ;
-    h->time_stamp = os_get_hr_tick_64();
-    h->seq = m_tx_seq;
-    m_tx_seq++;
-}
-
-
-void CCPortLatency::DumpShortHeader(FILE *fd){
-    
-
-    fprintf(fd," if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window \n");
-	fprintf(fd,"   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,             \n");
-    fprintf(fd," ---------------------------------------------------------------------------------------------------------------- \n");
-}
-
-
-
-std::string CCPortLatency::get_field(std::string name,float f){
-    char buff[200];
-    sprintf(buff,"\"%s-%d\":%.1f,",name.c_str(),m_id,f);
-    return (std::string(buff));
-}
-
-
-void CCPortLatency::dump_json_v2(std::string & json ){
-    char buff[200];
-    sprintf(buff,"\"port-%d\": {",m_id);
-    json+=std::string(buff);
-    m_hist.dump_json("hist",json);
-    dump_counters_json(json);
-    json+="},";
-}
-
-void CCPortLatency::dump_json(std::string & json ){
-    json += get_field("avg",m_hist.get_average_latency() );
-    json += get_field("max",m_hist.get_max_latency() );
-    json += get_field("c-max",m_hist.get_max_latency_last_update() );
-    json += get_field("error",(float)(m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error) );
-    json += get_field("jitter",(float)get_jitter_usec() );
-}
-
-
-void CCPortLatency::DumpShort(FILE *fd){
-
-	m_hist.update();
-    fprintf(fd,"%8lu,%8lu,%10lu,%4lu,",                          
-                    m_tx_pkt_ok,
-                    m_pkt_ok,
-                    m_rx_check,
-                    m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error+m_no_ipv4_option+m_tx_pkt_err
-            );
-
-    fprintf(fd,"   %8.0f  ,%8.0f,%8d ",
-                          m_hist.get_average_latency(),
-                          m_hist.get_max_latency(),
-                          get_jitter_usec()
-                        );
-	fprintf(fd,"     | ");
-	m_hist.DumpWinMax(fd);
-
-}
-
-#define DPL_J(f)  json+=add_json(#f,f);
-#define DPL_J_LAST(f)  json+=add_json(#f,f,true);
-
-void CCPortLatency::dump_counters_json(std::string & json ){
-
-    json+="\"stats\" : {";
-    DPL_J(m_tx_pkt_ok);
-    DPL_J(m_tx_pkt_err);
-    DPL_J(m_pkt_ok);
-    DPL_J(m_unsup_prot);
-    DPL_J(m_no_magic);
-    DPL_J(m_no_id);
-    DPL_J(m_seq_error);
-    DPL_J(m_length_error);
-    DPL_J(m_no_ipv4_option);
-    json+=add_json("m_jitter",get_jitter_usec());
-    /* must be last */
-    DPL_J_LAST(m_rx_check);
-    json+="}";
-
-
-}
-
-void CCPortLatency::DumpCounters(FILE *fd){
-    #define DP_A1(f) if (f) fprintf(fd," %-40s : %llu \n",#f,f)
-
-    fprintf(fd," counter  \n");
-    fprintf(fd," -----------\n");
-
-    DP_A1(m_tx_pkt_err);
-    DP_A1(m_tx_pkt_ok);
-    DP_A1(m_pkt_ok);
-    DP_A1(m_unsup_prot);
-    DP_A1(m_no_magic);
-    DP_A1(m_no_id);
-    DP_A1(m_seq_error);
-    DP_A1(m_length_error);
-    DP_A1(m_rx_check);
-    DP_A1(m_no_ipv4_option);
-
-
-    fprintf(fd," -----------\n");
-    m_hist.Dump(fd);
-    fprintf(fd," %-40s : %llu \n","jitter",get_jitter_usec());
-}
-
-bool CCPortLatency::dump_packet(rte_mbuf_t * m){
-    fprintf(stdout," %f.03 dump packet ..\n",now_sec());
-	uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
-	uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
-    utl_DumpBuffer(stdout,p,pkt_size,0);
-    return (0);
-
-
-
-    if (pkt_size < ( sizeof(CRx_check_header)+14+20) ) {
-        assert(0);
-    }
-    CRx_check_header * lp=(CRx_check_header *)(p+pkt_size-sizeof(CRx_check_header));
-
-    lp->dump(stdout);
-
-
-	uint16_t vlan_offset=0;
-	if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-		vlan_offset=4;
-	}
-//	utl_DumpBuffer(stdout,p,pkt_size,0);
-	return (0);
-
-}
-
-bool CCPortLatency::check_rx_check(rte_mbuf_t * m){
-    m_rx_check++;
-    return (true);
-}
-
-bool CCPortLatency::do_learn(uint32_t external_ip){
-    m_nat_learn=true;
-    m_nat_can_send=true;
-    m_nat_external_ip=external_ip;
-    return (true);
-}
-
-bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p){
-
-    CSimplePacketParser parser(m);
-    if ( !parser.Parse()  ){
-        m_unsup_prot++;  // Unsupported protocol
-        return (false);
-    }
-    
-    uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
-    /* check if CRC was extracted */
-    if ( parser.getPktSize() == pkt_size-4) {
-        // CRC was not extracted by driver (VM E1000 driver issue) extract it
-        pkt_size=pkt_size-4;
-    }
-
-    uint16_t vlan_offset=parser.m_vlan_offset;
-    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
-
-    rx_p=(CRx_check_header *)0;
-    bool managed_by_ip_options=false;
-    bool is_rx_check=true;
-
-    if ( !parser.IsLatencyPkt() ){
-
-        #ifdef NAT_TRACE_
-        printf(" %.3f RX : got packet !!! \n",now_sec() );
-        #endif
-
-        /* ipv6+rx-check */
-        if ( parser.m_ipv6 ) {
-            /* if we have ipv6 packet */
-            if (parser.m_protocol == RX_CHECK_V6_OPT_TYPE) {
-                if ( get_is_rx_check_mode() ){
-                    m_rx_check++;
-                    rx_p=(CRx_check_header *)((uint8_t*)parser.m_ipv6  +IPv6Header::DefaultSize);
-                    return (true);
-                }
-
-            }
-            m_seq_error++;
-           return (false);
-        }
-
-        uint8_t opt_len = parser.m_ipv4->getOptionLen();
-        uint8_t *opt_ptr = parser.m_ipv4->getOption();
-        /* Process IP option header(s) */
-        while ( opt_len != 0 ) {
-            switch (*opt_ptr) {
-            case RX_CHECK_V4_OPT_TYPE:
-                    /* rx-check option header */
-                    if ( ( !get_is_rx_check_mode() ) ||
-                        (opt_len < RX_CHECK_LEN) ) {
-                        m_seq_error++;
-                        return (false);
-                    }
-                    m_rx_check++;
-                    rx_p=(CRx_check_header *)opt_ptr;
-                    opt_len -= RX_CHECK_LEN;
-                    opt_ptr += RX_CHECK_LEN;
-                    break;
-            case CNatOption::noIPV4_OPTION:
-                    /* NAT learn option header */
-                    CNatOption *lp;
-                    if ( ( !CGlobalInfo::is_learn_mode() ) ||
-                         (opt_len < CNatOption::noOPTION_LEN) ) {
-                        m_seq_error++;
-                        return (false);
-                    }
-                    lp = (CNatOption *)opt_ptr;
-                    if ( !lp->is_valid_ipv4_magic() ) {
-                        m_no_ipv4_option++;
-                        return (false);
-                    }
-                    m_parent->get_nat_manager()->handle_packet_ipv4(lp,parser.m_ipv4);
-                    opt_len -= CNatOption::noOPTION_LEN;
-                    opt_ptr += CNatOption::noOPTION_LEN;
-                    break;
-            default:
-                    m_seq_error++;
-                    return (false);
-            } // End of switch
-        } // End of while
-
-        return (true);
-    } // End of check for non-latency packet
-
-    if ( CGlobalInfo::is_learn_mode() && (m_nat_learn ==false) ) {
-        do_learn(parser.m_ipv4->getSourceIp());
-    }
-
-    if ( (pkt_size-vlan_offset) != m_pkt_size ) {
-        m_length_error++;
-        return (false);
-    }
-
-    latency_header * h=(latency_header *)(p+m_offset+vlan_offset);
-
-    if ( (h->magic & 0xffffff00) != LATENCY_MAGIC ){
-        m_no_magic++;
-        return (false);
-    }
-
-    if ( h->seq != m_rx_seq ){
-        m_seq_error++;
-        m_rx_seq =h->seq +1;
-        return (false);
-    }else{
-        m_rx_seq++;
-    }
-    m_pkt_ok++;
-    uint64_t d = (os_get_hr_tick_64() - h->time_stamp );
-    dsec_t ctime=ptime_convert_hr_dsec(d);
-    m_hist.Add(ctime);
-    m_jitter.calc(ctime);
-    return (true);
-}
-
-void CLatencyManager::Delete(){
-    m_pkt_gen.Delete();
-
-    if ( get_is_rx_check_mode() ) {
-        m_rx_check_manager.Delete();
-    }
-    if ( CGlobalInfo::is_learn_mode() ){
-        m_nat_check_manager.Delete();
-    }
-    m_cpu_cp_u.Delete();
-}
-
-/* 0->1
-   1->0 
-   2->3
-   3->2
-*/
-static uint8_t swap_port(uint8_t port_id){
-    uint8_t offset= ((port_id>>1)<<1);
-    uint8_t client_index = (port_id %2);
-    return (offset+client_index^1);
-}
-
-
-
-bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
-    m_max_ports=cfg->m_max_ports;
-    assert (m_max_ports<=MAX_LATENCY_PORTS);
-    assert ((m_max_ports%2)==0);
-    m_port_mask =0xffffffff;
-    m_do_stop =false;
-    m_is_active =false;
-    m_pkt_gen.Create();
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        CCPortLatency * lpo=&m_ports[swap_port(i)].m_port;
-
-        lp->m_io=cfg->m_ports[i];
-        lp->m_port.Create(this,
-                          i,
-                          m_pkt_gen.get_payload_offset(),
-                          m_pkt_gen.get_pkt_size(),lpo );
-    }
-    m_cps= cfg->m_cps;
-    m_d_time =ptime_convert_dsec_hr((1.0/m_cps));
-    m_delta_sec =(1.0/m_cps);
-
-        
-    if ( get_is_rx_check_mode() ) {
-        assert(m_rx_check_manager.Create());
-        m_rx_check_manager.m_cur_time= now_sec();
-     }
-
-
-    m_pkt_gen.set_ip(cfg->m_client_ip.v4,cfg->m_server_ip.v4,cfg->m_dual_port_mask);
-    m_cpu_cp_u.Create(&m_cpu_dp_u);
-    if ( CGlobalInfo::is_learn_mode() ){
-        m_nat_check_manager.Create();
-    }
-    return (true);
-}
-
-
-void  CLatencyManager::send_pkt_all_ports(){
-    m_start_time = os_get_hr_tick_64();
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        if ( m_port_mask & (1<<i)  ){
-            CLatencyManagerPerPort * lp=&m_ports[i];
-            if (lp->m_port.can_send_packet() ){
-                rte_mbuf_t * m=m_pkt_gen.generate_pkt(i,lp->m_port.external_nat_ip());
-                lp->m_port.update_packet(m);
-                if ( lp->m_io->tx(m) == 0 ){
-                    lp->m_port.m_tx_pkt_ok++;
-                }else{
-                    lp->m_port.m_tx_pkt_err++;
-                }
-
-            }
-        }
-    }
-}
-
-
-void  CLatencyManager::wait_for_rx_dump(){
-	rte_mbuf_t * rx_pkts[64];
-	int i;
-	while ( true  ) {
-		rte_pause();
-		rte_pause();
-		rte_pause();
-		for (i=0; i<m_max_ports; i++) {
-			CLatencyManagerPerPort * lp=&m_ports[i];
-			rte_mbuf_t * m;
-			uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
-			if (cnt_p) {
-				int j;
-				for (j=0; j<cnt_p; j++) {
-					m=rx_pkts[j] ;
-					lp->m_port.dump_packet( m);
-					rte_pktmbuf_free(m);
-				}
-			} /*cnt_p*/
-		}/* for*/
-	}
-}
-
-
-void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
-                                    rte_mbuf_t * m){
-    CRx_check_header *rxc;
-    lp->m_port.check_packet(m,rxc);
-    if ( unlikely(rxc!=NULL) ){
-        m_rx_check_manager.handle_packet(rxc);
-    }
-    rte_pktmbuf_free(m);
-}
-
-void CLatencyManager::handle_latecy_pkt_msg(uint8_t thread_id,
-                                            CGenNodeLatencyPktInfo * msg){
-
-    assert(msg->m_latency_offset==0xdead);
-
-    uint8_t rx_port_index=(thread_id<<1)+(msg->m_dir&1);
-    assert( rx_port_index <m_max_ports ) ;
-    CLatencyManagerPerPort * lp=&m_ports[rx_port_index];
-    handle_rx_pkt(lp,(rte_mbuf_t *)msg->m_pkt);
-}
-
-
-void  CLatencyManager::run_rx_queue_msgs(uint8_t thread_id,
-                                         CNodeRing * r){
-
-    while ( true ) {
-        CGenNode * node;
-        if ( r->Dequeue(node)!=0 ){
-            break;
-        }
-        assert(node);
-
-        CGenNodeMsgBase * msg=(CGenNodeMsgBase *)node;
-
-        CGenNodeLatencyPktInfo * msg1=(CGenNodeLatencyPktInfo *)msg;
-
-        uint8_t   msg_type =  msg->m_msg_type;
-        switch (msg_type ) {
-        case CGenNodeMsgBase::LATENCY_PKT:
-            handle_latecy_pkt_msg(thread_id,(CGenNodeLatencyPktInfo *) msg);
-            break;
-        default:
-            printf("ERROR latency-thread message type is not valid %d \n",msg_type);
-            assert(0);
-        }
-
-        CGlobalInfo::free_node(node);
-    }
-}
-
-void  CLatencyManager::try_rx_queues(){
-
-    CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
-    uint8_t threads=CMsgIns::Ins()->get_num_threads();
-    int ti;
-    for (ti=0; ti<(int)threads; ti++) {
-        CNodeRing * r = rx_dp->getRingDpToCp(ti);
-        if ( !r->isEmpty() ){
-            run_rx_queue_msgs((uint8_t)ti,r);
-        }
-    }
-}
-
-
-void  CLatencyManager::try_rx(){
-    rte_mbuf_t * rx_pkts[64];
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        rte_mbuf_t * m;
-        m_cpu_dp_u.start_work();
-        /* try to read 64 packets clean up the queue */
-        uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
-        if (cnt_p) {
-            int j;
-            for (j=0; j<cnt_p; j++) {
-                m=rx_pkts[j] ;
-                handle_rx_pkt(lp,m);
-            }
-            /* commit only if there was work to do ! */
-            m_cpu_dp_u.commit();
-          }/* if work */
-      }// all ports
-}
-
-
-void  CLatencyManager::reset(){
-
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        lp->m_port.reset();
-    }
-
-}
-
-void  CLatencyManager::start(int iter){
-    m_do_stop =false;
-    m_is_active =false;
-    int cnt=0;
-
-    double n_time;
-    CGenNode * node = new CGenNode();
-    node->m_type = CGenNode::FLOW_SYNC;   /* general stuff */
-    node->m_time = now_sec()+0.007;
-    m_p_queue.push(node);
-
-    node = new CGenNode();
-    node->m_type = CGenNode::FLOW_PKT; /* latency */
-    node->m_time = now_sec(); /* 1/cps rate */
-    m_p_queue.push(node);
-    bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable()?true:false;
-
-
-    while (  !m_p_queue.empty() ) {
-        node = m_p_queue.top();
-        n_time = node->m_time;
-
-        /* wait for event */
-        while ( true ) {
-            double dt = now_sec() - n_time ;
-            if (dt> (0.0)) {
-                break;
-            }
-            if (do_try_rx_queue){
-                try_rx_queues();
-            }
-            try_rx();
-            rte_pause();
-        }
-
-        switch (node->m_type) {
-        case CGenNode::FLOW_SYNC:
-            if ( CGlobalInfo::is_learn_mode() ) {
-                m_nat_check_manager.handle_aging();
-            }
-
-            m_p_queue.pop();
-            node->m_time += SYNC_TIME_OUT;
-            m_p_queue.push(node);
-
-            break;
-        case CGenNode::FLOW_PKT:
-            m_cpu_dp_u.start_work();
-            send_pkt_all_ports();
-            m_p_queue.pop();
-            node->m_time += m_delta_sec;
-            m_p_queue.push(node);
-            m_cpu_dp_u.commit();
-            break;
-        }
-
-        /* this will be called every sync which is 1msec */
-        if ( m_do_stop ) {
-             break;
-        }
-        if ( iter>0   ){
-            if ( ( cnt>iter) ){
-                printf("stop due iter %d %d \n",iter);
-                break;
-            }
-        } 
-        cnt++;
-    }
-
-    /* free all nodes in the queue */
-    while (!m_p_queue.empty()) {
-        node = m_p_queue.top();
-        m_p_queue.pop();
-        delete node;
-    }
-
-    printf(" latency daemon has stopped\n");
-    if ( get_is_rx_check_mode() ) {
-        m_rx_check_manager.tw_drain();
-    }
-
-}
-
-void  CLatencyManager::stop(){
-    m_do_stop =true;
-}
-
-bool  CLatencyManager::is_active(){
-    return (m_is_active);
-}
-
-
-double CLatencyManager::get_max_latency(){
-    double l=0.0;
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        if ( l <lp->m_port.m_hist.get_max_latency() ){
-            l=lp->m_port.m_hist.get_max_latency();
-        }
-    }
-    return (l);
-}
-
-double CLatencyManager::get_avr_latency(){
-    double l=0.0;
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        if ( l <lp->m_port.m_hist.get_average_latency() ){
-            l=lp->m_port.m_hist.get_average_latency();
-        }
-    }
-    return (l);
-}
-
-uint64_t CLatencyManager::get_total_pkt(){
-    int i;
-    uint64_t t=0;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        t+=lp->m_port.m_tx_pkt_ok ;
-    }
-    return  t;
-}
-
-uint64_t CLatencyManager::get_total_bytes(){
-    int i;
-    uint64_t t=0;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        t+=lp->m_port.m_tx_pkt_ok* (m_pkt_gen.get_pkt_size()+4);
-    }
-    return  t;
-
-}
-
-
-bool   CLatencyManager::is_any_error(){
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        if ( lp->m_port.is_any_err() ){
-            return (true);
-        }
-    }
-    return  (false);
-}
-
-
-void CLatencyManager::dump_json(std::string & json ){
-    json="{\"name\":\"trex-latecny\",\"type\":0,\"data\":{";
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        lp->m_port.dump_json(json);
-    }
-
-    json+="\"unknown\":0}}"  ;
-
-}
-
-void CLatencyManager::dump_json_v2(std::string & json ){
-    json="{\"name\":\"trex-latecny-v2\",\"type\":0,\"data\":{";
-    json+=add_json("cpu_util",m_cpu_cp_u.GetVal());
-
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        lp->m_port.dump_json_v2(json);
-    }
-
-    json+="\"unknown\":0}}"  ;
-
-}
-
-void CLatencyManager::DumpRxCheck(FILE *fd){
-    if ( get_is_rx_check_mode() ) {
-        fprintf(fd," rx checker : \n");
-        m_rx_check_manager.DumpShort(fd);
-        m_rx_check_manager.Dump(fd);
-    }
-}
-
-void CLatencyManager::DumpShortRxCheck(FILE *fd){
-    if ( get_is_rx_check_mode() ) {
-        m_rx_check_manager.DumpShort(fd);
-    }
-}
-
-void CLatencyManager::rx_check_dump_json(std::string & json){
-    if ( get_is_rx_check_mode() ) {
-        m_rx_check_manager.dump_json(json );
-    }
-}
-
-void CLatencyManager::update(){
-    m_cpu_cp_u.Update() ;
-}
-
-void CLatencyManager::DumpShort(FILE *fd){
-    int i;
-    fprintf(fd," Cpu Utilization : %2.1f %%  \n",m_cpu_cp_u.GetVal());
-    CCPortLatency::DumpShortHeader(fd);
-    for (i=0; i<m_max_ports; i++) {
-        fprintf(fd," %d | ",i);
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        lp->m_port.DumpShort(fd);
-        fprintf(fd,"\n");
-    }
-
-
-}
-
-void CLatencyManager::Dump(FILE *fd){
-    int i;
-    fprintf(fd," cpu : %2.1f  %% \n",m_cpu_cp_u.GetVal());
-    for (i=0; i<m_max_ports; i++) {
-        fprintf(fd," port   %d \n",i);
-        fprintf(fd," -----------------\n");
-        CLatencyManagerPerPort * lp=&m_ports[i];
-        lp->m_port.DumpCounters(fd);
-    }
-}
-
-void CLatencyManager::DumpRxCheckVerification(FILE *fd,
-                                              uint64_t total_tx_rx_check){
-    if ( !get_is_rx_check_mode() ) {
-        fprintf(fd," rx_checker is disabled  \n");
-        return;
-    }
-    fprintf(fd," rx_check Tx : %u \n",total_tx_rx_check);
-    fprintf(fd," rx_check Rx : %u \n",m_rx_check_manager.getTotalRx() );
-    fprintf(fd," rx_check verification :" );
-    if (m_rx_check_manager.getTotalRx() == total_tx_rx_check) {
-        fprintf(fd," OK \n" );
-    }else{
-        fprintf(fd," FAIL \n" );
-    }
-}
-
-
 
 void CTcpSeq::update(uint8_t *p, CFlowPktInfo *pkt_info, int16_t s_size){
     TCPHeader *tcp= (TCPHeader *)(p+pkt_info->m_pkt_indication.getFastTcpOffset());
@@ -6659,7 +5963,6 @@ bool CSimplePacketParser::Parse(){
     EthernetHeader *m_ether = (EthernetHeader *)p;
     IPHeader * ipv4=0;
     IPv6Header * ipv6=0;
-    uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     m_vlan_offset=0;
     m_option_offset=0;
 
@@ -6670,6 +5973,7 @@ bool CSimplePacketParser::Parse(){
     case EthernetHeader::Protocol::IP :
         // IPv4 packet
         ipv4=(IPHeader *)(p+14);
+        m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
         protocol = ipv4->getProtocol();
         m_option_offset = 14 + IPV4_HDR_LEN;
         break;
@@ -6685,6 +5989,7 @@ bool CSimplePacketParser::Parse(){
         case EthernetHeader::Protocol::IP:
             // IPv4 packet
             ipv4=(IPHeader *)(p+18);
+            m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
             protocol = ipv4->getProtocol();
             m_option_offset = 18+ IPV4_HDR_LEN;
             break;
@@ -6711,7 +6016,26 @@ bool CSimplePacketParser::Parse(){
 }
 
 
+/* free the right object. 
+   it is classic to use virtual function but we can't do it here and we don't even want to use callback function 
+   as we want to save space and in most cases there is nothing to free. 
+   this might be changed in the future  
+ */
+void CGenNodeBase::free_base(){
+    if ( m_type == FLOW_PKT ) {
+         CGenNode* p=(CGenNode*)this;
+         p->free_gen_node();
+        return;
+    }
+    if (m_type==STATELESS_PKT) {
+         CGenNodeStateless* p=(CGenNodeStateless*)this;
+         p->free_stl_node();
+        return;
+    } 
+    if ( m_type == COMMAND ) {
+         CGenNodeCommand* p=(CGenNodeCommand*)this;
+         p->free_command();
+    }
 
-
-
+}
 

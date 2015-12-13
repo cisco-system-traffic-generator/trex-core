@@ -6,324 +6,1175 @@ try:
 except ImportError:
     # support import for Python 3
     import client.outer_packages
+
 from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 from client_utils.packet_builder import CTRexPktBuilder
 import json
-from common.trex_stats import *
+
+from common.trex_streams import *
 from collections import namedtuple
+from common.text_opts import *
+from common import trex_stats
+from client_utils import parsing_opts, text_tables
+import time
+import datetime
+import re
+import random
+from trex_port import Port
+from common.trex_types import *
+
+from trex_async_client import CTRexAsyncClient
+
+
+########## utlity ############
+def mult_to_factor (mult, max_bps, max_pps, line_util):
+    if mult['type'] == 'raw':
+        return mult['value']
+
+    if mult['type'] == 'bps':
+        return mult['value'] / max_bps
+
+    if mult['type'] == 'pps':
+        return mult['value'] / max_pps
+
+    if mult['type'] == 'percentage':
+        return mult['value'] / line_util
+
 
 
 class CTRexStatelessClient(object):
     """docstring for CTRexStatelessClient"""
-    RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
 
-    def __init__(self, username, server="localhost", port=5050, virtual=False):
+    # verbose levels
+    VERBOSE_SILENCE = 0
+    VERBOSE_REGULAR = 1
+    VERBOSE_HIGH    = 2
+    
+    def __init__(self, username, server="localhost", sync_port = 5050, async_port = 4500, virtual=False):
         super(CTRexStatelessClient, self).__init__()
+
         self.user = username
-        self.tx_link = CTRexStatelessClient.CTxLink(server, port, virtual)
-        self._conn_handler = {}
-        self._active_ports = set()
-        self._stats = CTRexStatsManager("port", "stream")
-        self._system_info = None
 
-    # ----- decorator methods ----- #
-    def force_status(owned=True, active_and_owned=False):
-        def wrapper(func):
-            def wrapper_f(self, *args, **kwargs):
-                port_ids = kwargs.get("port_id")
-                if isinstance(port_ids, int):
-                    # make sure port_ids is a list
-                    port_ids = [port_ids]
-                bad_ids = set()
-                for port_id in port_ids:
-                    port_owned = self._conn_handler.get(kwargs.get(port_id))
-                    if owned and not port_owned:
-                        bad_ids.add(port_ids)
-                    elif active_and_owned:    # stronger condition than just owned, hence gets precedence
-                        if port_owned and port_id in self._active_ports:
-                            continue
-                        else:
-                            bad_ids.add(port_ids)
-                    else:
-                        continue
-                if bad_ids:
-                    # Some port IDs are not according to desires status
-                    raise RuntimeError("The requested method ('{0}') cannot be invoked since port IDs {1} are not"
-                                       "at allowed stated".format(func.__name__))
+        self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
+
+        # default verbose level
+        self.verbose = self.VERBOSE_REGULAR
+
+        self.ports = {}
+        self._connection_info = {"server": server,
+                                 "sync_port": sync_port,
+                                 "async_port": async_port}
+        self.system_info = {}
+        self.server_version = {}
+        self.__err_log = None
+
+        self.async_client = CTRexAsyncClient(server, async_port, self)
+
+        self.streams_db = CStreamsDB()
+        self.global_stats = trex_stats.CGlobalStats(self._connection_info,
+                                                    self.server_version,
+                                                    self.ports)
+        self.stats_generator = trex_stats.CTRexStatsGenerator(self.global_stats,
+                                                              self.ports)
+
+        self.events = []
+
+        
+        self.read_only = False
+        self.connected = False
+
+
+
+    # returns the port object
+    def get_port (self, port_id):
+        return self.ports.get(port_id, None)
+
+
+    def get_server (self):
+        return self.comm_link.get_server()
+
+    ################# events handler ######################
+    def add_event_log (self, msg, ev_type, show = False):
+
+        if ev_type == "server":
+            prefix = "[server]"
+        elif ev_type == "local":
+            prefix = "[local]"
+
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        self.events.append("{:<10} - {:^8} - {:}".format(st, prefix, format_text(msg, 'bold')))
+
+        if show and self.check_verbose(self.VERBOSE_REGULAR):
+            print format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold')))
+  
+
+    def handle_async_stats_update(self, dump_data):
+        global_stats = {}
+        port_stats = {}
+
+        # filter the values per port and general
+        for key, value in dump_data.iteritems():
+            # match a pattern of ports
+            m = re.search('(.*)\-([0-8])', key)
+            if m:
+                port_id = int(m.group(2))
+                field_name = m.group(1)
+                if self.ports.has_key(port_id):
+                    if not port_id in port_stats:
+                        port_stats[port_id] = {}
+                    port_stats[port_id][field_name] = value
                 else:
-                    func(self, *args, **kwargs)
-            return wrapper_f
-        return wrapper
+                    continue
+            else:
+                # no port match - general stats
+                global_stats[key] = value
 
-    @property
-    def system_info(self):
-        if not self._system_info:
-            self._system_info = self.get_system_info()
-        return self._system_info
+        # update the general object with the snapshot
+        self.global_stats.update(global_stats)
+        # update all ports
+        for port_id, data in port_stats.iteritems():
+            self.ports[port_id].port_stats.update(data)
 
-    # ----- user-access methods ----- #
-    def ping(self):
-        return self.transmit("ping")
+
+
+    def handle_async_event (self, type, data):
+        # DP stopped
+
+        show_event = False
+
+        # port started
+        if (type == 0):
+            port_id = int(data['port_id'])
+            ev = "Port {0} has started".format(port_id)
+            self.async_event_port_started(port_id)
+
+        # port stopped
+        elif (type == 1):
+            port_id = int(data['port_id'])
+            ev = "Port {0} has stopped".format(port_id)
+
+            # call the handler
+            self.async_event_port_stopped(port_id)
+            
+
+        # port paused
+        elif (type == 2):
+            port_id = int(data['port_id'])
+            ev = "Port {0} has paused".format(port_id)
+
+            # call the handler
+            self.async_event_port_paused(port_id)
+
+        # port resumed
+        elif (type == 3):
+            port_id = int(data['port_id'])
+            ev = "Port {0} has resumed".format(port_id)
+
+            # call the handler
+            self.async_event_port_resumed(port_id)
+
+        # port finished traffic
+        elif (type == 4):
+            port_id = int(data['port_id'])
+            ev = "Port {0} job done".format(port_id)
+
+            # call the handler
+            self.async_event_port_stopped(port_id)
+            show_event = True
+
+        # port was stolen...
+        elif (type == 5):
+            port_id = int(data['port_id'])
+            ev = "Port {0} was forcely taken".format(port_id)
+
+            # call the handler
+            self.async_event_port_forced_acquired(port_id)
+            show_event = True
+
+        # server stopped
+        elif (type == 100):
+            ev = "Server has stopped"
+            self.async_event_server_stopped()
+            show_event = True
+
+
+        else:
+            # unknown event - ignore
+            return
+
+
+        self.add_event_log(ev, 'server', show_event)
+
+
+    def async_event_port_stopped (self, port_id):
+        self.ports[port_id].async_event_port_stopped()
+
+
+    def async_event_port_started (self, port_id):
+        self.ports[port_id].async_event_port_started()
+
+    
+    def async_event_port_paused (self, port_id):
+        self.ports[port_id].async_event_port_paused()
+
+
+    def async_event_port_resumed (self, port_id):
+        self.ports[port_id].async_event_port_resumed()
+
+
+    def async_event_port_forced_acquired (self, port_id):
+        self.ports[port_id].async_event_forced_acquired()
+        self.read_only = True
+
+    def async_event_server_stopped (self):
+        self.connected = False
+
+
+    def get_events (self):
+        return self.events
+
+    def clear_events (self):
+        self.events = []
+
+    ############# helper functions section ##############
+
+    # measure time for functions
+    def timing(f):
+        def wrap(*args):
+            time1 = time.time()
+            ret = f(*args)
+
+            # don't want to print on error
+            if ret.bad():
+                return ret
+
+            delta = time.time() - time1
+            print format_time(delta) + "\n"
+
+            return ret
+
+        return wrap
+
+
+    def validate_port_list(self, port_id_list):
+        if not isinstance(port_id_list, list):
+            print type(port_id_list)
+            return False
+
+        # check each item of the sequence
+        return all([ (port_id >= 0) and (port_id < self.get_port_count())
+                      for port_id in port_id_list ])
+
+    # some preprocessing for port argument
+    def __ports (self, port_id_list):
+
+        # none means all
+        if port_id_list == None:
+            return range(0, self.get_port_count())
+
+        # always list
+        if isinstance(port_id_list, int):
+            port_id_list = [port_id_list]
+
+        if not isinstance(port_id_list, list):
+             raise ValueError("bad port id list: {0}".format(port_id_list))
+
+        for port_id in port_id_list:
+            if not isinstance(port_id, int) or (port_id < 0) or (port_id > self.get_port_count()):
+                raise ValueError("bad port id {0}".format(port_id))
+
+        return port_id_list
+
+    ############ boot up section ################
+
+    # connection sequence
+
+    # mode can be RW - read / write, RWF - read write with force , RO - read only
+    def connect(self, mode = "RW"):
+
+        if self.is_connected():
+            self.disconnect()
+
+        # clear this flag
+        self.connected = False
+
+        # connect sync channel
+        rc, data = self.comm_link.connect()
+        if not rc:
+            return RC_ERR(data)
+
+        # connect async channel
+        rc, data = self.async_client.connect()
+        if not rc:
+            return RC_ERR(data)
+
+        # version
+        rc, data = self.transmit("get_version")
+        if not rc:
+            return RC_ERR(data)
+
+        self.server_version = data
+        self.global_stats.server_version = data
+
+        # cache system info
+        rc, data = self.transmit("get_system_info")
+        if not rc:
+            return RC_ERR(data)
+        self.system_info = data
+
+        # cache supported commands
+        rc, data = self.transmit("get_supported_cmds")
+        if not rc:
+            return RC_ERR(data)
+
+        self.supported_cmds = data
+
+        # create ports
+        for port_id in xrange(self.get_port_count()):
+            speed = self.system_info['ports'][port_id]['speed']
+            driver = self.system_info['ports'][port_id]['driver']
+
+            self.ports[port_id] = Port(port_id, speed, driver, self.user, self.comm_link)
+
+
+        # sync the ports
+        rc = self.sync_ports()
+        if rc.bad():
+            return rc
+
+        # acquire all ports
+        if mode == "RW":
+            rc = self.acquire(force = False)
+
+            # fallback to read only if failed
+            if rc.bad():
+                rc.annotate(show_status = False)
+                print format_text("Switching to read only mode - only few commands will be available", 'bold')
+
+                self.release(self.get_acquired_ports())
+                self.read_only = True
+            else:
+                self.read_only = False
+
+        elif mode == "RWF":
+            rc = self.acquire(force = True)
+            if rc.bad():
+                return rc
+            self.read_only = False
+
+        elif mode == "RO":
+            # no acquire on read only
+            rc = RC_OK()
+            self.read_only = True
+
+
+        
+        self.connected = True
+        return RC_OK()
+
+
+    def is_read_only (self):
+        return self.read_only
+
+    def is_connected (self):
+        return self.connected and self.comm_link.is_connected
+
+
+    def disconnect(self):
+        # release any previous acquired ports
+        if self.is_connected():
+            self.release(self.get_acquired_ports())
+
+        self.comm_link.disconnect()
+        self.async_client.disconnect()
+
+        self.connected = False
+
+        return RC_OK()
+
+
+    def on_async_dead (self):
+        if self.connected:
+            msg = 'lost connection to server'
+            self.add_event_log(msg, 'local', True)
+            self.connected = False
+
+    def on_async_alive (self):
+        pass
+
+    ########### cached queries (no server traffic) ###########
 
     def get_supported_cmds(self):
-        return self.transmit("get_supported_cmds")
+        return self.supported_cmds
 
     def get_version(self):
-        return self.transmit("get_version")
+        return self.server_version
 
     def get_system_info(self):
-        return self.transmit("get_system_info")
+        return self.system_info
 
     def get_port_count(self):
         return self.system_info.get("port_count")
 
-    def acquire(self, port_id, force=False):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # handle as batch mode
-            port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [self.RpcCmdData("acquire", {"port_id": p_id, "user": self.user, "force": force})
-                        for p_id in port_ids]
-            rc, resp_list = self.transmit_batch(commands)
-            if rc:
-                self._process_batch_result(commands, resp_list, self._handle_acquire_response)
+    def get_port_ids(self, as_str=False):
+        port_ids = range(self.get_port_count())
+        if as_str:
+            return " ".join(str(p) for p in port_ids)
         else:
-            params = {"port_id": port_id,
-                      "user": self.user,
-                      "force": force}
-            command = self.RpcCmdData("acquire", params)
-            self._handle_acquire_response(command, self.transmit(command.method, command.params))
-            return self._conn_handler.get(port_id)
+            return port_ids
 
-    @force_status(owned=True)
-    def release(self, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # handle as batch mode
-            port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [self.RpcCmdData("release", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
-                        for p_id in port_ids]
-            rc, resp_list = self.transmit_batch(commands)
-            if rc:
-                self._process_batch_result(commands, resp_list, self._handle_release_response)
+    def get_stats_async (self):
+        return self.async_client.get_stats()
+
+    def get_connection_port (self):
+        return self.comm_link.port
+
+    def get_connection_ip (self):
+        return self.comm_link.server
+
+    def get_all_ports (self):
+        return [port_id for port_id, port_obj in self.ports.iteritems()]
+
+    def get_acquired_ports(self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_acquired()]
+
+    def get_active_ports(self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_active()]
+
+    def get_paused_ports (self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_paused()]
+
+    def get_transmitting_ports (self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_transmitting()]
+
+    def set_verbose(self, mode):
+
+        # on high - enable link verbose
+        if mode == self.VERBOSE_HIGH:
+            self.comm_link.set_verbose(True)
         else:
-            self._conn_handler.pop(port_id)
-            params = {"handler": self._conn_handler.get(port_id),
-                      "port_id": port_id}
-            command = self.RpcCmdData("release", params)
-            self._handle_release_response(command, self.transmit(command.method, command.params))
-            return
+            self.comm_link.set_verbose(False)
 
-    @force_status(owned=True)
-    def add_stream(self, stream_id, stream_obj, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        assert isinstance(stream_obj, CStream)
-        params = {"handler": self._conn_handler.get(port_id),
-                  "port_id": port_id,
-                  "stream_id": stream_id,
-                  "stream": stream_obj.dump()}
-        return self.transmit("add_stream", params)
+        self.verbose = mode
 
-    @force_status(owned=True)
-    def remove_stream(self, stream_id, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        params = {"handler": self._conn_handler.get(port_id),
-                  "port_id": port_id,
-                  "stream_id": stream_id}
-        return self.transmit("remove_stream", params)
 
-    @force_status(owned=True, active_and_owned=True)
-    def get_stream_id_list(self, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        params = {"handler": self._conn_handler.get(port_id),
-                  "port_id": port_id}
-        return self.transmit("get_stream_list", params)
+    def check_verbose (self, level):
+        return (self.verbose >= level)
 
-    @force_status(owned=True, active_and_owned=True)
-    def get_stream(self, stream_id, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        params = {"handler": self._conn_handler.get(port_id),
-                  "port_id": port_id,
-                  "stream_id": stream_id}
-        return self.transmit("get_stream_list", params)
+    def get_verbose (self):
+        return self.verbose
 
-    @force_status(owned=True)
-    def start_traffic(self, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # handle as batch mode
-            port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [self.RpcCmdData("start_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
-                        for p_id in port_ids]
-            rc, resp_list = self.transmit_batch(commands)
-            if rc:
-                self._process_batch_result(commands, resp_list, self._handle_start_traffic_response)
-        else:
-            params = {"handler": self._conn_handler.get(port_id),
-                      "port_id": port_id}
-            command = self.RpcCmdData("start_traffic", params)
-            self._handle_start_traffic_response(command, self.transmit(command.method, command.params))
-            return
+    ############# server actions ################
 
-    @force_status(owned=False, active_and_owned=True)
-    def stop_traffic(self, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # handle as batch mode
-            port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [self.RpcCmdData("stop_traffic", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
-                        for p_id in port_ids]
-            rc, resp_list = self.transmit_batch(commands)
-            if rc:
-                self._process_batch_result(commands, resp_list, self._handle_stop_traffic_response)
-        else:
-            params = {"handler": self._conn_handler.get(port_id),
-                      "port_id": port_id}
-            command = self.RpcCmdData("stop_traffic", params)
-            self._handle_start_traffic_response(command, self.transmit(command.method, command.params))
-            return
+    # ping server
+    def ping(self):
+        rc, info = self.transmit("ping")
+        return RC(rc, info)
+
+
 
     def get_global_stats(self):
-        command = self.RpcCmdData("get_global_stats", {})
-        return self._handle_get_global_stats_response(command, self.transmit(command.method, command.params))
-        # return self.transmit("get_global_stats")
+        rc, info = self.transmit("get_global_stats")
+        return RC(rc, info)
 
-    @force_status(owned=True, active_and_owned=True)
+
+    ########## port commands ##############
+    def sync_ports (self, port_id_list = None, force = False):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].sync())
+     
+        return rc
+
+    # acquire ports, if port_list is none - get all
+    def acquire (self, port_id_list = None, force = False):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].acquire(force))
+     
+        return rc
+    
+    # release ports
+    def release (self, port_id_list = None):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].release())
+        
+        return rc
+
+ 
+    def add_stream(self, stream_id, stream_obj, port_id_list = None):
+
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].add_stream(stream_id, stream_obj))
+        
+        return rc
+
+      
+
+    def add_stream_pack(self, stream_pack_list, port_id_list = None):
+
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].add_streams(stream_pack_list))
+
+        return rc
+
+
+
+    def remove_stream(self, stream_id, port_id_list = None):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].remove_stream(stream_id))
+        
+        return rc
+
+
+
+    def remove_all_streams(self, port_id_list = None):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].remove_all_streams())
+        
+        return rc
+
+    
+    def get_stream(self, stream_id, port_id, get_pkt = False):
+
+        return self.ports[port_id].get_stream(stream_id)
+
+
+    def get_all_streams(self, port_id, get_pkt = False):
+
+        return self.ports[port_id].get_all_streams()
+
+
+    def get_stream_id_list(self, port_id):
+
+        return self.ports[port_id].get_stream_id_list()
+
+
+    def start_traffic (self, multiplier, duration, port_id_list = None):
+
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].start(multiplier, duration))
+        
+        return rc
+
+
+    def resume_traffic (self, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].resume())
+
+        return rc
+
+    def pause_traffic (self, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].pause())
+
+        return rc
+
+    def stop_traffic (self, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].stop(force))
+        
+        return rc
+
+
+    def update_traffic (self, mult, port_id_list = None, force = False):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].update(mult))
+        
+        return rc
+
+
+    def validate (self, port_id_list = None):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].validate())
+     
+        return rc
+
+
     def get_port_stats(self, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # handle as batch mode
-            port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [self.RpcCmdData("get_port_stats", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
-                        for p_id in port_ids]
-            rc, resp_list = self.transmit_batch(commands)
-            if rc:
-                self._process_batch_result(commands, resp_list, self._handle_get_port_stats_response)
-        else:
-            params = {"handler": self._conn_handler.get(port_id),
-                      "port_id": port_id}
-            command = self.RpcCmdData("get_port_stats", params)
-            return self._handle_get_port_stats_response(command, self.transmit(command.method, command.params))
+        pass
 
-    @force_status(owned=True, active_and_owned=True)
     def get_stream_stats(self, port_id=None):
-        if not self._is_ports_valid(port_id):
-            raise ValueError("Provided illegal port id input")
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # handle as batch mode
-            port_ids = set(port_id)  # convert to set to avoid duplications
-            commands = [self.RpcCmdData("get_stream_stats", {"handler": self._conn_handler.get(p_id), "port_id": p_id})
-                        for p_id in port_ids]
-            rc, resp_list = self.transmit_batch(commands)
-            if rc:
-                self._process_batch_result(commands, resp_list, self._handle_get_stream_stats_response)
-        else:
-            params = {"handler": self._conn_handler.get(port_id),
-                      "port_id": port_id}
-            command = self.RpcCmdData("get_stream_stats", params)
-            return self._handle_get_stream_stats_response(command, self.transmit(command.method, command.params))
+        pass
 
-    # ----- internal methods ----- #
+
     def transmit(self, method_name, params={}):
-        return self.tx_link.transmit(method_name, params)
+        return self.comm_link.transmit(method_name, params)
+
 
     def transmit_batch(self, batch_list):
-        return self.tx_link.transmit_batch(batch_list)
+        return self.comm_link.transmit_batch(batch_list)
 
-    @staticmethod
-    def _object_decoder(obj_type, obj_data):
-        if obj_type == "global":
-            return CGlobalStats(**obj_data)
-        elif obj_type == "port":
-            return CPortStats(**obj_data)
-        elif obj_type == "stream":
-            return CStreamStats(**obj_data)
-        else:
-            # Do not serialize the data into class
-            return obj_data
+    ######################### Console (high level) API #########################
 
-    @staticmethod
-    def default_success_test(result_obj):
-        if result_obj.success:
-            return True
-        else:
-            return False
+    @timing
+    def cmd_ping(self):
+        rc = self.ping()
+        rc.annotate("Pinging the server on '{0}' port '{1}': ".format(self.get_connection_ip(), self.get_connection_port()))
+        return rc
 
-    # ----- handler internal methods ----- #
-    def _handle_acquire_response(self, request, response):
-        if response.success:
-            self._conn_handler[request.get("port_id")] = response.data
+    def cmd_connect(self, mode = "RW"):
+        rc = self.connect(mode)
+        rc.annotate()
+        return rc
 
-    def _handle_release_response(self, request, response):
-        if response.success:
-            del self._conn_handler[request.get("port_id")]
+    def cmd_disconnect(self):
+        rc = self.disconnect()
+        rc.annotate()
+        return rc
 
-    def _handle_start_traffic_response(self, request, response):
-        if response.success:
-            self._active_ports.add(request.get("port_id"))
+    # reset
+    def cmd_reset(self):
 
-    def _handle_stop_traffic_response(self, request, response):
-        if response.success:
-            self._active_ports.remove(request.get("port_id"))
 
-    def _handle_get_global_stats_response(self, request, response):
-        if response.success:
-            return CGlobalStats(**response.success)
-        else:
-            return False
+        rc = self.acquire(force = True)
+        rc.annotate("Force acquiring all ports:")
+        if rc.bad():
+            return rc
 
-    def _handle_get_port_stats_response(self, request, response):
-        if response.success:
-            return CPortStats(**response.success)
-        else:
-            return False
 
-    def _handle_get_stream_stats_response(self, request, response):
-        if response.success:
-            return CStreamStats(**response.success)
-        else:
-            return False
+        # force stop all ports
+        rc = self.stop_traffic(self.get_port_ids(), True)
+        rc.annotate("Stop traffic on all ports:")
+        if rc.bad():
+            return rc
 
-    def _is_ports_valid(self, port_id):
-        if isinstance(port_id, list) or isinstance(port_id, set):
-            # check each item of the sequence
-            return all([self._is_ports_valid(port)
-                        for port in port_id])
-        elif (isinstance(port_id, int)) and (port_id > 0) and (port_id <= self.get_port_count()):
-            return True
-        else:
-            return False
 
-    def _process_batch_result(self, req_list, resp_list, handler_func=None, success_test=default_success_test):
-        for i, response in enumerate(resp_list):
-            # testing each result with success test so that a conclusion report could be deployed in future.
-            if success_test(response):
-                # run handler method with its params
-                handler_func(req_list[i], response)
+        # remove all streams
+        rc = self.remove_all_streams(self.get_port_ids())
+        rc.annotate("Removing all streams from all ports:")
+        if rc.bad():
+            return rc
+
+        # TODO: clear stats
+        return RC_OK()
+        
+
+    # stop cmd
+    def cmd_stop (self, port_id_list):
+
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on provided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.stop_traffic(active_ports)
+        rc.annotate("Stopping traffic on port(s) {0}:".format(port_id_list))
+        if rc.bad():
+            return rc
+
+        return RC_OK()
+
+    # update cmd
+    def cmd_update (self, port_id_list, mult):
+
+        # find the relevant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on provided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.update_traffic(mult, active_ports)
+        rc.annotate("Updating traffic on port(s) {0}:".format(port_id_list))
+
+        return rc
+
+    # clear stats
+    def cmd_clear(self, port_id_list):
+
+        for port_id in port_id_list:
+            self.ports[port_id].clear_stats()
+
+        self.global_stats.clear_stats()
+
+        return RC_OK()
+
+
+    # pause cmd
+    def cmd_pause (self, port_id_list):
+
+        # find the relevant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on provided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.pause_traffic(active_ports)
+        rc.annotate("Pausing traffic on port(s) {0}:".format(port_id_list))
+        return rc
+
+
+
+    # resume cmd
+    def cmd_resume (self, port_id_list):
+
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on porvided ports"
+            print format_text(msg, 'bold')
+            return RC_ERR(msg)
+
+        rc = self.resume_traffic(active_ports)
+        rc.annotate("Resume traffic on port(s) {0}:".format(port_id_list))
+        return rc
+
+
+    # start cmd
+    def cmd_start (self, port_id_list, stream_list, mult, force, duration, dry):
+
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if active_ports:
+            if not force:
+                msg = "Port(s) {0} are active - please stop them or add '--force'".format(active_ports)
+                print format_text(msg, 'bold')
+                return RC_ERR(msg)
             else:
-                continue  # TODO: mark in this case somehow the bad result
+                rc = self.cmd_stop(active_ports)
+                if not rc:
+                    return rc
 
 
+        rc = self.remove_all_streams(port_id_list)
+        rc.annotate("Removing all streams from port(s) {0}:".format(port_id_list))
+        if rc.bad():
+            return rc
+
+
+        rc = self.add_stream_pack(stream_list.compiled, port_id_list)
+        rc.annotate("Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
+        if rc.bad():
+            return rc
+
+        # when not on dry - start the traffic , otherwise validate only
+        if not dry:
+            rc = self.start_traffic(mult, duration, port_id_list)
+            rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
+
+            return rc
+        else:
+            rc = self.validate(port_id_list)
+            rc.annotate("Validating traffic profile on port(s) {0}:".format(port_id_list))
+
+            if rc.bad():
+                return rc
+
+            # show a profile on one port for illustration
+            self.ports[port_id_list[0]].print_profile(mult, duration)
+
+            return rc
+
+
+    # validate port(s) profile
+    def cmd_validate (self, port_id_list):
+        rc = self.validate(port_id_list)
+        rc.annotate("Validating streams on port(s) {0}:".format(port_id_list))
+        return rc
+
+
+    # stats
+    def cmd_stats(self, port_id_list, stats_mask=set()):
+        stats_opts = trex_stats.ALL_STATS_OPTS.intersection(stats_mask)
+
+        stats_obj = {}
+        for stats_type in stats_opts:
+            stats_obj.update(self.stats_generator.generate_single_statistic(port_id_list, stats_type))
+        return stats_obj
+
+
+    ############## High Level API With Parser ################
+
+    def cmd_connect_line (self, line):
+        '''Connects to the TRex server'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "connect",
+                                         self.cmd_connect_line.__doc__,
+                                         parsing_opts.FORCE)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        if opts.force:
+            rc = self.cmd_connect(mode = "RWF")
+        else:
+            rc = self.cmd_connect(mode = "RW")
+
+    @timing
+    def cmd_start_line (self, line):
+        '''Start selected traffic in specified ports on TRex\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "start",
+                                         self.cmd_start_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.TOTAL,
+                                         parsing_opts.FORCE,
+                                         parsing_opts.STREAM_FROM_PATH_OR_FILE,
+                                         parsing_opts.DURATION,
+                                         parsing_opts.MULTIPLIER_STRICT,
+                                         parsing_opts.DRY_RUN)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+
+        if opts.dry:
+            print format_text("\n*** DRY RUN ***", 'bold')
+
+        if opts.db:
+            stream_list = self.streams_db.get_stream_pack(opts.db)
+            rc = RC(stream_list != None)
+            rc.annotate("Load stream pack (from DB):")
+            if rc.bad():
+                return RC_ERR("Failed to load stream pack")
+
+        else:
+            # load streams from file
+            stream_list = self.streams_db.load_yaml_file(opts.file[0])
+            rc = RC(stream_list != None)
+            rc.annotate("Load stream pack (from file):")
+            if stream_list == None:
+                return RC_ERR("Failed to load stream pack")
+
+
+        # total has no meaning with percentage - its linear
+        if opts.total and (opts.mult['type'] != 'percentage'):
+            # if total was set - divide it between the ports
+            opts.mult['value'] = opts.mult['value'] / len(opts.ports)
+
+        return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration, opts.dry)
+
+    @timing
+    def cmd_resume_line (self, line):
+        '''Resume active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "resume",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        return self.cmd_resume(opts.ports)
+
+
+    @timing
+    def cmd_stop_line (self, line):
+        '''Stop active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "stop",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        return self.cmd_stop(opts.ports)
+
+
+    @timing
+    def cmd_pause_line (self, line):
+        '''Pause active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "pause",
+                                         self.cmd_stop_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        return self.cmd_pause(opts.ports)
+
+
+    @timing
+    def cmd_update_line (self, line):
+        '''Update port(s) speed currently active\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "update",
+                                         self.cmd_update_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.MULTIPLIER,
+                                         parsing_opts.TOTAL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        # total has no meaning with percentage - its linear
+        if opts.total and (opts.mult['type'] != 'percentage'):
+            # if total was set - divide it between the ports
+            opts.mult['value'] = opts.mult['value'] / len(opts.ports)
+
+        return self.cmd_update(opts.ports, opts.mult)
+
+    @timing
+    def cmd_reset_line (self, line):
+        return self.cmd_reset()
+
+
+    def cmd_clear_line (self, line):
+        '''Clear cached local statistics\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "clear",
+                                         self.cmd_clear_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+        return self.cmd_clear(opts.ports)
+
+
+    def cmd_stats_line (self, line):
+        '''Fetch statistics from TRex server by port\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "stats",
+                                         self.cmd_stats_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STATS_MASK)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        # determine stats mask
+        mask = self._get_mask_keys(**self._filter_namespace_args(opts, trex_stats.ALL_STATS_OPTS))
+        if not mask:
+            # set to show all stats if no filter was given
+            mask = trex_stats.ALL_STATS_OPTS
+
+        stats = self.cmd_stats(opts.ports, mask)
+
+        # print stats to screen
+        for stat_type, stat_data in stats.iteritems():
+            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+
+
+        return RC_OK()
+
+
+
+    @timing
+    def cmd_validate_line (self, line):
+        '''validates port(s) stream configuration\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "validate",
+                                         self.cmd_validate_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line paramters")
+
+        rc = self.cmd_validate(opts.ports)
+        return rc
+
+
+    def cmd_exit_line (self, line):
+        print format_text("Exiting\n", 'bold')
+        # a way to exit
+        return RC_ERR("exit")
+
+
+    def cmd_wait_line (self, line):
+        '''wait for a period of time\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "wait",
+                                         self.cmd_wait_line.__doc__,
+                                         parsing_opts.DURATION)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        delay_sec = opts.duration if (opts.duration > 0) else 1
+
+        print format_text("Waiting for {0} seconds...\n".format(delay_sec), 'bold')
+        time.sleep(delay_sec)
+
+        return RC_OK()
+
+    # run a script of commands
+    def run_script_file (self, filename):
+
+        print format_text("\nRunning script file '{0}'...".format(filename), 'bold')
+
+        rc = self.cmd_connect()
+        if rc.bad():
+            return
+
+        with open(filename) as f:
+            script_lines = f.readlines()
+
+        cmd_table = {}
+
+        # register all the commands
+        cmd_table['start'] = self.cmd_start_line
+        cmd_table['stop']  = self.cmd_stop_line
+        cmd_table['reset'] = self.cmd_reset_line
+        cmd_table['wait']  = self.cmd_wait_line
+        cmd_table['exit']  = self.cmd_exit_line
+
+        for index, line in enumerate(script_lines, start = 1):
+            line = line.strip()
+            if line == "":
+                continue
+            if line.startswith("#"):
+                continue
+
+            sp = line.split(' ', 1)
+            cmd = sp[0]
+            if len(sp) == 2:
+                args = sp[1]
+            else:
+                args = ""
+
+            print format_text("Executing line {0} : '{1}'\n".format(index, line))
+
+            if not cmd in cmd_table:
+                print "\n*** Error at line {0} : '{1}'\n".format(index, line)
+                print format_text("unknown command '{0}'\n".format(cmd), 'bold')
+                return False
+
+            rc = cmd_table[cmd](args)
+            if rc.bad():
+                return False
+
+        print format_text("\n[Done]", 'bold')
+
+        return True
+
+
+    #################################
+    # ------ private methods ------ #
+    @staticmethod
+    def _get_mask_keys(ok_values={True}, **kwargs):
+        masked_keys = set()
+        for key, val in kwargs.iteritems():
+            if val in ok_values:
+                masked_keys.add(key)
+        return masked_keys
+
+    @staticmethod
+    def _filter_namespace_args(namespace, ok_values):
+        return {k: v for k, v in namespace.__dict__.items() if k in ok_values}
+
+
+    #################################
     # ------ private classes ------ #
-    class CTxLink(object):
+    class CCommLink(object):
         """describes the connectivity of the stateless client method"""
         def __init__(self, server="localhost", port=5050, virtual=False):
-            super(CTRexStatelessClient.CTxLink, self).__init__()
+            super(CTRexStatelessClient.CCommLink, self).__init__()
             self.virtual = virtual
             self.server = server
             self.port = port
+            self.verbose = False
             self.rpc_link = JsonRpcClient(self.server, self.port)
+
+        @property
+        def is_connected(self):
             if not self.virtual:
-                self.rpc_link.connect()
+                return self.rpc_link.connected
+            else:
+                return True
+
+        def get_server (self):
+            return self.server
+
+        def set_verbose(self, mode):
+            self.verbose = mode
+            return self.rpc_link.set_verbose(mode)
+
+        def connect(self):
+            if not self.virtual:
+                return self.rpc_link.connect()
+
+        def disconnect(self):
+            if not self.virtual:
+                return self.rpc_link.disconnect()
 
         def transmit(self, method_name, params={}):
             if self.virtual:
@@ -350,145 +1201,6 @@ class CTRexStatelessClient(object):
         def _prompt_virtual_tx_msg(self):
             print "Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
                                                                              port=self.port)
-
-
-class CStream(object):
-    """docstring for CStream"""
-    DEFAULTS = {"rx_stats": CRxStats,
-                "mode": CTxMode,
-                "isg": 5.0,
-                "next_stream": -1,
-                "self_start": True,
-                "enabled": True}
-
-    def __init__(self, **kwargs):
-        super(CStream, self).__init__()
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-        # set default values to unset attributes, according to DEFAULTS dict
-        set_keys = set(kwargs.keys())
-        keys_to_set = [x
-                       for x in self.DEFAULTS
-                       if x not in set_keys]
-        for key in keys_to_set:
-            default = self.DEFAULTS.get(key)
-            if type(default) == type:
-                setattr(self, key, default())
-            else:
-                setattr(self, key, default)
-
-    @property
-    def packet(self):
-        return self._packet
-
-    @packet.setter
-    def packet(self, packet_obj):
-        assert isinstance(packet_obj, CTRexPktBuilder)
-        self._packet = packet_obj
-
-    @property
-    def enabled(self):
-        return self._enabled
-
-    @enabled.setter
-    def enabled(self, bool_value):
-        self._enabled = bool(bool_value)
-
-    @property
-    def self_start(self):
-        return self._self_start
-
-    @self_start.setter
-    def self_start(self, bool_value):
-        self._self_start = bool(bool_value)
-
-    @property
-    def next_stream(self):
-        return self._next_stream
-
-    @next_stream.setter
-    def next_stream(self, value):
-        self._next_stream = int(value)
-
-    def dump(self):
-        pass
-        return {"enabled": self.enabled,
-                "self_start": self.self_start,
-                "isg": self.isg,
-                "next_stream": self.next_stream,
-                "packet": self.packet.dump_pkt(),
-                "mode": self.mode.dump(),
-                "vm": self.packet.get_vm_data(),
-                "rx_stats": self.rx_stats.dump()}
-
-class CRxStats(object):
-
-    def __init__(self, enabled=False, seq_enabled=False, latency_enabled=False):
-        self._rx_dict = {"enabled": enabled,
-                         "seq_enabled": seq_enabled,
-                         "latency_enabled": latency_enabled}
-
-    @property
-    def enabled(self):
-        return self._rx_dict.get("enabled")
-
-    @enabled.setter
-    def enabled(self, bool_value):
-        self._rx_dict['enabled'] = bool(bool_value)
-
-    @property
-    def seq_enabled(self):
-        return self._rx_dict.get("seq_enabled")
-
-    @seq_enabled.setter
-    def seq_enabled(self, bool_value):
-        self._rx_dict['seq_enabled'] = bool(bool_value)
-
-    @property
-    def latency_enabled(self):
-        return self._rx_dict.get("latency_enabled")
-
-    @latency_enabled.setter
-    def latency_enabled(self, bool_value):
-        self._rx_dict['latency_enabled'] = bool(bool_value)
-
-    def dump(self):
-        return {k: v
-                for k, v in self._rx_dict.items()
-                if v
-                }
-
-
-class CTxMode(object):
-    """docstring for CTxMode"""
-    def __init__(self, tx_mode, pps):
-        super(CTxMode, self).__init__()
-        if tx_mode not in ["continuous", "single_burst", "multi_burst"]:
-            raise ValueError("Unknown TX mode ('{0}')has been initialized.".format(tx_mode))
-        self._tx_mode = tx_mode
-        self._fields = {'pps': float(pps)}
-        if tx_mode == "single_burst":
-            self._fields['total_pkts'] = 0
-        elif tx_mode == "multi_burst":
-            self._fields['pkts_per_burst'] = 0
-            self._fields['ibg'] = 0.0
-            self._fields['count'] = 0
-        else:
-            pass
-
-    def set_tx_mode_attr(self, attr, val):
-        if attr in self._fields:
-            self._fields[attr] = type(self._fields.get(attr))(val)
-        else:
-            raise ValueError("The provided attribute ('{0}') is not a legal attribute in selected TX mode ('{1}')".
-                             format(attr, self._tx_mode))
-
-    def dump(self):
-        dump = {"type": self._tx_mode}
-        dump.update({k: v
-                     for k, v in self._fields.items()
-                     })
-        return dump
 
 
 if __name__ == "__main__":

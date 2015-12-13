@@ -45,8 +45,8 @@ void CRxCheckFlowTableStats::Clear(){
 
 }
 
-#define MYDP(f) if (f)  fprintf(fd," %-40s: %llu \n",#f,f)
-#define MYDP_A(f)     fprintf(fd," %-40s: %llu \n",#f,f)
+#define MYDP(f) if (f)  fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)f)
+#define MYDP_A(f)     fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)f)
 #define MYDP_J(f)  json+=add_json(#f,f);
 #define MYDP_J_LAST(f)  json+=add_json(#f,f,true);
 
@@ -146,7 +146,7 @@ void CRxCheckFlowTableMap::dump_all(FILE *fd){
     rx_check_flow_map_iter_t it;
     for (it= m_map.begin(); it != m_map.end(); ++it) {
         CRxCheckFlow *lp = it->second;
-        printf ("flow_id: %d \n",lp->m_flow_id);
+        printf ("flow_id: %llu \n",(unsigned long long)lp->m_flow_id);
     }
 }
 
@@ -208,7 +208,7 @@ std::string CPerTxthreadTemplateInfo::dump_as_json(std::string name){
     int i;
     for (i=0;i<MAX_TEMPLATES_STATS;i++){
         char buff[200];
-        sprintf(buff,"%llu",m_template_info[i]);
+        sprintf(buff,"%llu", (unsigned long long)m_template_info[i]);
         json+=std::string(buff);
         if ( i < MAX_TEMPLATES_STATS-1) {
             json+=std::string(",");
@@ -231,7 +231,7 @@ void CPerTxthreadTemplateInfo::Dump(FILE *fd){
     int i;
     for (i=0; i<MAX_TEMPLATES_STATS; i++) {
         if (m_template_info[i]) {
-            fprintf (fd," template id: %llu %llu \n",i,m_template_info[i]);
+            fprintf (fd," template id: %d %llu \n",i, (unsigned long long)m_template_info[i]);
         }
     }
 }
@@ -484,7 +484,7 @@ void RxCheckManager::DumpTemplate(FILE *fd,bool verbose){
             if (cnt==0){
                 fprintf(fd,"\n");
             }
-            fprintf(fd,"[id:%2d val:%8d,rx:%8d], ",i,lp->get_error_counter(),lp->get_rx_counter());
+            fprintf(fd,"[id:%2d val:%8llu,rx:%8llu], ",i, (unsigned long long)lp->get_error_counter(), (unsigned long long)lp->get_rx_counter());
             cnt++;
             if (cnt>5) {
                 cnt=0;
@@ -500,7 +500,11 @@ void RxCheckManager::DumpTemplateFull(FILE *fd){
     int i;
     for (i=0; i<MAX_TEMPLATES_STATS;i++ ) {
         CPerTemplateInfo * lp=get_template(i);
-        fprintf(fd," template_id_%2d , errors:%8d,  jitter: %lu  rx : %lu \n",i,lp->get_error_counter(),lp->get_jitter_usec(),lp->get_rx_counter() );
+        fprintf(fd," template_id_%2d , errors:%8llu,  jitter: %llu  rx : %llu \n",
+                i,
+                (unsigned long long)lp->get_error_counter(),
+                (unsigned long long)lp->get_jitter_usec(),
+                (unsigned long long)lp->get_rx_counter() );
     }
 }
 
@@ -514,7 +518,11 @@ void RxCheckManager::DumpShort(FILE *fd){
      DumpTemplate(fd,false);
      fprintf(fd,"\n");
      fprintf(fd,"---\n");
-     fprintf(fd," active flows: %8d, fif: %8d,  drop: %8d, errors: %8d \n",m_stats.m_active,m_stats.m_fif,m_stats.m_err_drop,m_stats.get_total_err());
+     fprintf(fd," active flows: %8llu, fif: %8llu,  drop: %8llu, errors: %8llu \n",
+             (unsigned long long)m_stats.m_active,
+             (unsigned long long)m_stats.m_fif,
+             (unsigned long long)m_stats.m_err_drop,
+             (unsigned long long)m_stats.get_total_err());
      fprintf(fd,"------------------------------------------------------------------------------------------------------------\n");
 
 }

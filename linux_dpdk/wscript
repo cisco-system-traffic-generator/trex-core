@@ -45,6 +45,9 @@ def publish_web(bld):
 def sync(bld):
       ws_main.sync(bld)
       
+def test(bld):
+      ws_main.test(bld)
+
 
 
 

@@ -26,6 +26,8 @@ limitations under the License.
 
 #include <common/arg/SimpleGlob.h>
 #include <common/arg/SimpleOpt.h>
+#include <stateless/cp/trex_stateless.h>
+
 
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
@@ -94,21 +96,20 @@ static int usage(){
 
 int gtest_main(int argc, char **argv) ;
 
-static int parse_options(int argc, char *argv[], CParserOption* po ) {
+static int parse_options(int argc, char *argv[], CParserOption* po, bool & is_gtest ) {
      CSimpleOpt args(argc, argv, parser_options);
 
      int a=0;
      int node_dump=0;
      po->preview.clean();
      po->preview.setFileWrite(true);
-     int res1;
 
      while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
             switch (args.OptionId()) {
             case OPT_UT :
-                res1=gtest_main(argc, argv);
-                exit(res1);
+                is_gtest=true;
+                return (0);
                 break;
             case OPT_HELP: 
                 usage();
@@ -185,25 +186,6 @@ int curent_time(){
 
 #include <pthread.h>
 
-void delay(int msec){
-
-    if (msec == 0) 
-    {//user that requested that probebly wanted the minimal delay 
-     //but because of scaling problem he have got 0 so we will give the min delay 
-     //printf("\n\n\nERROR-Task delay ticks == 0 found in task %s task id = %d\n\n\n\n", 
-     //       SANB_TaskName(SANB_TaskIdSelf()), SANB_TaskIdSelf());
-     msec =1;
-
-    } 
-
-    struct timespec time1, remain; // 2 sec max delay
-    time1.tv_sec=msec/1000;
-    time1.tv_nsec=(msec - (time1.tv_sec*1000))*1000000;
-
-    nanosleep(&time1,&remain);
-}
-
-
 struct per_thread_t {
     pthread_t  tid;
 };
@@ -233,11 +215,12 @@ void * thread_task(void *info){
 
         char buf[100];
         sprintf(buf,"my%d.erf",obj->thread_id);
-        volatile int i;
-        lpt->generate_erf(buf,*obj->preview_info);
+        lpt->start_generate_stateful(buf,*obj->preview_info);
         lpt->m_node_gen.DumpHist(stdout);
         printf("end thread %d \n",obj->thread_id);
     }
+
+    return (NULL);
 }
 
 
@@ -325,7 +308,7 @@ void test_load_list_of_cap_files(CParserOption * op){
         lpt=fl.m_threads_info[i];
         char buf[100];
         sprintf(buf,"my%d.erf",i);
-        lpt->generate_erf(buf,op->preview);
+        lpt->start_generate_stateful(buf,op->preview);
         lpt->m_node_gen.DumpHist(stdout);
     }
     //sprintf(buf,"my%d.erf",7);
@@ -353,7 +336,7 @@ int load_list_of_cap_files(CParserOption * op){
     lpt->set_vif(&erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->generate_erf(op->out_file,op->preview);
+        lpt->start_generate_stateful(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);
@@ -424,8 +407,6 @@ void update_tcp_seq_num(CCapFileFlowInfo * obj,
     int i;
 
     for (i=pkt_id+1; i<s; i++) {
-        uint32_t seq;
-        uint32_t ack;
 
         pkt=obj->GetPacket(i);
         tcp=pkt->m_pkt_indication.l4.m_tcp;
@@ -509,7 +490,7 @@ int manipolate_capfile() {
     CCapFileFlowInfo flow_info;
     flow_info.Create();
 
-    int res=flow_info.load_cap_file("avl/delay_10_rtsp_0.pcap",0,0);
+    flow_info.load_cap_file("avl/delay_10_rtsp_0.pcap",0,0);
 
     change_pkt_len(&flow_info,4-1 ,6);
     change_pkt_len(&flow_info,5-1 ,6);
@@ -534,7 +515,7 @@ int manipolate_capfile_sip() {
     CCapFileFlowInfo flow_info;
     flow_info.Create();
 
-    int res=flow_info.load_cap_file("avl/delay_10_sip_0.pcap",0,0);
+    flow_info.load_cap_file("avl/delay_10_sip_0.pcap",0,0);
 
     change_pkt_len(&flow_info,1-1 ,6+6);
     change_pkt_len(&flow_info,2-1 ,6+6);
@@ -551,8 +532,8 @@ int manipolate_capfile_sip1() {
     CCapFileFlowInfo flow_info;
     flow_info.Create();
 
-    int res=flow_info.load_cap_file("avl/delay_sip_0.pcap",0,0);
-    CFlowPktInfo * pkt=flow_info.GetPacket(1);
+    flow_info.load_cap_file("avl/delay_sip_0.pcap",0,0);
+    flow_info.GetPacket(1);
 
     change_pkt_len(&flow_info,1-1 ,6+6+10);
 
@@ -588,7 +569,7 @@ public:
 
 
 void CMergeCapFileRec::Dump(FILE *fd,int _id){
-    double  time;
+    double time = 0.0;
     bool stop=GetCurPacket(time);
     fprintf (fd," id:%2d  stop : %d index:%4d  %3.4f \n",_id,stop?1:0,m_index,time);
 }
@@ -639,6 +620,8 @@ bool CMergeCapFileRec::Create(std::string cap_file,
    m_limit_number_of_packets =0;
    m_start_time =     pkt->m_packet->get_time() ;
    m_offset = offset;
+
+   return (true);
 }
 
 
@@ -682,12 +665,12 @@ bool CMergeCapFile::run_merge(std::string to_cap_file){
         int    min_index=0;
         double min_time;
 
-        fprintf(stdout," --------------\n",cnt);
+        fprintf(stdout," --------------\n");
         fprintf(stdout," pkt : %d \n",cnt);
         for (i=0; i<MERGE_CAP_FILES; i++) {
             m[i].Dump(stdout,i);
         }
-        fprintf(stdout," --------------\n",cnt);
+        fprintf(stdout," --------------\n");
 
         bool valid = false;
         for (i=0; i<MERGE_CAP_FILES; i++) {
@@ -721,6 +704,8 @@ bool CMergeCapFile::run_merge(std::string to_cap_file){
     };
 
     m_results.save_to_erf(to_cap_file,1);
+
+    return (true);
 }
 
 
@@ -765,18 +750,51 @@ int merge_2_cap_files_sip() {
     return (0);
 }
 
+static TrexStateless *g_trex_stateless;
+
+
+TrexStateless * get_stateless_obj() {
+    return g_trex_stateless;
+}
+
+extern "C" const char * get_build_date(void){ 
+    return (__DATE__);
+}      
+ 
+extern "C" const char * get_build_time(void){ 
+    return (__TIME__ );
+} 
+
+
+
 
 int main(int argc , char * argv[]){
+    int res=0;
     time_init();
     CGlobalInfo::m_socket.Create(0);
-
     CGlobalInfo::init_pools(1000);
     assert( CMsgIns::Ins()->Create(4) );
 
-    if ( parse_options(argc, argv, &CGlobalInfo::m_options ) != 0){
+
+    bool is_gtest=false;
+
+    if ( parse_options(argc, argv, &CGlobalInfo::m_options , is_gtest) != 0){
         exit(-1);
     }
-    return (load_list_of_cap_files(&CGlobalInfo::m_options));
+
+    if ( is_gtest ) {
+        res = gtest_main(argc, argv);
+    }else{
+        res = load_list_of_cap_files(&CGlobalInfo::m_options);
+    }
+
+    CMsgIns::Ins()->Free();
+    CGlobalInfo::free_pools();
+    CGlobalInfo::m_socket.Delete();
+
+
+    return (res);
+    
 }
 
 

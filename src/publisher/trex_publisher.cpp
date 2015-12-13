@@ -1,0 +1,107 @@
+/*
+ Itay Marom
+ Cisco Systems, Inc.
+*/
+
+/*
+Copyright (c) 2015-2015 Cisco Systems, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include "trex_publisher.h"
+#include <zmq.h>
+#include <assert.h>
+#include <sstream>
+#include <iostream>
+
+/**
+ * create the publisher
+ * 
+ */
+bool 
+TrexPublisher::Create(uint16_t port, bool disable){
+
+    if (disable) {
+        return (true);
+    }
+
+    m_context = zmq_ctx_new();
+    if ( m_context == 0 ) {
+        show_zmq_last_error("can't connect to ZMQ library");
+    }
+
+    m_publisher = zmq_socket (m_context, ZMQ_PUB);
+    if ( m_context == 0 ) {
+        show_zmq_last_error("can't create ZMQ socket");
+    }
+
+    std::stringstream ss;
+    ss << "tcp://*:" << port;
+
+    int rc = zmq_bind (m_publisher, ss.str().c_str());
+    if (rc != 0 ) {
+        show_zmq_last_error("can't bind to ZMQ socket at " + ss.str());
+    }
+
+    std::cout << "zmq publisher at: " << ss.str() << "\n";
+    return (true);
+}
+
+
+void 
+TrexPublisher::Delete(){
+    if (m_publisher) {
+        zmq_close (m_publisher);
+        m_publisher = NULL;
+    }
+    if (m_context) {
+        zmq_ctx_destroy (m_context);
+        m_context = NULL;
+    }
+}
+
+
+void 
+TrexPublisher::publish_json(const std::string &s){
+    if (m_publisher) {
+        int size = zmq_send (m_publisher, s.c_str(), s.length(), 0);
+        assert(size == s.length());
+    }
+}
+
+void
+TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
+    Json::FastWriter writer;
+    Json::Value value;
+    std::string s;
+    
+    value["name"] = "trex-event";
+    value["type"] = type;
+    value["data"] = data;
+
+    s = writer.write(value);
+    publish_json(s);
+}
+
+/**
+ * error handling
+ * 
+ */
+void 
+TrexPublisher::show_zmq_last_error(const std::string &err){
+    std::cout << " ERROR " << err << "\n";
+    std::cout << " ZMQ: " << zmq_strerror (zmq_errno ());
+    exit(-1);
+}
+

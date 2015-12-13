@@ -180,6 +180,7 @@ public:
         m_enable_zmq_pub_exist=false;
         m_enable_zmq_pub=true;
         m_zmq_pub_port=4500;
+        m_zmq_rpc_port = 4501;
 
 
         m_telnet_exist=false;
@@ -209,15 +210,17 @@ public:
     std::string                   m_limit_memory;
     uint32_t                      m_thread_per_dual_if;
 
-    uint32_t        m_port_bandwidth_gb;
+    uint32_t                      m_port_bandwidth_gb;
 
-    bool            m_enable_zmq_pub_exist;
-    bool            m_enable_zmq_pub;
-    uint16_t        m_zmq_pub_port;
+    bool                          m_enable_zmq_pub_exist;
+    bool                          m_enable_zmq_pub;
+    uint16_t                      m_zmq_pub_port;
 
 
-    bool            m_telnet_exist;
-    uint16_t        m_telnet_port;
+    bool                          m_telnet_exist;
+    uint16_t                      m_telnet_port;
+
+    uint16_t                      m_zmq_rpc_port;
 
     bool                       m_mac_info_exist;
     std::vector <CMacYamlInfo> m_mac_info;

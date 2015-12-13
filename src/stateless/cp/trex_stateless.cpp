@@ -31,47 +31,53 @@ using namespace std;
  * Trex stateless object
  * 
  **********************************************************/
-TrexStateless::TrexStateless() {
-    m_is_configured = false;
-}
-
 
 /**
- * configure the singleton stateless object
  * 
  */
-void TrexStateless::configure(const TrexStatelessCfg &cfg) {
-
-    TrexStateless& instance = get_instance_internal();
-
-    /* check status */
-    if (instance.m_is_configured) {
-        throw TrexException("re-configuration of stateless object is not allowed");
-    }
+TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
 
     /* create RPC servers */
 
     /* set both servers to mutex each other */
-    instance.m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_rpc_async_cfg, &instance.m_global_cp_lock);
-    instance.m_rpc_server->set_verbose(cfg.m_rpc_server_verbose);
+    m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_rpc_async_cfg, &m_global_cp_lock);
+    m_rpc_server->set_verbose(cfg.m_rpc_server_verbose);
 
     /* configure ports */
+    m_port_count = cfg.m_port_count;
 
-    instance.m_port_count = cfg.m_port_count;
-
-    for (int i = 0; i < instance.m_port_count; i++) {
-        instance.m_ports.push_back(new TrexStatelessPort(i));
+    for (int i = 0; i < m_port_count; i++) {
+        m_ports.push_back(new TrexStatelessPort(i, cfg.m_platform_api));
     }
 
-    /* cores */
-    instance.m_dp_core_count = cfg.m_dp_core_count;
-    for (int i = 0; i < instance.m_dp_core_count; i++) {
-        instance.m_dp_cores.push_back(new TrexStatelessDpCore(i));
-    }
+    m_platform_api = cfg.m_platform_api;
+    m_publisher    = cfg.m_publisher;
 
-    /* done */
-    instance.m_is_configured = true;
 }
+
+/** 
+ * release all memory 
+ * 
+ * @author imarom (08-Oct-15)
+ */
+TrexStateless::~TrexStateless() {
+
+    /* release memory for ports */
+    for (auto port : m_ports) {
+        delete port;
+    }
+    m_ports.clear();
+
+    /* stops the RPC server */
+    m_rpc_server->stop();
+    delete m_rpc_server;
+
+    m_rpc_server = NULL;
+
+    delete m_platform_api;
+    m_platform_api = NULL;
+}
+
 
 /**
  * starts the control plane side
@@ -79,7 +85,6 @@ void TrexStateless::configure(const TrexStatelessCfg &cfg) {
  */
 void
 TrexStateless::launch_control_plane() {
-    //std::cout << "\n on control/master core \n";
 
     /* pin this process to the current running CPU
        any new thread will be called on the same CPU
@@ -94,39 +99,6 @@ TrexStateless::launch_control_plane() {
     m_rpc_server->start();
 }
 
-void
-TrexStateless::launch_on_dp_core(uint8_t core_id) {
-    m_dp_cores[core_id - 1]->run();
-}
-
-/**
- * destroy the singleton and release all memory
- * 
- * @author imarom (08-Oct-15)
- */
-void
-TrexStateless::destroy() {
-    TrexStateless& instance = get_instance_internal();
-
-    if (!instance.m_is_configured) {
-        return;
-    }
-
-    /* release memory for ports */
-    for (auto port : instance.m_ports) {
-        delete port;
-    }
-    instance.m_ports.clear();
-
-    /* stops the RPC server */
-    instance.m_rpc_server->stop();
-    delete instance.m_rpc_server;
-
-    instance.m_rpc_server = NULL;
-
-    /* done */
-    instance.m_is_configured = false;
-}
 
 /**
  * fetch a port by ID
@@ -148,57 +120,32 @@ TrexStateless::get_port_count() {
 
 uint8_t 
 TrexStateless::get_dp_core_count() {
-    return m_dp_core_count;
-}
-
-void 
-TrexStateless::update_stats() {
-
-    /* update CPU util.
-      TODO
-     */
-    m_stats.m_stats.m_cpu_util = 0;
-
-    /* for every port update and accumulate */
-    for (uint8_t i = 0; i < m_port_count; i++) {
-        m_ports[i]->update_stats();
-
-        const TrexPortStats & port_stats = m_ports[i]->get_stats();
-
-        m_stats.m_stats.m_tx_bps += port_stats.m_stats.m_tx_bps;
-        m_stats.m_stats.m_rx_bps += port_stats.m_stats.m_rx_bps;
-
-        m_stats.m_stats.m_tx_pps += port_stats.m_stats.m_tx_pps;
-        m_stats.m_stats.m_rx_pps += port_stats.m_stats.m_rx_pps;
-
-        m_stats.m_stats.m_total_tx_pkts += port_stats.m_stats.m_total_tx_pkts;
-        m_stats.m_stats.m_total_rx_pkts += port_stats.m_stats.m_total_rx_pkts;
-
-        m_stats.m_stats.m_total_tx_bytes += port_stats.m_stats.m_total_tx_bytes;
-        m_stats.m_stats.m_total_rx_bytes += port_stats.m_stats.m_total_rx_bytes;
-
-        m_stats.m_stats.m_tx_rx_errors += port_stats.m_stats.m_tx_rx_errors;
-    }
+    return m_platform_api->get_dp_core_count();
 }
 
 void
 TrexStateless::encode_stats(Json::Value &global) {
 
-    global["cpu_util"] = m_stats.m_stats.m_cpu_util;
+    const TrexPlatformApi *api = get_stateless_obj()->get_platform_api();
 
-    global["tx_bps"]   = m_stats.m_stats.m_tx_bps;
-    global["rx_bps"]   = m_stats.m_stats.m_rx_bps;
+    TrexPlatformGlobalStats stats;
+    api->get_global_stats(stats);
 
-    global["tx_pps"]   = m_stats.m_stats.m_tx_pps;
-    global["rx_pps"]   = m_stats.m_stats.m_rx_pps;
+    global["cpu_util"] = stats.m_stats.m_cpu_util;
 
-    global["total_tx_pkts"] = Json::Value::UInt64(m_stats.m_stats.m_total_tx_pkts);
-    global["total_rx_pkts"] = Json::Value::UInt64(m_stats.m_stats.m_total_rx_pkts);
+    global["tx_bps"]   = stats.m_stats.m_tx_bps;
+    global["rx_bps"]   = stats.m_stats.m_rx_bps;
 
-    global["total_tx_bytes"] = Json::Value::UInt64(m_stats.m_stats.m_total_tx_bytes);
-    global["total_rx_bytes"] = Json::Value::UInt64(m_stats.m_stats.m_total_rx_bytes);
+    global["tx_pps"]   = stats.m_stats.m_tx_pps;
+    global["rx_pps"]   = stats.m_stats.m_rx_pps;
 
-    global["tx_rx_errors"]    = Json::Value::UInt64(m_stats.m_stats.m_tx_rx_errors);
+    global["total_tx_pkts"] = Json::Value::UInt64(stats.m_stats.m_total_tx_pkts);
+    global["total_rx_pkts"] = Json::Value::UInt64(stats.m_stats.m_total_rx_pkts);
+
+    global["total_tx_bytes"] = Json::Value::UInt64(stats.m_stats.m_total_tx_bytes);
+    global["total_rx_bytes"] = Json::Value::UInt64(stats.m_stats.m_total_rx_bytes);
+
+    global["tx_rx_errors"]    = Json::Value::UInt64(stats.m_stats.m_tx_rx_errors);
 
     for (uint8_t i = 0; i < m_port_count; i++) {
         std::stringstream ss;
@@ -210,3 +157,20 @@ TrexStateless::encode_stats(Json::Value &global) {
     }
 }
 
+/**
+ * generate a snapshot for publish (async publish)
+ * 
+ */
+void
+TrexStateless::generate_publish_snapshot(std::string &snapshot) {
+    Json::FastWriter writer;
+    Json::Value root;
+
+    root["name"] = "trex-stateless-info";
+    root["type"] = 0;
+
+    /* stateless specific info goes here */
+    root["data"] = Json::nullValue;
+
+    snapshot = writer.write(root);
+}

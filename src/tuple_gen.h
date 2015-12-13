@@ -553,6 +553,9 @@ public:
 
 class CServerPoolBase {
     public:
+
+    virtual ~CServerPoolBase() {}
+
     virtual void GenerateTuple(CTupleBase& tuple) = 0;
     virtual uint16_t GenerateOnePort(uint32_t idx) = 0;
     virtual void Delete() = 0;

@@ -23,6 +23,7 @@ limitations under the License.
 #include <trex_stream.h>
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
+#include <trex_streams_compiler.h>
 
 #include <iostream>
 
@@ -52,7 +53,8 @@ static uint64_t str2num(const string &str) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
-    uint8_t  port_id    = parse_int(params, "port_id", result);
+    uint8_t port_id = parse_port(params, result);
+
     uint32_t stream_id  = parse_int(params, "stream_id", result);
 
     const Json::Value &section = parse_object(params, "stream", result);
@@ -114,10 +116,15 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     /* make sure this is a valid stream to add */
     validate_stream(stream, result);
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(stream->m_port_id);
-    port->get_stream_table()->add_stream(stream);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
 
-    result["result"] = "ACK";
+    try {
+        port->add_stream(stream);
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -127,7 +134,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 TrexStream *
 TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result) {
 
-    TrexStream *stream;
+    TrexStream *stream = NULL;
 
     const Json::Value &mode = parse_object(section, "mode", result);
     std::string type = parse_string(mode, "type", result);
@@ -135,14 +142,22 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
     if (type == "continuous") {
 
         double pps = parse_double(mode, "pps", result);
-        stream = new TrexStreamContinuous(port_id, stream_id, pps);
+        stream = new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id);
+        stream->set_pps(pps);
+
+        if (stream->m_next_stream_id != -1) {
+            generate_parse_err(result, "continious stream cannot provide next stream id - only -1 is valid");
+        }
 
     } else if (type == "single_burst") {
 
         uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
         double pps               = parse_double(mode, "pps", result);
 
-        stream = new TrexStreamBurst(port_id, stream_id, total_pkts, pps);
+        stream = new TrexStream(TrexStream::stSINGLE_BURST,port_id, stream_id);
+        stream->set_pps(pps);
+        stream->set_single_burst(total_pkts);
+
 
     } else if (type == "multi_burst") {
 
@@ -151,8 +166,10 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         uint32_t  num_bursts       = parse_int(mode, "number_of_bursts", result);
         uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
 
-        stream = new TrexStreamMultiBurst(port_id, stream_id, pkts_per_burst, pps, num_bursts, ibg_usec);
-        
+        stream = new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id );
+        stream->set_pps(pps);
+        stream->set_multi_burst(pkts_per_burst,num_bursts,ibg_usec);
+
 
     } else {
         generate_parse_err(result, "bad stream type provided: '" + type + "'");
@@ -200,9 +217,9 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
     std::string  min_value_str     = parse_string(inst, "min_value", result);
     std::string  max_value_str     = parse_string(inst, "max_value", result);
 
-    uint64_t init_value;
-    uint64_t min_value;
-    uint64_t max_value;
+    uint64_t init_value = 0;
+    uint64_t min_value = 0;
+    uint64_t max_value = 0;
 
     try {
         init_value = str2num(init_value_str);
@@ -281,19 +298,11 @@ TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &resu
         generate_execute_err(result, ss.str()); 
     }
 
-    /* port id should be between 0 and count - 1 */
-    if (stream->m_port_id >= TrexStateless::get_instance().get_port_count()) {
-        std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
-        delete stream;
-        generate_execute_err(result, ss.str());
-    }
-
-     /* add the stream to the port's stream table */
-    TrexStatelessPort * port = TrexStateless::get_instance().get_port_by_id(stream->m_port_id);
+    /* add the stream to the port's stream table */
+    TrexStatelessPort * port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
 
     /* does such a stream exists ? */
-    if (port->get_stream_table()->get_stream_by_id(stream->m_stream_id)) {
+    if (port->get_stream_by_id(stream->m_stream_id)) {
         std::stringstream ss;
         ss << "stream " << stream->m_stream_id << " already exists";
         delete stream;
@@ -308,18 +317,12 @@ TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &resu
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t  port_id = parse_byte(params, "port_id", result);
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
     uint32_t stream_id = parse_int(params, "stream_id", result);
-
-
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
-        std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
-        generate_execute_err(result, ss.str());
-    }
-
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
-    TrexStream *stream = port->get_stream_table()->get_stream_by_id(stream_id);
+    TrexStream *stream = port->get_stream_by_id(stream_id);
 
     if (!stream) {
         std::stringstream ss;
@@ -327,10 +330,15 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ss.str());
     }
 
-    port->get_stream_table()->remove_stream(stream);
+    try {
+        port->remove_stream(stream);
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    
     delete stream;
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -342,20 +350,20 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t  port_id = parse_byte(params, "port_id", result);
 
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
-        std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
-        generate_execute_err(result, ss.str());
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    try {
+        port->remove_and_delete_all_streams();
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
     }
 
-       TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
-       port->get_stream_table()->remove_and_delete_all_streams();
 
-       result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
-       return (TREX_RPC_CMD_OK);
+    return (TREX_RPC_CMD_OK);
 }
 
 /***************************
@@ -367,27 +375,20 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
     std::vector<uint32_t> stream_list;
 
-    uint8_t  port_id = parse_byte(params, "port_id", result);
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
-        std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
-        generate_execute_err(result, ss.str());
+    port->get_id_list(stream_list);
+
+    Json::Value json_list = Json::arrayValue;
+
+    for (auto stream_id : stream_list) {
+        json_list.append(stream_id);
     }
 
-       TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    result["result"] = json_list;
 
-       port->get_stream_table()->get_stream_list(stream_list);
-
-       Json::Value json_list = Json::arrayValue;
-
-       for (auto stream_id : stream_list) {
-           json_list.append(stream_id);
-       }
-
-       result["result"] = json_list;
-
-       return (TREX_RPC_CMD_OK);
+    return (TREX_RPC_CMD_OK);
 }
 
 /***************************
@@ -397,19 +398,14 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t  port_id = parse_byte(params, "port_id", result);
 
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    bool     get_pkt   = parse_bool(params, "get_pkt", result);
     uint32_t stream_id = parse_int(params, "stream_id", result);
 
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
-        std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
-        generate_execute_err(result, ss.str());
-    }
-
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
-
-    TrexStream *stream = port->get_stream_table()->get_stream_by_id(stream_id);
+    TrexStream *stream = port->get_stream_by_id(stream_id);
 
     if (!stream) {
         std::stringstream ss;
@@ -418,7 +414,12 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
     }
 
     /* return the stored stream json (instead of decoding it all over again) */
-    result["result"]["stream"] = stream->get_stream_json();
+    Json::Value j = stream->get_stream_json();
+    if (!get_pkt) {
+        j.removeMember("packet");
+    }
+
+    result["result"]["stream"] = j;
 
     return (TREX_RPC_CMD_OK);
 
@@ -431,59 +432,216 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
-    uint8_t port_id = parse_byte(params, "port_id", result);
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
-        std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
-        generate_execute_err(result, ss.str());
+    double duration  = parse_double(params, "duration", result);
+
+    /* multiplier */
+    const Json::Value &mul_obj  = parse_object(params, "mul", result);
+
+    std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
+    std::string op     = parse_string(mul_obj, "op", result);
+    double      value  = parse_double(mul_obj, "value", result);
+
+    if (op != "abs") {
+        generate_parse_err(result, "start message can only specify absolute speed rate");
     }
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    TrexPortMultiplier mul(type, op, value);
 
-    TrexStatelessPort::rc_e rc = port->start_traffic();
+    try {
+        port->start_traffic(mul, duration);
 
-    if (rc == TrexStatelessPort::RC_OK) {
-        result["result"] = "ACK";
-    } else {
-        std::stringstream ss;
-        switch (rc) {
-        case TrexStatelessPort::RC_ERR_BAD_STATE_FOR_OP:
-            ss << "bad state for operations: port is either transmitting traffic or down";
-            break;
-        case TrexStatelessPort::RC_ERR_NO_STREAMS:
-            ss << "no active streams on that port";
-            break;
-        default:
-            ss << "failed to start traffic";
-            break;
-        }
-
-        generate_execute_err(result, ss.str());
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
     }
+
+    result["result"]["multiplier"] = port->get_multiplier();
 
     return (TREX_RPC_CMD_OK);
 }
 
 /***************************
- * start traffic on port
+ * stop traffic on port
  * 
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdStopTraffic::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t  port_id = parse_byte(params, "port_id", result);
 
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
-        std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
-        generate_execute_err(result, ss.str());
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    try {
+        port->stop_traffic();
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
     }
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
-
-    port->stop_traffic();
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
 
+/***************************
+ * get all streams
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
+    
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    bool    get_pkt = parse_bool(params, "get_pkt", result);
+
+    std::vector <TrexStream *> streams;
+    port->get_object_list(streams);
+
+    Json::Value streams_json = Json::objectValue;
+    for (auto stream : streams) {
+
+        Json::Value j = stream->get_stream_json();
+
+        /* should we include the packet as well ? */
+        if (!get_pkt) {
+            j.removeMember("packet");
+        }
+
+        std::stringstream ss;
+        ss << stream->m_stream_id;
+
+        streams_json[ss.str()] = j;
+    }
+
+    result["result"]["streams"] = streams_json;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/***************************
+ * pause traffic
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdPauseTraffic::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+     try {
+        port->pause_traffic();
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = Json::objectValue;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/***************************
+ * resume traffic
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdResumeTraffic::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+     try {
+        port->resume_traffic();
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = Json::objectValue;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/***************************
+ * update traffic
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    /* multiplier */
+
+    const Json::Value &mul_obj  = parse_object(params, "mul", result);
+
+    std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
+    std::string op     = parse_choice(mul_obj, "op", TrexPortMultiplier::g_ops, result);
+    double      value  = parse_double(mul_obj, "value", result);
+
+    TrexPortMultiplier mul(type, op, value);
+
+
+    try {
+        port->update_traffic(mul);
+    } catch (const TrexRpcException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"]["multiplier"] = port->get_multiplier();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/***************************
+ * validate
+ *  
+ * checks that the port
+ * attached streams are 
+ * valid as a program 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    const TrexStreamsGraphObj *graph = NULL;
+
+    try {
+        graph = port->validate();
+    }
+    catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    
+
+    result["result"]["rate"]["max_bps"] = graph->get_max_bps();
+    result["result"]["rate"]["max_pps"] = graph->get_max_pps();
+    result["result"]["rate"]["max_line_util"] = graph->get_max_bps() / port->get_port_speed_bps();
+
+    result["result"]["graph"]["expected_duration"] = graph->get_duration();
+    result["result"]["graph"]["events_count"] = (int)graph->get_events().size();
+
+    result["result"]["graph"]["events"] = Json::arrayValue;
+    Json::Value &events_json = result["result"]["graph"]["events"];
+
+    int index = 0;
+    for (const auto &ev : graph->get_events()) {
+        Json::Value ev_json;
+
+        ev_json["time_usec"]  = ev.time;
+        ev_json["diff_bps"]   = ev.diff_bps;
+        ev_json["diff_pps"]   = ev.diff_pps;
+        ev_json["stream_id"]  = ev.stream_id;
+
+        events_json.append(ev_json);
+
+        index++;
+        if (index >= 100) {
+            break;
+        }
+    }
+
+
+    return (TREX_RPC_CMD_OK);
+}

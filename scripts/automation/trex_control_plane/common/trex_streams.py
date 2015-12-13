@@ -10,20 +10,33 @@ import copy
 import os
 
 StreamPack = namedtuple('StreamPack', ['stream_id', 'stream'])
+LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
 
 class CStreamList(object):
 
     def __init__(self):
-        self.streams_list = {}
+        self.streams_list = OrderedDict()
         self.yaml_loader = CTRexYAMLLoader(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
                                                         "rpc_defaults.yaml"))
 
+    def generate_numbered_name (self, name):
+        prefix = name.rstrip('01234567890')
+        suffix = name[len(prefix):]
+        if suffix == "":
+            n = "_1"
+        else:
+            n = int(suffix) + 1
+        return prefix + str(n)
+
     def append_stream(self, name, stream_obj):
         assert isinstance(stream_obj, CStream)
-        if name in self.streams_list:
-            raise NameError("A stream with this name already exists on this list.")
+
+        # if name exists simply add numbered suffix to it
+        while name in self.streams_list:
+            name = self.generate_numbered_name(name)
+
         self.streams_list[name]=stream_obj
-        return
+        return name
 
     def remove_stream(self, name):
         popped = self.streams_list.pop(name)
@@ -48,6 +61,7 @@ class CStreamList(object):
         self.streams_list.clear()
         streams_data = load_yaml_to_obj(file_path)
         assert isinstance(streams_data, list)
+        new_streams_data = []
         for stream in streams_data:
             stream_name = stream.get("name")
             raw_stream = stream.get("stream")
@@ -58,16 +72,18 @@ class CStreamList(object):
             new_stream_data = self.yaml_loader.validate_yaml(raw_stream,
                                                              "stream",
                                                              multiplier= multiplier)
+            new_streams_data.append(new_stream_data)
             new_stream_obj = CStream()
             new_stream_obj.load_data(**new_stream_data)
             self.append_stream(stream_name, new_stream_obj)
-        return new_stream_data
+        return new_streams_data
 
     def compile_streams(self):
         # first, assign an id to each stream
         stream_ids = {}
         for idx, stream_name in enumerate(self.streams_list):
             stream_ids[stream_name] = idx
+
         # next, iterate over the streams and transform them from working with names to ids.
         # with that build a new dict with old stream_name as the key, and StreamPack as the stored value 
         compiled_streams = {}
@@ -156,7 +172,6 @@ class CStream(object):
     """docstring for CStream"""
 
     FIELDS = ["enabled", "self_start", "next_stream_id", "isg", "mode", "rx_stats", "packet", "vm"]
-    # COMPILE_FIELDS = ["enabled", "self_start", "next_stream_id", "isg", "mode", "rx_stats", "packet", "vm"]
 
     def __init__(self):
         self.is_loaded = False
@@ -183,6 +198,7 @@ class CStream(object):
                     if isinstance(kwargs[k], CTRexPktBuilder):
                         if "vm" not in kwargs:
                             self.load_packet_obj(kwargs[k])
+                            break # vm field check is skipped
                         else:
                             raise ValueError("When providing packet object with a CTRexPktBuilder, vm parameter "
                                              "should not be supplied")
@@ -226,8 +242,7 @@ class CStream(object):
         return
 
 
-    def dump(self, compilation=False):
-        # fields = CStream.COMPILE_FIELDS if compilation else CStream.FIELDS
+    def dump(self):
         if self.is_loaded:
             dump = {}
             for key in CStream.FIELDS:
@@ -239,10 +254,62 @@ class CStream(object):
         else:
             raise RuntimeError("CStream object isn't loaded with data. Use 'load_data' method.")
 
-    def dump_compiled(self):
-        return self.dump(compilation=True)
 
 
+# describes a stream DB
+class CStreamsDB(object):
 
-if __name__ == "__main__":
-    pass
+    def __init__(self):
+        self.stream_packs = {}
+
+    def load_yaml_file(self, filename):
+
+        stream_pack_name = filename
+        if stream_pack_name in self.get_loaded_streams_names():
+            self.remove_stream_packs(stream_pack_name)
+
+        stream_list = CStreamList()
+        loaded_obj = stream_list.load_yaml(filename)
+
+        try:
+            compiled_streams = stream_list.compile_streams()
+            rc = self.load_streams(stream_pack_name,
+                                   LoadedStreamList(loaded_obj,
+                                                    [StreamPack(v.stream_id, v.stream.dump())
+                                                     for k, v in compiled_streams.items()]))
+
+        except Exception as e:
+            return None
+
+        return self.get_stream_pack(stream_pack_name)
+
+    def load_streams(self, name, LoadedStreamList_obj):
+        if name in self.stream_packs:
+            return False
+        else:
+            self.stream_packs[name] = LoadedStreamList_obj
+            return True
+
+    def remove_stream_packs(self, *names):
+        removed_streams = []
+        for name in names:
+            removed = self.stream_packs.pop(name)
+            if removed:
+                removed_streams.append(name)
+        return removed_streams
+
+    def clear(self):
+        self.stream_packs.clear()
+
+    def get_loaded_streams_names(self):
+        return self.stream_packs.keys()
+
+    def stream_pack_exists (self, name):
+        return name in self.get_loaded_streams_names()
+
+    def get_stream_pack(self, name):
+        if not self.stream_pack_exists(name):
+            return None
+        else:
+            return self.stream_packs.get(name)
+

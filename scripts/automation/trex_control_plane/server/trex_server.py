@@ -340,11 +340,12 @@ class CTRexServer(object):
 
         Parameters
         ----------
-        trex_cmd_options : str
-            Defines the exact command to run on the t-rex
-            Example: "-c 2 -m 0.500000 -d 100 -f cap2/sfr.yaml --nc  -p -l 1000"
+        kwargs: dictionary
+            Dictionary of parameters for trex. For example: (c=1, nc=True, l_pkt_mode=3).
+            Notice that when sending command line parameters that has -, you need to replace it with _.
+            for example, to have on command line "--l-pkt-mode 3", you need to send l_pkt_mode=3
         export_path : str
-            a full system path to which the results of the trex-run will be logged.
+            Full system path to which the results of the trex-run will be logged.
 
         """
         if 'results_file_path' in kwargs:

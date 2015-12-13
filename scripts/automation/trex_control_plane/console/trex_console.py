@@ -17,445 +17,188 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+
 import cmd
 import json
 import ast
 import argparse
 import random
+import readline
 import string
 import os
 import sys
 import tty, termios
 import trex_root_path
 from common.trex_streams import *
+from client.trex_stateless_client import CTRexStatelessClient
+from common.text_opts import *
+from client_utils.general_utils import user_input, get_current_user
+from client_utils import parsing_opts
+import trex_tui
+from functools import wraps
 
 
-from client_utils.jsonrpc_client import TrexStatelessClient
-import trex_status
-from collections import namedtuple
-
-LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
-
-#
-
-def readch (choices = []):
-        
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        while True:
-            ch = sys.stdin.read(1)
-            if (ord(ch) == 3) or (ord(ch) == 4):
-                return None
-            if ch in choices:
-                return ch
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-    return None
-
-class YesNoMenu(object):
-    def __init__ (self, caption):
-        self.caption = caption
-
-    def show (self):
-        print "{0}".format(self.caption)
-        sys.stdout.write("[Y/y/N/n] : ")
-        ch = readch(choices = ['y', 'Y', 'n', 'N'])
-        if ch == None:
-            return None
-    
-        print "\n"    
-        if ch == 'y' or ch == 'Y':
-            return True
-        else:
-            return False
-
-# multi level cmd menu
-class CmdMenu(object):
-    def __init__ (self):
-        self.menus = []
+__version__ = "1.1"
 
 
-    def add_menu (self, caption, options):
-        menu = {}
-        menu['caption'] = caption
-        menu['options'] = options
-        self.menus.append(menu)
-
-    def show (self):
-        cur_level = 0
-        print "\n"
-
-        selected_path = []
-        for menu in self.menus:
-            # show all the options
-            print "{0}\n".format(menu['caption'])
-            for i, option in enumerate(menu['options']):
-                print "{0}. {1}".format(i + 1, option)
-
-            #print "\nPlease select an option: "
-
-            choices = range(0, len(menu['options']))
-            choices = [ chr(x + 48) for x in choices]
-
-            print ""
-            ch = readch(choices)
-            print ""
-
-            if ch == None:
-                return None
-
-            selected_path.append(int(ch) - 1)
-
-        return selected_path
-
-
-class AddStreamMenu(CmdMenu):
-    def __init__ (self):
-        super(AddStreamMenu, self).__init__()
-        self.add_menu('Please select type of stream', ['a', 'b', 'c'])
-        self.add_menu('Please select ISG', ['d', 'e', 'f'])
-
-# main console object
-class TrexConsole(cmd.Cmd):
-    """Trex Console"""
-   
-    def __init__(self, rpc_client):
+class TRexGeneralCmd(cmd.Cmd):
+    def __init__(self):
         cmd.Cmd.__init__(self)
+        # configure history behaviour
+        self._history_file_dir = "/tmp/trex/console/"
+        self._history_file = self.get_history_file_full_path()
+        readline.set_history_length(100)
+        # load history, if any
+        self.load_console_history()
 
-        self.rpc_client = rpc_client
 
-        self.do_connect("")
+    def get_console_identifier(self):
+        return self.__class__.__name__
 
-        self.intro  = "\n-=TRex Console V1.0=-\n"
-        self.intro += "\nType 'help' or '?' for supported actions\n" 
+    def get_history_file_full_path(self):
+        return "{dir}{filename}.hist".format(dir=self._history_file_dir,
+                                             filename=self.get_console_identifier())
 
-        self.verbose = False
+    def load_console_history(self):
+        if os.path.exists(self._history_file):
+            readline.read_history_file(self._history_file)
+        return
 
-        self.postcmd(False, "")
+    def save_console_history(self):
+        if not os.path.exists(self._history_file_dir):
+            os.makedirs(self._history_file_dir)
+        # os.mknod(self._history_file)
+        readline.write_history_file(self._history_file)
+        return
 
-        self.user_streams = {}
-      
+    def print_history (self):
+        
+        length = readline.get_current_history_length()
 
-    # a cool hack - i stole this function and added space
+        for i in xrange(1, length + 1):
+            cmd = readline.get_history_item(i)
+            print "{:<5}   {:}".format(i, cmd)
+
+    def get_history_item (self, index):
+        length = readline.get_current_history_length()
+        if index > length:
+            print format_text("please select an index between {0} and {1}".format(0, length))
+            return None
+
+        return readline.get_history_item(index)
+
+
+    def emptyline(self):
+        """Called when an empty line is entered in response to the prompt.
+
+        This overriding is such that when empty line is passed, **nothing happens**.
+        """
+        return
+
     def completenames(self, text, *ignored):
+        """
+        This overriding is such that a space is added to name completion.
+        """
         dotext = 'do_'+text
         return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
 
-    # set verbose on / off
-    def do_verbose (self, line):
-        '''Shows or set verbose mode\n'''
-        if line == "":
-            print "\nverbose is " + ("on\n" if self.verbose else "off\n")
+    def precmd(self, line):
+        # before doing anything, save history snapshot of the console
+        # this is done before executing the command in case of ungraceful application exit
+        self.save_console_history()
+        return line
 
-        elif line == "on":
-            self.verbose = True
-            self.rpc_client.set_verbose(True)
-            print "\nverbose set to on\n"
 
-        elif line == "off":
-            self.verbose = False
-            self.rpc_client.set_verbose(False)
-            print "\nverbose set to off\n"
+#
+# main console object
+class TRexConsole(TRexGeneralCmd):
+    """Trex Console"""
 
-        else:
-            print "\nplease specify 'on' or 'off'\n"
+    def __init__(self, stateless_client, verbose=False):
+        self.stateless_client = stateless_client
+        TRexGeneralCmd.__init__(self)
 
-    # query the server for registered commands
-    def do_query_server(self, line):
-        '''query the RPC server for supported remote commands\n'''
+        self.tui = trex_tui.TrexTUI(stateless_client)
 
-        rc, msg = self.rpc_client.query_rpc_server()
-        if not rc:
-            print "\n*** " + msg + "\n"
-            return
+        self.verbose = verbose
 
-        print "\nRPC server supports the following commands: \n\n"
-        for func in msg:
-            if func:
-                print func
-        print "\n"
+        self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
+        self.intro += "\nType 'help' or '?' for supported actions\n"
 
-    def do_ping (self, line):
-        '''Pings the RPC server\n'''
+        self.postcmd(False, "")
 
-        print "\n-> Pinging RPC server"
 
-        rc, msg = self.rpc_client.ping_rpc_server()
-        if rc:
-            print "[SUCCESS]\n"
-        else:
-            print "\n*** " + msg + "\n"
-            return
+    ################### internal section ########################
 
-    def do_force_acquire (self, line):
-        '''Acquires ports by force\n'''
+    def verify_connected(f):
+        @wraps(f)
+        def wrap(*args):
+            inst = args[0]
+            func_name = f.__name__
+            if func_name.startswith("do_"):
+                func_name = func_name[3:]
 
-        self.do_acquire(line, True)
-
-    def parse_ports_from_line (self, line):
-        port_list = set()
-
-        if line:
-            for port_id in line.split(' '):
-                if (not port_id.isdigit()) or (int(port_id) < 0) or (int(port_id) >= self.rpc_client.get_port_count()):
-                    print "Please provide a list of ports seperated by spaces between 0 and {0}".format(self.rpc_client.get_port_count() - 1)
-                    return None
-
-                port_list.add(int(port_id))
-
-            port_list = list(port_list)
-
-        else:
-            port_list = [i for i in xrange(0, self.rpc_client.get_port_count())]
-
-        return port_list
-
-    def do_acquire (self, line, force = False):
-        '''Acquire ports\n'''
-
-        # make sure that the user wants to acquire all
-        if line == "":
-            ask = YesNoMenu('Do you want to acquire all ports ? ')
-            rc = ask.show()
-            if rc == False:
+            if not inst.stateless_client.is_connected():
+                print format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold')
                 return
 
-        port_list = self.parse_ports_from_line(line)
-        if not port_list:
-            return
+            ret = f(*args)
+            return ret
 
-        print "\nTrying to acquire ports: " + (" ".join(str(x) for x in port_list)) + "\n"
+        return wrap
 
-        rc, resp_list = self.rpc_client.take_ownership(port_list, force)
+    # TODO: remove this ugly duplication
+    def verify_connected_and_rw (f):
+        @wraps(f)
+        def wrap(*args):
+            inst = args[0]
+            func_name = f.__name__
+            if func_name.startswith("do_"):
+                func_name = func_name[3:]
 
-        if not rc:
-            print "\n*** " + resp_list + "\n"
-            return
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                print "Port {0} - Acquired".format(port_list[i])
-            else:
-                print "Port {0} - ".format(port_list[i]) + rc[1]
-
-        print "\n"
-
-    def do_release (self, line):
-        '''Release ports\n'''
-
-        if line:
-            port_list = self.parse_ports_from_line(line)
-        else:
-            port_list = self.rpc_client.get_owned_ports()
-
-        if not port_list:
-            return
-
-        rc, resp_list = self.rpc_client.release_ports(port_list)
-
-
-        print "\n"
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                print "Port {0} - Released".format(port_list[i])
-            else:
-                print "Port {0} - Failed to release port, probably not owned by you or port is under traffic"
-
-        print "\n"
-
-    def do_get_port_stats (self, line):
-        '''Get ports stats\n'''
-
-        port_list = self.parse_ports_from_line(line)
-        if not port_list:
-            return
-
-        rc, resp_list = self.rpc_client.get_port_stats(port_list)
-
-        if not rc:
-            print "\n*** " + resp_list + "\n"
-            return
-
-        for i, rc in enumerate(resp_list):
-            if rc[0]:
-                print "\nPort {0} stats:\n{1}\n".format(port_list[i], self.rpc_client.pretty_json(json.dumps(rc[1])))
-            else:
-                print "\nPort {0} - ".format(i) + rc[1] + "\n"
-
-        print "\n"
-
-
-    def do_connect (self, line):
-        '''Connects to the server\n'''
-
-        if line == "":
-            rc, msg = self.rpc_client.connect()
-        else:
-            sp = line.split()
-            if (len(sp) != 2):
-                print "\n[usage] connect [server] [port] or without parameters\n"
+            if not inst.stateless_client.is_connected():
+                print format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold')
                 return
 
-            rc, msg = self.rpc_client.connect(sp[0], sp[1])
+            if inst.stateless_client.is_read_only():
+                print format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold')
+                return
 
-        if rc:
-            print "[SUCCESS]\n"
-        else:
-            print "\n*** " + msg + "\n"
-            return
+            ret = f(*args)
+            return ret
 
-        self.supported_rpc = self.rpc_client.get_supported_cmds()
-
-    def do_rpc (self, line):
-        '''Launches a RPC on the server\n'''
-
-        if line == "":
-            print "\nUsage: [method name] [param dict as string]\n"
-            print "Example: rpc test_add {'x': 12, 'y': 17}\n"
-            return
-
-        sp = line.split(' ', 1)
-        method = sp[0]
-
-        params = None
-        bad_parse = False
-        if len(sp) > 1:
-
-            try:
-                params = ast.literal_eval(sp[1])
-                if not isinstance(params, dict):
-                    bad_parse = True
-
-            except ValueError as e1:
-                bad_parse = True
-            except SyntaxError as e2:
-                bad_parse = True
-
-        if bad_parse:
-            print "\nValue should be a valid dict: '{0}'".format(sp[1])
-            print "\nUsage: [method name] [param dict as string]\n"
-            print "Example: rpc test_add {'x': 12, 'y': 17}\n"
-            return
-
-        rc, msg = self.rpc_client.invoke_rpc_method(method, params)
-        if rc:
-            print "\nServer Response:\n\n" + self.rpc_client.pretty_json(json.dumps(msg)) + "\n"
-        else:
-            print "\n*** " + msg + "\n"
-            #print "Please try 'reconnect' to reconnect to server"
+        return wrap
 
 
-    def complete_rpc (self, text, line, begidx, endidx):
-        return [x for x in self.supported_rpc if x.startswith(text)]
+    def get_console_identifier(self):
+        return "{context}_{server}".format(context=self.__class__.__name__,
+                                           server=self.stateless_client.get_server())
+    
+    def register_main_console_methods(self):
+        main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))
+        for name in main_names:
+            for prefix in 'do_', 'help_', 'complete_':
+                if name.startswith(prefix):
+                    self.__dict__[name] = getattr(self.trex_console, name)
 
-    def do_status (self, line):
-        '''Shows a graphical console\n'''
-
-        self.do_verbose('off')
-        trex_status.show_trex_status(self.rpc_client)
-
-    def do_quit(self, line):
-        '''Exit the client\n'''
-        return True
-
-    def do_disconnect (self, line):
-        '''Disconnect from the server\n'''
-        if not self.rpc_client.is_connected():
-            print "Not connected to server\n"
-            return
-
-        rc, msg = self.rpc_client.disconnect()
-        if rc:
-            print "[SUCCESS]\n"
-        else:
-            print msg + "\n"
-
-    def do_whoami (self, line):
-        '''Prints console user name\n'''
-        print "\n" + self.rpc_client.whoami() + "\n"
-        
     def postcmd(self, stop, line):
-        if self.rpc_client.is_connected():
-            self.prompt = "TRex > "
-        else:
-            self.supported_rpc = None
+
+        if not self.stateless_client.is_connected():
             self.prompt = "TRex (offline) > "
+            self.supported_rpc = None
+            return stop
+
+        if self.stateless_client.is_read_only():
+            self.prompt = "TRex (read only) > "
+            return stop
+
+
+        self.prompt = "TRex > "
 
         return stop
 
     def default(self, line):
         print "'{0}' is an unrecognized command. type 'help' or '?' for a list\n".format(line)
-
-    def do_help (self, line):
-        '''Shows This Help Screen\n'''
-        if line:
-            try:
-                func = getattr(self, 'help_' + line)
-            except AttributeError:
-                try:
-                    doc = getattr(self, 'do_' + line).__doc__
-                    if doc:
-                        self.stdout.write("%s\n"%str(doc))
-                        return
-                except AttributeError:
-                    pass
-                self.stdout.write("%s\n"%str(self.nohelp % (line,)))
-                return
-            func()
-            return
-
-        print "\nSupported Console Commands:"
-        print "----------------------------\n"
-
-        cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
-        for cmd in cmds:
-            if cmd == "EOF":
-                continue
-
-            try:
-                doc = getattr(self, 'do_' + cmd).__doc__
-                if doc:
-                    help = str(doc)
-                else:
-                    help = "*** Undocumented Function ***\n"
-            except AttributeError:
-                help = "*** Undocumented Function ***\n"
-
-            print "{:<30} {:<30}".format(cmd + " - ", help)
-
-    def do_load_stream_list(self, line):
-        '''Loads a YAML stream list serialization into user console \n'''
-        args = line.split()
-        if args >= 2:
-            name = args[0]
-            yaml_path = args[1]
-            try:
-                multiplier = args[2]
-            except IndexError:
-                multiplier = 1
-            stream_list = CStreamList()
-            loaded_obj = stream_list.load_yaml(yaml_path, multiplier)
-            # print self.rpc_client.pretty_json(json.dumps(loaded_obj))
-            if name in self.user_streams:
-                print "Picked name already exist. Please pick another name."
-            else:
-                try:
-                    compiled_streams = stream_list.compile_streams()
-                    self.user_streams[name] = LoadedStreamList(loaded_obj,
-                                                               [StreamPack(v.stream_id, v.stream.dump_compiled())
-                                                                for k, v in compiled_streams.items()])
-
-                    print "Stream '{0}' loaded successfully".format(name)
-                except Exception as e:
-                    raise
-            return
-        else:
-            print "please provide load name and YAML path, separated by space.\n" \
-                  "Optionally, you may provide a third argument to specify multiplier."
 
     @staticmethod
     def tree_autocomplete(text):
@@ -464,128 +207,397 @@ class TrexConsole(cmd.Cmd):
             path = dir
         else:
             path = "."
+
+
         start_string = os.path.basename(text)
-        return [x
-                for x in os.listdir(path)
-                if x.startswith(start_string)]
+        
+        targets = []
 
+        for x in os.listdir(path):
+            if x.startswith(start_string):
+                y = os.path.join(path, x)
+                if os.path.isfile(y):
+                    targets.append(x + ' ')
+                elif os.path.isdir(y):
+                    targets.append(x + '/')
 
-    def complete_load_stream_list(self, text, line, begidx, endidx):
-        arg_num = len(line.split()) - 1
-        if arg_num == 2:
-            return TrexConsole.tree_autocomplete(line.split()[-1])
-        else:
-            return [text]
+        return targets
 
-    def do_show_stream_list(self, line):
-        '''Shows the loaded stream list named [name] \n'''
-        args = line.split()
-        if args:
-            list_name = args[0]
-            try:
-                stream = self.user_streams[list_name]
-                if len(args) >= 2 and args[1] == "full":
-                    print self.rpc_client.pretty_json(json.dumps(stream.compiled))
-                else:
-                    print self.rpc_client.pretty_json(json.dumps(stream.loaded))
-            except KeyError as e:
-                print "Unknown stream list name provided"
-        else:
-            print "\nAvailable stream lists:\n{0}".format(', '.join([x
-                                                                  for x in self.user_streams.keys()]))
-
-    def complete_show_stream_list(self, text, line, begidx, endidx):
-        return [x
-                for x in self.user_streams.keys()
-                if x.startswith(text)]
-
-    def do_attach(self, line):
-        args = line.split()
-        if len(args) >= 1:
-            try:
-                stream_list = self.user_streams[args[0]]
-                port_list = self.parse_ports_from_line(' '.join(args[1:]))
-                owned = set(self.rpc_client.get_owned_ports())
-                if set(port_list).issubset(owned):
-                    rc, resp_list = self.rpc_client.add_stream(port_list, stream_list.compiled)
-                    if not rc:
-                        print "\n*** " + resp_list + "\n"
-                        return
-                else:
-                    print "Not all desired ports are aquired.\n" \
-                          "Acquired ports are: {acq}\n" \
-                          "Requested ports:    {req}\n" \
-                          "Missing ports:      {miss}".format(acq=list(owned),
-                                                              req=port_list,
-                                                              miss=list(set(port_list).difference(owned)))
-            except KeyError as e:
-                cause = e.args[0]
-                print "Provided stream list name '{0}' doesn't exists.".format(cause)
-        else:
-            print "Please provide list name and ports to attach to, or leave empty to attach to all ports."
-
-
-
-
-
-
-
-
-
-
-
-    # adds a very simple stream
-    def do_add_simple_stream (self, line):
-        if line == "":
-            add_stream = AddStreamMenu()
-            add_stream.show()
+    # annotation method
+    @staticmethod
+    def annotate (desc, rc = None, err_log = None, ext_err_msg = None):
+        print format_text('\n{:<40}'.format(desc), 'bold'),
+        if rc == None:
+            print "\n"
             return
 
-        params = line.split()
-        port_id = int(params[0])
-        stream_id = int(params[1])
+        if rc == False:
+            # do we have a complex log object ?
+            if isinstance(err_log, list):
+                print ""
+                for func in err_log:
+                    if func:
+                        print func
+                print ""
 
-        packet = [0xFF,0xFF,0xFF]
-        rc, msg = self.rpc_client.add_stream(port_id = port_id, stream_id = stream_id, isg = 1.1, next_stream_id = -1, packet = packet)
-        if rc:
-            print "\nServer Response:\n\n" + self.rpc_client.pretty_json(json.dumps(msg)) + "\n"
+            elif isinstance(err_log, str):
+                print "\n" + err_log + "\n"
+
+            print format_text("[FAILED]\n", 'red', 'bold')
+            if ext_err_msg:
+                print format_text(ext_err_msg + "\n", 'blue', 'bold')
+
+            return False
+
         else:
-            print "\n*** " + msg + "\n"
+            print format_text("[SUCCESS]\n", 'green', 'bold')
+            return True
 
-    # aliasing
+
+    ####################### shell commands #######################
+    @verify_connected
+    def do_ping (self, line):
+        '''Ping the server\n'''
+        rc = self.stateless_client.cmd_ping()
+        if rc.bad():
+            return
+
+
+    # set verbose on / off
+    def do_verbose(self, line):
+        '''Shows or set verbose mode\n'''
+        if line == "":
+            print "\nverbose is " + ("on\n" if self.verbose else "off\n")
+
+        elif line == "on":
+            self.verbose = True
+            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_HIGH)
+            print format_text("\nverbose set to on\n", 'green', 'bold')
+
+        elif line == "off":
+            self.verbose = False
+            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_REGULAR)
+            print format_text("\nverbose set to off\n", 'green', 'bold')
+
+        else:
+            print format_text("\nplease specify 'on' or 'off'\n", 'bold')
+
+    # show history
+    def help_history (self):
+        self.do_history("-h")
+
+    def do_history (self, line):
+        '''Manage the command history\n'''
+
+        item = parsing_opts.ArgumentPack(['item'],
+                                         {"nargs": '?',
+                                          'metavar': 'item',
+                                          'type': parsing_opts.check_negative,
+                                          'help': "an history item index",
+                                          'default': 0})
+
+        parser = parsing_opts.gen_parser(self,
+                                         "history",
+                                         self.do_history.__doc__,
+                                         item)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        if opts.item == 0:
+            self.print_history()
+        else:
+            cmd = self.get_history_item(opts.item)
+            if cmd == None:
+                return
+
+            self.onecmd(cmd)
+
+
+
+    ############### connect
+    def do_connect (self, line):
+        '''Connects to the server\n'''
+
+        self.stateless_client.cmd_connect_line(line)
+
+
+    def do_disconnect (self, line):
+        '''Disconnect from the server\n'''
+
+        self.stateless_client.cmd_disconnect()
+
+ 
+    ############### start
+
+    def complete_start(self, text, line, begidx, endidx):
+        s = line.split()
+        l = len(s)
+
+        file_flags = parsing_opts.get_flags(parsing_opts.FILE_PATH)
+
+        if (l > 1) and (s[l - 1] in file_flags):
+            return TRexConsole.tree_autocomplete("")
+
+        if (l > 2) and (s[l - 2] in file_flags):
+            return TRexConsole.tree_autocomplete(s[l - 1])
+
+    @verify_connected_and_rw
+    def do_start(self, line):
+        '''Start selected traffic in specified port(s) on TRex\n'''
+
+        self.stateless_client.cmd_start_line(line)
+
+
+    def help_start(self):
+        self.do_start("-h")
+
+    ############# stop
+    @verify_connected_and_rw
+    def do_stop(self, line):
+        '''stops port(s) transmitting traffic\n'''
+
+        self.stateless_client.cmd_stop_line(line)
+
+    def help_stop(self):
+        self.do_stop("-h")
+
+    ############# update
+    @verify_connected_and_rw
+    def do_update(self, line):
+        '''update speed of port(s)currently transmitting traffic\n'''
+
+        self.stateless_client.cmd_update_line(line)
+
+    def help_update (self):
+        self.do_update("-h")
+
+    ############# pause
+    @verify_connected_and_rw
+    def do_pause(self, line):
+        '''pause port(s) transmitting traffic\n'''
+
+        self.stateless_client.cmd_pause_line(line)
+
+    ############# resume
+    @verify_connected_and_rw
+    def do_resume(self, line):
+        '''resume port(s) transmitting traffic\n'''
+
+        self.stateless_client.cmd_resume_line(line)
+
+   
+
+    ########## reset
+    @verify_connected_and_rw
+    def do_reset (self, line):
+        '''force stop all ports\n'''
+        self.stateless_client.cmd_reset_line(line)
+
+
+    ######### validate
+    @verify_connected
+    def do_validate (self, line):
+        '''validates port(s) stream configuration\n'''
+
+        self.stateless_client.cmd_validate_line(line)
+
+
+    @verify_connected
+    def do_stats(self, line):
+        '''Fetch statistics from TRex server by port\n'''
+        self.stateless_client.cmd_stats_line(line)
+
+
+    def help_stats(self):
+        self.do_stats("-h")
+
+    @verify_connected
+    def do_clear(self, line):
+        '''Clear cached local statistics\n'''
+        self.stateless_client.cmd_clear_line(line)
+
+    def help_clear(self):
+        self.do_clear("-h")
+
+  
+    def help_events (self):
+        self.do_events("-h")
+
+    def do_events (self, line):
+        '''shows events recieved from server\n'''
+
+        x = parsing_opts.ArgumentPack(['-c','--clear'],
+                                      {'action' : "store_true",
+                                       'default': False,
+                                       'help': "clear the events log"})
+
+        parser = parsing_opts.gen_parser(self,
+                                         "events",
+                                         self.do_events.__doc__,
+                                         x)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        events = self.stateless_client.get_events()
+        for ev in events:
+            print ev
+
+        if opts.clear:
+            self.stateless_client.clear_events()
+            print format_text("\n\nEvent log was cleared\n\n")
+
+    # tui
+    @verify_connected
+    def do_tui (self, line):
+        '''Shows a graphical console\n'''
+
+        save_verbose = self.stateless_client.get_verbose()
+
+        self.stateless_client.set_verbose(self.stateless_client.VERBOSE_SILENCE)
+        self.tui.show()
+        self.stateless_client.set_verbose(save_verbose)
+
+    # quit function
+    def do_quit(self, line):
+        '''Exit the client\n'''
+        return True
+
+    
+    def do_help (self, line):
+         '''Shows This Help Screen\n'''
+         if line:
+             try:
+                 func = getattr(self, 'help_' + line)
+             except AttributeError:
+                 try:
+                     doc = getattr(self, 'do_' + line).__doc__
+                     if doc:
+                         self.stdout.write("%s\n"%str(doc))
+                         return
+                 except AttributeError:
+                     pass
+                 self.stdout.write("%s\n"%str(self.nohelp % (line,)))
+                 return
+             func()
+             return
+    
+         print "\nSupported Console Commands:"
+         print "----------------------------\n"
+    
+         cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
+         for cmd in cmds:
+             if ( (cmd == "EOF") or (cmd == "q") or (cmd == "exit") or (cmd == "h")):
+                 continue
+    
+             try:
+                 doc = getattr(self, 'do_' + cmd).__doc__
+                 if doc:
+                     help = str(doc)
+                 else:
+                     help = "*** Undocumented Function ***\n"
+             except AttributeError:
+                 help = "*** Undocumented Function ***\n"
+    
+             print "{:<30} {:<30}".format(cmd + " - ", help)
+
+    # aliases
     do_exit = do_EOF = do_q = do_quit
+    do_h = do_history
 
-def setParserOptions ():
+#
+def is_valid_file(filename):
+    if not os.path.isfile(filename):
+        raise argparse.ArgumentTypeError("The file '%s' does not exist" % filename)
+
+    return filename
+
+
+def setParserOptions():
     parser = argparse.ArgumentParser(prog="trex_console.py")
 
     parser.add_argument("-s", "--server", help = "TRex Server [default is localhost]",
                         default = "localhost",
                         type = str)
 
-    parser.add_argument("-p", "--port", help = "TRex Server Port  [default is 5050]\n",
-                        default = 5050,
+    parser.add_argument("-p", "--port", help = "TRex Server Port  [default is 4501]\n",
+                        default = 4501,
                         type = int)
 
-    parser.add_argument("-u", "--user", help = "User Name  [default is random generated]\n",
-                        default = 'user_' + ''.join(random.choice(string.digits) for _ in range(5)),
+    parser.add_argument("--async_port", help = "TRex ASync Publisher Port [default is 4500]\n",
+                        default = 4500,
+                        dest='pub',
+                        type = int)
+
+    parser.add_argument("-u", "--user", help = "User Name  [default is currently logged in user]\n",
+                        default = get_current_user(),
                         type = str)
+
+    parser.add_argument("--verbose", dest="verbose",
+                        action="store_true", help="Switch ON verbose option. Default is: OFF.",
+                        default = False)
+
+
+    parser.add_argument("--no_acquire", dest="acquire",
+                        action="store_false", help="Acquire all ports on connect. Default is: ON.",
+                        default = True)
+
+    parser.add_argument("--batch", dest="batch",
+                        nargs = 1,
+                        type = is_valid_file,
+                        help = "Run the console in a batch mode with file",
+                        default = None)
+
+    parser.add_argument("-t", "--tui", dest="tui",
+                        action="store_true", help="Starts with TUI mode",
+                        default = False)
 
     return parser
 
-def main ():
+
+def main():
     parser = setParserOptions()
-    options = parser.parse_args(sys.argv[1:])
+    options = parser.parse_args()
 
-    # RPC client
-    rpc_client = TrexStatelessClient(options.server, options.port, options.user)
+    # Stateless client connection
+    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
 
+    print "\nlogged as {0}".format(format_text(options.user, 'bold'))
+
+    # TUI or no acquire will give us READ ONLY mode
+    if options.tui or not options.acquire:
+        rc = stateless_client.connect("RO")
+    else:
+        rc = stateless_client.connect("RW")
+
+    # unable to connect - bye
+    if rc.bad():
+        rc.annotate()
+        return
+
+
+    # a script mode
+    if options.batch:
+        cont = stateless_client.run_script_file(options.batch[0])
+        if not cont:
+            return
+        
     # console
     try:
-        console = TrexConsole(rpc_client)
-        console.cmdloop()
+        console = TRexConsole(stateless_client, options.verbose)
+        if options.tui:
+            console.do_tui("")
+        else:
+            console.cmdloop()
+
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
-        return
+        
+    finally:
+        stateless_client.disconnect()
 
 if __name__ == '__main__':
     main()

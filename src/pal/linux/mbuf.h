@@ -65,6 +65,8 @@ typedef struct rte_mempool rte_mempool_t;
 
 #define RTE_PKTMBUF_HEADROOM  0
 
+void utl_rte_mempool_delete(rte_mempool_t  * &pool);
+
 rte_mempool_t * utl_rte_mempool_create(const char  *name,
                                       unsigned n, 
                                       unsigned elt_size,
@@ -185,8 +187,9 @@ static inline void utl_rte_pktmbuf_add_last(rte_mbuf_t *m,rte_mbuf_t *m_last){
 
 #define __rte_cache_aligned 
 
-#define CACHE_LINE_SIZE 64
 
+#define CACHE_LINE_SIZE 64
+#define RTE_CACHE_LINE_SIZE 64
 #define SOCKET_ID_ANY 0
 
 #endif

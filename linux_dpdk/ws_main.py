@@ -12,6 +12,7 @@ import shutil;
 import copy;
 import re
 import uuid
+import subprocess
 
 
 # these variables are mandatory ('/' are converted automatically)
@@ -95,6 +96,7 @@ main_src = SrcGroup(dir='src',
              'global_io_mode.cpp',
              'main_dpdk.cpp',
              'bp_sim.cpp',
+             'latency.cpp',
              'platform_cfg.cpp',
              'tuple_gen.cpp',
              'rx_check.cpp',
@@ -107,6 +109,7 @@ main_src = SrcGroup(dir='src',
              'utl_yaml.cpp',
              'nat_check.cpp',
              'msg_manager.cpp',
+             'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp'
              ]);
@@ -158,7 +161,10 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stream_vm.cpp',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
-                                    'dp/trex_stateless_dp_core.cpp'
+                                    'cp/trex_streams_compiler.cpp',
+                                    'cp/trex_dp_port_events.cpp',
+                                    'dp/trex_stateless_dp_core.cpp',
+                                    'messaging/trex_stateless_messaging.cpp'
                                     ])
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
@@ -415,6 +421,7 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../src/rpc-server/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
+                   ../src/stateless/messaging/
 
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq/include/
@@ -569,7 +576,7 @@ class build_option:
         if self.isRelease () :
             flags += ['-O3'];
         else:
-            flags += ['-O0'];
+            flags += ['-O0','-D_DEBUG'];
 
         return (flags)
 
@@ -578,6 +585,12 @@ class build_option:
 
         # support c++ 2011
         flags += ['-std=c++0x']
+
+        flags += ['-Wall',
+                  '-Werror',
+                  '-Wno-literal-suffix',
+                  '-Wno-sign-compare',
+                  '-Wno-strict-aliasing']
 
         return (flags)
 
@@ -690,6 +703,15 @@ def get_build_num ():
     return s;
 
 def create_version_files ():
+    git_sha="N/A"
+    try:
+      r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")
+      if r[0]==0:
+          git_sha=r[1]
+    except :
+        pass;
+
+
     s =''
     s +="#ifndef __TREX_VER_FILE__           \n"
     s +="#define __TREX_VER_FILE__           \n"
@@ -700,6 +722,7 @@ def create_version_files ():
     s +='extern const char * get_build_date(void);  \n'
     s +='extern const char * get_build_time(void);  \n'
     s +='#define VERSION_UIID      "%s"       \n' % uuid.uuid1()
+    s +='#define VERSION_GIT_SHA   "%s"       \n' % git_sha
     s +='#define VERSION_BUILD_NUM "%s"       \n' % get_build_num()
     s +="#ifdef __cplusplus                  \n"
     s +=" }                        \n"
@@ -765,7 +788,7 @@ files_list=[
             'trex-console'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl']
 
 
 class Env(object):
@@ -850,7 +873,7 @@ def publish(bld):
     from_        = exec_p+'/'+release_name;
     os.system("rsync -av %s %s:%s/%s " %(from_,Env().get_local_web_server(),Env().get_remote_release_path (), release_name))
     os.system("ssh %s 'cd %s;rm be_latest; ln -P %s be_latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
-    os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
+    #os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
 
 
 def publish_ext(bld):
@@ -861,8 +884,14 @@ def publish_ext(bld):
     from_        = exec_p+'/'+release_name;
     os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/release/%s' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ,release_name) )
     os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
-    os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
+    #os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
 
+
+
+def test (bld):
+    r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")
+    if r[0]==0:
+        print r[1]
 
 
 

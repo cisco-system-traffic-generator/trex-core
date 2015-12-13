@@ -104,6 +104,8 @@ bool utl_yaml_read_uint16(const YAML::Node& node,
         val = (uint16_t)val_tmp;
         res=true;
     }
+
+    return (res);
 }
 
 bool utl_yaml_read_bool(const YAML::Node& node, 

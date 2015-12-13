@@ -26,7 +26,7 @@ limitations under the License.
 
 /*TBD: need to fix socket_id for NUMA */
 
-bool CMessagingManager::Create(uint8_t num_dp_threads){
+bool CMessagingManager::Create(uint8_t num_dp_threads,std::string a_name){
     m_num_dp_threads=num_dp_threads;
     assert(m_dp_to_cp==0);
     assert(m_cp_to_dp==0);
@@ -38,11 +38,11 @@ bool CMessagingManager::Create(uint8_t num_dp_threads){
         char name[100];
 
         lp=getRingCpToDp(i);
-        sprintf(name,"cp_to_dp_%d",i);
+        sprintf(name,"%s_to_%d",(char *)a_name.c_str(),i);
         assert(lp->Create(std::string(name),1024,0)==true);
 
         lp=getRingDpToCp(i);
-        sprintf(name,"dp_to_cp_%d",i);
+        sprintf(name,"%s_from_%d",(char *)a_name.c_str(),i);
         assert(lp->Create(std::string(name),1024,0)==true);
 
     }
@@ -51,15 +51,20 @@ bool CMessagingManager::Create(uint8_t num_dp_threads){
     return (true);
 }
 void CMessagingManager::Delete(){
-    if (m_dp_to_cp) {
-        m_dp_to_cp->Delete();
-        delete []m_dp_to_cp;
-    }
-    if (m_cp_to_dp) {
-        m_cp_to_dp->Delete();
-        delete []m_cp_to_dp;
+
+    assert(m_cp_to_dp);
+    assert(m_dp_to_cp);
+    int i;
+    for (i=0; i<m_num_dp_threads; i++) {
+        CNodeRing * lp;
+        lp=getRingCpToDp(i);
+        lp->Delete();
+        lp=getRingDpToCp(i);
+        lp->Delete();
     }
 
+    delete []m_dp_to_cp;
+    delete []m_cp_to_dp;
 }
 
 CNodeRing * CMessagingManager::getRingCpToDp(uint8_t thread_id){
@@ -76,6 +81,7 @@ CNodeRing * CMessagingManager::getRingDpToCp(uint8_t thread_id){
 
 void CMsgIns::Free(){
     if (m_ins) {
+        m_ins->Delete();
         delete m_ins;
     }
 }
@@ -89,7 +95,18 @@ CMsgIns  * CMsgIns::Ins(void){
 }
 
 bool CMsgIns::Create(uint8_t num_threads){
-    return ( m_rx_dp.Create(num_threads) );
+
+    bool res = m_cp_dp.Create(num_threads,"cp_dp");
+    if (!res) {
+        return (res);
+    }
+    return (m_rx_dp.Create(num_threads,"rx_dp"));
+}
+
+
+void CMsgIns::Delete(){
+    m_cp_dp.Delete();
+    m_rx_dp.Delete();
 }
 
 

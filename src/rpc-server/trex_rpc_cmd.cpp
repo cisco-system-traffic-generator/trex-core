@@ -61,10 +61,14 @@ TrexRpcCommand::verify_ownership(const Json::Value &params, Json::Value &result)
     std::string handler = parse_string(params, "handler", result);
     uint8_t port_id = parse_port(params, result);
 
-    TrexStatelessPort *port = TrexStateless::get_instance().get_port_by_id(port_id);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if (!port->verify_owner_handler(handler)) {
-        generate_execute_err(result, "invalid handler provided. please pass the handler given when calling 'acquire' or take ownership");
+    if (port->get_owner().is_free()) {
+        generate_execute_err(result, "please acquire the port before modifying port state");
+    }
+
+    if (!port->get_owner().verify(handler)) {
+        generate_execute_err(result, "port is not owned by you or your current executing session");
     }
 }
 
@@ -78,9 +82,9 @@ TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
 
 void 
 TrexRpcCommand::validate_port_id(uint8_t port_id, Json::Value &result) {
-    if (port_id >= TrexStateless::get_instance().get_port_count()) {
+    if (port_id >= get_stateless_obj()->get_port_count()) {
         std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)TrexStateless::get_instance().get_port_count() - 1;
+        ss << "invalid port id - should be between 0 and " << (int)get_stateless_obj()->get_port_count() - 1;
         generate_execute_err(result, ss.str());
     }
 }
@@ -92,6 +96,8 @@ TrexRpcCommand::type_to_str(field_type_e type) {
         return "byte";
     case FIELD_TYPE_UINT16:
         return "uint16";
+    case FIELD_TYPE_UINT32:
+        return "uint32";
     case FIELD_TYPE_BOOL:
         return "bool";
     case FIELD_TYPE_INT:
@@ -158,6 +164,18 @@ TrexRpcCommand::parse_uint16(const Json::Value &parent, const std::string &name,
 uint16_t  
 TrexRpcCommand::parse_uint16(const Json::Value &parent, int index, Json::Value &result) {
     check_field_type(parent, index, FIELD_TYPE_UINT16, result);
+    return parent[index].asUInt();
+}
+
+uint32_t 
+TrexRpcCommand::parse_uint32(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_UINT32, result);
+    return parent[name].asUInt();
+}
+
+uint32_t  
+TrexRpcCommand::parse_uint32(const Json::Value &parent, int index, Json::Value &result) {
+    check_field_type(parent, index, FIELD_TYPE_UINT32, result);
     return parent[index].asUInt();
 }
 
@@ -246,6 +264,12 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
 
     case FIELD_TYPE_UINT16:
         if ( (!field.isUInt()) || (field.asInt() > 0xFFFF)) {
+            rc = false;
+        }
+        break;
+
+    case FIELD_TYPE_UINT32:
+        if ( (!field.isUInt()) || (field.asUInt() > 0xFFFFFFFF)) {
             rc = false;
         }
         break;
