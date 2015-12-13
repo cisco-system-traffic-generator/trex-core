@@ -39,7 +39,7 @@ struct StreamDPOpFlowVar8 {
     uint8_t m_min_val;
     uint8_t m_max_val;
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed)) ;
 
@@ -49,7 +49,7 @@ struct StreamDPOpFlowVar16 {
     uint16_t m_min_val;
     uint16_t m_max_val;
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed)) ;
 
@@ -59,7 +59,7 @@ struct StreamDPOpFlowVar32 {
     uint32_t m_min_val;
     uint32_t m_max_val;
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed)) ;
 
@@ -69,49 +69,50 @@ struct StreamDPOpFlowVar64 {
     uint64_t m_min_val;
     uint64_t m_max_val;
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed)) ;
 
 
-struct StreamDPOpPktWr8 {
+struct StreamDPOpPktWrBase {
     uint8_t m_op;
     uint8_t m_flags;
-    uint8_t  m_offset;
+    uint8_t  m_offset; 
+} __attribute__((packed)) ;
+
+
+struct StreamDPOpPktWr8 : public StreamDPOpPktWrBase {
+    int8_t  m_val_offset;
     uint16_t m_pkt_offset;
+
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed)) ;
 
 
-struct StreamDPOpPktWr16 {
-    uint8_t m_op;
-    uint8_t m_flags;
+struct StreamDPOpPktWr16 : public StreamDPOpPktWrBase {
     uint16_t m_pkt_offset;
-    uint16_t  m_offset;
+    int16_t  m_val_offset;
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed));
 
-struct StreamDPOpPktWr32 {
-    uint8_t m_op;
-    uint8_t m_flags;
+struct StreamDPOpPktWr32 : public StreamDPOpPktWrBase {
     uint16_t m_pkt_offset;
-    uint32_t  m_offset;
+    int32_t  m_val_offset;
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed));
 
-struct StreamDPOpPktWr64 {
-    uint8_t m_op;
-    uint8_t m_flags;
+struct StreamDPOpPktWr64 : public StreamDPOpPktWrBase {
     uint16_t m_pkt_offset;
-    uint32_t  m_offset;
+    int64_t  m_val_offset;
+
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed));
 
@@ -119,7 +120,7 @@ struct StreamDPOpIpv4Fix {
     uint8_t m_op;
     uint32_t  m_offset;
 public:
-    void dump(FILE *fd);
+    void dump(FILE *fd,std::string opt);
 
 } __attribute__((packed));
 
@@ -153,6 +154,7 @@ public:
 
 
 public:
+    void clear();
     void add_command(void *buffer,uint16_t size);
     uint8_t * get_program();
     uint32_t get_program_size();
@@ -211,7 +213,7 @@ public:
     virtual void Dump(FILE *fd);
 
 public:
-    uint16_t m_pkt_offset;
+    uint16_t m_pkt_offset; /* the offset of IPv4 header from the start of the packet  */
 };
 
 /**
@@ -335,7 +337,8 @@ public:
 class StreamVm {
 public:
     enum STREAM_VM {
-        svMAX_FLOW_VAR   = 64 /* maximum flow varible */
+        svMAX_FLOW_VAR   = 64, /* maximum flow varible */
+        svMAX_PACKET_OFFSET_CHANGE = 512
     };
 
 
@@ -370,6 +373,23 @@ public:
      */
     const std::vector<StreamVmInstruction *> & get_instruction_list();
 
+    const StreamDPVmInstructions  &           get_dp_instruction_buffer();
+
+    uint16_t                                  get_bss_size(){
+        return (m_cur_var_offset );
+    }
+
+    uint8_t *                                 get_bss_ptr(){
+        return (m_bss );
+    }
+
+
+    uint16_t                                  get_max_packet_update_offset(){
+        return ( m_max_field_update );
+    }
+
+
+
     /**
      * compile the VM 
      * return true of success, o.w false 
@@ -396,6 +416,8 @@ private:
     void  var_clear_table();
 
     bool  var_add(const std::string &var_name,VmFlowVarRec & var);
+
+    uint16_t get_var_offset(const std::string &var_name);
     
     void build_flow_var_table() ;
 
@@ -407,13 +429,22 @@ private:
 
     void free_bss();
 
+private:
+
+    void clean_max_field_cnt();
+
+    void add_field_cnt(uint16_t new_cnt);
 
 private:
     uint16_t                           m_pkt_size;
     uint16_t                           m_cur_var_offset;
+    uint16_t                           m_max_field_update; /* the location of the last byte that is going to be changed in the packet */ 
+
     std::vector<StreamVmInstruction *> m_inst_list;
     std::unordered_map<std::string, VmFlowVarRec> m_flow_var_offset;
     uint8_t *                          m_bss;
+
+    StreamDPVmInstructions             m_instructions;
     
 };
 
