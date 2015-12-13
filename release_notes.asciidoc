@@ -23,8 +23,7 @@ endif::backend-docbook[]
 == Release 1.82  ==
 
 * more stateless support
-** console stats function works now 
-** consule tui works better 
+** console stats/tui function works now 
 ** R/W support. only one client has R/W capability 
 * XL710/X710 support ICMP filter 
 
