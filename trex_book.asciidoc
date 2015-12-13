@@ -1198,6 +1198,7 @@ This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *
   
 *-k=KSEC*::                  
    Run a latency test before starting the test. TRex will wait for x sec before and after sending latency packets at startup.
+   Current limitation (holds for TRex version 1.82): does not work properly on VM.
   
 *--cfg=platform_yaml*::     
         Load and configure platform using this file. See example file: cfg/cfg_examplexx.yaml 
