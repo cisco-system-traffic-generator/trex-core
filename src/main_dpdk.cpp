@@ -678,7 +678,7 @@ static int usage(){
     printf(" limitations under the License.                                           \n");
     printf(" \n");
     printf(" Open Source Components / Libraries \n");
-    printf(" DPDK       (BSD)         \n");
+    printf(" DPDK       (BSD)       \n");
     printf(" YAML-CPP   (BSD)       \n");
     printf(" JSONCPP    (MIT)       \n");
     printf(" \n");
@@ -689,6 +689,7 @@ static int usage(){
     printf(" User    : %s   \n",VERSION_USER);
     printf(" Date    : %s , %s \n",get_build_date(),get_build_time());
     printf(" Uuid    : %s    \n",VERSION_UIID);
+    printf(" Git SHA : %s    \n",VERSION_GIT_SHA);
     return (0);
 }
 

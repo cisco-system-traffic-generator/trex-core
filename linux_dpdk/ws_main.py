@@ -12,6 +12,7 @@ import shutil;
 import copy;
 import re
 import uuid
+import subprocess
 
 
 # these variables are mandatory ('/' are converted automatically)
@@ -702,6 +703,15 @@ def get_build_num ():
     return s;
 
 def create_version_files ():
+    git_sha="N/A"
+    try:
+      r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")
+      if r[0]==0:
+          git_sha=r[1]
+    except :
+        pass;
+
+
     s =''
     s +="#ifndef __TREX_VER_FILE__           \n"
     s +="#define __TREX_VER_FILE__           \n"
@@ -712,6 +722,7 @@ def create_version_files ():
     s +='extern const char * get_build_date(void);  \n'
     s +='extern const char * get_build_time(void);  \n'
     s +='#define VERSION_UIID      "%s"       \n' % uuid.uuid1()
+    s +='#define VERSION_GIT_SHA   "%s"       \n' % git_sha
     s +='#define VERSION_BUILD_NUM "%s"       \n' % get_build_num()
     s +="#ifdef __cplusplus                  \n"
     s +=" }                        \n"
@@ -875,6 +886,12 @@ def publish_ext(bld):
     os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
     #os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
 
+
+
+def test (bld):
+    r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")
+    if r[0]==0:
+        print r[1]
 
 
 
