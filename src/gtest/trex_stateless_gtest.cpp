@@ -74,10 +74,88 @@ TEST_F(basic_vm, vm1) {
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
     printf (" program size : %lu \n",(ulong)program_size);
 
 
     vm.Dump(stdout);
+
+}
+
+TEST_F(basic_vm, vm2) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+    //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile_next();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    uint8_t test_udp_pkt[14+20+4+4]={ 
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint8_t ex[]={5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3}; 
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+        EXPECT_EQ(test_udp_pkt[26],ex[i]);
+    }
 
 }
 
