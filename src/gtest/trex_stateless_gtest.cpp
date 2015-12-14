@@ -32,6 +32,99 @@ limitations under the License.
 #include <iostream>
 
 
+class CPcapLoader {
+public:
+    CPcapLoader();
+    ~CPcapLoader();
+
+
+public:
+    bool load_pcap_file(std::string file,int pkt_id=0);
+    void update_ip_src(uint32_t ip_addr);
+    void clone_packet_into_stream(TrexStream * stream);
+    void dump_packet();
+
+public:
+    bool                    m_valid;
+    CCapPktRaw              m_raw;
+    CPacketIndication       m_pkt_indication;
+};
+
+CPcapLoader::~CPcapLoader(){
+}
+
+bool CPcapLoader::load_pcap_file(std::string cap_file,int pkt_id){
+    m_valid=false;
+    CPacketParser parser;
+
+    CCapReaderBase * lp=CCapReaderFactory::CreateReader((char *)cap_file.c_str(),0);
+
+    if (lp == 0) {
+        printf(" ERROR file %s does not exist or not supported \n",(char *)cap_file.c_str());
+        return false;
+    }
+
+    int cnt=0;
+    bool found =false;
+
+
+    while ( true ) {
+        /* read packet */
+        if ( lp->ReadPacket(&m_raw) ==false ){
+            break;
+        }
+        if (cnt==pkt_id) {
+            found = true;
+            break;
+        }
+        cnt++;
+    }
+    if ( found ){
+        if ( parser.ProcessPacket(&m_pkt_indication, &m_raw) ){
+            m_valid = true;
+        }
+    }
+
+    delete lp;
+    return (m_valid);
+}
+
+void CPcapLoader::update_ip_src(uint32_t ip_addr){
+
+    if ( m_pkt_indication.l3.m_ipv4 ) {
+        m_pkt_indication.l3.m_ipv4->setSourceIp(ip_addr);
+        m_pkt_indication.l3.m_ipv4->updateCheckSum();
+    }
+}           
+
+void CPcapLoader::clone_packet_into_stream(TrexStream * stream){
+
+    uint16_t pkt_size=m_raw.getTotalLen();
+
+    uint8_t      *binary = new uint8_t[pkt_size];
+    memcpy(binary,m_raw.raw,pkt_size);
+    stream->m_pkt.binary = binary;
+    stream->m_pkt.len    = pkt_size;
+}
+
+
+
+
+CPcapLoader::CPcapLoader(){
+
+}
+
+void CPcapLoader::dump_packet(){
+    if (m_valid ) {
+        m_pkt_indication.Dump(stdout,1);
+    }else{
+        fprintf(stdout," no packets were found \n");
+    }
+}
+
+
+
+
 class basic_vm  : public testing::Test {
     protected:
      virtual void SetUp() {
@@ -331,6 +424,213 @@ TEST_F(basic_vm, vm4) {
 }
 
 
+/* two fields */
+TEST_F(basic_vm, vm5) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var2",15, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile_next();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={ 
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint8_t ex[]={5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3}; 
+
+         uint8_t ex_tos[]={0x18, 
+                      0x17, 
+                      0x1b, 
+                      0x1a, 
+                      0x19, 
+                      0x18, 
+                      0x17, 
+                      0x1b, 
+                     0x1a, 
+                     0x19, 
+                     0x18, 
+                     0x17, 
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+         }; 
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d \n",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        EXPECT_EQ(test_udp_pkt[29],ex[i]);
+        EXPECT_EQ(test_udp_pkt[28],0);
+        EXPECT_EQ(test_udp_pkt[27],0);
+        EXPECT_EQ(test_udp_pkt[26],0);
+
+        /* check tos */
+        EXPECT_EQ(test_udp_pkt[15],ex_tos[i]);
+    }
+}
+
+/* -load file, write to file  */
+TEST_F(basic_vm, vm6) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0x10000001,0x10000001,0x100000fe) 
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var2",15, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile_next();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm6.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        //utl_DumpBuffer(stdout,pcap.m_raw.raw,pcap.m_raw.pkt_len,0);
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm6.pcap","exp/udp_64B_vm6-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+
 
 //////////////////////////////////////////////////////
 
@@ -577,96 +877,6 @@ public:
     CFlowGenList  fl;
 };
 
-
-class CPcapLoader {
-public:
-    CPcapLoader();
-    ~CPcapLoader();
-
-
-public:
-    bool load_pcap_file(std::string file,int pkt_id=0);
-    void update_ip_src(uint32_t ip_addr);
-    void clone_packet_into_stream(TrexStream * stream);
-    void dump_packet();
-
-public:
-    bool                    m_valid;
-    CCapPktRaw              m_raw;
-    CPacketIndication       m_pkt_indication;
-};
-
-CPcapLoader::~CPcapLoader(){
-}
-
-bool CPcapLoader::load_pcap_file(std::string cap_file,int pkt_id){
-    m_valid=false;
-    CPacketParser parser;
-
-    CCapReaderBase * lp=CCapReaderFactory::CreateReader((char *)cap_file.c_str(),0);
-
-    if (lp == 0) {
-        printf(" ERROR file %s does not exist or not supported \n",(char *)cap_file.c_str());
-        return false;
-    }
-
-    int cnt=0;
-    bool found =false;
-
-
-    while ( true ) {
-        /* read packet */
-        if ( lp->ReadPacket(&m_raw) ==false ){
-            break;
-        }
-        if (cnt==pkt_id) {
-            found = true;
-            break;
-        }
-        cnt++;
-    }
-    if ( found ){
-        if ( parser.ProcessPacket(&m_pkt_indication, &m_raw) ){
-            m_valid = true;
-        }
-    }
-
-    delete lp;
-    return (m_valid);
-}
-
-void CPcapLoader::update_ip_src(uint32_t ip_addr){
-
-    if ( m_pkt_indication.l3.m_ipv4 ) {
-        m_pkt_indication.l3.m_ipv4->setSourceIp(ip_addr);
-        m_pkt_indication.l3.m_ipv4->updateCheckSum();
-    }
-}           
-
-void CPcapLoader::clone_packet_into_stream(TrexStream * stream){
-
-    uint16_t pkt_size=m_raw.getTotalLen();
-
-    uint8_t      *binary = new uint8_t[pkt_size];
-    memcpy(binary,m_raw.raw,pkt_size);
-    stream->m_pkt.binary = binary;
-    stream->m_pkt.len    = pkt_size;
-}
-
-
-
-
-CPcapLoader::CPcapLoader(){
-
-}
-
-void CPcapLoader::dump_packet(){
-    if (m_valid ) {
-        m_pkt_indication.Dump(stdout,1);
-    }else{
-        fprintf(stdout," no packets were found \n");
-    }
-}
 
 
 TEST_F(basic_stl, load_pcap_file) {
