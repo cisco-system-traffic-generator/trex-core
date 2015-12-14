@@ -113,6 +113,14 @@ void StreamVmInstructionWriteToPkt::Dump(FILE *fd){
 
 
 
+void StreamVmInstructionFlowClient::Dump(FILE *fd){
+
+    fprintf(fd," client_var ,%s , ",m_var_name.c_str());
+
+    fprintf(fd," ip:(%x-%x) port:(%x-%x)  flow_limit:%lu  flags: %x\n",m_client_min,m_client_max, m_port_min,m_port_max,(ulong)m_limit_num_flows,m_flags);
+}
+
+
 
 
 /***************************
@@ -200,17 +208,67 @@ void StreamVm::build_flow_var_table() {
                 err(ss.str());
             }else{
                 var.m_offset=m_cur_var_offset;
-                var.m_instruction = ins_man;
+                var.m_ins.m_ins_flowv = ins_man;
+                var.m_size_bytes = ins_man->m_size_bytes;
                 var_add(ins_man->m_var_name,var);
                 m_cur_var_offset += ins_man->m_size_bytes;
 
-                /* limit the flow var size */
-                if (m_cur_var_offset > StreamVm::svMAX_FLOW_VAR ) {
-                    std::stringstream ss;
-                    ss << "too many flow varibles current size is :" << m_cur_var_offset << " maximum support is " << StreamVm::svMAX_FLOW_VAR;
-                    err(ss.str());
-                }
             }
+        }
+
+        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_CLIENT ){
+            StreamVmInstructionFlowClient * ins_man=(StreamVmInstructionFlowClient *)inst;
+
+            VmFlowVarRec var;
+            /* if this is the first time */ 
+            if ( var_lookup( ins_man->m_var_name+".ip",var) == true){
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' client variable name " << ins_man->m_var_name << " already exists";
+                err(ss.str());
+            }
+            if ( var_lookup( ins_man->m_var_name+".port",var) == true){
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' client variable name " << ins_man->m_var_name << " already exists";
+                err(ss.str());
+            }
+
+            if ( var_lookup( ins_man->m_var_name+".flow_limit",var) == true){
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' client variable name " << ins_man->m_var_name << " already exists";
+                err(ss.str());
+            }
+
+            var.m_offset = m_cur_var_offset;
+            var.m_ins.m_ins_flow_client = ins_man;
+            var.m_size_bytes =4;
+
+            VmFlowVarRec var_port;
+
+            var_port.m_offset = m_cur_var_offset+4;
+            var_port.m_ins.m_ins_flow_client = ins_man;
+            var_port.m_size_bytes =2;
+
+            VmFlowVarRec var_flow_limit;
+
+            var_flow_limit.m_offset = m_cur_var_offset+6;
+            var_flow_limit.m_ins.m_ins_flow_client = ins_man;
+            var_flow_limit.m_size_bytes =4;
+
+
+            var_add(ins_man->m_var_name+".ip",var);
+            var_add(ins_man->m_var_name+".port",var_port);
+            var_add(ins_man->m_var_name+".flow_limit",var_flow_limit);
+
+            m_cur_var_offset += StreamVmInstructionFlowClient::get_flow_var_size(); 
+
+            assert(sizeof(StreamDPFlowClient)==StreamVmInstructionFlowClient::get_flow_var_size());
+        }
+
+        /* limit the flow var size */
+        if (m_cur_var_offset > StreamVm::svMAX_FLOW_VAR ) {
+            std::stringstream ss;
+            ss << "too many flow varibles current size is :" << m_cur_var_offset << " maximum support is " << StreamVm::svMAX_FLOW_VAR;
+            err(ss.str());
         }
         ins_id++;
     }
@@ -382,15 +440,15 @@ void StreamVm::build_program(){
                 err(ss.str());
             }
 
-            if (lpPkt->m_pkt_offset + var.m_instruction->m_size_bytes > m_pkt_size ) {
+            if (lpPkt->m_pkt_offset + var.m_size_bytes > m_pkt_size ) {
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' packet write with packet_offset   " << lpPkt->m_pkt_offset + var.m_instruction->m_size_bytes  << "   bigger than packet size   "<< m_pkt_size;
+                ss << "instruction id '" << ins_id << "' packet write with packet_offset   " << lpPkt->m_pkt_offset + var.m_size_bytes  << "   bigger than packet size   "<< m_pkt_size;
                 err(ss.str());
             }
-            add_field_cnt(lpPkt->m_pkt_offset + var.m_instruction->m_size_bytes);
+            add_field_cnt(lpPkt->m_pkt_offset + var.m_size_bytes);
 
 
-            uint8_t       op_size=var.m_instruction->m_size_bytes;
+            uint8_t       op_size=var.m_size_bytes;
             bool is_big    = lpPkt->m_is_big_endian;
             uint8_t       flags = (is_big?StreamDPOpPktWrBase::PKT_WR_IS_BIG:0);
             uint8_t       flow_offset = get_var_offset(lpPkt->m_flow_var_name);
@@ -437,6 +495,37 @@ void StreamVm::build_program(){
 
         }
 
+
+        if (ins_type == StreamVmInstruction::itFLOW_CLIENT) {
+            StreamVmInstructionFlowClient *lpMan =(StreamVmInstructionFlowClient *)inst;
+
+            if ( lpMan->is_unlimited_flows() ){
+                StreamDPOpClientsUnLimit  client_cmd;
+                client_cmd.m_op =  StreamDPVmInstructions::itCLIENT_VAR_UNLIMIT;
+
+                client_cmd.m_flow_offset = get_var_offset(lpMan->m_var_name+".ip"); /* start offset */
+                client_cmd.m_flags       = 0; /* not used */
+                client_cmd.m_pad         = 0;
+                client_cmd.m_min_ip      = lpMan->m_client_min;
+                client_cmd.m_max_ip      = lpMan->m_client_max;
+                m_instructions.add_command(&client_cmd,sizeof(client_cmd));
+
+            }else{
+                StreamDPOpClientsLimit  client_cmd;
+                client_cmd.m_op =  StreamDPVmInstructions::itCLIENT_VAR;
+
+                client_cmd.m_flow_offset = get_var_offset(lpMan->m_var_name+".ip"); /* start offset */
+                client_cmd.m_flags       = 0; /* not used */
+                client_cmd.m_pad         = 0;
+                client_cmd.m_min_port    = lpMan->m_port_min;
+                client_cmd.m_max_port    = lpMan->m_port_max;
+                client_cmd.m_min_ip      = lpMan->m_client_min;
+                client_cmd.m_max_ip      = lpMan->m_client_max;
+                client_cmd.m_limit_flows = lpMan->m_limit_num_flows;
+                m_instructions.add_command(&client_cmd,sizeof(client_cmd));
+            }
+        }
+
         ins_id++;
     }
 }
@@ -473,6 +562,28 @@ void StreamVm::build_bss() {
                 assert(0);
             }
         }
+
+        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_CLIENT ){
+
+            StreamVmInstructionFlowClient * ins_man=(StreamVmInstructionFlowClient *)inst;
+            if (ins_man->m_client_min>0) {
+                *((uint32_t*)p)=(uint32_t)(ins_man->m_client_min-1);
+            }else{
+                *((uint32_t*)p)=(uint32_t)ins_man->m_client_min;
+            }
+            p+=4;
+
+            if (ins_man->is_unlimited_flows() ) {
+                *((uint16_t*)p)=StreamDPOpClientsUnLimit::CLIENT_UNLIMITED_MIN_PORT;
+            }else{
+                *((uint16_t*)p)=(uint16_t)ins_man->m_port_min;
+            }
+            p+=2;
+
+            *((uint32_t*)p)=0;
+            p+=4;
+        }
+
     }
 }
 
@@ -570,6 +681,9 @@ void StreamDPVmInstructions::Dump(FILE *fd){
     StreamDPOpPktWr16    *lpw16;
     StreamDPOpPktWr32    *lpw32;
     StreamDPOpPktWr64    *lpw64;
+    StreamDPOpClientsLimit   *lp_client;
+    StreamDPOpClientsUnLimit  *lp_client_unlimited;
+
 
     while ( p < p_end) {
         uint8_t op_code=*p;
@@ -667,6 +781,20 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             lpw64->dump(fd,"Wr64");
             p+=sizeof(StreamDPOpPktWr64);
             break;
+
+        case  itCLIENT_VAR :      
+            lp_client =(StreamDPOpClientsLimit *)p;
+            lp_client->dump(fd,"Client");
+            p+=sizeof(StreamDPOpClientsLimit);
+            break;
+
+        case  itCLIENT_VAR_UNLIMIT :      
+            lp_client_unlimited =(StreamDPOpClientsUnLimit *)p;
+            lp_client_unlimited->dump(fd,"ClientUnlimted");
+            p+=sizeof(StreamDPOpClientsUnLimit);
+            break;
+
+
         default:
             assert(0);
         }
@@ -712,5 +840,12 @@ void StreamDPOpIpv4Fix::dump(FILE *fd,std::string opt){
 }
 
 
+void StreamDPOpClientsLimit::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s  op:%lu, flow_offset: %lu (%x-%x) (%x-%x) flow_limit :%lu flags:%x \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,m_min_ip,m_max_ip,m_min_port,m_max_port,(ulong)m_limit_flows,m_flags);
+}
+
+void StreamDPOpClientsUnLimit::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s  op:%lu, flow_offset: %lu (%x-%x) flags:%x \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,m_min_ip,m_max_ip,m_flags);
+}
 
 

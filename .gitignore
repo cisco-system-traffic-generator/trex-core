@@ -35,6 +35,11 @@ scripts/exp/stl_vm_enable0-0.erf
 scripts/exp/stl_vm_enable1-0.erf
 scripts/exp/stl_vm_enable2-0.erf
 scripts/exp/udp_64B_vm6.pcap
+scripts/exp/udp_64B_vm7.pcap
+scripts/exp/udp_64B_vm8.pcap
+scripts/exp/udp_64B_vm9.pcap
+
+
 
 
 

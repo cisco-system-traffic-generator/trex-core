@@ -269,6 +269,82 @@ public:
 } __attribute__((packed));
 
 
+/* flow varible of Client command */
+struct StreamDPFlowClient {
+    uint32_t cur_ip;
+    uint16_t cur_port;
+    uint32_t cur_flow_id;
+} __attribute__((packed));
+
+
+struct StreamDPOpClientsLimit {
+    uint8_t m_op;
+    uint8_t m_flow_offset; /* offset into the flow var  bytes */
+    uint8_t m_flags;
+    uint8_t m_pad;
+    uint16_t    m_min_port;
+    uint16_t    m_max_port;
+
+    uint32_t    m_min_ip;
+    uint32_t    m_max_ip;
+    uint32_t    m_limit_flows; /* limit the number of flows */
+
+public:
+    void dump(FILE *fd,std::string opt);
+    inline void run(uint8_t * flow_var_base) {
+        StreamDPFlowClient * lp= (StreamDPFlowClient *)(flow_var_base+m_flow_offset);
+        lp->cur_ip++;
+        if (lp->cur_ip > m_max_ip ) {
+            lp->cur_ip= m_min_ip;
+            lp->cur_port++;
+            if (lp->cur_port > m_max_port) {
+                lp->cur_port = m_min_port;
+            }
+        }
+
+        if (m_limit_flows) {
+            lp->cur_flow_id++;
+            if ( lp->cur_flow_id > m_limit_flows ){
+                /* reset to the first flow */
+                lp->cur_flow_id = 1;
+                lp->cur_ip      =  m_min_ip;
+                lp->cur_port    =  m_min_port;
+            }
+        }
+    }
+
+
+} __attribute__((packed));
+
+struct StreamDPOpClientsUnLimit {
+    enum __MIN_PORT {
+        CLIENT_UNLIMITED_MIN_PORT = 1025
+    };
+
+    uint8_t m_op;
+    uint8_t m_flow_offset; /* offset into the flow var  bytes */
+    uint8_t m_flags;
+    uint8_t m_pad;
+    uint32_t    m_min_ip;
+    uint32_t    m_max_ip;
+
+public:
+    void dump(FILE *fd,std::string opt);
+    inline void run(uint8_t * flow_var_base) {
+        StreamDPFlowClient * lp= (StreamDPFlowClient *)(flow_var_base+m_flow_offset);
+        lp->cur_ip++;
+        if (lp->cur_ip > m_max_ip ) {
+            lp->cur_ip= m_min_ip;
+            lp->cur_port++;
+            if (lp->cur_port == 0) {
+                lp->cur_port = StreamDPOpClientsUnLimit::CLIENT_UNLIMITED_MIN_PORT;
+            }
+        }
+    }
+
+} __attribute__((packed));
+
+
 /* datapath instructions */
 class StreamDPVmInstructions {
 public:
@@ -293,7 +369,9 @@ public:
         itPKT_WR8       ,
         itPKT_WR16       ,
         itPKT_WR32       ,
-        itPKT_WR64       
+        itPKT_WR64       ,
+        itCLIENT_VAR       ,
+        itCLIENT_VAR_UNLIMIT      
     };
 
 
@@ -342,11 +420,25 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t program_size,
         StreamDPOpPktWr16    *lpw16;
         StreamDPOpPktWr32    *lpw32;
         StreamDPOpPktWr64    *lpw64;
+        StreamDPOpClientsLimit      *lpcl;
+        StreamDPOpClientsUnLimit    *lpclu;
     } ua ;
 
     while ( p < p_end) {
         uint8_t op_code=*p;
         switch (op_code) {
+
+        case  StreamDPVmInstructions::itCLIENT_VAR :      
+            ua.lpcl =(StreamDPOpClientsLimit *)p;
+            ua.lpcl->run(flow_var);
+            p+=sizeof(StreamDPOpClientsLimit);
+            break;
+
+        case  StreamDPVmInstructions::itCLIENT_VAR_UNLIMIT :      
+            ua.lpclu =(StreamDPOpClientsUnLimit *)p;
+            ua.lpclu->run(flow_var);
+            p+=sizeof(StreamDPOpClientsUnLimit);
+            break;
 
         case   StreamDPVmInstructions::ditINC8  :
             ua.lpv8 =(StreamDPOpFlowVar8 *)p;
@@ -461,7 +553,9 @@ public:
         itNONE         = 0,
         itFIX_IPV4_CS  = 4,
         itFLOW_MAN     = 5,
-        itPKT_WR       = 6
+        itPKT_WR       = 6,
+        itFLOW_CLIENT  = 7 
+
     };
 
     typedef uint8_t instruction_type_t ;
@@ -564,10 +658,76 @@ public:
 };
 
 
+/**
+ * flow client instruction - save state for client range and port range 
+ * 
+ * @author hhaim
+ */
+class StreamVmInstructionFlowClient : public StreamVmInstruction {
+
+public:
+    enum client_flags_e {
+        CLIENT_F_UNLIMITED_FLOWS=1, /* unlimited number of flow, don't care about ports  */
+    };
+
+
+    virtual instruction_type_t get_instruction_type(){
+        return ( StreamVmInstruction::itFLOW_CLIENT);
+    }
+
+
+    StreamVmInstructionFlowClient(const std::string &var_name,
+                               uint32_t client_min_value,
+                               uint32_t client_max_value,
+                               uint16_t port_min,
+                               uint16_t port_max,
+                               uint32_t limit_num_flows, /* zero means don't limit */
+                               uint16_t flags
+                               ) { 
+        m_var_name   = var_name;
+        m_client_min = client_min_value;
+        m_client_max = client_max_value;
+
+        m_port_min   = port_min;
+        m_port_max   = port_max;
+
+        m_limit_num_flows = limit_num_flows;
+        m_flags = flags;
+    }
+
+    virtual void Dump(FILE *fd);
+
+    static uint8_t get_flow_var_size(){
+        return  (4+2+4);
+    }
+
+    bool is_unlimited_flows(){
+        return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) ==StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS);
+    }
+public:
+
+
+    /* flow var name */
+    std::string   m_var_name;
+
+    uint32_t m_client_min;  // min ip 
+    uint32_t m_client_max;  // max ip 
+    uint16_t m_port_min;  // start port 
+    uint16_t m_port_max;  // start port 
+    uint32_t m_limit_num_flows;   // number of flows
+    uint16_t m_flags;
+};
+
+
+
 class VmFlowVarRec {
 public:
     uint32_t    m_offset;
-    StreamVmInstructionFlowMan * m_instruction;
+    union {
+        StreamVmInstructionFlowMan * m_ins_flowv;
+        StreamVmInstructionFlowClient * m_ins_flow_client;
+    } m_ins;
+    uint8_t    m_size_bytes;
 };
 
 

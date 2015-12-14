@@ -470,7 +470,7 @@ TEST_F(basic_vm, vm5) {
         0x01,0x01,0x01,0x01, /*26 */
         0x3d,0xad,0x72,0x1b, /*30 */
 
-        0x11,0x11,
+        0x11,0x11,           /*34 */
         0x11,0x11,
 
         0x00,0x6d,
@@ -627,6 +627,205 @@ TEST_F(basic_vm, vm6) {
     CErfCmp cmp;
 
     bool res1=cmp.compare("exp/udp_64B_vm6.pcap","exp/udp_64B_vm6-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+/* test client command */
+TEST_F(basic_vm, vm7) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowClient( "cl1",
+                                                           0x10000001,
+                                                           0x10000004,
+                                                           1025,
+                                                           1027,
+                                                           100,
+                                                           0) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.ip",26, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
+                        );
+
+
+    vm.set_packet_size(128);
+
+    vm.compile_next();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm7.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm7.pcap","exp/udp_64B_vm7-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+TEST_F(basic_vm, vm8) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowClient( "cl1",
+                                                           0x10000001,
+                                                           0x10000006,
+                                                           1025,
+                                                           1027,
+                                                           4,
+                                                           0) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.ip",26, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
+                        );
+
+
+    vm.set_packet_size(128);
+
+    vm.compile_next();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm8.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm8.pcap","exp/udp_64B_vm8-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+TEST_F(basic_vm, vm9) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowClient( "cl1",
+                                                           0x10000001,
+                                                           0x10000006,
+                                                           1025,
+                                                           1027,
+                                                           20,
+                                                           0) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.ip",26, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
+                        );
+
+
+    vm.set_packet_size(128);
+
+    vm.compile_next();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<30; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
