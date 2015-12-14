@@ -160,8 +160,8 @@ inline void btSetMaskBit32(unsigned int & a,
      btSetMaskBit<unsigned int>(a,startbit,stopbit,newVal);
 }
 
-/* start > stop             startbit = 10 , 
-                            stop    = 8 
+/* Notice: 
+   startbit should be bigger (or equal) than stopbit
 
 count like big E
 

@@ -26,6 +26,7 @@ from trex_launch_thread import AsynchronousTRexSession
 from zmq_monitor_thread import ZmqMonitorSession
 from argparse import ArgumentParser, RawTextHelpFormatter
 from json import JSONEncoder
+import re
 
 
 # setup the logger
@@ -167,15 +168,17 @@ class CTRexServer(object):
         logger.info("Processing get_trex_daemon_log() command.")
         return self._pull_file('/var/log/trex/trex_daemon_server.log')
         
-    # get Trex version from ./t-rex-64 --help (last 4 lines)
+    # get Trex version from ./t-rex-64 --help (last lines starting with "Version : ...")
     def get_trex_version (self, base64 = True):
         try:
             logger.info("Processing get_trex_version() command.")
             if not self.trex_version:
                 help_print = subprocess.Popen(['./t-rex-64', '--help'], cwd = self.TREX_PATH, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                help_print.wait()
-                help_print_stdout = help_print.stdout.read()
-                self.trex_version = binascii.b2a_base64('\n'.join(help_print_stdout.split('\n')[-5:-1]))
+                (stdout, stderr) = help_print.communicate()
+                search_result = re.search('\n\s*(Version\s*:.+)', stdout, re.DOTALL)
+                if not search_result:
+                    raise Exception('Could not determine version from ./t-rex-64 --help')
+                self.trex_version = binascii.b2a_base64(search_result.group(1))
             if base64:
                 return self.trex_version
             else:
@@ -340,11 +343,12 @@ class CTRexServer(object):
 
         Parameters
         ----------
-        trex_cmd_options : str
-            Defines the exact command to run on the t-rex
-            Example: "-c 2 -m 0.500000 -d 100 -f cap2/sfr.yaml --nc  -p -l 1000"
+        kwargs: dictionary
+            Dictionary of parameters for trex. For example: (c=1, nc=True, l_pkt_mode=3).
+            Notice that when sending command line parameters that has -, you need to replace it with _.
+            for example, to have on command line "--l-pkt-mode 3", you need to send l_pkt_mode=3
         export_path : str
-            a full system path to which the results of the trex-run will be logged.
+            Full system path to which the results of the trex-run will be logged.
 
         """
         if 'results_file_path' in kwargs:

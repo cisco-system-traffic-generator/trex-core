@@ -77,7 +77,8 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true);
 /**
  * port commands
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats, "get_port_stats", 1, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats, "get_port_stats", 1, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStatus, "get_port_status", 1, false);
 
 
 /**
@@ -98,10 +99,10 @@ void parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, 
 );
 
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1, true);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetAllStreams, "get_all_streams", 2, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetAllStreams, "get_all_streams", 2, false);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, false);
 
 
 
@@ -112,7 +113,6 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdResumeTraffic, "resume_traffic", 1, true);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdUpdateTraffic, "update_traffic", 2, true);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdSyncUser, "sync_user", 2, false);
-
+TREX_RPC_CMD_DEFINE(TrexRpcCmdValidate, "validate", 2, false);
 
 #endif /* __TREX_RPC_CMD_H__ */

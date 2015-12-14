@@ -19,6 +19,50 @@ TEXT_CODES = {'bold': {'start': '\x1b[1m',
                             'end': '\x1b[24m'}}
 
 
+def format_num (size, suffix = ""):
+    for unit in ['','K','M','G','T','P']:
+        if abs(size) < 1000.0:
+            return "%3.2f %s%s" % (size, unit, suffix)
+        size /= 1000.0
+
+    return "NaN"
+
+def format_time (t_sec):
+    if t_sec < 0:
+        return "infinite"
+
+    if t_sec < 1:
+        # low numbers
+        for unit in ['ms', 'usec', 'ns']:
+            t_sec *= 1000.0
+            if t_sec >= 1.0:
+                return '{:,.2f} [{:}]'.format(t_sec, unit)
+
+        return "NaN"
+
+    else:
+        # seconds
+        if t_sec < 60.0:
+            return '{:,.2f} [{:}]'.format(t_sec, 'sec')
+
+        # minutes
+        t_sec /= 60.0
+        if t_sec < 60.0:
+            return '{:,.2f} [{:}]'.format(t_sec, 'minutes')
+
+        # hours
+        t_sec /= 60.0
+        if t_sec < 24.0:
+            return '{:,.2f} [{:}]'.format(t_sec, 'hours')
+
+        # days
+        t_sec /= 24.0
+        return '{:,.2f} [{:}]'.format(t_sec, 'days')
+
+
+def format_percentage (size):
+    return "%0.2f %%" % (size)
+
 def bold(text):
     return text_attribute(text, 'bold')
 

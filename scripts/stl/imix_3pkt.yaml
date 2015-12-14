@@ -7,7 +7,7 @@
       binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
     mode:
       type: continuous
-      pps: 100
+      pps: 28
     rx_stats: []
 - name: udp_594B
   stream:
@@ -16,7 +16,7 @@
       binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
     mode:
       type: continuous
-      pps: 100
+      pps: 20
     rx_stats: []
 - name: udp_1518B
   stream:
@@ -25,5 +25,5 @@
       binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
     mode:
       type: continuous
-      pps: 100
+      pps: 4
     rx_stats: []

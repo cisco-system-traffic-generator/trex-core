@@ -1,0 +1,2801 @@
+### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_594B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+- name: udp_1518B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []

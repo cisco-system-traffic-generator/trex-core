@@ -20,7 +20,14 @@ SERVER_IP = 8
 STREAM_FROM_PATH_OR_FILE = 9
 DURATION = 10
 FORCE = 11
-TOTAL = 12
+DRY_RUN = 12
+XTERM = 13
+TOTAL = 14
+
+GLOBAL_STATS = 50
+PORT_STATS = 51
+PORT_STATUS = 52
+STATS_MASK = 53
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -198,13 +205,43 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                       {'metavar': 'SERVER',
                                        'help': "server IP"}),
 
+              DRY_RUN: ArgumentPack(['-n', '--dry'],
+                                    {'action': 'store_true',
+                                     'dest': 'dry',
+                                     'default': False,
+                                     'help': "Dry run - no traffic will be injected"}),
+
+
+              XTERM: ArgumentPack(['-x', '--xterm'],
+                                  {'action': 'store_true',
+                                   'dest': 'xterm',
+                                   'default': False,
+                                   'help': "Starts TUI in xterm window"}),
+
+              GLOBAL_STATS: ArgumentPack(['-g'],
+                                         {'action': 'store_true',
+                                          'help': "Fetch only global statistics"}),
+
+              PORT_STATS: ArgumentPack(['-p'],
+                                       {'action': 'store_true',
+                                        'help': "Fetch only port statistics"}),
+
+              PORT_STATUS: ArgumentPack(['--ps'],
+                                        {'action': 'store_true',
+                                         'help': "Fetch only port status data"}),
+
+
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
                                                 {'required': True}),
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
                                                               FILE_FROM_DB],
-                                                      {'required': True})
+                                                      {'required': True}),
+              STATS_MASK: ArgumentGroup(MUTEX, [GLOBAL_STATS,
+                                                PORT_STATS,
+                                                PORT_STATUS],
+                                        {})
               }
 
 

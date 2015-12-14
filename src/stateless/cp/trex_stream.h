@@ -129,8 +129,9 @@ public:
     }
 
     /* create new stream */
-    TrexStream * clone_as_dp(){
-            TrexStream * dp=new TrexStream(m_type,m_port_id,m_stream_id);
+    TrexStream * clone_as_dp() const {
+
+            TrexStream *dp = new TrexStream(m_type,m_port_id,m_stream_id);
         
 
             dp->m_has_vm = m_has_vm;

@@ -31,6 +31,7 @@ limitations under the License.
 #include "msg_manager.h"
 #include <common/cgen_map.h>
 #include "platform_cfg.h"
+#include "latency.h"
 
 int test_policer(){
     CPolicer policer;
@@ -623,7 +624,6 @@ TEST_F(basic, test_pcap_mode1) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
-
 /* check override the low IPG */
 TEST_F(basic, test_pcap_mode2) {
 
@@ -638,154 +638,191 @@ TEST_F(basic, test_pcap_mode2) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
+#define l_pkt_test_s_ip 0x01020304
+#define l_pkt_test_d_ip 0x05060708
 
-
-
-
-TEST_F(basic, latency1) {
-    CLatencyPktInfo l;
-    l.Create();
-
-    CParserOption * po =&CGlobalInfo::m_options;
-    po->preview.setVMode(3);
-    po->preview.setFileWrite(true);
-
-    uint8_t  mac[]={0,0,0,1,0,0};
-    (void)mac;
-
-    CErfIF  erf_vif;
-    erf_vif.set_review_mode(&CGlobalInfo::m_options.preview);
-
-    erf_vif.open_file("exp/sctp.erf");
-
-
-    mac[0]=0;
-    mac[1]=0;
-    mac[2]=0;
-    mac[3]=1;
-    mac[4]=0;
-    mac[5]=0;
-
-
-    l.set_ip(0x10000000,0x20000000,0x01000000);
-
-    int i;
-    /* simulate 8 ports */
-    for (i=0;i<8; i++) {
-        rte_mbuf_t * m=l.generate_pkt(i);
-        erf_vif.send_node(l.getNode());
-        rte_pktmbuf_free(m);
+CLatencyPktMode *
+latency_pkt_mod_create(uint8_t l_pkt_mode) {
+    switch (l_pkt_mode) {
+    default:
+        return  new CLatencyPktModeSCTP(l_pkt_mode);
+        break;
+    case L_PKT_SUBMODE_NO_REPLY:
+    case L_PKT_SUBMODE_REPLY:
+    case L_PKT_SUBMODE_0_SEQ:
+        return new CLatencyPktModeICMP(l_pkt_mode);
+        break;
     }
-
-    erf_vif.close_file();
-
-
-    l.Delete();
-
-    CErfCmp cmp;
-    cmp.dump=1;
-
-    bool res=true;
-
-    if ( cmp.compare("exp/sctp.erf","exp/sctp-ex.erf") != true ) {
-        res=false;
-    }
-    EXPECT_EQ_UINT32((uint32_t)res?1:0, (uint32_t)1)<< "pass";
 }
 
-
-
-TEST_F(basic, latency2) {
-    CLatencyPktInfo l;
+rte_mbuf_t *
+create_latency_test_pkt(uint8_t l_pkt_mode, uint16_t &pkt_size, uint8_t port_id, uint8_t pkt_num) {
+    rte_mbuf_t * m;
+    CLatencyPktMode *c_l_pkt_mode;
     CCPortLatency port0;
-    l.Create();
-    port0.Create(0,0,l.get_payload_offset(),l.get_pkt_size(),0);
+    CLatencyPktInfo info;
+    CLatencyManager mgr;
 
+    c_l_pkt_mode = latency_pkt_mod_create(l_pkt_mode);
 
-    uint8_t  mac[]={0,0,0,1,0,0};
-    (void)mac;
+    mgr.c_l_pkt_mode = c_l_pkt_mode;
+    info.Create(c_l_pkt_mode);
+    port0.Create(&mgr, 0, info.get_payload_offset(), info.get_l4_offset(), info.get_pkt_size(), 0);
+    info.set_ip(l_pkt_test_s_ip ,l_pkt_test_d_ip, 0x01000000);
+    m=info.generate_pkt(0);
+    while (pkt_num > 0) {
+        pkt_num--;
+        port0.update_packet(m, port_id);
+    }
+    pkt_size = info.get_pkt_size();
+    port0.Delete();
+    info.Delete();
+    delete c_l_pkt_mode;
 
-    mac[0]=0;
-    mac[1]=0;
-    mac[2]=0;
-    mac[3]=1;
-    mac[4]=0;
-    mac[5]=0;
+    return m;
+}
 
+bool
+verify_latency_pkt(uint8_t *p, uint8_t proto, uint16_t icmp_seq, uint8_t icmp_type) {
+    EthernetHeader *eth = (EthernetHeader *)p;
+    IPHeader *ip = (IPHeader *)(p + 14);
+    uint8_t  srcmac[]={0,0,0,1,0,0};    
+    uint8_t  dstmac[]={0,0,0,1,0,0};
+    latency_header * h;
+ 
+    // eth
+    EXPECT_EQ_UINT32(eth->getNextProtocol(), 0x0800)<< "Failed ethernet next protocol check";
+    EXPECT_EQ_UINT32(memcmp(p, srcmac, 6), 0)<<  "Failed ethernet source MAC check";
+    EXPECT_EQ_UINT32(memcmp(p, dstmac, 6), 0)<<  "Failed ethernet dest MAC check";
+    // IP
+    EXPECT_EQ_UINT32(ip->getSourceIp(), l_pkt_test_s_ip)<<  "Failed IP src check";
+    EXPECT_EQ_UINT32(ip->getDestIp(), l_pkt_test_d_ip)<<  "Failed IP dst check";
+    EXPECT_EQ_UINT32(ip->getProtocol(), proto)<<  "Failed IP protocol check";
+    EXPECT_EQ_UINT32(ip->isChecksumOK()?0:1, 0)<<  "Failed IP checksum check";
+    EXPECT_EQ_UINT32(ip->getTimeToLive(), 0xff)<<  "Failed IP ttl check";
+    EXPECT_EQ_UINT32(ip->getTotalLength(), 48)<<  "Failed IP total length check";
+    
+    // payload
+    h=(latency_header *)(p+42);
+    EXPECT_EQ_UINT32(h->magic, LATENCY_MAGIC)<<  "Failed latency magic check";
 
-    l.set_ip(0x01000000,0x02000000,0x01000000);
+    if (proto == 0x84)
+        return true;
+    // ICMP
+    ICMPHeader *icmp = (ICMPHeader *)(p + 34);
+    EXPECT_EQ_UINT32(icmp->isCheckSumOk(28)?0:1, 0)<<  "Failed ICMP checksum verification";
+    EXPECT_EQ_UINT32(icmp->getSeqNum(), icmp_seq)<< "Failed ICMP sequence number check";
+    EXPECT_EQ_UINT32(icmp->getType(), icmp_type)<<  "Failed ICMP type check";
+    EXPECT_EQ_UINT32(icmp->getCode(), 0)<<  "Failed ICMP code check";
+    EXPECT_EQ_UINT32(icmp->getId(), 0xaabb)<<  "Failed ICMP ID check";
 
+    return true;
+}
 
-    int i;
-    for (i=0; i<100; i++) {
-        rte_mbuf_t * m=l.generate_pkt(0);
-        rte_pktmbuf_mtod(m, uint8_t*);
-        //utl_DumpBuffer(stdout,p,l.get_pkt_size(),0);
+bool
+test_latency_pkt_rcv(rte_mbuf_t *m, uint8_t l_pkt_mode, uint8_t port_num, uint16_t num_pkt, bool exp_pkt_ok
+                     , uint16_t exp_tx_seq, uint16_t exp_rx_seq) {
+    CLatencyPktMode *c_l_pkt_mode;
+    CCPortLatency port;
+    CLatencyPktInfo info;
+    CLatencyManager mgr;
+    CRx_check_header *rxc;
+    CGlobalInfo::m_options.m_l_pkt_mode = l_pkt_mode;
 
-        port0.update_packet(m);
+    c_l_pkt_mode = latency_pkt_mod_create(l_pkt_mode);
+    mgr.c_l_pkt_mode = c_l_pkt_mode;
+    info.Create(c_l_pkt_mode);
+    port.Create(&mgr, 0, info.get_payload_offset(), info.get_l4_offset(), info.get_pkt_size(), 0);
+    bool pkt_ok = port.check_packet(m, rxc);
 
-        rte_pktmbuf_mtod(m, uint8_t*);
-        //utl_DumpBuffer(stdout,p,l.get_pkt_size(),0);
-        //printf("offset is : %d \n",l.get_payload_offset());
-
-        CRx_check_header *  rx_p;
-        bool res=port0.check_packet(m,rx_p);
-        EXPECT_EQ_UINT32((uint32_t)res?1:0, (uint32_t)1)<< "pass";
-        if (!res ) {
-            printf(" ERROR \n");
+    while (num_pkt > 0) {
+        num_pkt--;
+        if (port.can_send_packet(port_num)) {
+            port.update_packet(m, 0);
         }
-        rte_pktmbuf_free(m);
     }
-    port0.DumpCounters(stdout);
-    EXPECT_EQ_UINT32(port0.m_pkt_ok, (uint32_t)100)<< "pass";
 
-    port0.Delete();
-    l.Delete();
+    EXPECT_EQ_UINT32(pkt_ok ?0:1, exp_pkt_ok?0:1)<<  "Failed packet OK check";
+    EXPECT_EQ_UINT32(port.get_icmp_tx_seq(), exp_tx_seq)<<  "Failed tx check";
+    EXPECT_EQ_UINT32(port.get_icmp_rx_seq(), exp_rx_seq)<<  "Failed rx check";
+    // if packet is bad, check_packet raise the error counter
+    EXPECT_EQ_UINT32(port.m_unsup_prot, exp_pkt_ok?0:1)<<  "Failed unsupported packets count";
+
+    return true;
 }
 
 
-TEST_F(basic, latency3) {
-    CLatencyPktInfo l;
-    CCPortLatency port0;
-    l.Create();
-    port0.Create(0,0,l.get_payload_offset(),l.get_pkt_size(),0);
-
-
-    uint8_t  mac[]={0,0,0,1,0,0};
-    (void)mac;
-
-
-    mac[0]=0;
-    mac[1]=0;
-    mac[2]=0;
-    mac[3]=1;
-    mac[4]=0;
-    mac[5]=0;
-
-
-    l.set_ip(0x01000000,0x02000000,0x01000000);
-
+// Testing latency packet generation
+TEST_F(basic, latency1) {
     uint8_t *p;
-    rte_mbuf_t * m=l.generate_pkt(0);
-    port0.update_packet(m);
+    rte_mbuf_t * m;
+    uint16_t pkt_size;
+
+    // SCTP packet
+    m = create_latency_test_pkt(0, pkt_size, 0, 1);
     p=rte_pktmbuf_mtod(m, uint8_t*);
-    memset(p,0,l.get_pkt_size());
-
-    CRx_check_header *  rx_p;
-    bool res=port0.check_packet(m,rx_p);
-    EXPECT_EQ_UINT32((uint32_t)res?0:1, (uint32_t)1)<< "pass";
-    if (!res ) {
-        printf(" OK \n");
-    }
+    verify_latency_pkt(p, 0x84, 0, 0);
     rte_pktmbuf_free(m);
-    EXPECT_EQ_UINT32(port0.m_unsup_prot, (uint32_t)1)<< "pass";
 
-    port0.Delete();
-    l.Delete();
+    m = create_latency_test_pkt(L_PKT_SUBMODE_NO_REPLY, pkt_size, 1, 2);
+    p=rte_pktmbuf_mtod(m, uint8_t*);
+    verify_latency_pkt(p, 0x01, 2, 8);
+    rte_pktmbuf_free(m);
+
+    // ICMP reply mode client side
+    m = create_latency_test_pkt(L_PKT_SUBMODE_REPLY, pkt_size, 0, 3);
+    p = rte_pktmbuf_mtod(m, uint8_t*);
+    verify_latency_pkt(p, 0x01, 3, 8);
+    rte_pktmbuf_free(m);
+
+    // ICMP reply mode server side
+    m = create_latency_test_pkt(L_PKT_SUBMODE_REPLY, pkt_size, 1, 4);
+    p=rte_pktmbuf_mtod(m, uint8_t*);
+    verify_latency_pkt(p, 0x01, 4, 0);
+    rte_pktmbuf_free(m);
+
+    m = create_latency_test_pkt(L_PKT_SUBMODE_0_SEQ, pkt_size, 1, 5);
+    p=rte_pktmbuf_mtod(m, uint8_t*);
+    verify_latency_pkt(p, 0x01, 0, 8);
+    rte_pktmbuf_free(m);
 }
 
+// Testing latency packet receive path
+TEST_F(basic, latency2) {
+    rte_mbuf_t *m;
+    uint16_t pkt_size;
+    uint8_t port_id = 0;
+    uint8_t pkt_num = 1;
+    uint8_t l_pkt_mode;
 
+    l_pkt_mode = 0;
+    m = create_latency_test_pkt(l_pkt_mode, pkt_size, port_id, pkt_num);
+    test_latency_pkt_rcv(m, l_pkt_mode, 0, 2, true, 1, 0);
 
+    l_pkt_mode = L_PKT_SUBMODE_NO_REPLY;
+    m = create_latency_test_pkt(l_pkt_mode, pkt_size, port_id, pkt_num);
+    test_latency_pkt_rcv(m, l_pkt_mode, 1, 2, true, 3, 1);
+
+    // reply mode server
+    l_pkt_mode = L_PKT_SUBMODE_REPLY;
+    m = create_latency_test_pkt(l_pkt_mode, pkt_size, port_id, pkt_num);
+    test_latency_pkt_rcv(m, l_pkt_mode, 1, 2, true, 2, 1);
+
+    // reply mode client
+    l_pkt_mode = L_PKT_SUBMODE_REPLY;
+    m = create_latency_test_pkt(l_pkt_mode, pkt_size, port_id, pkt_num);
+    test_latency_pkt_rcv(m, l_pkt_mode, 0, 2, true, 3, 1);
+
+    l_pkt_mode = L_PKT_SUBMODE_0_SEQ;
+    m = create_latency_test_pkt(l_pkt_mode, pkt_size, port_id, pkt_num);
+    test_latency_pkt_rcv(m, l_pkt_mode, 0, 2, true, 0, 0);
+
+    // bad packet
+    m = create_latency_test_pkt(l_pkt_mode, pkt_size, port_id, pkt_num);
+    EthernetHeader *eth = (EthernetHeader *)rte_pktmbuf_mtod(m, uint8_t*);
+    eth->setNextProtocol(0x5);
+    test_latency_pkt_rcv(m, l_pkt_mode, 0, 2, false, 1, 0);
+}
 
 class CDummyLatencyHWBase : public CPortLatencyHWBase {
 public:
@@ -835,21 +872,8 @@ public:
     uint8_t      m_port_id;
 };
 
-
-
-TEST_F(basic, latency4) {
-
-    uint8_t  mac[]={0,0,0,1,0,0};
-    (void)mac;
-    
-    mac[0]=0;
-    mac[1]=0;
-    mac[2]=0;
-    mac[3]=1;
-    mac[4]=0;
-    mac[5]=0;
-
-    
+// Testing latency statistics functions
+TEST_F(basic, latency3) {
     CLatencyManager mg;
     CLatencyManagerCfg  cfg;
     CDummyLatencyHWBase dports[MAX_LATENCY_PORTS];
@@ -882,7 +906,6 @@ TEST_F(basic, latency4) {
     mg.Delete();
 }
 
-
 TEST_F(basic, hist1) {
 
     CTimeHistogram  hist1;
@@ -901,8 +924,6 @@ TEST_F(basic, hist1) {
     hist1.Dump(stdout);
     hist1.Delete();
 }
-
-
 
 TEST_F(basic, rtsp1) {
 

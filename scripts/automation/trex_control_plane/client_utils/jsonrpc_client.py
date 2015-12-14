@@ -37,7 +37,7 @@ class BatchMessage(object):
 
         msg = json.dumps(self.batch_list)
 
-        rc, resp_list = self.rpc_client.send_raw_msg(msg, block = False)
+        rc, resp_list = self.rpc_client.send_raw_msg(msg)
         if len(self.batch_list) == 1:
             return CmdResponse(True, [CmdResponse(rc, resp_list)])
         else:
@@ -47,7 +47,7 @@ class BatchMessage(object):
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
 
-    def __init__ (self, default_server, default_port):
+    def __init__ (self, default_server, default_port, prn_func = None):
         self.verbose = False
         self.connected = False
 
@@ -55,6 +55,8 @@ class JsonRpcClient(object):
         self.port   = default_port
         self.server = default_server
         self.id_gen = general_utils.random_id_gen()
+
+        self.prn_func = prn_func
 
     def get_connection_details (self):
         rc = {}
@@ -112,7 +114,7 @@ class JsonRpcClient(object):
 
     def invoke_rpc_method (self, method_name, params = {}):
         if not self.connected:
-            return False, "Not connected to server"
+            return CmdResponse(False, "Not connected to server")
 
         id, msg = self.create_jsonrpc_v2(method_name, params)
 
@@ -130,11 +132,10 @@ class JsonRpcClient(object):
                 self.socket.send(msg)
                 break
             except zmq.Again:
-                sleep(0.1)
                 tries += 1
                 if tries > 10:
                     self.disconnect()
-                    return CmdResponse(False, "Failed to send message to server")
+                    return CmdResponse(False, "*** [RPC] - Failed to send message to server")
 
 
         tries = 0
@@ -143,11 +144,10 @@ class JsonRpcClient(object):
                 response = self.socket.recv()
                 break
             except zmq.Again:
-                sleep(0.1)
                 tries += 1
                 if tries > 10:
                     self.disconnect()
-                    return CmdResponse(False, "Failed to get server response")
+                    return CmdResponse(False, "*** [RPC] - Failed to get server response")
 
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
@@ -174,7 +174,7 @@ class JsonRpcClient(object):
     def process_single_response (self, response_json):
 
         if (response_json.get("jsonrpc") != "2.0"):
-            return False, "Malfromed Response ({0})".format(str(response))
+            return False, "Malformed Response ({0})".format(str(response_json))
 
         # error reported by server
         if ("error" in response_json):
@@ -185,7 +185,7 @@ class JsonRpcClient(object):
 
         # if no error there should be a result
         if ("result" not in response_json):
-            return False, "Malformed Response ({0})".format(str(response))
+            return False, "Malformed Response ({0})".format(str(response_json))
 
         return True, response_json["result"]
 
@@ -203,7 +203,8 @@ class JsonRpcClient(object):
         else:
             return False, "Not connected to server"
 
-    def connect(self, server=None, port=None):
+
+    def connect(self, server = None, port = None, prn_func = None):
         if self.connected:
             self.disconnect()
 
@@ -215,7 +216,11 @@ class JsonRpcClient(object):
         #  Socket to talk to server
         self.transport = "tcp://{0}:{1}".format(self.server, self.port)
 
-        print "\nConnecting To RPC Server On {0}".format(self.transport)
+        msg = "\nConnecting To RPC Server On {0}".format(self.transport)
+        if self.prn_func:
+            self.prn_func(msg)
+        else:
+            print msg
 
         self.socket = self.context.socket(zmq.REQ)
         try:
@@ -223,8 +228,8 @@ class JsonRpcClient(object):
         except zmq.error.ZMQError as e:
             return False, "ZMQ Error: Bad server or port name: " + str(e)
 
-        self.socket.setsockopt(zmq.SNDTIMEO, 5)
-        self.socket.setsockopt(zmq.RCVTIMEO, 5)
+        self.socket.setsockopt(zmq.SNDTIMEO, 1000)
+        self.socket.setsockopt(zmq.RCVTIMEO, 1000)
 
         self.connected = True
 
