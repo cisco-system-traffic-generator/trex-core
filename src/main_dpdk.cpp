@@ -4043,11 +4043,13 @@ int CGlobalTRex::run_in_master(){
                     break;
                 }
 
-                m_mg.rx_check_dump_json(json );
-                m_zmq_publisher.publish_json(json);
-
               }/* ex checked */
 
+            }
+
+            if ( get_is_rx_check_mode() ) {
+                m_mg.rx_check_dump_json(json );
+                m_zmq_publisher.publish_json(json);
             }
 
             /* backward compatible */
