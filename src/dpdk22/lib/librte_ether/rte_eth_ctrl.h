@@ -407,6 +407,9 @@ struct rte_eth_l2_flow {
 struct rte_eth_ipv4_flow {
 	uint32_t src_ip;      /**< IPv4 source address to match. */
 	uint32_t dst_ip;      /**< IPv4 destination address to match. */
+	// TREX_PATCH
+	uint8_t ttl;	      /**< IPv4 ttl to match */
+	uint8_t l4_protocol;  /**< IPv4 l4 protocol to match */
 };
 
 /**
@@ -443,6 +446,9 @@ struct rte_eth_sctpv4_flow {
 struct rte_eth_ipv6_flow {
 	uint32_t src_ip[4];      /**< IPv6 source address to match. */
 	uint32_t dst_ip[4];      /**< IPv6 destination address to match. */
+	// TREX_PATCH
+	uint8_t hop_limit;       /**< IPv6 hop limit to match */
+	uint8_t l4_protocol;     /**< IPv6 l4 protocol to match */
 };
 
 /**

@@ -690,6 +690,52 @@ static inline void i40e_flex_payload_reg_init(struct i40e_hw *hw)
 
 #define I40E_FLOW_CONTROL_ETHERTYPE  0x8808
 
+#define TREX_PATCH
+#ifdef TREX_PATCH
+#define I40E_PRTQF_FD_INSET(_i, _j)    (0x00250000 + ((_i) * 64 + (_j) * 32))
+#define I40E_GLQF_FD_MSK(_i, _j)       (0x00267200 + ((_i) * 4 + (_j) * 8))
+
+static void i40e_dump_filter_regs(struct i40e_hw *hw)
+{
+    int reg_nums[] = {31, 33, 34, 35, 41, 43};
+    int i;
+    uint32_t reg;
+
+    for (i =0; i < sizeof (reg_nums)/sizeof(int); i++) {
+	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 0));
+        printf("I40E_PRTQF_FD_INSET(%d, 0): 0x%08x\n", reg_nums[i], reg);
+	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 1));
+        printf("I40E_PRTQF_FD_INSET(%d, 1): 0x%08x\n", reg_nums[i], reg);
+    }
+}
+
+static inline void i40e_filter_fields_reg_init(struct i40e_hw *hw)
+{
+	uint32_t reg;
+
+	I40E_WRITE_REG(hw, I40E_GLQF_ORT(12), 0x00000062);
+	I40E_WRITE_REG(hw, I40E_GLQF_PIT(2), 0x000024A0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(31, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(31, 1), 0x00040000);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(33, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(33, 1), 0x00040000);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(41, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(41, 1), 0x00080000);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(43, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(43, 1), 0x00080000);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(34, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(34, 1), 0x00040000);
+        // filter IP according to ttl and L4 protocol
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(35, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(35, 1), 0x00040000);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(44, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(44, 1), 0x00080000);
+	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0, 34), 0x000DFF00);
+	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0,44), 0x000C00FF);
+	I40E_WRITE_FLUSH(hw);
+}
+#endif //TREX_PATCH
+
 /*
  * Add a ethertype filter to drop all flow control frames transmitted
  * from VSIs.
@@ -786,7 +832,11 @@ eth_i40e_dev_init(struct rte_eth_dev *dev)
 	 * for flexible payload by software.
 	 * It should be removed once issues are fixed in NVM.
 	 */
+#ifdef TREX_PATCH 
+	i40e_filter_fields_reg_init(hw);
+#else
 	i40e_flex_payload_reg_init(hw);
+#endif
 
 	/* Initialize the parameters for adminq */
 	i40e_init_adminq_parameter(hw);

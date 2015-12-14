@@ -219,8 +219,10 @@
 #undef RTE_MBUF_REFCNT_ATOMIC
 #define RTE_MBUF_REFCNT_ATOMIC 1
 #undef RTE_PKTMBUF_HEADROOM
-//???#define RTE_PKTMBUF_HEADROOM 128
-#define RTE_PKTMBUF_HEADROOM 16
+// TREX_PATCH: DPDK original value is 128 here. This creates big overhead of memory.
+// We would like to put 0, but it cuases compilation issues with virtio driver.
+// 16 caused big performance degradation because of alignment issues. So 64 is the winner.
+#define RTE_PKTMBUF_HEADROOM 64
 #undef RTE_LIBRTE_MBUF_OFFLOAD
 #define RTE_LIBRTE_MBUF_OFFLOAD 1
 #undef RTE_LIBRTE_MBUF_OFFLOAD_DEBUG

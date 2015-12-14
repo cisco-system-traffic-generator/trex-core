@@ -49,6 +49,7 @@
 #include "base/ixgbe_common.h"
 #include "ixgbe_ethdev.h"
 
+#define TREX_PATCH
 /* To get PBALLOC (Packet Buffer Allocation) bits from FDIRCTRL value */
 #define FDIRCTRL_PBALLOC_MASK           0x03
 
@@ -248,9 +249,13 @@ configure_fdir_flags(const struct rte_fdir_conf *conf, uint32_t *fdirctrl)
 		PMD_INIT_LOG(ERR, "Invalid fdir_conf->status value");
 		return -EINVAL;
 	};
-
+#define TREX_PATCH
+#ifdef TREX_PATCH
+	*fdirctrl |= (conf->flexbytes_offset << IXGBE_FDIRCTRL_FLEX_SHIFT);
+#else
 	*fdirctrl |= (IXGBE_DEFAULT_FLEXBYTES_OFFSET / sizeof(uint16_t)) <<
 		     IXGBE_FDIRCTRL_FLEX_SHIFT;
+#endif
 
 	if (conf->mode >= RTE_FDIR_MODE_PERFECT &&
 	    conf->mode <= RTE_FDIR_MODE_PERFECT_TUNNEL) {
@@ -507,7 +512,7 @@ ixgbe_set_fdir_flex_conf(struct rte_eth_dev *dev,
 	uint16_t i;
 
 	fdirm = IXGBE_READ_REG(hw, IXGBE_FDIRM);
-
+#ifndef TREX_PATCH
 	if (conf == NULL) {
 		PMD_DRV_LOG(ERR, "NULL pointer.");
 		return -EINVAL;
@@ -548,6 +553,11 @@ ixgbe_set_fdir_flex_conf(struct rte_eth_dev *dev,
 			return -EINVAL;
 		}
 	}
+#else
+        fdirm &= ~IXGBE_FDIRM_FLEX;
+        flexbytes = 1;
+        // fdirctrl gets flex_bytes_offset in configure_fdir_flags
+#endif
 	IXGBE_WRITE_REG(hw, IXGBE_FDIRM, fdirm);
 	info->mask.flex_bytes_mask = flexbytes ? UINT16_MAX : 0;
 	info->flex_bytes_offset = (uint8_t)((*fdirctrl &
@@ -577,7 +587,11 @@ ixgbe_fdir_configure(struct rte_eth_dev *dev)
 	if (hw->mac.type != ixgbe_mac_X550 &&
 	    hw->mac.type != ixgbe_mac_X550EM_x &&
 	    mode != RTE_FDIR_MODE_SIGNATURE &&
-	    mode != RTE_FDIR_MODE_PERFECT)
+	    mode != RTE_FDIR_MODE_PERFECT
+#ifdef TREX_PATCH
+	    && mode != RTE_FDIR_MODE_PERFECT_MAC_VLAN
+#endif
+            )
 		return -ENOSYS;
 
 	err = configure_fdir_flags(&dev->data->dev_conf.fdir_conf, &fdirctrl);
@@ -1116,11 +1130,14 @@ ixgbe_add_del_fdir_filter(struct rte_eth_dev *dev,
 		return err;
 
 	if (is_perfect) {
+#ifndef TREX_PATCH
+            // No reason not use IPV6 in perfect filters. It is working.
 		if (input.formatted.flow_type & IXGBE_ATR_L4TYPE_IPV6_MASK) {
 			PMD_DRV_LOG(ERR, "IPv6 is not supported in"
 					 " perfect mode!");
 			return -ENOTSUP;
 		}
+#endif
 		fdirhash = atr_compute_perfect_hash_82599(&input,
 				dev->data->dev_conf.fdir_conf.pballoc);
 		fdirhash |= fdir_filter->soft_id <<

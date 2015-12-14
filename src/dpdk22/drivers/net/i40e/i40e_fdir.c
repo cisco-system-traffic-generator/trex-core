@@ -719,7 +719,8 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		ip->version_ihl = I40E_FDIR_IP_DEFAULT_VERSION_IHL;
 		/* set len to by default */
 		ip->total_length = rte_cpu_to_be_16(I40E_FDIR_IP_DEFAULT_LEN);
-		ip->time_to_live = I40E_FDIR_IP_DEFAULT_TTL;
+		// TREX_PATCH
+		ip->time_to_live = fdir_input->flow.ip4_flow.ttl;
 		/*
 		 * The source and destination fields in the transmitted packet
 		 * need to be presented in a reversed order with respect
@@ -727,7 +728,13 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		 */
 		ip->src_addr = fdir_input->flow.ip4_flow.dst_ip;
 		ip->dst_addr = fdir_input->flow.ip4_flow.src_ip;
-		ip->next_proto_id = next_proto[fdir_input->flow_type];
+		// TREX_PATCH
+		if (fdir_input->flow_type == RTE_ETH_FLOW_FRAG_IPV4  
+		    || fdir_input->flow_type == RTE_ETH_FLOW_NONFRAG_IPV4_OTHER) {
+		    ip->next_proto_id = fdir_input->flow.ip4_flow.l4_protocol;
+		} else {
+		    ip->next_proto_id = next_proto[fdir_input->flow_type];
+		}
 		break;
 	case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
 	case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
@@ -741,7 +748,8 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 			rte_cpu_to_be_32(I40E_FDIR_IPv6_DEFAULT_VTC_FLOW);
 		ip6->payload_len =
 			rte_cpu_to_be_16(I40E_FDIR_IPv6_PAYLOAD_LEN);
-		ip6->hop_limits = I40E_FDIR_IPv6_DEFAULT_HOP_LIMITS;
+		// TREX_PATCH
+		ip6->hop_limits = fdir_input->flow.ipv6_flow.hop_limit;
 
 		/*
 		 * The source and destination fields in the transmitted packet
@@ -754,7 +762,13 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		rte_memcpy(&(ip6->dst_addr),
 			   &(fdir_input->flow.ipv6_flow.src_ip),
 			   IPV6_ADDR_LEN);
-		ip6->proto = next_proto[fdir_input->flow_type];
+		// TREX_PATCH
+		if (fdir_input->flow_type == RTE_ETH_FLOW_FRAG_IPV6  
+		    || fdir_input->flow_type == RTE_ETH_FLOW_NONFRAG_IPV6_OTHER) {
+		    ip6->proto = fdir_input->flow.ipv6_flow.l4_protocol;
+		} else {
+                    ip6->proto = next_proto[fdir_input->flow_type];
+		}
 		break;
 	default:
 		PMD_DRV_LOG(ERR, "unknown flow type %u.",
