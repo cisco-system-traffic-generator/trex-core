@@ -18,7 +18,7 @@ class Port(object):
                   STATE_PAUSE: "PAUSE"}
 
 
-    def __init__ (self, port_id, speed, driver, user, comm_link):
+    def __init__ (self, port_id, speed, driver, user, comm_link, session_id):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
@@ -30,6 +30,7 @@ class Port(object):
         self.speed = speed
         self.streams = {}
         self.profile = None
+        self.session_id = session_id
 
         self.port_stats = trex_stats.CPortStats(self)
 
@@ -47,6 +48,7 @@ class Port(object):
     def acquire(self, force = False):
         params = {"port_id":     self.port_id,
                   "user":        self.user,
+                  "session_id":  self.session_id,
                   "force":       force}
 
         command = RpcCmdData("acquire", params)

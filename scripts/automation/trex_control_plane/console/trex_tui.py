@@ -393,6 +393,7 @@ class TrexTUI():
 
     def clear_screen (self):
         os.system('clear')
+        #sys.stderr.write("\x1b[2J\x1b[H")
 
 
 
@@ -465,3 +466,4 @@ class TrexTUI():
 
     def get_state (self):
         return self.state
+
