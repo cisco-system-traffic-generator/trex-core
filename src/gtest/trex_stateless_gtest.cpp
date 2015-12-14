@@ -1964,11 +1964,12 @@ TEST_F(basic_stl, vm_enable0) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
 
-     assert(compile.compile(streams, comp_obj) );
+     std::vector<TrexStreamsCompiledObj *> objs;
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     assert(compile.compile(port_id,streams, objs) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1979,6 +1980,7 @@ TEST_F(basic_stl, vm_enable0) {
 
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
+
 
 TEST_F(basic_stl, vm_enable1) {
 
@@ -2014,11 +2016,12 @@ TEST_F(basic_stl, vm_enable1) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
 
-     assert(compile.compile(streams, comp_obj) );
+     std::vector<TrexStreamsCompiledObj *> objs;
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     assert(compile.compile(port_id,streams, objs) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -2064,11 +2067,10 @@ TEST_F(basic_stl, vm_enable2) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
+     std::vector<TrexStreamsCompiledObj *> objs;
+     assert(compile.compile(port_id,streams, objs) );
 
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
