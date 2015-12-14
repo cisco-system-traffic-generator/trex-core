@@ -29,6 +29,7 @@ limitations under the License.
 #include <common/Network/Packet/IPHeader.h>
 
 
+
 class StreamVm;
 
 
@@ -164,9 +165,19 @@ public:
 
 
 struct StreamDPOpPktWrBase {
+    enum {
+        PKT_WR_IS_BIG = 1
+    }; /* for flags */
+
     uint8_t m_op;
     uint8_t m_flags;
     uint8_t  m_offset; 
+
+public:
+    bool is_big(){
+        return ( (m_flags &StreamDPOpPktWrBase::PKT_WR_IS_BIG) == StreamDPOpPktWrBase::PKT_WR_IS_BIG ?true:false);
+    }
+
 } __attribute__((packed)) ;
 
 
@@ -181,6 +192,7 @@ public:
         uint8_t * p_pkt      = (pkt_base+m_pkt_offset);
         uint8_t * p_flow_var = (flow_var_base+m_offset);
         *p_pkt=(*p_flow_var+m_val_offset);
+
     }
 
 
@@ -196,10 +208,14 @@ public:
     inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
         uint16_t * p_pkt      = (uint16_t*)(pkt_base+m_pkt_offset);
         uint16_t * p_flow_var = (uint16_t*)(flow_var_base+m_offset);
-        *p_pkt=(*p_flow_var+m_val_offset);
+
+        if ( likely(is_big())){
+            *p_pkt=PKT_HTONS((*p_flow_var+m_val_offset));
+        }else{
+            *p_pkt=(*p_flow_var+m_val_offset);
+        }
+
     }
-
-
 } __attribute__((packed));
 
 struct StreamDPOpPktWr32 : public StreamDPOpPktWrBase {
@@ -211,9 +227,12 @@ public:
     inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
         uint32_t * p_pkt      = (uint32_t*)(pkt_base+m_pkt_offset);
         uint32_t * p_flow_var = (uint32_t*)(flow_var_base+m_offset);
-        *p_pkt=(*p_flow_var+m_val_offset);
+        if ( likely(is_big())){
+            *p_pkt=PKT_HTONL((*p_flow_var+m_val_offset));
+        }else{
+            *p_pkt=(*p_flow_var+m_val_offset);
+        }
     }
-
 
 } __attribute__((packed));
 
@@ -227,7 +246,11 @@ public:
     inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
         uint64_t * p_pkt      = (uint64_t*)(pkt_base+m_pkt_offset);
         uint64_t * p_flow_var = (uint64_t*)(flow_var_base+m_offset);
-        *p_pkt=(*p_flow_var+m_val_offset);
+        if ( likely(is_big())){
+            *p_pkt=pal_ntohl64((*p_flow_var+m_val_offset));
+        }else{
+            *p_pkt=(*p_flow_var+m_val_offset);
+        }
     }
 
 

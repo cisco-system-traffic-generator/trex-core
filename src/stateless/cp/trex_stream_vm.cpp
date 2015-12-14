@@ -391,12 +391,14 @@ void StreamVm::build_program(){
 
 
             uint8_t       op_size=var.m_instruction->m_size_bytes;
-            uint8_t       flow_offset=get_var_offset(lpPkt->m_flow_var_name);
+            bool is_big    = lpPkt->m_is_big_endian;
+            uint8_t       flags = (is_big?StreamDPOpPktWrBase::PKT_WR_IS_BIG:0);
+            uint8_t       flow_offset = get_var_offset(lpPkt->m_flow_var_name);
 
             if (op_size == 1) {
                 StreamDPOpPktWr8 pw8;
                 pw8.m_op = StreamDPVmInstructions::itPKT_WR8;
-                pw8.m_flags =0;
+                pw8.m_flags =flags;
                 pw8.m_offset =flow_offset;
                 pw8.m_pkt_offset = lpPkt->m_pkt_offset;
                 pw8.m_val_offset = (int8_t)lpPkt->m_add_value;
@@ -406,7 +408,7 @@ void StreamVm::build_program(){
             if (op_size == 2) {
                 StreamDPOpPktWr16 pw16;
                 pw16.m_op = StreamDPVmInstructions::itPKT_WR16;
-                pw16.m_flags =0;
+                pw16.m_flags =flags;
                 pw16.m_offset =flow_offset;
                 pw16.m_pkt_offset = lpPkt->m_pkt_offset;
                 pw16.m_val_offset = (int16_t)lpPkt->m_add_value;
@@ -416,7 +418,7 @@ void StreamVm::build_program(){
             if (op_size == 4) {
                 StreamDPOpPktWr32 pw32;
                 pw32.m_op = StreamDPVmInstructions::itPKT_WR32;
-                pw32.m_flags =0;
+                pw32.m_flags =flags;
                 pw32.m_offset =flow_offset;
                 pw32.m_pkt_offset = lpPkt->m_pkt_offset;
                 pw32.m_val_offset = (int32_t)lpPkt->m_add_value;
@@ -426,7 +428,7 @@ void StreamVm::build_program(){
             if (op_size == 8) {
                 StreamDPOpPktWr64 pw64;
                 pw64.m_op = StreamDPVmInstructions::itPKT_WR64;
-                pw64.m_flags =0;
+                pw64.m_flags =flags;
                 pw64.m_offset =flow_offset;
                 pw64.m_pkt_offset = lpPkt->m_pkt_offset;
                 pw64.m_val_offset = (int64_t)lpPkt->m_add_value;
