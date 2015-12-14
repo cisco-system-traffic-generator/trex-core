@@ -88,7 +88,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def start_trex (self, f, d, block_to_success = True, timeout = 30, user = None, **trex_cmd_options):
+    def start_trex (self, f, d, block_to_success = True, timeout = 30, user = None, trex_development = False, **trex_cmd_options):
         """
         Request to start a TRex run on server.
                 
@@ -125,7 +125,7 @@ class CTRexClient(object):
         user = user or self.__default_user
         try:
             d = int(d)
-            if d < 30:  # specify a test should take at least 30 seconds long.
+            if d < 30 and not trex_development:  # specify a test should take at least 30 seconds long.
                 raise ValueError
         except ValueError:
             raise ValueError('d parameter must be integer, specifying how long TRex run, and must be larger than 30 secs.')
