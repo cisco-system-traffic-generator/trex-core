@@ -387,6 +387,9 @@ class Port(object):
     def clear_stats(self):
         return self.port_stats.clear_stats()
 
+    def invalidate_stats(self):
+        return self.port_stats.invalidate()
+
 
     ################# events handler ######################
     def async_event_port_stopped (self):

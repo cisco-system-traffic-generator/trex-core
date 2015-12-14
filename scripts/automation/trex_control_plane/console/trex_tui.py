@@ -8,6 +8,22 @@ from client_utils import text_tables
 from collections import OrderedDict
 import datetime
 
+class SimpleBar(object):
+    def __init__ (self, desc, pattern):
+        self.desc = desc
+        self.pattern = pattern
+        self.pattern_len = len(pattern)
+        self.index = 0
+
+    def show (self):
+        if self.desc:
+            print format_text("{0} {1}".format(self.desc, self.pattern[self.index]), 'bold')
+        else:
+            print format_text("{0}".format(self.pattern[self.index]), 'bold')
+
+        self.index = (self.index + 1) % self.pattern_len
+
+
 # base type of a panel
 class TrexTUIPanel(object):
     def __init__ (self, mng, name):
@@ -224,6 +240,7 @@ class TrexTUILog():
         self.log.append("[{0}] {1}".format(str(datetime.datetime.now().time()), msg))
 
     def show (self, max_lines = 4):
+
         cut = len(self.log) - max_lines
         if cut < 0:
             cut = 0
@@ -261,6 +278,10 @@ class TrexTUIPanelManager():
 
         self.generate_legend()
 
+        self.conn_bar = SimpleBar('status: ', ['|','/','-','\\'])
+        self.dis_bar =  SimpleBar('status: ', ['X', ' '])
+        self.show_log = False
+
 
     def generate_legend (self):
         self.legend = "\n{:<12}".format("browse:")
@@ -280,18 +301,28 @@ class TrexTUIPanelManager():
                 self.legend += "{:}".format(x)
 
 
+    def print_connection_status (self):
+        if self.tui.get_state() == self.tui.STATE_ACTIVE:
+            self.conn_bar.show()
+        else:
+            self.dis_bar.show()
+
     def print_legend (self):
         print format_text(self.legend, 'bold')
 
 
     # on window switch or turn on / off of the TUI we call this
-    def init (self):
+    def init (self, show_log = False):
+        self.show_log = show_log
         self.generate_legend()
 
     def show (self):
         self.main_panel.show()
+        self.print_connection_status()
         self.print_legend()
-        self.log.show()
+
+        if self.show_log:
+            self.log.show()
 
 
     def handle_key (self, ch):
@@ -323,7 +354,7 @@ class TrexTUIPanelManager():
 
     def action_show_dash (self):
         self.main_panel = self.panels['dashboard']
-        self.init()
+        self.init(self.show_log)
         return ""
 
     def action_show_port (self, port_id):
@@ -338,6 +369,11 @@ class TrexTUIPanelManager():
 
 # shows a textual top style window
 class TrexTUI():
+
+    STATE_ACTIVE     = 0
+    STATE_LOST_CONT  = 1
+    STATE_RECONNECT  = 2
+
     def __init__ (self, stateless_client):
         self.stateless_client = stateless_client
 
@@ -349,10 +385,10 @@ class TrexTUI():
         # try to read a single key
         ch = os.read(sys.stdin.fileno(), 1)
         if ch != None and len(ch) > 0:
-            return self.pm.handle_key(ch)
+            return (self.pm.handle_key(ch), True)
 
         else:
-            return True
+            return (True, False)
             
 
     def clear_screen (self):
@@ -360,7 +396,7 @@ class TrexTUI():
 
 
 
-    def show (self):
+    def show (self, show_log = False):
         # init termios
         old_settings = termios.tcgetattr(sys.stdin)
         new_settings = termios.tcgetattr(sys.stdin)
@@ -369,19 +405,46 @@ class TrexTUI():
         new_settings[6][termios.VTIME] = 0 # cc
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
 
-        self.pm.init()
+        self.pm.init(show_log)
+
+        self.state = self.STATE_ACTIVE
+        self.draw_policer = 0
 
         try:
             while True:
-                self.clear_screen()
-
-                cont = self.handle_key_input()
-                self.pm.show()
-
+                # draw and handle user input
+                cont, force_draw = self.handle_key_input()
+                self.draw_screen(force_draw)
                 if not cont:
                     break
-
                 time.sleep(0.1)
+
+                # regular state
+                if self.state == self.STATE_ACTIVE:
+                    # if no connectivity - move to lost connecitivty
+                    if not self.stateless_client.async_client.is_alive():
+                        self.stateless_client.cmd_invalidate(self.pm.ports)
+                        self.state = self.STATE_LOST_CONT
+
+
+                # lost connectivity
+                elif self.state == self.STATE_LOST_CONT:
+                    # got it back
+                    if self.stateless_client.async_client.is_alive():
+                        # move to state reconnect
+                        self.state = self.STATE_RECONNECT
+
+
+                # restored connectivity - try to reconnect
+                elif self.state == self.STATE_RECONNECT:
+
+                    rc = self.stateless_client.connect("RO")
+                    if rc.good():
+                        self.state = self.STATE_ACTIVE
+                    else:
+                        # maybe we lost it again
+                        self.state = self.STATE_LOST_CONT
+
 
         finally:
             # restore
@@ -389,7 +452,16 @@ class TrexTUI():
 
         print ""
 
-    # key actions
-    def action_quit (self):
-        return False
 
+    # draw once
+    def draw_screen (self, force_draw = False):
+
+        if (self.draw_policer >= 5) or (force_draw):
+            self.clear_screen()
+            self.pm.show()
+            self.draw_policer = 0
+        else:
+            self.draw_policer += 1 
+
+    def get_state (self):
+        return self.state

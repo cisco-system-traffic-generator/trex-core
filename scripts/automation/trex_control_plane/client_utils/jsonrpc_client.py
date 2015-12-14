@@ -47,7 +47,7 @@ class BatchMessage(object):
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
 
-    def __init__ (self, default_server, default_port):
+    def __init__ (self, default_server, default_port, prn_func = None):
         self.verbose = False
         self.connected = False
 
@@ -55,6 +55,8 @@ class JsonRpcClient(object):
         self.port   = default_port
         self.server = default_server
         self.id_gen = general_utils.random_id_gen()
+
+        self.prn_func = prn_func
 
     def get_connection_details (self):
         rc = {}
@@ -201,7 +203,8 @@ class JsonRpcClient(object):
         else:
             return False, "Not connected to server"
 
-    def connect(self, server=None, port=None):
+
+    def connect(self, server = None, port = None, prn_func = None):
         if self.connected:
             self.disconnect()
 
@@ -213,7 +216,11 @@ class JsonRpcClient(object):
         #  Socket to talk to server
         self.transport = "tcp://{0}:{1}".format(self.server, self.port)
 
-        print "\nConnecting To RPC Server On {0}".format(self.transport)
+        msg = "\nConnecting To RPC Server On {0}".format(self.transport)
+        if self.prn_func:
+            self.prn_func(msg)
+        else:
+            print msg
 
         self.socket = self.context.socket(zmq.REQ)
         try:

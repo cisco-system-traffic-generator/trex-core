@@ -55,7 +55,7 @@ class CTRexStatelessClient(object):
 
         self.user = username
 
-        self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual)
+        self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual, self.prn_func)
 
         # default verbose level
         self.verbose = self.VERBOSE_REGULAR
@@ -68,7 +68,7 @@ class CTRexStatelessClient(object):
         self.server_version = {}
         self.__err_log = None
 
-        self.async_client = CTRexAsyncClient(server, async_port, self)
+        self.async_client = CTRexAsyncClient(server, async_port, self, self.prn_func)
 
         self.streams_db = CStreamsDB()
         self.global_stats = trex_stats.CGlobalStats(self._connection_info,
@@ -105,8 +105,8 @@ class CTRexStatelessClient(object):
         st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
         self.events.append("{:<10} - {:^8} - {:}".format(st, prefix, format_text(msg, 'bold')))
 
-        if show and self.check_verbose(self.VERBOSE_REGULAR):
-            print format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold')))
+        if show:
+            self.prn_func(format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold'))))
   
 
     def handle_async_stats_update(self, dump_data):
@@ -473,6 +473,10 @@ class CTRexStatelessClient(object):
     def get_verbose (self):
         return self.verbose
 
+    def prn_func (self, msg, level = VERBOSE_REGULAR):
+        if self.check_verbose(level):
+            print msg
+
     ############# server actions ################
 
     # ping server
@@ -753,6 +757,14 @@ class CTRexStatelessClient(object):
 
         return RC_OK()
 
+
+    def cmd_invalidate (self, port_id_list):
+        for port_id in port_id_list:
+            self.ports[port_id].invalidate_stats()
+
+        self.global_stats.invalidate()
+
+        return RC_OK()
 
     # pause cmd
     def cmd_pause (self, port_id_list):
@@ -1146,13 +1158,13 @@ class CTRexStatelessClient(object):
     # ------ private classes ------ #
     class CCommLink(object):
         """describes the connectivity of the stateless client method"""
-        def __init__(self, server="localhost", port=5050, virtual=False):
+        def __init__(self, server="localhost", port=5050, virtual=False, prn_func = None):
             super(CTRexStatelessClient.CCommLink, self).__init__()
             self.virtual = virtual
             self.server = server
             self.port = port
             self.verbose = False
-            self.rpc_link = JsonRpcClient(self.server, self.port)
+            self.rpc_link = JsonRpcClient(self.server, self.port, prn_func)
 
         @property
         def is_connected(self):

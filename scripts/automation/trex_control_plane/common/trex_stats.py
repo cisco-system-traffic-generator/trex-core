@@ -194,6 +194,9 @@ class CTRexStats(object):
 
     @staticmethod
     def format_num(size, suffix = ""):
+        if type(size) == str:
+            return "N/A"
+
         for unit in ['','K','M','G','T','P']:
             if abs(size) < 1000.0:
                 return "%3.2f %s%s" % (size, unit, suffix)
@@ -218,6 +221,9 @@ class CTRexStats(object):
 
     def clear_stats(self):
         self.reference_stats = self.latest_stats
+
+    def invalidate (self):
+        self.latest_stats = {}
 
     def get(self, field, format=False, suffix=""):
         if not field in self.latest_stats:

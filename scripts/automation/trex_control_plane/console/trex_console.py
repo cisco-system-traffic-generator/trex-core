@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
+import subprocess
 import cmd
 import json
 import ast
@@ -454,6 +454,19 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_tui (self, line):
         '''Shows a graphical console\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "tui",
+                                         self.do_tui.__doc__,
+                                         parsing_opts.XTERM)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        if opts.xterm:
+            subprocess.Popen(['xterm', '-geometry', '105x40', '-e', './trex-console', '-t'])
+            return
 
         save_verbose = self.stateless_client.get_verbose()
 

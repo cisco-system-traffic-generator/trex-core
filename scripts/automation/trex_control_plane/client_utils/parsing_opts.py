@@ -21,12 +21,13 @@ STREAM_FROM_PATH_OR_FILE = 9
 DURATION = 10
 FORCE = 11
 DRY_RUN = 12
-TOTAL = 13
+XTERM = 13
+TOTAL = 14
 
-GLOBAL_STATS = 14
-PORT_STATS = 15
-PORT_STATUS = 16
-STATS_MASK = 17
+GLOBAL_STATS = 50
+PORT_STATS = 51
+PORT_STATUS = 52
+STATS_MASK = 53
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -209,6 +210,13 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                      'dest': 'dry',
                                      'default': False,
                                      'help': "Dry run - no traffic will be injected"}),
+
+
+              XTERM: ArgumentPack(['-x', '--xterm'],
+                                  {'action': 'store_true',
+                                   'dest': 'xterm',
+                                   'default': False,
+                                   'help': "Starts TUI in xterm window"}),
 
               GLOBAL_STATS: ArgumentPack(['-g'],
                                          {'action': 'store_true',
