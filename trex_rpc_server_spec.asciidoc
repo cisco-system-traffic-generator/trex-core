@@ -163,7 +163,7 @@ TRex > ping
 {
     "id": "l0tog11a",
     "jsonrpc": "2.0",
-    "result": "ACK"
+    "result": {}
 }
 
 [SUCCESS]
@@ -199,7 +199,7 @@ Server Started
 {
    "id" : "maa5a3g1",
    "jsonrpc" : "2.0",
-   "result" : "ACK"
+   "result" : {}
 }
 
 ----
@@ -238,7 +238,7 @@ The following RPC commands are supported
 * *Valid States* - 'not relevant'
 * *Description* - Pings the TRex server
 * *Paramters* - None
-* *Result* ['string'] - "ACK" On Sucess
+* *Result* ['object'] - {}
 
 Example:
 
@@ -258,7 +258,7 @@ Example:
 {
    "jsonrpc" : "2.0",
    "id" : 1,
-   "result" : "ACK"
+   "result" : {}
 }
 
 ----
@@ -372,8 +372,8 @@ Example:
 |=================
 | Field          | Type     | Description 
 | driver         | string   | driver type
-| speed          | string   | speed of the port (1g, 10g, 40g, 100g)
-| status         | string   | 'down', 'idle' or 'transmitting'
+| index          | int      | port index
+| speed          | int      | speed of the port (1, 10, 40, 100)
 |=================
 
 
@@ -401,28 +401,24 @@ Example:
         "port_count": 4,
         "ports": [
             {
-                "driver": "E1000",
+                "driver": "rte_ixgbe_pmd",
                 "index": 0,
-                "speed": "1g",
-                "status": "down"
+                "speed": 10,
             },
             {
-                "driver": "E1000",
+                "driver": "rte_ixgbe_pmd",
                 "index": 1,
-                "speed": "1g",
-                "status": "down"
+                "speed": 10,
             },
             {
-                "driver": "E1000",
+                "driver": "rte_ixgbe_pmd",
                 "index": 2,
-                "speed": "1g",
-                "status": "down"
+                "speed": 10,
             },
             {
-                "driver": "E1000",
+                "driver": "rte_ixgbe_pmd",
                 "index": 3,
-                "speed": "1g",
-                "status": "down"
+                "speed": 10,
             }
         ]
     }
@@ -430,13 +426,13 @@ Example:
 
 ----
 
-=== Get Owner
-* *Name* - 'get_owner'
+=== Get Port Status
+* *Name* - 'get_port_status'
 * *Valid States* - 'all'
-* *Description* - Queries the server for a specific port current owner
+* *Description* - Queries the server for status
 * *Paramters* -
 ** *port_id* ['int'] - port id to query for owner
-* *Result* ['string'] - owner name if exists, otherwise 'none'
+* *Result* ['object'] - see below
 
 [source,bash]
 ----
@@ -444,25 +440,36 @@ Example:
 'Request':
 
 {
-    "id": "hxjkuwj9",
+    "id": "pbxny90u",
     "jsonrpc": "2.0",
-    "method": "get_owner",
+    "method": "get_port_status",
     "params": {
-	"port_id": 1
+        "port_id": 2
     }
 }
 
 'Response':
 
 {
-    "id": "hxjkuwj9",
+    "id": "pbxny90u",
     "jsonrpc": "2.0",
     "result": {
-        "owner": "itay"
+        "owner": "",
+        "state": "STREAMS"
     }
 }
 
 ----
+
+.return value: 'get_port_status'
+[options="header",cols="1,1,3"]
+|=================
+| Field          | Type     | Description 
+| owner          | string   | name of current owner (or "" if none)
+| state          | string   | state of port (DOWN, IDLE, STREAMS, TX, PAUSE)
+|=================
+
+
 
 === Acquire
 * *Name* - 'Acquire'
@@ -472,7 +479,7 @@ Example:
 ** *port_id* ['int'] - port id to take ownership
 ** *user* ['string'] - User name aquiring the system
 ** *force* ['boolean'] - force action even if another user is holding the port
-* *Result* ['string'] - 'unique' connection handler for future requests for that port
+* *Result* ['string'] - handler for future sessions
 
 [source,bash]
 ----
@@ -496,8 +503,9 @@ Example:
 {
     "id": "b1tr56yz",
     "jsonrpc": "2.0",
-    "result": "4cBWDxS2"
+    "result": "AQokC3ZA"
 }
+
 ----
 
 
@@ -508,7 +516,7 @@ Example:
 * *Paramters* -
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id to release
-* *Result* ['string'] - "ACK" on success
+* *Result* ['object'] - {}
 
 [source,bash]
 ----
@@ -531,7 +539,7 @@ Example:
 {
     "id": "m785dxwd",
     "jsonrpc": "2.0",
-    "result": "ACK"
+    "result": {}
 }
 ----
 
@@ -545,7 +553,7 @@ Example:
 ** *port_id* ['int'] - port id associated with this stream
 ** *stream_id* ['int'] - stream id associated with the stream object
 ** *stream* - object of type xref:stream_obj['stream']
-* *Result* ['string'] - "ACK" in case of success
+* *Result* ['object'] - {}
 
 ==== Object type 'stream' anchor:stream_obj[]
 
@@ -730,7 +738,7 @@ This could be stream_id different from the stream object which contains the rx_s
 {
     "id": 1,
     "jsonrpc": "2.0",
-    "result": "ACK"
+    "result": {}
 }
 
 
@@ -749,7 +757,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 ** *port_id* ['int'] - port assosicated with the stream.
 ** *stream_id* ['int'] - stream to remove
 
-* *Result* ['string'] - "ACK" in case of success
+* *Result* ['object'] - {}
 
 [source,bash]
 ----
@@ -773,14 +781,14 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 {
     "id": 1
     "jsonrpc": "2.0",
-    "result": "ACK"
+    "result": {}
 }
 
 ----
 
 === Get Stream ID List
 * *Name* - 'get_stream_list'
-* *Valid States* - 'owned', 'active'
+* *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - fetch all the assoicated streams for a port
 * *Paramters*
 ** *handler* ['string'] - unique connection handler
@@ -819,7 +827,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream
 * *Name* - 'get_stream'
-* *Valid States* - 'owned', 'active'
+* *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - get a specific stream object
 * *Paramters*
 ** *handler* ['string'] - unique connection handler
@@ -883,7 +891,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port for the associated stream
 
-* *Result* ['string'] - "ACK" on success
+* *Result* ['object'] - {}
 
 
 [source,bash]
@@ -906,7 +914,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 {
     "id": 1,
     "jsonrpc": "2.0",
-    "result": "ACK"
+    "result": {}
 }
 
 
@@ -921,7 +929,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to start traffic
 
-* *Result* ['string'] - "ACK" on success
+* *Result* ['object'] - {}
 
 [source,bash]
 ----
@@ -942,7 +950,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 {
     "id": "b3llt8hs",
     "jsonrpc": "2.0",
-    "result": "ACK"
+    "result": {}
 }
 
 
@@ -956,7 +964,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to stop traffic
 
-* *Result* ['string'] - "ACK" on success
+* *Result* ['object'] - {}
 
 [source,bash]
 ----
@@ -978,7 +986,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 {
     "id": "h2fyhni7",
     "jsonrpc": "2.0",
-    "result": "ACK"
+    "result": {}
 }
 
 
@@ -986,7 +994,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Global Stats
 * *Name* - 'get_global_stats'
-* *Valid States* - 'owned', 'active'
+* *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get machine global stats
 * *Paramters* - None
 
@@ -1011,12 +1019,13 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Port Stats
 * *Name* - 'get_port_stats'
-* *Valid States* - 'owned', 'active'
+* *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
 * *Paramters*
 ** *port_id* [int] - The port id for query
 
 * *Result* ['object'] - See Below
+
 
 .Return value of 'get_port_stats'
 [options="header",cols="1,1,3"]
@@ -1036,7 +1045,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream Stats
 * *Name* - 'get_steram_stats'
-* *Valid States* - 'owned', 'active'
+* *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
 * *Paramters*
 ** *port_id* [int] - The port id for query
@@ -1373,7 +1382,7 @@ On the following example, there's no VM instructions, rx_stats option is disable
 {
    "id" : "2bqgd2r4",
    "jsonrpc" : "2.0",
-   "result" : "ACK"
+   "result" : {}
 }
 
 ----
@@ -1505,12 +1514,12 @@ Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `s
    {
       "id" : "tq49f6uj",
       "jsonrpc" : "2.0",
-      "result" : "ACK"
+      "result" : {}
    },
    {
       "id" : "2m7i5olx",
       "jsonrpc" : "2.0",
-      "result" : "ACK"
+      "result" : {}
    }
 ]
 
