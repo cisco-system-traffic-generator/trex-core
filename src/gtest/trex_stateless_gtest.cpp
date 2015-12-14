@@ -252,7 +252,7 @@ TEST_F(basic_vm, vm4) {
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
                         );
-    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,false)
                         );
     //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
@@ -321,11 +321,11 @@ TEST_F(basic_vm, vm4) {
 
         fprintf(stdout," %d \n",i);
         //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
-        /* big */
-        EXPECT_EQ(test_udp_pkt[29],ex[i]);
+        /* not big */
+        EXPECT_EQ(test_udp_pkt[29],0);
         EXPECT_EQ(test_udp_pkt[28],0);
         EXPECT_EQ(test_udp_pkt[27],0);
-        EXPECT_EQ(test_udp_pkt[26],0);
+        EXPECT_EQ(test_udp_pkt[26],ex[i]);
     }
 
 }
