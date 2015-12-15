@@ -3,6 +3,22 @@ from collections import namedtuple
 from common.trex_types import *
 from common import trex_stats
 
+
+########## utlity ############
+def mult_to_factor (mult, max_bps, max_pps, line_util):
+    if mult['type'] == 'raw':
+        return mult['value']
+
+    if mult['type'] == 'bps':
+        return mult['value'] / max_bps
+
+    if mult['type'] == 'pps':
+        return mult['value'] / max_pps
+
+    if mult['type'] == 'percentage':
+        return mult['value'] / line_util
+
+
 # describes a single port
 class Port(object):
     STATE_DOWN       = 0
@@ -18,7 +34,7 @@ class Port(object):
                   STATE_PAUSE: "PAUSE"}
 
 
-    def __init__ (self, port_id, speed, driver, user, comm_link):
+    def __init__ (self, port_id, speed, driver, user, comm_link, session_id):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
@@ -30,6 +46,7 @@ class Port(object):
         self.speed = speed
         self.streams = {}
         self.profile = None
+        self.session_id = session_id
 
         self.port_stats = trex_stats.CPortStats(self)
 
@@ -47,15 +64,16 @@ class Port(object):
     def acquire(self, force = False):
         params = {"port_id":     self.port_id,
                   "user":        self.user,
+                  "session_id":  self.session_id,
                   "force":       force}
 
         command = RpcCmdData("acquire", params)
         rc = self.transmit(command.method, command.params)
-        if rc.success:
-            self.handler = rc.data
+        if rc.good():
+            self.handler = rc.data()
             return self.ok()
         else:
-            return self.err(rc.data)
+            return self.err(rc.err())
 
     # release the port
     def release(self):
@@ -66,10 +84,10 @@ class Port(object):
         rc = self.transmit(command.method, command.params)
         self.handler = None
 
-        if rc.success:
+        if rc.good():
             return self.ok()
         else:
-            return self.err(rc.data)
+            return self.err(rc.err())
 
     def is_acquired(self):
         return (self.handler != None)
@@ -89,11 +107,11 @@ class Port(object):
 
         command = RpcCmdData("get_port_status", params)
         rc = self.transmit(command.method, command.params)
-        if not rc.success:
-            return self.err(rc.data)
+        if rc.bad():
+            return self.err(rc.err())
 
         # sync the port
-        port_state = rc.data['state']
+        port_state = rc.data()['state']
 
         if port_state == "DOWN":
             self.state = self.STATE_DOWN
@@ -128,10 +146,9 @@ class Port(object):
                   "stream_id": stream_id,
                   "stream": stream_obj}
 
-        rc, data = self.transmit("add_stream", params)
-        if not rc:
-            r = self.err(data)
-            print r.good()
+        rc = self.transmit("add_stream", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         # add the stream
         self.streams[stream_id] = stream_obj
@@ -154,10 +171,11 @@ class Port(object):
             cmd = RpcCmdData('add_stream', params)
             batch.append(cmd)
 
-        rc, data = self.transmit_batch(batch)
+        rc = self.transmit_batch(batch)
+        if rc.bad():
+            return self.err(rc.err())
 
-        if not rc:
-            return self.err(data)
+        # validate that every action succeeded
 
         # add the stream
         for stream in streams_list:
@@ -179,9 +197,9 @@ class Port(object):
                   "stream_id": stream_id}
 
 
-        rc, data = self.transmit("remove_stream", params)
-        if not rc:
-            return self.err(data)
+        rc = self.transmit("remove_stream", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         self.streams[stream_id] = None
 
@@ -195,9 +213,9 @@ class Port(object):
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
-        rc, data = self.transmit("remove_all_streams", params)
-        if not rc:
-            return self.err(data)
+        rc = self.transmit("remove_all_streams", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         self.streams = {}
 
@@ -231,9 +249,9 @@ class Port(object):
                   "mul": mul,
                   "duration": duration}
 
-        rc, data = self.transmit("start_traffic", params)
-        if not rc:
-            return self.err(data)
+        rc = self.transmit("start_traffic", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         self.state = self.STATE_TX
 
@@ -249,9 +267,9 @@ class Port(object):
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
-        rc, data = self.transmit("stop_traffic", params)
-        if not rc:
-            return self.err(data)
+        rc = self.transmit("stop_traffic", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         # only valid state after stop
         self.state = self.STATE_STREAMS
@@ -266,9 +284,9 @@ class Port(object):
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
-        rc, data = self.transmit("pause_traffic", params)
-        if not rc:
-            return self.err(data)
+        rc  = self.transmit("pause_traffic", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         # only valid state after stop
         self.state = self.STATE_PAUSE
@@ -284,9 +302,9 @@ class Port(object):
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
-        rc, data = self.transmit("resume_traffic", params)
-        if not rc:
-            return self.err(data)
+        rc = self.transmit("resume_traffic", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         # only valid state after stop
         self.state = self.STATE_TX
@@ -302,9 +320,9 @@ class Port(object):
                   "port_id": self.port_id,
                   "mul": mul}
 
-        rc, data = self.transmit("update_traffic", params)
-        if not rc:
-            return self.err(data)
+        rc = self.transmit("update_traffic", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         return self.ok()
 
@@ -320,11 +338,11 @@ class Port(object):
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
-        rc, data = self.transmit("validate", params)
-        if not rc:
-            return self.err(data)
+        rc = self.transmit("validate", params)
+        if rc.bad():
+            return self.err(rc.err())
 
-        self.profile = data
+        self.profile = rc.data()
 
         return self.ok()
 
@@ -409,3 +427,4 @@ class Port(object):
 
     def async_event_forced_acquired (self):
         self.handler = None
+

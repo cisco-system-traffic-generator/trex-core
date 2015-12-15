@@ -5991,6 +5991,7 @@ bool CSimplePacketParser::Parse(){
     case EthernetHeader::Protocol::IPv6 :
         // IPv6 packet
         ipv6=(IPv6Header *)(p+14);
+        m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
         protocol = ipv6->getNextHdr();
         m_option_offset = 14 +IPV6_HDR_LEN;
         break;
@@ -6007,6 +6008,7 @@ bool CSimplePacketParser::Parse(){
         case EthernetHeader::Protocol::IPv6 :
             // IPv6 packet
             ipv6=(IPv6Header *)(p+18);
+            m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
             protocol = ipv6->getNextHdr();
             m_option_offset = 18 + IPV6_HDR_LEN;
             break;

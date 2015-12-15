@@ -31,10 +31,12 @@ class RC():
         return not self.good()
 
     def data (self):
-        return [x.data if x.rc else "" for x in self.rc_list]
+        d = [x.data if x.rc else "" for x in self.rc_list]
+        return (d if len(d) > 1 else d[0])
 
     def err (self):
-        return [x.data if not x.rc else "" for x in self.rc_list]
+        e = [x.data if not x.rc else "" for x in self.rc_list]
+        return (e if len(e) > 1 else e[0])
 
     def annotate (self, desc = None, show_status = True):
         if desc:

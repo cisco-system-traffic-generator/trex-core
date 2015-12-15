@@ -172,7 +172,7 @@ class TRexConsole(TRexGeneralCmd):
 
     def get_console_identifier(self):
         return "{context}_{server}".format(context=self.__class__.__name__,
-                                           server=self.stateless_client.get_server())
+                                           server=self.stateless_client.get_server_ip())
     
     def register_main_console_methods(self):
         main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))
@@ -450,6 +450,7 @@ class TRexConsole(TRexGeneralCmd):
             self.stateless_client.clear_events()
             print format_text("\n\nEvent log was cleared\n\n")
 
+
     # tui
     @verify_connected
     def do_tui (self, line):
@@ -465,12 +466,20 @@ class TRexConsole(TRexGeneralCmd):
             return
 
         if opts.xterm:
-            subprocess.Popen(['xterm', '-geometry', '105x40', '-e', './trex-console', '-t'])
+            exe = ''
+            if os.path.isfile('/usr/bin/wmctrl'):
+                exe += '/usr/bin/wmctrl -r trex_tui -b add,above;'
+
+            exe += './trex-console -t -q -s {0} -p {1}'.format(self.stateless_client.get_server_ip(), self.stateless_client.get_server_port())
+
+            cmd = ['xterm', '-geometry', '105x40', '-title', 'trex_tui', '-e', exe]
+            subprocess.Popen(cmd)
+
             return
 
         save_verbose = self.stateless_client.get_verbose()
 
-        self.stateless_client.set_verbose(self.stateless_client.VERBOSE_SILENCE)
+        self.stateless_client.set_verbose(self.stateless_client.VERBOSE_QUIET)
         self.tui.show()
         self.stateless_client.set_verbose(save_verbose)
 
@@ -573,6 +582,11 @@ def setParserOptions():
                         action="store_true", help="Starts with TUI mode",
                         default = False)
 
+
+    parser.add_argument("-q", "--quiet", dest="quiet",
+                        action="store_true", help="Starts with all outputs suppressed",
+                        default = False)
+
     return parser
 
 
@@ -581,9 +595,10 @@ def main():
     options = parser.parse_args()
 
     # Stateless client connection
-    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
+    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub, options.quiet)
 
-    print "\nlogged as {0}".format(format_text(options.user, 'bold'))
+    if not options.quiet:
+        print "\nlogged as {0}".format(format_text(options.user, 'bold'))
 
     # TUI or no acquire will give us READ ONLY mode
     if options.tui or not options.acquire:

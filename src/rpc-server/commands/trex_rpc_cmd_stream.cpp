@@ -227,7 +227,7 @@ void
 TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::Value &result) {
     /* array of VM instructions on vm */
     for (int i = 0; i < vm.size(); i++) {
-        const Json::Value & inst = vm[i];
+        const Json::Value & inst = parse_object(vm, i, result);
 
         auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var"};
         std::string vm_type = parse_choice(inst, "type", vm_types, result);

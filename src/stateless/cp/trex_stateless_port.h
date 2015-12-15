@@ -138,7 +138,7 @@ public:
      * acquire port
      * throws TrexException in case of an error
      */
-    void acquire(const std::string &user, bool force = false);
+    void acquire(const std::string &user, uint32_t session_id, bool force = false);
 
     /**
      * release the port from the current user

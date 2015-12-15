@@ -88,7 +88,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def start_trex (self, f, d, block_to_success = True, timeout = 30, user = None, trex_development = False, **trex_cmd_options):
+    def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
         """
         Request to start a TRex run on server.
                 
@@ -104,7 +104,7 @@ class CTRexClient(object):
             timeout : int
                 maximum time (in seconds) to wait in blocking state until TRex changes state from 'Starting' to either 'Idle' or 'Running'
 
-                default value: **30**
+                default value: **40**
             user : str
                 the identity of the the run issuer.
             trex_cmd_options : key, val

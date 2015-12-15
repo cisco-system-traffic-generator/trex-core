@@ -26,31 +26,15 @@ from common.trex_types import *
 from trex_async_client import CTRexAsyncClient
 
 
-########## utlity ############
-def mult_to_factor (mult, max_bps, max_pps, line_util):
-    if mult['type'] == 'raw':
-        return mult['value']
-
-    if mult['type'] == 'bps':
-        return mult['value'] / max_bps
-
-    if mult['type'] == 'pps':
-        return mult['value'] / max_pps
-
-    if mult['type'] == 'percentage':
-        return mult['value'] / line_util
-
-
-
 class CTRexStatelessClient(object):
     """docstring for CTRexStatelessClient"""
 
     # verbose levels
-    VERBOSE_SILENCE = 0
+    VERBOSE_QUIET = 0
     VERBOSE_REGULAR = 1
     VERBOSE_HIGH    = 2
     
-    def __init__(self, username, server="localhost", sync_port = 5050, async_port = 4500, virtual=False):
+    def __init__(self, username, server="localhost", sync_port = 5050, async_port = 4500, quiet = False, virtual = False):
         super(CTRexStatelessClient, self).__init__()
 
         self.user = username
@@ -58,7 +42,10 @@ class CTRexStatelessClient(object):
         self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual, self.prn_func)
 
         # default verbose level
-        self.verbose = self.VERBOSE_REGULAR
+        if not quiet:
+            self.verbose = self.VERBOSE_REGULAR
+        else:
+            self.verbose = self.VERBOSE_QUIET
 
         self.ports = {}
         self._connection_info = {"server": server,
@@ -79,7 +66,7 @@ class CTRexStatelessClient(object):
 
         self.events = []
 
-        
+        self.session_id = random.getrandbits(32)
         self.read_only = False
         self.connected = False
 
@@ -90,8 +77,14 @@ class CTRexStatelessClient(object):
         return self.ports.get(port_id, None)
 
 
-    def get_server (self):
+    # connection server ip
+    def get_server_ip (self):
         return self.comm_link.get_server()
+
+    # connection server port
+    def get_server_port (self):
+        return self.comm_link.get_port()
+
 
     ################# events handler ######################
     def add_event_log (self, msg, ev_type, show = False):
@@ -107,7 +100,7 @@ class CTRexStatelessClient(object):
 
         if show:
             self.prn_func(format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold'))))
-  
+        
 
     def handle_async_stats_update(self, dump_data):
         global_stats = {}
@@ -185,8 +178,16 @@ class CTRexStatelessClient(object):
 
         # port was stolen...
         elif (type == 5):
+            session_id = data['session_id']
+
+            # false alarm, its us
+            if session_id == self.session_id:
+                return
+
             port_id = int(data['port_id'])
-            ev = "Port {0} was forcely taken".format(port_id)
+            who = data['who']
+
+            ev = "Port {0} was forcely taken by '{1}'".format(port_id, who)
 
             # call the handler
             self.async_event_port_forced_acquired(port_id)
@@ -300,42 +301,43 @@ class CTRexStatelessClient(object):
         self.connected = False
 
         # connect sync channel
-        rc, data = self.comm_link.connect()
-        if not rc:
-            return RC_ERR(data)
+        rc = self.comm_link.connect()
+        if rc.bad():
+            return rc
 
         # connect async channel
-        rc, data = self.async_client.connect()
-        if not rc:
-            return RC_ERR(data)
+        rc = self.async_client.connect()
+        if rc.bad():
+            return rc
 
         # version
-        rc, data = self.transmit("get_version")
-        if not rc:
-            return RC_ERR(data)
+        rc = self.transmit("get_version")
+        if rc.bad():
+            return rc
 
-        self.server_version = data
-        self.global_stats.server_version = data
+        self.server_version = rc.data()
+        self.global_stats.server_version = rc.data()
 
         # cache system info
-        rc, data = self.transmit("get_system_info")
-        if not rc:
-            return RC_ERR(data)
-        self.system_info = data
+        rc = self.transmit("get_system_info")
+        if rc.bad():
+            return rc
+
+        self.system_info = rc.data()
 
         # cache supported commands
-        rc, data = self.transmit("get_supported_cmds")
-        if not rc:
-            return RC_ERR(data)
+        rc = self.transmit("get_supported_cmds")
+        if rc.bad():
+            return rc
 
-        self.supported_cmds = data
+        self.supported_cmds = rc.data()
 
         # create ports
         for port_id in xrange(self.get_port_count()):
             speed = self.system_info['ports'][port_id]['speed']
             driver = self.system_info['ports'][port_id]['driver']
 
-            self.ports[port_id] = Port(port_id, speed, driver, self.user, self.comm_link)
+            self.ports[port_id] = Port(port_id, speed, driver, self.user, self.comm_link, self.session_id)
 
 
         # sync the ports
@@ -481,14 +483,12 @@ class CTRexStatelessClient(object):
 
     # ping server
     def ping(self):
-        rc, info = self.transmit("ping")
-        return RC(rc, info)
+        return self.transmit("ping")
 
 
 
     def get_global_stats(self):
-        rc, info = self.transmit("get_global_stats")
-        return RC(rc, info)
+        return self.transmit("get_global_stats")
 
 
     ########## port commands ##############
@@ -688,7 +688,7 @@ class CTRexStatelessClient(object):
 
     # reset
     def cmd_reset(self):
-
+        #self.release(self.get_acquired_ports())
 
         rc = self.acquire(force = True)
         rc.annotate("Force acquiring all ports:")
@@ -1175,6 +1175,9 @@ class CTRexStatelessClient(object):
 
         def get_server (self):
             return self.server
+
+        def get_port (self):
+            return self.port
 
         def set_verbose(self, mode):
             self.verbose = mode
