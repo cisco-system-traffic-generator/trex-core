@@ -834,6 +834,83 @@ TEST_F(basic_vm, vm9) {
 }
 
 
+/* test vmDP object */
+TEST_F(basic_vm, vm10) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowClient( "tuple_gen",
+                                                           0x10000001,
+                                                           0x10000006,
+                                                           1025,
+                                                           1027,
+                                                           20,
+                                                           0) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.ip",26, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.port",34, 0,true)
+                        );
+
+
+    vm.set_packet_size(128);
+
+    vm.compile_next();
+
+    printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
+
+    EXPECT_EQ(36,vm.get_max_packet_update_offset());
+
+    StreamVmDp * lpDpVm =vm.cloneAsVmDp();
+
+    EXPECT_EQ(lpDpVm->get_bss_size(),vm.get_bss_size());
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<30; i++) {
+        
+        runner.run(lpDpVm->get_program_size(), 
+                   lpDpVm->get_program(),
+                   lpDpVm->get_bss(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+    delete  lpDpVm;
+
+    bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+
 
 //////////////////////////////////////////////////////
 
