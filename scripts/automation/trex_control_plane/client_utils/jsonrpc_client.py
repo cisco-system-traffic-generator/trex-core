@@ -7,8 +7,7 @@ import general_utils
 import re
 from time import sleep
 from collections import namedtuple
-
-CmdResponse = namedtuple('CmdResponse', ['success', 'data'])
+from common.trex_types import *
 
 class bcolors:
     BLUE = '\033[94m'
@@ -33,15 +32,11 @@ class BatchMessage(object):
 
     def invoke(self, block = False):
         if not self.rpc_client.connected:
-            return False, "Not connected to server"
+            return RC_ERR("Not connected to server")
 
         msg = json.dumps(self.batch_list)
 
-        rc, resp_list = self.rpc_client.send_raw_msg(msg)
-        if len(self.batch_list) == 1:
-            return CmdResponse(True, [CmdResponse(rc, resp_list)])
-        else:
-            return CmdResponse(rc, resp_list)
+        return self.rpc_client.send_raw_msg(msg)
 
 
 # JSON RPC v2.0 client
@@ -114,7 +109,7 @@ class JsonRpcClient(object):
 
     def invoke_rpc_method (self, method_name, params = {}):
         if not self.connected:
-            return CmdResponse(False, "Not connected to server")
+            return RC_ERR("Not connected to server")
 
         id, msg = self.create_jsonrpc_v2(method_name, params)
 
@@ -135,7 +130,7 @@ class JsonRpcClient(object):
                 tries += 1
                 if tries > 10:
                     self.disconnect()
-                    return CmdResponse(False, "*** [RPC] - Failed to send message to server")
+                    return RC_ERR("*** [RPC] - Failed to send message to server")
 
 
         tries = 0
@@ -147,7 +142,7 @@ class JsonRpcClient(object):
                 tries += 1
                 if tries > 10:
                     self.disconnect()
-                    return CmdResponse(False, "*** [RPC] - Failed to get server response")
+                    return RC_ERR("*** [RPC] - Failed to get server response")
 
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
@@ -158,36 +153,35 @@ class JsonRpcClient(object):
         response_json = json.loads(response)
 
         if isinstance(response_json, list):
-            rc_list = []
+            rc_batch = RC()
 
             for single_response in response_json:
-                rc, msg = self.process_single_response(single_response)
-                rc_list.append( CmdResponse(rc, msg) )
+                rc = self.process_single_response(single_response)
+                rc_batch.add(rc)
 
-            return CmdResponse(True, rc_list)
+            return rc_batch
 
         else:
-            rc, msg = self.process_single_response(response_json)
-            return CmdResponse(rc, msg)
+            return self.process_single_response(response_json)
 
 
     def process_single_response (self, response_json):
 
         if (response_json.get("jsonrpc") != "2.0"):
-            return False, "Malformed Response ({0})".format(str(response_json))
+            return RC_ERR("Malformed Response ({0})".format(str(response_json)))
 
         # error reported by server
         if ("error" in response_json):
             if "specific_err" in response_json["error"]:
-                return False, response_json["error"]["specific_err"]
+                return RC_ERR(response_json["error"]["specific_err"])
             else:
-                return False, response_json["error"]["message"]
+                return RC_ERR(response_json["error"]["message"])
 
         # if no error there should be a result
         if ("result" not in response_json):
-            return False, "Malformed Response ({0})".format(str(response_json))
+            return RC_ERR("Malformed Response ({0})".format(str(response_json)))
 
-        return True, response_json["result"]
+        return RC_OK(response_json["result"])
 
 
   
@@ -199,9 +193,9 @@ class JsonRpcClient(object):
             self.socket.close(linger = 0)
             self.context.destroy(linger = 0)
             self.connected = False
-            return True, ""
+            return RC_OK()
         else:
-            return False, "Not connected to server"
+            return RC_ERR("Not connected to server")
 
 
     def connect(self, server = None, port = None, prn_func = None):
@@ -226,14 +220,14 @@ class JsonRpcClient(object):
         try:
             self.socket.connect(self.transport)
         except zmq.error.ZMQError as e:
-            return False, "ZMQ Error: Bad server or port name: " + str(e)
+            return RC_ERR("ZMQ Error: Bad server or port name: " + str(e))
 
         self.socket.setsockopt(zmq.SNDTIMEO, 1000)
         self.socket.setsockopt(zmq.RCVTIMEO, 1000)
 
         self.connected = True
 
-        return True, ""
+        return RC_OK()
 
 
     def reconnect(self):
@@ -241,7 +235,7 @@ class JsonRpcClient(object):
         return self.connect()
 
         if not self.connected:
-            return False, "Not connected to server"
+            return RC_ERR("Not connected to server")
 
         # reconnect
         return self.connect(self.server, self.port)

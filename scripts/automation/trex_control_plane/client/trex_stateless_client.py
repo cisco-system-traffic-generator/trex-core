@@ -26,22 +26,6 @@ from common.trex_types import *
 from trex_async_client import CTRexAsyncClient
 
 
-########## utlity ############
-def mult_to_factor (mult, max_bps, max_pps, line_util):
-    if mult['type'] == 'raw':
-        return mult['value']
-
-    if mult['type'] == 'bps':
-        return mult['value'] / max_bps
-
-    if mult['type'] == 'pps':
-        return mult['value'] / max_pps
-
-    if mult['type'] == 'percentage':
-        return mult['value'] / line_util
-
-
-
 class CTRexStatelessClient(object):
     """docstring for CTRexStatelessClient"""
 
@@ -317,35 +301,36 @@ class CTRexStatelessClient(object):
         self.connected = False
 
         # connect sync channel
-        rc, data = self.comm_link.connect()
-        if not rc:
-            return RC_ERR(data)
+        rc = self.comm_link.connect()
+        if rc.bad():
+            return rc
 
         # connect async channel
-        rc, data = self.async_client.connect()
-        if not rc:
-            return RC_ERR(data)
+        rc = self.async_client.connect()
+        if rc.bad():
+            return rc
 
         # version
-        rc, data = self.transmit("get_version")
-        if not rc:
-            return RC_ERR(data)
+        rc = self.transmit("get_version")
+        if rc.bad():
+            return rc
 
-        self.server_version = data
-        self.global_stats.server_version = data
+        self.server_version = rc.data()
+        self.global_stats.server_version = rc.data()
 
         # cache system info
-        rc, data = self.transmit("get_system_info")
-        if not rc:
-            return RC_ERR(data)
-        self.system_info = data
+        rc = self.transmit("get_system_info")
+        if rc.bad():
+            return rc
+
+        self.system_info = rc.data()
 
         # cache supported commands
-        rc, data = self.transmit("get_supported_cmds")
-        if not rc:
-            return RC_ERR(data)
+        rc = self.transmit("get_supported_cmds")
+        if rc.bad():
+            return rc
 
-        self.supported_cmds = data
+        self.supported_cmds = rc.data()
 
         # create ports
         for port_id in xrange(self.get_port_count()):
@@ -498,14 +483,12 @@ class CTRexStatelessClient(object):
 
     # ping server
     def ping(self):
-        rc, info = self.transmit("ping")
-        return RC(rc, info)
+        return self.transmit("ping")
 
 
 
     def get_global_stats(self):
-        rc, info = self.transmit("get_global_stats")
-        return RC(rc, info)
+        return self.transmit("get_global_stats")
 
 
     ########## port commands ##############
@@ -705,7 +688,6 @@ class CTRexStatelessClient(object):
 
     # reset
     def cmd_reset(self):
-
         #self.release(self.get_acquired_ports())
 
         rc = self.acquire(force = True)

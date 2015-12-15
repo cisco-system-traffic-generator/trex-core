@@ -203,10 +203,22 @@ TrexRpcCommand::parse_string(const Json::Value &parent, const std::string &name,
     return parent[name].asString();
 }
 
+/**
+ * object version
+ */
 const Json::Value &
 TrexRpcCommand::parse_object(const Json::Value &parent, const std::string &name, Json::Value &result) {
     check_field_type(parent, name, FIELD_TYPE_OBJ, result);
     return parent[name];
+}
+
+/**
+ * index version
+ */
+const Json::Value &
+TrexRpcCommand::parse_object(const Json::Value &parent, int index, Json::Value &result) {
+    check_field_type(parent, index, FIELD_TYPE_OBJ, result);
+    return parent[index];
 }
 
 const Json::Value &

@@ -392,8 +392,9 @@ class TrexTUI():
             
 
     def clear_screen (self):
-        os.system('clear')
-        #sys.stderr.write("\x1b[2J\x1b[H")
+        #os.system('clear')
+        # maybe this is faster ?
+        sys.stderr.write("\x1b[2J\x1b[H")
 
 
 

@@ -19,6 +19,7 @@ import re
 
 from common.trex_stats import *
 from common.trex_streams import *
+from common.trex_types import *
 
 # basic async stats class
 class CTRexAsyncStats(object):
@@ -204,9 +205,9 @@ class CTRexAsyncClient():
             time.sleep(0.01)
             if time.time() > timeout:
                 self.disconnect()
-                return False, "*** [subscriber] - no data flow from server at : " + self.tr
+                return RC_ERR("*** [subscriber] - no data flow from server at : " + self.tr)
 
-        return True, ""
+        return RC_OK()
 
 
     # disconnect
