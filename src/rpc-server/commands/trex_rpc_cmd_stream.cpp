@@ -29,22 +29,6 @@ limitations under the License.
 
 using namespace std;
 
-/**
- * simple parser of string to number 
- * only difference is that it enforces whole number 
- * and not partial 
- * 
- */
-static uint64_t str2num(const string &str) {
-    size_t index;
-
-    uint64_t num = std::stoull(str, &index, 0);
-    if (index != str.size()) {
-        throw invalid_argument("could not parse string to number");
-    }
-
-    return (num);
-}
 
 /***************************
  * add new stream
@@ -213,31 +197,9 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
         throw TrexRpcException("internal error");
     }
 
-    std::string  init_value_str    = parse_string(inst, "init_value", result);
-    std::string  min_value_str     = parse_string(inst, "min_value", result);
-    std::string  max_value_str     = parse_string(inst, "max_value", result);
-
-    uint64_t init_value = 0;
-    uint64_t min_value = 0;
-    uint64_t max_value = 0;
-
-    try {
-        init_value = str2num(init_value_str);
-    } catch (invalid_argument) {
-        generate_parse_err(result, "failed to parse 'init_value' as a number");
-    }
-
-    try {
-        min_value = str2num(min_value_str);
-    } catch (invalid_argument) {
-        generate_parse_err(result, "failed to parse 'min_value' as a number");
-    }
-
-    try {
-        max_value = str2num(max_value_str);
-    } catch (invalid_argument) {
-        generate_parse_err(result, "failed to parse 'max_value' as a number");
-    }
+    uint64_t init_value  = parse_uint64(inst, "init_value", result);
+    uint64_t min_value   = parse_uint64(inst, "min_value", result);
+    uint64_t max_value   = parse_uint64(inst, "max_value", result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionFlowMan(flow_var_name,
                                                                 flow_var_size,

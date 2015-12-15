@@ -376,6 +376,26 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
                              double                                 factor,
                              std::string                            *fail_msg) {
 
+    try {
+        return compile_internal(port_id,streams,objs,dp_core_count,factor,fail_msg);
+    } catch (const TrexException &ex) {
+        if (fail_msg) {
+            *fail_msg = ex.what();
+        } else {
+            std::cout << ex.what();
+        }
+        return false;
+    }
+
+}
+bool 
+TrexStreamsCompiler::compile_internal(uint8_t                                port_id,
+                                      const std::vector<TrexStream *>        &streams,
+                                      std::vector<TrexStreamsCompiledObj *>  &objs,
+                                      uint8_t                                dp_core_count,
+                                      double                                 factor,
+                                      std::string                            *fail_msg) {
+
 #if 0
     for (auto stream : streams) {
         stream->Dump(stdout);
@@ -387,16 +407,7 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
 
 
     /* compile checks */
-    try {
-        pre_compile_check(streams, nodes);
-    } catch (const TrexException &ex) {
-        if (fail_msg) {
-            *fail_msg = ex.what();
-        } else {
-            std::cout << ex.what();
-        }
-        return false;
-    }
+    pre_compile_check(streams, nodes);
 
     /* check if all are cont. streams */
     bool all_continues = true;
@@ -424,7 +435,6 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
      
         /* compile a single stream to all cores */
         compile_stream(stream, factor, dp_core_count, objs, nodes);
-        
     }
 
     return true;
@@ -457,6 +467,10 @@ TrexStreamsCompiler::compile_stream(const TrexStream *stream,
     double per_core_rate          = (stream->m_pps * (factor / dp_core_count));
     int per_core_burst_total_pkts = (stream->m_burst_total_pkts / dp_core_count);
 
+    /* compile VM */
+    /* fix this const away problem */
+    ((TrexStream *)stream)->compile();
+
     std::vector<TrexStream *> per_core_streams(dp_core_count);
 
     /* for each core - creates its own version of the stream */
@@ -485,6 +499,7 @@ TrexStreamsCompiler::compile_stream(const TrexStream *stream,
 
 
 }
+
 
 /**************************************
  * streams graph

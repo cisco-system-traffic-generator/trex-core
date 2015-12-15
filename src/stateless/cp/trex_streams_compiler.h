@@ -103,6 +103,13 @@ public:
 
 private:
 
+    bool compile_internal(uint8_t                                port_id,
+                          const std::vector<TrexStream *>        &streams,
+                          std::vector<TrexStreamsCompiledObj *>  &objs,
+                          uint8_t                                dp_core_count,
+                          double                                 factor,
+                          std::string                            *fail_msg);
+
     void pre_compile_check(const std::vector<TrexStream *> &streams,
                            GraphNodeMap & nodes);
     void allocate_pass(const std::vector<TrexStream *> &streams, GraphNodeMap *nodes);
@@ -117,6 +124,8 @@ private:
                         uint8_t dp_core_count,
                         std::vector<TrexStreamsCompiledObj *> &objs,
                         GraphNodeMap &nodes);
+
+    void compile_stream_vm(TrexStream *stream);
 
     std::vector<std::string> m_warnings;
 };

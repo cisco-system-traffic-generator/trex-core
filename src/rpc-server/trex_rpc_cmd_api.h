@@ -100,6 +100,7 @@ protected:
         FIELD_TYPE_BYTE,
         FIELD_TYPE_UINT16,
         FIELD_TYPE_UINT32,
+        FIELD_TYPE_UINT64,
         FIELD_TYPE_INT,
         FIELD_TYPE_DOUBLE,
         FIELD_TYPE_BOOL,
@@ -138,6 +139,7 @@ protected:
     uint8_t  parse_byte(const Json::Value &parent, const std::string &name, Json::Value &result);
     uint16_t parse_uint16(const Json::Value &parent, const std::string &name, Json::Value &result);
     uint32_t parse_uint32(const Json::Value &parent, const std::string &name, Json::Value &result);
+    uint64_t parse_uint64(const Json::Value &parent, const std::string &name, Json::Value &result);
     int      parse_int(const Json::Value &parent, const std::string &name, Json::Value &result);
     double   parse_double(const Json::Value &parent, const std::string &name, Json::Value &result);
     bool     parse_bool(const Json::Value &parent, const std::string &name, Json::Value &result);
@@ -148,6 +150,7 @@ protected:
     uint8_t  parse_byte(const Json::Value &parent, int index, Json::Value &result);
     uint16_t parse_uint16(const Json::Value &parent, int index, Json::Value &result);
     uint32_t parse_uint32(const Json::Value &parent, int index, Json::Value &result);
+    uint64_t parse_uint64(const Json::Value &parent, int index, Json::Value &result);
     int      parse_int(const Json::Value &parent, int index, Json::Value &result);
     double   parse_double(const Json::Value &parent, int index, Json::Value &result);
     bool     parse_bool(const Json::Value &parent, int index, Json::Value &result);

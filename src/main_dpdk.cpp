@@ -2077,6 +2077,8 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          CVirtualIFPerSideStats  * lp_stats
                          ){
 
+    //rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
+
     lp_stats->m_tx_pkt   +=1;
     lp_stats->m_tx_bytes += (rte_pktmbuf_pkt_len(m)+4);
 

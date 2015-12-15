@@ -595,7 +595,7 @@ void StreamVm::build_bss() {
 
 
 
-void StreamVm::compile_next() {
+void StreamVm::compile() {
 
     /* build flow var offset table */
     build_flow_var_table() ;
@@ -612,11 +612,6 @@ void StreamVm::compile_next() {
     }
 }
 
-
-bool StreamVm::compile() {
-
-    return (false);
-}
 
 StreamVm::~StreamVm() {
     for (auto inst : m_inst_list) {

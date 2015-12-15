@@ -53,19 +53,30 @@ std::string TrexStream::get_stream_type_str(stream_type_t stream_type){
 }
 
 
-void TrexStream::post_vm_compile(){
-    /* if VM is enabled */
-    if (is_vm()) {
-        m_vm_dp = m_vm.cloneAsVmDp();
+void
+TrexStream::compile() {
 
-
-        /* calc m_vm_prefix_size which is the size of the writable packet */
-        uint16_t max_pkt_offset = m_vm_dp->get_max_packet_update_offset();
-        uint16_t pkt_size = m_pkt.len;
-
-        /* calculate the mbuf size that we should allocate */
-        m_vm_prefix_size =calc_writable_mbuf_size(max_pkt_offset,pkt_size);
+    /* in case there are no instructions - nothing to do */
+    if (m_vm.is_vm_empty()) {
+        m_has_vm = false;
+        return;
     }
+
+    m_has_vm = true;
+
+    m_vm.set_packet_size(m_pkt.len);
+
+    m_vm.compile();
+
+    m_vm_dp = m_vm.cloneAsVmDp();
+
+
+    /* calc m_vm_prefix_size which is the size of the writable packet */
+    uint16_t max_pkt_offset = m_vm_dp->get_max_packet_update_offset();
+    uint16_t pkt_size = m_pkt.len;
+
+    /* calculate the mbuf size that we should allocate */
+    m_vm_prefix_size = calc_writable_mbuf_size(max_pkt_offset, pkt_size);
 }
 
 
@@ -221,4 +232,5 @@ void TrexStreamTable::get_object_list(std::vector<TrexStream *> &object_list) {
 int TrexStreamTable::size() {
     return m_stream_table.size();
 }
+
 

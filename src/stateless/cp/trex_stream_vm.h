@@ -927,6 +927,10 @@ public:
         
     }
 
+    bool is_vm_empty() {
+        return (m_inst_list.size() == 0);
+    }
+
     /**
      * add new instruction to the VM
      * 
@@ -961,11 +965,7 @@ public:
      * return true of success, o.w false 
      * 
      */
-    bool compile();
-
-
-    void compile_next();
-
+    void compile();
 
     ~StreamVm();
 

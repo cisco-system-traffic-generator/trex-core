@@ -21,6 +21,7 @@ limitations under the License.
 #include "trex_rpc_cmds.h"
 #include <iostream>
 #include <sstream>
+#include <json/json.h>
 
 using namespace std;
 
@@ -31,7 +32,7 @@ using namespace std;
 trex_rpc_cmd_rc_e 
 TrexRpcCmdTestAdd::_run(const Json::Value &params, Json::Value &result) {
 
-    result["result"] = parse_int(params, "x", result) + parse_int(params, "y", result);
+    result["result"] = Json::Value::UInt64(parse_uint64(params, "x", result) + parse_uint64(params, "y", result));
     
     return (TREX_RPC_CMD_OK);
 }
@@ -44,7 +45,7 @@ TrexRpcCmdTestAdd::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e 
 TrexRpcCmdTestSub::_run(const Json::Value &params, Json::Value &result) {
 
-    result["result"] = parse_int(params, "x", result) - parse_int(params, "y", result);
+    result["result"] = Json::Value::UInt64(parse_uint64(params, "x", result) - parse_uint64(params, "y", result));
 
     return (TREX_RPC_CMD_OK);
 }

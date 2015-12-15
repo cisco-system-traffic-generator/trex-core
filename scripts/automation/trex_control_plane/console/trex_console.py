@@ -474,6 +474,11 @@ class TRexConsole(TRexGeneralCmd):
         self.tui.show()
         self.stateless_client.set_verbose(save_verbose)
 
+
+    def help_tui (self):
+        do_tui("-h")
+
+
     # quit function
     def do_quit(self, line):
         '''Exit the client\n'''

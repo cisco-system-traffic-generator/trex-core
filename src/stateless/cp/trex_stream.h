@@ -229,6 +229,12 @@ public:
 
     void post_vm_compile();
 
+    /**
+     * internal compilation of stream (for DP)
+     * 
+     */
+    void compile();
+
 public:
     /* basic */
     uint8_t       m_type;

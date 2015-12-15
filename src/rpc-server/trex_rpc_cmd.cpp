@@ -98,6 +98,8 @@ TrexRpcCommand::type_to_str(field_type_e type) {
         return "uint16";
     case FIELD_TYPE_UINT32:
         return "uint32";
+    case FIELD_TYPE_UINT64:
+        return "uint64";
     case FIELD_TYPE_BOOL:
         return "bool";
     case FIELD_TYPE_INT:
@@ -177,6 +179,18 @@ uint32_t
 TrexRpcCommand::parse_uint32(const Json::Value &parent, int index, Json::Value &result) {
     check_field_type(parent, index, FIELD_TYPE_UINT32, result);
     return parent[index].asUInt();
+}
+
+uint64_t 
+TrexRpcCommand::parse_uint64(const Json::Value &parent, const std::string &name, Json::Value &result) {
+    check_field_type(parent, name, FIELD_TYPE_UINT64, result);
+    return parent[name].asUInt64();
+}
+
+uint64_t  
+TrexRpcCommand::parse_uint64(const Json::Value &parent, int index, Json::Value &result) {
+    check_field_type(parent, index, FIELD_TYPE_UINT64, result);
+    return parent[index].asUInt64();
 }
 
 int
@@ -270,6 +284,12 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
 
     case FIELD_TYPE_UINT32:
         if ( (!field.isUInt()) || (field.asUInt() > 0xFFFFFFFF)) {
+            rc = false;
+        }
+        break;
+
+    case FIELD_TYPE_UINT64:
+        if (!field.isInt64()) {
             rc = false;
         }
         break;
