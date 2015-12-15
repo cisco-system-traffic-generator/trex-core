@@ -259,7 +259,7 @@ class CTRexServer(object):
                 return False
 
             
-    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 30):
+    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40):
         with self.start_lock:
             logger.info("Processing start_trex() command.")
             if self.is_reserved():
