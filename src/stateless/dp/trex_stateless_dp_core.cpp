@@ -120,7 +120,15 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     char *p=rte_pktmbuf_append(m, prefix_size);
     memcpy( p ,m_original_packet_data_prefix, prefix_size); 
 
-    /* TBD run VM on the pointer p */
+
+    /* run the VM program */
+    StreamDPVmInstructionsRunner runner;
+
+    runner.run( m_vm_program_size, 
+                m_vm_program,
+                m_vm_flow_var,
+                (uint8_t*)p);
+
 
     rte_mbuf_t * m_const = get_const_mbuf();
     if (  m_const != NULL) {
@@ -144,7 +152,11 @@ void CGenNodeStateless::free_stl_node(){
          }
          free_prefix_header();
     }
-
+    if (m_vm_flow_var) {
+        /* free flow var */
+        free(m_vm_flow_var);
+        m_vm_flow_var=0;
+    }
 }
 
 
@@ -527,7 +539,13 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->set_mbuf_cache_dir(dir);
 
 
-    if (stream->m_has_vm  == false ) {
+    if (stream->is_vm()  == false ) {
+        /* no VM */
+
+        node->m_vm_flow_var =  NULL;
+        node->m_vm_program  =  NULL;
+        node->m_vm_program_size =0;
+
                 /* allocate const mbuf */
         rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
         assert(m);
@@ -545,8 +563,18 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
         node->m_original_packet_data_prefix =0;
     }else{
-        /* we need to copy the object */
 
+        /* set the program */
+        TrexStream * local_mem_stream = node->m_ref_stream_info;
+
+        StreamVmDp  * lpDpVm = local_mem_stream->getDpVm();
+
+        node->m_vm_flow_var =  lpDpVm->clone_bss(); /* clone the flow var */
+        node->m_vm_program  =  lpDpVm->get_program(); /* same ref to the program */
+        node->m_vm_program_size =lpDpVm->get_program_size();
+
+
+        /* we need to copy the object */
         if ( pkt_size > stream->m_vm_prefix_size  ) {
             /* we need const packet */
             uint16_t const_pkt_size  = pkt_size - stream->m_vm_prefix_size ;

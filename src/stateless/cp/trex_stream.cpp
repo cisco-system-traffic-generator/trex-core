@@ -53,6 +53,22 @@ std::string TrexStream::get_stream_type_str(stream_type_t stream_type){
 }
 
 
+void TrexStream::post_vm_compile(){
+    /* if VM is enabled */
+    if (is_vm()) {
+        m_vm_dp = m_vm.cloneAsVmDp();
+
+
+        /* calc m_vm_prefix_size which is the size of the writable packet */
+        uint16_t max_pkt_offset = m_vm_dp->get_max_packet_update_offset();
+        uint16_t pkt_size = m_pkt.len;
+
+        /* calculate the mbuf size that we should allocate */
+        m_vm_prefix_size =calc_writable_mbuf_size(max_pkt_offset,pkt_size);
+    }
+}
+
+
 void TrexStream::Dump(FILE *fd){
 
     fprintf(fd,"\n");
@@ -113,11 +129,16 @@ TrexStream::TrexStream(uint8_t type,
     m_burst_total_pkts=0; 
     m_num_bursts=1; 
     m_ibg_usec=0.0;  
+    m_vm_dp = NULL;
 }
 
 TrexStream::~TrexStream() {
     if (m_pkt.binary) {
         delete [] m_pkt.binary;
+    }
+    if ( m_vm_dp ){
+        delete  m_vm_dp;
+        m_vm_dp=NULL;
     }
 }
 

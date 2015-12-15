@@ -93,15 +93,20 @@ private:
     uint32_t            m_multi_bursts; /* in case of multi_burst how many bursts */
 
     /* cache line 1 */
-    TrexStream *        m_ref_stream_info; /* the stream info */
+    TrexStream *         m_ref_stream_info; /* the stream info */
     CGenNodeStateless  * m_next_stream;
 
     uint8_t *            m_original_packet_data_prefix; /* pointer to the original first pointer 64/128/512 */
 
+    /* Fast Field VM section */
+    uint8_t *            m_vm_flow_var; /* pointer to the vm flow var */
+    uint8_t *            m_vm_program;  /* pointer to the program */
+    uint16_t             m_vm_program_size; /* up to 64K op codes */
+
+    /* End Fast Field VM Section */
+
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[48];
-
-
+    uint8_t             m_pad_end[30];
 
 
 public:

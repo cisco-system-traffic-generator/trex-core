@@ -33,6 +33,8 @@ limitations under the License.
 #include <vector>
 
 
+
+
 class CPcapLoader {
 public:
     CPcapLoader();
@@ -134,6 +136,23 @@ class basic_vm  : public testing::Test {
      }
    public:
 };
+
+
+
+
+TEST_F(basic_vm, pkt_size) {
+
+    EXPECT_EQ(calc_writable_mbuf_size(36,62),62);
+    EXPECT_EQ(calc_writable_mbuf_size(63,62),62);
+    EXPECT_EQ(calc_writable_mbuf_size(45,65),65);
+    EXPECT_EQ(calc_writable_mbuf_size(66,65),65);
+    EXPECT_EQ(calc_writable_mbuf_size(62,128),128);
+    EXPECT_EQ(calc_writable_mbuf_size(62,252),61);
+    EXPECT_EQ(calc_writable_mbuf_size(121,252),120);
+    EXPECT_EQ(calc_writable_mbuf_size(253,252),252);
+    EXPECT_EQ(calc_writable_mbuf_size(250,252),252);
+    EXPECT_EQ(calc_writable_mbuf_size(184,252),183);
+}
 
 
 /* start/stop/stop back to back */
@@ -764,11 +783,8 @@ TEST_F(basic_vm, vm8) {
     EXPECT_EQ(1, res1?1:0);
 }
 
-TEST_F(basic_vm, vm9) {
-
-
-
-    StreamVm vm;
+static void vm_build_program_seq(StreamVm & vm,
+                                 uint16_t packet_size ){
 
     vm.add_instruction( new StreamVmInstructionFlowClient( "tuple_gen",
                                                            0x10000001,
@@ -792,6 +808,15 @@ TEST_F(basic_vm, vm9) {
     vm.set_packet_size(128);
 
     vm.compile_next();
+}
+
+
+TEST_F(basic_vm, vm9) {
+
+
+    StreamVm vm;
+
+    vm_build_program_seq(vm,128);
 
     printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
 
@@ -837,32 +862,9 @@ TEST_F(basic_vm, vm9) {
 /* test vmDP object */
 TEST_F(basic_vm, vm10) {
 
-
-
     StreamVm vm;
 
-    vm.add_instruction( new StreamVmInstructionFlowClient( "tuple_gen",
-                                                           0x10000001,
-                                                           0x10000006,
-                                                           1025,
-                                                           1027,
-                                                           20,
-                                                           0) );
-
-    /* src ip */
-    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.ip",26, 0,true)
-                        );
-
-    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
-
-    /* src port */
-    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.port",34, 0,true)
-                        );
-
-
-    vm.set_packet_size(128);
-
-    vm.compile_next();
+    vm_build_program_seq(vm,128);
 
     printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
 
@@ -2009,7 +2011,6 @@ TEST_F(basic_stl, multi_pkt1) {
 
 
 
-
 TEST_F(basic_stl, vm_enable0) {
 
     CBasicStl t1;
@@ -2025,20 +2026,26 @@ TEST_F(basic_stl, vm_enable0) {
      std::vector<TrexStream *> streams;
 
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
-     stream1->m_has_vm = true;
-     stream1->m_vm_prefix_size =64;
-     stream1->set_pps(1.0);
 
+     stream1->set_pps(1.0);
      
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
 
-
      CPcapLoader pcap;
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
+
+     uint16_t pkt_size=pcap.m_raw.pkt_len;
+
+     stream1->m_has_vm = true;
+     vm_build_program_seq(stream1->m_vm,pkt_size);
+     stream1->post_vm_compile();
+     printf(" vm_prefix_size %d \n",stream1->m_vm_prefix_size);
+     EXPECT_EQ(stream1->m_vm_prefix_size,pkt_size);
+
                                     
      streams.push_back(stream1);
 
@@ -2062,6 +2069,7 @@ TEST_F(basic_stl, vm_enable0) {
 }
 
 
+#if 0
 TEST_F(basic_stl, vm_enable1) {
 
     CBasicStl t1;
@@ -2162,6 +2170,7 @@ TEST_F(basic_stl, vm_enable2) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
+#endif
 
 
 
