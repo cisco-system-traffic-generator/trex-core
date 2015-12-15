@@ -770,7 +770,7 @@ TEST_F(basic_vm, vm9) {
 
     StreamVm vm;
 
-    vm.add_instruction( new StreamVmInstructionFlowClient( "cl1",
+    vm.add_instruction( new StreamVmInstructionFlowClient( "tuple_gen",
                                                            0x10000001,
                                                            0x10000006,
                                                            1025,
@@ -779,13 +779,13 @@ TEST_F(basic_vm, vm9) {
                                                            0) );
 
     /* src ip */
-    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.ip",26, 0,true)
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.ip",26, 0,true)
                         );
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
     /* src port */
-    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.port",34, 0,true)
                         );
 
 
@@ -793,6 +793,9 @@ TEST_F(basic_vm, vm9) {
 
     vm.compile_next();
 
+    printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
+
+    EXPECT_EQ(36,vm.get_max_packet_update_offset());
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
 

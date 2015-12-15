@@ -702,7 +702,8 @@ public:
     }
 
     bool is_unlimited_flows(){
-        return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) ==StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS);
+        return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) == 
+                  StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );
     }
 public:
 
@@ -771,11 +772,113 @@ public:
     bool         m_is_big_endian;
 };
 
+
+/**
+ * describes a VM program for DP 
+ * 
+ */
+
+class StreamVmDp {
+public:
+    StreamVmDp(){
+        m_bss_ptr=NULL; 
+        m_program_ptr =NULL ;
+        m_bss_size=0;
+        m_program_size=0;
+        m_max_pkt_offset_change=0;
+    }
+
+    StreamVmDp( uint8_t * bss,
+                uint16_t bss_size,
+                uint8_t * prog,
+                uint16_t prog_size,
+                uint16_t max_pkt_offset
+                ){
+
+        if (bss) {
+            assert(bss_size);
+            m_bss_ptr=(uint8_t*)malloc(bss_size);
+            assert(m_bss_ptr);
+            memcpy(m_bss_ptr,bss,bss_size);
+            m_bss_size=bss_size;
+        }else{
+            m_bss_ptr=NULL; 
+            m_bss_size=0;
+        }
+
+        if (prog) {
+            assert(prog_size);
+            m_program_ptr=(uint8_t*)malloc(prog_size);
+            memcpy(m_program_ptr,prog,prog_size);
+            m_program_size = prog_size;
+        }else{
+            m_program_ptr = NULL;
+            m_program_size=0;
+        }
+        m_max_pkt_offset_change =max_pkt_offset;
+    }
+
+    ~StreamVmDp(){
+        if (m_bss_ptr) {
+            free(m_bss_ptr);
+            m_bss_ptr=0;
+            m_bss_size=0;
+        }
+        if (m_program_ptr) {
+            free(m_program_ptr);
+            m_program_size=0;
+            m_program_ptr=0;
+        }
+    }
+
+    StreamVmDp * clone() const {
+        StreamVmDp * lp= new StreamVmDp(m_bss_ptr,
+                                        m_bss_size,
+                                        m_program_ptr,
+                                        m_program_size,
+                                        m_max_pkt_offset_change
+                                        );
+        assert(lp);
+        return (lp);
+    }
+
+
+    uint16_t get_bss_size(){
+        return(m_bss_size);
+    }
+
+    uint8_t*  get_bss(){
+        return (m_bss_ptr);
+    }
+
+    uint8_t*  get_program(){
+        return (m_program_ptr);
+    }
+
+    uint16_t  get_program_size(){
+        return (m_program_size);
+    }
+
+    uint16_t get_max_packet_update_offset(){
+        return (m_max_pkt_offset_change);
+    }
+
+private:
+    uint8_t *  m_bss_ptr; /* pointer to the data section */
+    uint8_t *  m_program_ptr; /* pointer to the program */
+    uint16_t   m_bss_size;
+    uint16_t   m_program_size; /* program size*/
+    uint16_t   m_max_pkt_offset_change;
+
+};
+
+
 /**
  * describes a VM program
  * 
  */
 class StreamVm {
+
 public:
     enum STREAM_VM {
         svMAX_FLOW_VAR   = 64, /* maximum flow varible */
@@ -801,6 +904,18 @@ public:
     }
 
 
+    StreamVmDp * cloneAsVmDp(){
+
+        StreamVmDp * lp= new StreamVmDp(get_bss_ptr(),
+                                        get_bss_size(),
+                                        get_dp_instruction_buffer()->get_program(),
+                                        get_dp_instruction_buffer()->get_program_size(),
+                                        get_max_packet_update_offset()
+                                        );
+        assert(lp);
+        return (lp);
+        
+    }
 
     /**
      * add new instruction to the VM
