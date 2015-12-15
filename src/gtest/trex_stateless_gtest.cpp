@@ -805,7 +805,7 @@ static void vm_build_program_seq(StreamVm & vm,
                         );
 
 
-    vm.set_packet_size(128);
+    vm.set_packet_size(packet_size);
 
     vm.compile_next();
 }
@@ -2050,8 +2050,6 @@ TEST_F(basic_stl, vm_enable0) {
      streams.push_back(stream1);
 
      // stream - clean 
-
-
      std::vector<TrexStreamsCompiledObj *> objs;
 
      assert(compile.compile(port_id,streams, objs) );

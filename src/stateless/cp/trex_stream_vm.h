@@ -27,6 +27,9 @@ limitations under the License.
 #include <unordered_map>
 #include <assert.h>
 #include <common/Network/Packet/IPHeader.h>
+#include "pal_utl.h"
+#include "mbuf.h"
+
 
 
 

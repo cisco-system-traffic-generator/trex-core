@@ -337,7 +337,7 @@ void StreamVm::build_program(){
 
             if (lpMan->m_size_bytes == 1 ){
 
-                uint8_t op;
+                uint8_t op=StreamDPVmInstructions::ditINC8;
 
                 if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
                     op = StreamDPVmInstructions::ditINC8 ;
@@ -362,6 +362,8 @@ void StreamVm::build_program(){
             if (lpMan->m_size_bytes == 2 ){
                 uint8_t op;
 
+                op = StreamDPVmInstructions::ditINC16;
+
                 if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
                     op = StreamDPVmInstructions::ditINC16 ;
                 }
@@ -385,6 +387,8 @@ void StreamVm::build_program(){
             if (lpMan->m_size_bytes == 4 ){
                 uint8_t op;
 
+                op = StreamDPVmInstructions::ditINC32;
+
                 if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
                     op = StreamDPVmInstructions::ditINC32 ;
                 }
@@ -407,6 +411,8 @@ void StreamVm::build_program(){
 
             if (lpMan->m_size_bytes == 8 ){
                 uint8_t op;
+
+                op = StreamDPVmInstructions::ditINC64;
 
                 if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
                     op = StreamDPVmInstructions::ditINC64 ;
