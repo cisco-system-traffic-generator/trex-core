@@ -144,6 +144,7 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link()=0;
+    virtual void wait_after_link_up(){};
 };
 
 
@@ -185,6 +186,7 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
 
     virtual int wait_for_stable_link();
+    void wait_after_link_up();
 };
 
 class CTRexExtendedDriverBase1GVm : public CTRexExtendedDriverBase {
@@ -1025,7 +1027,7 @@ struct port_cfg_t {
 
 
 
-	inline void update_var(void){
+    inline void update_var(void){
         get_ex_drv()->update_configuration(this);
     }
 
@@ -1034,11 +1036,8 @@ struct port_cfg_t {
     }
 
 	/* enable FDIR */
-	inline void update_global_config_fdir_10g_1g(void){
-#if 0
-fix me
-    //????????
-		m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
+    inline void update_global_config_fdir_10g(void){
+		m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT_MAC_VLAN;
 		m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
 		m_port_conf.fdir_conf.status=RTE_FDIR_NO_REPORT_STATUS; 
 		/* Offset of flexbytes field in RX packets (in 16-bit word units). */
@@ -1054,8 +1053,8 @@ fix me
 	        	m_port_conf.fdir_conf.flexbytes_offset+=(4/2);
 		}
 		m_port_conf.fdir_conf.drop_queue=1;
-#endif
-	}
+    }
+
     inline void update_global_config_fdir_40g(void){
         m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
         m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
@@ -2925,7 +2924,7 @@ int  CGlobalTRex::rcv_send_all(int queue_id){
 int CGlobalTRex::test_send(){
     int i;
 
-    //set_promisc_all(true);
+    set_promisc_all(true);
     create_udp_pkt();
 
 	CRx_check_header rx_check_header;
@@ -3006,7 +3005,7 @@ const uint8_t udp_pkt[]={
 
     0x45,0x00,0x00,0x81,
     0xaf,0x7e,0x00,0x00,
-    0x12,0x11,0xd9,0x23,
+    0xfe,0x06,0xd9,0x23,
     0x01,0x01,0x01,0x01,
     0x3d,0xad,0x72,0x1b,
 
@@ -3040,7 +3039,7 @@ const uint8_t icmp_pkt1[]={
 
     0x45,0x02,0x00,0x30,
     0x00,0x00,0x40,0x00,
-    0xaa,0x01,0xbd,0x04,
+    0xff,0x01,0xbd,0x04,
     0x9b,0xe6,0x18,0x9b, //SIP
     0xcb,0xff,0xfc,0xc2, //DIP
 
@@ -3393,6 +3392,8 @@ int  CGlobalTRex::ixgbe_start(void){
             rte_exit(EXIT_FAILURE, " "
                     " one of the link is down \n");
         }
+    } else {
+        get_ex_drv()->wait_after_link_up();
     }
 
     ixgbe_rx_queue_flush();
@@ -3520,16 +3521,16 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 	if (m_max_ports == 0)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
-    printf(" number of ports founded : %d \n",m_max_ports);
+    printf(" Number of ports found: %d \n",m_max_ports);
 
 
 
     if ( CGlobalInfo::m_options.get_expected_ports() >BP_MAX_PORTS ){
-        rte_exit(EXIT_FAILURE, " maximum ports supported are %d, use the configuration file to set the expected number of ports   \n",BP_MAX_PORTS);
+        rte_exit(EXIT_FAILURE, " Maximum ports supported are %d, use the configuration file to set the expected number of ports   \n",BP_MAX_PORTS);
     }
 
     if ( CGlobalInfo::m_options.get_expected_ports() > m_max_ports ){
-        rte_exit(EXIT_FAILURE, " there are %d ports you expected more %d,use the configuration file to set the expected number of ports   \n",
+        rte_exit(EXIT_FAILURE, " There are %d ports you expected more %d,use the configuration file to set the expected number of ports   \n",
                  m_max_ports,
                  CGlobalInfo::m_options.get_expected_ports());
     }
@@ -3540,7 +3541,7 @@ int  CGlobalTRex::ixgbe_prob_init(void){
     assert(m_max_ports <= BP_MAX_PORTS);
 
     if ( m_max_ports %2 !=0 ) {
-        rte_exit(EXIT_FAILURE, " numbe of ports %d should be even, mask the one port in the configuration file  \n, ",
+        rte_exit(EXIT_FAILURE, " Number of ports %d should be even, mask the one port in the configuration file  \n, ",
                  m_max_ports);
 
     }
@@ -3580,15 +3581,6 @@ int  CGlobalTRex::ixgbe_prob_init(void){
     }
 
     CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
-
-#if 0
-    //??? fixme
-    /* register driver callback to convert mseg to signle seg */
-    if (strcmp(dev_info.driver_name,"rte_vmxnet3_pmd")==0 ) {
-        vmxnet3_xmit_set_callback(rte_mbuf_convert_to_one_seg);
-    }
-#endif
-
 
     m_port_cfg.update_var();
 
@@ -4676,13 +4668,14 @@ int main_test(int argc , char * argv[]){
 
 
 	/* TBD_FDIR */
-	#if 0
+#if 0
 	printf(" test_send \n");
 	g_trex.test_send();
-    while (1) {
+        //    while (1) {
            delay(10000);
-    }
-	#endif
+           exit(0);
+           //    }
+#endif
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
         rte_eal_mp_remote_launch(latency_one_lcore, NULL, CALL_MASTER);
@@ -4719,19 +4712,27 @@ int main_test(int argc , char * argv[]){
 //////////////////////////////////////////////////////////////////////////////////////////////
 // driver section 
 //////////////////////////////////////////////////////////////////////////////////////////////
-
-int CTRexExtendedDriverBase1G::wait_for_stable_link(){
+void wait_x_sec(int sec) {
         int i; 
-        printf(" wait 10 sec ");
+        printf(" wait %d sec ", sec);
         fflush(stdout);
-        for (i=0; i<10; i++) {
+        for (i=0; i<sec; i++) {
             delay(1000);
             printf(".");
             fflush(stdout);
         }
         printf("\n");
         fflush(stdout);
-        return(0);
+}
+
+// in 1G we need to wait if links became ready to soon
+void CTRexExtendedDriverBase1G::wait_after_link_up(){
+    wait_x_sec(7);
+}
+
+int CTRexExtendedDriverBase1G::wait_for_stable_link(){
+    wait_x_sec(10);
+    return(0);
 }
 
 int CTRexExtendedDriverBase1G::configure_drop_queue(CPhyEthIF * _if){
@@ -4762,7 +4763,7 @@ void CTRexExtendedDriverBase1G::update_configuration(port_cfg_t * cfg){
 }
 
 void CTRexExtendedDriverBase1G::update_global_config_fdir(port_cfg_t * cfg){
-    cfg->update_global_config_fdir_10g_1g();
+    // Configuration is done in configure_rx_filter_rules by writing to registers
 }
 
 int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
@@ -4892,7 +4893,7 @@ void CTRexExtendedDriverBase10G::clear_extended_stats(CPhyEthIF * _if){
 }
 
 void CTRexExtendedDriverBase10G::update_global_config_fdir(port_cfg_t * cfg){
-    cfg->update_global_config_fdir_10g_1g();
+    cfg->update_global_config_fdir_10g();
 }
 
 void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
@@ -4902,27 +4903,9 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
 }
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
-
-    // ??? fixme
-        /* 10Gb/sec 82599 */
-#if 0
         uint8_t port_id=_if->get_rte_port_id();
-
         uint16_t hops = get_rx_check_hops();
         uint16_t v4_hops = (hops << 8)&0xff00; 
-
-
-      /* set the mask only for flex-data */
-        rte_eth_fdir_masks fdir_mask;
-        memset(&fdir_mask,0,sizeof(rte_fdir_masks));
-        fdir_mask.flexbytes=1;
-        //fdir_mask.dst_port_mask=0xffff; /* enable of 
-        int res;
-        res=rte_eth_dev_fdir_set_masks(port_id,&fdir_mask);
-        if (res!=0) {
-             rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_fdir_set_masks : %d \n",res);
-        }
-
 
         // IPv4: bytes being compared are {TTL, Protocol}
         uint16_t ff_rules_v4[6]={
@@ -4932,59 +4915,50 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
             (uint16_t)(0xFE06 - v4_hops),
             (uint16_t)(0xFF01 - v4_hops),
             (uint16_t)(0xFE01 - v4_hops),
-        }  ;
+        };
         // IPv6: bytes being compared are {NextHdr, HopLimit}
         uint16_t ff_rules_v6[6]={
             (uint16_t)(0x3CFF - hops),
             (uint16_t)(0x3CFE - hops),
-            (uint16_t)(0x3CFF - hops),
-            (uint16_t)(0x3CFE - hops),
-            (uint16_t)(0x3CFF - hops),
-            (uint16_t)(0x3CFE - hops),
-        }  ;
-        const rte_l4type ff_rules_type[6]={
-            RTE_FDIR_L4TYPE_UDP,
-            RTE_FDIR_L4TYPE_UDP,
-            RTE_FDIR_L4TYPE_TCP,
-            RTE_FDIR_L4TYPE_TCP,
-            RTE_FDIR_L4TYPE_NONE,
-            RTE_FDIR_L4TYPE_NONE
-        }  ;
+        };        
 
         uint16_t *ff_rules;
         uint16_t num_rules;
         int  rule_id;
 
-        assert (sizeof(ff_rules_v4) == sizeof(ff_rules_v6));
-        num_rules = sizeof(ff_rules_v4)/sizeof(ff_rules_v4[0]);
         if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
             ff_rules = &ff_rules_v6[0];
+            num_rules = sizeof(ff_rules_v6)/sizeof(ff_rules_v6[0]);
         }else{
             ff_rules = &ff_rules_v4[0];
+            num_rules = sizeof(ff_rules_v4)/sizeof(ff_rules_v4[0]);
         }
 
         for (rule_id=0; rule_id<num_rules; rule_id++ ) {
-    
-            rte_fdir_filter fdir_filter;
+            struct rte_eth_fdir_filter fdir_filter;
             uint16_t ff_rule = ff_rules[rule_id];
-            memset(&fdir_filter,0,sizeof(rte_fdir_filter));
+            int res = 0;
+
+            memset(&fdir_filter,0,sizeof(fdir_filter));
             /* TOS/PROTO */
             if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
-                fdir_filter.iptype = RTE_FDIR_IPTYPE_IPV6;
+                fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
             }else{
-                fdir_filter.iptype = RTE_FDIR_IPTYPE_IPV4;
+                fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
             }
-            fdir_filter.flex_bytes = PKT_NTOHS(ff_rule);
-            fdir_filter.l4type = ff_rules_type[rule_id];
-    
-            res=rte_eth_dev_fdir_add_perfect_filter(port_id,
-                                                    &fdir_filter,
-                                                    rule_id, 1,0);
-            if (res!=0) {
-                 rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_fdir_add_perfect_filter : %d\n",res);
+            fdir_filter.soft_id = rule_id;
+            
+            fdir_filter.input.flow_ext.flexbytes[0] = (ff_rule >> 8) & 0xff;
+            fdir_filter.input.flow_ext.flexbytes[1] = ff_rule & 0xff;
+            fdir_filter.action.rx_queue = 1;
+            fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
+            fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
+            res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
+
+            if (res != 0) {
+                 rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
             }
         }
-#endif
         return (0);
 }
 
@@ -5082,13 +5056,25 @@ void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
     filter.soft_id=0;
     
     filter.input.flow_type = type;
-    /* // ??? fixme
-    filter.input.flow.ip4_flow.ttl=ttl;
-
-    if (type == RTE_ETH_FLOW_NONFRAG_IPV4_OTHER) {
-        filter.input.flow.ip4_flow.l4_proto = IPPROTO_ICMP; // In this case we want filter for icmp packets
+    switch (type) {
+    case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
+        filter.input.flow.ip4_flow.ttl=ttl;
+        filter.input.flow.ip4_flow.l4_protocol = IPPROTO_ICMP; // In this case we want filter for icmp packets
+        break;
+    case RTE_ETH_FLOW_NONFRAG_IPV4_UDP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_SCTP:
+        filter.input.flow.ip4_flow.ttl=ttl;
+        break;
+    case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
+    case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
+        filter.input.flow.ipv6_flow.hop_limit=ttl;
+        break;
+    case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
+        filter.input.flow.ipv6_flow.hop_limit=ttl;
+        filter.input.flow.ipv6_flow.l4_protocol = IPPROTO_ICMP; // In the future we want to support this
+        break;
     }
-    */
 
     /* We want to place latency packets in queue 1 */
     ret=rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR,
