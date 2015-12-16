@@ -32,12 +32,11 @@ class TrexTUIPanel(object):
         self.name = name
         self.stateless_client = mng.stateless_client
 
-
     def show (self):
-        raise Exception("must implement this")
+        raise NotImplementedError("must implement this")
 
     def get_key_actions (self):
-        raise Exception("must implement this")
+        raise NotImplementedError("must implement this")
 
     def get_name (self):
         return self.name
