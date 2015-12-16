@@ -176,6 +176,30 @@ TrexRpcCmdAddStream::parse_vm_instr_checksum(const Json::Value &inst, TrexStream
 }
 
 void 
+TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result){
+
+
+    std::string  flow_var_name = parse_string(inst, "name", result);
+
+    uint32_t ip_min       = parse_uint32(inst, "ip_min", result);
+    uint32_t ip_max       = parse_uint32(inst, "ip_max", result);
+    uint16_t port_min     = parse_uint16(inst, "port_min", result);
+    uint16_t port_max     = parse_uint16(inst, "port_max", result);
+    uint32_t limit_flows  = parse_uint32(inst, "limit_flows", result);
+    uint16_t flags        = parse_uint16(inst, "flags", result);
+
+    stream->m_vm.add_instruction(new StreamVmInstructionFlowClient(flow_var_name,
+                                                                ip_min,
+                                                                ip_max,
+                                                                port_min,
+                                                                port_max,
+                                                                limit_flows,
+                                                                flags
+                                                                ));
+}
+
+
+void 
 TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
 
@@ -229,7 +253,7 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::V
     for (int i = 0; i < vm.size(); i++) {
         const Json::Value & inst = parse_object(vm, i, result);
 
-        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var"};
+        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var"};
         std::string vm_type = parse_choice(inst, "type", vm_types, result);
 
         // checksum instruction
@@ -242,6 +266,8 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::V
         } else if (vm_type == "write_flow_var") {
             parse_vm_instr_write_flow_var(inst, stream, result);
 
+        } else if (vm_type == "tuple_flow_var") {
+            parse_vm_instr_tuple_flow_var(inst, stream, result);
         } else {
             /* internal error */
             throw TrexRpcException("internal error");

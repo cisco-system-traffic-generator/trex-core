@@ -68,8 +68,11 @@ TrexStream::compile() {
 
     m_vm.compile();
 
-    m_vm_dp = m_vm.cloneAsVmDp();
+    #if 0
+    m_vm.Dump(stdout);
+    #endif
 
+    m_vm_dp = m_vm.cloneAsVmDp();
 
     /* calc m_vm_prefix_size which is the size of the writable packet */
     uint16_t max_pkt_offset = m_vm_dp->get_max_packet_update_offset();

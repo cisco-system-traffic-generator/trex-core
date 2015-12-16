@@ -899,6 +899,7 @@ class CTRexStatelessClient(object):
 
         opts = parser.parse_args(line.split())
 
+
         if opts is None:
             return RC_ERR("bad command line parameters")
 
@@ -915,7 +916,15 @@ class CTRexStatelessClient(object):
 
         else:
             # load streams from file
-            stream_list = self.streams_db.load_yaml_file(opts.file[0])
+            stream_list = None;
+            try:
+              stream_list = self.streams_db.load_yaml_file(opts.file[0])
+            except Exception as e:
+                s = str(e)
+                rc=RC_ERR("Failed to load stream pack")
+                rc.annotate()
+                return rc
+
             rc = RC(stream_list != None)
             rc.annotate("Load stream pack (from file):")
             if stream_list == None:

@@ -164,8 +164,8 @@ class TRexConsole(TRexGeneralCmd):
                 print format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold')
                 return
 
-            ret = f(*args)
-            return ret
+            rc = f(*args)
+            return rc
 
         return wrap
 
@@ -348,6 +348,8 @@ class TRexConsole(TRexGeneralCmd):
         '''Start selected traffic in specified port(s) on TRex\n'''
 
         self.stateless_client.cmd_start_line(line)
+
+        
 
 
     def help_start(self):
