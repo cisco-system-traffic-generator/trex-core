@@ -134,7 +134,7 @@ class CTRexClient(object):
         if not trex_cmd_options.get('l'):
             self.result_obj.latency_checked = False
         if 'k' in trex_cmd_options:
-            timeout += int(trex_cmd_options[k]) # during 'k' seconds TRex stays in 'Starting' state
+            timeout += int(trex_cmd_options['k']) # during 'k' seconds TRex stays in 'Starting' state
 
         self.result_obj.clear_results()
         try:
