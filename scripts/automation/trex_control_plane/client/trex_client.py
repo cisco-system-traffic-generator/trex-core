@@ -125,7 +125,7 @@ class CTRexClient(object):
         user = user or self.__default_user
         try:
             d = int(d)
-            if d < 30 and not trex_development:  # specify a test should take at least 30 seconds long.
+            if d < 30 and not trex_development:  # test duration should be at least 30 seconds, unless trex_development flag is specified.
                 raise ValueError
         except ValueError:
             raise ValueError('d parameter must be integer, specifying how long TRex run, and must be larger than 30 secs.')
@@ -133,6 +133,8 @@ class CTRexClient(object):
         trex_cmd_options.update( {'f' : f, 'd' : d} )
         if not trex_cmd_options.get('l'):
             self.result_obj.latency_checked = False
+        if 'k' in trex_cmd_options:
+            timeout += int(trex_cmd_options['k']) # during 'k' seconds TRex stays in 'Starting' state
 
         self.result_obj.clear_results()
         try:

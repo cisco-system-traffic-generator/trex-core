@@ -244,7 +244,6 @@ class CTRexStats(object):
 
 
 class CGlobalStats(CTRexStats):
-    pass
 
     def __init__(self, connection_info, server_version, ports_dict_ref):
         super(CGlobalStats, self).__init__()
@@ -270,7 +269,6 @@ class CGlobalStats(CTRexStats):
                             )
 
 class CPortStats(CTRexStats):
-    pass
 
     def __init__(self, port_obj):
         super(CPortStats, self).__init__()
