@@ -921,7 +921,7 @@ class CTRexStatelessClient(object):
               stream_list = self.streams_db.load_yaml_file(opts.file[0])
             except Exception as e:
                 s = str(e)
-                rc=RC_ERR("Failed to load stream pack")
+                rc=RC_ERR(s)
                 rc.annotate()
                 return rc
 
