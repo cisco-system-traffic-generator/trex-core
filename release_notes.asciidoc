@@ -20,6 +20,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.83  ==
+
+* more stateless support
+** Add basic Packet Field engine see stl/imin_1pkt_vm.yaml
+** some improvment with TUI window can be run in parallel with --tui option
+
 == Release 1.82  ==
 
 * more stateless support
