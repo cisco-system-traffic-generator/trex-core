@@ -301,6 +301,30 @@ class CTRexPktBuilder(object):
                 break
         return
 
+    def load_packet_from_pcap(self, pcap_path):
+        """
+        This method loads a pcap file into a parsed packet builder object.
+
+        :parameters:
+            pcap_path: str
+                a path to a pcap file, containing a SINGLE packet.
+
+        :raises:
+            + :exc:`IOError`, in case provided path doesn't exists.
+
+        """
+        with open(pcap_path, 'r') as f:
+            pcap = dpkt.pcap.Reader(f)
+            first_packet = True
+            for _, buf in pcap:
+                # this is an iterator, can't evaluate the number of files in advance
+                if first_packet:
+                    self.load_packet(dpkt.ethernet.Ethernet(buf))
+                else:
+                    raise ValueError("Provided pcap file contains more than single packet.")
+        # arrive here ONLY if pcap contained SINGLE packet
+        return
+
     def get_packet(self, get_ptr=False):
         """
         This method provides access to the built packet, as an instance or as a pointer to packet itself.

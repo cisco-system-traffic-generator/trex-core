@@ -37,6 +37,7 @@ limitations under the License.
 #include <string>
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
+#include <common/Network/Packet/IcmpHeader.h>
 #include <common/Network/Packet/IPHeader.h>
 #include <common/Network/Packet/IPv6Header.h>
 #include <common/Network/Packet/EthernetHeader.h>
@@ -380,7 +381,7 @@ public:
      * 
      * @return 
      */
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m)=0;
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p)=0;
 
     /**
      * translate a port_id to the correct dir on the core
@@ -749,6 +750,7 @@ public:
         prefix="";
         m_mac_splitter=0;
         m_run_mode = RUN_MODE_INVALID;
+        m_l_pkt_mode = 0;
     }
 
 
@@ -771,7 +773,7 @@ public:
     uint16_t        m_io_mode; //0,1,2 0 disable, 1- normal , 2 - short 
     uint16_t        m_run_flags;
     uint8_t         m_mac_splitter;
-    uint8_t         m_pad;
+    uint8_t         m_l_pkt_mode;
     trex_run_mode_e    m_run_mode;
 
 
@@ -828,6 +830,9 @@ public:
         return (  (m_run_flags &RUN_FLAGS_RXCHECK_CONST_TS)?true:false );
     }
 
+    inline uint8_t get_l_pkt_mode(){
+        return (m_l_pkt_mode);
+    }
     void dump(FILE *fd);
 };
 
@@ -1237,7 +1242,8 @@ static inline int get_is_rx_check_mode(){
 }
 
 static inline bool get_is_rx_filter_enable(){
-    return ( ( get_is_rx_check_mode() || CGlobalInfo::is_learn_mode()) ?true:false );
+    uint32_t latency_rate=CGlobalInfo::m_options.m_latency_rate;
+    return ( ( get_is_rx_check_mode() || CGlobalInfo::is_learn_mode() || latency_rate != 0) ?true:false );
 }
 static inline uint16_t get_rx_check_hops() {
     return (CGlobalInfo::m_options.m_rx_check_hops);
@@ -1799,7 +1805,7 @@ public:
     virtual int write_pkt(CCapPktRaw *pkt_raw);
     virtual int close_file(void);
 
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p){
         return (0);
     }
 
@@ -1878,7 +1884,7 @@ public:
         return (0);
     }
 
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, rte_mbuf_t      *m){
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p){
         return (0);
     }
 
@@ -2061,11 +2067,8 @@ inline bool CFlowKey::operator ==(const CFlowKey& rhs) const{
 #define IS_VALID_S 1
 #define IS_VALID_E 1
 
-#define IS_TCP_S 2
-#define IS_TCP_E 2
-
-#define IS_UDP_S 3
-#define IS_UDP_E 3
+#define PROTO_S 3
+#define PROTO_E 2
 
 #define IS_INIT_SIDE 4
 
@@ -2235,19 +2238,27 @@ public:
     }
 
     inline void SetIsTcp(bool is_valid){
-        btSetMaskBit32(m_flags,IS_TCP_S,IS_TCP_E,is_valid?1:0);
+        btSetMaskBit32(m_flags,PROTO_S,PROTO_E,is_valid?1:0);
     }
 
     inline bool IsTcp(){
-        return (btGetMaskBit32(m_flags,IS_TCP_S,IS_TCP_E) ? true:false);
+        return ((btGetMaskBit32(m_flags,PROTO_S,PROTO_E) == 1) ? true:false);
     }
 
     inline void SetIsUdp(bool is_valid){
-        btSetMaskBit32(m_flags,IS_UDP_S,IS_UDP_E,is_valid?1:0);
+        btSetMaskBit32(m_flags,PROTO_S,PROTO_E,is_valid?2:0);
     }
 
     inline bool IsUdp(){
-        return (btGetMaskBit32(m_flags,IS_UDP_S,IS_UDP_E) ? true:false);
+        return ((btGetMaskBit32(m_flags,PROTO_S,PROTO_E) == 2) ? true:false);
+    }
+
+    inline void SetIsIcmp(bool is_valid){
+        btSetMaskBit32(m_flags,PROTO_S,PROTO_E,is_valid?3:0);
+    }
+
+    inline bool IsIcmp(){
+        return ((btGetMaskBit32(m_flags,PROTO_S,PROTO_E) == 3) ? true:false);
     }
 
     inline void SetId(uint16_t _id){
@@ -2379,6 +2390,7 @@ public:
     union {                             
         TCPHeader * m_tcp;
         UDPHeader * m_udp;
+        ICMPHeader * m_icmp;      
     } l4;
     uint8_t *       m_payload;
     uint16_t        m_payload_len;
@@ -2902,7 +2914,11 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 m_udp->setDestPort(src_port);
             }
         }else{
-            BP_ASSERT(0);
+#ifdef _DEBUG
+            if (!m_pkt_indication.m_desc.IsIcmp()) {
+               BP_ASSERT(0);
+            }
+#endif
         }
     }
 }
@@ -3732,312 +3748,6 @@ inline void CFlowGeneratorRecPerThread::generate_flow(CNodeGenerator * gen,
                                m_info,
                                node);
 }
-
-
-
-class CLatencyPktInfo {
-public:
-    void Create();
-    void Delete();
-    void set_ip(uint32_t src,
-                uint32_t dst,
-                uint32_t dual_port_mask);
-    rte_mbuf_t * generate_pkt(int port_id,uint32_t extern_ip=0);
-
-    CGenNode   *    getNode(){
-        return (&m_dummy_node);
-    }
-
-    uint16_t get_payload_offset(void){
-        return ( m_pkt_indication.getFastPayloadOffset());
-    }
-
-    uint16_t get_pkt_size(void){
-        return ( m_packet->pkt_len );
-    }
-
-private:
-    ipaddr_t            m_client_ip;
-    ipaddr_t            m_server_ip;
-    uint32_t            m_dual_port_mask;
-
-    CGenNode            m_dummy_node;
-    CFlowPktInfo        m_pkt_info;
-    CPacketIndication   m_pkt_indication;
-    CCapPktRaw *        m_packet;
-};
-
-
-#define LATENCY_MAGIC 0x12345600
-
-struct  latency_header {
-
-    uint64_t time_stamp;
-    uint32_t magic;
-    uint32_t seq;
-
-    uint8_t get_id(){
-        return( magic & 0xff);
-    }
-};
-
-
-class CSimplePacketParser {
-public:
-
-    CSimplePacketParser(rte_mbuf_t * m){
-        m_m=m;
-    }
-
-    bool Parse();
-    uint8_t getTTl();
-    uint16_t getPktSize();
-
-
-
-    inline bool IsLatencyPkt(){
-        return ( (m_protocol ==0x84 )?true:false );
-    }
-
-
-public:
-    IPHeader *      m_ipv4;
-    IPv6Header *    m_ipv6;
-    uint8_t         m_protocol;
-    uint16_t        m_vlan_offset;
-    uint16_t        m_option_offset;
-private: 
-    rte_mbuf_t *    m_m ;
-};
-
-
-
-class CLatencyManager ;
-// per port 
-class CCPortLatency {
-public:
-    bool Create(CLatencyManager * parent,
-                uint8_t id,
-                uint16_t offset,
-                uint16_t pkt_size,
-                CCPortLatency * rx_port
-                );
-    void Delete();
-    void reset();
-    bool can_send_packet(){
-        if ( !CGlobalInfo::is_learn_mode() ) {
-            return(true);
-        }
-        return ( m_nat_can_send );
-    }
-    uint32_t external_nat_ip(){
-        return (m_nat_external_ip);
-    }
-
-    void update_packet(rte_mbuf_t * m);
-
-    bool do_learn(uint32_t external_ip);
-
-    bool check_packet(rte_mbuf_t * m,
-                      CRx_check_header * & rx_p);
-    bool check_rx_check(rte_mbuf_t * m);
-
-
-	bool dump_packet(rte_mbuf_t * m);
-
-    void DumpCounters(FILE *fd);
-    void dump_counters_json(std::string & json );
-
-    void DumpShort(FILE *fd);
-    void dump_json(std::string & json );
-    void dump_json_v2(std::string & json );
-
-    uint32_t get_jitter_usec(void){
-        return ((uint32_t)(m_jitter.get_jitter()*1000000.0));
-    }
-
-
-    static void DumpShortHeader(FILE *fd);
-
-    bool is_any_err(){
-        if (  (m_tx_pkt_ok == m_rx_port->m_pkt_ok ) && 
-
-              ((m_unsup_prot+
-                m_no_magic+
-                m_no_id+
-                m_seq_error+
-                m_length_error+m_no_ipv4_option+m_tx_pkt_err)==0) ) {
-            return (false);
-        }
-        return (true);
-    }
-
-private:
-    std::string get_field(std::string name,float f);
-
-    
-
-private:
-     CLatencyManager * m_parent;
-     CCPortLatency *   m_rx_port; /* corespond rx port  */
-     bool              m_nat_learn;  
-     bool              m_nat_can_send;
-     uint32_t          m_nat_external_ip;
-
-     uint32_t m_tx_seq;
-     uint32_t m_rx_seq;
-
-     uint8_t  m_pad;
-     uint8_t  m_id;
-     uint16_t m_offset;
-
-     uint16_t m_pkt_size;
-     uint16_t pad1[3];
-
-public:
-     uint64_t m_tx_pkt_ok;
-     uint64_t m_tx_pkt_err;
-
-     uint64_t m_pkt_ok;
-     uint64_t m_unsup_prot;
-     uint64_t m_no_magic;
-     uint64_t m_no_id;
-     uint64_t m_seq_error;
-     uint64_t m_rx_check;
-     uint64_t m_no_ipv4_option;
-
-
-     uint64_t m_length_error;
-     CTimeHistogram  m_hist; /* all window */
-     CJitter         m_jitter; 
-};
-
-
-class CPortLatencyHWBase {
-public:
-    virtual int tx(rte_mbuf_t * m)=0;
-    virtual rte_mbuf_t * rx()=0;
-    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, 
-                               uint16_t nb_pkts){
-        return(0);
-    }
-};
-
-
-class CLatencyManagerCfg {
-public:
-    CLatencyManagerCfg (){
-        m_max_ports=0;
-        m_cps=0.0;
-        m_client_ip.v4=0x10000000;
-        m_server_ip.v4=0x20000000;
-        m_dual_port_mask=0x01000000;
-    }
-    uint32_t             m_max_ports;
-    double               m_cps;// CPS
-    CPortLatencyHWBase * m_ports[MAX_LATENCY_PORTS];
-    ipaddr_t             m_client_ip;
-    ipaddr_t             m_server_ip;
-    uint32_t             m_dual_port_mask;
-
-};
-
-
-
-class CLatencyManagerPerPort {
-public:
-     CCPortLatency          m_port;
-     CPortLatencyHWBase  *  m_io;
-     uint32_t               m_flag;
-
-};
-
-
-class CLatencyManager {
-public:
-    bool Create(CLatencyManagerCfg * cfg);
-    void Delete();
-
-public:
-    void  reset();
-    void  start(int iter);
-    void  stop();
-    bool  is_active();
-
-    void set_ip(uint32_t client_ip,
-                uint32_t server_ip,
-                uint32_t mask_dual_port){
-        m_pkt_gen.set_ip(client_ip,server_ip,mask_dual_port);
-    }
-
-public:
-    void Dump(FILE *fd); // dump all
-    void DumpShort(FILE *fd); // dump short histogram of latency 
-
-    void DumpRxCheck(FILE *fd); // dump all
-    void DumpShortRxCheck(FILE *fd); // dump short histogram of latency 
-    void rx_check_dump_json(std::string & json);
-    uint16_t get_latency_header_offset(){
-        return ( m_pkt_gen.get_payload_offset() );
-    }
-    void update();
-    void dump_json(std::string & json ); // dump to json 
-    void dump_json_v2(std::string & json );
-
-
-
-    void DumpRxCheckVerification(FILE *fd,uint64_t total_tx_rx_check);
-    void set_mask(uint32_t mask){
-        m_port_mask=mask;
-    }
-
-    double get_max_latency(void);
-    double get_avr_latency(void);
-    bool   is_any_error();
-    uint64_t get_total_pkt();
-    uint64_t get_total_bytes();
-    CNatRxManager * get_nat_manager(){
-        return ( &m_nat_check_manager );
-    }
-
-private:
-    void  send_pkt_all_ports();
-    void  try_rx();
-    void  try_rx_queues();
-    void  run_rx_queue_msgs(uint8_t thread_id,
-                                             CNodeRing * r);
-	void  wait_for_rx_dump();
-    void  handle_rx_pkt(CLatencyManagerPerPort * lp,
-                        rte_mbuf_t * m);
-
-
-private:
-    /* messages handlers */
-    void handle_latecy_pkt_msg(uint8_t thread_id,
-                               CGenNodeLatencyPktInfo * msg);
-
-
-
-private:
-     pqueue_t                m_p_queue; /* priorty queue */
-     bool                    m_is_active;
-     CLatencyPktInfo         m_pkt_gen;
-     CLatencyManagerPerPort  m_ports[MAX_LATENCY_PORTS];
-     uint64_t                m_d_time; // calc tick betwen sending 
-     double                  m_cps;
-     double                  m_delta_sec;
-     uint64_t                m_start_time; // calc tick betwen sending 
-     uint32_t                m_port_mask;
-     uint32_t                m_max_ports;
-	 RxCheckManager 		 m_rx_check_manager;
-     CNatRxManager           m_nat_check_manager;
-     CCpuUtlDp               m_cpu_dp_u;
-     CCpuUtlCp               m_cpu_cp_u;
-
-     volatile bool           m_do_stop __rte_cache_aligned ;
-
-};
-
 
 inline bool CGenNode::is_responder_pkt(){
     return ( m_pkt_info->m_pkt_indication.m_desc.IsInitSide() ?false:true );

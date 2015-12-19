@@ -142,8 +142,9 @@ private:
 /**************************************
  * stream compiled object
  *************************************/
-TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id, double mul) : m_port_id(port_id), m_mul(mul) {
-      m_all_continues=false;
+TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id) {
+    m_port_id = port_id;
+    m_all_continues = false;
 }
 
 TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
@@ -155,25 +156,31 @@ TrexStreamsCompiledObj::~TrexStreamsCompiledObj() {
 
 
 void 
-TrexStreamsCompiledObj::add_compiled_stream(TrexStream * stream){
+TrexStreamsCompiledObj::add_compiled_stream(TrexStream *stream){
 
     obj_st obj;
 
-    obj.m_stream = stream->clone_as_dp();
+    obj.m_stream = stream;
 
     m_objs.push_back(obj);
 }
 
-void 
-TrexStreamsCompiledObj::add_compiled_stream(TrexStream * stream,
-                                            uint32_t my_dp_id, int next_dp_id) {
-    obj_st obj;
 
-    obj.m_stream = stream->clone_as_dp();
-    /* compress the id's*/
-    obj.m_stream->fix_dp_stream_id(my_dp_id,next_dp_id);
+TrexStreamsCompiledObj *
+TrexStreamsCompiledObj::clone() {
 
-    m_objs.push_back(obj);
+    TrexStreamsCompiledObj *new_compiled_obj = new TrexStreamsCompiledObj(m_port_id);
+
+    /**
+     * clone each element
+     */
+    for (auto obj : m_objs) {
+        TrexStream *new_stream = obj.m_stream->clone_as_dp();
+        new_compiled_obj->add_compiled_stream(new_stream);
+    }
+
+    return new_compiled_obj;
+
 }
 
 void TrexStreamsCompiledObj::Dump(FILE *fd){
@@ -182,25 +189,6 @@ void TrexStreamsCompiledObj::Dump(FILE *fd){
     }
 }
 
-
-
-TrexStreamsCompiledObj *
-TrexStreamsCompiledObj::clone() {
-
-    /* use multiplier of 1 to avoid double mult */
-    TrexStreamsCompiledObj *new_compiled_obj = new TrexStreamsCompiledObj(m_port_id, 1);
-
-    /**
-     * clone each element
-     */
-    for (auto obj : m_objs) {
-        new_compiled_obj->add_compiled_stream(obj.m_stream);
-    }
-
-    new_compiled_obj->m_mul = m_mul;
-
-    return new_compiled_obj;
-}
 
 void
 TrexStreamsCompiler::add_warning(const std::string &warning) {
@@ -219,7 +207,7 @@ TrexStreamsCompiler::check_stream(const TrexStream *stream) {
     /* cont. stream can point only on itself */
     if (stream->get_type() == TrexStream::stCONTINUOUS) {
         if (stream->m_next_stream_id != -1) {
-            ss << "continous stream '" << stream->m_stream_id << "' cannot point on another stream";
+            ss << "continous stream '" << stream->m_stream_id << "' cannot point to another stream";
             err(ss.str());
         }
     }
@@ -381,12 +369,34 @@ TrexStreamsCompiler::pre_compile_check(const std::vector<TrexStream *> &streams,
  * stream compiler
  *************************************/
 bool 
-TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
-                             TrexStreamsCompiledObj &obj,
-                             std::string *fail_msg) {
+TrexStreamsCompiler::compile(uint8_t                                port_id,
+                             const std::vector<TrexStream *>        &streams,
+                             std::vector<TrexStreamsCompiledObj *>  &objs,
+                             uint8_t                                dp_core_count,
+                             double                                 factor,
+                             std::string                            *fail_msg) {
+
+    try {
+        return compile_internal(port_id,streams,objs,dp_core_count,factor,fail_msg);
+    } catch (const TrexException &ex) {
+        if (fail_msg) {
+            *fail_msg = ex.what();
+        } else {
+            std::cout << ex.what();
+        }
+        return false;
+    }
+
+}
+bool 
+TrexStreamsCompiler::compile_internal(uint8_t                                port_id,
+                                      const std::vector<TrexStream *>        &streams,
+                                      std::vector<TrexStreamsCompiledObj *>  &objs,
+                                      uint8_t                                dp_core_count,
+                                      double                                 factor,
+                                      std::string                            *fail_msg) {
 
 #if 0
-    fprintf(stdout,"------------pre compile \n");
     for (auto stream : streams) {
         stream->Dump(stdout);
     }
@@ -397,48 +407,99 @@ TrexStreamsCompiler::compile(const std::vector<TrexStream *> &streams,
 
 
     /* compile checks */
-    try {
-        pre_compile_check(streams,nodes);
-    } catch (const TrexException &ex) {
-        if (fail_msg) {
-            *fail_msg = ex.what();
-        } else {
-            std::cout << ex.what();
+    pre_compile_check(streams, nodes);
+
+    /* check if all are cont. streams */
+    bool all_continues = true;
+    for (const auto stream : streams) {
+        if (stream->get_type() != TrexStream::stCONTINUOUS) {
+            all_continues = false;
+            break;
         }
-        return false;
     }
 
+    /* allocate objects for all DP cores */
+    for (uint8_t i = 0; i < dp_core_count; i++) {
+        TrexStreamsCompiledObj *obj = new TrexStreamsCompiledObj(port_id);
+        obj->m_all_continues = all_continues;
+        objs.push_back(obj);
+    }
 
-    bool all_continues=true;
-    /* for now we do something trivial, */
+    /* compile all the streams */
     for (auto stream : streams) {
 
         /* skip non-enabled streams */
         if (!stream->m_enabled) {
             continue;
         }
-        if (stream->get_type() != TrexStream::stCONTINUOUS ) {
-            all_continues=false;
-        }
-
-        int new_id= nodes.get(stream->m_stream_id)->m_compressed_stream_id;
-        assert(new_id>=0);
-        uint32_t my_stream_id = (uint32_t)new_id;
-        int my_next_stream_id=-1;
-        if (stream->m_next_stream_id>=0) {
-            my_next_stream_id=nodes.get(stream->m_next_stream_id)->m_compressed_stream_id;
-        }
-
-        /* add it */
-        obj.add_compiled_stream(stream,
-                                my_stream_id,
-                                my_next_stream_id
-                                );
-        
+     
+        /* compile a single stream to all cores */
+        compile_stream(stream, factor, dp_core_count, objs, nodes);
     }
-    obj.m_all_continues =all_continues;
+
     return true;
 }
+
+/**
+ * compiles a single stream to DP objects
+ * 
+ * @author imarom (03-Dec-15)
+ * 
+ */
+void
+TrexStreamsCompiler::compile_stream(const TrexStream *stream,
+                                    double factor,
+                                    uint8_t dp_core_count,
+                                    std::vector<TrexStreamsCompiledObj *> &objs,
+                                    GraphNodeMap &nodes) {
+
+
+    /* fix the stream ids */
+    int new_id = nodes.get(stream->m_stream_id)->m_compressed_stream_id;
+    assert(new_id >= 0);
+
+    int new_next_id = -1;
+    if (stream->m_next_stream_id >= 0) {
+        new_next_id = nodes.get(stream->m_next_stream_id)->m_compressed_stream_id;
+    }
+
+    /* calculate rate */
+    double per_core_rate          = (stream->m_pps * (factor / dp_core_count));
+    int per_core_burst_total_pkts = (stream->m_burst_total_pkts / dp_core_count);
+
+    /* compile VM */
+    /* fix this const away problem */
+    ((TrexStream *)stream)->compile();
+
+    std::vector<TrexStream *> per_core_streams(dp_core_count);
+
+    /* for each core - creates its own version of the stream */
+    for (uint8_t i = 0; i < dp_core_count; i++) {
+        TrexStream *dp_stream = stream->clone_as_dp();
+
+        /* fix stream ID */
+        dp_stream->fix_dp_stream_id(new_id, new_next_id);
+
+
+        /* adjust rate and packets count */
+        dp_stream->m_pps               = per_core_rate;
+        dp_stream->m_burst_total_pkts  = per_core_burst_total_pkts;
+
+        per_core_streams[i] = dp_stream;
+    }
+
+    /* take care of remainder from a burst */
+    int burst_remainder = stream->m_burst_total_pkts - (per_core_burst_total_pkts * dp_core_count);
+    per_core_streams[0]->m_burst_total_pkts += burst_remainder;
+
+    /* attach the compiled stream of every core to its object */
+    for (uint8_t i = 0; i < dp_core_count; i++) {
+        objs[i]->add_compiled_stream(per_core_streams[i]);
+    }
+
+
+}
+
 
 /**************************************
  * streams graph
@@ -486,10 +547,13 @@ TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const Tre
     start_event.time = offset_usec + stream->m_isg_usec;
     start_event.diff_pps = stream->get_pps();
     start_event.diff_bps = stream->get_bps();
-    m_graph_obj.add_rate_event(start_event);
+    m_graph_obj->add_rate_event(start_event);
 
     /* no more events after this stream */
     offset_usec = -1;
+
+    /* also mark we have an inifite time */
+    m_graph_obj->m_expected_duration = -1;
 }
 
 /**
@@ -510,13 +574,13 @@ TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, c
     start_event.time = offset_usec + stream->m_isg_usec;
     start_event.diff_pps = stream->get_pps();
     start_event.diff_bps = stream->get_bps();
-    m_graph_obj.add_rate_event(start_event);
+    m_graph_obj->add_rate_event(start_event);
 
     /* stop event */
     stop_event.time = start_event.time + stream->get_burst_length_usec();
     stop_event.diff_pps = -(start_event.diff_pps);
     stop_event.diff_bps = -(start_event.diff_bps);
-    m_graph_obj.add_rate_event(stop_event);
+    m_graph_obj->add_rate_event(stop_event);
 
     /* next stream starts from here */
     offset_usec = stop_event.time;
@@ -549,10 +613,10 @@ TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, co
     for (int i = 0; i < stream->m_num_bursts; i++) {
 
         start_event.time = offset_usec + delay;
-        m_graph_obj.add_rate_event(start_event);
+        m_graph_obj->add_rate_event(start_event);
 
         stop_event.time = start_event.time + stream->get_burst_length_usec();
-        m_graph_obj.add_rate_event(stop_event);
+        m_graph_obj->add_rate_event(stop_event);
 
         /* after the first burst, the delay is inter burst gap */
         delay = stream->m_ibg_usec;
@@ -602,6 +666,7 @@ TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
         /* loop detection */
         auto search = loop_hash.find(stream->m_next_stream_id);
         if (search != loop_hash.end()) {
+            m_graph_obj->on_loop_detection();
             break;
         }
 
@@ -615,8 +680,12 @@ TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
  * see graph object for more details 
  * 
  */
-const TrexStreamsGraphObj &
+const TrexStreamsGraphObj *
 TrexStreamsGraph::generate(const std::vector<TrexStream *> &streams) {
+
+    /* main object to hold the graph - returned to the user */
+    m_graph_obj = new TrexStreamsGraphObj();
+
     std::vector <uint32_t> root_streams;
 
     /* before anything we create a hash streams ID
@@ -644,7 +713,7 @@ TrexStreamsGraph::generate(const std::vector<TrexStream *> &streams) {
     }
 
 
-    m_graph_obj.generate();
+    m_graph_obj->generate();
 
     return m_graph_obj;
 }
@@ -668,6 +737,11 @@ TrexStreamsGraphObj::find_max_rate() {
 
         max_rate_pps = std::max(max_rate_pps, current_rate_pps);
         max_rate_bps = std::max(max_rate_bps, current_rate_bps);
+    }
+
+    /* if not mark as inifite - get the last event time */
+    if (m_expected_duration != -1) {
+        m_expected_duration = m_rate_events.back().time;
     }
 
     m_max_pps = max_rate_pps;

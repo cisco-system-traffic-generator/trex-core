@@ -10,22 +10,24 @@ ArgumentGroup = namedtuple('ArgumentGroup', ['type', 'args', 'options'])
 
 # list of available parsing options
 MULTIPLIER = 1
-PORT_LIST = 2
-ALL_PORTS = 3
-PORT_LIST_WITH_ALL = 4
-FILE_PATH = 5
-FILE_FROM_DB = 6
-SERVER_IP = 7
-STREAM_FROM_PATH_OR_FILE = 8
-DURATION = 9
-FORCE = 10
+MULTIPLIER_STRICT = 2
+PORT_LIST = 3
+ALL_PORTS = 4
+PORT_LIST_WITH_ALL = 5
+FILE_PATH = 6
+FILE_FROM_DB = 7
+SERVER_IP = 8
+STREAM_FROM_PATH_OR_FILE = 9
+DURATION = 10
+FORCE = 11
+DRY_RUN = 12
+XTERM = 13
+TOTAL = 14
 
-TOTAL = 11
-
-GLOBAL_STATS = 12
-PORT_STATS = 13
-PORT_STATUS = 14
-STATS_MASK = 15
+GLOBAL_STATS = 50
+PORT_STATS = 51
+PORT_STATUS = 52
+STATS_MASK = 53
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -60,10 +62,15 @@ match_multiplier_help = """Multiplier should be passed in the following format:
                           will provide a percentage of the line rate. examples
                           : '-m 10', '-m 10kbps', '-m 10mpps', '-m 23%%' """
 
-def match_multiplier(val):
-    '''match some val against multiplier  shortcut inputs '''
+def match_multiplier_common(val, strict_abs = True):
 
-    match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
+    # on strict absolute we do not allow +/-
+    if strict_abs:
+        match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
+        op = None
+    else:
+        match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)([\+\-])?$", val)
+        op  = match.group(4)
 
     result = {}
 
@@ -71,44 +78,53 @@ def match_multiplier(val):
 
         value = float(match.group(1))
         unit = match.group(3)
+        
 
+        
         # raw type (factor)
         if not unit:
             result['type'] = 'raw'
-            result['max'] = value
+            result['value'] = value
 
         elif unit == 'bps':
-            result['type'] = 'max_bps'
-            result['max'] = value
+            result['type'] = 'bps'
+            result['value'] = value
 
         elif unit == 'kbps':
-            result['type'] = 'max_bps'
-            result['max'] = value * 1000
+            result['type'] = 'bps'
+            result['value'] = value * 1000
 
         elif unit == 'mbps':
-            result['type'] = 'max_bps'
-            result['max'] = value * 1000 * 1000
+            result['type'] = 'bps'
+            result['value'] = value * 1000 * 1000
 
         elif unit == 'gbps':
-            result['type'] = 'max_bps'
-            result['max'] = value * 1000 * 1000 * 1000
+            result['type'] = 'bps'
+            result['value'] = value * 1000 * 1000 * 1000
 
         elif unit == 'pps':
-            result['type'] = 'max_pps'
-            result['max'] = value
+            result['type'] = 'pps'
+            result['value'] = value
 
         elif unit == "kpps":
-            result['type'] = 'max_pps'
-            result['max'] = value * 1000
+            result['type'] = 'pps'
+            result['value'] = value * 1000
 
         elif unit == "mpps":
-            result['type'] = 'max_pps'
-            result['max'] = value * 1000 * 1000
+            result['type'] = 'pps'
+            result['value'] = value * 1000 * 1000
 
         elif unit == "%":
-            # will be translated by the port object
             result['type'] = 'percentage'
-            result['max']  = value
+            result['value']  = value
+
+
+        if op == "+":
+            result['op'] = "add"
+        elif op == "-":
+            result['op'] = "sub"
+        else:
+            result['op'] = "abs"
 
         return result
 
@@ -116,6 +132,13 @@ def match_multiplier(val):
         raise argparse.ArgumentTypeError(match_multiplier_help)
 
 
+def match_multiplier(val):
+    '''match some val against multiplier  shortcut inputs '''
+    return match_multiplier_common(val, strict_abs = False)
+
+def match_multiplier_strict(val):
+    '''match some val against multiplier  shortcut inputs '''
+    return match_multiplier_common(val, strict_abs = True)
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):
@@ -127,9 +150,14 @@ def is_valid_file(filename):
 OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                  {'help': match_multiplier_help,
                                   'dest': "mult",
-                                  'default': {'type':'raw', 'max':1},
+                                  'default': {'type':'raw', 'value':1, 'op': 'abs'},
                                   'type': match_multiplier}),
 
+              MULTIPLIER_STRICT: ArgumentPack(['-m', '--multiplier'],
+                               {'help': match_multiplier_help,
+                                  'dest': "mult",
+                                  'default': {'type':'raw', 'value':1, 'op': 'abs'},
+                                  'type': match_multiplier_strict}),
 
               TOTAL: ArgumentPack(['-t', '--total'],
                                  {'help': "traffic will be divided between all ports specified",
@@ -177,6 +205,19 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                       {'metavar': 'SERVER',
                                        'help': "server IP"}),
 
+              DRY_RUN: ArgumentPack(['-n', '--dry'],
+                                    {'action': 'store_true',
+                                     'dest': 'dry',
+                                     'default': False,
+                                     'help': "Dry run - no traffic will be injected"}),
+
+
+              XTERM: ArgumentPack(['-x', '--xterm'],
+                                  {'action': 'store_true',
+                                   'dest': 'xterm',
+                                   'default': False,
+                                   'help': "Starts TUI in xterm window"}),
+
               GLOBAL_STATS: ArgumentPack(['-g'],
                                          {'action': 'store_true',
                                           'help': "Fetch only global statistics"}),
@@ -188,6 +229,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               PORT_STATUS: ArgumentPack(['--ps'],
                                         {'action': 'store_true',
                                          'help': "Fetch only port status data"}),
+
 
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,

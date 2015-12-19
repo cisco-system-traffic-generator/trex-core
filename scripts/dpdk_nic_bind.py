@@ -32,7 +32,6 @@
 #   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-
 import sys, os, getopt, subprocess
 from os.path import exists, abspath, dirname, basename
 
@@ -44,7 +43,7 @@ ETHERNET_CLASS = "0200"
 # Each device within this is itself a dictionary of device properties
 devices = {}
 # list of supported DPDK drivers
-dpdk_drivers = [ "igb_uio", "vfio-pci" ]
+dpdk_drivers = [ "igb_uio", "vfio-pci", "uio_pci_generic" ]
 
 # command-line arg flags
 b_flag = None
@@ -69,7 +68,7 @@ Options:
     --help, --usage:
         Display usage information and quit
 
-    --status:
+    -s, --status:
         Print the current status of all known network interfaces.
         For each device, it displays the PCI domain, bus, slot and function,
         along with a text description of the device. Depending upon whether the
@@ -176,8 +175,11 @@ def check_modules():
 
     # check if we have at least one loaded module
     if True not in [mod["Found"] for mod in mods] and b_flag is not None:
-        print "Error - no supported modules are loaded"
-        sys.exit(1)
+        if b_flag in dpdk_drivers:
+            print "Error - no supported modules(DPDK driver) are loaded"
+            sys.exit(1)
+        else:
+            print "Warning - no supported modules(DPDK driver) are loaded"
 
     # change DPDK driver list to only contain drivers that are loaded
     dpdk_drivers = [mod["Name"] for mod in mods if mod["Found"]]
@@ -348,7 +350,6 @@ def bind_one(dev_id, driver, force):
             f = open(filename, "w")
         except:
             print "Error: bind failed for %s - Cannot open %s" % (dev_id, filename)
-            exit(-1)
             return
         try:
             f.write("%04x %04x" % (dev["Vendor"], dev["Device"]))
@@ -356,7 +357,6 @@ def bind_one(dev_id, driver, force):
         except:
             print "Error: bind failed for %s - Cannot write new PCI ID to " \
                 "driver %s" % (dev_id, driver)
-            exit(-1)
             return
 
     # do the bind by writing to /sys
@@ -391,7 +391,7 @@ def unbind_all(dev_list, force=False):
         unbind_one(d, force)
 
 def bind_all(dev_list, driver, force=False):
-    """Unbind method, takes a list of device locations"""
+    """Bind method, takes a list of device locations"""
     global devices
 
     dev_list = map(dev_id_from_dev_name, dev_list)
@@ -477,7 +477,7 @@ def parse_args():
         sys.exit(0)
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "b:u",
+        opts, args = getopt.getopt(sys.argv[1:], "b:us",
                                ["help", "usage", "status", "force",
                                 "bind=", "unbind"])
     except getopt.GetoptError, error:
@@ -489,7 +489,7 @@ def parse_args():
         if opt == "--help" or opt == "--usage":
             usage()
             sys.exit(0)
-        if opt == "--status":
+        if opt == "--status" or opt == "-s":
             status_flag = True
         if opt == "--force":
             force_flag = True

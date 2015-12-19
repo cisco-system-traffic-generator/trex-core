@@ -36,6 +36,54 @@ limitations under the License.
 class TrexRpcCmdAddStream;
 
 
+static inline uint16_t get_log2_size(uint16_t size){
+
+    uint16_t _sizes[]={64,128,256,512,1024,2048};
+    int i;
+    for (i=0; i<sizeof(_sizes)/sizeof(_sizes[0]); i++) {
+        if (size<=_sizes[i]) {
+            return (_sizes[i]);
+        }
+    }
+    assert(0);
+    return (0);
+}
+
+/**
+ *  calculate the size of writable mbuf in bytes. maximum size if packet size 
+ * 
+ * @param max_offset_writable
+ *                 the last byte that we don't write too. for example when 63 it means that bytes [62] in the array is written (zero base)
+ * @param pkt_size packet size in bytes
+ * 
+ * @return the writable size of the first mbuf . the idea is to give at least 64 bytes const mbuf else all packet will be writeable 
+ * 
+ * examples:
+ *       max_offset_writable =63
+ *       pkt_size =62
+ *        ==>62
+ * 
+ */
+static inline uint16_t calc_writable_mbuf_size(uint16_t max_offset_writable,
+                                 uint16_t pkt_size){
+
+    if ( pkt_size<=64 ){
+        return (pkt_size);
+    }
+    if (pkt_size<=128) {
+        return (pkt_size);
+    }
+
+    //pkt_size> 128
+    uint16_t non_writable = pkt_size - (max_offset_writable -1) ;
+    if ( non_writable<64 ) {
+        return (pkt_size);
+    }
+    return(max_offset_writable-1);
+}
+
+
+
 struct CStreamPktData {
         uint8_t      *binary;
         uint16_t      len;
@@ -129,9 +177,18 @@ public:
     }
 
     /* create new stream */
-    TrexStream * clone_as_dp(){
-            TrexStream * dp=new TrexStream(m_type,m_port_id,m_stream_id);
-        
+    TrexStream * clone_as_dp() const {
+
+            TrexStream *dp = new TrexStream(m_type,m_port_id,m_stream_id);
+            dp->m_has_vm = m_has_vm;
+            if (m_vm_dp) {
+                /* should have vm */
+                assert(m_has_vm);
+                dp->m_vm_dp = m_vm_dp->clone();
+            }else{
+                dp->m_vm_dp = NULL;
+            }
+            dp->m_vm_prefix_size = m_vm_prefix_size;
 
             dp->m_isg_usec      = m_isg_usec;
             dp->m_next_stream_id = m_next_stream_id;
@@ -161,10 +218,28 @@ public:
     }
 
     void Dump(FILE *fd);
+
+    bool is_vm(){
+        return (  m_has_vm );
+    }
+
+    StreamVmDp  * getDpVm(){
+        return ( m_vm_dp);
+    }
+
+    void post_vm_compile();
+
+    /**
+     * internal compilation of stream (for DP)
+     * 
+     */
+    void compile();
+
 public:
     /* basic */
     uint8_t       m_type;
     uint8_t       m_port_id;
+    uint16_t      m_vm_prefix_size;          /* writeable mbuf size */
     uint32_t      m_stream_id;              /* id from RPC can be anything */
     
 
@@ -175,6 +250,10 @@ public:
     /* indicators */
     bool          m_enabled;
     bool          m_self_start;
+    bool          m_has_vm; /* do we have instructions to run */
+
+
+    StreamVmDp  * m_vm_dp; /* compile VM  */
 
     CStreamPktData   m_pkt;
     /* pkt */

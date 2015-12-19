@@ -41,8 +41,8 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdAcquire());
     register_command(new TrexRpcCmdRelease());
     register_command(new TrexRpcCmdGetPortStats());
-
-    register_command(new TrexRpcCmdSyncUser());
+    register_command(new TrexRpcCmdGetPortStatus());
+    
 
     /* stream commands */
     register_command(new TrexRpcCmdAddStream());
@@ -57,7 +57,10 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdPauseTraffic());
     register_command(new TrexRpcCmdResumeTraffic());
     register_command(new TrexRpcCmdUpdateTraffic());
+
+    register_command(new TrexRpcCmdValidate());
 }
+
 
 TrexRpcCommandsTable::~TrexRpcCommandsTable() {
     for (auto cmd : m_rpc_cmd_table) {

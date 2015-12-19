@@ -39,10 +39,16 @@ public:
     void publish_json(const std::string &s);
 
     enum event_type_e {
-        EVENT_PORT_STARTED       = 0,
-        EVENT_PORT_STOPPED       = 1,
-        EVENT_SERVER_STOPPED     = 2,
-        EVENT_PORT_FINISHED_TX   = 3,
+        EVENT_PORT_STARTED          = 0,
+        EVENT_PORT_STOPPED          = 1,
+        EVENT_PORT_PAUSED           = 2,
+        EVENT_PORT_RESUMED          = 3,
+        EVENT_PORT_FINISHED_TX      = 4,
+        EVENT_PORT_FORCE_ACQUIRED   = 5,
+
+        EVENT_SERVER_STOPPED        = 100,
+        
+        
     };
 
     void publish_event(event_type_e type, const Json::Value &data = Json::nullValue);

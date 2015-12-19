@@ -727,7 +727,10 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		 */
 		ip->src_addr = fdir_input->flow.ip4_flow.dst_ip;
 		ip->dst_addr = fdir_input->flow.ip4_flow.src_ip;
-		ip->next_proto_id = next_proto[fdir_input->flow_type];
+                if (fdir_input->flow_type == RTE_ETH_FLOW_TYPE_IPV4_OTHER) {
+                    ip->next_proto_id = fdir_input->flow.ip4_flow.l4_proto;
+                } else
+                    ip->next_proto_id = next_proto[fdir_input->flow_type];
 		break;
 	case RTE_ETH_FLOW_TYPE_UDPV6:
 	case RTE_ETH_FLOW_TYPE_TCPV6:

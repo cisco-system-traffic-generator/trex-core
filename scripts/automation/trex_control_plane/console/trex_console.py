@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
+import subprocess
 import cmd
 import json
 import ast
@@ -34,8 +34,8 @@ from client.trex_stateless_client import CTRexStatelessClient
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 from client_utils import parsing_opts
-import trex_status
-
+import trex_tui
+from functools import wraps
 
 
 __version__ = "1.1"
@@ -114,13 +114,13 @@ class TRexGeneralCmd(cmd.Cmd):
 class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, stateless_client, acquire_all_ports=True, verbose=False):
+    def __init__(self, stateless_client, verbose=False):
         self.stateless_client = stateless_client
         TRexGeneralCmd.__init__(self)
 
+        self.tui = trex_tui.TrexTUI(stateless_client)
 
         self.verbose = verbose
-        self.acquire_all_ports = acquire_all_ports
 
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
@@ -130,9 +130,49 @@ class TRexConsole(TRexGeneralCmd):
 
     ################### internal section ########################
 
+    def verify_connected(f):
+        @wraps(f)
+        def wrap(*args):
+            inst = args[0]
+            func_name = f.__name__
+            if func_name.startswith("do_"):
+                func_name = func_name[3:]
+
+            if not inst.stateless_client.is_connected():
+                print format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold')
+                return
+
+            ret = f(*args)
+            return ret
+
+        return wrap
+
+    # TODO: remove this ugly duplication
+    def verify_connected_and_rw (f):
+        @wraps(f)
+        def wrap(*args):
+            inst = args[0]
+            func_name = f.__name__
+            if func_name.startswith("do_"):
+                func_name = func_name[3:]
+
+            if not inst.stateless_client.is_connected():
+                print format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold')
+                return
+
+            if inst.stateless_client.is_read_only():
+                print format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold')
+                return
+
+            rc = f(*args)
+            return rc
+
+        return wrap
+
+
     def get_console_identifier(self):
         return "{context}_{server}".format(context=self.__class__.__name__,
-                                           server=self.stateless_client.get_system_info()['hostname'])
+                                           server=self.stateless_client.get_server_ip())
     
     def register_main_console_methods(self):
         main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))
@@ -142,11 +182,18 @@ class TRexConsole(TRexGeneralCmd):
                     self.__dict__[name] = getattr(self.trex_console, name)
 
     def postcmd(self, stop, line):
-        if self.stateless_client.is_connected():
-            self.prompt = "TRex > "
-        else:
-            self.supported_rpc = None
+
+        if not self.stateless_client.is_connected():
             self.prompt = "TRex (offline) > "
+            self.supported_rpc = None
+            return stop
+
+        if self.stateless_client.is_read_only():
+            self.prompt = "TRex (read only) > "
+            return stop
+
+
+        self.prompt = "TRex > "
 
         return stop
 
@@ -208,9 +255,9 @@ class TRexConsole(TRexGeneralCmd):
 
 
     ####################### shell commands #######################
+    @verify_connected
     def do_ping (self, line):
         '''Ping the server\n'''
-
         rc = self.stateless_client.cmd_ping()
         if rc.bad():
             return
@@ -224,12 +271,12 @@ class TRexConsole(TRexGeneralCmd):
 
         elif line == "on":
             self.verbose = True
-            self.stateless_client.set_verbose(True)
+            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_HIGH)
             print format_text("\nverbose set to on\n", 'green', 'bold')
 
         elif line == "off":
             self.verbose = False
-            self.stateless_client.set_verbose(False)
+            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_REGULAR)
             print format_text("\nverbose set to off\n", 'green', 'bold')
 
         else:
@@ -273,17 +320,13 @@ class TRexConsole(TRexGeneralCmd):
     def do_connect (self, line):
         '''Connects to the server\n'''
 
-        rc = self.stateless_client.cmd_connect()
-        if rc.bad():
-            return
+        self.stateless_client.cmd_connect_line(line)
 
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
 
-        rc = self.stateless_client.cmd_disconnect()
-        if rc.bad():
-            return
+        self.stateless_client.cmd_disconnect()
 
  
     ############### start
@@ -300,56 +343,79 @@ class TRexConsole(TRexGeneralCmd):
         if (l > 2) and (s[l - 2] in file_flags):
             return TRexConsole.tree_autocomplete(s[l - 1])
 
+    @verify_connected_and_rw
     def do_start(self, line):
         '''Start selected traffic in specified port(s) on TRex\n'''
 
         self.stateless_client.cmd_start_line(line)
+
+        
 
 
     def help_start(self):
         self.do_start("-h")
 
     ############# stop
+    @verify_connected_and_rw
     def do_stop(self, line):
         '''stops port(s) transmitting traffic\n'''
+
         self.stateless_client.cmd_stop_line(line)
 
     def help_stop(self):
         self.do_stop("-h")
 
     ############# update
+    @verify_connected_and_rw
     def do_update(self, line):
         '''update speed of port(s)currently transmitting traffic\n'''
+
         self.stateless_client.cmd_update_line(line)
 
     def help_update (self):
         self.do_update("-h")
 
     ############# pause
+    @verify_connected_and_rw
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
+
         self.stateless_client.cmd_pause_line(line)
 
     ############# resume
+    @verify_connected_and_rw
     def do_resume(self, line):
         '''resume port(s) transmitting traffic\n'''
+
         self.stateless_client.cmd_resume_line(line)
 
    
 
     ########## reset
+    @verify_connected_and_rw
     def do_reset (self, line):
         '''force stop all ports\n'''
-        self.stateless_client.cmd_reset()
+        self.stateless_client.cmd_reset_line(line)
 
+
+    ######### validate
+    @verify_connected
+    def do_validate (self, line):
+        '''validates port(s) stream configuration\n'''
+
+        self.stateless_client.cmd_validate_line(line)
+
+
+    @verify_connected
     def do_stats(self, line):
         '''Fetch statistics from TRex server by port\n'''
         self.stateless_client.cmd_stats_line(line)
-        pass
+
 
     def help_stats(self):
         self.do_stats("-h")
 
+    @verify_connected
     def do_clear(self, line):
         '''Clear cached local statistics\n'''
         self.stateless_client.cmd_clear_line(line)
@@ -386,16 +452,43 @@ class TRexConsole(TRexGeneralCmd):
             self.stateless_client.clear_events()
             print format_text("\n\nEvent log was cleared\n\n")
 
+
     # tui
+    @verify_connected
     def do_tui (self, line):
         '''Shows a graphical console\n'''
 
-        if not self.stateless_client.is_connected():
-            print format_text("\nNot connected to server\n", 'bold')
+        parser = parsing_opts.gen_parser(self,
+                                         "tui",
+                                         self.do_tui.__doc__,
+                                         parsing_opts.XTERM)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
             return
 
-        self.do_verbose('off')
-        trex_status.show_trex_status(self.stateless_client)
+        if opts.xterm:
+            exe = ''
+            if os.path.isfile('/usr/bin/wmctrl'):
+                exe += '/usr/bin/wmctrl -r trex_tui -b add,above;'
+
+            exe += './trex-console -t -q -s {0} -p {1}'.format(self.stateless_client.get_server_ip(), self.stateless_client.get_server_port())
+
+            cmd = ['xterm', '-geometry', '105x40', '-title', 'trex_tui', '-e', exe]
+            subprocess.Popen(cmd)
+
+            return
+
+        save_verbose = self.stateless_client.get_verbose()
+
+        self.stateless_client.set_verbose(self.stateless_client.VERBOSE_QUIET)
+        self.tui.show()
+        self.stateless_client.set_verbose(save_verbose)
+
+
+    def help_tui (self):
+        do_tui("-h")
+
 
     # quit function
     def do_quit(self, line):
@@ -487,6 +580,15 @@ def setParserOptions():
                         help = "Run the console in a batch mode with file",
                         default = None)
 
+    parser.add_argument("-t", "--tui", dest="tui",
+                        action="store_true", help="Starts with TUI mode",
+                        default = False)
+
+
+    parser.add_argument("-q", "--quiet", dest="quiet",
+                        action="store_true", help="Starts with all outputs suppressed",
+                        default = False)
+
     return parser
 
 
@@ -495,11 +597,24 @@ def main():
     options = parser.parse_args()
 
     # Stateless client connection
-    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub)
-    rc = stateless_client.cmd_connect()
+    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub, options.quiet)
+
+    if not options.quiet:
+        print "\nlogged as {0}".format(format_text(options.user, 'bold'))
+
+    # TUI or no acquire will give us READ ONLY mode
+    if options.tui or not options.acquire:
+        rc = stateless_client.connect("RO")
+    else:
+        rc = stateless_client.connect("RW")
+
+    # unable to connect - bye
     if rc.bad():
+        rc.annotate()
         return
 
+
+    # a script mode
     if options.batch:
         cont = stateless_client.run_script_file(options.batch[0])
         if not cont:
@@ -507,11 +622,17 @@ def main():
         
     # console
     try:
-        console = TRexConsole(stateless_client, options.acquire, options.verbose)
-        console.cmdloop()
+        console = TRexConsole(stateless_client, options.verbose)
+        if options.tui:
+            console.do_tui("")
+        else:
+            console.cmdloop()
+
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
-        return
+        
+    finally:
+        stateless_client.disconnect()
 
 if __name__ == '__main__':
     main()

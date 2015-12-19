@@ -57,15 +57,7 @@ def main ():
                 print "Launching user must have sudo privileges in order to run TRex daemon.\nTerminating daemon process."
             exit(-1)
 
-    try:
-        daemon_runner = ExtendedDaemonRunner(trex_app, trex_parser)
-    except IOError as err:
-        # catch 'tty' error when launching server from remote location
-        if err.errno == errno.ENXIO:
-            trex_app.stdout_path = "/dev/null"
-            daemon_runner = ExtendedDaemonRunner(trex_app, trex_parser)
-        else:
-            raise
+    daemon_runner = ExtendedDaemonRunner(trex_app, trex_parser)
 
     #This ensures that the logger file handle does not get closed during daemonization
     daemon_runner.daemon_context.files_preserve=[handler.stream]

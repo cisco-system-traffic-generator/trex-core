@@ -35,8 +35,8 @@ void CPlatformMemoryYamlInfo::reset(){
        m_mbuf[MBUF_64]           = m_mbuf[MBUF_64]*2;
        m_mbuf[MBUF_2048]         = CONST_NB_MBUF_2_10G/2;
 
-       m_mbuf[TRAFFIC_MBUF_64]           = m_mbuf[MBUF_64]*2;
-       m_mbuf[TRAFFIC_MBUF_2048]         = CONST_NB_MBUF_2_10G*4;
+       m_mbuf[TRAFFIC_MBUF_64]           = m_mbuf[MBUF_64] * 4;
+       m_mbuf[TRAFFIC_MBUF_2048]         = CONST_NB_MBUF_2_10G * 8;
 
        m_mbuf[MBUF_DP_FLOWS]     = (1024*1024/2);
        m_mbuf[MBUF_GLOBAL_FLOWS] =(10*1024/2);

@@ -26,6 +26,79 @@ limitations under the License.
 #include <internal_api/trex_platform_api.h>
 
 class TrexStatelessCpToDpMsgBase;
+class TrexStreamsGraphObj;
+class TrexPortMultiplier;
+
+/** 
+ * TRex port owner can perform
+ * write commands
+ * while port is owned - others can
+ * do read only commands
+ * 
+ */
+class TrexPortOwner {
+public:
+
+    TrexPortOwner();
+
+    /**
+     * is port free to acquire
+     */
+    bool is_free() {
+        return m_is_free;
+    }
+
+    void release() {
+        m_is_free = true;
+        m_owner_name = "";
+        m_handler = "";
+    }
+
+    bool is_owned_by(const std::string &user) {
+        return ( !m_is_free && (m_owner_name == user) );
+    }
+
+    void own(const std::string &owner_name) {
+
+        /* save user data */
+        m_owner_name = owner_name;
+
+        /* internal data */
+        m_handler = generate_handler();
+        m_is_free = false;
+    }
+
+    bool verify(const std::string &handler) {
+        return ( (!m_is_free) && (m_handler == handler) );
+    }
+
+    const std::string &get_name() {
+        return (!m_is_free ? m_owner_name : g_unowned_name);
+    }
+
+    const std::string &get_handler() {
+        return (!m_is_free ? m_handler : g_unowned_handler);
+    }
+
+
+private:
+    std::string  generate_handler();
+
+    /* is this port owned by someone ? */
+    bool         m_is_free;
+
+    /* user provided info */
+    std::string  m_owner_name;
+
+    /* handler genereated internally */
+    std::string  m_handler;
+    
+
+    /* just references defaults... */
+    static const std::string g_unowned_name;
+    static const std::string g_unowned_handler;
+};
+
 
 /**
  * describes a stateless port
@@ -58,13 +131,14 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
+  
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
     
     /**
      * acquire port
      * throws TrexException in case of an error
      */
-    void acquire(const std::string &user, bool force = false);
+    void acquire(const std::string &user, uint32_t session_id, bool force = false);
 
     /**
      * release the port from the current user
@@ -73,22 +147,20 @@ public:
     void release(void);
 
     /**
+     * validate the state of the port before start 
+     * it will return a stream graph 
+     * containing information about the streams 
+     * configured on this port 
+     *  
+     * on error it throws TrexException
+     */
+    const TrexStreamsGraphObj *validate(void);
+
+    /**
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(double mul, double duration = -1);
-
-    /**
-     * given a BPS rate calculate ther correct M for this port
-     * 
-     */
-    double calculate_m_from_bps(double max_bps);
-
-    /**
-     * given a PPS rate calculate the correct M for this port
-     * 
-     */
-    double calculate_m_from_pps(double max_pps);
+    void start_traffic(const TrexPortMultiplier &mul, double duration);
 
     /**
      * stop traffic
@@ -112,7 +184,7 @@ public:
      * update current traffic on port
      * 
      */
-    void update_traffic(double mul);
+    void update_traffic(const TrexPortMultiplier &mul);
 
     /**
      * get the port state
@@ -139,29 +211,6 @@ public:
     void get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed);
 
 
-    /**
-    * query for ownership
-    * 
-    */
-    const std::string &get_owner() {
-        return m_owner;
-    }
-
-    /**
-     * owner handler 
-     * for the connection 
-     * 
-     */
-    const std::string &get_owner_handler() {
-        return m_owner_handler;
-    }
-
-
-    bool verify_owner_handler(const std::string &handler) {
-
-        return ( (m_owner != "none") && (m_owner_handler == handler) );
-
-    }
 
     /**
      * encode stats as JSON
@@ -181,6 +230,7 @@ public:
         verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
         m_stream_table.add_stream(stream);
+        delete_streams_graph();
 
         change_state(PORT_STATE_STREAMS);
     }
@@ -189,6 +239,7 @@ public:
         verify_state(PORT_STATE_STREAMS);
 
         m_stream_table.remove_stream(stream);
+        delete_streams_graph();
 
         if (m_stream_table.size() == 0) {
             change_state(PORT_STATE_IDLE);
@@ -199,6 +250,7 @@ public:
         verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
         m_stream_table.remove_and_delete_all_streams();
+        delete_streams_graph();
 
         change_state(PORT_STATE_IDLE);
     }
@@ -220,30 +272,33 @@ public:
     }
 
 
-
-private:
-
-  
+    /**
+     * returns the number of DP cores linked to this port
+     * 
+     */
+    uint8_t get_dp_core_count() {
+        return m_cores_id_list.size();
+    }
 
     /**
-    * take ownership of the server array 
-    * this is static 
-    * ownership is total 
-    * 
-    */
-    void set_owner(const std::string &owner) {
-        m_owner = owner;
-        m_owner_handler = generate_handler();
+     * returns the traffic multiplier currently being used by the DP
+     * 
+     */
+    double get_multiplier() {
+        return (m_factor);
     }
 
-    void clear_owner() {
-        m_owner = "none";
-        m_owner_handler = "";
+    /**
+     * get port speed in bits per second
+     * 
+     */
+    uint64_t get_port_speed_bps() const;
+
+    TrexPortOwner & get_owner() {
+        return m_owner;
     }
 
-    bool is_free_to_aquire() {
-        return (m_owner == "none");
-    }
+private:
 
 
     const std::vector<int> get_core_id_list () {
@@ -256,7 +311,17 @@ private:
 
     std::string generate_handler();
 
-    void send_message_to_dp(TrexStatelessCpToDpMsgBase *msg);
+    /**
+     * send message to all cores using duplicate
+     * 
+     */
+    void send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg);
+
+    /**
+     * send message to specific DP core
+     * 
+     */
+    void send_message_to_dp(uint8_t core_id, TrexStatelessCpToDpMsgBase *msg);
 
     /**
      * triggered when event occurs
@@ -265,22 +330,97 @@ private:
     void on_dp_event_occured(TrexDpPortEvent::event_e event_type);
 
 
+    /**
+     * calculate effective M per core
+     * 
+     */
+    double calculate_effective_factor(const TrexPortMultiplier &mul);
+
+  
+
+    /**
+     * generates a graph of streams graph
+     * 
+     */
+    void generate_streams_graph();
+
+    /**
+     * dispose of it
+     * 
+     * @author imarom (26-Nov-15)
+     */
+    void delete_streams_graph();
+
+
     TrexStreamTable    m_stream_table;
     uint8_t            m_port_id;
     port_state_e       m_port_state;
-    std::string        m_owner;
-    std::string        m_owner_handler;
     std::string        m_driver_name;
 
     TrexPlatformApi::driver_speed_e m_speed;
 
     /* holds the DP cores associated with this port */
-    std::vector<int> m_cores_id_list;
+    std::vector<int>   m_cores_id_list;
 
     bool               m_last_all_streams_continues;
     double             m_last_duration;
+    double             m_factor;
 
     TrexDpPortEvents   m_dp_events;
+
+    /* holds a graph of streams rate*/
+    const TrexStreamsGraphObj  *m_graph_obj;
+
+    /* owner information */
+    TrexPortOwner       m_owner;
+};
+
+
+/**
+ * port multiplier object
+ * 
+ */
+class TrexPortMultiplier {
+public:
+
+
+    /**
+     * defines the type of multipler passed to start
+     */
+    enum mul_type_e {
+        MUL_FACTOR,
+        MUL_BPS,
+        MUL_PPS,
+        MUL_PERCENTAGE
+    };
+
+    /**
+     * multiplier can be absolute value 
+     * increment value or subtract value 
+     */
+    enum mul_op_e {
+        OP_ABS,
+        OP_ADD,
+        OP_SUB
+    };
+
+
+    TrexPortMultiplier(mul_type_e type, mul_op_e op, double value) {
+        m_type   = type;
+        m_op     = op;
+        m_value  = value;
+    }
+
+    TrexPortMultiplier(const std::string &type_str, const std::string &op_str, double value);
+
+
+public:
+    static const std::initializer_list<std::string> g_types;
+    static const std::initializer_list<std::string> g_ops;
+
+    mul_type_e  m_type;
+    mul_op_e    m_op;
+    double      m_value;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */

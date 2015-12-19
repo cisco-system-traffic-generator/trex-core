@@ -43,7 +43,7 @@ using namespace std;
 trex_rpc_cmd_rc_e 
 TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
 }
 
@@ -198,10 +198,6 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         }
 
 
-        section["ports"][i]["owner"] = port->get_owner();
-
-        section["ports"][i]["status"] = port->get_state_as_string();
-
     }
 
     return (TREX_RPC_CMD_OK);
@@ -224,7 +220,7 @@ TrexRpcCmdGetOwner::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
-    section["owner"] = port->get_owner();
+    section["owner"] = port->get_owner().get_name();
 
     return (TREX_RPC_CMD_OK);
 }
@@ -238,19 +234,20 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
 
-    const string &new_owner = parse_string(params, "user", result);
+    const string  &new_owner  = parse_string(params, "user", result);
     bool force = parse_bool(params, "force", result);
+    uint32_t session_id = parse_uint32(params, "session_id", result);
 
     /* if not free and not you and not force - fail */
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     try {
-        port->acquire(new_owner, force);
+        port->acquire(new_owner, session_id, force);
     } catch (const TrexRpcException &ex) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = port->get_owner_handler();
+    result["result"] = port->get_owner().get_handler();
 
     return (TREX_RPC_CMD_OK);
 }
@@ -272,7 +269,7 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"] = "ACK";
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -288,8 +285,6 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    result["result"]["status"] = port->get_state_as_string();
-
     try {
         port->encode_stats(result["result"]);
     } catch (const TrexRpcException &ex) {
@@ -300,41 +295,25 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
 }
 
 /**
- * request the server a sync about a specific user
+ * fetch the port status
  * 
+ * @author imarom (09-Dec-15)
+ * 
+ * @param params 
+ * @param result 
+ * 
+ * @return trex_rpc_cmd_rc_e 
  */
 trex_rpc_cmd_rc_e
-TrexRpcCmdSyncUser::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
 
-    const string &user = parse_string(params, "user", result);
-    bool sync_streams = parse_bool(params, "sync_streams", result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    result["result"] = Json::arrayValue;
+    result["result"]["owner"]  = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
+    result["result"]["state"] = port->get_state_as_string();
 
-    for (auto port : get_stateless_obj()->get_port_list()) {
-        if (port->get_owner() == user) {
-
-            Json::Value owned_port;
-
-            owned_port["port_id"] = port->get_port_id();
-            owned_port["handler"] = port->get_owner_handler();
-            owned_port["state"]   = port->get_state_as_string();
-            
-            /* if sync streams was asked - sync all the streams */
-            if (sync_streams) {
-                owned_port["streams"] = Json::arrayValue;
-
-                std::vector <TrexStream *> streams;
-                port->get_object_list(streams);
-
-                for (auto stream : streams) {
-                    owned_port["streams"].append(stream->get_stream_json());
-                }
-            }
-
-            result["result"].append(owned_port);
-        }
-    }
 
     return (TREX_RPC_CMD_OK);
 }
+

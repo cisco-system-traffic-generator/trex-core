@@ -1,0 +1,10 @@
+- port_limit      : 2         # this option can limit the number of port of the platform
+  version         : 2
+  interfaces    : ["03:00.0","03:00.1"] #the interfaces using ./dpdk_setup_ports.py -s 
+  port_info       :  # set eh mac addr 
+          - dest_mac        :   [0x00,0x00,0x00,0x01,0x00,0x00]    # router mac addr should be taken from router 
+            src_mac         :   [0x00,0x00,0x00,0x02,0x00,0x00]  # source mac-addr - taken from ifconfig
+          - dest_mac        :   [0x00,0x00,0x00,0x03,0x00,0x00]  # router mac addr  taken from router
+            src_mac         :   [0x00,0x00,0x00,0x04,0x00,0x00]  #source mac-addr  taken from ifconfig
+  
+

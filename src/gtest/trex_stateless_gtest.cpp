@@ -30,7 +30,896 @@ limitations under the License.
 #include <trex_stateless_port.h>
 #include <trex_rpc_server_api.h>
 #include <iostream>
+#include <vector>
 
+
+
+
+class CPcapLoader {
+public:
+    CPcapLoader();
+    ~CPcapLoader();
+
+
+public:
+    bool load_pcap_file(std::string file,int pkt_id=0);
+    void update_ip_src(uint32_t ip_addr);
+    void clone_packet_into_stream(TrexStream * stream);
+    void dump_packet();
+
+public:
+    bool                    m_valid;
+    CCapPktRaw              m_raw;
+    CPacketIndication       m_pkt_indication;
+};
+
+CPcapLoader::~CPcapLoader(){
+}
+
+bool CPcapLoader::load_pcap_file(std::string cap_file,int pkt_id){
+    m_valid=false;
+    CPacketParser parser;
+
+    CCapReaderBase * lp=CCapReaderFactory::CreateReader((char *)cap_file.c_str(),0);
+
+    if (lp == 0) {
+        printf(" ERROR file %s does not exist or not supported \n",(char *)cap_file.c_str());
+        return false;
+    }
+
+    int cnt=0;
+    bool found =false;
+
+
+    while ( true ) {
+        /* read packet */
+        if ( lp->ReadPacket(&m_raw) ==false ){
+            break;
+        }
+        if (cnt==pkt_id) {
+            found = true;
+            break;
+        }
+        cnt++;
+    }
+    if ( found ){
+        if ( parser.ProcessPacket(&m_pkt_indication, &m_raw) ){
+            m_valid = true;
+        }
+    }
+
+    delete lp;
+    return (m_valid);
+}
+
+void CPcapLoader::update_ip_src(uint32_t ip_addr){
+
+    if ( m_pkt_indication.l3.m_ipv4 ) {
+        m_pkt_indication.l3.m_ipv4->setSourceIp(ip_addr);
+        m_pkt_indication.l3.m_ipv4->updateCheckSum();
+    }
+}           
+
+void CPcapLoader::clone_packet_into_stream(TrexStream * stream){
+
+    uint16_t pkt_size=m_raw.getTotalLen();
+
+    uint8_t      *binary = new uint8_t[pkt_size];
+    memcpy(binary,m_raw.raw,pkt_size);
+    stream->m_pkt.binary = binary;
+    stream->m_pkt.len    = pkt_size;
+}
+
+
+
+
+CPcapLoader::CPcapLoader(){
+
+}
+
+void CPcapLoader::dump_packet(){
+    if (m_valid ) {
+        m_pkt_indication.Dump(stdout,1);
+    }else{
+        fprintf(stdout," no packets were found \n");
+    }
+}
+
+
+
+
+class basic_vm  : public testing::Test {
+    protected:
+     virtual void SetUp() {
+     }
+     virtual void TearDown() {
+     }
+   public:
+};
+
+
+
+
+TEST_F(basic_vm, pkt_size) {
+
+    EXPECT_EQ(calc_writable_mbuf_size(36,62),62);
+    EXPECT_EQ(calc_writable_mbuf_size(63,62),62);
+    EXPECT_EQ(calc_writable_mbuf_size(45,65),65);
+    EXPECT_EQ(calc_writable_mbuf_size(66,65),65);
+    EXPECT_EQ(calc_writable_mbuf_size(62,128),128);
+    EXPECT_EQ(calc_writable_mbuf_size(62,252),61);
+    EXPECT_EQ(calc_writable_mbuf_size(121,252),120);
+    EXPECT_EQ(calc_writable_mbuf_size(253,252),252);
+    EXPECT_EQ(calc_writable_mbuf_size(250,252),252);
+    EXPECT_EQ(calc_writable_mbuf_size(184,252),183);
+}
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_vm, vm0) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(20) );
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",14, 0,true)
+                        );
+
+    vm.Dump(stdout);
+}
+
+TEST_F(basic_vm, vm1) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+}
+
+TEST_F(basic_vm, vm2) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+    //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    uint8_t test_udp_pkt[14+20+4+4]={ 
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint8_t ex[]={5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3}; 
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+        EXPECT_EQ(test_udp_pkt[26],ex[i]);
+    }
+
+}
+
+
+TEST_F(basic_vm, vm3) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+    //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={ 
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint8_t ex[]={5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3}; 
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d \n",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* big */
+        EXPECT_EQ(test_udp_pkt[29],ex[i]);
+        EXPECT_EQ(test_udp_pkt[28],0);
+        EXPECT_EQ(test_udp_pkt[27],0);
+        EXPECT_EQ(test_udp_pkt[26],0);
+    }
+
+}
+
+TEST_F(basic_vm, vm4) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,false)
+                        );
+    //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={ 
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint8_t ex[]={5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3}; 
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d \n",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        EXPECT_EQ(test_udp_pkt[29],0);
+        EXPECT_EQ(test_udp_pkt[28],0);
+        EXPECT_EQ(test_udp_pkt[27],0);
+        EXPECT_EQ(test_udp_pkt[26],ex[i]);
+    }
+
+}
+
+
+/* two fields */
+TEST_F(basic_vm, vm5) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var2",15, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={ 
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,           /*34 */
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint8_t ex[]={5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3, 
+                 4, 
+                 5, 
+                 6, 
+                 7, 
+                 1, 
+                 2, 
+                 3}; 
+
+         uint8_t ex_tos[]={0x18, 
+                      0x17, 
+                      0x1b, 
+                      0x1a, 
+                      0x19, 
+                      0x18, 
+                      0x17, 
+                      0x1b, 
+                     0x1a, 
+                     0x19, 
+                     0x18, 
+                     0x17, 
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+
+             0x1b, 
+            0x1a, 
+            0x19, 
+            0x18, 
+            0x17, 
+         }; 
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d \n",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        EXPECT_EQ(test_udp_pkt[29],ex[i]);
+        EXPECT_EQ(test_udp_pkt[28],0);
+        EXPECT_EQ(test_udp_pkt[27],0);
+        EXPECT_EQ(test_udp_pkt[26],0);
+
+        /* check tos */
+        EXPECT_EQ(test_udp_pkt[15],ex_tos[i]);
+    }
+}
+
+/* -load file, write to file  */
+TEST_F(basic_vm, vm6) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0x10000001,0x10000001,0x100000fe) 
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var2",15, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm6.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        //utl_DumpBuffer(stdout,pcap.m_raw.raw,pcap.m_raw.pkt_len,0);
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm6.pcap","exp/udp_64B_vm6-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+/* test client command */
+TEST_F(basic_vm, vm7) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowClient( "cl1",
+                                                           0x10000001,
+                                                           0x10000004,
+                                                           1025,
+                                                           1027,
+                                                           100,
+                                                           0) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.ip",26, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
+                        );
+
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm7.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm7.pcap","exp/udp_64B_vm7-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+TEST_F(basic_vm, vm8) {
+
+
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowClient( "cl1",
+                                                           0x10000001,
+                                                           0x10000006,
+                                                           1025,
+                                                           1027,
+                                                           4,
+                                                           0) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.ip",26, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
+                        );
+
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm8.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm8.pcap","exp/udp_64B_vm8-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+static void vm_build_program_seq(StreamVm & vm,
+                                 uint16_t packet_size,
+                                 bool should_compile){
+
+    vm.add_instruction( new StreamVmInstructionFlowClient( "tuple_gen",
+                                                           0x10000001,
+                                                           0x10000006,
+                                                           1025,
+                                                           1027,
+                                                           20,
+                                                           0) );
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.ip",26, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.port",34, 0,true)
+                        );
+
+
+    vm.set_packet_size(packet_size);
+
+    if (should_compile) {
+        vm.compile();
+    }
+}
+
+
+TEST_F(basic_vm, vm9) {
+
+
+    StreamVm vm;
+
+    vm_build_program_seq(vm,128, true);
+
+    printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
+
+    EXPECT_EQ(36,vm.get_max_packet_update_offset());
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<30; i++) {
+        runner.run(program_size, 
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+
+/* test vmDP object */
+TEST_F(basic_vm, vm10) {
+
+    StreamVm vm;
+
+    vm_build_program_seq(vm,128, true);
+
+    printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
+
+    EXPECT_EQ(36,vm.get_max_packet_update_offset());
+
+    StreamVmDp * lpDpVm =vm.cloneAsVmDp();
+
+    EXPECT_EQ(lpDpVm->get_bss_size(),vm.get_bss_size());
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    int i;
+    for (i=0; i<30; i++) {
+        
+        runner.run(lpDpVm->get_program_size(), 
+                   lpDpVm->get_program(),
+                   lpDpVm->get_bss(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+    delete  lpDpVm;
+
+    bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+
+
+//////////////////////////////////////////////////////
+
+                                           
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
 
@@ -274,96 +1163,6 @@ public:
 };
 
 
-class CPcapLoader {
-public:
-    CPcapLoader();
-    ~CPcapLoader();
-
-
-public:
-    bool load_pcap_file(std::string file,int pkt_id=0);
-    void update_ip_src(uint32_t ip_addr);
-    void clone_packet_into_stream(TrexStream * stream);
-    void dump_packet();
-
-public:
-    bool                    m_valid;
-    CCapPktRaw              m_raw;
-    CPacketIndication       m_pkt_indication;
-};
-
-CPcapLoader::~CPcapLoader(){
-}
-
-bool CPcapLoader::load_pcap_file(std::string cap_file,int pkt_id){
-    m_valid=false;
-    CPacketParser parser;
-
-    CCapReaderBase * lp=CCapReaderFactory::CreateReader((char *)cap_file.c_str(),0);
-
-    if (lp == 0) {
-        printf(" ERROR file %s does not exist or not supported \n",(char *)cap_file.c_str());
-        return false;
-    }
-
-    int cnt=0;
-    bool found =false;
-
-
-    while ( true ) {
-        /* read packet */
-        if ( lp->ReadPacket(&m_raw) ==false ){
-            break;
-        }
-        if (cnt==pkt_id) {
-            found = true;
-            break;
-        }
-        cnt++;
-    }
-    if ( found ){
-        if ( parser.ProcessPacket(&m_pkt_indication, &m_raw) ){
-            m_valid = true;
-        }
-    }
-
-    delete lp;
-    return (m_valid);
-}
-
-void CPcapLoader::update_ip_src(uint32_t ip_addr){
-
-    if ( m_pkt_indication.l3.m_ipv4 ) {
-        m_pkt_indication.l3.m_ipv4->setSourceIp(ip_addr);
-        m_pkt_indication.l3.m_ipv4->updateCheckSum();
-    }
-}           
-
-void CPcapLoader::clone_packet_into_stream(TrexStream * stream){
-
-    uint16_t pkt_size=m_raw.getTotalLen();
-
-    uint8_t      *binary = new uint8_t[pkt_size];
-    memcpy(binary,m_raw.raw,pkt_size);
-    stream->m_pkt.binary = binary;
-    stream->m_pkt.len    = pkt_size;
-}
-
-
-
-
-CPcapLoader::CPcapLoader(){
-
-}
-
-void CPcapLoader::dump_packet(){
-    if (m_valid ) {
-        m_pkt_indication.Dump(stdout,1);
-    }else{
-        fprintf(stdout," no packets were found \n");
-    }
-}
-
 
 TEST_F(basic_stl, load_pcap_file) {
     printf (" stateles %d \n",(int)sizeof(CGenNodeStateless));
@@ -435,11 +1234,9 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *> objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
@@ -499,14 +1296,9 @@ void CBBStartStopDelay2::call_after_init(CBasicStl * m_obj){
     streams.push_back(stream1);
 
     // stream - clean 
-
-    TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-    assert(compile.compile(streams, comp_obj) );
-
-
-    /* start with different event id */
-    TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(m_port_id, 1, comp_obj.clone(), 10.0 /*sec */ );
+    std::vector<TrexStreamsCompiledObj *>objs;
+    assert(compile.compile(port_id, streams, objs));
+    TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 1, objs[0], 10.0 /*sec */ );
 
 
     m_obj->m_msg_queue.add_command(m_core,lpStopCmd, 5.0); /* command in delay of 5 sec */
@@ -552,12 +1344,9 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay2) {
      streams.push_back(stream1);
 
      // stream - clean 
-
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
@@ -633,12 +1422,9 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay1) {
      streams.push_back(stream1);
 
      // stream - clean 
-
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
@@ -687,12 +1473,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop3) {
      streams.push_back(stream1);
 
      // stream - clean 
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
      TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
      TrexStatelessDpStop * lpStopCmd1 = new TrexStatelessDpStop(port_id);
 
@@ -740,14 +1524,12 @@ TEST_F(basic_stl, single_pkt_bb_start_stop2) {
      streams.push_back(stream1);
 
      // stream - clean 
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
      TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
-     TrexStatelessDpStart * lpStartCmd1 = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     TrexStatelessDpStart * lpStartCmd1 = new TrexStatelessDpStart(port_id, 0, objs[0]->clone(), 10.0 /*sec */ );
 
 
      t1.m_msg_queue.add_msg(lpStartCmd);
@@ -795,12 +1577,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop) {
      streams.push_back(stream1);
 
      // stream - clean 
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpStartCmd = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
      TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(port_id);
 
 
@@ -880,14 +1660,13 @@ TEST_F(basic_stl, simple_prog4) {
      streams.push_back(stream2);
 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 20.0 /*sec */ );
 
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
 
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 20.0 );
-
-
-     t1.m_msg = lpstart;
+     t1.m_msg = lpStartCmd;
 
      bool res=t1.init();
 
@@ -950,11 +1729,10 @@ TEST_F(basic_stl, simple_prog3) {
      streams.push_back(stream2);
 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 50.0 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 50.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1011,13 +1789,10 @@ TEST_F(basic_stl, simple_prog2) {
      pcap.clone_packet_into_stream(stream2);
      streams.push_back(stream2);
 
-
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
-
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1074,11 +1849,10 @@ TEST_F(basic_stl, simple_prog1) {
      streams.push_back(stream2);
 
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     EXPECT_TRUE(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1119,12 +1893,10 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      streams.push_back(stream1);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10.0 );
-
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1170,11 +1942,9 @@ TEST_F(basic_stl, single_pkt) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1226,12 +1996,11 @@ TEST_F(basic_stl, multi_pkt1) {
      streams.push_back(stream2);
 
 
-     // stream - clean 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10 );
+     // stream - clean
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1243,6 +2012,100 @@ TEST_F(basic_stl, multi_pkt1) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
+
+class CEnableVm {
+public:
+    void run(bool full_packet,double duration );
+public:
+    std::string    m_input_packet; //"cap2/udp_64B.pcap"
+    std::string    m_out_file;     //"exp/stl_vm_enable0";
+};
+
+void CEnableVm::run(bool full_packet,double duration=10.0){
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file =m_out_file; 
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+
+     stream1->set_pps(1.0);
+     
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file(m_input_packet,0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     uint16_t pkt_size=pcap.m_raw.pkt_len;
+
+     vm_build_program_seq(stream1->m_vm,pkt_size, false);
+     #if 0
+     if ( full_packet ){
+         EXPECT_EQ(stream1->m_vm_prefix_size,pkt_size);
+     }else{
+         EXPECT_EQ(stream1->m_vm_prefix_size,35);
+     }
+     #endif
+
+                                    
+     streams.push_back(stream1);
+
+     // stream - clean 
+     std::vector<TrexStreamsCompiledObj *> objs;
+
+     assert(compile.compile(port_id,streams, objs) );
+
+     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], duration /*sec */ );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+TEST_F(basic_stl, vm_enable0) {
+
+    CEnableVm vm_test;
+    vm_test.m_out_file = "exp/stl_vm_enable0";
+    vm_test.m_input_packet = "cap2/udp_64B.pcap";
+    vm_test.run(true);
+}
+
+
+TEST_F(basic_stl, vm_enable1) {
+
+    CEnableVm vm_test;
+    vm_test.m_out_file = "exp/stl_vm_enable1";
+    vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
+    vm_test.run(false);
+}
+
+
+
+TEST_F(basic_stl, vm_enable2) {
+
+    CEnableVm vm_test;
+    vm_test.m_out_file = "exp/stl_vm_enable2";
+    vm_test.m_input_packet = "cap2/udp_64B.pcap";
+    vm_test.run(true,50.0);
+}
 
 
 
@@ -1290,11 +2153,10 @@ TEST_F(basic_stl, multi_pkt2) {
 
 
      // stream - clean 
-     TrexStreamsCompiledObj comp_obj(0,5.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 10 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs, 1, 5.0));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
 
      t1.m_msg = lpstart;
 
@@ -1336,11 +2198,10 @@ TEST_F(basic_stl, multi_burst1) {
 
      streams.push_back(stream1);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(0, 0, comp_obj.clone(), 40 );
+     uint8_t port_id = 0;
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 40.0 /*sec */ );
 
 
      t1.m_msg = lpstart;
@@ -1370,10 +2231,9 @@ TEST_F(basic_stl, compile_bad_1) {
 
      streams.push_back(stream1);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
      std::string err_msg;
-     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_FALSE(compile.compile(0, streams, objs, 1, 1, &err_msg));
 
      delete stream1;
 
@@ -1403,10 +2263,12 @@ TEST_F(basic_stl, compile_bad_2) {
      streams.push_back(stream1);
      streams.push_back(stream2);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
 
+     uint8_t port_id = 0;
      std::string err_msg;
-     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_FALSE(compile.compile(port_id, streams, objs, 1, 1, &err_msg));
+
 
      delete stream1;
      delete stream2;
@@ -1482,10 +2344,10 @@ TEST_F(basic_stl, compile_bad_3) {
      streams.push_back(stream);
 
      /* compile */
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
      std::string err_msg;
-     EXPECT_FALSE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_FALSE(compile.compile(0, streams, objs, 1, 1, &err_msg));
+
 
      for (auto stream : streams) {
          delete stream;
@@ -1534,11 +2396,11 @@ TEST_F(basic_stl, compile_with_warnings) {
 
 
      /* compile */
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
      std::string err_msg;
-     EXPECT_TRUE(compile.compile(streams, comp_obj, &err_msg));
-     
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_TRUE(compile.compile(0, streams, objs, 1, 1, &err_msg));
+     delete objs[0];
+
      EXPECT_TRUE(compile.get_last_compile_warnings().size() == 1);
 
      for (auto stream : streams) {
@@ -1573,20 +2435,22 @@ TEST_F(basic_stl, compile_good_stream_id_compres) {
      streams.push_back(stream1);
      streams.push_back(stream2);
 
-     TrexStreamsCompiledObj comp_obj(0,1.0);
-
+     uint8_t port_id = 0;
      std::string err_msg;
-     EXPECT_TRUE(compile.compile(streams, comp_obj, &err_msg));
+     std::vector<TrexStreamsCompiledObj *>objs;
+     EXPECT_TRUE(compile.compile(port_id, streams, objs, 1, 1, &err_msg));
 
      printf(" %s \n",err_msg.c_str());
 
-     comp_obj.Dump(stdout);
+     objs[0]->Dump(stdout);
 
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_stream_id,0);
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[0].m_stream->m_next_stream_id,1);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[0].m_stream->m_stream_id,0);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[0].m_stream->m_next_stream_id,1);
 
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_stream_id,1);
-     EXPECT_EQ_UINT32(comp_obj.get_objects()[1].m_stream->m_next_stream_id,0);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[1].m_stream->m_stream_id,1);
+     EXPECT_EQ_UINT32(objs[0]->get_objects()[1].m_stream->m_next_stream_id,0);
+
+     delete objs[0];
 
      delete stream1;
      delete stream2;
@@ -1648,14 +2512,12 @@ TEST_F(basic_stl, dp_stop_event) {
 
      // stream - clean 
 
-     TrexStreamsCompiledObj comp_obj(port_id, 1.0 /*mul*/);
-
-     assert(compile.compile(streams, comp_obj) );
-
-     TrexStatelessDpStart * lpstart = new TrexStatelessDpStart(port_id, 17, comp_obj.clone(), 10.0 /*sec */ );
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 17, objs[0], 10.0 /*sec */ );
 
 
-     t1.m_msg = lpstart;
+     t1.m_msg = lpStartCmd;
 
      /* let me handle these */
      DpToCpHandlerStopEvent handler(17);
@@ -1713,13 +2575,15 @@ TEST_F(basic_stl, graph_generator1) {
      streams.push_back(stream);
 
 
-     const TrexStreamsGraphObj &obj = graph.generate(streams);
-     EXPECT_EQ(obj.get_max_bps(), 405120);
-     EXPECT_EQ(obj.get_max_pps(), 50);
+     const TrexStreamsGraphObj *obj = graph.generate(streams);
+     EXPECT_EQ(obj->get_max_bps(), 405120);
+     EXPECT_EQ(obj->get_max_pps(), 50);
 
      for (auto stream : streams) {
          delete stream;
      }
+
+     delete obj;
 }   
 
 
@@ -1761,15 +2625,17 @@ TEST_F(basic_stl, graph_generator2) {
 
     streams.push_back(stream);
 
-    const TrexStreamsGraphObj &obj = graph.generate(streams);
-    EXPECT_EQ(obj.get_max_pps(), 1000.0);
+    const TrexStreamsGraphObj *obj = graph.generate(streams);
+    EXPECT_EQ(obj->get_max_pps(), 1000.0);
 
-    EXPECT_EQ(obj.get_max_bps(), (1000 * (128 + 4) * 8));
+    EXPECT_EQ(obj->get_max_bps(), (1000 * (128 + 4) * 8));
     
 
     for (auto stream : streams) {
         delete stream;
     }
+
+    delete obj;
 }
 
 /* stress test */

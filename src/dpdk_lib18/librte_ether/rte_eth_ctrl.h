@@ -202,6 +202,7 @@ enum rte_eth_flow_type {
 struct rte_eth_ipv4_flow {
 	uint32_t src_ip;      /**< IPv4 source address to match. */
 	uint32_t dst_ip;      /**< IPv4 destination address to match. */
+	uint8_t l4_proto;     /* IPv4 protocol to match */
 };
 
 /**

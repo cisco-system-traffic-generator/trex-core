@@ -68,7 +68,7 @@ public:
 
     bool resume_traffic(uint8_t port_id);
 
-    bool update_traffic(uint8_t port_id, double mul);
+    bool update_traffic(uint8_t port_id, double factor);
 
     bool stop_traffic(uint8_t port_id,
                       bool stop_on_id, 

@@ -5,12 +5,15 @@ from common.text_opts import format_text
 from client.trex_async_client import CTRexAsyncStats
 import copy
 import datetime
+import time
 import re
 
 GLOBAL_STATS = 'g'
 PORT_STATS = 'p'
 PORT_STATUS = 'ps'
 ALL_STATS_OPTS = {GLOBAL_STATS, PORT_STATS, PORT_STATUS}
+COMPACT = {GLOBAL_STATS, PORT_STATS}
+
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
 
@@ -54,15 +57,24 @@ class CTRexStatsGenerator(object):
 
         return_stats_data = {}
         per_field_stats = OrderedDict([("owner", []),
-                                       ("active", []),
+                                       ("state", []),
+                                       ("--", []),
+                                       ("opackets", []),
+                                       ("obytes", []),
+                                       ("ipackets", []),
+                                       ("ibytes", []),
+                                       ("ierrors", []),
+                                       ("oerrors", []),
                                        ("tx-bytes", []),
                                        ("rx-bytes", []),
                                        ("tx-pkts", []),
                                        ("rx-pkts", []),
-                                       ("tx-errors", []),
-                                       ("rx-errors", []),
-                                       ("tx-BW", []),
-                                       ("rx-BW", [])
+                                       ("---", []),
+                                       ("Tx bps", []),
+                                       ("Rx bps", []),
+                                       ("----", []),
+                                       ("Tx pps", []),
+                                       ("Rx pps", [])
                                       ]
                                       )
 
@@ -76,6 +88,9 @@ class CTRexStatsGenerator(object):
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["r"]*len(relevant_ports))
+        stats_table.set_cols_width([10] + [20] * len(relevant_ports))
+        stats_table.set_cols_dtype(['t'] + ['t'] * len(relevant_ports))
+
         stats_table.add_rows([[k] + v
                               for k, v in per_field_stats.iteritems()],
                              header=False)
@@ -106,6 +121,8 @@ class CTRexStatsGenerator(object):
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["c"]*len(relevant_ports))
+        stats_table.set_cols_width([10] + [20] * len(relevant_ports))
+
         stats_table.add_rows([[k] + v
                               for k, v in per_field_status.iteritems()],
                              header=False)
@@ -118,7 +135,8 @@ class CTRexStatsGenerator(object):
         # fetch owned ports
         ports = [port_obj
                  for _, port_obj in self._ports_dict.iteritems()
-                 if port_obj.is_acquired() and port_obj.port_id in port_id_list]
+                 if port_obj.port_id in port_id_list]
+        
         # display only the first FOUR options, by design
         if len(ports) > 4:
             print format_text("[WARNING]: ", 'magenta', 'bold'), format_text("displaying up to 4 ports", 'magenta')
@@ -139,7 +157,7 @@ class CTRexStats(object):
     def __init__(self):
         self.reference_stats = None
         self.latest_stats = {}
-        self.last_update_ts = datetime.datetime.now()
+        self.last_update_ts = time.time()
 
 
     def __getitem__(self, item):
@@ -176,6 +194,9 @@ class CTRexStats(object):
 
     @staticmethod
     def format_num(size, suffix = ""):
+        if type(size) == str:
+            return "N/A"
+
         for unit in ['','K','M','G','T','P']:
             if abs(size) < 1000.0:
                 return "%3.2f %s%s" % (size, unit, suffix)
@@ -188,15 +209,21 @@ class CTRexStats(object):
 
     def update(self, snapshot):
         # update
-        self.last_update_ts = datetime.datetime.now()
-
         self.latest_stats = snapshot
 
-        if self.reference_stats == None:
+        diff_time = time.time() - self.last_update_ts
+
+        # 3 seconds is too much - this is the new reference
+        if (self.reference_stats == None) or (diff_time > 3):
             self.reference_stats = self.latest_stats
+
+        self.last_update_ts = time.time()
 
     def clear_stats(self):
         self.reference_stats = self.latest_stats
+
+    def invalidate (self):
+        self.latest_stats = {}
 
     def get(self, field, format=False, suffix=""):
         if not field in self.latest_stats:
@@ -209,6 +236,7 @@ class CTRexStats(object):
     def get_rel(self, field, format=False, suffix=""):
         if not field in self.latest_stats:
             return "N/A"
+
         if not format:
             return (self.latest_stats[field] - self.reference_stats[field])
         else:
@@ -216,7 +244,6 @@ class CTRexStats(object):
 
 
 class CGlobalStats(CTRexStats):
-    pass
 
     def __init__(self, connection_info, server_version, ports_dict_ref):
         super(CGlobalStats, self).__init__()
@@ -242,7 +269,6 @@ class CGlobalStats(CTRexStats):
                             )
 
 class CPortStats(CTRexStats):
-    pass
 
     def __init__(self, port_obj):
         super(CPortStats, self).__init__()
@@ -250,15 +276,26 @@ class CPortStats(CTRexStats):
 
     def generate_stats(self):
         return {"owner": self._port_obj.user,
-                "active": "YES" if self._port_obj.is_active() else "NO",
+                "state": self._port_obj.get_port_state_name(),
+                "--": "",
+                "opackets" : self.get_rel("opackets"),
+                "obytes"   : self.get_rel("obytes"),
+                "ipackets" : self.get_rel("ipackets"),
+                "ibytes"   : self.get_rel("ibytes"),
+                "ierrors"  : self.get_rel("ierrors"),
+                "oerrors"  : self.get_rel("oerrors"),
+
                 "tx-bytes": self.get_rel("obytes", format = True, suffix = "B"),
                 "rx-bytes": self.get_rel("ibytes", format = True, suffix = "B"),
                 "tx-pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
                 "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
-                "tx-errors": self.get_rel("oerrors", format = True),
-                "rx-errors": self.get_rel("ierrors", format = True),
-                "tx-BW": self.get("m_total_tx_bps", format = True, suffix = "bps"),
-                "rx-BW": self.get("m_total_rx_bps", format = True, suffix = "bps")
+
+                "---": "",
+                "Tx bps": self.get("m_total_tx_bps", format = True, suffix = "bps"),
+                "Rx bps": self.get("m_total_rx_bps", format = True, suffix = "bps"),
+                "----": "",
+                "Tx pps": self.get("m_total_tx_pps", format = True, suffix = "pps"),
+                "Rx pps": self.get("m_total_rx_pps", format = True, suffix = "pps"),
                 }
 
 

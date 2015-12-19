@@ -54,6 +54,16 @@ struct CGenNodeStateless : public CGenNodeBase  {
 friend class TrexStatelessDpCore;
 
 public:
+
+    /* flags MASKS*/
+    enum {
+        SL_NODE_FLAGS_DIR                  =1, //USED by master
+        SL_NODE_FLAGS_MBUF_CACHE           =2, //USED by master
+
+        SL_NODE_CONST_MBUF                =4
+
+    };
+
     enum {                                          
             ss_FREE_RESUSE =1, /* should be free by scheduler */
             ss_INACTIVE    =2, /* will be active by other stream or stopped */
@@ -83,14 +93,20 @@ private:
     uint32_t            m_multi_bursts; /* in case of multi_burst how many bursts */
 
     /* cache line 1 */
-    TrexStream *        m_ref_stream_info; /* the stream info */
+    TrexStream *         m_ref_stream_info; /* the stream info */
     CGenNodeStateless  * m_next_stream;
 
-    double              m_base_pps;
+    uint8_t *            m_original_packet_data_prefix; /* pointer to the original first pointer 64/128/512 */
+
+    /* Fast Field VM section */
+    uint8_t *            m_vm_flow_var; /* pointer to the vm flow var */
+    uint8_t *            m_vm_program;  /* pointer to the program */
+    uint16_t             m_vm_program_size; /* up to 64K op codes */
+
+    /* End Fast Field VM Section */
+
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[48];
-
-
+    uint8_t             m_pad_end[30];
 
 
 public:
@@ -105,8 +121,9 @@ public:
      * on the PPS and multiplier 
      * 
      */
-    void set_multiplier(double mul) {
-        m_next_time_offset =  1.0 / (m_base_pps * mul) ;
+    void update_rate(double factor) {
+        /* update the inter packet gap */
+        m_next_time_offset         =  m_next_time_offset / factor;
     }
 
     /* we restart the stream, schedule it using stream isg */
@@ -256,12 +273,50 @@ public:
     }
 
     inline rte_mbuf_t * get_cache_mbuf(){
-        if ( m_flags &NODE_FLAGS_MBUF_CACHE ) {
+        if ( m_flags & NODE_FLAGS_MBUF_CACHE ) {
             return ((rte_mbuf_t *)m_cache_mbuf);
         }else{
             return ((rte_mbuf_t *)0);
         }
     }
+
+    inline void set_const_mbuf(rte_mbuf_t * m){
+        m_cache_mbuf=(void *)m;
+        m_flags |= SL_NODE_CONST_MBUF;
+    }
+
+    inline rte_mbuf_t * get_const_mbuf(){
+        if ( m_flags &SL_NODE_CONST_MBUF ) {
+            return ((rte_mbuf_t *)m_cache_mbuf);
+        }else{
+            return ((rte_mbuf_t *)0);
+        }
+    }
+
+    /* prefix header exits only in non cache mode size is 64/128/512  other are not possible right now */
+    inline void alloc_prefix_header(uint16_t size){
+         set_prefix_header_size(size);
+         m_original_packet_data_prefix = (uint8_t *)malloc(size);
+         assert(m_original_packet_data_prefix);
+    }
+
+    inline void free_prefix_header(){
+         if (m_original_packet_data_prefix) {
+             free(m_original_packet_data_prefix);
+         }
+    }
+
+    /* prefix headr could be 64/128/512 */
+    inline void set_prefix_header_size(uint16_t size){
+        m_src_port=size;
+    }
+
+    inline uint16_t prefix_header_size(){
+        return (m_src_port);
+    }
+
+
+    rte_mbuf_t   * alloc_node_with_vm();
 
     void free_stl_node();
 
