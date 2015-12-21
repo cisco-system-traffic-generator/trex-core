@@ -268,7 +268,7 @@ void CCPortLatency::dump_json(std::string & json ){
 
 void CCPortLatency::DumpShort(FILE *fd){
 
-	m_hist.update();
+//	m_hist.update(); <- moved to CLatencyManager::update()
     fprintf(fd,"%8lu,%8lu,%10lu,%4lu,",                          
                     m_tx_pkt_ok,
                     m_pkt_ok,
@@ -907,6 +907,10 @@ void CLatencyManager::rx_check_dump_json(std::string & json){
 
 void CLatencyManager::update(){
     m_cpu_cp_u.Update() ;
+    for (int i=0; i<m_max_ports; i++) {
+        CLatencyManagerPerPort * lp=&m_ports[i];
+        lp->m_port.m_hist.update();
+    }
 }
 
 void CLatencyManager::DumpShort(FILE *fd){
