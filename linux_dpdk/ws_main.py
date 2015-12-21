@@ -779,6 +779,7 @@ files_list=[
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
+            't-rex-debug-gdb',
             'mock-rpc-server-64-debug',
             'release_notes.pdf',
             'dpdk_nic_bind.py',
