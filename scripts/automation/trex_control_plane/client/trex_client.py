@@ -1104,11 +1104,11 @@ class CTRexResult(object):
             # handle latency data
             if self.latency_checked:
                 latency_pre = "trex-latency"
-                self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")#None # TBC
+                self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "max-")#None # TBC
                 # support old typo
                 if self._max_latency is None:
                     latency_pre = "trex-latecny"
-                    self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")
+                    self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "max-")
 
                 self._avg_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "avg-")#None # TBC
                 self._avg_latency = CTRexResult.__avg_all_and_rename_keys(self._avg_latency)
