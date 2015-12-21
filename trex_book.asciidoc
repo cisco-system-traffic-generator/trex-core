@@ -825,7 +825,7 @@ $sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -p -l 100 -d 100000 -m 30  --r
 [source,python]
 ----
 Cpu Utilization : 0.1 %                                                                       <1>
- if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter<1> ,  max window 
+ if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window 
    |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,             
  --------------------------------------------------------------------------------
  0 |     1002,    1002,      2501,   0,         61  ,      70,       3      |  60
@@ -835,7 +835,7 @@ Cpu Utilization : 0.1 %                                                         
 
  Rx Check stats enabled                                                                       <2>
  -------------------------------------------------------------------------------------------
- rx check:  avg/max/jitter latency,       94  ,     744,       49<1>      |  252  287  309    <3>
+ rx check:  avg/max/jitter latency,       94  ,     744,       49      |  252  287  309    <3>
  
  active flows:       10, fif:      308,  drop:        0, errors:        0                     <4>
  -------------------------------------------------------------------------------------------
