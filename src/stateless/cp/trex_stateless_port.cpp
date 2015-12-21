@@ -72,6 +72,8 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
 
     /* init the events DP DB */
     m_dp_events.create(this);
+
+    m_graph_obj = NULL;
 }
 
 

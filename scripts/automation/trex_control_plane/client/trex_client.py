@@ -294,6 +294,34 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
+    def is_idle (self):
+        """
+        Poll for TRex running status, check if TRex is in Idle state.
+
+        :parameters:
+            None
+
+        :return: 
+            + **True** if TRex is idle.
+            + **False** if TRex is starting or running.
+
+        :raises:
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
+            + :exc:`TypeError`, in case JSON stream decoding error.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        try:
+            if self.get_running_status()['state'] == TRexStatus.Idle:
+                return True
+            return False
+        except TRexException:
+            raise
+        except ProtocolError as err:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
     def get_trex_files_path (self):
         """
         Fetches the local path in which files are stored when pushed to TRex server from client.
@@ -455,6 +483,41 @@ class CTRexClient(object):
         results = self.get_result_obj()
         return results
             
+    def sample_x_seconds (self, sample_time, time_between_samples = 5):
+        """
+        Automatically sets ongoing sampling of TRex data for sample_time seconds, with sampling rate described by time_between_samples.
+        Does not stop the TRex afterwards!
+
+        .. tip:: Useful for changing the device (Router, ASA etc.) configuration after given time.
+
+        :parameters:
+            sample_time : int
+                sample the TRex this number of seconds
+
+            time_between_samples : int
+                determines the time between each sample of the server
+
+                default value : **5**
+
+        :return:
+            the first result object (see :class:`CTRexResult` for further details) of the TRex run after given sample_time.
+
+        :raises:
+            + :exc:`UserWarning`, in case the TRex run ended before sample_time duration
+            + :exc:`trex_exceptions.TRexIncompleteRunError`, in case one of failed TRex run (unexpected termination).
+            + :exc:`TypeError`, in case JSON stream decoding error.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        # make sure TRex is running. raise exceptions here if any
+        self.wait_until_kickoff_finish()
+        elapsed_time = 0
+        while self.is_running():
+            if elapsed_time >= sample_time:
+                return self.get_result_obj()
+            time.sleep(time_between_samples)
+            elapsed_time += time_between_samples
+        raise UserWarning("TRex has stopped at %s seconds (before expected %s seconds)\nTry increasing test duration or decreasing sample_time" % (elapsed_time, sample_time))
 
     def get_result_obj (self, copy_obj = True):
         """
@@ -1041,11 +1104,11 @@ class CTRexResult(object):
             # handle latency data
             if self.latency_checked:
                 latency_pre = "trex-latency"
-                self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")#None # TBC
+                self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "max-")#None # TBC
                 # support old typo
                 if self._max_latency is None:
                     latency_pre = "trex-latecny"
-                    self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), ".*max-")
+                    self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "max-")
 
                 self._avg_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "avg-")#None # TBC
                 self._avg_latency = CTRexResult.__avg_all_and_rename_keys(self._avg_latency)
