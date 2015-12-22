@@ -47,18 +47,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint8_t * p=(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint8_t *p = (flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint8_t * p=(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint8_t *p = (flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
@@ -79,18 +81,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
@@ -112,18 +116,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
@@ -143,18 +149,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
