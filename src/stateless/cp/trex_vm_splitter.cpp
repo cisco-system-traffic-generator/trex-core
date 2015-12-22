@@ -89,9 +89,8 @@ TrexVmSplitter::split_by_flow_var(const StreamVmInstructionFlowMan *instr) {
         return false;
     }
 
-    /* if the range is too small - multiply  */
+    /* if the range is too small - it is unsplitable  */
     if (instr->get_range() < m_dp_core_count) {
-        // FIXME
         return false;
     }
 
@@ -118,8 +117,8 @@ TrexVmSplitter::split_by_flow_var(const StreamVmInstructionFlowMan *instr) {
         per_core_instr->m_min_value  = start;
         per_core_instr->m_max_value  = end; 
 
-        /* init value is the max value because the VM program's first iteration */
-        per_core_instr->m_init_value = end;
+        /* after split this has no meaning - choose it as we see fit */
+        per_core_instr->m_init_value = (per_core_instr->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ? end : start);
 
         core_stream->vm_compile();
 

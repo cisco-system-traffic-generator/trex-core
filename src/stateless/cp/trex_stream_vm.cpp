@@ -426,7 +426,7 @@ void StreamVm::build_program(){
                     op = StreamDPVmInstructions::ditRANDOM64 ;
                 }
 
-                StreamDPOpFlowVar32 fv64;
+                StreamDPOpFlowVar64 fv64;
                 fv64.m_op = op;
                 fv64.m_flow_offset = get_var_offset(lpMan->m_var_name);
                 fv64.m_min_val     = (uint64_t)lpMan->m_min_value;
@@ -549,19 +549,19 @@ void StreamVm::build_bss() {
 
             switch (ins_man->m_size_bytes) {
             case 1:
-                *p=(uint8_t)ins_man->m_init_value;
+                *p=(uint8_t)ins_man->get_bss_init_value();
                 p+=1;
                 break;
             case 2:
-                *((uint16_t*)p)=(uint16_t)ins_man->m_init_value;
+                *((uint16_t*)p)=(uint16_t)ins_man->get_bss_init_value();
                 p+=2;
                 break;
             case 4:
-                *((uint32_t*)p)=(uint32_t)ins_man->m_init_value;
+                *((uint32_t*)p)=(uint32_t)ins_man->get_bss_init_value();
                 p+=4;
                 break;
             case 8:
-                *((uint64_t*)p)=(uint64_t)ins_man->m_init_value;
+                *((uint64_t*)p)=(uint64_t)ins_man->get_bss_init_value();
                 p+=8;
                 break;
             default:

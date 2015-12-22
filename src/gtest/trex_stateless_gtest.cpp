@@ -161,7 +161,7 @@ TEST_F(basic_vm, vm0) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(20) );
-    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",8,
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",14, 0,true)
@@ -198,7 +198,7 @@ TEST_F(basic_vm, vm2) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
@@ -274,7 +274,7 @@ TEST_F(basic_vm, vm3) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
@@ -356,8 +356,8 @@ TEST_F(basic_vm, vm4) {
 
     StreamVm vm;
 
-    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1", 8 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,false)
                         );
@@ -425,8 +425,12 @@ TEST_F(basic_vm, vm4) {
                    test_udp_pkt);
 
         fprintf(stdout," %d \n",i);
-        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
         /* not big */
+        EXPECT_EQ(test_udp_pkt[33],0);
+        EXPECT_EQ(test_udp_pkt[32],0);
+        EXPECT_EQ(test_udp_pkt[31],0);
+        EXPECT_EQ(test_udp_pkt[30],0);
         EXPECT_EQ(test_udp_pkt[29],0);
         EXPECT_EQ(test_udp_pkt[28],0);
         EXPECT_EQ(test_udp_pkt[27],0);
@@ -442,11 +446,11 @@ TEST_F(basic_vm, vm5) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,24,23,27 ) );
 
     /* src ip */
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
@@ -586,7 +590,7 @@ TEST_F(basic_vm, vm6) {
                         );
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,24,23,27 ) );
 
     /* src ip */
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
@@ -2618,86 +2622,154 @@ TEST_F(basic_stl, graph_generator2) {
     delete obj;
 }
 
-static
-void vm_split_test(const char *erf_filename,
-                   TrexStream::STREAM_TYPE stream_type,
-                   double pps,
-                   StreamVmInstructionFlowMan::flow_var_op_e op,
-                   uint8_t dp_core_count,
-                   uint8_t dp_core_to_check) {
+class VmSplitTest {
 
-    TrexStreamsCompiler compile;
-    std::vector<TrexStreamsCompiledObj *> objs;
-    std::vector<TrexStream *> streams;
+public:
 
-    TrexStream *stream = new TrexStream(stream_type, 0, 1);
+    VmSplitTest(const char *erf_filename) {
+        m_erf_filename = erf_filename;
+        m_stream = NULL;
 
-    stream->set_single_burst(pps);
-    stream->set_pps(pps);
+        pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+        pcap.update_ip_src(0x10000001);
 
-    stream->m_enabled = true;
-    stream->m_self_start = true;
-
-    CPcapLoader pcap;
-    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
-    pcap.update_ip_src(0x10000001);
-    pcap.clone_packet_into_stream(stream);
-    
-
-    StreamVm &vm = stream->m_vm;
-
-    StreamVmInstruction *flow_var = new StreamVmInstructionFlowMan("var1",
-                                                                   1,
-                                                                   op,
-                                                                   0,
-                                                                   0,
-                                                                   255);
-
-    vm.add_instruction(flow_var);
-    vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1", 59, 0,true));
-    vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
-
-    vm.set_split_instruction(flow_var);
-    streams.push_back(stream);
-
-    /* compiling for 8 cores */
-    assert(compile.compile(0, streams, objs, dp_core_count));
-    for (auto stream : streams) {
-        delete stream;
+        m_split_instr = new StreamVmInstructionFlowMan("var1",
+                                                       8,
+                                                       StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
+                                                       0,
+                                                       0,
+                                                       1000
+                                                        );
     }
 
-    /* choose one DP object */
-    TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(0, 0, objs[dp_core_to_check], 1 /*sec */ );
-    objs[dp_core_to_check] = NULL;
-    /* free all the non used DP objects */
-    for (auto obj : objs) {
-        if (obj) {
-            delete obj;
+    ~VmSplitTest() {
+        if (m_split_instr) {
+            delete m_split_instr;
         }
     }
 
+    void set_stream(TrexStream *stream) {
 
-    CParserOption * po =&CGlobalInfo::m_options;
-    po->preview.setVMode(7);
-    po->preview.setFileWrite(true);
-    po->out_file = erf_filename;
+        if (m_stream) {
+            delete m_stream;
+            m_stream = NULL;
+        }
 
-    CBasicStl t1;
-    t1.m_msg = lpStartCmd;
-    bool res=t1.init();
-    EXPECT_EQ_UINT32(1, res?1:0);
+        m_stream = stream;
+        m_stream->m_enabled = true;
+        m_stream->m_self_start = true;
+        
+        pcap.clone_packet_into_stream(stream);
+    }
+
+    void set_flow_var_as_split(StreamVmInstructionFlowMan::flow_var_op_e op,
+                               uint64_t start,
+                               uint64_t end,
+                               uint64_t init) {
+
+        if (m_split_instr) {
+            delete m_split_instr;
+            m_split_instr = NULL;
+        }
+
+        m_split_instr = new StreamVmInstructionFlowMan("var1",
+                                                       8,
+                                                       op,
+                                                       init,
+                                                       start,
+                                                       end);
+    }
+
+    void run(uint8_t dp_core_count, uint8_t dp_core_to_check) {
+        TrexStreamsCompiler compile;
+        std::vector<TrexStreamsCompiledObj *> objs;
+        std::vector<TrexStream *> streams;
+
+        StreamVm &vm = m_stream->m_vm;
+
+        vm.add_instruction(m_split_instr);
+
+        vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1", 60 - 8 - 4, 0,true));
+
+        vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
+
+        vm.set_split_instruction(m_split_instr);
+
+        streams.push_back(m_stream);
+
+        /* compiling for 8 cores */
+        assert(compile.compile(0, streams, objs, dp_core_count));
+
+        m_split_instr = NULL;
+
+        /* choose one DP object */
+        TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(0, 0, objs[dp_core_to_check], 1 /*sec */ );
+        objs[dp_core_to_check] = NULL;
+        /* free all the non used DP objects */
+        for (auto obj : objs) {
+            if (obj) {
+                delete obj;
+            }
+        }
+
+
+        CParserOption * po =&CGlobalInfo::m_options;
+        po->preview.setVMode(7);
+        po->preview.setFileWrite(true);
+        po->out_file = m_erf_filename;
+
+        CBasicStl t1;
+        t1.m_msg = lpStartCmd;
+        bool res=t1.init();
+        EXPECT_EQ_UINT32(1, res?1:0);
+
+    }
+
+private:
+    const char *m_erf_filename;
+    TrexStream *m_stream;
+    StreamVmInstruction *m_split_instr;
+    CPcapLoader pcap;
+};
+
+
+
+TEST_F(basic_stl, vm_split_flow_var_inc) {
+
+    VmSplitTest split("exp/stl_vm_split_flow_var_inc.erf");
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_stream(&stream);
+    split.run(8, 4);
+
 }
 
-TEST_F(basic_stl, vm_split_flow_var_1) {
+TEST_F(basic_stl, vm_split_flow_var_small_range) {
+    /* small range */
+    VmSplitTest split("exp/stl_vm_split_flow_var_small_range.erf");
 
-    vm_split_test("exp/stl_vm_split_flow_var_1.erf",
-                  TrexStream::stSINGLE_BURST,
-                  1000,
-                  StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
-                  8,
-                  4);
-   
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, 0, 1, 0);
+    split.set_stream(&stream);
+    split.run(8, 4);
+
 }
 
+TEST_F(basic_stl, vm_split_flow_var_big_range) {
+     VmSplitTest split("exp/stl_vm_split_flow_var_big_range.erf");
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC, 1, 1000, 1000);
+    split.set_stream(&stream);
+    split.run(8, 7);
+
+
+}
 
 /********************************************* Itay Tests End *************************************/

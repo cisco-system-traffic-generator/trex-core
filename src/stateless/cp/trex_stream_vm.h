@@ -352,7 +352,7 @@ public:
 class StreamDPVmInstructions {
 public:
     enum INS_TYPE {
-        ditINC8         ,
+        ditINC8     =7 ,
         ditINC16        ,
         ditINC32        ,
         ditINC64        ,
@@ -635,6 +635,29 @@ public:
         FLOW_VAR_OP_DEC,
         FLOW_VAR_OP_RANDOM
     };
+
+
+    /**
+     * for BSS we take one previous value 
+     * because the VM will be executed before writing to pkt 
+     * so the init value is one step's advanced 
+     * 
+     */
+    uint64_t get_bss_init_value() const {
+        uint64_t init = m_init_value;
+
+        switch (m_op) {
+        case FLOW_VAR_OP_INC:
+            return (init == m_min_value ? m_max_value : (init - 1));
+
+        case FLOW_VAR_OP_DEC:
+            return (init == m_max_value ? m_min_value : (init + 1));
+
+        default:
+            return init;
+        }
+
+    }
 
     StreamVmInstructionFlowMan(const std::string &var_name,
                                uint8_t size,
