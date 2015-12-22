@@ -65,7 +65,7 @@ static inline uint16_t get_log2_size(uint16_t size){
  * 
  */
 static inline uint16_t calc_writable_mbuf_size(uint16_t max_offset_writable,
-                                 uint16_t pkt_size){
+                                               uint16_t pkt_size){
 
     if ( pkt_size<=64 ){
         return (pkt_size);
@@ -177,34 +177,33 @@ public:
     }
 
     /* create new stream */
-    TrexStream * clone_as_dp() const {
+    TrexStream * clone() const {
 
-            TrexStream *dp = new TrexStream(m_type,m_port_id,m_stream_id);
-            dp->m_has_vm = m_has_vm;
-            if (m_vm_dp) {
-                /* should have vm */
-                assert(m_has_vm);
-                dp->m_vm_dp = m_vm_dp->clone();
-            }else{
-                dp->m_vm_dp = NULL;
-            }
-            dp->m_vm_prefix_size = m_vm_prefix_size;
+        /* not all fields will be cloned */
 
-            dp->m_isg_usec      = m_isg_usec;
-            dp->m_next_stream_id = m_next_stream_id;
+        TrexStream *dp = new TrexStream(m_type,m_port_id,m_stream_id);
+        if (m_vm_dp) {
+            dp->m_vm_dp = m_vm_dp->clone();
+        } else {
+            dp->m_vm_dp = NULL;
+        }
 
-            dp->m_enabled    = m_enabled;
-            dp->m_self_start = m_self_start;
+        dp->m_isg_usec      = m_isg_usec;
+        dp->m_next_stream_id = m_next_stream_id;
 
-            /* deep copy */
-            dp->m_pkt.clone(m_pkt.binary,m_pkt.len);
+        dp->m_enabled    = m_enabled;
+        dp->m_self_start = m_self_start;
 
-            dp->m_rx_check              =   m_rx_check;
-            dp->m_pps                   =   m_pps;
-            dp->m_burst_total_pkts      =   m_burst_total_pkts;
-            dp->m_num_bursts            =   m_num_bursts;
-            dp->m_ibg_usec              =   m_ibg_usec ;
-            return (dp);
+        /* deep copy */
+        dp->m_pkt.clone(m_pkt.binary,m_pkt.len);
+
+        dp->m_rx_check              =   m_rx_check;
+        dp->m_pps                   =   m_pps;
+        dp->m_burst_total_pkts      =   m_burst_total_pkts;
+        dp->m_num_bursts            =   m_num_bursts;
+        dp->m_ibg_usec              =   m_ibg_usec;
+
+        return(dp);
     }
 
 
@@ -219,27 +218,20 @@ public:
 
     void Dump(FILE *fd);
 
-    bool is_vm(){
-        return (  m_has_vm );
+    StreamVmDp * getDpVm(){
+        return (m_vm_dp);
     }
-
-    StreamVmDp  * getDpVm(){
-        return ( m_vm_dp);
-    }
-
-    void post_vm_compile();
 
     /**
      * internal compilation of stream (for DP)
      * 
      */
-    void compile();
+    void vm_compile();
 
 public:
     /* basic */
     uint8_t       m_type;
     uint8_t       m_port_id;
-    uint16_t      m_vm_prefix_size;          /* writeable mbuf size */
     uint32_t      m_stream_id;              /* id from RPC can be anything */
     
 
@@ -250,16 +242,15 @@ public:
     /* indicators */
     bool          m_enabled;
     bool          m_self_start;
-    bool          m_has_vm; /* do we have instructions to run */
 
 
-    StreamVmDp  * m_vm_dp; /* compile VM  */
+    /* VM CP and DP */
+    StreamVm      m_vm;
+    StreamVmDp   *m_vm_dp;
 
     CStreamPktData   m_pkt;
     /* pkt */
 
-    /* VM */
-    StreamVm m_vm;
 
     /* RX check */
     struct {

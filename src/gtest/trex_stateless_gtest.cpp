@@ -181,9 +181,7 @@ TEST_F(basic_vm, vm1) {
                         );
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -206,9 +204,7 @@ TEST_F(basic_vm, vm2) {
                         );
     //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -284,9 +280,7 @@ TEST_F(basic_vm, vm3) {
                         );
     //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -369,9 +363,7 @@ TEST_F(basic_vm, vm4) {
                         );
     //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -466,9 +458,7 @@ TEST_F(basic_vm, vm5) {
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -608,9 +598,7 @@ TEST_F(basic_vm, vm6) {
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -675,10 +663,7 @@ TEST_F(basic_vm, vm7) {
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
                         );
 
-
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -742,9 +727,7 @@ TEST_F(basic_vm, vm8) {
                         );
 
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -805,11 +788,8 @@ static void vm_build_program_seq(StreamVm & vm,
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.port",34, 0,true)
                         );
 
-
-    vm.set_packet_size(packet_size);
-
     if (should_compile) {
-        vm.compile();
+        vm.compile(packet_size);
     }
 }
 
@@ -873,7 +853,7 @@ TEST_F(basic_vm, vm10) {
 
     EXPECT_EQ(36,vm.get_max_packet_update_offset());
 
-    StreamVmDp * lpDpVm =vm.cloneAsVmDp();
+    StreamVmDp * lpDpVm =vm.generate_dp_object();
 
     EXPECT_EQ(lpDpVm->get_bss_size(),vm.get_bss_size());
 
@@ -2638,76 +2618,86 @@ TEST_F(basic_stl, graph_generator2) {
     delete obj;
 }
 
-/* stress test */
-#if 0 
-TEST_F(basic_stl, graph_generator2) {
+static
+void vm_split_test(const char *erf_filename,
+                   TrexStream::STREAM_TYPE stream_type,
+                   double pps,
+                   StreamVmInstructionFlowMan::flow_var_op_e op,
+                   uint8_t dp_core_count,
+                   uint8_t dp_core_to_check) {
+
+    TrexStreamsCompiler compile;
+    std::vector<TrexStreamsCompiledObj *> objs;
     std::vector<TrexStream *> streams;
-    TrexStreamsGraph graph;
-    TrexStream *stream;
 
-     /* add some multi burst streams */
-     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 1);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
-     stream->m_isg_usec = 100;
+    TrexStream *stream = new TrexStream(stream_type, 0, 1);
 
-     stream->set_pps(20);
-     stream->set_multi_burst(4918, 321312, 15);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 64;
+    stream->set_single_burst(pps);
+    stream->set_pps(pps);
 
-     streams.push_back(stream);
+    stream->m_enabled = true;
+    stream->m_self_start = true;
 
-     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 2);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
-     stream->m_isg_usec = 59281;
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+    pcap.update_ip_src(0x10000001);
+    pcap.clone_packet_into_stream(stream);
+    
 
-     stream->set_pps(30);
-     stream->set_multi_burst(4918, 51040, 27);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 64;
+    StreamVm &vm = stream->m_vm;
 
-     streams.push_back(stream);
+    StreamVmInstruction *flow_var = new StreamVmInstructionFlowMan("var1",
+                                                                   1,
+                                                                   op,
+                                                                   0,
+                                                                   0,
+                                                                   255);
 
-     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 3);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
-     stream->m_isg_usec = 59281492;
+    vm.add_instruction(flow_var);
+    vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1", 59, 0,true));
+    vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
 
-     stream->set_pps(40);
-     stream->set_multi_burst(4918, 412312, 2917);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 64;
+    vm.set_split_instruction(flow_var);
+    streams.push_back(stream);
 
-     streams.push_back(stream);
+    /* compiling for 8 cores */
+    assert(compile.compile(0, streams, objs, dp_core_count));
+    for (auto stream : streams) {
+        delete stream;
+    }
 
-
-     /* stream 3 */
-     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, 4);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
-
-     stream->m_isg_usec = 50;
-     stream->set_pps(30);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 1512;
-
-     streams.push_back(stream);
+    /* choose one DP object */
+    TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(0, 0, objs[dp_core_to_check], 1 /*sec */ );
+    objs[dp_core_to_check] = NULL;
+    /* free all the non used DP objects */
+    for (auto obj : objs) {
+        if (obj) {
+            delete obj;
+        }
+    }
 
 
-     const TrexStreamsGraphObj &obj = graph.generate(streams);
-     printf("event_count is: %lu, max BPS: %f, max PPS: %f\n", obj.get_events().size(), obj.get_max_bps(), obj.get_max_pps());
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file = erf_filename;
 
-//     for (const TrexStreamsGraphObj::rate_event_st &ev : obj.get_events()) {
-//         printf("time: %f, diff bps: %f, diff pps: %f\n", ev.time, ev.diff_bps, ev.diff_pps);
-//     }
+    CBasicStl t1;
+    t1.m_msg = lpStartCmd;
+    bool res=t1.init();
+    EXPECT_EQ_UINT32(1, res?1:0);
+}
 
-     for (auto stream : streams) {
-         delete stream;
-     }
-}   
+TEST_F(basic_stl, vm_split_flow_var_1) {
 
-#endif
+    vm_split_test("exp/stl_vm_split_flow_var_1.erf",
+                  TrexStream::stSINGLE_BURST,
+                  1000,
+                  StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
+                  8,
+                  4);
+   
+}
+
 
 /********************************************* Itay Tests End *************************************/

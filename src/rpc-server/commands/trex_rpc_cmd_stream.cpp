@@ -230,8 +230,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
                                                                 op_type,
                                                                 init_value,
                                                                 min_value,
-                                                                max_value
-                                                                ));
+                                                                max_value));
 }
 
 void 

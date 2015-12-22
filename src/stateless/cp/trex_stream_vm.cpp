@@ -593,9 +593,61 @@ void StreamVm::build_bss() {
     }
 }
 
+/**
+ * set the VM split instruction 
+ * instr is a pointer to an instruction inside 
+ * the VM program 
+ * 
+ */
+void
+StreamVm::set_split_instruction(StreamVmInstruction *instr) {
+    if (!instr->is_splitable()) {
+        throw TrexException("non splitable instruction");
+        return;
+    }
 
+    m_split_instr = instr;
+}
 
-void StreamVm::compile() {
+/**
+ * copy instructions from this VM to 'other'
+ * 
+ * @author imarom (22-Dec-15)
+ * 
+ * @param other 
+ */
+void 
+StreamVm::copy_instructions(StreamVm &other) const {
+    /* clear previous if any exists */
+    for (auto instr : other.m_inst_list) {
+        delete instr;
+    }
+
+    other.m_inst_list.clear();
+
+    for (auto instr : m_inst_list) {
+        StreamVmInstruction *new_instr = instr->clone();
+        other.m_inst_list.push_back(new_instr);
+
+        /* for the split instruction - find the right one */
+        if (instr == m_split_instr) {
+            other.m_split_instr = new_instr;
+        }
+    }
+
+}
+
+/**
+ * actual work - compile the VM
+ * 
+ */
+void StreamVm::compile(uint16_t pkt_len) {
+
+    if (is_vm_empty()) {
+        return;
+    }
+
+    m_pkt_size = pkt_len;
 
     /* build flow var offset table */
     build_flow_var_table() ;
@@ -610,6 +662,11 @@ void StreamVm::compile() {
         ss << "maximum offset is" << get_max_packet_update_offset() << " bigger than maximum " <<svMAX_PACKET_OFFSET_CHANGE;
         err(ss.str());
     }
+
+    /* calculate the mbuf size that we should allocate */
+    m_prefix_size = calc_writable_mbuf_size(get_max_packet_update_offset(), m_pkt_size);
+
+    m_is_compiled = true;
 }
 
 
