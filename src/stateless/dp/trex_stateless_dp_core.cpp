@@ -472,6 +472,8 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
     /* clone the stream from control plane memory to DP memory */
     node->m_ref_stream_info = stream->clone();
+    /* no need for this memory anymore on the control plane memory */
+    stream->release_dp_object();
 
     node->m_next_stream=0; /* will be fixed later */
 

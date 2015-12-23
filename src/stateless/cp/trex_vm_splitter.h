@@ -23,7 +23,13 @@ limitations under the License.
 
 #include <trex_stream.h>
 
-
+/**
+ * TRex VM splitter is used to split 
+ * VM instructions around cores 
+ *  
+ * 
+ * @author imarom (23-Dec-15)
+ */
 class TrexVmSplitter {
 
 public:

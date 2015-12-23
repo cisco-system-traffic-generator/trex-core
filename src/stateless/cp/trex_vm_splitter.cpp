@@ -22,6 +22,11 @@ limitations under the License.
 #include <trex_vm_splitter.h>
 #include <trex_stateless.h>
 
+/**
+ * split a specific stream's VM to multiple cores
+ * number of cores is implied by the size of the vector
+ * 
+ */
 void
 TrexVmSplitter::split(TrexStream *stream, std::vector<TrexStream *> core_streams) {
 
@@ -57,6 +62,8 @@ bool
 TrexVmSplitter::split_internal() {
 
     const StreamVmInstruction *split_instr = m_stream->m_vm.get_split_instruction();
+
+    /* if no split instruction was specified - fall back*/
     if (split_instr == NULL) {
         return false;
     }
@@ -132,10 +139,48 @@ TrexVmSplitter::split_by_flow_var(const StreamVmInstructionFlowMan *instr) {
 
 bool
 TrexVmSplitter::split_by_flow_client_var(const StreamVmInstructionFlowClient *instr) {
-    return false;
+
+    /* if the range is too small - it is unsplitable  */
+    if (instr->get_ip_range() < m_dp_core_count) {
+        return false;
+    }
+
+    /* we need to split - duplicate VM now */
+    duplicate_vm();
+
+    /* calculate range splitting */
+    uint64_t range = instr->get_ip_range();
+
+    uint64_t range_part = range / m_dp_core_count;
+    uint64_t leftover   = range % m_dp_core_count;
+
+    /* first core handles a bit more */
+    uint64_t start   = instr->m_client_min;
+    uint64_t end     = start + range_part + leftover - 1;
+
+
+    /* do work */
+    for (TrexStream *core_stream : *m_core_streams) {
+
+        /* get the per-core instruction to split */
+        StreamVmInstructionFlowClient *per_core_instr = (StreamVmInstructionFlowClient *)core_stream->m_vm.get_split_instruction();
+
+        per_core_instr->m_client_min  = start;
+        per_core_instr->m_client_max  = end; 
+
+        core_stream->vm_compile();
+
+        start = end + 1;
+        end   = start + range_part - 1;
+    }
+
+    return true;
 }
 
-
+/**
+ * duplicate the VM instructions
+ * to all the cores
+ */
 void
 TrexVmSplitter::duplicate_vm() {
     /* for each core - duplicate the instructions */
@@ -143,3 +188,4 @@ TrexVmSplitter::duplicate_vm() {
         m_stream->m_vm.copy_instructions(core_stream->m_vm);
     }
 }
+

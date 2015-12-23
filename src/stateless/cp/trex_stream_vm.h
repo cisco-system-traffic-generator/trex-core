@@ -766,6 +766,14 @@ public:
         return  (4+2+4);
     }
 
+    uint32_t get_ip_range() const {
+        return (m_client_max - m_client_min + 1);
+    }
+
+    uint16_t get_port_range() const {
+        return (m_port_max - m_port_min + 1);
+    }
+
     bool is_unlimited_flows(){
         return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) == 
                   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );

@@ -184,7 +184,6 @@ TrexStreamsCompiledObj::clone() {
     }
 
     return new_compiled_obj;
-
 }
 
 void TrexStreamsCompiledObj::Dump(FILE *fd){

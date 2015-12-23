@@ -206,6 +206,13 @@ public:
         return(dp);
     }
 
+    /* release the DP object */
+    void release_dp_object() {
+        if (m_vm_dp) {
+            delete m_vm_dp;
+            m_vm_dp = NULL;
+        }
+    }
 
     double get_burst_length_usec() const {
         return ( (m_burst_total_pkts / m_pps) * 1000 * 1000);

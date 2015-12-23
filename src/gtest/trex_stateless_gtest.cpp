@@ -2633,19 +2633,9 @@ public:
         pcap.load_pcap_file("cap2/udp_64B.pcap",0);
         pcap.update_ip_src(0x10000001);
 
-        m_split_instr = new StreamVmInstructionFlowMan("var1",
-                                                       8,
-                                                       StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
-                                                       0,
-                                                       0,
-                                                       1000
-                                                        );
     }
 
     ~VmSplitTest() {
-        if (m_split_instr) {
-            delete m_split_instr;
-        }
     }
 
     void set_stream(TrexStream *stream) {
@@ -2667,17 +2657,56 @@ public:
                                uint64_t end,
                                uint64_t init) {
 
-        if (m_split_instr) {
-            delete m_split_instr;
-            m_split_instr = NULL;
-        }
+        assert(m_stream);
 
-        m_split_instr = new StreamVmInstructionFlowMan("var1",
-                                                       8,
-                                                       op,
-                                                       init,
-                                                       start,
-                                                       end);
+        StreamVmInstruction *split_instr = new StreamVmInstructionFlowMan("var1",
+                                                                          8,
+                                                                          op,
+                                                                          init,
+                                                                          start,
+                                                                          end);
+
+        StreamVm &vm = m_stream->m_vm;
+
+        vm.add_instruction(split_instr);
+
+        vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1", 60 - 8 - 4, 0,true));
+
+        vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
+
+        vm.set_split_instruction(split_instr);
+
+    }
+
+    void set_client_var_as_split(uint32_t client_min_value,
+                                 uint32_t client_max_value,
+                                 uint16_t port_min,
+                                 uint16_t port_max) {
+
+
+        assert(m_stream);
+
+        StreamVmInstruction *split_instr = new StreamVmInstructionFlowClient("var1",
+                                                                             client_min_value,
+                                                                             client_max_value,
+                                                                             port_min,
+                                                                             port_max,
+                                                                             0,
+                                                                             0);
+
+
+        StreamVm &vm = m_stream->m_vm;
+
+        vm.add_instruction(split_instr);
+
+        /* src ip */
+        vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1.ip",26, 0,true));
+        vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
+
+        /* src port */
+        vm.add_instruction(new StreamVmInstructionWriteToPkt("var1.port",34, 0,true));
+
+        vm.set_split_instruction(split_instr);
     }
 
     void run(uint8_t dp_core_count, uint8_t dp_core_to_check) {
@@ -2685,22 +2714,17 @@ public:
         std::vector<TrexStreamsCompiledObj *> objs;
         std::vector<TrexStream *> streams;
 
-        StreamVm &vm = m_stream->m_vm;
-
-        vm.add_instruction(m_split_instr);
-
-        vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1", 60 - 8 - 4, 0,true));
-
-        vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
-
-        vm.set_split_instruction(m_split_instr);
+        if (m_stream->m_vm.is_vm_empty()) {
+            set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
+                                  0,
+                                  1000,
+                                  0);
+        }
 
         streams.push_back(m_stream);
 
         /* compiling for 8 cores */
         assert(compile.compile(0, streams, objs, dp_core_count));
-
-        m_split_instr = NULL;
 
         /* choose one DP object */
         TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(0, 0, objs[dp_core_to_check], 1 /*sec */ );
@@ -2728,7 +2752,6 @@ public:
 private:
     const char *m_erf_filename;
     TrexStream *m_stream;
-    StreamVmInstruction *m_split_instr;
     CPcapLoader pcap;
 };
 
@@ -2753,20 +2776,36 @@ TEST_F(basic_stl, vm_split_flow_var_small_range) {
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     stream.set_pps(1000);
 
-    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, 0, 1, 0);
     split.set_stream(&stream);
+    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, 0, 1, 0);
+    
     split.run(8, 4);
 
 }
 
 TEST_F(basic_stl, vm_split_flow_var_big_range) {
-     VmSplitTest split("exp/stl_vm_split_flow_var_big_range.erf");
+    VmSplitTest split("exp/stl_vm_split_flow_var_big_range.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     stream.set_pps(1000);
 
-    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC, 1, 1000, 1000);
     split.set_stream(&stream);
+    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC, 1, 1000, 1000);
+
+    split.run(8, 7);
+
+
+}
+
+TEST_F(basic_stl, vm_split_client_var) {
+     VmSplitTest split("exp/stl_vm_split_client_var.erf");
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_stream(&stream);
+    split.set_client_var_as_split(0x10000001, 0x100000fe, 5000, 5050);
+    
     split.run(8, 7);
 
 
