@@ -1,0 +1,2 @@
+rm -f ../linux_dpdk/build_dpdk/linux_dpdk/_t-rex-64
+./b --target=_t-rex-64-debug
