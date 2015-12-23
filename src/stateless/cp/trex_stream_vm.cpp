@@ -600,12 +600,7 @@ void StreamVm::build_bss() {
  * 
  */
 void
-StreamVm::set_split_instruction(StreamVmInstruction *instr) {
-    if (!instr->is_splitable()) {
-        throw TrexException("non splitable instruction");
-        return;
-    }
-
+StreamVm::set_split_instruction(StreamVmInstructionVar *instr) {
     m_split_instr = instr;
 }
 
@@ -631,7 +626,9 @@ StreamVm::copy_instructions(StreamVm &other) const {
 
         /* for the split instruction - find the right one */
         if (instr == m_split_instr) {
-            other.m_split_instr = new_instr;
+            /* dynamic cast must succeed here */
+            other.m_split_instr = dynamic_cast<StreamVmInstructionVar *>(new_instr);
+            assert(other.m_split_instr);
         }
     }
 
@@ -675,6 +672,30 @@ StreamVm::~StreamVm() {
         delete inst;
     }          
     free_bss();
+}
+
+/** 
+* return a pointer to a flow var / client var 
+* by name if exists, otherwise NULL 
+* 
+*/
+StreamVmInstructionVar *
+StreamVm::lookup_var_by_name(const std::string &var_name) {
+    for (StreamVmInstruction *inst : m_inst_list) {
+
+        /* try to cast up to a variable */
+        StreamVmInstructionVar *var = dynamic_cast<StreamVmInstructionVar *>(inst);
+        if (!var) {
+            continue;
+        }
+
+        if (var->get_var_name() == var_name) {
+            return var;
+        }
+
+    }
+
+    return NULL;
 }
 
 

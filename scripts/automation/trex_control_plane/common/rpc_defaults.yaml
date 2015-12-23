@@ -50,9 +50,7 @@ stream:
   mode:
     type: object
   vm:
-    type: array
-    has_default: YES
-    default: []   # no ranging instructions
+    type: object
   rx_stats:
     type: object
 
@@ -113,3 +111,14 @@ rx_stats:
     type: boolean
     has_default: YES
     default: False
+
+vm:
+  instructions:
+    type: array
+    has_default: YES
+    default: [] 
+  split_by_var:
+    type: string
+    has_default: YES
+    default: ""
+

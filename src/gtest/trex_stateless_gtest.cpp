@@ -2659,12 +2659,12 @@ public:
 
         assert(m_stream);
 
-        StreamVmInstruction *split_instr = new StreamVmInstructionFlowMan("var1",
-                                                                          8,
-                                                                          op,
-                                                                          init,
-                                                                          start,
-                                                                          end);
+        StreamVmInstructionVar *split_instr = new StreamVmInstructionFlowMan("var1",
+                                                                             8,
+                                                                             op,
+                                                                             init,
+                                                                             start,
+                                                                             end);
 
         StreamVm &vm = m_stream->m_vm;
 
@@ -2686,13 +2686,13 @@ public:
 
         assert(m_stream);
 
-        StreamVmInstruction *split_instr = new StreamVmInstructionFlowClient("var1",
-                                                                             client_min_value,
-                                                                             client_max_value,
-                                                                             port_min,
-                                                                             port_max,
-                                                                             0,
-                                                                             0);
+        StreamVmInstructionVar *split_instr = new StreamVmInstructionFlowClient("var1",
+                                                                                client_min_value,
+                                                                                client_max_value,
+                                                                                port_min,
+                                                                                port_max,
+                                                                                0,
+                                                                                0);
 
 
         StreamVm &vm = m_stream->m_vm;

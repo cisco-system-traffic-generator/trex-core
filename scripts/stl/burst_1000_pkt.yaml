@@ -11,6 +11,7 @@
       pps: 100
       total_pkts : 10000
     rx_stats: []
+    vm: []
     
 - name: stream1
   stream:
@@ -23,6 +24,7 @@
       pps: 100
       total_pkts : 10000
     rx_stats: []
+    vm: []
 
 - name: stream2
   stream:
@@ -33,4 +35,5 @@
       type: single_burst
       pps: 100
       total_pkts : 10000
-    rx_stats: []    
+    rx_stats: []
+    vm: []    

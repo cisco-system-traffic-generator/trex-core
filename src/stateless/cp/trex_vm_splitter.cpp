@@ -61,7 +61,7 @@ TrexVmSplitter::split(TrexStream *stream, std::vector<TrexStream *> core_streams
 bool
 TrexVmSplitter::split_internal() {
 
-    const StreamVmInstruction *split_instr = m_stream->m_vm.get_split_instruction();
+    const StreamVmInstructionVar *split_instr = m_stream->m_vm.get_split_instruction();
 
     /* if no split instruction was specified - fall back*/
     if (split_instr == NULL) {
@@ -97,7 +97,7 @@ TrexVmSplitter::split_by_flow_var(const StreamVmInstructionFlowMan *instr) {
     }
 
     /* if the range is too small - it is unsplitable  */
-    if (instr->get_range() < m_dp_core_count) {
+    if (instr->get_splitable_range() < m_dp_core_count) {
         return false;
     }
 
@@ -105,7 +105,7 @@ TrexVmSplitter::split_by_flow_var(const StreamVmInstructionFlowMan *instr) {
     duplicate_vm();
 
     /* calculate range splitting */
-    uint64_t range = instr->get_range();
+    uint64_t range = instr->get_splitable_range();
 
     uint64_t range_part = range / m_dp_core_count;
     uint64_t leftover   = range % m_dp_core_count;

@@ -9,6 +9,7 @@
       type: continuous
       pps: 28
     rx_stats: []
+    vm: []
 - name: udp_594B
   stream:
     self_start: True
@@ -18,6 +19,7 @@
       type: continuous
       pps: 20
     rx_stats: []
+    vm: []
 - name: udp_1518B
   stream:
     self_start: True
@@ -27,3 +29,4 @@
       type: continuous
       pps: 4
     rx_stats: []
+    vm: []

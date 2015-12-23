@@ -82,7 +82,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_pkt.meta = parse_string(pkt, "meta", result);
 
     /* parse VM */
-    const Json::Value &vm =  parse_array(section ,"vm", result);
+    const Json::Value &vm =  parse_object(section ,"vm", result);
     parse_vm(vm, stream, result);
 
     /* parse RX info */
@@ -248,9 +248,12 @@ TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, Trex
 
 void 
 TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::Value &result) {
+
+    const Json::Value &instructions =  parse_array(vm ,"instructions", result);
+
     /* array of VM instructions on vm */
-    for (int i = 0; i < vm.size(); i++) {
-        const Json::Value & inst = parse_object(vm, i, result);
+    for (int i = 0; i < instructions.size(); i++) {
+        const Json::Value & inst = parse_object(instructions, i, result);
 
         auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var"};
         std::string vm_type = parse_choice(inst, "type", vm_types, result);
@@ -271,6 +274,17 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::V
             /* internal error */
             throw TrexRpcException("internal error");
         }
+    }
+
+    const std::string &var_name = parse_string(vm, "split_by_var", result);
+    if (var_name != "") {
+        StreamVmInstructionVar *instr = stream->m_vm.lookup_var_by_name(var_name);
+        if (!instr) {
+            std::stringstream ss;
+            ss << "VM: request to split by variable '" << var_name << "' but does not exists";
+            generate_parse_err(result, ss.str());
+        }
+        stream->m_vm.set_split_instruction(instr);
     }
 }
 

@@ -579,15 +579,46 @@ public:
     
     virtual StreamVmInstruction * clone() = 0;
 
-    /**
-     * by default an instruction is not a splitable field 
-     */
+    /* by default an instruction is not splitable */
     virtual bool is_splitable() const {
         return false;
     }
 
 private:
     static const std::string m_name;
+};
+
+/**
+ * abstract class that defines a flow var
+ * 
+ * @author imarom (23-Dec-15)
+ */
+class StreamVmInstructionVar : public StreamVmInstruction {
+
+public:
+
+    StreamVmInstructionVar(const std::string &var_name) : m_var_name(var_name) {
+
+    }
+
+    const std::string & get_var_name() {
+        return m_var_name;
+    }
+
+    virtual bool is_splitable() const {
+        return true;
+    }
+
+    /**
+     * what is the split range for this var
+     * 
+     */
+    virtual uint64_t get_splitable_range() const = 0;
+
+public:
+    
+    /* flow var name */
+    const std::string m_var_name;
 };
 
 /**
@@ -619,7 +650,7 @@ public:
  * 
  * @author imarom (07-Sep-15)
  */
-class StreamVmInstructionFlowMan : public StreamVmInstruction {
+class StreamVmInstructionFlowMan : public StreamVmInstructionVar {
 
 public:
 
@@ -627,12 +658,8 @@ public:
         return ( StreamVmInstruction::itFLOW_MAN);
     }
 
-    uint64_t get_range() const {
+    virtual uint64_t get_splitable_range() const {
         return (m_max_value - m_min_value + 1);
-    }
-
-    virtual bool is_splitable() const {
-        return true;
     }
 
     /**
@@ -672,14 +699,13 @@ public:
                                flow_var_op_e op,
                                uint64_t init_value,
                                uint64_t min_value,
-                               uint64_t max_value) : 
-                                                     m_var_name(var_name),
-                                                     m_size_bytes(size),
-                                                     m_op(op),
-                                                     m_init_value(init_value),
-                                                     m_min_value(min_value),
-                                                     m_max_value(max_value) {
+                               uint64_t max_value) : StreamVmInstructionVar(var_name) {
 
+        m_op = op;
+        m_size_bytes = size;
+        m_init_value = init_value;
+        m_min_value  = min_value;
+        m_max_value  = max_value;
     }
 
     virtual void Dump(FILE *fd);
@@ -702,10 +728,6 @@ private:
 
 public:
 
-
-    /* flow var name */
-    std::string   m_var_name;
-
     /* flow var size */
     uint8_t       m_size_bytes;
 
@@ -725,7 +747,7 @@ public:
  * 
  * @author hhaim
  */
-class StreamVmInstructionFlowClient : public StreamVmInstruction {
+class StreamVmInstructionFlowClient : public StreamVmInstructionVar {
 
 public:
     enum client_flags_e {
@@ -737,9 +759,6 @@ public:
         return ( StreamVmInstruction::itFLOW_CLIENT);
     }
 
-    virtual bool is_splitable() const {
-        return true;
-    }
 
     StreamVmInstructionFlowClient(const std::string &var_name,
                                uint32_t client_min_value,
@@ -748,8 +767,8 @@ public:
                                uint16_t port_max,
                                uint32_t limit_num_flows, /* zero means don't limit */
                                uint16_t flags
-                               ) { 
-        m_var_name   = var_name;
+                               ) : StreamVmInstructionVar(var_name) { 
+
         m_client_min = client_min_value;
         m_client_max = client_max_value;
 
@@ -774,6 +793,10 @@ public:
         return (m_port_max - m_port_min + 1);
     }
 
+    virtual uint64_t get_splitable_range() const {
+        return get_ip_range();
+    }
+
     bool is_unlimited_flows(){
         return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) == 
                   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );
@@ -790,10 +813,6 @@ public:
     }
 
 public:
-
-
-    /* flow var name */
-    std::string   m_var_name;
 
     uint32_t m_client_min;  // min ip 
     uint32_t m_client_max;  // max ip 
@@ -1014,9 +1033,9 @@ public:
     }
 
 
-    void set_split_instruction(StreamVmInstruction *instr);
+    void set_split_instruction(StreamVmInstructionVar *instr);
 
-    StreamVmInstruction * get_split_instruction() {
+    StreamVmInstructionVar * get_split_instruction() {
         return m_split_instr;
     }
 
@@ -1098,6 +1117,14 @@ public:
     /* raise exception */
     void  err(const std::string &err);
 
+
+    /**
+     * return a pointer to a flow var / client var 
+     * by name if exists, otherwise NULL 
+     * 
+     */
+    StreamVmInstructionVar * lookup_var_by_name(const std::string &var_name);
+
 private:
 
     /* lookup for varible offset, */
@@ -1138,7 +1165,7 @@ private:
 
     StreamDPVmInstructions             m_instructions;
     
-    StreamVmInstruction               *m_split_instr;
+    StreamVmInstructionVar             *m_split_instr;
     
 };
 

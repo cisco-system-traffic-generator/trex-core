@@ -9,6 +9,7 @@
       type: continuous
       pps: 100
     rx_stats: []
+    vm: []
 - name: udp_64B
   stream:
     self_start: True
@@ -18,6 +19,7 @@
       type: continuous
       pps: 100
     rx_stats: []
+    vm: []
 - name: udp_64B
   stream:
     self_start: True
@@ -27,6 +29,7 @@
       type: continuous
       pps: 100
     rx_stats: []
+    vm: []
 - name: udp_64B
   stream:
     self_start: True
@@ -35,4 +38,5 @@
     mode:
       type: continuous
       pps: 100
-    rx_stats: []            
+    rx_stats: []
+    vm: []            
