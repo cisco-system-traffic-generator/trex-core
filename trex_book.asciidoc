@@ -108,12 +108,14 @@ TRex curretly works on x86 architecture and can operates well on Cisco UCS hardw
 | 1Gb/sec  | Intel I350 | Intel 4x1GE 350-T4 NIC
 | 10Gb/sec | Intel 82599  | Intel x520-D2  Cisco Order tool 2X Intel N2XX-AIPCI01, Intel X520 Dual Port 10Gb SFP+ Adapter
 | 40Gb/sec | Intel XL710 Intel X710  | QSFP+, SFP+ 
-| VMXNET   | VMware paravirtualize  | connect using vmWare vSwitch
+| VMXNET / +
+VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | E1000    | paravirtualize  | vmWare/KVM/VirtualBox 
 |=================
 
 [IMPORTANT]
 =====================================
+* For VMXNET3 use Ubuntu and *not* Fedora.
 * Intel SFP+ 10Gb/Sec is the only one supported by default on the standard Linux driver. TRex also supports Cisco 10Gb/sec SFP+. 
 * Using different NUMA for different NIC is very important when getting to high speeds, such as using several Intel XL710 40Gb/sec. +
     One can verify NUMA and NIC topology with following command: lstopo (yum install hwloc) +
