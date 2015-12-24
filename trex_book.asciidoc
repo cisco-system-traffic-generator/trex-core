@@ -175,21 +175,28 @@ x86_64   #<1>
 <1> x86_64 is the desired output 
 
 
+==== Download OVA file 
+
+The OVA is a ready to use clone of VM to be deployed at Hypervisor.
+
+* link:http://csi-wiki-01:8181/trex/TRex_Ubuntu_VM.ova[Ubuntu 14.04.1]
+
+
 ==== Download ISO file 
 
 The ISO images of the described Linux OS can be downloaded from the following links:
 
 .Supported Linux ISO image links
-[options="header",cols="1,2,3^",width="50%"]
+[options="header",cols="1^,2^",width="50%"]
 |======================================
-| # | Distribution | SHA256 Checksum
-| 1.| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/18/Fedora/x86_64/iso/Fedora-18-x86_64-DVD.iso[Fedora 18] 
+| Distribution | SHA256 Checksum
+| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/18/Fedora/x86_64/iso/Fedora-18-x86_64-DVD.iso[Fedora 18] 
     | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/18/Fedora/x86_64/iso/Fedora-18-x86_64-CHECKSUM[Fedora 18 CHECKSUM] 
-| 2.| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-19-x86_64-DVD.iso[Fedora 19]
+| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-19-x86_64-DVD.iso[Fedora 19]
     | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-19-x86_64-CHECKSUM[Fedora 19 CHECKSUM] 
-| 3.| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]
+| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]
     | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-CHECKSUM[Fedora 20 CHECKSUM] 
-| 4.|link:http://old-releases.ubuntu.com/releases/14.04.1/ubuntu-14.04-desktop-amd64.iso[Ubuntu 14.04.01]
+| link:http://old-releases.ubuntu.com/releases/14.04.1/ubuntu-14.04-desktop-amd64.iso[Ubuntu 14.04.1]
     | http://old-releases.ubuntu.com/releases/14.04.1/SHA256SUMS[Ubuntu 14.04 CHECKSUM]
 |======================================
 
@@ -202,6 +209,7 @@ $sha256sum Fedora-18-x86_64-DVD.iso
 91c5f0aca391acf76a047e284144f90d66d3d5f5dcd26b01f368a43236832c03 #<1>
 ----
 <1> Should be equal to the sha256 values described in the linked CHECKSUM files. 
+
 
 ==== Install Linux 
 
