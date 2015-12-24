@@ -20,6 +20,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.84  ==
+
+* more stateless support
+** Add splitter range support see "split_by_var" in style/imix_1pkt_vm. yaml
+** Add more samples see stl/syn_attack_sample.yaml. Improve random performance 
+** more improvement with TUI window
+
+
 == Release 1.83  ==
 
 * more stateless support
