@@ -125,10 +125,10 @@ def format_text(text, *args):
     return return_string
 
 def format_threshold (value, red_zone, green_zone):
-    if value > red_zone[0] and value < red_zone[1]:
+    if value >= red_zone[0] and value <= red_zone[1]:
         return format_text("{0}".format(value), 'red')
 
-    if value > green_zone[0] and value < green_zone[1]:
+    if value >= green_zone[0] and value <= green_zone[1]:
         return format_text("{0}".format(value), 'green')
 
     return "{0}".format(value)

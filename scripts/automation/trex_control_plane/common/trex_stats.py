@@ -17,8 +17,13 @@ COMPACT = {GLOBAL_STATS, PORT_STATS}
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
+# use to calculate diffs relative to the previous values
+# for example, BW
 def calculate_diff (samples):
     total = 0.0
+
+    weight_step = 1.0 / sum(xrange(0, len(samples)))
+    weight = weight_step
 
     for i in xrange(0, len(samples) - 1):
         current = samples[i] if samples[i] > 0 else 1
@@ -27,21 +32,27 @@ def calculate_diff (samples):
         s = 100 * ((float(next) / current) - 1.0)
 
         # block change by 100% 
-        total += min(s, 100)
+        total  += (min(s, 100) * weight)
+        weight += weight_step
 
-    return (total / (len(samples) - 1))
+    return total
 
 
-# calculate by absolute values
+# calculate by absolute values and not relatives (useful for CPU usage in % and etc.)
 def calculate_diff_raw (samples):
     total = 0.0
+
+    weight_step = 1.0 / sum(xrange(0, len(samples)))
+    weight = weight_step
 
     for i in xrange(0, len(samples) - 1):
         current = samples[i]
         next = samples[i + 1]
-        total += (next - current)
 
-    return (total / (len(samples) - 1))
+        total  += ( (next - current) * weight )
+        weight += weight_step
+
+    return total
 
 
 
@@ -287,7 +298,7 @@ class CTRexStats(object):
             return calculate_diff(field_samples)
 
 
-    def get_trend_gui (self, field, use_raw = False, up_color = 'red', down_color = 'green'):
+    def get_trend_gui (self, field, show_value = True, use_raw = False, up_color = 'red', down_color = 'green'):
         v = self.get_trend(field, use_raw)
 
         value = abs(v)
@@ -299,11 +310,24 @@ class CTRexStats(object):
             return ""
 
         elif value > 5:
-            return format_text(u"{0}{0}{0} {1:.2f}%".format(arrow,v), color)
+
+            if show_value:
+                return format_text(u"{0}{0}{0} {1:.2f}%".format(arrow,v), color)
+            else:
+                return format_text(u"{0}{0}{0}".format(arrow), color)
+
         elif value > 2:
-            return format_text(u"{0}{0} {1:.2f}%".format(arrow,v), color)
+
+            if show_value:
+                return format_text(u"{0}{0} {1:.2f}%".format(arrow,v), color)
+            else:
+                return format_text(u"{0}{0}".format(arrow), color)
+
         else:
-            return format_text(u"{0} {1:.2f}%".format(arrow,v), color)
+            if show_value:
+                return format_text(u"{0} {1:.2f}%".format(arrow,v), color)
+            else:
+                return format_text(u"{0}".format(arrow), color)
 
 
 
@@ -324,10 +348,15 @@ class CGlobalStats(CTRexStats):
                              ("cpu_util", u"{0}% {1}".format( format_threshold(self.get("m_cpu_util"), [85, 100], [0, 85]),
                                                               self.get_trend_gui("m_cpu_util", use_raw = True))),
 
-                              ("total_tx", self.get("m_tx_bps", format=True, suffix="b/sec")),
-                             ("total_rx", self.get("m_rx_bps", format=True, suffix="b/sec")),
-                             ("total_pps", self.format_num(self.get("m_tx_pps"),
-                                                           suffix="pkt/sec")),
+                             ("total_tx", u"{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
+                                                              self.get_trend_gui("m_tx_bps"))),
+
+                             ("total_rx", u"{0} {1}".format( self.get("m_rx_bps", format=True, suffix="b/sec"),
+                                                              self.get_trend_gui("m_rx_bps"))),
+
+                             ("total_pps", u"{0} {1}".format( self.get("m_tx_pps", format=True, suffix="pkt/sec"),
+                                                              self.get_trend_gui("m_tx_pps"))),
+
                              ("total_streams", sum([len(port_obj.streams)
                                                     for _, port_obj in self._ports_dict.iteritems()])),
                              ("active_ports", sum([port_obj.is_active()
@@ -358,11 +387,19 @@ class CPortStats(CTRexStats):
                 "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
 
                 "---": "",
-                "Tx bps": self.get("m_total_tx_bps", format = True, suffix = "bps"),
-                "Rx bps": self.get("m_total_rx_bps", format = True, suffix = "bps"),
+                "Tx bps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False, up_color = None, down_color = None),
+                                            self.get("m_total_tx_bps", format = True, suffix = "bps")),
+
+                "Rx bps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False, up_color = None, down_color = None),
+                                            self.get("m_total_rx_bps", format = True, suffix = "bps")),
+
                 "----": "",
-                "Tx pps": self.get("m_total_tx_pps", format = True, suffix = "pps"),
-                "Rx pps": self.get("m_total_rx_pps", format = True, suffix = "pps"),
+                "Tx pps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False, up_color = None, down_color = None),
+                                            self.get("m_total_tx_pps", format = True, suffix = "pps")),
+
+                "Rx pps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False, up_color = None, down_color = None),
+                                            self.get("m_total_rx_pps", format = True, suffix = "pps")),
+
                 }
 
 
