@@ -179,7 +179,9 @@ x86_64   #<1>
 
 The OVA is a ready to use clone of VM to be deployed at Hypervisor.
 
-* link:http://csi-wiki-01:8181/trex/TRex_Ubuntu_VM.ova[Ubuntu 14.04.1]
+* link:http://csi-wiki-01:8181/trex/TRex_Ubuntu_VM.ova[Ubuntu 14.04.1] +
+Username/password: trex/trex. Root password is trex as well. +
+It has TRex v1.83 in /home/trex directory + 2xVMXNET3 NICs for TRex + /etc/trex_cfg.yaml configured for them. Ready to run.
 
 
 ==== Download ISO file 
