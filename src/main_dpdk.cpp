@@ -3692,8 +3692,15 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
 
     fprintf (fd," summary stats \n");
     fprintf (fd," -------------- \n");
-
-    fprintf (fd," Total-pkt-drop       : %llu pkts \n",(unsigned long long)(pkt_out-pkt_in));
+    
+    if (pkt_in > pkt_out)
+    {
+        fprintf (fd, " Total-pkt-drop       : 0 pkts \n");
+        if (pkt_in > pkt_out * 1.01)
+            fprintf (fd, " Warning : number of rx packets exceeds 101%% of tx packets!\n");
+    }
+    else
+        fprintf (fd, " Total-pkt-drop       : %llu pkts \n", (unsigned long long) (pkt_out - pkt_in));
     fprintf (fd," Total-tx-bytes       : %llu bytes \n", (unsigned long long)pkt_out_bytes);
     fprintf (fd," Total-tx-sw-bytes    : %llu bytes \n", (unsigned long long)sw_pkt_out_bytes);
     fprintf (fd," Total-rx-bytes       : %llu byte \n", (unsigned long long)pkt_in_bytes);
