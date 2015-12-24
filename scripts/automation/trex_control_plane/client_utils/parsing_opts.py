@@ -70,7 +70,10 @@ def match_multiplier_common(val, strict_abs = True):
         op = None
     else:
         match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)([\+\-])?$", val)
-        op  = match.group(4)
+        if match:
+            op  = match.group(4)
+        else:
+            op = None
 
     result = {}
 

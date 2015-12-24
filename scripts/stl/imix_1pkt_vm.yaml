@@ -10,9 +10,10 @@
       pps: 100
     rx_stats: []
 
-    vm: [
+    vm:
+      instructions: [
                {
-                  "init_value" : 0,
+                  "init_value" : 500,
                   "max_value" : 1000,
                   "min_value" : 500,
                   "name" : "l3_src",
@@ -27,5 +28,6 @@
                   "pkt_offset" : 34,
                   "type" : "write_flow_var"
                }
-
-        ]
+                    ]
+      split_by_var: "l3_src"
+        

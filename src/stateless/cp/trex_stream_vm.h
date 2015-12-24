@@ -87,18 +87,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint8_t * p=(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint8_t *p = (flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint8_t * p=(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint8_t *p = (flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
@@ -119,18 +121,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
@@ -152,18 +156,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
@@ -183,18 +189,20 @@ public:
     void dump(FILE *fd,std::string opt);
 
     inline void run_inc(uint8_t * flow_var) {
-        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
-        *p=*p+1;
-        if (*p>m_max_val) {
-            *p=m_min_val;
+        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if (*p == m_max_val) {
+            *p = m_min_val;
+        } else {
+            *p = *p + 1;
         }
     }
 
     inline void run_dec(uint8_t * flow_var) {
-        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
-        *p=*p-1;
-        if (*p<m_min_val) {
-            *p=m_max_val;
+        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if (*p == m_min_val) {
+            *p = m_max_val;
+        } else {
+            *p = *p - 1;
         }
     }
 
@@ -392,7 +400,7 @@ public:
 class StreamDPVmInstructions {
 public:
     enum INS_TYPE {
-        ditINC8         ,
+        ditINC8     =7 ,
         ditINC16        ,
         ditINC32        ,
         ditINC64        ,
@@ -605,15 +613,54 @@ public:
 
     typedef uint8_t instruction_type_t ;
 
-    virtual instruction_type_t get_instruction_type()=0;
+    virtual instruction_type_t get_instruction_type() const = 0;
 
     virtual ~StreamVmInstruction();
 
     virtual void Dump(FILE *fd)=0;
     
+    virtual StreamVmInstruction * clone() = 0;
+
+    /* by default an instruction is not splitable */
+    virtual bool is_splitable() const {
+        return false;
+    }
 
 private:
     static const std::string m_name;
+};
+
+/**
+ * abstract class that defines a flow var
+ * 
+ * @author imarom (23-Dec-15)
+ */
+class StreamVmInstructionVar : public StreamVmInstruction {
+
+public:
+
+    StreamVmInstructionVar(const std::string &var_name) : m_var_name(var_name) {
+
+    }
+
+    const std::string & get_var_name() {
+        return m_var_name;
+    }
+
+    virtual bool is_splitable() const {
+        return true;
+    }
+
+    /**
+     * what is the split range for this var
+     * 
+     */
+    virtual uint64_t get_splitable_range() const = 0;
+
+public:
+    
+    /* flow var name */
+    const std::string m_var_name;
 };
 
 /**
@@ -626,11 +673,15 @@ public:
 
     }
 
-    virtual instruction_type_t get_instruction_type(){
+    virtual instruction_type_t get_instruction_type() const {
         return ( StreamVmInstruction::itFIX_IPV4_CS);
     }
 
     virtual void Dump(FILE *fd);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFixChecksumIpv4(m_pkt_offset);
+    }
 
 public:
     uint16_t m_pkt_offset; /* the offset of IPv4 header from the start of the packet  */
@@ -641,12 +692,16 @@ public:
  * 
  * @author imarom (07-Sep-15)
  */
-class StreamVmInstructionFlowMan : public StreamVmInstruction {
+class StreamVmInstructionFlowMan : public StreamVmInstructionVar {
 
 public:
 
-    virtual instruction_type_t get_instruction_type(){
+    virtual instruction_type_t get_instruction_type() const {
         return ( StreamVmInstruction::itFLOW_MAN);
+    }
+
+    virtual uint64_t get_splitable_range() const {
+        return (m_max_value - m_min_value + 1);
     }
 
     /**
@@ -658,24 +713,55 @@ public:
         FLOW_VAR_OP_RANDOM
     };
 
+
+    /**
+     * for BSS we take one previous value 
+     * because the VM will be executed before writing to pkt 
+     * so the init value is one step's advanced 
+     * 
+     */
+    uint64_t get_bss_init_value() const {
+        uint64_t init = m_init_value;
+
+        switch (m_op) {
+        case FLOW_VAR_OP_INC:
+            return (init == m_min_value ? m_max_value : (init - 1));
+
+        case FLOW_VAR_OP_DEC:
+            return (init == m_max_value ? m_min_value : (init + 1));
+
+        default:
+            return init;
+        }
+
+    }
+
     StreamVmInstructionFlowMan(const std::string &var_name,
                                uint8_t size,
                                flow_var_op_e op,
                                uint64_t init_value,
                                uint64_t min_value,
-                               uint64_t max_value) : 
-                                                     m_var_name(var_name),
-                                                     m_size_bytes(size),
-                                                     m_op(op),
-                                                     m_init_value(init_value),
-                                                     m_min_value(min_value),
-                                                     m_max_value(max_value) {
+                               uint64_t max_value) : StreamVmInstructionVar(var_name) {
 
+        m_op = op;
+        m_size_bytes = size;
+        m_init_value = init_value;
+        m_min_value  = min_value;
+        m_max_value  = max_value;
     }
 
     virtual void Dump(FILE *fd);
 
     void sanity_check(uint32_t ins_id,StreamVm *lp);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFlowMan(m_var_name,
+                                              m_size_bytes,
+                                              m_op,
+                                              m_init_value,
+                                              m_min_value,
+                                              m_max_value);
+    }
 
 private:
     void sanity_check_valid_range(uint32_t ins_id,StreamVm *lp);
@@ -683,10 +769,6 @@ private:
     void sanity_check_valid_opt(uint32_t ins_id,StreamVm *lp);
 
 public:
-
-
-    /* flow var name */
-    std::string   m_var_name;
 
     /* flow var size */
     uint8_t       m_size_bytes;
@@ -699,7 +781,6 @@ public:
     uint64_t m_min_value;
     uint64_t m_max_value;
 
-
 };
 
 
@@ -708,7 +789,7 @@ public:
  * 
  * @author hhaim
  */
-class StreamVmInstructionFlowClient : public StreamVmInstruction {
+class StreamVmInstructionFlowClient : public StreamVmInstructionVar {
 
 public:
     enum client_flags_e {
@@ -716,7 +797,7 @@ public:
     };
 
 
-    virtual instruction_type_t get_instruction_type(){
+    virtual instruction_type_t get_instruction_type() const {
         return ( StreamVmInstruction::itFLOW_CLIENT);
     }
 
@@ -728,8 +809,8 @@ public:
                                uint16_t port_max,
                                uint32_t limit_num_flows, /* zero means don't limit */
                                uint16_t flags
-                               ) { 
-        m_var_name   = var_name;
+                               ) : StreamVmInstructionVar(var_name) { 
+
         m_client_min = client_min_value;
         m_client_max = client_max_value;
 
@@ -746,15 +827,34 @@ public:
         return  (4+2+4);
     }
 
+    uint32_t get_ip_range() const {
+        return (m_client_max - m_client_min + 1);
+    }
+
+    uint16_t get_port_range() const {
+        return (m_port_max - m_port_min + 1);
+    }
+
+    virtual uint64_t get_splitable_range() const {
+        return get_ip_range();
+    }
+
     bool is_unlimited_flows(){
         return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) == 
                   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );
     }
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFlowClient(m_var_name,
+                                                 m_client_min,
+                                                 m_client_max,
+                                                 m_port_min,
+                                                 m_port_max,
+                                                 m_limit_num_flows,
+                                                 m_flags);
+    }
+
 public:
-
-
-    /* flow var name */
-    std::string   m_var_name;
 
     uint32_t m_client_min;  // min ip 
     uint32_t m_client_max;  // max ip 
@@ -796,11 +896,18 @@ public:
                                                         m_add_value(add_value),
                                                         m_is_big_endian(is_big_endian) {}
 
-    virtual instruction_type_t get_instruction_type(){
+    virtual instruction_type_t get_instruction_type() const {
         return ( StreamVmInstruction::itPKT_WR);
     }
 
     virtual void Dump(FILE *fd);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionWriteToPkt(m_flow_var_name,
+                                                 m_pkt_offset,
+                                                 m_add_value,
+                                                 m_is_big_endian);
+    }
 
 public:
 
@@ -831,13 +938,15 @@ public:
         m_bss_size=0;
         m_program_size=0;
         m_max_pkt_offset_change=0;
+        m_prefix_size = 0;
     }
 
     StreamVmDp( uint8_t * bss,
                 uint16_t bss_size,
                 uint8_t * prog,
                 uint16_t prog_size,
-                uint16_t max_pkt_offset
+                uint16_t max_pkt_offset,
+                uint16_t prefix_size
                 ){
 
         if (bss) {
@@ -860,7 +969,9 @@ public:
             m_program_ptr = NULL;
             m_program_size=0;
         }
-        m_max_pkt_offset_change =max_pkt_offset;
+
+        m_max_pkt_offset_change = max_pkt_offset;
+        m_prefix_size = prefix_size;
     }
 
     ~StreamVmDp(){
@@ -877,12 +988,13 @@ public:
     }
 
     StreamVmDp * clone() const {
-        StreamVmDp * lp= new StreamVmDp(m_bss_ptr,
-                                        m_bss_size,
-                                        m_program_ptr,
-                                        m_program_size,
-                                        m_max_pkt_offset_change
-                                        );
+        StreamVmDp * lp = new StreamVmDp(m_bss_ptr,
+                                         m_bss_size,
+                                         m_program_ptr,
+                                         m_program_size,
+                                         m_max_pkt_offset_change,
+                                         m_prefix_size
+                                         );
         assert(lp);
         return (lp);
     }
@@ -915,12 +1027,21 @@ public:
         return (m_max_pkt_offset_change);
     }
 
+    uint16_t get_prefix_size() {
+        return m_prefix_size;
+    }
+
+    void set_prefix_size(uint16_t prefix_size) {
+        m_prefix_size = prefix_size;
+    }
+
 private:
     uint8_t *  m_bss_ptr; /* pointer to the data section */
     uint8_t *  m_program_ptr; /* pointer to the program */
     uint16_t   m_bss_size;
     uint16_t   m_program_size; /* program size*/
     uint16_t   m_max_pkt_offset_change;
+    uint16_t   m_prefix_size;
 
 };
 
@@ -940,36 +1061,52 @@ public:
 
 
     StreamVm(){
+        m_prefix_size=0;
         m_bss=0;
         m_pkt_size=0;
         m_cur_var_offset=0;
         m_is_random_var=false;
+        m_split_instr=NULL;
+        m_is_compiled = false;
     }
 
 
-    /* set packet size */
-    void set_packet_size(uint16_t pkt_size){
-        m_pkt_size = pkt_size;
-    }
-
-    uint16_t get_packet_size(){
+    uint16_t get_packet_size() const {
         return ( m_pkt_size);
     }
 
 
-    StreamVmDp * cloneAsVmDp(){
+    void set_split_instruction(StreamVmInstructionVar *instr);
+
+    StreamVmInstructionVar * get_split_instruction() {
+        return m_split_instr;
+    }
+
+    StreamVmDp * generate_dp_object(){
+
+        if (!m_is_compiled) {
+            return NULL;
+        }
 
         StreamVmDp * lp= new StreamVmDp(get_bss_ptr(),
                                         get_bss_size(),
                                         get_dp_instruction_buffer()->get_program(),
                                         get_dp_instruction_buffer()->get_program_size(),
-                                        get_max_packet_update_offset()
+                                        get_max_packet_update_offset(),
+                                        get_prefix_size()
                                         );
         assert(lp);
         return (lp);
         
     }
 
+    /**
+     * clone VM instructions
+     * 
+     */
+    void copy_instructions(StreamVm &other) const;
+
+    
     bool is_vm_empty() {
         return (m_inst_list.size() == 0);
     }
@@ -1001,14 +1138,20 @@ public:
         return ( m_max_field_update );
     }
 
+    uint16_t get_prefix_size() {
+        return m_prefix_size;
+    }
 
+    bool is_compiled() {
+        return m_is_compiled;
+    }
 
     /**
      * compile the VM 
      * return true of success, o.w false 
      * 
      */
-    void compile();
+    void compile(uint16_t pkt_len);
 
     ~StreamVm();
 
@@ -1016,6 +1159,14 @@ public:
 
     /* raise exception */
     void  err(const std::string &err);
+
+
+    /**
+     * return a pointer to a flow var / client var 
+     * by name if exists, otherwise NULL 
+     * 
+     */
+    StreamVmInstructionVar * lookup_var_by_name(const std::string &var_name);
 
 private:
 
@@ -1046,6 +1197,8 @@ private:
 
 private:
     bool                               m_is_random_var;
+    bool                               m_is_compiled;
+    uint16_t                           m_prefix_size;
     uint16_t                           m_pkt_size;
     uint16_t                           m_cur_var_offset;
     uint16_t                           m_max_field_update; /* the location of the last byte that is going to be changed in the packet */ 
@@ -1055,6 +1208,8 @@ private:
     uint8_t *                          m_bss;
 
     StreamDPVmInstructions             m_instructions;
+    
+    StreamVmInstructionVar             *m_split_instr;
     
 };
 

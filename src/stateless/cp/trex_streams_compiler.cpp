@@ -21,11 +21,15 @@ limitations under the License.
 
 #include <string>
 #include <sstream>
-#include <trex_streams_compiler.h>
-#include <trex_stream.h>
 #include <assert.h>
-#include <trex_stateless.h>
 #include <iostream>
+
+#include <trex_streams_compiler.h>
+#include <trex_stateless.h>
+#include <trex_vm_splitter.h>
+#include <trex_stream.h>
+
+
 
 /**
  * describes a graph node in the pre compile check
@@ -175,12 +179,11 @@ TrexStreamsCompiledObj::clone() {
      * clone each element
      */
     for (auto obj : m_objs) {
-        TrexStream *new_stream = obj.m_stream->clone_as_dp();
+        TrexStream *new_stream = obj.m_stream->clone();
         new_compiled_obj->add_compiled_stream(new_stream);
     }
 
     return new_compiled_obj;
-
 }
 
 void TrexStreamsCompiledObj::Dump(FILE *fd){
@@ -463,19 +466,16 @@ TrexStreamsCompiler::compile_stream(const TrexStream *stream,
         new_next_id = nodes.get(stream->m_next_stream_id)->m_compressed_stream_id;
     }
 
+    std::vector<TrexStream *> core_streams(dp_core_count);
+
     /* calculate rate */
     double per_core_rate          = (stream->m_pps * (factor / dp_core_count));
     int per_core_burst_total_pkts = (stream->m_burst_total_pkts / dp_core_count);
 
-    /* compile VM */
-    /* fix this const away problem */
-    ((TrexStream *)stream)->compile();
-
-    std::vector<TrexStream *> per_core_streams(dp_core_count);
 
     /* for each core - creates its own version of the stream */
     for (uint8_t i = 0; i < dp_core_count; i++) {
-        TrexStream *dp_stream = stream->clone_as_dp();
+        TrexStream *dp_stream = stream->clone();
 
         /* fix stream ID */
         dp_stream->fix_dp_stream_id(new_id, new_next_id);
@@ -485,16 +485,20 @@ TrexStreamsCompiler::compile_stream(const TrexStream *stream,
         dp_stream->m_pps               = per_core_rate;
         dp_stream->m_burst_total_pkts  = per_core_burst_total_pkts;
 
-        per_core_streams[i] = dp_stream;
+        core_streams[i] = dp_stream;
     }
 
     /* take care of remainder from a burst */
     int burst_remainder = stream->m_burst_total_pkts - (per_core_burst_total_pkts * dp_core_count);
-    per_core_streams[0]->m_burst_total_pkts += burst_remainder;
+    core_streams[0]->m_burst_total_pkts += burst_remainder;
+
+    /* handle VM (split if needed) */
+    TrexVmSplitter vm_splitter;
+    vm_splitter.split( (TrexStream *)stream, core_streams);
 
     /* attach the compiled stream of every core to its object */
     for (uint8_t i = 0; i < dp_core_count; i++) {
-        objs[i]->add_compiled_stream(per_core_streams[i]);
+        objs[i]->add_compiled_stream(core_streams[i]);
     }
 
 

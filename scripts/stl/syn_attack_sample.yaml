@@ -11,7 +11,8 @@
     rx_stats: []
 
     # program generate 4 random numbers and write them to ip.src/ip.dst/tcp.src_port/tcp.dest_port
-    vm: [
+    vm: 
+       instructions: [
           #define 4 bytes random ip_src
            {     "type"  : "flow_var",   # name of the command 
                  "name"  : "ip_src",    
@@ -92,5 +93,4 @@
                   "is_big_endian" : true,   # write as big edian 
                   "pkt_offset" : 36,        # write tuple_gen.port into udp.src_port
                }
-
-        ]
+           ]

@@ -94,9 +94,16 @@ def underline(text):
 
 
 def text_attribute(text, attribute):
-    return "{start}{txt}{stop}".format(start=TEXT_CODES[attribute]['start'],
-                                       txt=text,
-                                       stop=TEXT_CODES[attribute]['end'])
+    if isinstance(text, str):
+        return "{start}{txt}{stop}".format(start=TEXT_CODES[attribute]['start'],
+                                           txt=text,
+                                           stop=TEXT_CODES[attribute]['end'])
+    elif isinstance(text, unicode):
+        return u"{start}{txt}{stop}".format(start=TEXT_CODES[attribute]['start'],
+                                            txt=text,
+                                            stop=TEXT_CODES[attribute]['end'])
+    else:
+        raise Exception("not a string")
 
 
 FUNC_DICT = {'blue': blue,
@@ -116,6 +123,15 @@ def format_text(text, *args):
         if func:
             return_string = func(return_string)
     return return_string
+
+def format_threshold (value, red_zone, green_zone):
+    if value >= red_zone[0] and value <= red_zone[1]:
+        return format_text("{0}".format(value), 'red')
+
+    if value >= green_zone[0] and value <= green_zone[1]:
+        return format_text("{0}".format(value), 'green')
+
+    return "{0}".format(value)
 
 # pretty print for JSON
 def pretty_json (json_str, use_colors = True):
