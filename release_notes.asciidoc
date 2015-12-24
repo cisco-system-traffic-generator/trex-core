@@ -24,7 +24,7 @@ endif::backend-docbook[]
 
 * more stateless support
 ** Add basic Packet Field engine see stl/imin_1pkt_vm.yaml
-** some improvment with TUI window can be run in parallel with --tui option
+** some improvement with TUI window. Can be run in parallel with --tui option
 
 == Release 1.82  ==
 
