@@ -32,6 +32,46 @@ limitations under the License.
 
 
 
+//https://software.intel.com/en-us/articles/fast-random-number-generator-on-the-intel-pentiumr-4-processor/
+
+//Used to seed the generator.
+inline void fast_srand(uint32_t &g_seed, int seed ){
+  g_seed = seed;
+}
+
+
+//fastrand routine returns one integer, similar output value range as C lib.
+
+inline int fastrand(uint32_t &g_seed)
+{
+  g_seed = (214013*g_seed+2531011);
+  return (g_seed>>16)&0x7FFF;
+}         
+
+static inline void vm_srand(uint32_t * per_thread_seed,uint64_t seedval)
+{
+    fast_srand( *per_thread_seed,seedval );
+}
+
+static inline uint32_t vm_rand16(uint32_t * per_thread_seed)
+{
+	return ( fastrand(*per_thread_seed));
+}
+
+static inline uint32_t vm_rand32(uint32_t * per_thread_seed)
+{
+	return ( (vm_rand16(per_thread_seed)<<16)+vm_rand16(per_thread_seed));
+}
+
+static inline uint64_t vm_rand64(uint32_t * per_thread_seed)
+{
+    uint64_t res;
+
+    res=((uint64_t)vm_rand32(per_thread_seed)<<32)+vm_rand32(per_thread_seed);
+
+    return (res);
+}
+                          
 
 class StreamVm;
 
@@ -62,9 +102,9 @@ public:
         }
     }
 
-    inline void run_rand(uint8_t * flow_var) {
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint8_t * p=(flow_var+m_flow_offset);
-        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+        *p= m_min_val + (vm_rand16(per_thread_random)  % (int)(m_max_val - m_min_val + 1));
     }
 
 
@@ -94,9 +134,9 @@ public:
         }
     }
 
-    inline void run_rand(uint8_t * flow_var) {
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
-        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+        *p= m_min_val + (vm_rand16(per_thread_random) % (int)(m_max_val - m_min_val + 1));
     }
 
 
@@ -127,9 +167,9 @@ public:
         }
     }
 
-    inline void run_rand(uint8_t * flow_var) {
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
-        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+        *p= m_min_val + (vm_rand32(per_thread_random) % (int)(m_max_val - m_min_val + 1));
     }
 
 } __attribute__((packed)) ;
@@ -158,9 +198,9 @@ public:
         }
     }
 
-    inline void run_rand(uint8_t * flow_var) {
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
-        *p= m_min_val + (rand() % (int)(m_max_val - m_min_val + 1));
+        *p= m_min_val + ( vm_rand64(per_thread_random)  % (int)(m_max_val - m_min_val + 1));
     }
 
 
@@ -395,7 +435,8 @@ private:
 
 class StreamDPVmInstructionsRunner {
 public:
-    inline void run(uint32_t program_size,
+    inline void run(uint32_t * per_thread_random,
+                    uint32_t program_size,
                     uint8_t * program,  /* program */
                     uint8_t * flow_var, /* flow var */
                     uint8_t * pkt);      /* pkt */
@@ -403,7 +444,8 @@ public:
 };
 
 
-inline void StreamDPVmInstructionsRunner::run(uint32_t program_size,
+inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
+                                              uint32_t program_size,
                                               uint8_t * program,  /* program */
                                               uint8_t * flow_var, /* flow var */
                                               uint8_t * pkt){
@@ -488,22 +530,22 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t program_size,
 
         case  StreamDPVmInstructions::ditRANDOM8 :
             ua.lpv8 =(StreamDPOpFlowVar8 *)p;
-            ua.lpv8->run_rand(flow_var);
+            ua.lpv8->run_rand(flow_var,per_thread_random);
             p+=sizeof(StreamDPOpFlowVar8);
             break;
         case  StreamDPVmInstructions::ditRANDOM16 :
             ua.lpv16 =(StreamDPOpFlowVar16 *)p;
-            ua.lpv16->run_rand(flow_var);
+            ua.lpv16->run_rand(flow_var,per_thread_random);
             p+=sizeof(StreamDPOpFlowVar16);
             break;
         case  StreamDPVmInstructions::ditRANDOM32 :
             ua.lpv32 =(StreamDPOpFlowVar32 *)p;
-            ua.lpv32->run_rand(flow_var);
+            ua.lpv32->run_rand(flow_var,per_thread_random);
             p+=sizeof(StreamDPOpFlowVar32);
             break;
         case  StreamDPVmInstructions::ditRANDOM64 :
             ua.lpv64 =(StreamDPOpFlowVar64 *)p;
-            ua.lpv64->run_rand(flow_var);
+            ua.lpv64->run_rand(flow_var,per_thread_random);
             p+=sizeof(StreamDPOpFlowVar64);
             break;
 
@@ -901,6 +943,7 @@ public:
         m_bss=0;
         m_pkt_size=0;
         m_cur_var_offset=0;
+        m_is_random_var=false;
     }
 
 
@@ -1002,6 +1045,7 @@ private:
     void add_field_cnt(uint16_t new_cnt);
 
 private:
+    bool                               m_is_random_var;
     uint16_t                           m_pkt_size;
     uint16_t                           m_cur_var_offset;
     uint16_t                           m_max_field_update; /* the location of the last byte that is going to be changed in the packet */ 

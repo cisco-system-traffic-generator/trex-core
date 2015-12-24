@@ -261,9 +261,11 @@ TEST_F(basic_vm, vm2) {
                  2, 
                  3}; 
 
+    uint32_t random_per_thread=0;
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -340,9 +342,12 @@ TEST_F(basic_vm, vm3) {
                  2, 
                  3}; 
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -425,9 +430,12 @@ TEST_F(basic_vm, vm4) {
                  2, 
                  3}; 
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -564,9 +572,12 @@ TEST_F(basic_vm, vm5) {
             0x17, 
          }; 
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -631,9 +642,12 @@ TEST_F(basic_vm, vm6) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -699,9 +713,12 @@ TEST_F(basic_vm, vm7) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -765,9 +782,12 @@ TEST_F(basic_vm, vm8) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -843,9 +863,12 @@ TEST_F(basic_vm, vm9) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<30; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -895,10 +918,13 @@ TEST_F(basic_vm, vm10) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<30; i++) {
         
-        runner.run(lpDpVm->get_program_size(), 
+        runner.run(&random_per_thread,
+                   lpDpVm->get_program_size(), 
                    lpDpVm->get_program(),
                    lpDpVm->get_bss(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -914,6 +940,112 @@ TEST_F(basic_vm, vm10) {
     bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
+
+
+/* test vmDP object */
+TEST_F(basic_vm, vm_syn_attack) {
+
+    StreamVm vm;
+    srand(0x1234);
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "ip_src",
+                                                        4,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        0,
+                                                        1000000));
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "ip_dst",
+                                                        4,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        0,
+                                                        1000000));
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "src_port",
+                                                        2,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        1025,
+                                                        65000));
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "dst_port",
+                                                        2,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        1025,
+                                                        65000));
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "ip_src",26, 0x10000000,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "ip_dst",26+4, 0x40000000,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "src_port",34, 0,true)
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "dst_port",34+2, 0,true)
+                        );
+
+
+    vm.set_packet_size(128);
+
+    vm.compile();
+
+    printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
+
+    EXPECT_EQ(38,vm.get_max_packet_update_offset());
+
+    StreamVmDp * lpDpVm =vm.cloneAsVmDp();
+
+    EXPECT_EQ(lpDpVm->get_bss_size(),vm.get_bss_size());
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("stl/syn_packet.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/stl_syn_attack.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<30; i++) {
+        
+        runner.run(&random_per_thread,
+                   lpDpVm->get_program_size(), 
+                   lpDpVm->get_program(),
+                   lpDpVm->get_bss(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+    delete  lpDpVm;
+
+    bool res1=cmp.compare("exp/stl_syn_attack.pcap","exp/stl_syn_attack-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+
 
 
 

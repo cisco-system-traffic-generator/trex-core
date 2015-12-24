@@ -69,6 +69,9 @@ void CGenNodeStateless::Dump(FILE *fd){
 }
 
 
+/**
+ * this function called when stream restart after it was inactive
+ */
 void CGenNodeStateless::refresh(){
 
     /* refill the stream info */
@@ -124,7 +127,8 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     /* run the VM program */
     StreamDPVmInstructionsRunner runner;
 
-    runner.run( m_vm_program_size, 
+    runner.run( (uint32_t*)m_vm_flow_var,
+                m_vm_program_size, 
                 m_vm_program,
                 m_vm_flow_var,
                 (uint8_t*)p);
@@ -302,7 +306,7 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 
         /* can't be FREE_RESUSE */
         assert(state != CGenNodeStateless::ss_FREE_RESUSE);
-        if (next_node->get_state() == CGenNodeStateless::ss_INACTIVE ) {
+        if (state == CGenNodeStateless::ss_INACTIVE ) {
 
             /* refill start info and scedule, no update in active streams  */
             next_node->refresh();

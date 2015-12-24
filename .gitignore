@@ -38,6 +38,7 @@ scripts/exp/udp_64B_vm6.pcap
 scripts/exp/udp_64B_vm7.pcap
 scripts/exp/udp_64B_vm8.pcap
 scripts/exp/udp_64B_vm9.pcap
+scripts/exp/stl_syn_attack.pcap
 
 
 

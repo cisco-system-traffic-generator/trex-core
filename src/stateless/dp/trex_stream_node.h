@@ -102,11 +102,13 @@ private:
     uint8_t *            m_vm_flow_var; /* pointer to the vm flow var */
     uint8_t *            m_vm_program;  /* pointer to the program */
     uint16_t             m_vm_program_size; /* up to 64K op codes */
+    uint16_t             m_pad2;
+    uint32_t             m_pad3;
 
     /* End Fast Field VM Section */
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[30];
+    uint8_t             m_pad_end[20];
 
 
 public:

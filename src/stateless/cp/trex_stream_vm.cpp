@@ -191,7 +191,29 @@ void StreamVm::build_flow_var_table() {
     var_clear_table();
     m_cur_var_offset=0;
     uint32_t ins_id=0;
+    m_is_random_var=false;
         /* scan all flow var instruction and build */
+
+    for (auto inst : m_inst_list) {
+        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN ){
+            StreamVmInstructionFlowMan * ins_man=(StreamVmInstructionFlowMan *)inst;
+            if (ins_man->m_op ==StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM){
+                m_is_random_var =true;
+            }
+        }
+    }
+
+    /* if we found allocate BSS +4 bytes */
+    if ( m_is_random_var ){
+        VmFlowVarRec var;
+
+        var.m_offset = m_cur_var_offset;
+        var.m_ins.m_ins_flowv = NULL;
+        var.m_size_bytes = sizeof(uint32_t);
+        var_add("___random___",var);
+        m_cur_var_offset += sizeof(uint32_t);
+    }
+
     for (auto inst : m_inst_list) {
         if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN ){
 
@@ -207,6 +229,7 @@ void StreamVm::build_flow_var_table() {
                 ss << "instruction id '" << ins_id << "' flow variable name " << ins_man->m_var_name << " already exists";
                 err(ss.str());
             }else{
+
                 var.m_offset=m_cur_var_offset;
                 var.m_ins.m_ins_flowv = ins_man;
                 var.m_size_bytes = ins_man->m_size_bytes;
@@ -540,6 +563,11 @@ void StreamVm::build_program(){
 void StreamVm::build_bss() {
     alloc_bss();
     uint8_t * p=(uint8_t *)m_bss;
+
+    if ( m_is_random_var ){
+        *((uint32_t*)p)=rand();
+        p+=sizeof(uint32_t);
+    }
 
     for (auto inst : m_inst_list) {
 
