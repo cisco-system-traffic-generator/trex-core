@@ -69,6 +69,16 @@ void CGenNodeStateless::Dump(FILE *fd){
 }
 
 
+
+void CGenNodeStateless::refresh_vm_bss(){
+    if ( m_vm_flow_var ) {
+        StreamVmDp  * vm_s=m_ref_stream_info->m_vm_dp;
+        assert(vm_s);
+        memcpy(m_vm_flow_var,vm_s->get_bss(),vm_s->get_bss_size());
+    }
+}
+
+
 /**
  * this function called when stream restart after it was inactive
  */
@@ -78,6 +88,12 @@ void CGenNodeStateless::refresh(){
     m_single_burst    = m_single_burst_refill;
     m_multi_bursts    = m_ref_stream_info->m_num_bursts;
     m_state           = CGenNodeStateless::ss_ACTIVE;
+
+    /* refresh init value */
+#if 0 
+    /* TBD should add a JSON varible for that */
+    refresh_vm_bss();
+#endif
 }
 
 

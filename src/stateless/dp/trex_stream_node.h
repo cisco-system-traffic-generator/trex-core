@@ -331,6 +331,11 @@ public:
 
     void Dump(FILE *fd);
 
+private:
+
+    void refresh_vm_bss();
+
+
 } __rte_cache_aligned;
 
 static_assert(sizeof(CGenNodeStateless) == sizeof(CGenNode), "sizeof(CGenNodeStateless) != sizeof(CGenNode)" );
