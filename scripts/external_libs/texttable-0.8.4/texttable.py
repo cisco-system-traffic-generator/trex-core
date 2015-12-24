@@ -365,7 +365,11 @@ class Texttable:
         try:
             f = float(x)
         except:
-            return str(x)
+            try:
+                return str(x)
+            except:
+                return x.encode('utf-8')
+            
 
         n = self._precision
         dtype = self._dtype[i]
