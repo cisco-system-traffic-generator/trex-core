@@ -115,7 +115,7 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 
 [IMPORTANT]
 =====================================
-* For VMXNET3 use Ubuntu and *not* Fedora.
+* For VMXNET3 use Ubuntu and *not* Fedora 18. Fedora 18 will crash. 
 * Intel SFP+ 10Gb/Sec is the only one supported by default on the standard Linux driver. TRex also supports Cisco 10Gb/sec SFP+. 
 * Using different NUMA for different NIC is very important when getting to high speeds, such as using several Intel XL710 40Gb/sec. +
     One can verify NUMA and NIC topology with following command: lstopo (yum install hwloc) +
@@ -175,13 +175,6 @@ x86_64   #<1>
 <1> x86_64 is the desired output 
 
 
-==== Download OVA file 
-
-The OVA is a ready to use clone of VM to be deployed at Hypervisor.
-
-* link:http://csi-wiki-01:8181/trex/TRex_Ubuntu_VM.ova[Ubuntu 14.04.1] +
-Username/password: trex/trex. Root password is trex as well. +
-It has TRex v1.83 in /home/trex directory + 2xVMXNET3 NICs for TRex + /etc/trex_cfg.yaml configured for them. Ready to run.
 
 
 ==== Download ISO file 
