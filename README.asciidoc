@@ -84,6 +84,10 @@ link:http://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation]
 
 Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 
+=== YouTrack
+
+Report bug/request feature link:http://trex-tgn.cisco.com/youtrack/issues[YouTrack]
+
 === Windows Client GUI
 
 image::http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png[title="",align="center",width=200, link="http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png"]
