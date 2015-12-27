@@ -42,7 +42,6 @@ limitations under the License.
 #include <rte_branch_prediction.h>
 #include <rte_interrupts.h>
 #include <rte_pci.h>
-#include <rte_random.h>
 #include <rte_debug.h>
 #include <rte_ether.h>
 #include <rte_ethdev.h>
@@ -50,6 +49,7 @@ limitations under the License.
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_random.h>
+#include <rte_version.h>
 #include "bp_sim.h"
 #include "latency.h"
 #include "os_time.h"
@@ -145,6 +145,7 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link()=0;
     virtual void wait_after_link_up(){};
+    virtual bool flow_control_disable_supported(){return true;}
 };
 
 
@@ -305,6 +306,8 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
+    // disabling flow control on 40G using DPDK API causes the interface to malfunction
+    bool flow_control_disable_supported(){return false;}
 private:
     void add_rules(CPhyEthIF * _if,
                    uint16_t type,
@@ -538,7 +541,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_LEARN, "--learn",       SO_NONE   },
     { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
     { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
-    { OPT_NO_FLOW_CONTROL, "--no-flow-control",       SO_NONE   },
+    { OPT_NO_FLOW_CONTROL, "--no-flow-control-change",       SO_NONE   },
     { OPT_VLAN,       "--vlan",       SO_NONE   },
     { OPT_MAC_FILE, "--mac", SO_REQ_SEP }, 
     { OPT_NO_KEYBOARD_INPUT ,"--no-key", SO_NONE   },
@@ -633,7 +636,7 @@ static int usage(){
     printf("                              this feature consume another thread  \n");
     printf("  \n");
     printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
-    printf(" --no-flow-control          : In default TRex disables flow-control using this flag it does not touch it \n");
+    printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
     printf(" --prefix                   : for multi trex, each instance should have a different name \n");
     printf(" --mac-spread               : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
     printf("                             maximum is up to 128 devices   \n");
@@ -686,6 +689,7 @@ static int usage(){
     printf(" ZMQ        (LGPL v3plus) \n");
     printf(" \n");
     printf(" Version : %s   \n",VERSION_BUILD_NUM);
+    printf(" DPDK version : %s   \n",rte_version());
     printf(" User    : %s   \n",VERSION_USER);
     printf(" Date    : %s , %s \n",get_build_date(),get_build_time());
     printf(" Uuid    : %s    \n",VERSION_UIID);
@@ -999,11 +1003,10 @@ int main_test(int argc , char * argv[]);
 struct port_cfg_t {
     public:
     port_cfg_t(){
-        memset(&m_port_conf,0,sizeof(rte_eth_conf));
-        memset(&m_rx_conf,0,sizeof(rte_eth_rxconf));
-        memset(&m_tx_conf,0,sizeof(rte_eth_rxconf));
-        memset(&m_rx_drop_conf,0,sizeof(rte_eth_rxconf));
-        
+        memset(&m_port_conf,0,sizeof(m_port_conf));
+        memset(&m_rx_conf,0,sizeof(m_rx_conf));
+        memset(&m_tx_conf,0,sizeof(m_tx_conf));
+        memset(&m_rx_drop_conf,0,sizeof(m_rx_drop_conf));
 
         m_rx_conf.rx_thresh.pthresh = RX_PTHRESH;
         m_rx_conf.rx_thresh.hthresh = RX_HTHRESH;
@@ -1552,12 +1555,9 @@ void CPhyEthIF::start(){
 
 }
 
+// Disabling flow control on interface
 void CPhyEthIF::disable_flow_control(){
-       if ( get_vm_one_queue_enable()  ){
-           return;
-       }
        int ret;
-       if ( !CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()  ){
         // see trex-64 issue with loopback on the same NIC
         struct rte_eth_fc_conf fc_conf;
         memset(&fc_conf,0,sizeof(fc_conf));
@@ -1574,9 +1574,8 @@ void CPhyEthIF::disable_flow_control(){
         }
         if (ret < 0)
           rte_exit(EXIT_FAILURE, "rte_eth_dev_flow_ctrl_set: "
-                  "err=%d, port=%u\n probably link is down please check you link activity or enable flow-control using this CLI flag --no-flow-control  \n",
+                  "err=%d, port=%u\n probably link is down. Please check your link activity, or skip flow-control disabling, using: --no-flow-control-change option\n",
                 ret, m_port_id);
-    }
 }
 
 
@@ -3373,7 +3372,10 @@ int  CGlobalTRex::ixgbe_start(void){
         _if->configure_rx_drop_queue();
         _if->configure_rx_duplicate_rules();
 
-        _if->disable_flow_control();
+       if ( ! get_vm_one_queue_enable()  && ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting() 
+	    && get_ex_drv()->flow_control_disable_supported()) {
+	   _if->disable_flow_control();
+       }
 
         _if->update_link_status();
 
