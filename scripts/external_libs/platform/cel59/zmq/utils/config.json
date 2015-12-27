@@ -1,0 +1,9 @@
+{
+  "have_sys_un_h": true, 
+  "zmq_prefix": "/auto/srg-sce-swinfra-usr/emb/users/imarom/tmp/pyzmq/zeromq-4.0.2", 
+  "no_libzmq_extension": true, 
+  "libzmq_extension": false, 
+  "bdist_egg": {}, 
+  "skip_check_zmq": false, 
+  "build_ext": {}
+}
