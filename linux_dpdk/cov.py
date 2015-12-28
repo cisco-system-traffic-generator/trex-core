@@ -106,6 +106,11 @@ def check_env (env,err):
 def main_cov ():
     args=cov_driver.args
 
+    # default nothing was given 
+    if args.b == False and args.u == False :
+        run_build (True)
+        upload ()
+
     if args.b :
         is_clean = not args.nc 
         run_build (is_clean)
