@@ -149,10 +149,34 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
                 m_vm_flow_var,
                 (uint8_t*)p);
 
+    uint16_t pkt_new_size=runner.get_new_pkt_size();
+    if ( likely( pkt_new_size == 0) ) {
+        /* no packet size change */
+        rte_mbuf_t * m_const = get_const_mbuf();
+        if (  m_const != NULL) {
+            utl_rte_pktmbuf_add_after(m,m_const);
+        }
+        return (m);
+    }
 
+    /* packet size change there are a few changes */
     rte_mbuf_t * m_const = get_const_mbuf();
-    if (  m_const != NULL) {
-        utl_rte_pktmbuf_add_after(m,m_const);
+    if ( (m_const == 0 ) || (pkt_new_size<=prefix_size) ) {
+        /* one mbuf , just trim it */
+        m->data_len = pkt_new_size;
+        m->pkt_len  = pkt_new_size;
+        return (m);
+    }
+
+    rte_mbuf_t * mi= CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+    assert(mi);
+    rte_pktmbuf_attach(mi,m_const);
+    utl_rte_pktmbuf_add_after(m,mi);
+
+    if ( pkt_new_size < m->pkt_len) {
+        /* need to trim it */
+        mi->data_len = (pkt_new_size - prefix_size);
+        m->pkt_len   = pkt_new_size;
     }
     return (m);
 }
@@ -611,6 +635,12 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
             memcpy(p,(stream_pkt + lpDpVm->get_prefix_size()),const_pkt_size);
 
             node->set_const_mbuf(m);
+        }
+
+
+        if ( lpDpVm->is_pkt_size_var() ) {
+            // mark the node as varible size 
+            node->set_var_pkt_size();
         }
 
 

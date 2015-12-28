@@ -49,7 +49,10 @@ scripts/exp/udp_64B_vm7.pcap
 scripts/exp/udp_64B_vm8.pcap
 scripts/exp/udp_64B_vm9.pcap
 scripts/exp/stl_syn_attack.pcap
-
+scripts/exp/stl_vm_inc_size_64_128.pcap
+scripts/exp/stl_vm_rand_size_512B_64_128.pcap
+scripts/exp/stl_vm_rand_size_64_128.pcap
+scripts/exp/stl_vm_random_size_64_128.pcap
 
 
 

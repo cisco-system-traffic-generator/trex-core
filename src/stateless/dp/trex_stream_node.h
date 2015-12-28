@@ -60,7 +60,9 @@ public:
         SL_NODE_FLAGS_DIR                  =1, //USED by master
         SL_NODE_FLAGS_MBUF_CACHE           =2, //USED by master
 
-        SL_NODE_CONST_MBUF                =4
+        SL_NODE_CONST_MBUF                 =4,
+
+        SL_NODE_VAR_PKT_SIZE               =8
 
     };
 
@@ -280,6 +282,14 @@ public:
         }else{
             return ((rte_mbuf_t *)0);
         }
+    }
+
+    inline void set_var_pkt_size(){
+        m_flags |= SL_NODE_VAR_PKT_SIZE;
+    }
+
+    inline bool is_var_pkt_size(){
+        return ( ( m_flags &SL_NODE_VAR_PKT_SIZE )?true:false);
     }
 
     inline void set_const_mbuf(rte_mbuf_t * m){

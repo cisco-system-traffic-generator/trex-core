@@ -35,8 +35,16 @@ void CPlatformMemoryYamlInfo::reset(){
        m_mbuf[MBUF_64]           = m_mbuf[MBUF_64]*2;
        m_mbuf[MBUF_2048]         = CONST_NB_MBUF_2_10G/2;
 
+       m_mbuf[MBUF_4096]         = 128;
+       m_mbuf[MBUF_9k]           = 512;
+
+
        m_mbuf[TRAFFIC_MBUF_64]           = m_mbuf[MBUF_64] * 4;
        m_mbuf[TRAFFIC_MBUF_2048]         = CONST_NB_MBUF_2_10G * 8;
+
+       m_mbuf[TRAFFIC_MBUF_4096]         = 128;
+       m_mbuf[TRAFFIC_MBUF_9k]           = 512;
+
 
        m_mbuf[MBUF_DP_FLOWS]     = (1024*1024/2);
        m_mbuf[MBUF_GLOBAL_FLOWS] =(10*1024/2);
@@ -47,7 +55,11 @@ const std::string names []={
                    "MBUF_256",
                    "MBUF_512",       
                    "MBUF_1024",      
-                   "MBUF_2048",      
+                   "MBUF_2048",    
+                   "MBUF_4096",    
+                   "MBUF_9K",    
+
+
 
                    "TRAFFIC_MBUF_64",
                    "TRAFFIC_MBUF_128",
@@ -55,6 +67,9 @@ const std::string names []={
                    "TRAFFIC_MBUF_512",       
                    "TRAFFIC_MBUF_1024",      
                    "TRAFFIC_MBUF_2048",      
+                   "TRAFFIC_MBUF_4096",    
+                   "TRAFFIC_MBUF_9K",    
+
 
                    "MBUF_DP_FLOWS",  
                    "MBUF_GLOBAL_FLOWS"
@@ -214,6 +229,15 @@ void operator >> (const YAML::Node& node, CPlatformMemoryYamlInfo & plat_info) {
         node["mbuf_2048"] >> plat_info.m_mbuf[MBUF_2048];      
     }
 
+    if ( node.FindValue("mbuf_4096") ){
+        node["mbuf_4096"] >> plat_info.m_mbuf[MBUF_4096];      
+    }
+
+    if ( node.FindValue("mbuf_9k") ){
+        node["mbuf_9k"] >> plat_info.m_mbuf[MBUF_9k];      
+    }
+
+
     if ( node.FindValue("traffic_mbuf_64") ){
         node["traffic_mbuf_64"] >> plat_info.m_mbuf[TRAFFIC_MBUF_64];    
     }
@@ -237,6 +261,15 @@ void operator >> (const YAML::Node& node, CPlatformMemoryYamlInfo & plat_info) {
     if ( node.FindValue("traffic_mbuf_2048") ){
         node["traffic_mbuf_2048"] >> plat_info.m_mbuf[TRAFFIC_MBUF_2048];      
     }
+
+    if ( node.FindValue("traffic_mbuf_4096") ){
+        node["traffic_mbuf_4096"] >> plat_info.m_mbuf[TRAFFIC_MBUF_4096];      
+    }
+
+    if ( node.FindValue("traffic_mbuf_9k") ){
+        node["traffic_mbuf_9k"] >> plat_info.m_mbuf[TRAFFIC_MBUF_9k];      
+    }
+
 
     if ( node.FindValue("dp_flows") ){
         node["dp_flows"] >> plat_info.m_mbuf[MBUF_DP_FLOWS];      

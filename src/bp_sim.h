@@ -412,7 +412,7 @@ public:
 #define CONST_NB_MBUF  16380
 
 
-#define MAX_BUF_SIZE     (2048)
+//#define MAX_BUF_SIZE     (2048)
 #define CONST_MBUF_SIZE (MAX_BUF_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 
 /* this is the first small part of the packet that we manipulate */
@@ -424,13 +424,19 @@ public:
 #define _256_MBUF_SIZE 256
 #define _512_MBUF_SIZE 512
 #define _1024_MBUF_SIZE 1024
+#define _2048_MBUF_SIZE 2048
+#define _4096_MBUF_SIZE 4096
+#define MAX_PKT_ALIGN_BUF_9K       (9*1024+64)
 
+#define MBUF_PKT_PREFIX ( sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM )
 
-
-#define CONST_128_MBUF_SIZE (128 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
-#define CONST_256_MBUF_SIZE (256 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
-#define CONST_512_MBUF_SIZE (512 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
-#define CONST_1024_MBUF_SIZE (1024 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
+#define CONST_128_MBUF_SIZE (128 + MBUF_PKT_PREFIX )
+#define CONST_256_MBUF_SIZE (256 + MBUF_PKT_PREFIX )
+#define CONST_512_MBUF_SIZE (512 + MBUF_PKT_PREFIX)
+#define CONST_1024_MBUF_SIZE (1024 + MBUF_PKT_PREFIX)
+#define CONST_2048_MBUF_SIZE (2048 + MBUF_PKT_PREFIX)
+#define CONST_4096_MBUF_SIZE (4096 + MBUF_PKT_PREFIX)
+#define CONST_9k_MBUF_SIZE   (MAX_PKT_ALIGN_BUF_9K + MBUF_PKT_PREFIX)
 
 
 class CPreviewMode {
@@ -1118,9 +1124,13 @@ public:
             m = _rte_pktmbuf_alloc(m_mbuf_pool_512);
         }else if (size < _1024_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_1024);
+        }else if (size < _2048_MBUF_SIZE) {
+            m = _rte_pktmbuf_alloc(m_mbuf_pool_2048);
+        }else if (size < _4096_MBUF_SIZE) {
+            m = _rte_pktmbuf_alloc(m_mbuf_pool_4096);
         }else{
-            assert(size<MAX_BUF_SIZE);
-            m = _rte_pktmbuf_alloc(m_big_mbuf_pool);
+            assert(size<MAX_PKT_ALIGN_BUF_9K);
+            m = _rte_pktmbuf_alloc(m_mbuf_pool_9k);
         }
         return (m);
     }
@@ -1129,21 +1139,22 @@ public:
         return ( _rte_pktmbuf_alloc(m_small_mbuf_pool) );
     }
 
-    inline rte_mbuf_t   * pktmbuf_alloc_big(){
-        return ( _rte_pktmbuf_alloc(m_big_mbuf_pool) );
-    }
 
     void dump(FILE *fd);
 
     void dump_in_case_of_error(FILE *fd);
 
 public:
-    rte_mempool_t *   m_big_mbuf_pool;   /* pool for const packets */
     rte_mempool_t *   m_small_mbuf_pool; /* pool for start packets */
+
     rte_mempool_t *   m_mbuf_pool_128;  
     rte_mempool_t *   m_mbuf_pool_256;  
     rte_mempool_t *   m_mbuf_pool_512;  
     rte_mempool_t *   m_mbuf_pool_1024;  
+    rte_mempool_t *   m_mbuf_pool_2048;  
+    rte_mempool_t *   m_mbuf_pool_4096;  
+    rte_mempool_t *   m_mbuf_pool_9k;  
+
     rte_mempool_t *   m_mbuf_global_nodes;  
     uint32_t          m_pool_id;
 };
@@ -1162,11 +1173,7 @@ public:
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
     }
 
-    static inline rte_mbuf_t   * pktmbuf_alloc_big(socket_id_t socket){
-        return ( m_mem_pool[socket].pktmbuf_alloc_big() );
-    }
-
-
+    
 
     /**
      * try to allocate small buffers too 
