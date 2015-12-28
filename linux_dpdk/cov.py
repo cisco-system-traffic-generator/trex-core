@@ -94,10 +94,12 @@ def upload ():
     ver=get_build_num_dis ()
     cmd='curl --form token=fRIZZCAGD9TnkSiuxXiEAQ --form email='+cov_driver.user_name+'@cisco.com --form file=@./'+COV_FILE_OUT+'  --form version="'+ver+'" --form description="'+ver+'" https://scan.coverity.com/builds?project=cisco-system-traffic-generator%2Ftrex-core'
     run_cmd(cmd);
+    print "You should get an email with the results"  
+    print "or visit http://scan.coverity.com/projects/cisco-system-traffic-generator-trex-core?tab=overview"  
 
 def check_env (env,err):
     if  os.environ.has_key(env) == False :
-        s= "ERROR you should define %s, %" % (env,err)
+        s= "ERROR you should define %s, %s" % (env,err)
         raise Exception(s);
 
 
