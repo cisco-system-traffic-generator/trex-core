@@ -411,10 +411,6 @@ public:
 
 #define CONST_NB_MBUF  16380
 
-
-//#define MAX_BUF_SIZE     (2048)
-#define CONST_MBUF_SIZE (MAX_BUF_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
-
 /* this is the first small part of the packet that we manipulate */
 #define FIRST_PKT_SIZE 64
 #define CONST_SMALL_MBUF_SIZE (FIRST_PKT_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
@@ -3102,7 +3098,11 @@ public:
         SIZE_512   = 512,
         SIZE_1024  = 1024,
         SIZE_2048  = 2048,
-        MASK_SIZE =6
+        SIZE_4096  = 4096,
+        SIZE_8192  = 8192,
+        SIZE_16384  = 16384,
+
+        MASK_SIZE =9
       };
 
   void clear(){
