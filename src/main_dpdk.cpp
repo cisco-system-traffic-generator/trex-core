@@ -2076,10 +2076,12 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          CVirtualIFPerSideStats  * lp_stats
                          ){
 
+    //printf(" %lu \n",(ulong)rte_pktmbuf_pkt_len(m));
     //rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
 
-    lp_stats->m_tx_pkt   +=1;
-    lp_stats->m_tx_bytes += (rte_pktmbuf_pkt_len(m)+4);
+    /* too expensive remove this for now */
+    //lp_stats->m_tx_pkt   +=1;
+    //lp_stats->m_tx_bytes += (rte_pktmbuf_pkt_len(m)+4);
 
     uint16_t len = lp_port->m_len;
     lp_port->m_table[len]=m;
@@ -2144,6 +2146,7 @@ int CCoreEthIFStateless::send_node(CGenNode * no){
         m=node_sl->alloc_node_with_vm();
         assert(m);
     }
+
     send_pkt(lp_port,m,lp_stats);
 
     return (0);
@@ -4737,7 +4740,7 @@ int main_test(int argc , char * argv[]){
 
 
 	/* TBD_FDIR */
-#if 1
+#if 0
 	printf(" test_send \n");
 	g_trex.test_send();
     exit(1);

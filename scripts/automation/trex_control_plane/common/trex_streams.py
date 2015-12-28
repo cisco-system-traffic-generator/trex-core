@@ -271,15 +271,12 @@ class CStreamsDB(object):
         stream_list = CStreamList()
         loaded_obj = stream_list.load_yaml(filename)
 
-        try:
-            compiled_streams = stream_list.compile_streams()
-            rc = self.load_streams(stream_pack_name,
-                                   LoadedStreamList(loaded_obj,
-                                                    [StreamPack(v.stream_id, v.stream.dump())
-                                                     for k, v in compiled_streams.items()]))
+        compiled_streams = stream_list.compile_streams()
+        rc = self.load_streams(stream_pack_name,
+                               LoadedStreamList(loaded_obj,
+                                                [StreamPack(v.stream_id, v.stream.dump())
+                                                 for k, v in compiled_streams.items()]))
 
-        except Exception as e:
-            return None
 
         return self.get_stream_pack(stream_pack_name)
 

@@ -171,7 +171,7 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     rte_mbuf_t * mi= CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
     assert(mi);
     rte_pktmbuf_attach(mi,m_const);
-    utl_rte_pktmbuf_add_after(m,mi);
+    utl_rte_pktmbuf_add_after2(m,mi);
 
     if ( pkt_new_size < m->pkt_len) {
         /* need to trim it */
