@@ -10,6 +10,12 @@
 linux_dpdk/.waf*
 linux_dpdk/build*
 linux_dpdk/version*
+linux_dpdk/trex-64.bz2
+linux_dpdk/trex-64.bz2
+linux_dpdk/*.html
+linux_dpdk/cov-int/*
+
+
 linux/.waf*
 linux/build*
 linux/version*
