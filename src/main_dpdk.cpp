@@ -4474,6 +4474,53 @@ int update_global_info_from_platform_file(){
     return (0);
 }
 
+extern "C" int eal_cpu_detected(unsigned lcore_id);
+// return mask representing available cores
+int core_mask_calc() {
+    uint32_t mask = 0;
+    int lcore_id;
+
+	for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+	    if (eal_cpu_detected(lcore_id)) {
+		mask |= (1 << lcore_id);
+	    }
+	}
+
+	return mask;
+}
+
+// Return number of set bits in i
+uint32_t num_set_bits(uint32_t i)
+{
+     i = i - ((i >> 1) & 0x55555555);
+     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
+     return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+}
+
+// sanity check if the cores we want to use really exist
+int core_mask_sanity(uint32_t wanted_core_mask) {
+    uint32_t calc_core_mask = core_mask_calc();
+    uint32_t wanted_core_num, calc_core_num;
+
+    wanted_core_num = num_set_bits(wanted_core_mask);
+    calc_core_num = num_set_bits(calc_core_mask);
+
+    if (wanted_core_num > calc_core_num) {
+	printf("Error: You have %d threads available, but you asked for %d threads.\n", calc_core_num, wanted_core_num);
+	printf("       Calculation is: -c <num>(%d) * dual ports (%d) + 1 master thread %s"
+	       , CGlobalInfo::m_options.preview.getCores(), CGlobalInfo::m_options.get_expected_dual_ports()
+	       , get_is_latency_thread_enable() ? "+1 latency thread (because of -l flag)\n" : "\n");
+	printf("       Maybe try smaller -c <num>.\n");
+	return -1;
+    }
+
+    if (wanted_core_mask != (wanted_core_mask & calc_core_mask)) {
+	printf ("Serious error: Something is wrong with the hardware. Wanted core mask is %x. Existing core mask is %x\n", wanted_core_mask, calc_core_mask);
+	return -1;
+    }
+
+    return 0;
+}
 
 int  update_dpdk_args(void){
 
@@ -4492,8 +4539,10 @@ int  update_dpdk_args(void){
         lpsock->dump(stdout);
     }
 
-
     sprintf(global_cores_str,"0x%llx",(unsigned long long)lpsock->get_cores_mask());
+    if (core_mask_sanity(strtol(global_cores_str, NULL, 16)) < 0) {
+	return -1;
+    }
 
     /* set the DPDK options */
     global_dpdk_args_num =7;
@@ -4603,7 +4652,10 @@ int main_test(int argc , char * argv[]){
         CGlobalInfo::m_memory_cfg.Dump(stdout);
     }
 
-    update_dpdk_args();
+
+    if (update_dpdk_args() < 0) {
+	return -1;
+    }
 
     CParserOption * po=&CGlobalInfo::m_options;
 
