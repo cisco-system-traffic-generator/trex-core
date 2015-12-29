@@ -45,6 +45,12 @@ class CTupleBase {
 public:
        CTupleBase() {
            m_client_mac.inused = UNUSED;
+           m_client_ip    = 0;
+           m_client_idx   = 0;
+           m_server_ip    = 0;
+           m_server_idx   = 0;
+           m_client_port  = 0;
+           m_server_port  = 0;
        }
        uint32_t getClient() {
            return m_client_ip;
@@ -565,7 +571,8 @@ class CServerPoolBase {
                uint32_t max_ip,
                double l_flow,
                double t_cps) = 0; 
- 
+    virtual void FreePort(uint32_t id, uint16_t port) = 0;
+    virtual bool IsFreePortRequired(void) = 0;
 };
 
 class CServerPoolSimple : public CServerPoolBase {
@@ -588,7 +595,11 @@ public:
         if (m_cur_server_ip > m_max_server_ip) {
             m_cur_server_ip = m_min_server_ip;
         }
-    } 
+    }
+
+    void FreePort(uint32_t id, uint16_t port) { ; } 
+    bool IsFreePortRequired(void) { return false;}
+    
     uint16_t GenerateOnePort(uint32_t idx) {
         // do nothing
         return 0;
@@ -617,6 +628,13 @@ public:
                 double l_flow,
                 double t_cps); 
  
+    void FreePort(uint32_t id, uint16_t port) { 
+        gen->FreePort(id, port);
+    } 
+    bool IsFreePortRequired(void) { 
+        return true;
+    }
+    
     void Delete() {
         if (gen!=NULL) {
             gen->Delete();
@@ -668,12 +686,21 @@ public:
     }
 
     
-    void FreePort(uint8_t pool_idx, uint32_t id, uint16_t port) {
-        get_client_pool(pool_idx)->FreePort(id, port);
+    void FreeClientPort(uint8_t pool_idx, uint32_t id, uint16_t port) {
+        if (port!=0) {
+            get_client_pool(pool_idx)->FreePort(id, port);
+        }
     }
-        
-    bool IsFreePortRequired(uint8_t pool_idx){
-        return(get_client_pool(pool_idx)->IsFreePortRequired());
+ 
+    void FreeServerPort(uint8_t pool_idx, uint32_t id, uint16_t port) {
+        if (port!=0) {
+            get_server_pool(pool_idx)->FreePort(id, port);
+        }
+    } 
+    
+    bool IsFreePortRequired(uint8_t c_pool_idx, uint8_t s_pool_idx){
+        return ((get_client_pool(c_pool_idx)->IsFreePortRequired()) ||
+                (get_server_pool(s_pool_idx)->IsFreePortRequired()));
     }
     uint16_t get_tcp_aging(uint8_t pool_idx) {
         return (get_client_pool(pool_idx)->get_tcp_aging());
@@ -774,8 +801,23 @@ public:
     }
 
     uint16_t GenerateOneSourcePort(){
+        /*
+         * uint16_t port = m_client_gen->GenerateOnePort(m_cache_server_idx);
+         * printf("in GenerateOneClientPort, %d\n",port);
+         * return port;
+         */
         return ( m_client_gen->GenerateOnePort(m_cache_client_idx) );
     }
+    
+    uint16_t GenerateOneServerPort(){
+        /*
+         * uint16_t port = m_server_gen->GenerateOnePort(m_cache_server_idx);
+         * printf("in GenerateOneServerPort, %d\n",port);
+         * return port;
+         */
+        return ( m_server_gen->GenerateOnePort(m_cache_server_idx) );
+    }
+    
 
     inline uint32_t GetThreadId(){
         return ( m_gen->GetThreadId() );
@@ -886,6 +928,16 @@ public:
         }
         return 0;
     }
+
+    void chk_server_track_ports(uint8_t svr_pool_id, bool is_svr_tracked) {
+        if (is_svr_tracked==true && 
+            m_server_pool[svr_pool_id].m_is_bundling==false) {
+            printf("plugin requires to track server ports, "
+                   "check the YAML, server pool:%d\n",
+                    svr_pool_id);
+            assert(0);
+        }
+    }   
 
     uint8_t get_client_pool_id(std::string name){
         for (uint8_t i=0;i<m_client_pool.size();i++) {
