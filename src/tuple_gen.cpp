@@ -216,6 +216,7 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
         printf("  The number of clients requested is %d maximum supported : %d \n",ips,1000000);
         return (false);
     }
+    
     return (true);
 }
 
@@ -300,6 +301,9 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         read_tuple_para(node, c_pool);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
         s_pool.m_is_bundling = false;
+        if (node.FindValue("track_ports")) {
+            node["track_ports"] >> s_pool.m_is_bundling;
+        }
         fi.m_client_pool.push_back(c_pool);
         fi.m_server_pool.push_back(s_pool);
     } else {

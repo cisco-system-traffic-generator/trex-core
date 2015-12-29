@@ -10,6 +10,7 @@
           dual_port_mask : "1.0.0.0" 
           tcp_aging      : 0
           udp_aging      : 0
+          track_ports    : true 
   mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
   cap_ipg    : true
   #cap_ipg_min    : 30

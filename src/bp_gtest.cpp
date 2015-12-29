@@ -150,9 +150,9 @@ public:
 
     bool  init(void){
 
-        uint16 * ports = NULL;
+        uint16 * s_ports = NULL;
+        uint16 * c_ports = NULL;
         CTupleBase tuple;
-
         CErfIF erf_vif;
 
 
@@ -173,10 +173,10 @@ public:
         bool res=true;
 
 
+        uint16_t svr_tmp_port=0;
         int i;
         for (i=0; i<m_threads; i++) {
             lpt=fl.m_threads_info[i];
-
             CFlowPktInfo *  pkt=lpt->m_cap_gen[0]->m_flow_info->GetPacket(0);
             m_saved_packet_padd_offset =pkt->m_pkt_indication.m_packet_padding;
 
@@ -185,17 +185,20 @@ public:
             sprintf(buf,"%s-%d.erf",CGlobalInfo::m_options.out_file.c_str(),i);
             sprintf(buf_ex,"%s-%d-ex.erf",CGlobalInfo::m_options.out_file.c_str(),i);
 
+            CTupleTemplateGeneratorSmart * lpg=&lpt->m_cap_gen[0]->tuple_gen;
             if ( m_req_ports ){
                 /* generate from first template m_req_ports ports */
                 int i;
-                CTupleTemplateGeneratorSmart * lpg=&lpt->m_cap_gen[0]->tuple_gen;
-                ports = new uint16_t[m_req_ports];
+                c_ports = new uint16_t[m_req_ports];
+                s_ports = new uint16_t[m_req_ports];
                 lpg->GenerateTuple(tuple);
+                tuple.setServerPort(lpg->GenerateOneServerPort());
                 for (i=0 ; i<m_req_ports;i++) {
-                    ports[i]=lpg->GenerateOneSourcePort();
+                    c_ports[i]=lpg->GenerateOneSourcePort();
+                    s_ports[i]=lpg->GenerateOneServerPort();
                 }
             }
-
+            svr_tmp_port = lpg->GenerateOneServerPort();
             lpt->start_generate_stateful(buf,CGlobalInfo::m_options.preview);
             lpt->m_node_gen.DumpHist(stdout);
 
@@ -212,14 +215,17 @@ public:
             printf(" %s \n",s.c_str());
         }
 
+        fl.m_threads_info[0]->m_smart_gen.FreeServerPort(0, tuple.getServerId(),svr_tmp_port);
         if ( m_req_ports ){
             int i;
-            fl.m_threads_info[0]->m_smart_gen.FreePort(0, tuple.getClientId(),tuple.getClientPort());
-
+            fl.m_threads_info[0]->m_smart_gen.FreeClientPort(0, tuple.getClientId(),tuple.getClientPort());
+            fl.m_threads_info[0]->m_smart_gen.FreeServerPort(0, tuple.getServerId(),tuple.getServerPort());
             for (i=0 ; i<m_req_ports;i++) {
-                fl.m_threads_info[0]->m_smart_gen.FreePort(0,tuple.getClientId(),ports[i]);
+                fl.m_threads_info[0]->m_smart_gen.FreeClientPort(0,tuple.getClientId(),c_ports[i]);
+                fl.m_threads_info[0]->m_smart_gen.FreeServerPort(0,tuple.getServerId(),s_ports[i]);
             }
-            delete []ports;
+            delete []c_ports;
+            delete []s_ports;
         }
 
         printf(" active %d \n", fl.m_threads_info[0]->m_smart_gen.ActiveSockets());

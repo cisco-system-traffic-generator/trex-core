@@ -1487,8 +1487,7 @@ public:
     mac_addr_align_t    m_src_mac;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
-    uint32_t            m_end_of_cache_line[6];
-
+    uint32_t            m_pad[5];
 
 public:
     void free_gen_node();
@@ -1687,6 +1686,15 @@ public:
     #define DEFER_CLIENTS_NUM (16)
 #endif
 
+struct CDeferPortInfo {
+    uint32_t            m_clients[DEFER_CLIENTS_NUM];
+    uint16_t            m_c_ports[DEFER_CLIENTS_NUM];
+    uint8_t             m_c_pool_idx[DEFER_CLIENTS_NUM];
+    uint32_t            m_servers[DEFER_CLIENTS_NUM];
+    uint16_t            m_s_ports[DEFER_CLIENTS_NUM];
+    uint8_t             m_s_pool_idx[DEFER_CLIENTS_NUM];
+};
+
 /* this class must be in the same size of CGenNode */
 struct CGenNodeDeferPort  {
     /* this header must be the same as CGenNode */
@@ -1695,22 +1703,24 @@ struct CGenNodeDeferPort  {
     uint16_t            m_pad2;
     uint32_t            m_cnt;
     double              m_time;
-
-    uint32_t            m_clients[DEFER_CLIENTS_NUM];
-    uint16_t            m_ports[DEFER_CLIENTS_NUM];
-    uint8_t             m_pool_idx[DEFER_CLIENTS_NUM];
+    CDeferPortInfo     *m_port_info;
+    uint32_t            m_pad4[25];
 public:
-    void init(void){ 
+    void init(CDeferPortInfo *port_ptr){ 
         m_type=CGenNode::FLOW_DEFER_PORT_RELEASE;
         m_cnt=0;
+        m_port_info = port_ptr;
     }
 
     /* return true if object is full */
-    bool add_client(uint8_t pool_idx, uint32_t client,
-                   uint16_t port){
-        m_clients[m_cnt]=client;
-        m_ports[m_cnt]=port;
-        m_pool_idx[m_cnt] = pool_idx;
+    bool add_node(uint8_t c_pool_idx, uint32_t client, uint16_t c_port,
+                  uint8_t s_pool_idx, uint32_t server, uint16_t s_port){
+        m_port_info->m_clients[m_cnt]=client;
+        m_port_info->m_c_ports[m_cnt]=c_port;
+        m_port_info->m_c_pool_idx[m_cnt] = c_pool_idx;
+        m_port_info->m_servers[m_cnt]=server;
+        m_port_info->m_s_ports[m_cnt]=s_port;
+        m_port_info->m_s_pool_idx[m_cnt] = s_pool_idx;
         m_cnt++;
         if ( m_cnt == DEFER_CLIENTS_NUM ) {
             return (true);
@@ -1744,12 +1754,7 @@ public:
                                             }
 
 
-
-inline int check_objects_sizes(void){
-    COMPARE_NODE_OBJECT(CGenNodeDeferPort);
-    return (0);
-}
-
+inline int check_objects_sizes(void);
 
 struct CGenNodeCompare
 {
@@ -3506,9 +3511,11 @@ private:
 
 
     void init_from_global(CIpPortion &);
-    void defer_client_port_free(CGenNode *p);
-    void defer_client_port_free(bool is_tcp,uint32_t c_ip,uint16_t port,
-                                uint8_t pool_idx, CTupleGeneratorSmart*gen);
+    void defer_port_free(CGenNode *p);
+    void defer_port_free(bool is_tcp,uint32_t c_ip,uint16_t c_port,
+                         uint8_t c_pool_idx, uint32_t s_ip, 
+                         uint16_t s_port, uint8_t s_pool_idx, 
+                         CTupleGeneratorSmart*gen);
 
 
     FORCE_NO_INLINE void   handler_defer_job(CGenNode *p);
@@ -3518,7 +3525,7 @@ private:
     inline CGenNodeDeferPort     * get_tcp_defer(void){
         if (m_tcp_dpc==0) {
             m_tcp_dpc =(CGenNodeDeferPort     *)create_node();
-            m_tcp_dpc->init();
+            m_tcp_dpc->init(&m_tcp_port_info);
         }
         return (m_tcp_dpc);
     }
@@ -3526,7 +3533,7 @@ private:
     inline CGenNodeDeferPort     * get_udp_defer(void){
         if (m_udp_dpc==0) {
             m_udp_dpc =(CGenNodeDeferPort     *)create_node();
-            m_udp_dpc->init();
+            m_udp_dpc->init(&m_udp_port_info);
         }
         return (m_udp_dpc);
     }
@@ -3570,6 +3577,8 @@ public:
     CCpuUtlCp                        m_cpu_cp_u;
 
 private:
+    CDeferPortInfo                   m_tcp_port_info;
+    CDeferPortInfo                   m_udp_port_info;
     CGenNodeDeferPort     *          m_tcp_dpc;
     CGenNodeDeferPort     *          m_udp_dpc;
 
@@ -3609,7 +3618,7 @@ inline void CFlowGenListPerThread::free_last_flow_node(CGenNode *p){
         /* free memory of the plugin */
         on_node_last(plugin_id,p);
     }
-    defer_client_port_free(p);
+    defer_port_free(p);
     free_node( p);
 }
 
@@ -3797,11 +3806,31 @@ inline void CGenNode::replace_tuple(void){
 }
 
 enum MINVM_PLUGIN_ID{
+    mpNO_PLUGIN=0,
     mpRTSP=1,
     mpSIP_VOICE=2,
     mpDYN_PYLOAD=3,
     mpAVL_HTTP_BROWSIN=4  /* this is a way to change the host ip by client ip */
 };
+
+/* 
+ * return true if the plguin needs to track server ports 
+ */
+inline bool is_tracked_svr_port(uint8_t plugin_id) {
+    switch (plugin_id) {
+        case mpRTSP:
+        case mpSIP_VOICE:
+            return true;
+        case mpNO_PLUGIN:
+        case mpDYN_PYLOAD:
+        case mpAVL_HTTP_BROWSIN:
+            return false;
+        default:
+            printf("ERROR. Invalid plugin id(%d) in is_tracked_svr_port\n",
+                   plugin_id);
+            assert(0);
+    }
+}
 
 class CPluginCallback {
 public:
