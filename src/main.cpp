@@ -776,7 +776,6 @@ int main(int argc , char * argv[]){
     CGlobalInfo::init_pools(1000);
     assert( CMsgIns::Ins()->Create(4) );
 
-
     bool is_gtest=false;
 
     if ( parse_options(argc, argv, &CGlobalInfo::m_options , is_gtest) != 0){

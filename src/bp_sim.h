@@ -1487,8 +1487,7 @@ public:
     mac_addr_align_t    m_src_mac;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
-    uint32_t            m_end_of_cache_line[34];
-
+    uint32_t            m_pad[2];
 
 public:
     void free_gen_node();
@@ -1687,6 +1686,15 @@ public:
     #define DEFER_CLIENTS_NUM (16)
 #endif
 
+struct CDeferPortInfo {
+    uint32_t            m_clients[DEFER_CLIENTS_NUM];
+    uint16_t            m_c_ports[DEFER_CLIENTS_NUM];
+    uint8_t             m_c_pool_idx[DEFER_CLIENTS_NUM];
+    uint32_t            m_servers[DEFER_CLIENTS_NUM];
+    uint16_t            m_s_ports[DEFER_CLIENTS_NUM];
+    uint8_t             m_s_pool_idx[DEFER_CLIENTS_NUM];
+};
+
 /* this class must be in the same size of CGenNode */
 struct CGenNodeDeferPort  {
     /* this header must be the same as CGenNode */
@@ -1695,28 +1703,24 @@ struct CGenNodeDeferPort  {
     uint16_t            m_pad2;
     uint32_t            m_cnt;
     double              m_time;
-
-    uint32_t            m_clients[DEFER_CLIENTS_NUM];
-    uint16_t            m_c_ports[DEFER_CLIENTS_NUM];
-    uint8_t             m_c_pool_idx[DEFER_CLIENTS_NUM];
-    uint32_t            m_servers[DEFER_CLIENTS_NUM];
-    uint16_t            m_s_ports[DEFER_CLIENTS_NUM];
-    uint8_t             m_s_pool_idx[DEFER_CLIENTS_NUM];
+    CDeferPortInfo     *m_port_info;
+    uint32_t            m_pad4[22];
 public:
-    void init(void){ 
+    void init(CDeferPortInfo *port_ptr){ 
         m_type=CGenNode::FLOW_DEFER_PORT_RELEASE;
         m_cnt=0;
+        m_port_info = port_ptr;
     }
 
     /* return true if object is full */
     bool add_node(uint8_t c_pool_idx, uint32_t client, uint16_t c_port,
                   uint8_t s_pool_idx, uint32_t server, uint16_t s_port){
-        m_clients[m_cnt]=client;
-        m_c_ports[m_cnt]=c_port;
-        m_c_pool_idx[m_cnt] = c_pool_idx;
-        m_servers[m_cnt]=server;
-        m_s_ports[m_cnt]=s_port;
-        m_s_pool_idx[m_cnt] = s_pool_idx;
+        m_port_info->m_clients[m_cnt]=client;
+        m_port_info->m_c_ports[m_cnt]=c_port;
+        m_port_info->m_c_pool_idx[m_cnt] = c_pool_idx;
+        m_port_info->m_servers[m_cnt]=server;
+        m_port_info->m_s_ports[m_cnt]=s_port;
+        m_port_info->m_s_pool_idx[m_cnt] = s_pool_idx;
         m_cnt++;
         if ( m_cnt == DEFER_CLIENTS_NUM ) {
             return (true);
@@ -1748,7 +1752,6 @@ public:
                                             printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same size \n",#NODE_NAME,sizeof(NODE_NAME),sizeof(CGenNode)); \
                                             assert(0); \
                                             }
-
 
 
 inline int check_objects_sizes(void){
@@ -3526,7 +3529,7 @@ private:
     inline CGenNodeDeferPort     * get_tcp_defer(void){
         if (m_tcp_dpc==0) {
             m_tcp_dpc =(CGenNodeDeferPort     *)create_node();
-            m_tcp_dpc->init();
+            m_tcp_dpc->init(&m_tcp_port_info);
         }
         return (m_tcp_dpc);
     }
@@ -3534,7 +3537,7 @@ private:
     inline CGenNodeDeferPort     * get_udp_defer(void){
         if (m_udp_dpc==0) {
             m_udp_dpc =(CGenNodeDeferPort     *)create_node();
-            m_udp_dpc->init();
+            m_udp_dpc->init(&m_udp_port_info);
         }
         return (m_udp_dpc);
     }
@@ -3578,6 +3581,8 @@ public:
     CCpuUtlCp                        m_cpu_cp_u;
 
 private:
+    CDeferPortInfo                   m_tcp_port_info;
+    CDeferPortInfo                   m_udp_port_info;
     CGenNodeDeferPort     *          m_tcp_dpc;
     CGenNodeDeferPort     *          m_udp_dpc;
 

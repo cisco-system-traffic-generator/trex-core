@@ -3231,10 +3231,12 @@ FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job(CGenNode *p){
     CGenNodeDeferPort     *   defer=(CGenNodeDeferPort     *)p;
     int i;
     for (i=0; i<defer->m_cnt; i++) {
-        m_smart_gen.FreeClientPort(defer->m_c_pool_idx[i],
-                                 defer->m_clients[i],defer->m_c_ports[i]);
-        m_smart_gen.FreeServerPort(defer->m_s_pool_idx[i],
-                                 defer->m_servers[i],defer->m_s_ports[i]);
+        m_smart_gen.FreeClientPort(defer->m_port_info->m_c_pool_idx[i],
+                                   defer->m_port_info->m_clients[i],
+                                   defer->m_port_info->m_c_ports[i]);
+        m_smart_gen.FreeServerPort(defer->m_port_info->m_s_pool_idx[i],
+                                   defer->m_port_info->m_servers[i],
+                                   defer->m_port_info->m_s_ports[i]);
     }
 }
 
@@ -3983,6 +3985,7 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         fprintf(stderr," nothing to generate no template loaded \n");
         return;
     }
+
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
     dsec_t d_time_flow=get_delta_flow_is_sec();

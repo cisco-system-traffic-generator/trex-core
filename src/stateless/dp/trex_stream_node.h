@@ -38,13 +38,12 @@ friend class TrexStatelessDpCore;
 public:
     TrexStatelessCpToDpMsgBase * m_cmd;
 
-    uint8_t             m_pad_end[104];
+    uint8_t             m_pad_end[84];
 
 public:
     void free_command();
 
 } __rte_cache_aligned;;
-
 
 static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
 
@@ -104,11 +103,8 @@ private:
     uint16_t             m_vm_program_size; /* up to 64K op codes */
     uint16_t             m_pad2;
     uint32_t             m_pad3;
-
+    uint8_t              m_pad4;
     /* End Fast Field VM Section */
-
-    /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[177];
 
 public:
 
