@@ -63,10 +63,7 @@ struct CNatFlowInfo {
 struct CGenNodeNatInfo : public CGenNodeMsgBase  {
     uint8_t       m_pad;
     uint16_t      m_cnt;
-    //uint32_t      m_pad2;
-    #if __x86_64__
-    uint32_t      m_pad3[33];
-    #endif
+    uint32_t      m_pad2;
     CNatFlowInfo  m_data[MAX_NAT_FLOW_INFO];
 
 public:
@@ -88,7 +85,7 @@ struct CGenNodeLatencyPktInfo : public CGenNodeMsgBase  {
     uint8_t       m_dir;
     uint16_t      m_latency_offset;
     #if __x86_64__
-    uint32_t      m_pad3[33];
+    uint32_t      m_pad3;
     #endif
     struct rte_mbuf *   m_pkt;
 

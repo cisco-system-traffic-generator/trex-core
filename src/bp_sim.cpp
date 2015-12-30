@@ -6037,3 +6037,11 @@ void CGenNodeBase::free_base(){
 
 }
 
+inline int check_objects_sizes(void){
+    COMPARE_NODE_OBJECT(CGenNodeDeferPort);
+    COMPARE_NODE_OBJECT_SIZE(CGenNodeNatInfo);
+    COMPARE_NODE_OBJECT_SIZE(CGenNodeLatencyPktInfo);
+    COMPARE_NODE_OBJECT_SIZE(CGenNodeCommand);
+    COMPARE_NODE_OBJECT_SIZE(CGenNodeStateless);
+    return (0);
+}

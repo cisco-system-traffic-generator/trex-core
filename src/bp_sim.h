@@ -1487,7 +1487,7 @@ public:
     mac_addr_align_t    m_src_mac;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
-    uint32_t            m_pad[2];
+    uint32_t            m_pad[5];
 
 public:
     void free_gen_node();
@@ -1704,7 +1704,7 @@ struct CGenNodeDeferPort  {
     uint32_t            m_cnt;
     double              m_time;
     CDeferPortInfo     *m_port_info;
-    uint32_t            m_pad4[22];
+    uint32_t            m_pad4[25];
 public:
     void init(CDeferPortInfo *port_ptr){ 
         m_type=CGenNode::FLOW_DEFER_PORT_RELEASE;
@@ -1754,11 +1754,14 @@ public:
                                             }
 
 
-inline int check_objects_sizes(void){
+inline int check_objects_sizes(void);
+/*inline int check_objects_sizes(void){
     COMPARE_NODE_OBJECT(CGenNodeDeferPort);
+    COMPARE_NODE_OBJECT_SIZE(CGenNodeNatInfo);
+    COMPARE_NODE_OBJECT_SIZE(CGenNodeLatencyPktInfo);
     return (0);
 }
-
+*/
 
 struct CGenNodeCompare
 {
