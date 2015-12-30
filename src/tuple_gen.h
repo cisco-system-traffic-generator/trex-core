@@ -713,6 +713,8 @@ public:
     CTupleGeneratorSmart(){
         m_was_init=false;
         m_has_mac_mapping = false;
+        m_id = 0;
+        m_thread_id = 0;
     }
     bool Create(uint32_t _id,
             uint32_t thread_id, bool has_mac=false);
