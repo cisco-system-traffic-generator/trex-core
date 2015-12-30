@@ -1755,13 +1755,6 @@ public:
 
 
 inline int check_objects_sizes(void);
-/*inline int check_objects_sizes(void){
-    COMPARE_NODE_OBJECT(CGenNodeDeferPort);
-    COMPARE_NODE_OBJECT_SIZE(CGenNodeNatInfo);
-    COMPARE_NODE_OBJECT_SIZE(CGenNodeLatencyPktInfo);
-    return (0);
-}
-*/
 
 struct CGenNodeCompare
 {
