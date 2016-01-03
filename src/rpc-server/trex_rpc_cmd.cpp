@@ -32,7 +32,7 @@ TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
 
         check_param_count(params, m_param_count, result);
 
-        if (m_needs_ownership) {
+        if (m_needs_ownership && !g_test_override_ownership) {
             verify_ownership(params, result);
         }
 
@@ -372,3 +372,7 @@ TrexRpcCommand::generate_execute_err(Json::Value &result, const std::string &msg
     throw (TrexRpcCommandException(TREX_RPC_CMD_EXECUTE_ERR));
 }
 
+/**
+ * by default this is off
+ */
+bool TrexRpcCommand::g_test_override_ownership = false;

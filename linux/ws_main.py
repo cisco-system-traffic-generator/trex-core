@@ -121,7 +121,9 @@ main_src = SrcGroup(dir='src',
 	     'latency.cpp',
 
              'pal/linux/pal_utl.cpp',
-             'pal/linux/mbuf.cpp'
+             'pal/linux/mbuf.cpp',
+             'sim/trex_sim_stateless.cpp',
+             'sim/trex_sim_stateful.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -172,13 +174,14 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                               'commands/trex_rpc_cmd_general.cpp',
                               'commands/trex_rpc_cmd_stream.cpp',
 
+                              # for simulation we use mock API
+                              '../mock/trex_platform_api_mock.cpp',
                           ])
 
 # RPC mock server (test)
 rpc_server_mock_src = SrcGroup(dir='src/mock/',
                           src_list=[
                               'trex_rpc_server_mock.cpp',
-                              'trex_platform_api_mock.cpp',
                               '../gtest/rpc_test.cpp',
                           ])
 

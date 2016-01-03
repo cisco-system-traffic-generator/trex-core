@@ -41,6 +41,10 @@ TrexRpcServerAsync::TrexRpcServerAsync(const TrexRpcServerConfig &cfg, std::mute
     m_context = zmq_ctx_new();
 }
 
+void
+TrexRpcServerAsync::_prepare() {
+}
+
 /**
  * publisher thread
  * 

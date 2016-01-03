@@ -161,6 +161,10 @@ public:
         return m_ports;
     }
 
+    TrexRpcServer * get_rpc_server() {
+        return m_rpc_server;
+    }
+
 protected:
 
     /* no copy or assignment */
@@ -168,7 +172,7 @@ protected:
     void operator=(TrexStateless const&)     = delete;
 
     /* RPC server array */
-    TrexRpcServer        *m_rpc_server;
+    TrexRpcServer                        *m_rpc_server;
 
     /* ports */
     std::vector <TrexStatelessPort *>    m_ports;

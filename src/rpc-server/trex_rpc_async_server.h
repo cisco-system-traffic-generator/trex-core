@@ -36,6 +36,7 @@ public:
     TrexRpcServerAsync(const TrexRpcServerConfig &cfg, std::mutex *lock = NULL);
 
 protected:
+    void _prepare();
     void _rpc_thread_cb();
     void _stop_rpc_thread();
 

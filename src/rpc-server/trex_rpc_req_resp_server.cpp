@@ -36,7 +36,10 @@ limitations under the License.
  * 
  */
 TrexRpcServerReqRes::TrexRpcServerReqRes(const TrexRpcServerConfig &cfg, std::mutex *lock) : TrexRpcServerInterface(cfg, "req resp", lock) {
-    /* ZMQ is not thread safe - this should be outside */
+
+}
+
+void TrexRpcServerReqRes::_prepare() {
     m_context = zmq_ctx_new();
 }
 
@@ -123,15 +126,28 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
  */
 void TrexRpcServerReqRes::_stop_rpc_thread() {
     /* by calling zmq_term we signal the blocked thread to exit */
-    zmq_term(m_context);
+    if (m_context) {
+        zmq_term(m_context);
+    }
 
 }
+
 
 /**
  * handles a request given to the server
  * respondes to the request
  */
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
+    std::string response_str = process_request(request);
+    zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
+}
+
+/**
+ * main processing of the request
+ * 
+ */
+std::string TrexRpcServerReqRes::process_request(const std::string &request) {
+
     std::vector<TrexJsonRpcV2ParsedObject *> commands;
 
     Json::FastWriter writer;
@@ -175,8 +191,7 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
     
     verbose_json("Server Replied:  ", response_str);
 
-    zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
-    
+    return response_str;
 }
 
 /**
@@ -198,3 +213,36 @@ TrexRpcServerReqRes::handle_server_error(const std::string &specific_err) {
 
     zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
 }
+
+
+
+std::string
+TrexRpcServerReqRes::test_inject_request(const std::string &req) {
+    return process_request(req);
+}
+
+
+/**
+ * MOCK req resp server
+ */
+TrexRpcServerReqResMock::TrexRpcServerReqResMock(const TrexRpcServerConfig &cfg) : TrexRpcServerReqRes(cfg) {
+}
+
+/**
+ * override start
+ * 
+ */
+void
+TrexRpcServerReqResMock::start() {
+
+}
+
+
+/**
+ * override stop
+ */
+void
+TrexRpcServerReqResMock::stop() {
+
+}
+
