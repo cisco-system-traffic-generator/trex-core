@@ -161,7 +161,7 @@ TEST_F(basic_vm, vm0) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(20) );
-    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",8,
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",14, 0,true)
@@ -181,9 +181,7 @@ TEST_F(basic_vm, vm1) {
                         );
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -200,15 +198,13 @@ TEST_F(basic_vm, vm2) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
     //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -261,9 +257,11 @@ TEST_F(basic_vm, vm2) {
                  2, 
                  3}; 
 
+    uint32_t random_per_thread=0;
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -278,15 +276,13 @@ TEST_F(basic_vm, vm3) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
     //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -340,9 +336,12 @@ TEST_F(basic_vm, vm3) {
                  2, 
                  3}; 
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -362,16 +361,14 @@ TEST_F(basic_vm, vm4) {
 
     StreamVm vm;
 
-    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1", 8 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,false)
                         );
     //vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -425,16 +422,23 @@ TEST_F(basic_vm, vm4) {
                  2, 
                  3}; 
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
 
         fprintf(stdout," %d \n",i);
-        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
         /* not big */
+        EXPECT_EQ(test_udp_pkt[33],0);
+        EXPECT_EQ(test_udp_pkt[32],0);
+        EXPECT_EQ(test_udp_pkt[31],0);
+        EXPECT_EQ(test_udp_pkt[30],0);
         EXPECT_EQ(test_udp_pkt[29],0);
         EXPECT_EQ(test_udp_pkt[28],0);
         EXPECT_EQ(test_udp_pkt[27],0);
@@ -450,11 +454,11 @@ TEST_F(basic_vm, vm5) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,4,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
                         );
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,24,23,27 ) );
 
     /* src ip */
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
@@ -466,9 +470,7 @@ TEST_F(basic_vm, vm5) {
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -564,9 +566,12 @@ TEST_F(basic_vm, vm5) {
             0x17, 
          }; 
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -596,7 +601,7 @@ TEST_F(basic_vm, vm6) {
                         );
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,25,23,27 ) );
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,24,23,27 ) );
 
     /* src ip */
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
@@ -608,9 +613,7 @@ TEST_F(basic_vm, vm6) {
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -631,9 +634,12 @@ TEST_F(basic_vm, vm6) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -675,10 +681,7 @@ TEST_F(basic_vm, vm7) {
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "cl1.port",34, 0,true)
                         );
 
-
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -699,9 +702,12 @@ TEST_F(basic_vm, vm7) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -742,9 +748,7 @@ TEST_F(basic_vm, vm8) {
                         );
 
 
-    vm.set_packet_size(128);
-
-    vm.compile();
+    vm.compile(128);
 
 
     uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
@@ -765,9 +769,12 @@ TEST_F(basic_vm, vm8) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<20; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -805,11 +812,8 @@ static void vm_build_program_seq(StreamVm & vm,
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "tuple_gen.port",34, 0,true)
                         );
 
-
-    vm.set_packet_size(packet_size);
-
     if (should_compile) {
-        vm.compile();
+        vm.compile(packet_size);
     }
 }
 
@@ -843,9 +847,12 @@ TEST_F(basic_vm, vm9) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<30; i++) {
-        runner.run(program_size, 
+        runner.run(&random_per_thread,
+                   program_size, 
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -873,7 +880,7 @@ TEST_F(basic_vm, vm10) {
 
     EXPECT_EQ(36,vm.get_max_packet_update_offset());
 
-    StreamVmDp * lpDpVm =vm.cloneAsVmDp();
+    StreamVmDp * lpDpVm =vm.generate_dp_object();
 
     EXPECT_EQ(lpDpVm->get_bss_size(),vm.get_bss_size());
 
@@ -895,10 +902,13 @@ TEST_F(basic_vm, vm10) {
 
     StreamDPVmInstructionsRunner runner;
 
+    uint32_t random_per_thread=0;
+
     int i;
     for (i=0; i<30; i++) {
         
-        runner.run(lpDpVm->get_program_size(), 
+        runner.run(&random_per_thread,
+                   lpDpVm->get_program_size(), 
                    lpDpVm->get_program(),
                    lpDpVm->get_bss(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -914,6 +924,109 @@ TEST_F(basic_vm, vm10) {
     bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
+
+
+/* test vmDP object */
+TEST_F(basic_vm, vm_syn_attack) {
+
+    StreamVm vm;
+    srand(0x1234);
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "ip_src",
+                                                        4,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        0,
+                                                        1000000));
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "ip_dst",
+                                                        4,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        0,
+                                                        1000000));
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "src_port",
+                                                        2,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        1025,
+                                                        65000));
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "dst_port",
+                                                        2,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        1025,
+                                                        65000));
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "ip_src",26, 0x10000000,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "ip_dst",26+4, 0x40000000,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* src port */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "src_port",34, 0,true)
+                        );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "dst_port",34+2, 0,true)
+                        );
+
+    vm.compile(128);
+
+    printf(" max packet update %lu \n",(ulong)vm.get_max_packet_update_offset());
+
+    EXPECT_EQ(38,vm.get_max_packet_update_offset());
+
+    StreamVmDp * lpDpVm =vm.generate_dp_object();
+
+    EXPECT_EQ(lpDpVm->get_bss_size(),vm.get_bss_size());
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("stl/syn_packet.pcap",0);
+
+    
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/stl_syn_attack.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<30; i++) {
+        
+        runner.run(&random_per_thread,
+                   lpDpVm->get_program_size(), 
+                   lpDpVm->get_program(),
+                   lpDpVm->get_bss(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+    delete  lpDpVm;
+
+    bool res1=cmp.compare("exp/stl_syn_attack.pcap","exp/stl_syn_attack-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
+
 
 
 
@@ -2638,76 +2751,193 @@ TEST_F(basic_stl, graph_generator2) {
     delete obj;
 }
 
-/* stress test */
-#if 0 
-TEST_F(basic_stl, graph_generator2) {
-    std::vector<TrexStream *> streams;
-    TrexStreamsGraph graph;
-    TrexStream *stream;
+class VmSplitTest {
 
-     /* add some multi burst streams */
-     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 1);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
-     stream->m_isg_usec = 100;
+public:
 
-     stream->set_pps(20);
-     stream->set_multi_burst(4918, 321312, 15);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 64;
+    VmSplitTest(const char *erf_filename) {
+        m_erf_filename = erf_filename;
+        m_stream = NULL;
 
-     streams.push_back(stream);
+        pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+        pcap.update_ip_src(0x10000001);
 
-     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 2);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
-     stream->m_isg_usec = 59281;
+    }
 
-     stream->set_pps(30);
-     stream->set_multi_burst(4918, 51040, 27);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 64;
+    ~VmSplitTest() {
+    }
 
-     streams.push_back(stream);
+    void set_stream(TrexStream *stream) {
 
-     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 3);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
-     stream->m_isg_usec = 59281492;
+        if (m_stream) {
+            delete m_stream;
+            m_stream = NULL;
+        }
 
-     stream->set_pps(40);
-     stream->set_multi_burst(4918, 412312, 2917);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 64;
+        m_stream = stream;
+        m_stream->m_enabled = true;
+        m_stream->m_self_start = true;
+        
+        pcap.clone_packet_into_stream(stream);
+    }
 
-     streams.push_back(stream);
+    void set_flow_var_as_split(StreamVmInstructionFlowMan::flow_var_op_e op,
+                               uint64_t start,
+                               uint64_t end,
+                               uint64_t init) {
+
+        assert(m_stream);
+
+        StreamVmInstructionVar *split_instr = new StreamVmInstructionFlowMan("var1",
+                                                                             8,
+                                                                             op,
+                                                                             init,
+                                                                             start,
+                                                                             end);
+
+        StreamVm &vm = m_stream->m_vm;
+
+        vm.add_instruction(split_instr);
+
+        vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1", 60 - 8 - 4, 0,true));
+
+        vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
+
+        vm.set_split_instruction(split_instr);
+
+    }
+
+    void set_client_var_as_split(uint32_t client_min_value,
+                                 uint32_t client_max_value,
+                                 uint16_t port_min,
+                                 uint16_t port_max) {
 
 
-     /* stream 3 */
-     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, 4);
-     stream->m_enabled = true;
-     stream->m_self_start = true;
+        assert(m_stream);
 
-     stream->m_isg_usec = 50;
-     stream->set_pps(30);
-     stream->m_next_stream_id = -1;
-     stream->m_pkt.len = 1512;
-
-     streams.push_back(stream);
+        StreamVmInstructionVar *split_instr = new StreamVmInstructionFlowClient("var1",
+                                                                                client_min_value,
+                                                                                client_max_value,
+                                                                                port_min,
+                                                                                port_max,
+                                                                                0,
+                                                                                0);
 
 
-     const TrexStreamsGraphObj &obj = graph.generate(streams);
-     printf("event_count is: %lu, max BPS: %f, max PPS: %f\n", obj.get_events().size(), obj.get_max_bps(), obj.get_max_pps());
+        StreamVm &vm = m_stream->m_vm;
 
-//     for (const TrexStreamsGraphObj::rate_event_st &ev : obj.get_events()) {
-//         printf("time: %f, diff bps: %f, diff pps: %f\n", ev.time, ev.diff_bps, ev.diff_pps);
-//     }
+        vm.add_instruction(split_instr);
 
-     for (auto stream : streams) {
-         delete stream;
-     }
-}   
+        /* src ip */
+        vm.add_instruction(new StreamVmInstructionWriteToPkt( "var1.ip",26, 0,true));
+        vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
 
-#endif
+        /* src port */
+        vm.add_instruction(new StreamVmInstructionWriteToPkt("var1.port",34, 0,true));
+
+        vm.set_split_instruction(split_instr);
+    }
+
+    void run(uint8_t dp_core_count, uint8_t dp_core_to_check) {
+        TrexStreamsCompiler compile;
+        std::vector<TrexStreamsCompiledObj *> objs;
+        std::vector<TrexStream *> streams;
+
+        if (m_stream->m_vm.is_vm_empty()) {
+            set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
+                                  0,
+                                  1000,
+                                  0);
+        }
+
+        streams.push_back(m_stream);
+
+        /* compiling for 8 cores */
+        assert(compile.compile(0, streams, objs, dp_core_count));
+
+        /* choose one DP object */
+        TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(0, 0, objs[dp_core_to_check], 1 /*sec */ );
+        objs[dp_core_to_check] = NULL;
+        /* free all the non used DP objects */
+        for (auto obj : objs) {
+            if (obj) {
+                delete obj;
+            }
+        }
+
+
+        CParserOption * po =&CGlobalInfo::m_options;
+        po->preview.setVMode(7);
+        po->preview.setFileWrite(true);
+        po->out_file = m_erf_filename;
+
+        CBasicStl t1;
+        t1.m_msg = lpStartCmd;
+        bool res=t1.init();
+        EXPECT_EQ_UINT32(1, res?1:0);
+
+    }
+
+private:
+    const char *m_erf_filename;
+    TrexStream *m_stream;
+    CPcapLoader pcap;
+};
+
+
+
+TEST_F(basic_stl, vm_split_flow_var_inc) {
+
+    VmSplitTest split("exp/stl_vm_split_flow_var_inc.erf");
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_stream(&stream);
+    split.run(8, 4);
+
+}
+
+TEST_F(basic_stl, vm_split_flow_var_small_range) {
+    /* small range */
+    VmSplitTest split("exp/stl_vm_split_flow_var_small_range.erf");
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_stream(&stream);
+    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, 0, 1, 0);
+    
+    split.run(8, 4);
+
+}
+
+TEST_F(basic_stl, vm_split_flow_var_big_range) {
+    VmSplitTest split("exp/stl_vm_split_flow_var_big_range.erf");
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_stream(&stream);
+    split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC, 1, 1000, 1000);
+
+    split.run(8, 7);
+
+
+}
+
+TEST_F(basic_stl, vm_split_client_var) {
+     VmSplitTest split("exp/stl_vm_split_client_var.erf");
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.set_pps(1000);
+
+    split.set_stream(&stream);
+    split.set_client_var_as_split(0x10000001, 0x100000fe, 5000, 5050);
+    
+    split.run(8, 7);
+
+
+}
 
 /********************************************* Itay Tests End *************************************/

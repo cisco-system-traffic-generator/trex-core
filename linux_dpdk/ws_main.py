@@ -162,6 +162,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_stateless.cpp',
                                     'cp/trex_stateless_port.cpp',
                                     'cp/trex_streams_compiler.cpp',
+                                    'cp/trex_vm_splitter.cpp',
                                     'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp'
@@ -210,151 +211,142 @@ version_src = SrcGroup(
     ])
 
 
-dpdk_src = SrcGroup(dir='src/dpdk_lib18/',
+dpdk_src = SrcGroup(dir='src/dpdk22/',
                 src_list=[
-                 'librte_ring/rte_ring.c',
-                 'librte_timer/rte_timer.c',
-                #'librte_pmd_ixgbe/ixgbe_82599_bypass.c',
-                #'librte_pmd_ixgbe/ixgbe_bypass.c',
-                'librte_pmd_ixgbe/ixgbe_ethdev.c',
-                'librte_pmd_ixgbe/ixgbe_fdir.c',
-                'librte_pmd_ixgbe/ixgbe_pf.c',
-                'librte_pmd_ixgbe/ixgbe_rxtx.c',
-                'librte_pmd_ixgbe/ixgbe_rxtx_vec.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_82598.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_82599.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_api.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_common.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_dcb.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_dcb_82598.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_dcb_82599.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_mbx.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_phy.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_vf.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_x540.c',
-                'librte_pmd_ixgbe/ixgbe/ixgbe_x550.c',
-
-                'librte_pmd_vmxnet3/vmxnet3_ethdev.c',
-                'librte_pmd_vmxnet3/vmxnet3_rxtx.c',
-
-                'librte_pmd_virtio/virtio_ethdev.c',
-                'librte_pmd_virtio/virtio_pci.c',
-                'librte_pmd_virtio/virtio_rxtx.c',
-                'librte_pmd_virtio/virtqueue.c',
-
-                'librte_pmd_enic/enic_clsf.c',
-                'librte_pmd_enic/enic_ethdev.c',
-                'librte_pmd_enic/enic_main.c',
-                'librte_pmd_enic/enic_res.c',
-                'librte_pmd_enic/vnic/vnic_cq.c',
-                'librte_pmd_enic/vnic/vnic_dev.c',
-                'librte_pmd_enic/vnic/vnic_intr.c',
-                'librte_pmd_enic/vnic/vnic_rq.c',
-                'librte_pmd_enic/vnic/vnic_rss.c',
-                'librte_pmd_enic/vnic/vnic_wq.c',
-
-                 'librte_malloc/malloc_elem.c',
-                 'librte_malloc/malloc_heap.c',
-                 'librte_malloc/rte_malloc.c',
-
-                 'librte_mbuf/rte_mbuf.c',
-                 'librte_mempool/rte_mempool.c',
-
-                 'librte_pmd_e1000/em_ethdev.c',
-                 'librte_pmd_e1000/em_rxtx.c',
-                 'librte_pmd_e1000/igb_ethdev.c',
-                 'librte_pmd_e1000/igb_pf.c',
-                 'librte_pmd_e1000/igb_rxtx.c',
-                 'librte_pmd_e1000/e1000/e1000_80003es2lan.c',
-                 'librte_pmd_e1000/e1000/e1000_82540.c',
-                 'librte_pmd_e1000/e1000/e1000_82541.c',
-                 'librte_pmd_e1000/e1000/e1000_82542.c',
-                 'librte_pmd_e1000/e1000/e1000_82543.c',
-                 'librte_pmd_e1000/e1000/e1000_82571.c',
-                 'librte_pmd_e1000/e1000/e1000_82575.c',
-                 'librte_pmd_e1000/e1000/e1000_api.c',
-                 'librte_pmd_e1000/e1000/e1000_i210.c',
-                 'librte_pmd_e1000/e1000/e1000_ich8lan.c',
-                 'librte_pmd_e1000/e1000/e1000_mac.c',
-                 'librte_pmd_e1000/e1000/e1000_manage.c',
-                 'librte_pmd_e1000/e1000/e1000_mbx.c',
-                 'librte_pmd_e1000/e1000/e1000_nvm.c',
-                 'librte_pmd_e1000/e1000/e1000_osdep.c',
-                 'librte_pmd_e1000/e1000/e1000_phy.c',
-                 'librte_pmd_e1000/e1000/e1000_vf.c',
-                 'librte_hash/rte_fbk_hash.c',
-                 'librte_hash/rte_hash.c',
-                 'librte_cmdline/cmdline.c',
-                 'librte_cmdline/cmdline_cirbuf.c',
-                 'librte_cmdline/cmdline_parse.c',
-                 'librte_cmdline/cmdline_parse_etheraddr.c',
-                 'librte_cmdline/cmdline_parse_ipaddr.c',
-                 'librte_cmdline/cmdline_parse_num.c',
-                 'librte_cmdline/cmdline_parse_portlist.c',
-                 'librte_cmdline/cmdline_parse_string.c',
-                 'librte_cmdline/cmdline_rdline.c',
-                 'librte_cmdline/cmdline_socket.c',
-                 'librte_cmdline/cmdline_vt100.c',
-
-            'librte_eal/common/eal_common_cpuflags.c',
-            'librte_eal/common/eal_common_dev.c',
-            'librte_eal/common/eal_common_devargs.c',
-            'librte_eal/common/eal_common_errno.c',
-            'librte_eal/common/eal_common_hexdump.c',
-            'librte_eal/common/eal_common_launch.c',
-            'librte_eal/common/eal_common_log.c',
-            'librte_eal/common/eal_common_memory.c',
-            'librte_eal/common/eal_common_memzone.c',
-            'librte_eal/common/eal_common_options.c',
-            'librte_eal/common/eal_common_pci.c',
-            'librte_eal/common/eal_common_string_fns.c',
-            'librte_eal/common/eal_common_tailqs.c',
-
-            'librte_ether/rte_ethdev.c',
-
-            'librte_pmd_ring/rte_eth_ring.c',
-            'librte_kvargs/rte_kvargs.c',
-
-
-            'librte_eal/linuxapp/eal/eal.c',
-            'librte_eal/linuxapp/eal/eal_alarm.c',
-            'librte_eal/linuxapp/eal/eal_debug.c',
-            'librte_eal/linuxapp/eal/eal_hugepage_info.c',
-            'librte_eal/linuxapp/eal/eal_interrupts.c',
-            'librte_eal/linuxapp/eal/eal_ivshmem.c',
-            'librte_eal/linuxapp/eal/eal_lcore.c',
-            'librte_eal/linuxapp/eal/eal_log.c',
-            'librte_eal/linuxapp/eal/eal_memory.c',
-            'librte_eal/linuxapp/eal/eal_pci.c',
-            'librte_eal/linuxapp/eal/eal_pci_uio.c',
-            'librte_eal/linuxapp/eal/eal_pci_vfio.c',
-            'librte_eal/linuxapp/eal/eal_pci_vfio_mp_sync.c',
-            'librte_eal/linuxapp/eal/eal_thread.c',
-            'librte_eal/linuxapp/eal/eal_timer.c',
-            #'librte_eal/linuxapp/eal/eal_xen_memory.c'
-
-            'librte_pmd_i40e/i40e_ethdev.c',
-            'librte_pmd_i40e/i40e_ethdev_vf.c',
-            'librte_pmd_i40e/i40e_fdir.c',
-            'librte_pmd_i40e/i40e_pf.c',
-            'librte_pmd_i40e/i40e_rxtx.c',
-            'librte_pmd_i40e/i40e/i40e_adminq.c',
-            'librte_pmd_i40e/i40e/i40e_common.c',
-            'librte_pmd_i40e/i40e/i40e_dcb.c',
-            'librte_pmd_i40e/i40e/i40e_diag.c',
-            'librte_pmd_i40e/i40e/i40e_hmc.c',
-            'librte_pmd_i40e/i40e/i40e_lan_hmc.c',
-            'librte_pmd_i40e/i40e/i40e_nvm.c'
+                 'drivers/net/af_packet/rte_eth_af_packet.c',
+                 'drivers/net/cxgbe/base/t4_hw.c',
+                 'drivers/net/cxgbe/cxgbe_ethdev.c',
+                 'drivers/net/cxgbe/cxgbe_main.c',
+                 'drivers/net/cxgbe/sge.c',
+                 'drivers/net/e1000/base/e1000_80003es2lan.c',
+                 'drivers/net/e1000/base/e1000_82540.c',
+                 'drivers/net/e1000/base/e1000_82541.c',
+                 'drivers/net/e1000/base/e1000_82542.c',
+                 'drivers/net/e1000/base/e1000_82543.c',
+                 'drivers/net/e1000/base/e1000_82571.c',
+                 'drivers/net/e1000/base/e1000_82575.c',
+                 'drivers/net/e1000/base/e1000_api.c',
+                 'drivers/net/e1000/base/e1000_i210.c',
+                 'drivers/net/e1000/base/e1000_ich8lan.c',
+                 'drivers/net/e1000/base/e1000_mac.c',
+                 'drivers/net/e1000/base/e1000_manage.c',
+                 'drivers/net/e1000/base/e1000_mbx.c',
+                 'drivers/net/e1000/base/e1000_nvm.c',
+                 'drivers/net/e1000/base/e1000_osdep.c',
+                 'drivers/net/e1000/base/e1000_phy.c',
+                 'drivers/net/e1000/base/e1000_vf.c',
+                 'drivers/net/e1000/em_ethdev.c',
+                 'drivers/net/e1000/em_rxtx.c',
+                 'drivers/net/e1000/igb_ethdev.c',
+                 'drivers/net/e1000/igb_pf.c',
+                 'drivers/net/e1000/igb_rxtx.c',
+                 'drivers/net/enic/base/vnic_cq.c',
+                 'drivers/net/enic/base/vnic_dev.c',
+                 'drivers/net/enic/base/vnic_intr.c',
+                 'drivers/net/enic/base/vnic_rq.c',
+                 'drivers/net/enic/base/vnic_rss.c',
+                 'drivers/net/enic/base/vnic_wq.c',
+                 'drivers/net/enic/enic_clsf.c',
+                 'drivers/net/enic/enic_ethdev.c',
+                 'drivers/net/enic/enic_main.c',
+                 'drivers/net/enic/enic_res.c',
+                 'drivers/net/fm10k/base/fm10k_api.c',
+                 'drivers/net/fm10k/base/fm10k_common.c',
+                 'drivers/net/fm10k/base/fm10k_mbx.c',
+                 'drivers/net/fm10k/base/fm10k_pf.c',
+                 'drivers/net/fm10k/base/fm10k_tlv.c',
+                 'drivers/net/fm10k/base/fm10k_vf.c',
+                 'drivers/net/fm10k/fm10k_ethdev.c',
+                 'drivers/net/fm10k/fm10k_rxtx.c',
+                 'drivers/net/fm10k/fm10k_rxtx_vec.c',
+                 'drivers/net/ixgbe/base/ixgbe_82598.c',
+                 'drivers/net/ixgbe/base/ixgbe_82599.c',
+                 'drivers/net/ixgbe/base/ixgbe_api.c',
+                 'drivers/net/ixgbe/base/ixgbe_common.c',
+                 'drivers/net/ixgbe/base/ixgbe_dcb.c',
+                 'drivers/net/ixgbe/base/ixgbe_dcb_82598.c',
+                 'drivers/net/ixgbe/base/ixgbe_dcb_82599.c',
+                 'drivers/net/ixgbe/base/ixgbe_mbx.c',
+                 'drivers/net/ixgbe/base/ixgbe_phy.c',
+                 'drivers/net/ixgbe/base/ixgbe_vf.c',
+                 'drivers/net/ixgbe/base/ixgbe_x540.c',
+                 'drivers/net/ixgbe/base/ixgbe_x550.c',
+                 'drivers/net/ixgbe/ixgbe_ethdev.c',
+                 'drivers/net/ixgbe/ixgbe_fdir.c',
+                 'drivers/net/ixgbe/ixgbe_pf.c',
+                 'drivers/net/ixgbe/ixgbe_rxtx.c',
+                 'drivers/net/ixgbe/ixgbe_rxtx_vec.c',
+                 'drivers/net/i40e/base/i40e_adminq.c',
+                 'drivers/net/i40e/base/i40e_common.c',
+                 'drivers/net/i40e/base/i40e_dcb.c',
+                 'drivers/net/i40e/base/i40e_diag.c',
+                 'drivers/net/i40e/base/i40e_hmc.c',
+                 'drivers/net/i40e/base/i40e_lan_hmc.c',
+                 'drivers/net/i40e/base/i40e_nvm.c',
+                 'drivers/net/i40e/i40e_ethdev_vf.c',
+                 'drivers/net/i40e/i40e_pf.c',
+                 'drivers/net/i40e/i40e_rxtx.c',
+                 'drivers/net/i40e/i40e_rxtx_vec.c',
+                 'drivers/net/i40e/i40e_fdir.c',
+                 'drivers/net/i40e/i40e_ethdev.c',
+                 'drivers/net/null/rte_eth_null.c',
+                 'drivers/net/ring/rte_eth_ring.c',
+                 'drivers/net/virtio/virtio_ethdev.c',
+                 'drivers/net/virtio/virtio_pci.c',
+                 'drivers/net/virtio/virtio_rxtx.c',
+                 'drivers/net/virtio/virtio_rxtx_simple.c',
+                 'drivers/net/virtio/virtqueue.c',
+                 '/drivers/net/vmxnet3/vmxnet3_ethdev.c',
+                 '/drivers/net/vmxnet3/vmxnet3_rxtx.c',
+                 'lib/librte_cfgfile/rte_cfgfile.c',
+                 'lib/librte_eal/common/eal_common_cpuflags.c',
+                 'lib/librte_eal/common/eal_common_dev.c',
+                 'lib/librte_eal/common/eal_common_devargs.c',
+                 'lib/librte_eal/common/eal_common_errno.c',
+                 'lib/librte_eal/common/eal_common_hexdump.c',
+                 'lib/librte_eal/common/eal_common_launch.c',
+                 'lib/librte_eal/common/eal_common_lcore.c',
+                 'lib/librte_eal/common/eal_common_log.c',
+                 'lib/librte_eal/common/eal_common_memory.c',
+                 'lib/librte_eal/common/eal_common_memzone.c',
+                 'lib/librte_eal/common/eal_common_options.c',
+                 'lib/librte_eal/common/eal_common_pci.c',
+                 'lib/librte_eal/common/eal_common_pci_uio.c',
+                 'lib/librte_eal/common/eal_common_string_fns.c',
+                 'lib/librte_eal/common/eal_common_tailqs.c',
+                 'lib/librte_eal/common/eal_common_thread.c',
+                 'lib/librte_eal/common/eal_common_timer.c',
+                 'lib/librte_eal/common/malloc_elem.c',
+                 'lib/librte_eal/common/malloc_heap.c',
+                 'lib/librte_eal/common/rte_keepalive.c',
+                 'lib/librte_eal/common/rte_malloc.c',
+                 'lib/librte_eal/linuxapp/eal/eal.c',
+                 'lib/librte_eal/linuxapp/eal/eal_alarm.c',
+                 'lib/librte_eal/linuxapp/eal/eal_debug.c',
+                 'lib/librte_eal/linuxapp/eal/eal_hugepage_info.c',
+                 'lib/librte_eal/linuxapp/eal/eal_interrupts.c',
+                 'lib/librte_eal/linuxapp/eal/eal_ivshmem.c',
+                 'lib/librte_eal/linuxapp/eal/eal_lcore.c',
+                 'lib/librte_eal/linuxapp/eal/eal_log.c',
+                 'lib/librte_eal/linuxapp/eal/eal_memory.c',
+                 'lib/librte_eal/linuxapp/eal/eal_pci.c',
+                 'lib/librte_eal/linuxapp/eal/eal_pci_uio.c',
+                 'lib/librte_eal/linuxapp/eal/eal_pci_vfio.c',
+                 'lib/librte_eal/linuxapp/eal/eal_pci_vfio_mp_sync.c',
+                 'lib/librte_eal/linuxapp/eal/eal_thread.c',
+                 'lib/librte_eal/linuxapp/eal/eal_timer.c',
+                 'lib/librte_ether/rte_ethdev.c',
+                 'lib/librte_hash/rte_cuckoo_hash.c',
+                 'lib/librte_kvargs/rte_kvargs.c',
+                 'lib/librte_mbuf/rte_mbuf.c',
+                 'lib/librte_mempool/rte_mempool.c',
+                 'lib/librte_pipeline/rte_pipeline.c',
+                 'lib/librte_ring/rte_ring.c',
             ]);
-
-
-
 
 bp_dpdk =SrcGroups([
                 dpdk_src
                 ]);
-
-
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -387,7 +379,7 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-Wno-format',
                 '-Wno-deprecated-declarations',
                 '-DRTE_DPDK',
-                '-include','../src/pal/linux_dpdk/dpdk180/rte_config.h'
+                '-include','../src/pal/linux_dpdk/dpdk22/rte_config.h'
                ]
 
 common_flags_new = common_flags + [
@@ -427,67 +419,120 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../external_libs/zmq/include/
                    ../external_libs/json/
 
-                        ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
-                        ../src/dpdk_lib18/librte_eal/common/include/
-                        ../src/dpdk_lib18/librte_eal/common/
-                        ../src/dpdk_lib18/librte_eal/common/include/arch/x86
-
-                        ../src/dpdk_lib18/librte_ring/
-                        ../src/dpdk_lib18/librte_mempool/
-                        ../src/dpdk_lib18/librte_malloc/
-                        ../src/dpdk_lib18/librte_ether/
-
-                        ../src/dpdk_lib18/librte_cmdline/
-                        ../src/dpdk_lib18/librte_hash/
-                        ../src/dpdk_lib18/librte_lpm/
-                        ../src/dpdk_lib18/librte_mbuf/
-                        ../src/dpdk_lib18/librte_pmd_igb/
-                        ../src/dpdk_lib18/librte_pmd_ixgbe/
-
-                        ../src/dpdk_lib18/librte_pmd_enic/
-                        ../src/dpdk_lib18/librte_pmd_enic/vnic/
-                        ../src/dpdk_lib18/librte_pmd_virtio/
-                        ../src/dpdk_lib18/librte_pmd_vmxnet3/
-
-                        ../src/dpdk_lib18/librte_timer/
-                        ../src/dpdk_lib18/librte_net/
-                        ../src/dpdk_lib18/librte_pmd_ring/
-                        ../src/dpdk_lib18/librte_kvargs/
-
-
+../src/dpdk22/drivers/
+../src/dpdk22/drivers/net/
+../src/dpdk22/drivers/net/af_packet/
+../src/dpdk22/drivers/net/bnx2x/
+../src/dpdk22/drivers/net/bonding/
+../src/dpdk22/drivers/net/cxgbe/
+../src/dpdk22/drivers/net/cxgbe/base/
+../src/dpdk22/drivers/net/e1000/
+../src/dpdk22/drivers/net/e1000/base/
+../src/dpdk22/drivers/net/fm10k/
+../src/dpdk22/drivers/net/fm10k/base/
+../src/dpdk22/drivers/net/i40e/
+../src/dpdk22/drivers/net/i40e/base/
+../src/dpdk22/drivers/net/ixgbe/
+../src/dpdk22/drivers/net/ixgbe/base/
+../src/dpdk22/drivers/net/mlx4/
+../src/dpdk22/drivers/net/mlx5/
+../src/dpdk22/drivers/net/mpipe/
+../src/dpdk22/drivers/net/null/
+../src/dpdk22/drivers/net/pcap/
+../src/dpdk22/drivers/net/ring/
+../src/dpdk22/drivers/net/szedata2/
+../src/dpdk22/drivers/net/virtio/
+../src/dpdk22/drivers/net/xenvirt/
+../src/dpdk22/lib/
+../src/dpdk22/lib/librte_acl/
+../src/dpdk22/lib/librte_cfgfile/
+../src/dpdk22/lib/librte_compat/
+../src/dpdk22/lib/librte_distributor/
+../src/dpdk22/lib/librte_eal/
+../src/dpdk22/lib/librte_eal/common/
+../src/dpdk22/lib/librte_eal/common/include/
+../src/dpdk22/lib/librte_eal/common/include/arch/
+../src/dpdk22/lib/librte_eal/common/include/arch/x86/
+../src/dpdk22/lib/librte_eal/common/include/generic/
+../src/dpdk22/lib/librte_eal/linuxapp/
+../src/dpdk22/lib/librte_eal/linuxapp/eal/
+../src/dpdk22/lib/librte_eal/linuxapp/eal/include/
+../src/dpdk22/lib/librte_eal/linuxapp/eal/include/exec-env/
+../src/dpdk22/lib/librte_eal/linuxapp/igb_uio/
+../src/dpdk22/lib/librte_eal/linuxapp/xen_dom0/
+../src/dpdk22/lib/librte_ether/
+../src/dpdk22/lib/librte_hash/
+../src/dpdk22/lib/librte_kvargs/
+../src/dpdk22/lib/librte_mbuf/
+../src/dpdk22/lib/librte_mempool/
+../src/dpdk22/lib/librte_pipeline/
+../src/dpdk22/lib/librte_ring/
+../src/dpdk22/
               ''';
 
 dpdk_includes_path =''' ../src/ 
                         ../src/pal/linux_dpdk/
-                        ../src/dpdk_lib18/librte_eal/linuxapp/eal/include/
-                        ../src/dpdk_lib18/librte_eal/common/include/
-                        ../src/dpdk_lib18/librte_eal/common/
-                        ../src/dpdk_lib18/librte_eal/common/include/arch/x86
+                        ../src/pal/linux_dpdk/dpdk22
+../src/dpdk22/drivers/
+../src/dpdk22/drivers/net/
+../src/dpdk22/drivers/net/af_packet/
+../src/dpdk22/drivers/net/bnx2x/
+../src/dpdk22/drivers/net/bonding/
+../src/dpdk22/drivers/net/cxgbe/
+../src/dpdk22/drivers/net/cxgbe/base/
+../src/dpdk22/drivers/net/e1000/
+../src/dpdk22/drivers/net/e1000/base/
+../src/dpdk22/drivers/net/enic/
+../src/dpdk22/drivers/net/enic/base/
+../src/dpdk22/drivers/net/fm10k/
+../src/dpdk22/drivers/net/fm10k/base/
+../src/dpdk22/drivers/net/i40e/
+../src/dpdk22/drivers/net/i40e/base/
+../src/dpdk22/drivers/net/ixgbe/
+../src/dpdk22/drivers/net/ixgbe/base/
+../src/dpdk22/drivers/net/mlx4/
+../src/dpdk22/drivers/net/mlx5/
+../src/dpdk22/drivers/net/mpipe/
+../src/dpdk22/drivers/net/null/
+../src/dpdk22/drivers/net/pcap/
+../src/dpdk22/drivers/net/ring/
+../src/dpdk22/drivers/net/virtio/
+../src/dpdk22/drivers/net/vmxnet3/
+../src/dpdk22/drivers/net/vmxnet3/base
+../src/dpdk22/drivers/net/xenvirt/
+../src/dpdk22/lib/
+../src/dpdk22/lib/librte_acl/
+../src/dpdk22/lib/librte_cfgfile/
+../src/dpdk22/lib/librte_compat/
+../src/dpdk22/lib/librte_distributor/
+../src/dpdk22/lib/librte_eal/
+../src/dpdk22/lib/librte_eal/common/
+../src/dpdk22/lib/librte_eal/common/include/
+../src/dpdk22/lib/librte_eal/common/include/arch/
+../src/dpdk22/lib/librte_eal/common/include/arch/x86/
+../src/dpdk22/lib/librte_eal/common/include/generic/
+../src/dpdk22/lib/librte_eal/linuxapp/
+../src/dpdk22/lib/librte_eal/linuxapp/eal/
+../src/dpdk22/lib/librte_eal/linuxapp/eal/include/
+../src/dpdk22/lib/librte_eal/linuxapp/eal/include/exec-env/
+../src/dpdk22/lib/librte_eal/linuxapp/igb_uio/
+../src/dpdk22/lib/librte_eal/linuxapp/xen_dom0/
+../src/dpdk22/lib/librte_ether/
+../src/dpdk22/lib/librte_hash/
+../src/dpdk22/lib/librte_kvargs/
+../src/dpdk22/lib/librte_mbuf/
+../src/dpdk22/lib/librte_mempool/
+../src/dpdk22/lib/librte_pipeline/
+../src/dpdk22/lib/librte_ring/
+../src/dpdk22/lib/librte_net/
+../src/dpdk22/lib/librte_port/
+../src/dpdk22/lib/librte_pipeline/
+../src/dpdk22/lib/librte_table/
+../src/dpdk22/      
+''';
 
-                        ../src/dpdk_lib18/librte_pmd_enic/
-                        ../src/dpdk_lib18/librte_pmd_virtio/
-                        ../src/dpdk_lib18/librte_pmd_vmxnet3/
-                        ../src/dpdk_lib18/librte_pmd_enic/vnic/
 
-                        ../src/dpdk_lib18/librte_ring/
-                        ../src/dpdk_lib18/librte_mempool/
-                        ../src/dpdk_lib18/librte_malloc/
-                        ../src/dpdk_lib18/librte_ether/
-                        ../src/dpdk_lib18/librte_cmdline/
-                        ../src/dpdk_lib18/librte_hash/
-                        ../src/dpdk_lib18/librte_lpm/
-                        ../src/dpdk_lib18/librte_mbuf/
-                        ../src/dpdk_lib18/librte_pmd_igb/
-                        ../src/dpdk_lib18/librte_pmd_ixgbe/
-                        ../src/dpdk_lib18/librte_timer/
-                        ../src/dpdk_lib18/librte_net/
-                        ../src/dpdk_lib18/librte_pmd_ring/
-                        ../src/dpdk_lib18/librte_kvargs/
-
-                    ''';
-
-
-DPDK_WARNING=['-D_GNU_SOURCE'];
+DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF'];
 
 
 
@@ -604,6 +649,7 @@ class build_option:
         base_flags = [];
         if self.is64Platform():
             base_flags += ['-m64'];
+            base_flags += ['-lrt'];
         else:
             base_flags += ['-lrt'];
 
@@ -636,7 +682,7 @@ def build_prog (bld, build_obj):
       features='c ',
       includes = dpdk_includes_path,
       
-      cflags   = (build_obj.get_c_flags()+DPDK_WARNING ),
+      cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
       source   = bp_dpdk.file_list(top),
       target=build_obj.get_dpdk_target() 
       );
@@ -779,6 +825,7 @@ files_list=[
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
+            't-rex-debug-gdb',
             'mock-rpc-server-64-debug',
             'release_notes.pdf',
             'dpdk_nic_bind.py',

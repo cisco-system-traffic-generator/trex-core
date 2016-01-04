@@ -42,7 +42,6 @@ limitations under the License.
 #include <rte_branch_prediction.h>
 #include <rte_interrupts.h>
 #include <rte_pci.h>
-#include <rte_random.h>
 #include <rte_debug.h>
 #include <rte_ether.h>
 #include <rte_ethdev.h>
@@ -50,6 +49,7 @@ limitations under the License.
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_random.h>
+#include <rte_version.h>
 #include "bp_sim.h"
 #include "latency.h"
 #include "os_time.h"
@@ -65,9 +65,9 @@ limitations under the License.
 #include <../linux_dpdk/version.h>
 
 extern "C" {
-  #include <dpdk_lib18/librte_pmd_ixgbe/ixgbe/ixgbe_type.h>
+#include <dpdk22/drivers/net/ixgbe/base/ixgbe_type.h>
 }
-#include <dpdk_lib18/librte_pmd_e1000/e1000/e1000_regs.h>
+#include <dpdk22/drivers/net/e1000/base/e1000_regs.h>
 #include <zmq.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -107,8 +107,6 @@ typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
 struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
 extern "C" int vmxnet3_xmit_set_callback(rte_mbuf_convert_to_one_seg_t cb);
 
-
-
 #define RTE_TEST_TX_DESC_DEFAULT 512
 #define RTE_TEST_RX_DESC_DROP    0
 
@@ -142,10 +140,12 @@ public:
         return(false);
     }
 
-    virtual int configure_drop_queue(CPhyEthIF * _if)=0;
+    virtual int configure_drop_queue(CPhyEthIF * _if);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link()=0;
+    virtual void wait_after_link_up(){};
+    virtual bool flow_control_disable_supported(){return true;}
 };
 
 
@@ -174,19 +174,19 @@ public:
         return (true);
     }
 
+    virtual int configure_drop_queue(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
 
     virtual bool is_hardware_support_drop_queue(){
         return(true);
     }
 
-    virtual int configure_drop_queue(CPhyEthIF * _if);
-
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
     virtual void clear_extended_stats(CPhyEthIF * _if);
 
     virtual int wait_for_stable_link();
+    void wait_after_link_up();
 };
 
 class CTRexExtendedDriverBase1GVm : public CTRexExtendedDriverBase {
@@ -264,8 +264,6 @@ public:
     virtual bool is_hardware_support_drop_queue(){
         return(true);
     }
-    virtual int configure_drop_queue(CPhyEthIF * _if);
-
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
@@ -298,16 +296,14 @@ public:
     virtual bool is_hardware_support_drop_queue(){
         return(true);
     }
-    virtual int configure_drop_queue(CPhyEthIF * _if);
-
-
-
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
+    // disabling flow control on 40G using DPDK API causes the interface to malfunction
+    bool flow_control_disable_supported(){return false;}
 private:
     void add_rules(CPhyEthIF * _if,
-                   enum rte_eth_flow_type type,
+                   uint16_t type,
                    uint8_t ttl);
 };
 
@@ -538,7 +534,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_LEARN, "--learn",       SO_NONE   },
     { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
     { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
-    { OPT_NO_FLOW_CONTROL, "--no-flow-control",       SO_NONE   },
+    { OPT_NO_FLOW_CONTROL, "--no-flow-control-change",       SO_NONE   },
     { OPT_VLAN,       "--vlan",       SO_NONE   },
     { OPT_MAC_FILE, "--mac", SO_REQ_SEP }, 
     { OPT_NO_KEYBOARD_INPUT ,"--no-key", SO_NONE   },
@@ -633,7 +629,7 @@ static int usage(){
     printf("                              this feature consume another thread  \n");
     printf("  \n");
     printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
-    printf(" --no-flow-control          : In default TRex disables flow-control using this flag it does not touch it \n");
+    printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
     printf(" --prefix                   : for multi trex, each instance should have a different name \n");
     printf(" --mac-spread               : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
     printf("                             maximum is up to 128 devices   \n");
@@ -686,6 +682,7 @@ static int usage(){
     printf(" ZMQ        (LGPL v3plus) \n");
     printf(" \n");
     printf(" Version : %s   \n",VERSION_BUILD_NUM);
+    printf(" DPDK version : %s   \n",rte_version());
     printf(" User    : %s   \n",VERSION_USER);
     printf(" Date    : %s , %s \n",get_build_date(),get_build_time());
     printf(" Uuid    : %s    \n",VERSION_UIID);
@@ -999,11 +996,10 @@ int main_test(int argc , char * argv[]);
 struct port_cfg_t {
     public:
     port_cfg_t(){
-        memset(&m_port_conf,0,sizeof(rte_eth_conf));
-        memset(&m_rx_conf,0,sizeof(rte_eth_rxconf));
-        memset(&m_tx_conf,0,sizeof(rte_eth_rxconf));
-        memset(&m_rx_drop_conf,0,sizeof(rte_eth_rxconf));
-        
+        memset(&m_port_conf,0,sizeof(m_port_conf));
+        memset(&m_rx_conf,0,sizeof(m_rx_conf));
+        memset(&m_tx_conf,0,sizeof(m_tx_conf));
+        memset(&m_rx_drop_conf,0,sizeof(m_rx_drop_conf));
 
         m_rx_conf.rx_thresh.pthresh = RX_PTHRESH;
         m_rx_conf.rx_thresh.hthresh = RX_HTHRESH;
@@ -1027,7 +1023,7 @@ struct port_cfg_t {
 
 
 
-	inline void update_var(void){
+    inline void update_var(void){
         get_ex_drv()->update_configuration(this);
     }
 
@@ -1036,8 +1032,8 @@ struct port_cfg_t {
     }
 
 	/* enable FDIR */
-	inline void update_global_config_fdir_10g_1g(void){
-		m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
+    inline void update_global_config_fdir_10g(void){
+		m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT_MAC_VLAN;
 		m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
 		m_port_conf.fdir_conf.status=RTE_FDIR_NO_REPORT_STATUS; 
 		/* Offset of flexbytes field in RX packets (in 16-bit word units). */
@@ -1053,7 +1049,7 @@ struct port_cfg_t {
 	        	m_port_conf.fdir_conf.flexbytes_offset+=(4/2);
 		}
 		m_port_conf.fdir_conf.drop_queue=1;
-	}
+    }
 
     inline void update_global_config_fdir_40g(void){
         m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
@@ -1552,12 +1548,9 @@ void CPhyEthIF::start(){
 
 }
 
+// Disabling flow control on interface
 void CPhyEthIF::disable_flow_control(){
-       if ( get_vm_one_queue_enable()  ){
-           return;
-       }
        int ret;
-       if ( !CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()  ){
         // see trex-64 issue with loopback on the same NIC
         struct rte_eth_fc_conf fc_conf;
         memset(&fc_conf,0,sizeof(fc_conf));
@@ -1574,9 +1567,8 @@ void CPhyEthIF::disable_flow_control(){
         }
         if (ret < 0)
           rte_exit(EXIT_FAILURE, "rte_eth_dev_flow_ctrl_set: "
-                  "err=%d, port=%u\n probably link is down please check you link activity or enable flow-control using this CLI flag --no-flow-control  \n",
+                  "err=%d, port=%u\n probably link is down. Please check your link activity, or skip flow-control disabling, using: --no-flow-control-change option\n",
                 ret, m_port_id);
-    }
 }
 
 
@@ -2924,7 +2916,7 @@ int  CGlobalTRex::rcv_send_all(int queue_id){
 int CGlobalTRex::test_send(){
     int i;
 
-    //set_promisc_all(true);
+    set_promisc_all(true);
     create_udp_pkt();
 
 	CRx_check_header rx_check_header;
@@ -3005,7 +2997,7 @@ const uint8_t udp_pkt[]={
 
     0x45,0x00,0x00,0x81,
     0xaf,0x7e,0x00,0x00,
-    0x12,0x11,0xd9,0x23,
+    0xfe,0x06,0xd9,0x23,
     0x01,0x01,0x01,0x01,
     0x3d,0xad,0x72,0x1b,
 
@@ -3039,7 +3031,7 @@ const uint8_t icmp_pkt1[]={
 
     0x45,0x02,0x00,0x30,
     0x00,0x00,0x40,0x00,
-    0xaa,0x01,0xbd,0x04,
+    0xff,0x01,0xbd,0x04,
     0x9b,0xe6,0x18,0x9b, //SIP
     0xcb,0xff,0xfc,0xc2, //DIP
 
@@ -3373,7 +3365,10 @@ int  CGlobalTRex::ixgbe_start(void){
         _if->configure_rx_drop_queue();
         _if->configure_rx_duplicate_rules();
 
-        _if->disable_flow_control();
+       if ( ! get_vm_one_queue_enable()  && ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting() 
+	    && get_ex_drv()->flow_control_disable_supported()) {
+	   _if->disable_flow_control();
+       }
 
         _if->update_link_status();
 
@@ -3392,6 +3387,8 @@ int  CGlobalTRex::ixgbe_start(void){
             rte_exit(EXIT_FAILURE, " "
                     " one of the link is down \n");
         }
+    } else {
+        get_ex_drv()->wait_after_link_up();
     }
 
     ixgbe_rx_queue_flush();
@@ -3519,16 +3516,16 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 	if (m_max_ports == 0)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
-    printf(" number of ports founded : %d \n",m_max_ports);
+    printf(" Number of ports found: %d \n",m_max_ports);
 
 
 
     if ( CGlobalInfo::m_options.get_expected_ports() >BP_MAX_PORTS ){
-        rte_exit(EXIT_FAILURE, " maximum ports supported are %d, use the configuration file to set the expected number of ports   \n",BP_MAX_PORTS);
+        rte_exit(EXIT_FAILURE, " Maximum ports supported are %d, use the configuration file to set the expected number of ports   \n",BP_MAX_PORTS);
     }
 
     if ( CGlobalInfo::m_options.get_expected_ports() > m_max_ports ){
-        rte_exit(EXIT_FAILURE, " there are %d ports you expected more %d,use the configuration file to set the expected number of ports   \n",
+        rte_exit(EXIT_FAILURE, " There are %d ports you expected more %d,use the configuration file to set the expected number of ports   \n",
                  m_max_ports,
                  CGlobalInfo::m_options.get_expected_ports());
     }
@@ -3539,7 +3536,7 @@ int  CGlobalTRex::ixgbe_prob_init(void){
     assert(m_max_ports <= BP_MAX_PORTS);
 
     if ( m_max_ports %2 !=0 ) {
-        rte_exit(EXIT_FAILURE, " numbe of ports %d should be even, mask the one port in the configuration file  \n, ",
+        rte_exit(EXIT_FAILURE, " Number of ports %d should be even, mask the one port in the configuration file  \n, ",
                  m_max_ports);
 
     }
@@ -3579,12 +3576,6 @@ int  CGlobalTRex::ixgbe_prob_init(void){
     }
 
     CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
-
-    /* register driver callback to convert mseg to signle seg */
-    if (strcmp(dev_info.driver_name,"rte_vmxnet3_pmd")==0 ) {
-        vmxnet3_xmit_set_callback(rte_mbuf_convert_to_one_seg);
-    }
-
 
     m_port_cfg.update_var();
 
@@ -3692,8 +3683,15 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
 
     fprintf (fd," summary stats \n");
     fprintf (fd," -------------- \n");
-
-    fprintf (fd," Total-pkt-drop       : %llu pkts \n",(unsigned long long)(pkt_out-pkt_in));
+    
+    if (pkt_in > pkt_out)
+    {
+        fprintf (fd, " Total-pkt-drop       : 0 pkts \n");
+        if (pkt_in > pkt_out * 1.01)
+            fprintf (fd, " Warning : number of rx packets exceeds 101%% of tx packets!\n");
+    }
+    else
+        fprintf (fd, " Total-pkt-drop       : %llu pkts \n", (unsigned long long) (pkt_out - pkt_in));
     fprintf (fd," Total-tx-bytes       : %llu bytes \n", (unsigned long long)pkt_out_bytes);
     fprintf (fd," Total-tx-sw-bytes    : %llu bytes \n", (unsigned long long)sw_pkt_out_bytes);
     fprintf (fd," Total-rx-bytes       : %llu byte \n", (unsigned long long)pkt_in_bytes);
@@ -4469,6 +4467,53 @@ int update_global_info_from_platform_file(){
     return (0);
 }
 
+extern "C" int eal_cpu_detected(unsigned lcore_id);
+// return mask representing available cores
+int core_mask_calc() {
+    uint32_t mask = 0;
+    int lcore_id;
+
+	for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+	    if (eal_cpu_detected(lcore_id)) {
+		mask |= (1 << lcore_id);
+	    }
+	}
+
+	return mask;
+}
+
+// Return number of set bits in i
+uint32_t num_set_bits(uint32_t i)
+{
+     i = i - ((i >> 1) & 0x55555555);
+     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
+     return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+}
+
+// sanity check if the cores we want to use really exist
+int core_mask_sanity(uint32_t wanted_core_mask) {
+    uint32_t calc_core_mask = core_mask_calc();
+    uint32_t wanted_core_num, calc_core_num;
+
+    wanted_core_num = num_set_bits(wanted_core_mask);
+    calc_core_num = num_set_bits(calc_core_mask);
+
+    if (wanted_core_num > calc_core_num) {
+	printf("Error: You have %d threads available, but you asked for %d threads.\n", calc_core_num, wanted_core_num);
+	printf("       Calculation is: -c <num>(%d) * dual ports (%d) + 1 master thread %s"
+	       , CGlobalInfo::m_options.preview.getCores(), CGlobalInfo::m_options.get_expected_dual_ports()
+	       , get_is_latency_thread_enable() ? "+1 latency thread (because of -l flag)\n" : "\n");
+	printf("       Maybe try smaller -c <num>.\n");
+	return -1;
+    }
+
+    if (wanted_core_mask != (wanted_core_mask & calc_core_mask)) {
+	printf ("Serious error: Something is wrong with the hardware. Wanted core mask is %x. Existing core mask is %x\n", wanted_core_mask, calc_core_mask);
+	return -1;
+    }
+
+    return 0;
+}
 
 int  update_dpdk_args(void){
 
@@ -4487,8 +4532,10 @@ int  update_dpdk_args(void){
         lpsock->dump(stdout);
     }
 
-
     sprintf(global_cores_str,"0x%llx",(unsigned long long)lpsock->get_cores_mask());
+    if (core_mask_sanity(strtol(global_cores_str, NULL, 16)) < 0) {
+	return -1;
+    }
 
     /* set the DPDK options */
     global_dpdk_args_num =7;
@@ -4598,7 +4645,10 @@ int main_test(int argc , char * argv[]){
         CGlobalInfo::m_memory_cfg.Dump(stdout);
     }
 
-    update_dpdk_args();
+
+    if (update_dpdk_args() < 0) {
+	return -1;
+    }
 
     CParserOption * po=&CGlobalInfo::m_options;
 
@@ -4665,13 +4715,14 @@ int main_test(int argc , char * argv[]){
 
 
 	/* TBD_FDIR */
-	#if 0
+#if 0
 	printf(" test_send \n");
 	g_trex.test_send();
-    while (1) {
+        //    while (1) {
            delay(10000);
-    }
-	#endif
+           exit(0);
+           //    }
+#endif
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
         rte_eal_mp_remote_launch(latency_one_lcore, NULL, CALL_MASTER);
@@ -4708,39 +4759,32 @@ int main_test(int argc , char * argv[]){
 //////////////////////////////////////////////////////////////////////////////////////////////
 // driver section 
 //////////////////////////////////////////////////////////////////////////////////////////////
+int CTRexExtendedDriverBase::configure_drop_queue(CPhyEthIF * _if) {
+    uint8_t port_id=_if->get_rte_port_id();
+    return (rte_eth_dev_rx_queue_stop(port_id, 0));
+}
 
-int CTRexExtendedDriverBase1G::wait_for_stable_link(){
+void wait_x_sec(int sec) {
         int i; 
-        printf(" wait 10 sec ");
+        printf(" wait %d sec ", sec);
         fflush(stdout);
-        for (i=0; i<10; i++) {
+        for (i=0; i<sec; i++) {
             delay(1000);
             printf(".");
             fflush(stdout);
         }
         printf("\n");
         fflush(stdout);
-        return(0);
 }
 
-int CTRexExtendedDriverBase1G::configure_drop_queue(CPhyEthIF * _if){
-    uint8_t protocol;
-    if (CGlobalInfo::m_options.m_l_pkt_mode == 0) {
-        protocol = IPPROTO_SCTP;
-    } else {
-        protocol = IPPROTO_ICMP;
-    }
+// in 1G we need to wait if links became ready to soon
+void CTRexExtendedDriverBase1G::wait_after_link_up(){
+    wait_x_sec(7);
+}
 
-    _if->pci_reg_write( E1000_RXDCTL(0) , 0);
-
-    /* enable filter to pass packet to rx queue 1 */
-    _if->pci_reg_write( E1000_IMIR(0), 0x00020000);
-    _if->pci_reg_write( E1000_IMIREXT(0), 0x00081000);
-    _if->pci_reg_write( E1000_TTQF(0),   protocol
-                                  | 0x00008100 /* enable */
-                                  | 0xE0010000 /* RX queue is 1 */
-                                    );
-    return (0);
+int CTRexExtendedDriverBase1G::wait_for_stable_link(){
+    wait_x_sec(10);
+    return(0);
 }
 
 void CTRexExtendedDriverBase1G::update_configuration(port_cfg_t * cfg){
@@ -4751,13 +4795,35 @@ void CTRexExtendedDriverBase1G::update_configuration(port_cfg_t * cfg){
 }
 
 void CTRexExtendedDriverBase1G::update_global_config_fdir(port_cfg_t * cfg){
-    cfg->update_global_config_fdir_10g_1g();
+    // Configuration is done in configure_rx_filter_rules by writing to registers
+}
+
+// e1000 driver does not support the generic stop queue API, so we need to implement ourselves
+int CTRexExtendedDriverBase1G::configure_drop_queue(CPhyEthIF * _if) {
+    // Drop packets coming to RX queue 0
+    _if->pci_reg_write( E1000_RXDCTL(0) , 0);
+    return 0;
 }
 
 int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
 
     uint16_t hops = get_rx_check_hops();
     uint16_t v4_hops = (hops << 8)&0xff00; 
+    uint8_t protocol;
+
+    if (CGlobalInfo::m_options.m_l_pkt_mode == 0) {
+        protocol = IPPROTO_SCTP;
+    } else {
+        protocol = IPPROTO_ICMP;
+    }
+    /* enable filter to pass packet to rx queue 1 */
+    _if->pci_reg_write( E1000_IMIR(0), 0x00020000);
+    _if->pci_reg_write( E1000_IMIREXT(0), 0x00081000);
+    _if->pci_reg_write( E1000_TTQF(0),   protocol
+			| 0x00008100 /* enable */
+			| 0xE0010000 /* RX queue is 1 */
+			);
+
 
         /* 16  :   12 MAC , (2)0x0800,2      | DW0 , DW1
                    6 bytes , TTL , PROTO     | DW2=0 , DW3=0x0000FF06
@@ -4881,7 +4947,7 @@ void CTRexExtendedDriverBase10G::clear_extended_stats(CPhyEthIF * _if){
 }
 
 void CTRexExtendedDriverBase10G::update_global_config_fdir(port_cfg_t * cfg){
-    cfg->update_global_config_fdir_10g_1g();
+    cfg->update_global_config_fdir_10g();
 }
 
 void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
@@ -4891,24 +4957,17 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
 }
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
-        /* 10Gb/sec 82599 */
         uint8_t port_id=_if->get_rte_port_id();
-
         uint16_t hops = get_rx_check_hops();
         uint16_t v4_hops = (hops << 8)&0xff00; 
 
-
-      /* set the mask only for flex-data */
-        rte_fdir_masks fdir_mask;
-        memset(&fdir_mask,0,sizeof(rte_fdir_masks));
-        fdir_mask.flexbytes=1;
-        //fdir_mask.dst_port_mask=0xffff; /* enable of 
-        int res;
-        res=rte_eth_dev_fdir_set_masks(port_id,&fdir_mask);
-        if (res!=0) {
-             rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_fdir_set_masks : %d \n",res);
-        }
-
+	/* enable rule 0 SCTP -> queue 1 for latency  */
+	/* 1<<21 means that queue 1 is for SCTP */
+	_if->pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));	
+	_if->pci_reg_write(IXGBE_FTQF(0),
+			   IXGBE_FTQF_PROTOCOL_SCTP|
+			   (IXGBE_FTQF_PRIORITY_MASK<<IXGBE_FTQF_PRIORITY_SHIFT)|
+			   ((0x0f)<<IXGBE_FTQF_5TUPLE_MASK_SHIFT)|IXGBE_FTQF_QUEUE_ENABLE);
 
         // IPv4: bytes being compared are {TTL, Protocol}
         uint16_t ff_rules_v4[6]={
@@ -4918,74 +4977,51 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
             (uint16_t)(0xFE06 - v4_hops),
             (uint16_t)(0xFF01 - v4_hops),
             (uint16_t)(0xFE01 - v4_hops),
-        }  ;
+        };
         // IPv6: bytes being compared are {NextHdr, HopLimit}
         uint16_t ff_rules_v6[6]={
             (uint16_t)(0x3CFF - hops),
             (uint16_t)(0x3CFE - hops),
-            (uint16_t)(0x3CFF - hops),
-            (uint16_t)(0x3CFE - hops),
-            (uint16_t)(0x3CFF - hops),
-            (uint16_t)(0x3CFE - hops),
-        }  ;
-        const rte_l4type ff_rules_type[6]={
-            RTE_FDIR_L4TYPE_UDP,
-            RTE_FDIR_L4TYPE_UDP,
-            RTE_FDIR_L4TYPE_TCP,
-            RTE_FDIR_L4TYPE_TCP,
-            RTE_FDIR_L4TYPE_NONE,
-            RTE_FDIR_L4TYPE_NONE
-        }  ;
+        };        
 
         uint16_t *ff_rules;
         uint16_t num_rules;
         int  rule_id;
 
-        assert (sizeof(ff_rules_v4) == sizeof(ff_rules_v6));
-        num_rules = sizeof(ff_rules_v4)/sizeof(ff_rules_v4[0]);
         if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
             ff_rules = &ff_rules_v6[0];
+            num_rules = sizeof(ff_rules_v6)/sizeof(ff_rules_v6[0]);
         }else{
             ff_rules = &ff_rules_v4[0];
+            num_rules = sizeof(ff_rules_v4)/sizeof(ff_rules_v4[0]);
         }
 
         for (rule_id=0; rule_id<num_rules; rule_id++ ) {
-    
-            rte_fdir_filter fdir_filter;
+            struct rte_eth_fdir_filter fdir_filter;
             uint16_t ff_rule = ff_rules[rule_id];
-            memset(&fdir_filter,0,sizeof(rte_fdir_filter));
+            int res = 0;
+
+            memset(&fdir_filter,0,sizeof(fdir_filter));
             /* TOS/PROTO */
             if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
-                fdir_filter.iptype = RTE_FDIR_IPTYPE_IPV6;
+                fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
             }else{
-                fdir_filter.iptype = RTE_FDIR_IPTYPE_IPV4;
+                fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
             }
-            fdir_filter.flex_bytes = PKT_NTOHS(ff_rule);
-            fdir_filter.l4type = ff_rules_type[rule_id];
-    
-            res=rte_eth_dev_fdir_add_perfect_filter(port_id,
-                                                    &fdir_filter,
-                                                    rule_id, 1,0);
-            if (res!=0) {
-                 rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_fdir_add_perfect_filter : %d\n",res);
+            fdir_filter.soft_id = rule_id;
+            
+            fdir_filter.input.flow_ext.flexbytes[0] = (ff_rule >> 8) & 0xff;
+            fdir_filter.input.flow_ext.flexbytes[1] = ff_rule & 0xff;
+            fdir_filter.action.rx_queue = 1;
+            fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
+            fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
+            res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
+
+            if (res != 0) {
+                 rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
             }
         }
         return (0);
-}
-
-int CTRexExtendedDriverBase10G::configure_drop_queue(CPhyEthIF * _if){
-    /* enable rule 0 SCTP -> queue 1 for latency  */
-    /* 1<<21 means that queue 1 is for SCTP */
-    _if->pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));
-
-    _if->pci_reg_write(IXGBE_FTQF(0),
-                      IXGBE_FTQF_PROTOCOL_SCTP|
-                      (IXGBE_FTQF_PRIORITY_MASK<<IXGBE_FTQF_PRIORITY_SHIFT)|
-                      ((0x0f)<<IXGBE_FTQF_5TUPLE_MASK_SHIFT)|IXGBE_FTQF_QUEUE_ENABLE);
-
-    /* disable queue zero - default all traffic will go to here and will be dropped */
-    _if->pci_reg_write( IXGBE_RXDCTL(0) , 0);
-    return (0);
 }
 
 void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){ 
@@ -5046,7 +5082,7 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
 
 /* Add rule to send packets with protocol 'type', and ttl 'ttl' to rx queue 1 */
 void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
-                                           enum rte_eth_flow_type type,
+                                           uint16_t type,
                                            uint8_t ttl){
     uint8_t port_id = _if->get_port_id();
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
@@ -5067,10 +5103,24 @@ void CTRexExtendedDriverBase40G::add_rules(CPhyEthIF * _if,
     filter.soft_id=0;
     
     filter.input.flow_type = type;
-    filter.input.ttl=ttl;
-
-    if (type == RTE_ETH_FLOW_TYPE_IPV4_OTHER) {
-        filter.input.flow.ip4_flow.l4_proto = IPPROTO_ICMP; // In this case we want filter for icmp packets
+    switch (type) {
+    case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
+        filter.input.flow.ip4_flow.ttl=ttl;
+        filter.input.flow.ip4_flow.l4_protocol = IPPROTO_ICMP; // In this case we want filter for icmp packets
+        break;
+    case RTE_ETH_FLOW_NONFRAG_IPV4_UDP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_SCTP:
+        filter.input.flow.ip4_flow.ttl=ttl;
+        break;
+    case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
+    case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
+        filter.input.flow.ipv6_flow.hop_limit=ttl;
+        break;
+    case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
+        filter.input.flow.ipv6_flow.hop_limit=ttl;
+        filter.input.flow.ipv6_flow.l4_protocol = IPPROTO_ICMP; // In the future we want to support this
+        break;
     }
 
     /* We want to place latency packets in queue 1 */
@@ -5090,21 +5140,16 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
     int i;
     for (i=0; i<2; i++) {
         uint8_t ttl=0xff-i-hops;
-        add_rules(_if,RTE_ETH_FLOW_TYPE_UDPV4,ttl);
-        add_rules(_if,RTE_ETH_FLOW_TYPE_TCPV4,ttl);
-        add_rules(_if,RTE_ETH_FLOW_TYPE_UDPV6,ttl);
-        add_rules(_if,RTE_ETH_FLOW_TYPE_TCPV6,ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl);
+        add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl);
     }
 
-    return (0);
-}
-
-
-int CTRexExtendedDriverBase40G::configure_drop_queue(CPhyEthIF * _if){
-
     /* Configure queue for latency packets */
-    add_rules(_if,RTE_ETH_FLOW_TYPE_IPV4_OTHER,255);
-    add_rules(_if,RTE_ETH_FLOW_TYPE_SCTPV4,255);
+    add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 255);
+    add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 255);
+
     return (0);
 }
 
@@ -5173,8 +5218,6 @@ void CTRexExtendedDriverBase1GVm::clear_extended_stats(CPhyEthIF * _if){
 }
 
 int CTRexExtendedDriverBase1GVm::configure_drop_queue(CPhyEthIF * _if){
-
-
     return (0);
 }
 

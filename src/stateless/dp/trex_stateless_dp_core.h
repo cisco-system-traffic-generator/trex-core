@@ -185,12 +185,12 @@ public:
      * 
      * @author imarom (27-Oct-15)
      */
-    void periodic_check_for_cp_messages() {
+    bool periodic_check_for_cp_messages() {
         // doing this inline for performance reasons
 
         /* fast path */
         if ( likely ( m_ring_from_cp->isEmpty() ) ) {
-            return;
+            return false;
         }
 
         while ( true ) {
@@ -203,6 +203,8 @@ public:
             TrexStatelessCpToDpMsgBase * msg = (TrexStatelessCpToDpMsgBase *)node;
             handle_cp_msg(msg);
         }
+
+        return true;
 
     }
 

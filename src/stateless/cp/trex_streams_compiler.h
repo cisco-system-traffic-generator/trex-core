@@ -125,8 +125,6 @@ private:
                         std::vector<TrexStreamsCompiledObj *> &objs,
                         GraphNodeMap &nodes);
 
-    void compile_stream_vm(TrexStream *stream);
-
     std::vector<std::string> m_warnings;
 };
 

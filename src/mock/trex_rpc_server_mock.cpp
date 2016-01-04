@@ -78,10 +78,6 @@ find_free_tcp_port(uint16_t start_port = 5050) {
     return port;
 }
 
-TrexStateless * get_stateless_obj() {
-    return g_trex_stateless;
-}
-
 uint16_t gtest_get_mock_server_port() {
     return g_rpc_port;
 }

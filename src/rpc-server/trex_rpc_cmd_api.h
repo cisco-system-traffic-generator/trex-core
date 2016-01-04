@@ -89,6 +89,16 @@ public:
         return m_name;
     }
 
+    /**
+     * on test we enable this override
+     * 
+     * 
+     * @param enable 
+     */
+    static void test_set_override_ownership(bool enable) {
+        g_test_override_ownership = enable;
+    }
+
     virtual ~TrexRpcCommand() {}
 
 protected:
@@ -241,6 +251,8 @@ protected:
     std::string   m_name;
     int           m_param_count;
     bool          m_needs_ownership;
+
+    static bool   g_test_override_ownership;
 };
 
 #endif /* __TREX_RPC_CMD_API_H__ */

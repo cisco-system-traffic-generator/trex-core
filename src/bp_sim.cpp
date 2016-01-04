@@ -3146,7 +3146,7 @@ int CNodeGenerator::open_file(std::string file_name,
     /* ser preview mode */
     m_v_if->set_review_mode(preview_mode);
     m_v_if->open_file(file_name);
-    m_cnt = 1;
+    m_cnt = 0;
     return (0);
 }
 
@@ -3159,11 +3159,13 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
 }
 
 int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
+    m_cnt++;
+
     if ( m_preview_mode.getVMode() >2 ){
         fprintf(stdout," %4lu ,", (ulong)m_cnt);
         node_sl->Dump(stdout);
-        m_cnt++;
     }
+
     return (0);
 }
 
@@ -3199,7 +3201,9 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
     char name[100];
     sprintf(name,"nodes-%d",m_core_id);
-    printf(" create thread %d %s socket: %d \n",m_core_id,name,socket_id);
+
+    //printf(" create thread %d %s socket: %d \n",m_core_id,name,socket_id);
+
     m_node_pool = utl_rte_mempool_create_non_pkt(name,
                                                  CGlobalInfo::m_memory_cfg.get_each_core_dp_flows(), 
                                                  sizeof(CGenNode),
@@ -3207,7 +3211,8 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                                  0 ,
                                                  socket_id);
 
-    printf(" pool %p \n",m_node_pool);
+    //printf(" pool %p \n",m_node_pool);
+
     m_node_gen.Create(this);
     m_flow_id_to_node_lookup.Create();
 

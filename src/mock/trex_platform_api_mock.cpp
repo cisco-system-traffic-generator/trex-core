@@ -47,3 +47,7 @@ TrexMockPlatformApi::get_dp_core_count() const {
     return (1);
 }
 
+void 
+TrexMockPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
+    cores_id_list.push_back(std::make_pair(0, 0));
+}

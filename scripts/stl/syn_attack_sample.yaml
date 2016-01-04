@@ -1,0 +1,96 @@
+### Single stream UDP packet, 64B ###
+#####################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      binary: stl/syn_packet.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+
+    # program generate 4 random numbers and write them to ip.src/ip.dst/tcp.src_port/tcp.dest_port
+    vm: 
+       instructions: [
+          #define 4 bytes random ip_src
+           {     "type"  : "flow_var",   # name of the command 
+                 "name"  : "ip_src",    
+                 "op"    : "random",
+
+                 "init_value"   : 0, 
+                 "min_value"    : 1,  
+                 "max_value"    : 1000000,  # max ip 16.0.0.254
+                 "size"         : 4
+               },
+
+
+           {     "type"  : "flow_var",   
+                 "name"  : "ip_dst",   
+                 "op"    : "random",
+
+                 "init_value"   : 0, 
+                 "min_value"    : 1,  
+                 "max_value"    : 1000000, 
+                 "size"         : 4
+               },
+
+           {     "type"  : "flow_var",   # name of the command 
+                 "name"  : "port_src",    
+                 "op"    : "random",
+
+                 "init_value"   : 0, 
+                 "min_value"    : 1025,  
+                 "max_value"    : 65000,  
+                 "size"         : 2    #size in bytes
+               },
+
+           {     "type"  : "flow_var",   # name of the command 
+                 "name"  : "port_dst",    
+                 "op"    : "random",
+
+                 "init_value"   : 0, 
+                 "min_value"    : 1025,  
+                 "max_value"    : 65000,  
+                 "size"         : 2    #size in bytes
+               },
+
+
+               {
+                  "type" : "write_flow_var", # command name 
+                  "name" : "ip_src",         # varible to write     
+                  "add_value" : 0x10000000,          # 16.0.0.0 is src base
+                  "is_big_endian" : true,   # write as big edian 
+                  "pkt_offset" : 26,        # write tuple_gen.port into udp.src_port
+               },
+
+               {
+                  "type" : "write_flow_var", # command name 
+                  "name" : "ip_dst",         # varible to write     
+                  "add_value" : 0x40000000,          # 16.0.0.0 is src base
+                  "is_big_endian" : true,   # write as big edian 
+                  "pkt_offset" : 32,        # write tuple_gen.port into udp.src_port
+               },
+
+               {
+                  "type" : "fix_checksum_ipv4", # fix ipv4 header checksum 
+                  "pkt_offset" : 14,          # offset of ipv4 header 
+                  
+               },
+               
+               {
+                  "type" : "write_flow_var", # command name 
+                  "name" : "port_src",         # varible to write     
+                  "add_value" : 0,          # 16.0.0.0 is src base
+                  "is_big_endian" : true,   # write as big edian 
+                  "pkt_offset" : 34,        # write tuple_gen.port into udp.src_port
+               },
+
+               {
+                  "type" : "write_flow_var", # command name 
+                  "name" : "port_dst",         # varible to write     
+                  "add_value" : 0,          
+                  "is_big_endian" : true,   # write as big edian 
+                  "pkt_offset" : 36,        # write tuple_gen.port into udp.src_port
+               }
+           ]

@@ -1,0 +1,2 @@
+rm -f ../linux/build/linux/bp-sim-64
+./b --target=bp-sim-64-debug

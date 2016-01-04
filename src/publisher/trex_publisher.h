@@ -34,9 +34,11 @@ public:
         m_publisher = NULL;
     }
 
-    bool Create(uint16_t port, bool disable);
-    void Delete();
-    void publish_json(const std::string &s);
+    virtual ~TrexPublisher() {}
+
+    virtual bool Create(uint16_t port, bool disable);
+    virtual void Delete();
+    virtual void publish_json(const std::string &s);
 
     enum event_type_e {
         EVENT_PORT_STARTED          = 0,
@@ -51,7 +53,7 @@ public:
         
     };
 
-    void publish_event(event_type_e type, const Json::Value &data = Json::nullValue);
+    virtual void publish_event(event_type_e type, const Json::Value &data = Json::nullValue);
 
 private:
     void show_zmq_last_error(const std::string &err);

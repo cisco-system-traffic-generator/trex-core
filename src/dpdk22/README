@@ -1,0 +1,3 @@
+We are based on dpdk tag v2.2.0 (a38e5ec15e3fe615b94f3cc5edca5974dab325ab - DPDK repository)
+We copied the files we needed here (509648b87434b9032d38b8ca5ad470ba3edcc036 - This repository)
+Changes we did to DPDK files are in 7de16b05fa2ef6feeec8370b36037a59aeb1f8e5

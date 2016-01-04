@@ -7,8 +7,18 @@
 *.o
 *.so
 .lock*
-linux_dpdk*
-linux*
+linux_dpdk/.waf*
+linux_dpdk/build*
+linux_dpdk/version*
+linux_dpdk/trex-64.bz2
+linux_dpdk/trex-64.bz2
+linux_dpdk/*.html
+linux_dpdk/cov-int/*
+
+
+linux/.waf*
+linux/build*
+linux/version*
 scripts/_t-rex-*
 scripts/bp-sim-*
 scripts/doc/*
@@ -38,6 +48,7 @@ scripts/exp/udp_64B_vm6.pcap
 scripts/exp/udp_64B_vm7.pcap
 scripts/exp/udp_64B_vm8.pcap
 scripts/exp/udp_64B_vm9.pcap
+scripts/exp/stl_syn_attack.pcap
 
 
 

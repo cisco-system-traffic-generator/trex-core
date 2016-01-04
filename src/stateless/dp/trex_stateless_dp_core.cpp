@@ -69,12 +69,31 @@ void CGenNodeStateless::Dump(FILE *fd){
 }
 
 
+
+void CGenNodeStateless::refresh_vm_bss(){
+    if ( m_vm_flow_var ) {
+        StreamVmDp  * vm_s=m_ref_stream_info->m_vm_dp;
+        assert(vm_s);
+        memcpy(m_vm_flow_var,vm_s->get_bss(),vm_s->get_bss_size());
+    }
+}
+
+
+/**
+ * this function called when stream restart after it was inactive
+ */
 void CGenNodeStateless::refresh(){
 
     /* refill the stream info */
     m_single_burst    = m_single_burst_refill;
     m_multi_bursts    = m_ref_stream_info->m_num_bursts;
     m_state           = CGenNodeStateless::ss_ACTIVE;
+
+    /* refresh init value */
+#if 0 
+    /* TBD should add a JSON varible for that */
+    refresh_vm_bss();
+#endif
 }
 
 
@@ -124,7 +143,8 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     /* run the VM program */
     StreamDPVmInstructionsRunner runner;
 
-    runner.run( m_vm_program_size, 
+    runner.run( (uint32_t*)m_vm_flow_var,
+                m_vm_program_size, 
                 m_vm_program,
                 m_vm_flow_var,
                 (uint8_t*)p);
@@ -302,7 +322,7 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 
         /* can't be FREE_RESUSE */
         assert(state != CGenNodeStateless::ss_FREE_RESUSE);
-        if (next_node->get_state() == CGenNodeStateless::ss_INACTIVE ) {
+        if (state == CGenNodeStateless::ss_INACTIVE ) {
 
             /* refill start info and scedule, no update in active streams  */
             next_node->refresh();
@@ -333,8 +353,11 @@ void
 TrexStatelessDpCore::idle_state_loop() {
 
     while (m_state == STATE_IDLE) {
-        periodic_check_for_cp_messages();
-        delay(200);
+        bool had_msg = periodic_check_for_cp_messages();
+        /* if no message - backoff for some time */
+        if (!had_msg) {
+            delay(200);
+        }
     }
 }
 
@@ -470,7 +493,10 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->m_cache_mbuf=0;
     node->m_type = CGenNode::STATELESS_PKT;
 
-    node->m_ref_stream_info  =   stream->clone_as_dp();
+    /* clone the stream from control plane memory to DP memory */
+    node->m_ref_stream_info = stream->clone();
+    /* no need for this memory anymore on the control plane memory */
+    stream->release_dp_object();
 
     node->m_next_stream=0; /* will be fixed later */
 
@@ -539,7 +565,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->set_mbuf_cache_dir(dir);
 
 
-    if (stream->is_vm()  == false ) {
+    if (node->m_ref_stream_info->getDpVm() == NULL) {
         /* no VM */
 
         node->m_vm_flow_var =  NULL;
@@ -569,15 +595,15 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
         StreamVmDp  * lpDpVm = local_mem_stream->getDpVm();
 
-        node->m_vm_flow_var =  lpDpVm->clone_bss(); /* clone the flow var */
-        node->m_vm_program  =  lpDpVm->get_program(); /* same ref to the program */
-        node->m_vm_program_size =lpDpVm->get_program_size();
+        node->m_vm_flow_var      = lpDpVm->clone_bss(); /* clone the flow var */
+        node->m_vm_program       = lpDpVm->get_program(); /* same ref to the program */
+        node->m_vm_program_size  = lpDpVm->get_program_size();
 
 
         /* we need to copy the object */
-        if ( pkt_size > stream->m_vm_prefix_size  ) {
+        if ( pkt_size > lpDpVm->get_prefix_size() ) {
             /* we need const packet */
-            uint16_t const_pkt_size  = pkt_size - stream->m_vm_prefix_size ;
+            uint16_t const_pkt_size  = pkt_size - lpDpVm->get_prefix_size() ;
             rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), const_pkt_size );
             assert(m);
 
@@ -585,17 +611,18 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
             assert(p);
 
             /* copy packet data */
-            memcpy(p,(stream_pkt+ stream->m_vm_prefix_size),const_pkt_size);
+            memcpy(p,(stream_pkt + lpDpVm->get_prefix_size()),const_pkt_size);
 
             node->set_const_mbuf(m);
         }
 
 
-        if (stream->m_vm_prefix_size > pkt_size ) {
-            stream->m_vm_prefix_size = pkt_size;
+        if (lpDpVm->get_prefix_size() > pkt_size ) {
+            lpDpVm->set_prefix_size(pkt_size);
         }
+
         /* copy the headr */
-        uint16_t header_size = stream->m_vm_prefix_size;
+        uint16_t header_size = lpDpVm->get_prefix_size();
         assert(header_size);
         node->alloc_prefix_header(header_size);
         uint8_t *p=node->m_original_packet_data_prefix;

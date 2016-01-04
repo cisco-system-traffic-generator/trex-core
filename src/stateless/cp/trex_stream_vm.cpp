@@ -191,7 +191,29 @@ void StreamVm::build_flow_var_table() {
     var_clear_table();
     m_cur_var_offset=0;
     uint32_t ins_id=0;
+    m_is_random_var=false;
         /* scan all flow var instruction and build */
+
+    for (auto inst : m_inst_list) {
+        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN ){
+            StreamVmInstructionFlowMan * ins_man=(StreamVmInstructionFlowMan *)inst;
+            if (ins_man->m_op ==StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM){
+                m_is_random_var =true;
+            }
+        }
+    }
+
+    /* if we found allocate BSS +4 bytes */
+    if ( m_is_random_var ){
+        VmFlowVarRec var;
+
+        var.m_offset = m_cur_var_offset;
+        var.m_ins.m_ins_flowv = NULL;
+        var.m_size_bytes = sizeof(uint32_t);
+        var_add("___random___",var);
+        m_cur_var_offset += sizeof(uint32_t);
+    }
+
     for (auto inst : m_inst_list) {
         if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN ){
 
@@ -207,6 +229,7 @@ void StreamVm::build_flow_var_table() {
                 ss << "instruction id '" << ins_id << "' flow variable name " << ins_man->m_var_name << " already exists";
                 err(ss.str());
             }else{
+
                 var.m_offset=m_cur_var_offset;
                 var.m_ins.m_ins_flowv = ins_man;
                 var.m_size_bytes = ins_man->m_size_bytes;
@@ -426,7 +449,7 @@ void StreamVm::build_program(){
                     op = StreamDPVmInstructions::ditRANDOM64 ;
                 }
 
-                StreamDPOpFlowVar32 fv64;
+                StreamDPOpFlowVar64 fv64;
                 fv64.m_op = op;
                 fv64.m_flow_offset = get_var_offset(lpMan->m_var_name);
                 fv64.m_min_val     = (uint64_t)lpMan->m_min_value;
@@ -541,6 +564,11 @@ void StreamVm::build_bss() {
     alloc_bss();
     uint8_t * p=(uint8_t *)m_bss;
 
+    if ( m_is_random_var ){
+        *((uint32_t*)p)=rand();
+        p+=sizeof(uint32_t);
+    }
+
     for (auto inst : m_inst_list) {
 
         if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN ){
@@ -549,19 +577,19 @@ void StreamVm::build_bss() {
 
             switch (ins_man->m_size_bytes) {
             case 1:
-                *p=(uint8_t)ins_man->m_init_value;
+                *p=(uint8_t)ins_man->get_bss_init_value();
                 p+=1;
                 break;
             case 2:
-                *((uint16_t*)p)=(uint16_t)ins_man->m_init_value;
+                *((uint16_t*)p)=(uint16_t)ins_man->get_bss_init_value();
                 p+=2;
                 break;
             case 4:
-                *((uint32_t*)p)=(uint32_t)ins_man->m_init_value;
+                *((uint32_t*)p)=(uint32_t)ins_man->get_bss_init_value();
                 p+=4;
                 break;
             case 8:
-                *((uint64_t*)p)=(uint64_t)ins_man->m_init_value;
+                *((uint64_t*)p)=(uint64_t)ins_man->get_bss_init_value();
                 p+=8;
                 break;
             default:
@@ -593,9 +621,58 @@ void StreamVm::build_bss() {
     }
 }
 
+/**
+ * set the VM split instruction 
+ * instr is a pointer to an instruction inside 
+ * the VM program 
+ * 
+ */
+void
+StreamVm::set_split_instruction(StreamVmInstructionVar *instr) {
+    m_split_instr = instr;
+}
 
+/**
+ * copy instructions from this VM to 'other'
+ * 
+ * @author imarom (22-Dec-15)
+ * 
+ * @param other 
+ */
+void 
+StreamVm::copy_instructions(StreamVm &other) const {
+    /* clear previous if any exists */
+    for (auto instr : other.m_inst_list) {
+        delete instr;
+    }
 
-void StreamVm::compile() {
+    other.m_inst_list.clear();
+
+    for (auto instr : m_inst_list) {
+        StreamVmInstruction *new_instr = instr->clone();
+        other.m_inst_list.push_back(new_instr);
+
+        /* for the split instruction - find the right one */
+        if (instr == m_split_instr) {
+            /* dynamic cast must succeed here */
+            other.m_split_instr = dynamic_cast<StreamVmInstructionVar *>(new_instr);
+            assert(other.m_split_instr);
+        }
+    }
+
+}
+
+/**
+ * actual work - compile the VM
+ * 
+ */
+void StreamVm::compile(uint16_t pkt_len) {
+
+    if (is_vm_empty()) {
+        return;
+    }
+
+    m_pkt_size = pkt_len;
 
     /* build flow var offset table */
     build_flow_var_table() ;
@@ -610,6 +687,11 @@ void StreamVm::compile() {
         ss << "maximum offset is" << get_max_packet_update_offset() << " bigger than maximum " <<svMAX_PACKET_OFFSET_CHANGE;
         err(ss.str());
     }
+
+    /* calculate the mbuf size that we should allocate */
+    m_prefix_size = calc_writable_mbuf_size(get_max_packet_update_offset(), m_pkt_size);
+
+    m_is_compiled = true;
 }
 
 
@@ -618,6 +700,30 @@ StreamVm::~StreamVm() {
         delete inst;
     }          
     free_bss();
+}
+
+/** 
+* return a pointer to a flow var / client var 
+* by name if exists, otherwise NULL 
+* 
+*/
+StreamVmInstructionVar *
+StreamVm::lookup_var_by_name(const std::string &var_name) {
+    for (StreamVmInstruction *inst : m_inst_list) {
+
+        /* try to cast up to a variable */
+        StreamVmInstructionVar *var = dynamic_cast<StreamVmInstructionVar *>(inst);
+        if (!var) {
+            continue;
+        }
+
+        if (var->get_var_name() == var_name) {
+            return var;
+        }
+
+    }
+
+    return NULL;
 }
 
 

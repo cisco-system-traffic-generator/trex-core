@@ -138,7 +138,7 @@ public:
  */
 class TrexMockPlatformApi : public TrexPlatformApi {
 public:
-    void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {}
+    void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
     void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
