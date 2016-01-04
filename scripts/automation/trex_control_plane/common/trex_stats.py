@@ -17,9 +17,9 @@ COMPACT = {GLOBAL_STATS, PORT_STATS}
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
 
-class CTRexStatsGenerator(object):
+class CTRexInfoGenerator(object):
     """
-    This object is responsible of generating stats from objects maintained at
+    This object is responsible of generating stats and information from objects maintained at
     CTRexStatelessClient and the ports.
     """
 
@@ -38,6 +38,20 @@ class CTRexStatsGenerator(object):
         else:
             # ignore by returning empty object
             return {}
+
+    def generate_streams_info(self, port_id_list, stream_id_list):
+        relevant_ports = self.__get_relevant_ports(port_id_list)
+
+        # TODO: change to dict comperhantion
+        return_data = {}
+        for port_id in relevant_ports:
+            return_data[port_id] = self._generate_single_port_streams_info(port_id, stream_id_list)
+
+        return return_data
+
+    @staticmethod
+    def _trim_packet_headers(headers_str):
+        pass
 
     def _generate_global_stats(self):
         # stats_obj = self._async_stats.get_general_stats()
@@ -130,6 +144,36 @@ class CTRexStatsGenerator(object):
                                        for port in relevant_ports])
 
         return {"port_status": ExportableStats(return_stats_data, stats_table)}
+
+    def _generate_single_port_streams_info(self, port_id, stream_id_list):
+
+        return_stream_data = []
+        port_status = port_obj.generate_port_status()
+
+        for stream_id in sorted(stream_id_list):
+            return_stream_data.append(OrderedDict([("packet_type", self._trim_packet_headers()),
+                                                   ("length", ),
+                                                   ("mode",),
+                                                   ("rate",),
+                                                   ("next_stream",)
+                                                   ]))
+
+        per_field_stats = OrderedDict([("owner", []),
+                                       ("state", []),
+                                       ("--", []),])
+
+
+        info_table = text_tables.TRexTextTable()
+        info_table.set_cols_align(["l"] + ["c"]*len(relevant_ports))
+        info_table.set_cols_width([10] + [20] * len(relevant_ports))
+
+        info_table.add_rows([[k] + v
+                              for k, v in per_field_status.iteritems()],
+                             header=False)
+        info_table.header(["stream id", "packet type", "length", "mode", "rate", "next stream"])
+
+        return ExportableStats(return_stats_data, info_table)
+
 
     def __get_relevant_ports(self, port_id_list):
         # fetch owned ports
