@@ -24,6 +24,7 @@ limitations under the License.
 #include <string>
 #include <os_time.h>
 #include <bp_sim.h>
+#include <json/json.h>
 
 int gtest_main(int argc, char **argv);
 
@@ -116,6 +117,8 @@ private:
     void execute_json(const std::string &json_filename);
     void run_dp(const std::string &out_filename);
     void flush_dp_to_cp_messages();
+
+    void validate_response(const Json::Value &resp);
 
     bool is_verbose() {
         return m_verbose;

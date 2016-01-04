@@ -24,12 +24,25 @@ limitations under the License.
 #include <trex_stateless_messaging.h>
 #include <trex_rpc_cmd_api.h>
 #include <json/json.h>
+#include <stdexcept>
+#include <sstream>
 
 using namespace std;
 
 TrexStateless * get_stateless_obj() {
     return SimStateless::get_instance().get_stateless_obj();
 }
+
+
+class SimRunException : public std::runtime_error 
+{
+public:
+    SimRunException() : std::runtime_error("") {
+
+    }
+    SimRunException(const std::string &what) : std::runtime_error(what) {
+    }
+};
 
 
 /**
@@ -88,7 +101,13 @@ SimStateless::run(const string &json_filename, const string &out_filename) {
     prepare_dataplane();
     prepare_control_plane();
 
-    execute_json(json_filename);
+    try {
+        execute_json(json_filename);
+    } catch (const SimRunException &e) {
+        std::cout << "*** test failed ***\n\n" << e.what() << "\n";
+        exit(-1);
+    }
+
     run_dp(out_filename);
 
     flush_dp_to_cp_messages();
@@ -172,7 +191,31 @@ SimStateless::execute_json(const std::string &json_filename) {
     if (is_verbose()) {
         std::cout << "server response: \n\n" << root << "\n\n";
     }
+
+    validate_response(root);
+
 }
+
+void
+SimStateless::validate_response(const Json::Value &resp) {
+    std::stringstream ss;
+
+    if (resp.isArray()) {
+        for (const auto &single : resp) {
+            if (single["error"] != Json::nullValue) {
+                ss << "failed with:\n\n" << single["error"] << "\n\n";
+                throw SimRunException(ss.str());
+            }
+        }
+    } else {
+        if (resp["error"] != Json::nullValue) {
+            ss << "failed with:\n\n" << resp["error"] << "\n\n";
+            throw SimRunException(ss.str());
+        }
+    }
+  
+}
+
 
 void
 SimStateless::run_dp(const std::string &out_filename) {
