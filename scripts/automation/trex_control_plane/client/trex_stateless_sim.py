@@ -38,13 +38,15 @@ import os
 
 
 class SimRun(object):
-    def __init__ (self, yaml_file, dp_core_count, core_index, packet_limit, output_filename):
+    def __init__ (self, yaml_file, dp_core_count, core_index, packet_limit, output_filename, is_valgrind, is_gdb):
 
         self.yaml_file = yaml_file
         self.output_filename = output_filename
         self.dp_core_count = dp_core_count
         self.core_index = core_index
         self.packet_limit = packet_limit
+        self.is_valgrind = is_valgrind
+        self.is_gdb = is_gdb
 
         # dummies
         self.handler = 0
@@ -97,7 +99,14 @@ class SimRun(object):
         f.close()
 
         try:
-            subprocess.call(['bp-sim-64-debug', '--sl', '-f', f.name, '-o', self.output_filename])
+            cmd = ['bp-sim-64-debug', '--sl', '--cores', str(self.dp_core_count), '--core_index', str(self.core_index), '-f', f.name, '-o', self.output_filename]
+            if self.is_valgrind:
+                cmd = ['valgrind', '--leak-check=full'] + cmd
+            elif self.is_gdb:
+                cmd = ['gdb', '--args'] + cmd
+
+            subprocess.call(cmd)
+
         finally:
             os.unlink(f.name)
 
@@ -149,6 +158,17 @@ def setParserOptions():
                         type = unsigned_int)
 
 
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument("-x", "--valgrind",
+                       help = "run under valgrind [default is False]",
+                       action = "store_true",
+                       default = False)
+
+    group.add_argument("-g", "--gdb",
+                       help = "run under GDB [default is False]",
+                       action = "store_true",
+                       default = False)
 
     return parser
 
@@ -165,7 +185,13 @@ def main ():
 
     validate_args(parser, options)
 
-    r = SimRun(options.input_file, options.cores, options.core_index, options.limit, options.output_file)
+    r = SimRun(options.input_file,
+               options.cores,
+               options.core_index,
+               options.limit,
+               options.output_file,
+               options.valgrind,
+               options.gdb)
 
     r.run()
 

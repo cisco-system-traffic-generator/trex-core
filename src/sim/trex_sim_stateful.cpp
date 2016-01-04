@@ -595,5 +595,6 @@ int merge_2_cap_files_sip() {
 
 int
 SimStateful::run() {
+    assert( CMsgIns::Ins()->Create(4) );
     return load_list_of_cap_files(&CGlobalInfo::m_options);
 }

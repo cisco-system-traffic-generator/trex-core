@@ -44,6 +44,33 @@ public:
     }
 };
 
+/*************** hook for platform API **************/
+class SimPlatformApi : public TrexPlatformApi {
+public:
+    SimPlatformApi(int dp_core_count) {
+        m_dp_core_count = dp_core_count;
+    }
+
+    virtual uint8_t get_dp_core_count() const {
+        return m_dp_core_count;
+    }
+
+    virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
+    }
+    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+    }
+    virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
+    }
+
+    virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
+        for (int i = 0; i < m_dp_core_count; i++) {
+             cores_id_list.push_back(std::make_pair(i, 0));
+        }
+    }
+
+private:
+    int m_dp_core_count;
+};
 
 /**
  * handler for DP to CP messages
@@ -90,6 +117,9 @@ SimStateless::SimStateless() {
     m_publisher         = NULL;
     m_dp_to_cp_handler  = NULL;
     m_verbose           = false;
+    m_dp_core_count     = -1;
+    m_dp_core_index     = -1;
+    m_port_count        = -1;
 
     /* override ownership checks */
     TrexRpcCommand::test_set_override_ownership(true);
@@ -97,7 +127,20 @@ SimStateless::SimStateless() {
 
 
 int
-SimStateless::run(const string &json_filename, const string &out_filename) {
+SimStateless::run(const string &json_filename,
+                  const string &out_filename,
+                  int port_count,
+                  int dp_core_count,
+                  int dp_core_index) {
+
+    assert(dp_core_count > 0);
+    assert(dp_core_index >= 0);
+    assert(dp_core_index < dp_core_count);
+
+    m_dp_core_count = dp_core_count;
+    m_dp_core_index = dp_core_index;
+    m_port_count    = port_count;
+
     prepare_dataplane();
     prepare_control_plane();
 
@@ -105,12 +148,10 @@ SimStateless::run(const string &json_filename, const string &out_filename) {
         execute_json(json_filename);
     } catch (const SimRunException &e) {
         std::cout << "*** test failed ***\n\n" << e.what() << "\n";
-        exit(-1);
+        return (-1);
     }
 
     run_dp(out_filename);
-
-    flush_dp_to_cp_messages();
 
     return 0;
 }
@@ -143,11 +184,11 @@ SimStateless::prepare_control_plane() {
 
     TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_MOCK, 0);
 
-    cfg.m_port_count         = 4;
+    cfg.m_port_count         = m_port_count;
     cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
     cfg.m_rpc_async_cfg      = NULL;
     cfg.m_rpc_server_verbose = false;
-    cfg.m_platform_api       = new TrexMockPlatformApi();
+    cfg.m_platform_api       = new SimPlatformApi(m_dp_core_count);
     cfg.m_publisher          = m_publisher;
 
     m_trex_stateless = new TrexStateless(cfg);
@@ -168,9 +209,15 @@ SimStateless::prepare_control_plane() {
 void
 SimStateless::prepare_dataplane() {
     
+    CGlobalInfo::m_options.m_expected_portd = m_port_count;
+
+    assert(CMsgIns::Ins()->Create(m_dp_core_count));
     m_fl.Create();
-    m_fl.generate_p_thread_info(1);
-    m_fl.m_threads_info[0]->set_vif(&m_erf_vif);
+    m_fl.generate_p_thread_info(m_dp_core_count);
+
+    for (int i = 0; i < m_dp_core_count; i++) {
+        m_fl.m_threads_info[i]->set_vif(&m_erf_vif);
+    }
 }
 
 
@@ -220,20 +267,39 @@ SimStateless::validate_response(const Json::Value &resp) {
 void
 SimStateless::run_dp(const std::string &out_filename) {
 
-    CFlowGenListPerThread *lpt = m_fl.m_threads_info[0];
-    
-    lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview);
-    lpt->start_stateless_daemon_simulation();
+    for (int i = 0; i < m_dp_core_count; i++) {
+        if (i == m_dp_core_index) {
+            run_dp_core(i, out_filename);
+        } else {
+            run_dp_core(i, "/dev/null");
+        }
+    }
 
-    flush_dp_to_cp_messages();
-
+    CFlowGenListPerThread *lpt = m_fl.m_threads_info[m_dp_core_index];
+  
+    std::cout << "\n";
+    std::cout << "ports:        " << m_port_count << "\n";
+    std::cout << "cores:        " << m_dp_core_count << "\n";
+    std::cout << "core index:   " << m_dp_core_index << "\n";
     std::cout << "\nwritten " << lpt->m_node_gen.m_cnt << " packets " << "to '" << out_filename << "'\n\n";
 }
 
 void
-SimStateless::flush_dp_to_cp_messages() {
+SimStateless::run_dp_core(int core_index, const std::string &out_filename) {
 
-    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(0);
+    CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
+
+    lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview);
+    lpt->start_stateless_daemon_simulation();
+
+    flush_dp_to_cp_messages_core(core_index);
+}
+
+
+void
+SimStateless::flush_dp_to_cp_messages_core(int core_index) {
+
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(core_index);
 
     while ( true ) {
         CGenNode * node = NULL;
@@ -249,5 +315,4 @@ SimStateless::flush_dp_to_cp_messages() {
 
         delete msg;
     }
-
 }

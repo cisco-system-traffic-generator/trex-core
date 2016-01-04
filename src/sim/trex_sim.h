@@ -44,7 +44,6 @@ public:
         time_init();
         CGlobalInfo::m_socket.Create(0);
         CGlobalInfo::init_pools(1000);
-        assert( CMsgIns::Ins()->Create(4) );
     }
 
     virtual ~SimInterface() {
@@ -66,6 +65,7 @@ class SimGtest : public SimInterface {
 public:
 
     int run(int argc, char **argv) {
+        assert( CMsgIns::Ins()->Create(4) );
         return gtest_main(argc, argv);
     }
 };
@@ -98,7 +98,11 @@ public:
     }
 
     
-    int run(const std::string &json_filename, const std::string &out_filename);
+    int run(const std::string &json_filename,
+            const std::string &out_filename,
+            int port_count,
+            int dp_core_count,
+            int dp_core_index);
 
     TrexStateless * get_stateless_obj() {
         return m_trex_stateless;
@@ -115,8 +119,11 @@ private:
     void prepare_control_plane();
     void prepare_dataplane();
     void execute_json(const std::string &json_filename);
+
     void run_dp(const std::string &out_filename);
-    void flush_dp_to_cp_messages();
+    void run_dp_core(int core_index, const std::string &out_filename);
+
+    void flush_dp_to_cp_messages_core(int core_index);
 
     void validate_response(const Json::Value &resp);
 
@@ -130,6 +137,10 @@ private:
     CFlowGenList     m_fl;
     CErfIFStl        m_erf_vif;
     bool             m_verbose;
+
+    int              m_port_count;
+    int              m_dp_core_count;
+    int              m_dp_core_index;
 };
 
 #endif /* __TREX_SIM_H__ */

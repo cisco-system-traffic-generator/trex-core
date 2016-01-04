@@ -35,7 +35,7 @@ using namespace std;
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_MAC_FILE,
-       OPT_SL};
+       OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX};
 
 
 
@@ -59,18 +59,21 @@ typedef enum {
 */
 static CSimpleOpt::SOption parser_options[] =
 {
-    { OPT_HELP,     "-?",           SO_NONE   },
-    { OPT_HELP,     "-h",           SO_NONE   },
-    { OPT_HELP,     "--help",       SO_NONE   },
-    { OPT_UT,       "--ut",         SO_NONE   },
-    { OP_STATS,       "-s",         SO_NONE   },
-    { OPT_CFG,      "-f",           SO_REQ_SEP},
-    { OPT_MAC_FILE, "--mac",        SO_REQ_SEP},
-    { OPT_FILE_OUT , "-o",          SO_REQ_SEP },
-    { OPT_NODE_DUMP , "-v",         SO_REQ_SEP },
-    { OPT_PCAP,       "--pcap",       SO_NONE   },
-    { OPT_IPV6,       "--ipv6",       SO_NONE   },
-    { OPT_SL,         "--sl",         SO_NONE },
+    { OPT_HELP,          "-?",           SO_NONE    },
+    { OPT_HELP,          "-h",           SO_NONE    },
+    { OPT_HELP,          "--help",       SO_NONE    },
+    { OPT_UT,            "--ut",         SO_NONE    },
+    { OP_STATS,          "-s",           SO_NONE    },
+    { OPT_CFG,           "-f",           SO_REQ_SEP },
+    { OPT_MAC_FILE,      "--mac",        SO_REQ_SEP },
+    { OPT_FILE_OUT ,     "-o",           SO_REQ_SEP },
+    { OPT_NODE_DUMP ,    "-v",           SO_REQ_SEP },
+    { OPT_PCAP,          "--pcap",       SO_NONE    },
+    { OPT_IPV6,          "--ipv6",       SO_NONE    },
+    { OPT_SL,            "--sl",         SO_NONE    },
+    { OPT_DP_CORE_COUNT, "--cores",      SO_REQ_SEP },
+    { OPT_DP_CORE_INDEX, "--core_index", SO_REQ_SEP },
+
     
     SO_END_OF_OPTIONS
 };
@@ -113,7 +116,13 @@ static int usage(){
 }
 
 
-static int parse_options(int argc, char *argv[], CParserOption* po, opt_type_e &type) {
+static int parse_options(int argc,
+                         char *argv[],
+                         CParserOption* po,
+                         opt_type_e &type,
+                         int &dp_core_count,
+                         int &dp_core_index) {
+
      CSimpleOpt args(argc, argv, parser_options);
 
      int a=0;
@@ -123,6 +132,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, opt_type_e &
 
      /* by default - type is stateful */
      type = OPT_TYPE_SF;
+
+     dp_core_count = 1;
+     dp_core_index = 0;
 
      while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
@@ -166,6 +178,14 @@ static int parse_options(int argc, char *argv[], CParserOption* po, opt_type_e &
                 po->preview.set_pcap_mode_enable(true);
                 break;
 
+            case OPT_DP_CORE_COUNT:
+                dp_core_count = atoi(args.OptionArg());
+                break;
+
+            case OPT_DP_CORE_INDEX:
+                dp_core_index = atoi(args.OptionArg());
+                break;
+
             default:
                 usage();
                 return -1;
@@ -194,6 +214,21 @@ static int parse_options(int argc, char *argv[], CParserOption* po, opt_type_e &
          return -1;
         }
     }
+
+    if (dp_core_count != -1) {
+        if ( (dp_core_count < 1) || (dp_core_count > 8) ) {
+            printf("dp core count must be a value between 1 and 8\n");
+            return (-1);
+        }
+    }
+
+     if (dp_core_index != -1) {
+        if ( (dp_core_index < 0) || (dp_core_index >= dp_core_count) ) {
+            printf("dp core count must be a value between 0 and cores - 1\n");
+            return (-1);
+        }
+    }
+
     return 0;
 }
 
@@ -201,8 +236,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, opt_type_e &
 int main(int argc , char * argv[]){
 
     opt_type_e type;
+    int dp_core_count;
+    int dp_core_index;
 
-    if ( parse_options(argc, argv, &CGlobalInfo::m_options , type) != 0) {
+    if ( parse_options(argc, argv, &CGlobalInfo::m_options , type, dp_core_count, dp_core_index) != 0) {
         exit(-1);
     }
 
@@ -222,7 +259,7 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
-            return st.run(CGlobalInfo::m_options.cfg_file, CGlobalInfo::m_options.out_file);
+            return st.run(CGlobalInfo::m_options.cfg_file, CGlobalInfo::m_options.out_file, 2, dp_core_count, dp_core_index);
         }
     }
 }
