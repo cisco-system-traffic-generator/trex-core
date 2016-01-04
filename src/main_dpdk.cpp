@@ -140,7 +140,7 @@ public:
         return(false);
     }
 
-    virtual int configure_drop_queue(CPhyEthIF * _if)=0;
+    virtual int configure_drop_queue(CPhyEthIF * _if);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link()=0;
@@ -174,13 +174,12 @@ public:
         return (true);
     }
 
+    virtual int configure_drop_queue(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
 
     virtual bool is_hardware_support_drop_queue(){
         return(true);
     }
-
-    virtual int configure_drop_queue(CPhyEthIF * _if);
 
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
@@ -265,8 +264,6 @@ public:
     virtual bool is_hardware_support_drop_queue(){
         return(true);
     }
-    virtual int configure_drop_queue(CPhyEthIF * _if);
-
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
@@ -299,10 +296,6 @@ public:
     virtual bool is_hardware_support_drop_queue(){
         return(true);
     }
-    virtual int configure_drop_queue(CPhyEthIF * _if);
-
-
-
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
@@ -4766,6 +4759,11 @@ int main_test(int argc , char * argv[]){
 //////////////////////////////////////////////////////////////////////////////////////////////
 // driver section 
 //////////////////////////////////////////////////////////////////////////////////////////////
+int CTRexExtendedDriverBase::configure_drop_queue(CPhyEthIF * _if) {
+    uint8_t port_id=_if->get_rte_port_id();
+    return (rte_eth_dev_rx_queue_stop(port_id, 0));
+}
+
 void wait_x_sec(int sec) {
         int i; 
         printf(" wait %d sec ", sec);
@@ -4789,26 +4787,6 @@ int CTRexExtendedDriverBase1G::wait_for_stable_link(){
     return(0);
 }
 
-int CTRexExtendedDriverBase1G::configure_drop_queue(CPhyEthIF * _if){
-    uint8_t protocol;
-    if (CGlobalInfo::m_options.m_l_pkt_mode == 0) {
-        protocol = IPPROTO_SCTP;
-    } else {
-        protocol = IPPROTO_ICMP;
-    }
-
-    _if->pci_reg_write( E1000_RXDCTL(0) , 0);
-
-    /* enable filter to pass packet to rx queue 1 */
-    _if->pci_reg_write( E1000_IMIR(0), 0x00020000);
-    _if->pci_reg_write( E1000_IMIREXT(0), 0x00081000);
-    _if->pci_reg_write( E1000_TTQF(0),   protocol
-                                  | 0x00008100 /* enable */
-                                  | 0xE0010000 /* RX queue is 1 */
-                                    );
-    return (0);
-}
-
 void CTRexExtendedDriverBase1G::update_configuration(port_cfg_t * cfg){
 
         cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
@@ -4820,10 +4798,32 @@ void CTRexExtendedDriverBase1G::update_global_config_fdir(port_cfg_t * cfg){
     // Configuration is done in configure_rx_filter_rules by writing to registers
 }
 
+// e1000 driver does not support the generic stop queue API, so we need to implement ourselves
+int CTRexExtendedDriverBase1G::configure_drop_queue(CPhyEthIF * _if) {
+    // Drop packets coming to RX queue 0
+    _if->pci_reg_write( E1000_RXDCTL(0) , 0);
+    return 0;
+}
+
 int CTRexExtendedDriverBase1G::configure_rx_filter_rules(CPhyEthIF * _if){
 
     uint16_t hops = get_rx_check_hops();
     uint16_t v4_hops = (hops << 8)&0xff00; 
+    uint8_t protocol;
+
+    if (CGlobalInfo::m_options.m_l_pkt_mode == 0) {
+        protocol = IPPROTO_SCTP;
+    } else {
+        protocol = IPPROTO_ICMP;
+    }
+    /* enable filter to pass packet to rx queue 1 */
+    _if->pci_reg_write( E1000_IMIR(0), 0x00020000);
+    _if->pci_reg_write( E1000_IMIREXT(0), 0x00081000);
+    _if->pci_reg_write( E1000_TTQF(0),   protocol
+			| 0x00008100 /* enable */
+			| 0xE0010000 /* RX queue is 1 */
+			);
+
 
         /* 16  :   12 MAC , (2)0x0800,2      | DW0 , DW1
                    6 bytes , TTL , PROTO     | DW2=0 , DW3=0x0000FF06
@@ -4961,6 +4961,14 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
         uint16_t hops = get_rx_check_hops();
         uint16_t v4_hops = (hops << 8)&0xff00; 
 
+	/* enable rule 0 SCTP -> queue 1 for latency  */
+	/* 1<<21 means that queue 1 is for SCTP */
+	_if->pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));	
+	_if->pci_reg_write(IXGBE_FTQF(0),
+			   IXGBE_FTQF_PROTOCOL_SCTP|
+			   (IXGBE_FTQF_PRIORITY_MASK<<IXGBE_FTQF_PRIORITY_SHIFT)|
+			   ((0x0f)<<IXGBE_FTQF_5TUPLE_MASK_SHIFT)|IXGBE_FTQF_QUEUE_ENABLE);
+
         // IPv4: bytes being compared are {TTL, Protocol}
         uint16_t ff_rules_v4[6]={
             (uint16_t)(0xFF11 - v4_hops),
@@ -5014,21 +5022,6 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
             }
         }
         return (0);
-}
-
-int CTRexExtendedDriverBase10G::configure_drop_queue(CPhyEthIF * _if){
-    /* enable rule 0 SCTP -> queue 1 for latency  */
-    /* 1<<21 means that queue 1 is for SCTP */
-    _if->pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));
-
-    _if->pci_reg_write(IXGBE_FTQF(0),
-                      IXGBE_FTQF_PROTOCOL_SCTP|
-                      (IXGBE_FTQF_PRIORITY_MASK<<IXGBE_FTQF_PRIORITY_SHIFT)|
-                      ((0x0f)<<IXGBE_FTQF_5TUPLE_MASK_SHIFT)|IXGBE_FTQF_QUEUE_ENABLE);
-
-    /* disable queue zero - default all traffic will go to here and will be dropped */
-    _if->pci_reg_write( IXGBE_RXDCTL(0) , 0);
-    return (0);
 }
 
 void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){ 
@@ -5153,15 +5146,10 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if){
         add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl);
     }
 
-    return (0);
-}
-
-
-int CTRexExtendedDriverBase40G::configure_drop_queue(CPhyEthIF * _if){
-
     /* Configure queue for latency packets */
     add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 255);
     add_rules(_if,RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 255);
+
     return (0);
 }
 
@@ -5230,8 +5218,6 @@ void CTRexExtendedDriverBase1GVm::clear_extended_stats(CPhyEthIF * _if){
 }
 
 int CTRexExtendedDriverBase1GVm::configure_drop_queue(CPhyEthIF * _if){
-
-
     return (0);
 }
 
