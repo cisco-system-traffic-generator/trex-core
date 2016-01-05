@@ -1929,6 +1929,12 @@ public:
         add_node(node);
     }
 
+    /**
+     * set packet limit for the generator
+     */
+    void set_packet_limit(uint64_t limit) {
+        m_limit = limit;
+    }
 
     void DumpHist(FILE *fd){
         fprintf(fd,"\n");
@@ -1947,7 +1953,7 @@ private:
     }
     int   update_stats(CGenNode * node);
     int   update_stl_stats(CGenNodeStateless *node_sl);
-
+    bool  has_limit_reached();
 
     FORCE_NO_INLINE bool handle_slow_messages(uint8_t type,
                                               CGenNode * node,
@@ -1963,6 +1969,7 @@ public:
     CFlowGenListPerThread  *  m_parent;
     CPreviewMode              m_preview_mode;
     uint64_t                  m_cnt;
+    uint64_t                  m_limit;
     CTimeHistogram            m_realtime_his;  
 };
 
@@ -3477,7 +3484,7 @@ public:
     void start_stateless_daemon_simulation();
 
     /* open a file for simulation */
-    void start_stateless_simulation_file(std::string erf_file_name,CPreviewMode &preview);
+    void start_stateless_simulation_file(std::string erf_file_name,CPreviewMode &preview, uint64_t limit = 0);
     /* close a file for simulation */
     void stop_stateless_simulation_file();
 

@@ -102,7 +102,8 @@ public:
             const std::string &out_filename,
             int port_count,
             int dp_core_count,
-            int dp_core_index);
+            int dp_core_index,
+            int limit);
 
     TrexStateless * get_stateless_obj() {
         return m_trex_stateless;
@@ -121,7 +122,7 @@ private:
     void execute_json(const std::string &json_filename);
 
     void run_dp(const std::string &out_filename);
-    void run_dp_core(int core_index, const std::string &out_filename);
+    uint64_t run_dp_core(int core_index, const std::string &out_filename);
 
     void flush_dp_to_cp_messages_core(int core_index);
 
@@ -141,6 +142,7 @@ private:
     int              m_port_count;
     int              m_dp_core_count;
     int              m_dp_core_index;
+    uint64_t         m_limit;
 };
 
 #endif /* __TREX_SIM_H__ */

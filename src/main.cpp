@@ -23,6 +23,7 @@ limitations under the License.
 #include "bp_sim.h"
 #include "os_time.h"
 
+#include <unordered_map>
 #include <string>
 
 #include <common/arg/SimpleGlob.h>
@@ -35,7 +36,7 @@ using namespace std;
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_MAC_FILE,
-       OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX};
+       OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT};
 
 
 
@@ -73,13 +74,16 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_SL,            "--sl",         SO_NONE    },
     { OPT_DP_CORE_COUNT, "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX, "--core_index", SO_REQ_SEP },
+    { OPT_LIMIT,         "--limit",      SO_REQ_SEP },
 
     
     SO_END_OF_OPTIONS
 };
 
 
-
+static bool in_range(int x, int low, int high) {
+    return ( (x >= low) && (x <= high) );
+}
 
 static int usage(){
 
@@ -119,9 +123,7 @@ static int usage(){
 static int parse_options(int argc,
                          char *argv[],
                          CParserOption* po,
-                         opt_type_e &type,
-                         int &dp_core_count,
-                         int &dp_core_index) {
+                         std::unordered_map<std::string, int> &params) {
 
      CSimpleOpt args(argc, argv, parser_options);
 
@@ -131,16 +133,13 @@ static int parse_options(int argc,
      po->preview.setFileWrite(true);
 
      /* by default - type is stateful */
-     type = OPT_TYPE_SF;
-
-     dp_core_count = 1;
-     dp_core_index = 0;
+     params["type"] = OPT_TYPE_SF;
 
      while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
             switch (args.OptionId()) {
             case OPT_UT :
-                type = OPT_TYPE_GTEST;
+                params["type"] = OPT_TYPE_GTEST;
                 return (0);
                 break;
 
@@ -149,7 +148,7 @@ static int parse_options(int argc,
                 return -1;
 
             case OPT_SL:
-                type = OPT_TYPE_SL;
+                params["type"] = OPT_TYPE_SL;
                 break;
 
             case OPT_CFG:
@@ -179,11 +178,15 @@ static int parse_options(int argc,
                 break;
 
             case OPT_DP_CORE_COUNT:
-                dp_core_count = atoi(args.OptionArg());
+                params["dp_core_count"] = atoi(args.OptionArg());
                 break;
 
             case OPT_DP_CORE_INDEX:
-                dp_core_index = atoi(args.OptionArg());
+                params["dp_core_index"] = atoi(args.OptionArg());
+                break;
+
+            case OPT_LIMIT:
+                params["limit"] = atoi(args.OptionArg());
                 break;
 
             default:
@@ -215,16 +218,18 @@ static int parse_options(int argc,
         }
     }
 
-    if (dp_core_count != -1) {
-        if ( (dp_core_count < 1) || (dp_core_count > 8) ) {
+    /* did the user configure dp core count or dp core index ? */
+
+    if (params.count("dp_core_count") > 0) {
+        if (!in_range(params["dp_core_count"], 1, 8)) {
             printf("dp core count must be a value between 1 and 8\n");
             return (-1);
         }
     }
 
-     if (dp_core_index != -1) {
-        if ( (dp_core_index < 0) || (dp_core_index >= dp_core_count) ) {
-            printf("dp core count must be a value between 0 and cores - 1\n");
+     if (params.count("dp_core_index") > 0) {
+        if (!in_range(params["dp_core_index"], 0, params["dp_core_count"] - 1)) {
+            printf("dp core index must be a value between 0 and cores - 1\n");
             return (-1);
         }
     }
@@ -235,13 +240,13 @@ static int parse_options(int argc,
 
 int main(int argc , char * argv[]){
 
-    opt_type_e type;
-    int dp_core_count;
-    int dp_core_index;
+    std::unordered_map<std::string, int> params;
 
-    if ( parse_options(argc, argv, &CGlobalInfo::m_options , type, dp_core_count, dp_core_index) != 0) {
+    if ( parse_options(argc, argv, &CGlobalInfo::m_options , params) != 0) {
         exit(-1);
     }
+
+    opt_type_e type = (opt_type_e) params["type"];
 
     switch (type) {
     case OPT_TYPE_GTEST:
@@ -259,7 +264,25 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
-            return st.run(CGlobalInfo::m_options.cfg_file, CGlobalInfo::m_options.out_file, 2, dp_core_count, dp_core_index);
+
+            if (params.count("dp_core_count") == 0) {
+                params["dp_core_count"] = 1;
+            }
+
+            if (params.count("dp_core_index") == 0) {
+                params["dp_core_index"] = -1;
+            }
+
+            if (params.count("limit") == 0) {
+                params["limit"] = 5000;
+            }
+
+            return st.run(CGlobalInfo::m_options.cfg_file,
+                          CGlobalInfo::m_options.out_file,
+                          2,
+                          params["dp_core_count"],
+                          params["dp_core_index"],
+                          params["limit"]);
         }
     }
 }

@@ -34,11 +34,41 @@ import argparse
 import tempfile
 import subprocess
 import os
+from dpkt import pcap
+from operator import itemgetter
+
+
+def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
+
+    out_pkts = []
+
+    # read all packets to a list
+    for src in pcap_file_list:
+        f = open(src, 'r')
+        reader = pcap.Reader(f)
+        pkts = reader.readpkts()
+        out_pkts += pkts
+        f.close()
+        if delete_src:
+            os.unlink(src)
+
+    # sort by the timestamp
+    out_pkts = sorted(out_pkts, key=itemgetter(0))
+
+
+    out = open(out_filename, 'w')
+    out_writer = pcap.Writer(out)
+
+    for ts, pkt in out_pkts:
+        out_writer.writepkt(pkt, ts)
+
+    out.close()
+
 
 
 
 class SimRun(object):
-    def __init__ (self, yaml_file, dp_core_count, core_index, packet_limit, output_filename, is_valgrind, is_gdb):
+    def __init__ (self, yaml_file, dp_core_count, core_index, packet_limit, output_filename, is_valgrind, is_gdb, limit):
 
         self.yaml_file = yaml_file
         self.output_filename = output_filename
@@ -47,6 +77,7 @@ class SimRun(object):
         self.packet_limit = packet_limit
         self.is_valgrind = is_valgrind
         self.is_gdb = is_gdb
+        self.limit = limit
 
         # dummies
         self.handler = 0
@@ -99,16 +130,45 @@ class SimRun(object):
         f.close()
 
         try:
-            cmd = ['bp-sim-64-debug', '--sl', '--cores', str(self.dp_core_count), '--core_index', str(self.core_index), '-f', f.name, '-o', self.output_filename]
+            cmd = ['bp-sim-64-debug',
+                   '--pcap',
+                   '--sl',
+                   '--cores',
+                   str(self.dp_core_count),
+                   '--limit',
+                   str(self.limit),
+                   '-f',
+                   f.name,
+                   '-o',
+                   self.output_filename]
+
+            if self.core_index != None:
+                cmd += ['--core_index', str(self.core_index)]
+
             if self.is_valgrind:
                 cmd = ['valgrind', '--leak-check=full'] + cmd
             elif self.is_gdb:
                 cmd = ['gdb', '--args'] + cmd
 
+            print "executing command: '{0}'".format(" ".join(cmd))
             subprocess.call(cmd)
+
+            # core index 
+            if (self.dp_core_count > 1) and (self.core_index == None):
+                self.merge_results()
 
         finally:
             os.unlink(f.name)
+
+
+    def merge_results (self):
+        if (self.core_index != None) or (self.dp_core_count == 1):
+            # nothing to do
+            return
+
+        inputs = ["{0}-{1}".format(self.output_filename, index) for index in xrange(0, self.dp_core_count)]
+        merge_cap_files(inputs, self.output_filename, delete_src = True)
+
 
 
 def is_valid_file(filename):
@@ -143,8 +203,8 @@ def setParserOptions():
                         choices = xrange(1, 9))
 
     parser.add_argument("-n", "--core_index",
-                        help = "DP core index to examine [default is 0]",
-                        default = 0,
+                        help = "Record only a specific core",
+                        default = None,
                         type = int)
 
     parser.add_argument("-j", "--join",
@@ -174,8 +234,10 @@ def setParserOptions():
 
 
 def validate_args (parser, options):
-    if options.core_index < 0 or options.core_index >= options.cores:
-        parser.error("DP core index valid range is 0 to {0}".format(options.cores - 1))
+
+    if options.core_index:
+        if not options.core_index in xrange(0, options.cores):
+            parser.error("DP core index valid range is 0 to {0}".format(options.cores - 1))
 
 
 
@@ -191,7 +253,8 @@ def main ():
                options.limit,
                options.output_file,
                options.valgrind,
-               options.gdb)
+               options.gdb,
+               options.limit)
 
     r.run()
 

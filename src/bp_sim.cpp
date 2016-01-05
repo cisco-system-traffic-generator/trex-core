@@ -3146,7 +3146,8 @@ int CNodeGenerator::open_file(std::string file_name,
     /* ser preview mode */
     m_v_if->set_review_mode(preview_mode);
     m_v_if->open_file(file_name);
-    m_cnt = 0;
+    m_cnt   = 0;
+    m_limit = 0;
     return (0);
 }
 
@@ -3179,6 +3180,10 @@ int CNodeGenerator::update_stats(CGenNode * node){
     return (0);
 }
 
+bool CNodeGenerator::has_limit_reached() {
+    /* do we have a limit and has it passed ? */
+    return ( (m_limit > 0) && (m_cnt >= m_limit) );
+}
 
 bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           core_id,
@@ -3524,16 +3529,21 @@ int CNodeGenerator::flush_file(dsec_t max_time,
              m_p_queue.pop();
              CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
 
-             #ifdef _DEBUG
-             update_stl_stats(node_sl);
-             #endif
-
              /* if the stream has been deactivated - end */
              if ( unlikely( node_sl->is_mask_for_free() ) ) {
                  thread->free_node(node);
              } else {
                  node_sl->handle(thread);
+
+                 #ifdef _DEBUG
+                 update_stl_stats(node_sl);
+                 if (has_limit_reached()) {
+                     thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
+                 }
+                 #endif
+
              }
+         
             
         }else{
             if ( likely( type == CGenNode::FLOW_PKT ) ) {
@@ -3974,9 +3984,11 @@ void CFlowGenListPerThread::check_msgs(void) {
 
 
 void CFlowGenListPerThread::start_stateless_simulation_file(std::string erf_file_name,
-                                     CPreviewMode &preview){
+                                                            CPreviewMode &preview,
+                                                            uint64_t limit){
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
+    m_node_gen.set_packet_limit(limit);
 }
 
 void CFlowGenListPerThread::stop_stateless_simulation_file(){
@@ -3987,7 +3999,6 @@ void CFlowGenListPerThread::start_stateless_daemon_simulation(){
 
     m_cur_time_sec = 0;
     m_stateless_dp_info.run_once();
-
 }
 
 

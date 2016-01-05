@@ -120,6 +120,7 @@ SimStateless::SimStateless() {
     m_dp_core_count     = -1;
     m_dp_core_index     = -1;
     m_port_count        = -1;
+    m_limit             = 0;
 
     /* override ownership checks */
     TrexRpcCommand::test_set_override_ownership(true);
@@ -131,15 +132,18 @@ SimStateless::run(const string &json_filename,
                   const string &out_filename,
                   int port_count,
                   int dp_core_count,
-                  int dp_core_index) {
+                  int dp_core_index,
+                  int limit) {
 
     assert(dp_core_count > 0);
-    assert(dp_core_index >= 0);
-    assert(dp_core_index < dp_core_count);
+
+    /* -1 means its not set or positive value between 0 and the dp core count - 1*/
+    assert( (dp_core_index == -1) || ( (dp_core_index >=0 ) && (dp_core_index < dp_core_count) ) );
 
     m_dp_core_count = dp_core_count;
     m_dp_core_index = dp_core_index;
     m_port_count    = port_count;
+    m_limit         = limit;
 
     prepare_dataplane();
     prepare_control_plane();
@@ -266,33 +270,57 @@ SimStateless::validate_response(const Json::Value &resp) {
 
 void
 SimStateless::run_dp(const std::string &out_filename) {
+    uint64_t pkt_cnt = 0;
 
-    for (int i = 0; i < m_dp_core_count; i++) {
-        if (i == m_dp_core_index) {
-            run_dp_core(i, out_filename);
+    if (m_dp_core_count == 1) {
+        pkt_cnt = run_dp_core(0, out_filename);
+    } else {
+
+        /* do we have a specific core index to capture ? */
+        if (m_dp_core_index != -1) {
+            for (int i = 0; i < m_dp_core_count; i++) {
+                if (i == m_dp_core_index) {
+                    pkt_cnt += run_dp_core(i, out_filename);
+                } else {
+                    run_dp_core(i, "/dev/null");
+                }
+            }
         } else {
-            run_dp_core(i, "/dev/null");
+            for (int i = 0; i < m_dp_core_count; i++) {
+                std::stringstream ss;
+                ss << out_filename << "-" << i;
+                pkt_cnt += run_dp_core(i, ss.str());
+            }
         }
+
     }
 
-    CFlowGenListPerThread *lpt = m_fl.m_threads_info[m_dp_core_index];
   
     std::cout << "\n";
     std::cout << "ports:        " << m_port_count << "\n";
     std::cout << "cores:        " << m_dp_core_count << "\n";
-    std::cout << "core index:   " << m_dp_core_index << "\n";
-    std::cout << "\nwritten " << lpt->m_node_gen.m_cnt << " packets " << "to '" << out_filename << "'\n\n";
+
+    if (m_dp_core_index != -1) {
+        std::cout << "core index:   " << m_dp_core_index << "\n";
+    } else {
+        std::cout << "core index:   merge all\n";
+    }
+
+    std::cout << "pkt limit:    " << m_limit << "\n";
+    std::cout << "\nwritten " << pkt_cnt << " packets " << "to '" << out_filename << "'\n\n";
 }
 
-void
+uint64_t
 SimStateless::run_dp_core(int core_index, const std::string &out_filename) {
 
     CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
 
-    lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview);
+    lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview, m_limit / m_dp_core_count);
     lpt->start_stateless_daemon_simulation();
 
     flush_dp_to_cp_messages_core(core_index);
+
+    return lpt->m_node_gen.m_cnt;
 }
 
 
