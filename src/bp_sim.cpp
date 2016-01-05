@@ -1211,7 +1211,7 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
         return;
     }
 
-    if ( m_packet->pkt_len > MAX_PKT_SIZE   -FIRST_PKT_SIZE ){
+    if ( m_packet->pkt_len > MAX_PKT_SIZE ){
         m_cnt->m_tcp_udp_pkt_length_error++; 
         printf("ERROR packet is too big, not supported jumbo packets that larger than %d \n",MAX_PKT_SIZE);
         return;
@@ -1220,9 +1220,6 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
     // Set packet length and include padding if needed
     m_packet->pkt_len = l3.m_ipv4->getTotalLength() + getIpOffset();
     if (m_packet->pkt_len < 60) { m_packet->pkt_len = 60; }
-
-
-
 
     m_cnt->m_valid_udp_tcp++; 
     m_payload_len = l3.m_ipv4->getTotalLength() - (payload_offset_from_ip);
