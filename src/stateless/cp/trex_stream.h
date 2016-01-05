@@ -32,6 +32,8 @@ limitations under the License.
 #include <trex_stream_vm.h>
 #include <stdio.h>
 #include <string.h>
+#include <common/captureFile.h>
+
 
 class TrexRpcCmdAddStream;
 
@@ -123,8 +125,8 @@ public:
     virtual ~TrexStream();
 
     /* defines the min max per packet supported */
-    static const uint32_t MIN_PKT_SIZE_BYTES = 1;
-    static const uint32_t MAX_PKT_SIZE_BYTES = 9000;
+    static const uint32_t MIN_PKT_SIZE_BYTES = 60;
+    static const uint32_t MAX_PKT_SIZE_BYTES = MAX_PKT_SIZE;
 
     /* provides storage for the stream json*/
     void store_stream_json(const Json::Value &stream_json);

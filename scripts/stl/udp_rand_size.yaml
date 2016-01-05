@@ -1,0 +1,42 @@
+### UDP 1500 random pkt size ###
+#####################################
+- name: "random"
+  stream:
+    self_start: True
+    packet:
+      binary: stl/udp_1518B_no_crc.pcap 
+    mode:
+      type: continuous
+      pps: 100
+    rx_stats: []
+
+    # random packet size 60-1500 update ip.len/checksum/udp.len
+    vm: 
+       instructions: 
+           -     type         : "flow_var"                   # define random varible 60-1500
+                 name         : "var_rand_pkt_size"
+                 op           : "random" 
+                 init_value   : 0 
+                 min_value    : 60   
+                 max_value    : 1500                         # range must be smaller than pkt size
+                 size         : 2
+
+           -     type         : "trim_pkt_size"             # trim packet size
+                 name         : "var_rand_pkt_size"     
+
+           -     type         : "write_flow_var"            # update ip.len
+                 name         : "var_rand_pkt_size" 
+                 add_value    : -14
+                 is_big_endian: true
+                 pkt_offset   : 16 
+
+           -     type         : "fix_checksum_ipv4"          # update ip.checksum
+                 pkt_offset   : 14    
+
+           -     type          : "write_flow_var"            # update udp.len
+                 name          : "var_rand_pkt_size" 
+                 add_value     : -34
+                 is_big_endian : true
+                 pkt_offset    : 38 
+                  
+
