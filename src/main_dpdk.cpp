@@ -3367,6 +3367,11 @@ int  CGlobalTRex::ixgbe_start(void){
         /* last TX queue if for latency check */
         if ( get_vm_one_queue_enable() ) {
             /* one tx one rx */
+
+            /* VMXNET3 does claim to support 16K but somehow does not work */
+            /* reduce to 2000 */
+            m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = 2000;
+
             _if->configure(1,
                            1,
                            &m_port_cfg.m_port_conf);
@@ -3422,7 +3427,7 @@ int  CGlobalTRex::ixgbe_start(void){
                                 RTE_TEST_RX_LATENCY_DESC_DEFAULT,
                                 socket_id, 
                                 &m_port_cfg.m_rx_conf,
-                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
 
             int qid;
             for ( qid=0; qid<(m_max_queues_per_port+1); qid++) {

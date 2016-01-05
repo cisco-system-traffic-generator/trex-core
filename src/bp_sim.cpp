@@ -586,14 +586,14 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers){
             assert(lpmem->m_mbuf_pool_2048);
 
             lpmem->m_mbuf_pool_4096=utl_rte_mempool_create("_4096-pkt-const",
-                                                    lp->m_mbuf[MBUF_4096]+rx_buffers,
+                                                    lp->m_mbuf[MBUF_4096],
                                                     CONST_4096_MBUF_SIZE,
                                                     32,(i<<5)+ 5,i);
 
             assert(lpmem->m_mbuf_pool_4096);
 
             lpmem->m_mbuf_pool_9k=utl_rte_mempool_create("_9k-pkt-const",
-                                                    lp->m_mbuf[MBUF_9k],
+                                                    lp->m_mbuf[MBUF_9k]+rx_buffers,
                                                     CONST_9k_MBUF_SIZE,
                                                     32,(i<<5)+ 5,i);
 
