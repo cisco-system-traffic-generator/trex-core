@@ -353,8 +353,11 @@ void
 TrexStatelessDpCore::idle_state_loop() {
 
     while (m_state == STATE_IDLE) {
-        periodic_check_for_cp_messages();
-        delay(200);
+        bool had_msg = periodic_check_for_cp_messages();
+        /* if no message - backoff for some time */
+        if (!had_msg) {
+            delay(200);
+        }
     }
 }
 

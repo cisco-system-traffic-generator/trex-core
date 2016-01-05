@@ -34,13 +34,19 @@ public:
 
     TrexRpcServerReqRes(const TrexRpcServerConfig &cfg, std::mutex *lock = NULL);
 
+    /* for test purposes - bypass the ZMQ and inject a message */
+    std::string test_inject_request(const std::string &req);
+
 protected:
+
+    void _prepare();
     void _rpc_thread_cb();
     void _stop_rpc_thread();
 
-private:
     bool fetch_one_request(std::string &msg);
     void handle_request(const std::string &request);
+    std::string process_request(const std::string &request);
+
     void handle_server_error(const std::string &specific_err);
 
     void               *m_context;
@@ -48,4 +54,22 @@ private:
 };
 
 
+/**
+ * a mock req resp server (for tests)
+ * 
+ * @author imarom (03-Jan-16)
+ */
+class TrexRpcServerReqResMock : public TrexRpcServerReqRes {
+
+public:
+    TrexRpcServerReqResMock(const TrexRpcServerConfig &cfg);
+
+    /* override the interface functions */
+    virtual void start();
+    virtual void stop();
+
+
+};
+
 #endif /* __TREX_RPC_REQ_RESP_API_H__ */
+

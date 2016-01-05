@@ -63,6 +63,9 @@ void TrexRpcServerInterface::start() {
 
     verbose_msg("Starting RPC Server");
 
+    /* prepare for run */
+    _prepare();
+
     m_thread = new std::thread(&TrexRpcServerInterface::_rpc_thread_cb, this);
     if (!m_thread) {
         throw TrexRpcException("unable to create RPC thread");
@@ -117,9 +120,18 @@ TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
                              const TrexRpcServerConfig *async_cfg,
                              std::mutex *lock) {
 
+    m_req_resp = NULL;
+
     /* add the request response server */
     if (req_resp_cfg) {
-        m_servers.push_back(new TrexRpcServerReqRes(*req_resp_cfg, lock));
+
+        if (req_resp_cfg->get_protocol() == TrexRpcServerConfig::RPC_PROT_MOCK) {
+            m_req_resp = new TrexRpcServerReqResMock(*req_resp_cfg);
+        } else {
+            m_req_resp = new TrexRpcServerReqRes(*req_resp_cfg, lock);
+        }
+
+        m_servers.push_back(m_req_resp);
     }
     
     /* add async publisher */
@@ -166,3 +178,12 @@ void TrexRpcServer::set_verbose(bool verbose) {
     }
 }
 
+
+std::string
+TrexRpcServer::test_inject_request(const std::string &req_str) {
+    if (m_req_resp) {
+        return m_req_resp->test_inject_request(req_str);
+    } else {
+        return "";
+    }
+}

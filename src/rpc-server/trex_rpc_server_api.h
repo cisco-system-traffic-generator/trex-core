@@ -29,8 +29,10 @@ limitations under the License.
 #include <string>
 #include <stdexcept>
 #include <trex_rpc_exception_api.h>
+#include <json/json.h>
 
 class TrexRpcServerInterface;
+class TrexRpcServerReqRes;
 
 /**
  * defines a configuration of generic RPC server
@@ -41,18 +43,19 @@ class TrexRpcServerConfig {
 public:
 
     enum rpc_prot_e {
-        RPC_PROT_TCP
+        RPC_PROT_TCP,
+        RPC_PROT_MOCK
     };
 
     TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port) : m_protocol(protocol), m_port(port) {
 
     }
 
-    uint16_t get_port() {
+    uint16_t get_port() const {
         return m_port;
     }
 
-    rpc_prot_e get_protocol() {
+    rpc_prot_e get_protocol() const {
         return m_protocol;
     }
 
@@ -76,13 +79,13 @@ public:
      * starts the server
      * 
      */
-    void start();
+    virtual void start();
 
     /**
      * stops the server
      * 
      */
-    void stop();
+    virtual void stop();
 
     /**
      * set verbose on or off
@@ -107,6 +110,7 @@ protected:
      * instances implement this
      * 
      */
+    virtual void _prepare()                         = 0;
     virtual void _rpc_thread_cb()                   = 0;
     virtual void _stop_rpc_thread()                 = 0;
 
@@ -169,12 +173,23 @@ public:
     }
 
 
+    /**
+     * allow injecting of a JSON and get a response
+     * 
+     * @author imarom (27-Dec-15)
+     * 
+     * @return std::string 
+     */
+    std::string test_inject_request(const std::string &request_str);
    
 
 private:
     static std::string generate_handler();
 
     std::vector<TrexRpcServerInterface *>   m_servers;
+    // an alias to the req resp server
+    TrexRpcServerReqRes                     *m_req_resp;
+
     bool                                    m_verbose;
     static const std::string                s_server_uptime;
 
