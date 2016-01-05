@@ -20,6 +20,25 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.85  ==
+
+* Upgrade to DPDK 2.2.0  
+** Some XL710/X710 NIC phy issues solved
+** VMXNET3 driver is optimized 
+** Cisco VIC should be supported, not tested yet
+* Jumbo packet size is supported for 1/10/40 Intel NIC  up to 9K for both stateless and stateful 
+* youTrack is public now, can be seen here link:http://trex-tgn.cisco.com/youtrack[here] 
+* More stateless support 
+** Support random packet size trim instruction - see stl/udp_rand_size_9k.yaml for an example
+** Move Python Regression to trex-core 
+** Add Coverity scripts 
+** Console/Python API can be call from Cisco CEL now (ZMQ Python library is compiled to an old glibc)
+** Add simulator for stateless 
+
+=== fix issues: ===
+
+* The infamous DPDK error is not seen in case of a wrong core argument see here link:http://trex-tgn.cisco.com/youtrack/issue/trex-147[trex-147] 
+
 == Release 1.84  ==
 
 * more stateless support
@@ -43,7 +62,7 @@ endif::backend-docbook[]
 
 === fix issues: ===
 
-* link:http://csi-wiki-01:8090/issue/trex-110[trex-110]
+* link:http://trex-tgn.cisco.com/youtrack/trex-110[trex-110]
 
 
 == Release 1.81  ==
@@ -54,7 +73,7 @@ endif::backend-docbook[]
 
 === fix issues: ===
 
-* link:http://csi-wiki-01:8090/issue/trex-149[trex-149]
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-149[trex-149]
 
 == Release 1.80  ==
 
@@ -80,12 +99,12 @@ endif::backend-docbook[]
 
 Python API fixup see here  
 
-* link:http://csi-wiki-01:8090/issue/trex-126[trex-126] 
-* link:http://csi-wiki-01:8090/issue/trex-123[trex-122] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-126[trex-126] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-123[trex-122] 
 
 Check for 64bit Kernel
 
-* link:http://csi-wiki-01:8090/issue/trex-123[trex-123] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-123[trex-123] 
 
 == Release 1.77  ==
 
