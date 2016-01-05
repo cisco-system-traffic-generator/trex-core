@@ -692,7 +692,7 @@ class CTRexPktBuilder(object):
                 None
             """
             super(CTRexPktBuilder.CTRexVM, self).__init__()
-            self.vm_variables = {}
+            self.vm_variables = {'instructions': [], 'split_by_var': ""}
             self._inst_by_offset = {}   # this data structure holds only offset-related instructions, ordered in tuples
             self._off_inst_by_name = {}
 
@@ -807,6 +807,10 @@ class CTRexPktBuilder(object):
                 list holds variables data of VM
 
             """
+
+            return self.vm_variables
+            # !!! TODO: review code below !!!
+
             # at first, dump all CTRexVMFlowVariable instructions
             ret_val = [var.dump()
                        for key, var in self.vm_variables.items()]

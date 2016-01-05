@@ -1,0 +1,4 @@
+#!/bin/bash
+/router/bin/python-2.7.4 interactive_platform.py $@
+sts=$?
+exit $sts

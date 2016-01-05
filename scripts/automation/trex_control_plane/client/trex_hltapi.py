@@ -17,14 +17,16 @@ class CTRexHltApi(object):
         self._port_data = {}
 
     # ----- session functions ----- #
-
-    def connect(self, device, port_list, username, port=5050, reset=False, break_locks=False):
+    # sync = RPC, async = ZMQ
+    def connect(self, device, port_list, username, sync_port = 4501, async_port = 4500, reset=False, break_locks=False):
         ret_dict = {"status": 0}
-        self.trex_client = CTRexStatelessClient(username, device, port)
-        res_ok, msg = self.trex_client.connect()
-        if not res_ok:
+        self.trex_client = CTRexStatelessClient(username, device, sync_port, async_port)
+
+        rc = self.trex_client.connect()
+        if rc.bad():
+
             self.trex_client = None
-            ret_dict.update({"log": msg})
+            ret_dict.update({"log": rc.err()})
             return ret_dict
         # arrived here, connection successfully created with server
         # next, try acquiring ports of TRex
@@ -70,7 +72,6 @@ class CTRexHltApi(object):
                 port_list = self.parse_port_list(port_list)
             response = self.trex_client.release(port_list)
             res_ok, log = CTRexHltApi.process_response(port_list, response)
-            print log
             if not res_ok:
                 ret_dict.update({"log": log})
                 return ret_dict
@@ -89,11 +90,13 @@ class CTRexHltApi(object):
         return {"status": 1, "log": None}
 
     # ----- traffic functions ----- #
-    def traffic_config(self, mode, port_handle,
+    def traffic_config(self, mode, port_list,
                        l2_encap="ethernet_ii", mac_src="00:00:01:00:00:01", mac_dst="00:00:00:00:00:00",
                        l3_protocol="ipv4", ip_src_addr="0.0.0.0", ip_dst_addr="192.0.0.1", l3_length=110,
                        transmit_mode="continuous", rate_pps=100,
                        **kwargs):
+        if type(port_list) is not list():
+            port_list = [port_list]
         ALLOWED_MODES = ["create", "modify", "remove", "enable", "disable", "reset"]
         if mode not in ALLOWED_MODES:
             raise ValueError("mode must be one of the following values: {modes}".format(modes=ALLOWED_MODES))
@@ -119,45 +122,55 @@ class CTRexHltApi(object):
             except Exception as e:
                 # some exception happened during the stream creation
                 return {"status": 0, "log": str(e)}
-            # try adding the stream, until free stream_id is found
-            port_data = self._port_data.get(port_handle)
-            id_candidate = None
-            # TODO: change this to better implementation
-            while True:
-                 id_candidate = port_data["stream_id_gen"].next()
-                 response = self.trex_client.add_stream(stream_id=id_candidate,
-                                                        stream_obj=stream_obj,
-                                                        port_id=port_handle)
-                 res_ok, log = CTRexHltApi.process_response(port_handle, response)
-                 if res_ok:
-                     # found non-taken stream_id on server
-                     # save it for modifying needs
-                     port_data["streams"].update({id_candidate: stream_obj})
-                     break
-                 else:
-                     # proceed to another iteration to use another id
-                     continue
-            return {"status": 1,
-                    "stream_id": id_candidate,
-                    "log": None}
+            # try adding the stream per port, until free stream_id is found
+            for port_id in port_list:
+                port_data = self._port_data.get(port_id)
+                id_candidate = None
+                # TODO: change this to better implementation
+                while True:
+                    id_candidate = port_data["stream_id_gen"].next()
+                    response = self.trex_client.add_stream(stream_id=id_candidate,
+                                                            stream_obj=stream_obj.dump(),
+                                                            port_id_list=port_id)
+                    res_ok, log = CTRexHltApi.process_response(port_id, response)
+                    if res_ok:
+                        # found non-taken stream_id on server
+                        # save it for modifying needs
+                        port_data["streams"].update({id_candidate: stream_obj})
+                        break
+                    else:
+                        print log
+                        # proceed to another iteration to use another id
+                        print 'need another iteration?'
+                        continue
+                return {"status": 1,
+                        "stream_id": id_candidate,
+                        "log": None}
+
         else:
             raise NotImplementedError("mode '{0}' is not supported yet on TRex".format(mode))
 
-    def traffic_control(self, action, port_handle):
+    def traffic_control(self, action, port_handle, **kwargs):
         ALLOWED_ACTIONS = ["clear_stats", "run", "stop", "sync_run"]
         if action not in ALLOWED_ACTIONS:
             raise ValueError("action must be one of the following values: {actions}".format(actions=ALLOWED_ACTIONS))
         # ret_dict = {"status": 0, "stopped": 1}
         port_list = self.parse_port_list(port_handle)
+        if type(port_list) is not list():
+            port_list = [port_list]
         if action == "run":
-            response = self.trex_client.start_traffic(port_id=port_list)
+            if not set(kwargs.keys()) >= set(['mul', 'duration']):
+                raise ValueError("For 'run' action should be specified mul and duration arguments")
+            response = self.trex_client.start_traffic(kwargs['mul'], kwargs['duration'], port_id_list=port_list)
             res_ok, log = CTRexHltApi.process_response(port_list, response)
             if res_ok:
                 return {"status": 1,
                         "stopped": 0,
                         "log": None}
+            else:
+                print log
         elif action == "stop":
-            response = self.trex_client.stop_traffic(port_id=port_list)
+            response = self.trex_client.stop_traffic(port_id_list=port_list)
             res_ok, log = CTRexHltApi.process_response(port_list, response)
             if res_ok:
                 return {"status": 1,
@@ -236,13 +249,10 @@ class CTRexHltApi(object):
 
     @staticmethod
     def process_response(port_list, response):
+        log = response.data() if response.good() else response.err()
         if isinstance(port_list, list):
-            res_ok, response = response
-            log = CTRexHltApi.join_batch_response(response)
-        else:
-            res_ok = response.success
-            log = str(response)
-        return res_ok, log
+            log = CTRexHltApi.join_batch_response(log)
+        return response.good(), log
 
     @staticmethod
     def parse_port_list(port_list):
@@ -257,8 +267,9 @@ class CTRexHltApi(object):
 
     @staticmethod
     def join_batch_response(responses):
-        return "\n".join([str(response)
-                          for response in responses])
+        if type(responses) is list():
+            return "\n". join([str(response) for response in responses])
+        return responses
 
     @staticmethod
     def generate_stream(l2_encap, mac_src, mac_dst,

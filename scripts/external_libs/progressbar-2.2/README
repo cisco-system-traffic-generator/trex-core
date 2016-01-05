@@ -1,0 +1,18 @@
+Text progressbar library for python.
+
+This library provides a text mode progressbar. This is tipically used
+to display the progress of a long running operation, providing a
+visual clue that processing is underway.
+
+The ProgressBar class manages the progress, and the format of the line
+is given by a number of widgets. A widget is an object that may
+display diferently depending on the state of the progress. There are
+three types of widget:
+- a string, which always shows itself;
+- a ProgressBarWidget, which may return a diferent value every time
+it's update method is called; and
+- a ProgressBarWidgetHFill, which is like ProgressBarWidget, except it
+expands to fill the remaining width of the line.
+
+The progressbar module is very easy to use, yet very powerful. And
+automatically supports features like auto-resizing when available.
