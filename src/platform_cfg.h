@@ -31,25 +31,31 @@ limitations under the License.
 
 #define CONST_NB_MBUF_2_10G  (16380/4)
 
-typedef enum {         MBUF_64         =0, // per dual port, per NUMA
+typedef enum {         MBUF_64        , // per dual port, per NUMA
 
-                       MBUF_128        =1,
-                       MBUF_256        =2,
-                       MBUF_512        =3,
-                       MBUF_1024       =4,
-                       MBUF_2048       =5,
+                       MBUF_128       ,
+                       MBUF_256       ,
+                       MBUF_512       ,
+                       MBUF_1024      ,
+                       MBUF_2048      ,
+                       MBUF_4096      ,
+                       MBUF_9k        ,
+
 
                         // per NUMA
-                       TRAFFIC_MBUF_64         =6,
-                       TRAFFIC_MBUF_128        =7,
-                       TRAFFIC_MBUF_256        =8,
-                       TRAFFIC_MBUF_512        =9,
-                       TRAFFIC_MBUF_1024       =10,
-                       TRAFFIC_MBUF_2048       =11,
+                       TRAFFIC_MBUF_64       ,
+                       TRAFFIC_MBUF_128      ,
+                       TRAFFIC_MBUF_256      ,
+                       TRAFFIC_MBUF_512      ,
+                       TRAFFIC_MBUF_1024     ,
+                       TRAFFIC_MBUF_2048     ,
+                       TRAFFIC_MBUF_4096     ,
+                       TRAFFIC_MBUF_9k       ,
 
-                       MBUF_DP_FLOWS   =12,
-                       MBUF_GLOBAL_FLOWS =13, 
-                       MBUF_SIZE         =14
+
+                       MBUF_DP_FLOWS        ,
+                       MBUF_GLOBAL_FLOWS    , 
+                       MBUF_SIZE         
               } mbuf_sizes_t;
 
 const std::string * get_mbuf_names(void);

@@ -396,6 +396,21 @@ public:
 } __attribute__((packed));
 
 
+struct StreamDPOpPktSizeChange  {
+    uint8_t  m_op;
+    uint8_t  m_flow_offset; /* offset to the flow var */
+
+    inline void run(uint8_t * flow_var_base,uint16_t & new_size) {
+        uint16_t * p_flow_var = (uint16_t*)(flow_var_base+m_flow_offset);
+        new_size  = (*p_flow_var);
+    }
+
+    void dump(FILE *fd,std::string opt);
+
+
+} __attribute__((packed)); ;
+
+
 /* datapath instructions */
 class StreamDPVmInstructions {
 public:
@@ -422,7 +437,9 @@ public:
         itPKT_WR32       ,
         itPKT_WR64       ,
         itCLIENT_VAR       ,
-        itCLIENT_VAR_UNLIMIT      
+        itCLIENT_VAR_UNLIMIT ,
+        itPKT_SIZE_CHANGE ,
+
     };
 
 
@@ -443,12 +460,20 @@ private:
 
 class StreamDPVmInstructionsRunner {
 public:
+    StreamDPVmInstructionsRunner(){
+        m_new_pkt_size=0;;
+    }
     inline void run(uint32_t * per_thread_random,
                     uint32_t program_size,
                     uint8_t * program,  /* program */
                     uint8_t * flow_var, /* flow var */
                     uint8_t * pkt);      /* pkt */
 
+    inline uint16_t get_new_pkt_size(){
+        return (m_new_pkt_size);
+    }
+private:
+    uint16_t    m_new_pkt_size;
 };
 
 
@@ -456,7 +481,8 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
                                               uint32_t program_size,
                                               uint8_t * program,  /* program */
                                               uint8_t * flow_var, /* flow var */
-                                              uint8_t * pkt){
+                                              uint8_t * pkt
+                                              ){
 
 
     uint8_t * p=program;
@@ -473,6 +499,8 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
         StreamDPOpPktWr16    *lpw16;
         StreamDPOpPktWr32    *lpw32;
         StreamDPOpPktWr64    *lpw64;
+        StreamDPOpPktSizeChange    *lpw_pkt_size;
+
         StreamDPOpClientsLimit      *lpcl;
         StreamDPOpClientsUnLimit    *lpclu;
     } ua ;
@@ -586,6 +614,13 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
             ua.lpw64->wr(flow_var,pkt);
             p+=sizeof(StreamDPOpPktWr64);
             break;
+
+        case  StreamDPVmInstructions::itPKT_SIZE_CHANGE :      
+            ua.lpw_pkt_size =(StreamDPOpPktSizeChange *)p;
+            ua.lpw_pkt_size->run(flow_var,m_new_pkt_size);
+            p+=sizeof(StreamDPOpPktSizeChange);
+            break;
+
         default:
             assert(0);
         }
@@ -607,7 +642,8 @@ public:
         itFIX_IPV4_CS  = 4,
         itFLOW_MAN     = 5,
         itPKT_WR       = 6,
-        itFLOW_CLIENT  = 7 
+        itFLOW_CLIENT  = 7 ,
+        itPKT_SIZE_CHANGE = 8 
 
     };
 
@@ -880,7 +916,7 @@ public:
 
 
 /**
- * write flow var to packet
+ * write flow var to packet, hhaim
  * 
  */
 class StreamVmInstructionWriteToPkt : public StreamVmInstruction {
@@ -925,6 +961,36 @@ public:
 };
 
 
+
+/**
+ * change packet size,  
+ * 
+ */
+class StreamVmInstructionChangePktSize : public StreamVmInstruction {
+public:
+
+    StreamVmInstructionChangePktSize(const std::string &flow_var_name) :
+
+                                                        m_flow_var_name(flow_var_name)
+                                                        {}
+
+    virtual instruction_type_t get_instruction_type() const {
+        return ( StreamVmInstruction::itPKT_SIZE_CHANGE );
+    }
+
+    virtual void Dump(FILE *fd);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionChangePktSize(m_flow_var_name);
+    }
+
+public:
+
+    /* flow var name to write */
+    std::string   m_flow_var_name;
+};
+
+
 /**
  * describes a VM program for DP 
  * 
@@ -939,6 +1005,7 @@ public:
         m_program_size=0;
         m_max_pkt_offset_change=0;
         m_prefix_size = 0;
+        m_is_pkt_size_var=false;
     }
 
     StreamVmDp( uint8_t * bss,
@@ -946,7 +1013,8 @@ public:
                 uint8_t * prog,
                 uint16_t prog_size,
                 uint16_t max_pkt_offset,
-                uint16_t prefix_size
+                uint16_t prefix_size,
+                bool a_is_pkt_size_var
                 ){
 
         if (bss) {
@@ -972,6 +1040,7 @@ public:
 
         m_max_pkt_offset_change = max_pkt_offset;
         m_prefix_size = prefix_size;
+        m_is_pkt_size_var=a_is_pkt_size_var;
     }
 
     ~StreamVmDp(){
@@ -993,7 +1062,8 @@ public:
                                          m_program_ptr,
                                          m_program_size,
                                          m_max_pkt_offset_change,
-                                         m_prefix_size
+                                         m_prefix_size,
+                                         m_is_pkt_size_var
                                          );
         assert(lp);
         return (lp);
@@ -1035,6 +1105,14 @@ public:
         m_prefix_size = prefix_size;
     }
 
+    void set_pkt_size_is_var(bool pkt_size_var){
+        m_is_pkt_size_var=pkt_size_var;
+    }
+    bool is_pkt_size_var(){
+        return (m_is_pkt_size_var);
+    }
+
+
 private:
     uint8_t *  m_bss_ptr; /* pointer to the data section */
     uint8_t *  m_program_ptr; /* pointer to the program */
@@ -1042,6 +1120,7 @@ private:
     uint16_t   m_program_size; /* program size*/
     uint16_t   m_max_pkt_offset_change;
     uint16_t   m_prefix_size;
+    bool       m_is_pkt_size_var;
 
 };
 
@@ -1093,7 +1172,8 @@ public:
                                         get_dp_instruction_buffer()->get_program(),
                                         get_dp_instruction_buffer()->get_program_size(),
                                         get_max_packet_update_offset(),
-                                        get_prefix_size()
+                                        get_prefix_size(),
+                                        is_var_pkt_size()
                                         );
         assert(lp);
         return (lp);
@@ -1141,6 +1221,11 @@ public:
     uint16_t get_prefix_size() {
         return m_prefix_size;
     }
+
+    bool is_var_pkt_size(){
+        return (m_is_change_pkt_size);
+    }
+    
 
     bool is_compiled() {
         return m_is_compiled;
@@ -1197,6 +1282,7 @@ private:
 
 private:
     bool                               m_is_random_var;
+    bool                               m_is_change_pkt_size;
     bool                               m_is_compiled;
     uint16_t                           m_prefix_size;
     uint16_t                           m_pkt_size;

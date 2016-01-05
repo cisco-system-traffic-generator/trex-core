@@ -107,10 +107,13 @@ void StreamVmInstructionFlowMan::Dump(FILE *fd){
 
 
 void StreamVmInstructionWriteToPkt::Dump(FILE *fd){
-
     fprintf(fd," write_pkt , %s ,%lu, add, %ld, big, %lu \n",m_flow_var_name.c_str(),(ulong)m_pkt_offset,(long)m_add_value,(ulong)(m_is_big_endian?1:0));
 }
 
+
+void StreamVmInstructionChangePktSize::Dump(FILE *fd){
+    fprintf(fd," pkt_size_change  , %s  \n",m_flow_var_name.c_str() );
+}
 
 
 void StreamVmInstructionFlowClient::Dump(FILE *fd){
@@ -192,6 +195,7 @@ void StreamVm::build_flow_var_table() {
     m_cur_var_offset=0;
     uint32_t ins_id=0;
     m_is_random_var=false;
+    m_is_change_pkt_size=false;
         /* scan all flow var instruction and build */
 
     for (auto inst : m_inst_list) {
@@ -200,6 +204,10 @@ void StreamVm::build_flow_var_table() {
             if (ins_man->m_op ==StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM){
                 m_is_random_var =true;
             }
+        }
+
+        if ( inst->get_instruction_type() == StreamVmInstruction::itPKT_SIZE_CHANGE ){
+            m_is_change_pkt_size=true;
         }
     }
 
@@ -295,6 +303,51 @@ void StreamVm::build_flow_var_table() {
         }
         ins_id++;
     }
+
+
+    ins_id=0;
+
+    /* second interation for sanity check and fixups*/
+    for (auto inst : m_inst_list) {
+
+
+        if (inst->get_instruction_type() == StreamVmInstruction::itPKT_SIZE_CHANGE ) {
+            StreamVmInstructionChangePktSize *lpPkt =(StreamVmInstructionChangePktSize *)inst;
+
+            VmFlowVarRec var;
+            if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
+
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' packet size with no valid flow varible name '" << lpPkt->m_flow_var_name << "'" ;
+                err(ss.str());
+            }
+
+            if ( var.m_size_bytes != 2 ) {
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' packet size change should point to a flow varible with size 2  ";
+                err(ss.str());
+            }
+
+            if ( var.m_ins.m_ins_flowv->m_max_value >  m_pkt_size) {
+                var.m_ins.m_ins_flowv->m_max_value =m_pkt_size;
+            }
+
+            if (var.m_ins.m_ins_flowv->m_min_value > m_pkt_size) {
+                var.m_ins.m_ins_flowv->m_min_value = m_pkt_size;
+            }
+
+
+            if ( var.m_ins.m_ins_flowv->m_min_value >= var.m_ins.m_ins_flowv->m_max_value  ) {
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' min packet size " << var.m_ins.m_ins_flowv->m_min_value << " is bigger or eq to max packet size " << var.m_ins.m_ins_flowv->m_max_value;
+                err(ss.str());
+            }
+
+            if ( var.m_ins.m_ins_flowv->m_min_value < 60) {
+                var.m_ins.m_ins_flowv->m_min_value =60;
+            }
+        }
+    }/* for */
 
 }
 
@@ -474,6 +527,8 @@ void StreamVm::build_program(){
                 ss << "instruction id '" << ins_id << "' packet write with packet_offset   " << lpPkt->m_pkt_offset + var.m_size_bytes  << "   bigger than packet size   "<< m_pkt_size;
                 err(ss.str());
             }
+
+
             add_field_cnt(lpPkt->m_pkt_offset + var.m_size_bytes);
 
 
@@ -553,6 +608,32 @@ void StreamVm::build_program(){
                 client_cmd.m_limit_flows = lpMan->m_limit_num_flows;
                 m_instructions.add_command(&client_cmd,sizeof(client_cmd));
             }
+        }
+
+
+        if (ins_type == StreamVmInstruction::itPKT_SIZE_CHANGE ) {
+            StreamVmInstructionChangePktSize *lpPkt =(StreamVmInstructionChangePktSize *)inst;
+
+            VmFlowVarRec var;
+            if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
+
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' packet size with no valid flow varible name '" << lpPkt->m_flow_var_name << "'" ;
+                err(ss.str());
+            }
+
+            if ( var.m_size_bytes != 2 ) {
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' packet size change should point to a flow varible with size 2  ";
+                err(ss.str());
+            }
+
+            uint8_t       flow_offset = get_var_offset(lpPkt->m_flow_var_name);
+
+            StreamDPOpPktSizeChange pkt_size_ch;
+            pkt_size_ch.m_op =StreamDPVmInstructions::itPKT_SIZE_CHANGE;
+            pkt_size_ch.m_flow_offset =  flow_offset;
+            m_instructions.add_command(&pkt_size_ch,sizeof(pkt_size_ch));
         }
 
         ins_id++;
@@ -790,6 +871,8 @@ void StreamDPVmInstructions::Dump(FILE *fd){
     StreamDPOpPktWr64    *lpw64;
     StreamDPOpClientsLimit   *lp_client;
     StreamDPOpClientsUnLimit  *lp_client_unlimited;
+    StreamDPOpPktSizeChange  *lp_pkt_size_change;
+
 
 
     while ( p < p_end) {
@@ -901,6 +984,12 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             p+=sizeof(StreamDPOpClientsUnLimit);
             break;
 
+        case  itPKT_SIZE_CHANGE :      
+            lp_pkt_size_change =(StreamDPOpPktSizeChange *)p;
+            lp_pkt_size_change->dump(fd,"pkt_size_c");
+            p+=sizeof(StreamDPOpPktSizeChange);
+            break;
+
 
         default:
             assert(0);
@@ -955,4 +1044,7 @@ void StreamDPOpClientsUnLimit::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, flow_offset: %lu (%x-%x) flags:%x \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,m_min_ip,m_max_ip,m_flags);
 }
 
+void StreamDPOpPktSizeChange::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s  op:%lu, flow_offset: %lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset);
+}
 

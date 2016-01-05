@@ -22,6 +22,7 @@ limitations under the License.
 #include "bp_sim.h"
 #include <common/gtest.h>
 #include <common/basic_utils.h>
+#include <trex_stateless.h>
 #include <trex_stateless_dp_core.h>
 #include <trex_stateless_messaging.h>
 #include <trex_streams_compiler.h>
@@ -1027,6 +1028,203 @@ TEST_F(basic_vm, vm_syn_attack) {
 }
 
 
+void run_vm_program( StreamVm & vm,
+                    std::string input_pcap_file,
+                    std::string out_file_name,
+                    int num_pkts
+                    ){
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file(input_pcap_file,0);
+
+    printf(" packet size : %lu \n",(ulong)pcap.m_raw.pkt_len);
+    vm.compile(pcap.m_raw.pkt_len);
+
+    StreamVmDp * lpDpVm =vm.generate_dp_object();
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+    vm.Dump(stdout);
+
+    std::string out_file_full ="exp/"+out_file_name +".pcap";
+    std::string out_file_ex_full ="exp/"+out_file_name +"-ex.pcap";
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)out_file_full.c_str());
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<num_pkts; i++) {
+
+        runner.run(&random_per_thread,
+                   lpDpVm->get_program_size(), 
+                   lpDpVm->get_program(),
+                   lpDpVm->get_bss(),
+                   (uint8_t*)pcap.m_raw.raw);
+        uint16_t new_pkt_size=runner.get_new_pkt_size();
+        assert(new_pkt_size>0);
+        if (new_pkt_size ==0) {
+            assert(lpWriter->write_packet(&pcap.m_raw));
+        }else{
+            /* we can only reduce */
+            if (new_pkt_size>pcap.m_raw.pkt_len) {
+                new_pkt_size=pcap.m_raw.pkt_len;
+            }
+            CCapPktRaw np(new_pkt_size);
+             np.time_sec  = pcap.m_raw.time_sec;
+             np.time_nsec = pcap.m_raw.time_nsec;
+             np.pkt_cnt   = pcap.m_raw.pkt_cnt;
+             memcpy(np.raw,pcap.m_raw.raw,new_pkt_size);
+             assert(lpWriter->write_packet(&np));
+        }
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+    delete  lpDpVm;
+
+    bool res1=cmp.compare(out_file_full.c_str() ,out_file_ex_full.c_str());
+    EXPECT_EQ(1, res1?1:0);
+}
+
+
+TEST_F(basic_vm, vm_inc_size_64_128) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
+                                                        2,                // size var  must be 16bit size 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
+                                                        127,
+                                                        128,
+                                                        256));
+
+    vm.add_instruction( new StreamVmInstructionChangePktSize( "rand_pkt_size_var"));
+
+    /* src ip */
+    /*14+ 2 , remove the */
+
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",16, -14,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* update UDP length */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
+                        );
+
+    run_vm_program(vm,"stl/udp_1518B_no_crc.pcap","stl_vm_inc_size_64_128",20);
+}
+
+TEST_F(basic_vm, vm_random_size_64_128) {
+
+    StreamVm vm;
+    srand(0x1234);
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
+                                                        2,                // size var  must be 16bit size 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        128,
+                                                        256));
+
+    vm.add_instruction( new StreamVmInstructionChangePktSize( "rand_pkt_size_var"));
+
+    /* src ip */
+    /*14+ 2 , remove the */
+
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",16, -14,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* update UDP length */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
+                        );
+
+
+    run_vm_program(vm,"stl/udp_1518B_no_crc.pcap","stl_vm_rand_size_64_128",20);
+
+}
+
+
+
+/* should have exception packet size is smaller than range */
+TEST_F(basic_vm, vm_random_size_64_127_128) {
+
+    StreamVm vm;
+    srand(0x1234);
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
+                                                        2,                // size var  must be 16bit size 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        127,
+                                                        128,
+                                                        256));
+
+    vm.add_instruction( new StreamVmInstructionChangePktSize( "rand_pkt_size_var"));
+
+    /* src ip */
+    /*14+ 2 , remove the */
+
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",16, -14,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* update UDP length */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
+                        );
+
+    bool fail=false;
+
+    try {
+       run_vm_program(vm,"stl/udp_64B_no_crc.pcap","stl_vm_rand_size_64B_127_128",20);
+     } catch (const TrexException &ex) {
+        fail=true;
+    }
+
+    EXPECT_EQ(true, fail);
+
+}
+
+
+TEST_F(basic_vm, vm_random_size_500b_0_9k) {
+
+    StreamVm vm;
+    srand(0x1234);
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
+                                                        2,                // size var  must be 16bit size 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        0,
+                                                        0,
+                                                        9*1024));
+
+    vm.add_instruction( new StreamVmInstructionChangePktSize( "rand_pkt_size_var"));
+
+    /* src ip */
+    /*14+ 2 , remove the */
+
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",16, -14,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* update UDP length */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
+                        );
+
+    run_vm_program(vm,"stl/udp_594B_no_crc.pcap","stl_vm_rand_size_512B_64_128",10);
+
+}
 
 
 

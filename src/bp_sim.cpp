@@ -66,7 +66,7 @@ void CGlobalMemory::Dump(FILE *fd){
 
     int i=0; 
     for (i=0; i<MBUF_SIZE; i++) {
-        if ( (i>MBUF_2048) && (i<MBUF_DP_FLOWS)){
+        if ( (i>MBUF_9k) && (i<MBUF_DP_FLOWS)){
             continue;
         }
         if ( i<TRAFFIC_MBUF_64 ){
@@ -95,6 +95,8 @@ void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
     m_mbuf[MBUF_512]  += info.m_mbuf[TRAFFIC_MBUF_512];
     m_mbuf[MBUF_1024] += info.m_mbuf[TRAFFIC_MBUF_1024];
     m_mbuf[MBUF_2048] += info.m_mbuf[TRAFFIC_MBUF_2048];
+    m_mbuf[MBUF_4096] += info.m_mbuf[TRAFFIC_MBUF_4096];
+    m_mbuf[MBUF_9k]   += info.m_mbuf[MBUF_9k];
 }
 
 
@@ -494,7 +496,10 @@ void CRteMemPool::dump(FILE *fd){
     DUMP_MBUF("mbuf_256",m_mbuf_pool_256);
     DUMP_MBUF("mbuf_512",m_mbuf_pool_512);
     DUMP_MBUF("mbuf_1024",m_mbuf_pool_1024);
-    DUMP_MBUF("mbuf_2048",m_big_mbuf_pool);
+    DUMP_MBUF("mbuf_2048",m_mbuf_pool_2048);
+    DUMP_MBUF("mbuf_4096",m_mbuf_pool_4096);
+    DUMP_MBUF("mbuf_9k",m_mbuf_pool_9k);
+
 }
 ////////////////////////////////////////
 
@@ -506,12 +511,14 @@ void CGlobalInfo::free_pools(){
     for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
         if (lpSocket->is_sockets_enable((socket_id_t)i)) {
             lpmem= &m_mem_pool[i];
-            utl_rte_mempool_delete(lpmem->m_big_mbuf_pool);
             utl_rte_mempool_delete(lpmem->m_small_mbuf_pool);
             utl_rte_mempool_delete(lpmem->m_mbuf_pool_128);
             utl_rte_mempool_delete(lpmem->m_mbuf_pool_256);
             utl_rte_mempool_delete(lpmem->m_mbuf_pool_512);
             utl_rte_mempool_delete(lpmem->m_mbuf_pool_1024);  
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_2048);  
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_4096);  
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_9k);  
     }
     utl_rte_mempool_delete(m_mem_pool[0].m_mbuf_global_nodes);
   }
@@ -531,12 +538,6 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers){
             lpmem= &m_mem_pool[i];
             lpmem->m_pool_id=i;
 
-            lpmem->m_big_mbuf_pool = utl_rte_mempool_create("big-pkt-const",
-                                                     (lp->get_2k_num_blocks()+rx_buffers),
-                                                     CONST_MBUF_SIZE,
-                                                     32,
-                                                     (i<<5)+ 1,i);
-            assert(lpmem->m_big_mbuf_pool);
 
             /* this include the packet from 0-64 this is for small packets */  
             lpmem->m_small_mbuf_pool =utl_rte_mempool_create("small-pkt-const",
@@ -577,6 +578,26 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers){
 
             assert(lpmem->m_mbuf_pool_1024);
 
+            lpmem->m_mbuf_pool_2048=utl_rte_mempool_create("_2048-pkt-const",
+                                                    lp->m_mbuf[MBUF_2048],
+                                                    CONST_2048_MBUF_SIZE,
+                                                    32,(i<<5)+ 5,i);
+
+            assert(lpmem->m_mbuf_pool_2048);
+
+            lpmem->m_mbuf_pool_4096=utl_rte_mempool_create("_4096-pkt-const",
+                                                    lp->m_mbuf[MBUF_4096],
+                                                    CONST_4096_MBUF_SIZE,
+                                                    32,(i<<5)+ 5,i);
+
+            assert(lpmem->m_mbuf_pool_4096);
+
+            lpmem->m_mbuf_pool_9k=utl_rte_mempool_create("_9k-pkt-const",
+                                                    lp->m_mbuf[MBUF_9k]+rx_buffers,
+                                                    CONST_9k_MBUF_SIZE,
+                                                    32,(i<<5)+ 5,i);
+
+            assert(lpmem->m_mbuf_pool_9k);
 
         }
     }
@@ -1190,18 +1211,15 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
         return;
     }
 
-    if ( m_packet->pkt_len > MAX_BUF_SIZE  -FIRST_PKT_SIZE ){
+    if ( m_packet->pkt_len > MAX_PKT_SIZE ){
         m_cnt->m_tcp_udp_pkt_length_error++; 
-        printf("ERROR packet is too big, not supported jumbo packets that larger than %d \n",MAX_BUF_SIZE);
+        printf("ERROR packet is too big, not supported jumbo packets that larger than %d \n",MAX_PKT_SIZE);
         return;
     }
 
     // Set packet length and include padding if needed
     m_packet->pkt_len = l3.m_ipv4->getTotalLength() + getIpOffset();
     if (m_packet->pkt_len < 60) { m_packet->pkt_len = 60; }
-
-
-
 
     m_cnt->m_valid_udp_tcp++; 
     m_payload_len = l3.m_ipv4->getTotalLength() - (payload_offset_from_ip);

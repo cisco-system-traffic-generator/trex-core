@@ -1017,7 +1017,7 @@ struct port_cfg_t {
         m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 
         m_port_conf.rxmode.jumbo_frame=1;
-        m_port_conf.rxmode.max_rx_pkt_len =2000;
+        m_port_conf.rxmode.max_rx_pkt_len =9*1024+22;
         m_port_conf.rxmode.hw_strip_crc=1;
     }
 
@@ -2069,10 +2069,12 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          CVirtualIFPerSideStats  * lp_stats
                          ){
 
+    //printf(" %lu \n",(ulong)rte_pktmbuf_pkt_len(m));
     //rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
 
-    lp_stats->m_tx_pkt   +=1;
-    lp_stats->m_tx_bytes += (rte_pktmbuf_pkt_len(m)+4);
+    /* too expensive remove this for now */
+    //lp_stats->m_tx_pkt   +=1;
+    //lp_stats->m_tx_bytes += (rte_pktmbuf_pkt_len(m)+4);
 
     uint16_t len = lp_port->m_len;
     lp_port->m_table[len]=m;
@@ -2137,6 +2139,7 @@ int CCoreEthIFStateless::send_node(CGenNode * no){
         m=node_sl->alloc_node_with_vm();
         assert(m);
     }
+
     send_pkt(lp_port,m,lp_stats);
 
     return (0);
@@ -2796,9 +2799,17 @@ private:
                           int pkt,
                           int port);
 
+    int test_send_one_pkt(rte_mbuf_t *m,
+                          uint16_t queue_id,
+                          int port);
 
     int create_pkt(uint8_t *pkt,int pkt_size);
+    rte_mbuf_t *  create_pkt_indirect(uint32_t new_pkt_size);
+
     int create_udp_pkt();
+    int create_udp_9k_pkt();
+
+
     int create_icmp_pkt();
 
 
@@ -2914,24 +2925,49 @@ int  CGlobalTRex::rcv_send_all(int queue_id){
 
 
 int CGlobalTRex::test_send(){
-    int i;
+    //int i;
 
     set_promisc_all(true);
-    create_udp_pkt();
-
-	CRx_check_header rx_check_header;
-    (void)rx_check_header;
-
-	rx_check_header.m_time_stamp=0x1234567;
-	rx_check_header.m_option_type=RX_CHECK_V4_OPT_TYPE;
-	rx_check_header.m_option_len=RX_CHECK_V4_OPT_LEN;
-	rx_check_header.m_magic=2;
-	rx_check_header.m_pkt_id=7;
-	rx_check_header.m_flow_id=9;
-	rx_check_header.m_flags=11;
-
-
+    create_udp_9k_pkt();
     assert(m_test);
+
+    rte_mbuf_t * d= create_pkt_indirect(9*1024+18);
+    test_send_one_pkt(d,0,0);
+
+
+    //d= create_pkt_indirect(200);
+    //test_send_one_pkt(d,0,0);
+
+    printf(" ---------\n");
+    printf(" rx queue 0 \n");
+    printf(" ---------\n");
+    rcv_send_all(0);
+    printf("\n\n");
+
+    printf(" ---------\n");
+    printf(" rx queue 1 \n");
+    printf(" ---------\n");
+    rcv_send_all(1);
+    printf(" ---------\n");
+
+    delay(1000);
+
+    int j=0;
+   for (j=0; j<m_max_ports; j++) {
+        CPhyEthIF * lp=&m_ports[j];
+        printf(" port : %d \n",j);
+        printf(" ----------\n");
+
+        lp->update_counters();
+        lp->get_stats().Dump(stdout);
+        lp->dump_stats_extended(stdout);
+    }
+
+    return (0);
+
+#if 0
+
+
     for (i=0; i<1; i++) {
         //test_send_pkts(0,1,0);
         //test_send_pkts(m_latency_tx_queue_id,12,0);
@@ -2939,7 +2975,6 @@ int CGlobalTRex::test_send(){
         //test_send_pkts(m_latency_tx_queue_id,1,2);
         //test_send_pkts(m_latency_tx_queue_id,1,3);
         test_send_pkts(0,1,0);
-        test_send_pkts(0,2,1);
 
         /*delay(1000);
         fprintf(stdout," --------------------------------\n");
@@ -2985,7 +3020,9 @@ int CGlobalTRex::test_send(){
    #endif
 
     fprintf(stdout," drop : %llu \n", (unsigned long long)m_test_drop);
+
     return (0);
+    #endif
 }
 
 
@@ -3052,9 +3089,8 @@ const uint8_t icmp_pkt1[]={
 
 
 int CGlobalTRex::create_pkt(uint8_t *pkt,int pkt_size){
-    rte_mempool_t * mp= CGlobalInfo::m_mem_pool[0].m_big_mbuf_pool ;
 
-    rte_mbuf_t * m=rte_pktmbuf_alloc(mp);
+    rte_mbuf_t * m= CGlobalInfo::pktmbuf_alloc(0,pkt_size);
     if ( unlikely(m==0) )  {
         printf("ERROR no packets \n");
         return (0);
@@ -3063,20 +3099,54 @@ int CGlobalTRex::create_pkt(uint8_t *pkt,int pkt_size){
     assert(p);
     /* set pkt data */
     memcpy(p,pkt,pkt_size);
-    //m->ol_flags = PKT_TX_VLAN_PKT;
-    //m->pkt.vlan_tci =200;
-
     m_test = m;
-
     return (0);
+}
+
+rte_mbuf_t *  CGlobalTRex::create_pkt_indirect(uint32_t new_pkt_size){
+
+    rte_mbuf_t * d= CGlobalInfo::pktmbuf_alloc(0,60);
+    assert(d);
+    rte_pktmbuf_attach(d,m_test);
+    d->data_len =new_pkt_size;
+    d->pkt_len =new_pkt_size;
+    return (d);
 }
 
 int CGlobalTRex::create_udp_pkt(){
     return (create_pkt((uint8_t*)udp_pkt,sizeof(udp_pkt)));
 }
 
+int CGlobalTRex::create_udp_9k_pkt(){
+    uint16_t pkt_size=9*1024+21;
+    uint8_t *p=(uint8_t *)malloc(9*1024+22);
+    assert(p);
+    memset(p,0x55,pkt_size);
+    memcpy(p,(uint8_t*)udp_pkt,sizeof(udp_pkt));
+    create_pkt(p,pkt_size);
+    free(p);
+    return (0);
+}
+
+
+
 int CGlobalTRex::create_icmp_pkt(){
     return (create_pkt((uint8_t*)icmp_pkt1,sizeof(icmp_pkt1)));
+}
+
+int CGlobalTRex::test_send_one_pkt(rte_mbuf_t *m,
+                                    uint16_t queue_id,
+                                      int port){
+
+    CPhyEthIF * lp=&m_ports[port];
+    rte_mbuf_t * tx_pkts[1];
+    tx_pkts[0]=m;
+
+    uint16_t res=lp->tx_burst(queue_id,tx_pkts,1);
+    if ((1-res)>0) {
+        m_test_drop+=(1-res);
+    }
+    return (0);
 }
 
 
@@ -3290,6 +3360,11 @@ int  CGlobalTRex::ixgbe_start(void){
         /* last TX queue if for latency check */
         if ( get_vm_one_queue_enable() ) {
             /* one tx one rx */
+
+            /* VMXNET3 does claim to support 16K but somehow does not work */
+            /* reduce to 2000 */
+            m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = 2000;
+
             _if->configure(1,
                            1,
                            &m_port_cfg.m_port_conf);
@@ -3298,7 +3373,7 @@ int  CGlobalTRex::ixgbe_start(void){
             m_latency_tx_queue_id= m_cores_to_dual_ports;
 
             socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
-            assert(CGlobalInfo::m_mem_pool[socket_id].m_big_mbuf_pool);
+            assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
 
 
 
@@ -3307,7 +3382,7 @@ int  CGlobalTRex::ixgbe_start(void){
                                 RTE_TEST_RX_DESC_VM_DEFAULT,
                                 socket_id, 
                                 &m_port_cfg.m_rx_conf,
-                                CGlobalInfo::m_mem_pool[socket_id].m_big_mbuf_pool);
+                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
 
             int qid;
             for ( qid=0; qid<(m_max_queues_per_port); qid++) {
@@ -3327,7 +3402,7 @@ int  CGlobalTRex::ixgbe_start(void){
             m_latency_tx_queue_id= m_cores_to_dual_ports;
 
             socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
-            assert(CGlobalInfo::m_mem_pool[socket_id].m_big_mbuf_pool);
+            assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
 
 
             /* drop queue */
@@ -3335,7 +3410,7 @@ int  CGlobalTRex::ixgbe_start(void){
                                 RTE_TEST_RX_DESC_DEFAULT,
                                 socket_id, 
                                 &m_port_cfg.m_rx_conf,
-                                CGlobalInfo::m_mem_pool[socket_id].m_big_mbuf_pool);
+                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
 
 
             /* set the filter queue */
@@ -3345,7 +3420,7 @@ int  CGlobalTRex::ixgbe_start(void){
                                 RTE_TEST_RX_LATENCY_DESC_DEFAULT,
                                 socket_id, 
                                 &m_port_cfg.m_rx_conf,
-                                CGlobalInfo::m_mem_pool[socket_id].m_big_mbuf_pool);
+                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
 
             int qid;
             for ( qid=0; qid<(m_max_queues_per_port+1); qid++) {
@@ -4718,10 +4793,7 @@ int main_test(int argc , char * argv[]){
 #if 0
 	printf(" test_send \n");
 	g_trex.test_send();
-        //    while (1) {
-           delay(10000);
-           exit(0);
-           //    }
+    exit(1);
 #endif
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){

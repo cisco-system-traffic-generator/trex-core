@@ -35,7 +35,7 @@ typedef enum capture_type {
 	LAST_TYPE
 } capture_type_e;
 
-#define MAX_PKT_SIZE (2048)
+#define MAX_PKT_SIZE (9*1024+22) /* 9k IP +14+4 FCS +some spare */
 
 #define READER_MAX_PACKET_SIZE MAX_PKT_SIZE
 
