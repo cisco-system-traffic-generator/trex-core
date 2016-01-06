@@ -257,6 +257,7 @@ bp =SrcGroups([
 
 
 cxxflags_base =['-DWIN_UCODE_SIM',
+                '-DTREX_SIM',
                 '-D_BYTE_ORDER',
                 '-D_LITTLE_ENDIAN',
                 '-DLINUX',

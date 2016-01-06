@@ -26,6 +26,8 @@ except ImportError:
 
 from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
 from client_utils.packet_builder import CTRexPktBuilder
+from client_utils import parsing_opts
+
 import json
 
 from common.trex_streams import *
@@ -68,29 +70,21 @@ def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
 
 
 class SimRun(object):
-    def __init__ (self, yaml_file, dp_core_count, core_index, packet_limit, output_filename, is_valgrind, is_gdb, limit):
+    def __init__ (self, options):
 
-        self.yaml_file = yaml_file
-        self.output_filename = output_filename
-        self.dp_core_count = dp_core_count
-        self.core_index = core_index
-        self.packet_limit = packet_limit
-        self.is_valgrind = is_valgrind
-        self.is_gdb = is_gdb
-        self.limit = limit
+        self.options = options
 
         # dummies
         self.handler = 0
         self.port_id = 0
-        self.mul = {"op": "abs",
-                    "type": "raw",
-                    "value": 1}
+
+        self.mul = options.mult
 
         self.duration = -1
 
     def load_yaml_file (self):
         streams_db = CStreamsDB()
-        stream_list = streams_db.load_yaml_file(self.yaml_file)
+        stream_list = streams_db.load_yaml_file(self.options.input_file)
 
         streams_json = []
         for stream in stream_list.compiled:
@@ -130,44 +124,65 @@ class SimRun(object):
         f.close()
 
         try:
-            cmd = ['bp-sim-64-debug',
-                   '--pcap',
-                   '--sl',
-                   '--cores',
-                   str(self.dp_core_count),
-                   '--limit',
-                   str(self.limit),
-                   '-f',
-                   f.name,
-                   '-o',
-                   self.output_filename]
-
-            if self.core_index != None:
-                cmd += ['--core_index', str(self.core_index)]
-
-            if self.is_valgrind:
-                cmd = ['valgrind', '--leak-check=full'] + cmd
-            elif self.is_gdb:
-                cmd = ['gdb', '--args'] + cmd
-
-            print "executing command: '{0}'".format(" ".join(cmd))
-            subprocess.call(cmd)
-
-            # core index 
-            if (self.dp_core_count > 1) and (self.core_index == None):
-                self.merge_results()
-
+            if self.options.json:
+                with open(f.name) as file:
+                    data = "\n".join(file.readlines())
+                    print json.dumps(json.loads(data), indent = 4, separators=(',', ': '), sort_keys = True)
+            else:
+                self.execute_bp_sim(f.name)
         finally:
             os.unlink(f.name)
 
 
+    def execute_bp_sim (self, json_filename):
+        exe = 'bp-sim-64' if self.options.release else 'bp-sim-64-debug'
+        if not os.path.exists(exe):
+            print "cannot find executable '{0}'".format(exe)
+            exit(-1)
+
+        cmd = [exe,
+               '--pcap',
+               '--sl',
+               '--cores',
+               str(self.options.cores),
+               '--limit',
+               str(self.options.limit),
+               '-f',
+               json_filename,
+               '-o',
+               self.options.output_file]
+
+        if self.options.dry:
+            cmd += ['--dry']
+
+        if self.options.core_index != None:
+            cmd += ['--core_index', str(self.options.core_index)]
+
+        if self.options.valgrind:
+            cmd = ['valgrind', '--leak-check=full'] + cmd
+
+        elif self.options.gdb:
+            cmd = ['gdb', '--args'] + cmd
+
+        print "executing command: '{0}'".format(" ".join(cmd))
+        subprocess.call(cmd)
+
+        self.merge_results()
+
+
     def merge_results (self):
-        if (self.core_index != None) or (self.dp_core_count == 1):
-            # nothing to do
+        if self.options.dry:
             return
 
-        inputs = ["{0}-{1}".format(self.output_filename, index) for index in xrange(0, self.dp_core_count)]
-        merge_cap_files(inputs, self.output_filename, delete_src = True)
+        if self.options.cores == 1:
+            return
+
+        if self.options.core_index != None:
+            return
+
+
+        inputs = ["{0}-{1}".format(self.options.output_file, index) for index in xrange(0, self.options.cores)]
+        merge_cap_files(inputs, self.options.output_file, delete_src = True)
 
 
 
@@ -180,8 +195,8 @@ def is_valid_file(filename):
 
 def unsigned_int (x):
     x = int(x)
-    if x <= 0:
-        raise argparse.ArgumentTypeError("argument must be >= 1")
+    if x < 0:
+        raise argparse.ArgumentTypeError("argument must be >= 0")
 
     return x
 
@@ -207,16 +222,26 @@ def setParserOptions():
                         default = None,
                         type = int)
 
-    parser.add_argument("-j", "--join",
-                        help = "run and join output from 0..core_count [default is False]",
-                        default = False,
-                        type = bool)
+    parser.add_argument("-r", "--release",
+                        help = "runs on release image instead of debug [default is False]",
+                        action = "store_true",
+                        default = False)
+
+    parser.add_argument("-s", "--dry",
+                        help = "dry run only (nothing will be written to the file) [default is False]",
+                        action = "store_true",
+                        default = False)
 
     parser.add_argument("-l", "--limit",
                         help = "limit test total packet count [default is 5000]",
                         default = 5000,
                         type = unsigned_int)
 
+    parser.add_argument('-m', '--multiplier',
+                        help = parsing_opts.match_multiplier_help,
+                        dest = 'mult',
+                        default = {'type':'raw', 'value':1, 'op': 'abs'},
+                        type = parsing_opts.match_multiplier_strict)
 
     group = parser.add_mutually_exclusive_group()
 
@@ -230,6 +255,11 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
+    group.add_argument("--json",
+                       help = "generate JSON output only to stdout [default is False]",
+                       action = "store_true",
+                       default = False)
+
     return parser
 
 
@@ -239,6 +269,9 @@ def validate_args (parser, options):
         if not options.core_index in xrange(0, options.cores):
             parser.error("DP core index valid range is 0 to {0}".format(options.cores - 1))
 
+    # zero is ok - no limit, but other values must be at least as the number of cores
+    if (options.limit != 0) and options.limit < options.cores:
+        parser.error("limit cannot be lower than number of DP cores")
 
 
 def main ():
@@ -247,14 +280,7 @@ def main ():
 
     validate_args(parser, options)
 
-    r = SimRun(options.input_file,
-               options.cores,
-               options.core_index,
-               options.limit,
-               options.output_file,
-               options.valgrind,
-               options.gdb,
-               options.limit)
+    r = SimRun(options)
 
     r.run()
 

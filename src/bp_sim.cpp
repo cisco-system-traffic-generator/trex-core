@@ -3537,9 +3537,6 @@ int CNodeGenerator::flush_file(dsec_t max_time,
             }
         }
 
-        //#ifndef RTE_DPDK
-        //thread->check_msgs();
-        //#endif
 
         uint8_t type=node->m_type;
 
@@ -3553,7 +3550,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
              } else {
                  node_sl->handle(thread);
 
-                 #ifdef _DEBUG
+                 #ifdef TREX_SIM
                  update_stl_stats(node_sl);
                  if (has_limit_reached()) {
                      thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);

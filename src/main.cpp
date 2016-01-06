@@ -36,7 +36,8 @@ using namespace std;
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_MAC_FILE,
-       OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT};
+       OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
+       OPT_DRY_RUN};
 
 
 
@@ -75,15 +76,11 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_DP_CORE_COUNT, "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX, "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,         "--limit",      SO_REQ_SEP },
+    { OPT_DRY_RUN,       "--dry",      SO_NONE },
 
     
     SO_END_OF_OPTIONS
 };
-
-
-static bool in_range(int x, int low, int high) {
-    return ( (x >= low) && (x <= high) );
-}
 
 static int usage(){
 
@@ -189,6 +186,10 @@ static int parse_options(int argc,
                 params["limit"] = atoi(args.OptionArg());
                 break;
 
+            case OPT_DRY_RUN:
+                params["dry"] = 1;
+                break;
+
             default:
                 usage();
                 return -1;
@@ -277,12 +278,18 @@ int main(int argc , char * argv[]){
                 params["limit"] = 5000;
             }
 
+            if (params.count("dry") == 0) {
+                params["dry"] = 0;
+            }
+
             return st.run(CGlobalInfo::m_options.cfg_file,
                           CGlobalInfo::m_options.out_file,
                           2,
                           params["dp_core_count"],
                           params["dp_core_index"],
-                          params["limit"]);
+                          params["limit"],
+                          (params["dry"] == 1)
+                          );
         }
     }
 }

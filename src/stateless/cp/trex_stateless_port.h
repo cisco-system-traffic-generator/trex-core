@@ -259,6 +259,10 @@ public:
         return m_stream_table.get_stream_by_id(stream_id);
     }
 
+    int get_stream_count() {
+        return m_stream_table.size();
+    }
+
     void get_id_list(std::vector<uint32_t> &id_list) {
         m_stream_table.get_id_list(id_list);
     }
