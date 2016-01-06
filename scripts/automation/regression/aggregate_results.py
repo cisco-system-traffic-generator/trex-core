@@ -138,6 +138,64 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
     html_output += '\n</table>\n</div>'
     return html_output
 
+style_css = """
+html {overflow-y:scroll;}
+
+body {
+    font-size:12px;
+    color:#000000;
+    background-color:#ffffff;
+    margin:0px;
+    font-family:verdana,helvetica,arial,sans-serif;
+}
+
+div {width:100%;}
+
+table,th,td,input,textarea {
+    font-size:100%;
+}
+
+table.reference, table.reference_fail {
+    background-color:#ffffff;
+    border:1px solid #c3c3c3;
+    border-collapse:collapse;
+    vertical-align:middle;
+}
+
+table.reference th {
+    background-color:#e5eecc;
+    border:1px solid #c3c3c3;
+    padding:3px;
+}
+
+table.reference_fail th {
+    background-color:#ffcccc;
+    border:1px solid #c3c3c3;
+    padding:3px;
+}
+
+
+table.reference td, table.reference_fail td {
+    border:1px solid #c3c3c3;
+    padding:3px;
+}
+
+a.example {font-weight:bold}
+
+#a:link,a:visited {color:#900B09; background-color:transparent}
+#a:hover,a:active {color:#FF0000; background-color:transparent}
+
+.linktr {
+    cursor: pointer;
+}
+
+.linktext {
+    color:#0000FF;
+    text-decoration: underline;
+}
+"""
+
+
 # main
 if __name__ == '__main__':
 
@@ -276,8 +334,6 @@ if __name__ == '__main__':
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <style type="text/css">
 '''
-    with open('style.css') as f:
-        style_css = f.read()
     html_output += style_css
     html_output +='''
 </style>
