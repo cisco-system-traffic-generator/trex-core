@@ -1,0 +1,11 @@
+################################################################
+####         T-Rex nightly test configuration file          ####
+################################################################
+
+
+# dummy setup, all Trex tests are expected to be skipped
+
+trex:
+  hostname       : csi-trex-04
+  cores          : 2
+  modes          : [loopback, virtual, dummy_mode]

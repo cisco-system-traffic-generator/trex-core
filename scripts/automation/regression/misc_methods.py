@@ -38,7 +38,7 @@ def run_remote_command(host, passwd, command_string):
     return_code, stdout, stderr = run_command(cmd)
     if return_code == 0:
         return (return_code, stdout, stderr)
-    else:
+    elif passwd is not None:
         print 'Trying connection with expect + sshpass.exp...'
         cmd = 'sshpass.exp %s %s root "%s"' % (passwd, host, command_string)
         return_code, stdout, stderr = run_command(cmd)
@@ -128,7 +128,7 @@ def load_complete_config_file (filepath):
             
             # Handle T-Rex configuration
             trex_config['trex_name']         = config["trex"]["hostname"]
-            trex_config['trex_password']     = config["trex"]["password"]
+            trex_config['trex_password']     = config["trex"].get("password")
             #trex_config['trex_is_dual']      = config["trex"]["is_dual"]
             trex_config['trex_cores']        = int(config["trex"]["cores"])
             #trex_config['trex_latency']      = int(config["trex"]["latency"])
