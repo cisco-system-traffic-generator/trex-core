@@ -154,7 +154,7 @@ private:
     TrexPublisher   *m_publisher;
     CFlowGenList     m_fl;
     CErfIFStl        m_erf_vif;
-    CNullIF          m_null_erf_vif;
+    CErfIFStlNull    m_null_erf_vif;
     bool             m_verbose;
 
     int              m_port_count;

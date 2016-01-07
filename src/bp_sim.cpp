@@ -4705,13 +4705,11 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
             rte_pktmbuf_free(m);
 
         }
-    
-        BP_ASSERT(m_writer);
-        bool res=m_writer->write_packet(m_raw);
-    
-    
-        BP_ASSERT(res);
+
+        int rc = write_pkt(m_raw);
+        BP_ASSERT(rc == 0);
     }
+
     return (0);
 }
 
@@ -4749,13 +4747,9 @@ int CErfIF::send_node(CGenNode * node){
 
     //utl_DumpBuffer(stdout,p,  12,0);
 
-    BP_ASSERT(m_writer);
+    int rc = write_pkt(m_raw);
+    BP_ASSERT(rc == 0);
 
-    bool res=m_writer->write_packet(m_raw);
-
-    //utl_DumpBuffer(stdout,m_raw->raw,m_raw->pkt_len,0);
-
-    BP_ASSERT(res);
     rte_pktmbuf_free(m);
    }
    return (0);
