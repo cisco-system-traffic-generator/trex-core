@@ -1,0 +1,37 @@
+###############################################################
+####           TRex benchmark configuration file           ####
+###############################################################
+
+test_routing_imix_64    :
+  multiplier        : 8000
+  cores             : 7
+  cpu_to_core_ratio : 280
+  exp_latency       : 1
+
+test_routing_imix   :
+  multiplier        : 80
+  cores             : 4
+  cpu_to_core_ratio : 1800
+  exp_latency       : 1
+
+test_static_routing_imix_asymmetric:
+  stat_route_dict :
+    clients_start           : 16.0.0.1
+    servers_start           : 48.0.0.1
+    dual_port_mask          : 1.0.0.0
+    client_destination_mask : 255.0.0.0
+    server_destination_mask : 255.0.0.0
+  multiplier        : 70
+  cores             : 3
+  cpu_to_core_ratio : 1800
+  exp_latency       : 1
+
+test_ipv6_simple    :
+  multiplier        : 80
+  cores             : 7
+  cpu_to_core_ratio : 30070000
+  cpu2core_custom_dev: YES
+  cpu2core_dev : 0.07
+
+
+

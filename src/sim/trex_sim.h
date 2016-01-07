@@ -32,6 +32,12 @@ class TrexStateless;
 class TrexPublisher;
 class DpToCpHandler;
 
+
+static inline bool 
+in_range(int x, int low, int high) {
+    return ( (x >= low) && (x <= high) );
+}
+
 /**
  * interface for a sim target
  * 
@@ -103,7 +109,8 @@ public:
             int port_count,
             int dp_core_count,
             int dp_core_index,
-            int limit);
+            int limit,
+            bool is_dry_run);
 
     TrexStateless * get_stateless_obj() {
         return m_trex_stateless;
@@ -122,11 +129,21 @@ private:
     void execute_json(const std::string &json_filename);
 
     void run_dp(const std::string &out_filename);
-    uint64_t run_dp_core(int core_index, const std::string &out_filename);
+
+    void run_dp_core(int core_index,
+                     const std::string &out_filename,
+                     uint64_t &simulated_pkts,
+                     uint64_t &written_pkts);
 
     void flush_dp_to_cp_messages_core(int core_index);
 
     void validate_response(const Json::Value &resp);
+
+    bool should_capture_core(int i);
+    bool is_multiple_capture();
+    uint64_t get_limit_per_core(int core_index);
+
+    void show_intro(const std::string &out_filename);
 
     bool is_verbose() {
         return m_verbose;
@@ -137,12 +154,14 @@ private:
     TrexPublisher   *m_publisher;
     CFlowGenList     m_fl;
     CErfIFStl        m_erf_vif;
+    CErfIFStlNull    m_null_erf_vif;
     bool             m_verbose;
 
     int              m_port_count;
     int              m_dp_core_count;
     int              m_dp_core_index;
     uint64_t         m_limit;
+    bool             m_is_dry_run;
 };
 
 #endif /* __TREX_SIM_H__ */

@@ -199,10 +199,10 @@ if __name__ == "__main__":
     long_test                   = False
     xml_name                    = 'unit_test.xml'
     CTRexScenario.report_dir    = 'reports'
-    setup_dir                   = os.getenv('SETUP_DIR', '')#.rstrip('/')
+    setup_dir                   = os.getenv('SETUP_DIR', '').rstrip('/')
     CTRexScenario.setup_dir     = check_setup_path(setup_dir)
     if not CTRexScenario.setup_dir:
-        CTRexScenario.setup_dir = check_setup_path(os.path.join(os.pardir, os.pardir, os.pardir, os.pardir, 'trex-local', 'setups', setup_dir))
+        CTRexScenario.setup_dir = check_setup_path(os.path.join('setups', setup_dir))
     
     if CTRexScenario.setup_dir:
         CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)

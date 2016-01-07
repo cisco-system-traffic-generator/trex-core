@@ -134,6 +134,8 @@ public:
   
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
     
+    ~TrexStatelessPort();
+
     /**
      * acquire port
      * throws TrexException in case of an error
@@ -259,6 +261,10 @@ public:
         return m_stream_table.get_stream_by_id(stream_id);
     }
 
+    int get_stream_count() {
+        return m_stream_table.size();
+    }
+
     void get_id_list(std::vector<uint32_t> &id_list) {
         m_stream_table.get_id_list(id_list);
     }
@@ -297,6 +303,17 @@ public:
     TrexPortOwner & get_owner() {
         return m_owner;
     }
+
+
+    /**
+     * get the port effective rate (on a started / paused port)
+     * 
+     * @author imarom (07-Jan-16)
+     * 
+     * @param bps 
+     * @param pps 
+     */
+    void get_port_effective_rate(uint64_t &bps, uint64_t &pps);
 
 private:
 

@@ -3180,10 +3180,12 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
 int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
     m_cnt++;
 
+    #ifdef _DEBUG
     if ( m_preview_mode.getVMode() >2 ){
         fprintf(stdout," %4lu ,", (ulong)m_cnt);
         node_sl->Dump(stdout);
     }
+    #endif
 
     return (0);
 }
@@ -3537,9 +3539,6 @@ int CNodeGenerator::flush_file(dsec_t max_time,
             }
         }
 
-        //#ifndef RTE_DPDK
-        //thread->check_msgs();
-        //#endif
 
         uint8_t type=node->m_type;
 
@@ -3553,7 +3552,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
              } else {
                  node_sl->handle(thread);
 
-                 #ifdef _DEBUG
+                 #ifdef TREX_SIM
                  update_stl_stats(node_sl);
                  if (has_limit_reached()) {
                      thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
@@ -4706,13 +4705,11 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
             rte_pktmbuf_free(m);
 
         }
-    
-        BP_ASSERT(m_writer);
-        bool res=m_writer->write_packet(m_raw);
-    
-    
-        BP_ASSERT(res);
+
+        int rc = write_pkt(m_raw);
+        BP_ASSERT(rc == 0);
     }
+
     return (0);
 }
 
@@ -4750,13 +4747,9 @@ int CErfIF::send_node(CGenNode * node){
 
     //utl_DumpBuffer(stdout,p,  12,0);
 
-    BP_ASSERT(m_writer);
+    int rc = write_pkt(m_raw);
+    BP_ASSERT(rc == 0);
 
-    bool res=m_writer->write_packet(m_raw);
-
-    //utl_DumpBuffer(stdout,m_raw->raw,m_raw->pkt_len,0);
-
-    BP_ASSERT(res);
     rte_pktmbuf_free(m);
    }
    return (0);

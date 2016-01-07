@@ -1,0 +1,133 @@
+###############################################################
+####           TRex benchmark configuration file           ####
+###############################################################
+
+test_nbar_simple :
+  multiplier        : 1.5 
+  cores             : 1
+  exp_gbps          : 0.5
+  cpu_to_core_ratio : 20800000
+  cpu2core_custom_dev: YES
+  cpu2core_dev : 0.07
+  exp_max_latency   : 1000
+
+  nbar_classification:
+    http          : 30.3
+    rtp_audio     : 21.06
+    oracle_sqlnet : 11.25
+    rtp           : 11.1
+    exchange      : 10.16
+    citrix        : 5.6
+    rtsp          : 2.84
+    sctp          : 0.65
+    ssl           : 0.8
+    sip           : 0.09
+    dns           : 1.95
+    smtp          : 0.57
+    pop3          : 0.36
+    unknown       : 3.19
+
+test_rx_check :
+  multiplier        : 0.8 
+  cores             : 1
+  rx_sample_rate    : 128
+  exp_gbps          : 0.5
+  cpu_to_core_ratio : 37270000
+  exp_bw            : 1
+  exp_latency       : 1
+
+test_nat_simple  : 
+  stat_route_dict :
+    clients_start           : 16.0.0.1
+    servers_start           : 48.0.0.1
+    dual_port_mask          : 1.0.0.0
+    client_destination_mask : 255.0.0.0
+    server_destination_mask : 255.0.0.0
+  nat_dict :
+    clients_net_start        : 16.0.0.0
+    client_acl_wildcard_mask : 0.0.0.255
+    dual_port_mask           : 1.0.0.0
+    pool_start               : 200.0.0.0
+    pool_netmask             : 255.255.255.0
+  multiplier        : 150 
+  cores             : 1
+  cpu_to_core_ratio : 37270000
+  exp_bw            : 1
+  exp_latency       : 1
+  allow_timeout_dev : YES
+
+test_nat_learning  : 
+  stat_route_dict :
+    clients_start           : 16.0.0.1
+    servers_start           : 48.0.0.1
+    dual_port_mask          : 1.0.0.0
+    client_destination_mask : 255.0.0.0
+    server_destination_mask : 255.0.0.0
+  multiplier        : 150 
+  cores             : 1
+  nat_opened        : 40000
+  cpu_to_core_ratio : 270
+  exp_bw            : 1
+  exp_latency       : 1
+  allow_timeout_dev : YES
+
+test_routing_imix_64    :
+  multiplier        : 28
+  cores             : 1
+  cpu_to_core_ratio : 280
+  exp_latency       : 1
+
+test_routing_imix   :
+  multiplier        : 1
+  cores             : 1
+  cpu_to_core_ratio : 1800
+  exp_latency       : 1
+
+test_static_routing_imix    :
+  stat_route_dict :
+    clients_start           : 16.0.0.1
+    servers_start           : 48.0.0.1
+    dual_port_mask          : 1.0.0.0
+    client_destination_mask : 255.0.0.0
+    server_destination_mask : 255.0.0.0
+  multiplier        : 0.7
+  cores             : 1
+  cpu_to_core_ratio : 1800
+  exp_latency       : 1
+
+test_static_routing_imix_asymmetric:
+  stat_route_dict :
+    clients_start           : 16.0.0.1
+    servers_start           : 48.0.0.1
+    dual_port_mask          : 1.0.0.0
+    client_destination_mask : 255.0.0.0
+    server_destination_mask : 255.0.0.0
+  multiplier        : 0.8
+  cores             : 1
+  cpu_to_core_ratio : 1800
+  exp_latency       : 1
+
+test_ipv6_simple    :
+  multiplier        : 1.5
+  cores             : 1
+  cpu_to_core_ratio : 30070000
+  cpu2core_custom_dev: YES
+  cpu2core_dev : 0.07
+
+test_rx_check_http_negative:
+    stat_route_dict :
+        clients_start           : 16.0.0.1
+        servers_start           : 48.0.0.1
+        dual_port_mask          : 1.0.0.0
+        client_destination_mask : 255.0.0.0
+        server_destination_mask : 255.0.0.0
+    nat_dict :
+        clients_net_start        : 16.0.0.0
+        client_acl_wildcard_mask : 0.0.0.255
+        dual_port_mask           : 1.0.0.0
+        pool_start               : 200.0.0.0
+        pool_netmask             : 255.255.255.0
+    multiplier        : 4000
+    cores             : 1
+    rx_sample_rate    : 32
+

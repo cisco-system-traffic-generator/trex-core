@@ -76,6 +76,11 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     m_graph_obj = NULL;
 }
 
+TrexStatelessPort::~TrexStatelessPort() {
+    if (m_graph_obj) {
+        delete m_graph_obj;
+    }
+}
 
 /**
  * acquire the port
@@ -588,6 +593,22 @@ TrexStatelessPort::validate(void) {
     return m_graph_obj;
 }
 
+
+
+void
+TrexStatelessPort::get_port_effective_rate(uint64_t &bps, uint64_t &pps) {
+
+    if (get_stream_count() == 0) {
+        return;
+    }
+
+    if (!m_graph_obj) {
+        generate_streams_graph();
+    }
+
+    bps = m_graph_obj->get_max_bps() * m_factor;
+    pps = m_graph_obj->get_max_pps() * m_factor;
+}
 
 /************* Trex Port Owner **************/
 

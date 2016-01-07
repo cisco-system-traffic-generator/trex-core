@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -79,6 +79,8 @@ extern "C" {
 #include "msg_manager.h"
 #include "platform_cfg.h"
 #include "latency.h"
+#include "main_dpdk.h"
+#include "debug.h"
 
 #include <internal_api/trex_platform_api.h>
 
@@ -119,8 +121,8 @@ static inline int get_is_latency_thread_enable(){
 }
 
 struct port_cfg_t;
-class  CPhyEthIF;
-class CPhyEthIFStats ;
+//class  CPhyEthIF;
+//class CPhyEthIFStats ;
 
 class CTRexExtendedDriverBase {
 public:
@@ -502,8 +504,8 @@ enum { OPT_HELP,
 	OPT_VLAN,
     OPT_VIRT_ONE_TX_RX_QUEUE,
     OPT_PREFIX,
-    OPT_MAC_SPLIT
-
+    OPT_MAC_SPLIT,
+    OPT_SEND_DEBUG_PKT
 };
 
 
@@ -562,6 +564,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_VIRT_ONE_TX_RX_QUEUE, "--vm-sim", SO_NONE }, 
     { OPT_PREFIX, "--prefix", SO_REQ_SEP }, 
     { OPT_MAC_SPLIT, "--mac-spread", SO_REQ_SEP },
+    { OPT_SEND_DEBUG_PKT, "--send-debug-pkt", SO_REQ_SEP },
 
     SO_END_OF_OPTIONS
 };
@@ -614,6 +617,9 @@ static int usage(){
     printf(" -pubd                      : disable monitors publishers  \n");
 
     printf(" -m                         : factor of bandwidth \n");
+    printf("  \n");
+    printf(" --send-debug-pkt [proto]   : Do not run traffic generator. Just send debug packet and dump receive queue.");
+    printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for 9K UDP\n");
     printf("  \n");
     printf(" -k  [sec]                  : run latency test before starting the test. it will wait for x sec sending packet and x sec after that  \n");
     printf("  \n");
@@ -897,6 +903,12 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.setDestMacSplit(true);
                 break;
 
+            case OPT_SEND_DEBUG_PKT:
+                sscanf(args.OptionArg(),"%d", &tmp_data);
+                po->m_debug_pkt_proto = (uint8_t)tmp_data;
+                break;
+
+
             default:
                 usage();
                 return -1;
@@ -1132,31 +1144,6 @@ typedef struct cnt_name_ {
 
 #define MY_REG(a) {a,(char *)#a}
 
-
-class CPhyEthIFStats {
-
-public:
-    uint64_t ipackets;  /**< Total number of successfully received packets. */
-    uint64_t ibytes;    /**< Total number of successfully received bytes. */
-
-    uint64_t f_ipackets;  /**< Total number of successfully received packets - filter SCTP*/
-    uint64_t f_ibytes;    /**< Total number of successfully received bytes. - filter SCTP */
-
-    uint64_t opackets;  /**< Total number of successfully transmitted packets.*/
-    uint64_t obytes;    /**< Total number of successfully transmitted bytes. */
-
-    uint64_t ierrors;   /**< Total number of erroneous received packets. */
-    uint64_t oerrors;   /**< Total number of failed transmitted packets. */
-    uint64_t imcasts;   /**< Total number of multicast received packets. */
-    uint64_t rx_nombuf; /**< Total number of RX mbuf allocation failures. */
-
-
-public:
-    void Clear();
-    void Dump(FILE *fd);
-    void DumpAll(FILE *fd);
-};
-
 void CPhyEthIFStats::Clear(){
 
     ipackets =0;
@@ -1204,165 +1191,6 @@ void CPhyEthIFStats::Dump(FILE *fd){
     DP_A(imcasts);     
     DP_A(rx_nombuf);   
 }
-
-
-
-class CPhyEthIF  {
-public:
-    CPhyEthIF (){
-        m_port_id=0;
-        m_rx_queue=0;
-    }
-    bool Create(uint8_t portid){
-        m_port_id      = portid;
-        m_last_rx_rate = 0.0;
-        m_last_tx_rate = 0.0;
-        m_last_tx_pps  = 0.0;
-        return (true);
-    }
-    void Delete();
-
-    void set_rx_queue(uint8_t rx_queue){
-        m_rx_queue=rx_queue;
-    }
-
-
-    void configure(uint16_t nb_rx_queue,
-				  uint16_t nb_tx_queue,
-				  const struct rte_eth_conf *eth_conf);
-
-    void macaddr_get(struct ether_addr *mac_addr);
-
-    void get_stats(CPhyEthIFStats *stats);
-
-    void get_stats_1g(CPhyEthIFStats *stats);
-
-
-    void rx_queue_setup(uint16_t rx_queue_id,
-                        uint16_t nb_rx_desc, 
-                        unsigned int socket_id,
-                        const struct rte_eth_rxconf *rx_conf,
-                        struct rte_mempool *mb_pool);
-
-    void tx_queue_setup(uint16_t tx_queue_id,
-                        uint16_t nb_tx_desc, 
-                        unsigned int socket_id,
-                        const struct rte_eth_txconf *tx_conf);
-
-    void configure_rx_drop_queue();
-
-    void configure_rx_duplicate_rules();
-
-    void start();
-
-    void stop();
-
-    void update_link_status();
-
-    bool is_link_up(){
-        return (m_link.link_status?true:false);
-    }
-
-    void dump_link(FILE *fd);
-
-    void disable_flow_control();
-
-    void set_promiscuous(bool enable);
-
-    void add_mac(char * mac);
-
-
-    bool get_promiscuous();
-
-    void dump_stats(FILE *fd);
-
-    void update_counters();
-
-
-    void stats_clear();
-
-    uint8_t             get_port_id(){
-            return (m_port_id);
-    }
-
-    float get_last_tx_rate(){
-        return (m_last_tx_rate);
-    }
-
-    float get_last_rx_rate(){
-        return (m_last_rx_rate);
-    }
-
-    float get_last_tx_pps_rate(){
-        return (m_last_tx_pps);
-    }
-
-    float get_last_rx_pps_rate(){
-        return (m_last_rx_pps);
-    }
-
-    CPhyEthIFStats     & get_stats(){
-              return ( m_stats );
-    }
-
-    void flush_rx_queue(void);
-
-public:
-
-    inline uint16_t  tx_burst(uint16_t queue_id,
-                                struct rte_mbuf **tx_pkts, 
-                                uint16_t nb_pkts);
-
-    inline uint16_t  rx_burst(uint16_t queue_id,
-                                struct rte_mbuf **rx_pkts, 
-                                uint16_t nb_pkts);
-
-
-    inline uint32_t pci_reg_read(uint32_t reg_off){
-    	void *reg_addr;
-    	uint32_t reg_v;
-    	reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
-    			    reg_off);
-        reg_v = *((volatile uint32_t *)reg_addr);
-        return rte_le_to_cpu_32(reg_v);
-    }
-
-
-    inline void pci_reg_write(uint32_t reg_off, 
-                              uint32_t reg_v){
-    	void *reg_addr;
-    
-    	reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
-    			    reg_off);
-    	*((volatile uint32_t *)reg_addr) = rte_cpu_to_le_32(reg_v);
-    }
-
-    void dump_stats_extended(FILE *fd);
-
-    uint8_t                  get_rte_port_id(void){
-                    return ( m_port_id );
-    }
-private:
-    uint8_t                  m_port_id;
-    uint8_t                  m_rx_queue;
-    struct rte_eth_link      m_link;
-    uint64_t                 m_sw_try_tx_pkt;
-    uint64_t                 m_sw_tx_drop_pkt;
-    CBwMeasure               m_bw_tx;
-    CBwMeasure               m_bw_rx;
-    CPPSMeasure              m_pps_tx;
-    CPPSMeasure              m_pps_rx;
-
-    CPhyEthIFStats           m_stats;
-
-    float                    m_last_tx_rate;
-    float                    m_last_rx_rate;
-    float                    m_last_tx_pps;
-    float                    m_last_rx_pps;
-public:
-    struct rte_eth_dev_info  m_dev_info;   
-};
-
 
 void CPhyEthIF::flush_rx_queue(void){
 
@@ -1488,8 +1316,8 @@ void CPhyEthIF::configure_rx_duplicate_rules(){
 
 
 void CPhyEthIF::configure_rx_drop_queue(){
-
-    if ( get_vm_one_queue_enable() ) {
+    // In debug mode, we want to see all packets. Don't want to disable any queue.
+    if ( get_vm_one_queue_enable() || (CGlobalInfo::m_options.m_debug_pkt_proto != 0)) {
         return;
     }
     if ( CGlobalInfo::m_options.is_latency_disabled()==false ) {
@@ -1810,25 +1638,6 @@ void CPhyEthIF::stats_clear(){
     rte_eth_stats_reset(m_port_id);
     m_stats.Clear();
 }
-
-inline uint16_t  CPhyEthIF::tx_burst(uint16_t queue_id,
-                                       struct rte_mbuf **tx_pkts, 
-                                       uint16_t nb_pkts){
-    uint16_t ret = rte_eth_tx_burst(m_port_id, queue_id, tx_pkts, nb_pkts);
-    return (ret);
-}
-
-
-inline uint16_t  CPhyEthIF::rx_burst(uint16_t queue_id,
-                                struct rte_mbuf **rx_pkts, 
-                                uint16_t nb_pkts){
-   return (rte_eth_rx_burst(m_port_id, queue_id,
-                                     rx_pkts, nb_pkts));
-
-}
-
-
-
 
 class CCorePerPort  {
 public:
@@ -2709,13 +2518,7 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
 
 }
 
-
-
-
-
-
-
-struct CGlobalTRex  {
+class CGlobalTRex  {
 
 public:
     CGlobalTRex (){
@@ -2723,50 +2526,37 @@ public:
        m_max_cores=1;
        m_cores_to_dual_ports=0;
        m_max_queues_per_port=0;
-       m_test =NULL;
        m_fl_was_init=false;
        m_expected_pps=0.0;                
        m_expected_cps=0.0;
        m_expected_bps=0.0;
        m_trex_stateless = NULL;
     }
-public:
 
     bool Create();
     void Delete();
-
     int  ixgbe_prob_init();
     int  cores_prob_init();
     int  queues_prob_init();
     int  ixgbe_start();
     int  ixgbe_rx_queue_flush();
     int  ixgbe_configure_mg();
-
-
     bool is_all_links_are_up(bool dump=false);
-    int  set_promisc_all(bool enable);
-
     int  reset_counters();
-
-public:
 
 private:
     /* try to stop all datapath cores */
     void try_stop_all_dp();
     /* send message to all dp cores */
     int  send_message_all_dp(TrexStatelessCpToDpMsgBase *msg);
-
     void check_for_dp_message_from_core(int thread_id);
     void check_for_dp_messages();
 
 public:
-
     int start_send_master();
     int start_master_stateless();
-
     int run_in_core(virtual_thread_id_t virt_core_id);
     int stop_core(virtual_thread_id_t virt_core_id);
-
     int core_for_latency(){
         if ( (!get_is_latency_thread_enable()) ){
             return (-1);
@@ -2775,14 +2565,10 @@ public:
             }
 
     }
-
     int run_in_laterncy_core();
-
     int run_in_master();
     int stop_master();
-
-
-    /* return the minimum number of dp cores need to support the active ports 
+    /* return the minimum number of dp cores needed to support the active ports 
        this is for c==1 or  m_cores_mul==1
     */
     int get_base_num_cores(){
@@ -2792,8 +2578,6 @@ public:
     int get_cores_tx(){
         /* 0 - master 
            num_of_cores - 
-
-                                                    
            last for latency */
         if ( (!get_is_latency_thread_enable()) ){
             return (m_max_cores - 1 );
@@ -2802,77 +2586,27 @@ public:
         }
     }
 
-
-
-
-public:
-    int test_send();
-
-
-
-    int rcv_send(int port,int queue_id);
-    int rcv_send_all(int queue_id);
-
 private:
     bool is_all_cores_finished();
-
-    int test_send_pkts(uint16_t queue_id,
-                          int pkt,
-                          int port);
-
-    int test_send_one_pkt(rte_mbuf_t *m,
-                          uint16_t queue_id,
-                          int port);
-
-    int create_pkt(uint8_t *pkt,int pkt_size);
-    rte_mbuf_t *  create_pkt_indirect(uint32_t new_pkt_size);
-
-    int create_udp_pkt();
-    int create_udp_9k_pkt();
-
-
-    int create_icmp_pkt();
-
-
 
 public:
     void dump_stats(FILE *fd,
                     std::string & json,CGlobalStats::DumpFormat format);
-
     void dump_template_info(std::string & json);
-
     bool sanity_check();
-
     void update_stats(void);
     void get_stats(CGlobalStats & stats);
-
-
     void dump_post_test_stats(FILE *fd);
-
     void dump_config(FILE *fd);
 
 public:
     port_cfg_t  m_port_cfg;
-
-    /*
-       exaple1 :  
-           req=4 ,m_max_ports =4   ,c=1 , l=1
-       
-       ==>    
-       m_max_cores = 4/2+1+1 =4;
-       m_cores_mul = 1
-       
-
-    */
-
     uint32_t    m_max_ports;    /* active number of ports supported options are  2,4,8,10,12  */
     uint32_t    m_max_cores;    /* current number of cores , include master and latency  ==> ( master)1+c*(m_max_ports>>1)+1( latency )  */
     uint32_t    m_cores_mul;    /* how cores multipler given  c=4 ==> m_cores_mul */
-
     uint32_t    m_max_queues_per_port;
     uint32_t    m_cores_to_dual_ports; /* number of ports that will handle dual ports */
     uint16_t    m_latency_tx_queue_id;
-
     // statistic 
     CPPSMeasure  m_cps;
     float        m_expected_pps;                
@@ -2880,335 +2614,26 @@ public:
     float        m_expected_bps;//bps           
     float        m_last_total_cps;
 
-
-
     CPhyEthIF   m_ports[BP_MAX_PORTS];
-    CCoreEthIF          m_cores_vif_sf[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve - stateful */
-    CCoreEthIFStateless m_cores_vif_sl[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserve - stateless*/
+    CCoreEthIF          m_cores_vif_sf[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateful */
+    CCoreEthIFStateless m_cores_vif_sl[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateless*/
     CCoreEthIF *        m_cores_vif[BP_MAX_CORES];
-
-
     CParserOption m_po ;
     CFlowGenList  m_fl;
     bool          m_fl_was_init;
-
     volatile uint8_t       m_signal[BP_MAX_CORES] __rte_cache_aligned ;
-
     CLatencyManager     m_mg;
     CTrexGlobalIoMode   m_io_modes;
 
 private:
-
-private:
-    rte_mbuf_t *        m_test;
-    uint64_t            m_test_drop;
-
     CLatencyHWPort      m_latency_vports[BP_MAX_PORTS];    /* read hardware driver */
     CLatencyVmPort      m_latency_vm_vports[BP_MAX_PORTS]; /* vm driver */
-
     CLatencyPktInfo     m_latency_pkt;
     TrexPublisher       m_zmq_publisher;
 
 public:
     TrexStateless       *m_trex_stateless;
 };
-
-
-
-int  CGlobalTRex::rcv_send(int port,int queue_id){
-
-    CPhyEthIF * lp=&m_ports[port];
-    rte_mbuf_t * rx_pkts[32];
-    printf(" test rx port:%d queue:%d \n",port,queue_id);
-    printf(" --------------\n");
-    uint16_t cnt=lp->rx_burst(queue_id,rx_pkts,32);
-
-    int i;
-    for (i=0; i<(int)cnt;i++) {
-        rte_mbuf_t * m=rx_pkts[i];
-        int pkt_size=rte_pktmbuf_pkt_len(m);
-        char *p=rte_pktmbuf_mtod(m, char*);
-        utl_DumpBuffer(stdout,p,pkt_size,0);
-        rte_pktmbuf_free(m);
-    }
-    return (0);
-}
-
-int  CGlobalTRex::rcv_send_all(int queue_id){
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        rcv_send(i,queue_id);
-    }
-    return (0);
-}
-
-
-
-
-int CGlobalTRex::test_send(){
-    //int i;
-
-    set_promisc_all(true);
-    create_udp_9k_pkt();
-    assert(m_test);
-
-    rte_mbuf_t * d= create_pkt_indirect(9*1024+18);
-    test_send_one_pkt(d,0,0);
-
-
-    //d= create_pkt_indirect(200);
-    //test_send_one_pkt(d,0,0);
-
-    printf(" ---------\n");
-    printf(" rx queue 0 \n");
-    printf(" ---------\n");
-    rcv_send_all(0);
-    printf("\n\n");
-
-    printf(" ---------\n");
-    printf(" rx queue 1 \n");
-    printf(" ---------\n");
-    rcv_send_all(1);
-    printf(" ---------\n");
-
-    delay(1000);
-
-    int j=0;
-   for (j=0; j<m_max_ports; j++) {
-        CPhyEthIF * lp=&m_ports[j];
-        printf(" port : %d \n",j);
-        printf(" ----------\n");
-
-        lp->update_counters();
-        lp->get_stats().Dump(stdout);
-        lp->dump_stats_extended(stdout);
-    }
-
-    return (0);
-
-#if 0
-
-
-    for (i=0; i<1; i++) {
-        //test_send_pkts(0,1,0);
-        //test_send_pkts(m_latency_tx_queue_id,12,0);
-        //test_send_pkts(m_latency_tx_queue_id,1,1);
-        //test_send_pkts(m_latency_tx_queue_id,1,2);
-        //test_send_pkts(m_latency_tx_queue_id,1,3);
-        test_send_pkts(0,1,0);
-
-        /*delay(1000);
-        fprintf(stdout," --------------------------------\n");
-        fprintf(stdout," after sending to port %d \n",i);
-        fprintf(stdout," --------------------------------\n");
-        dump_stats(stdout);
-        fprintf(stdout," --------------------------------\n");*/
-    }
-    //test_send_pkts(m_latency_tx_queue_id,1,1);
-    //test_send_pkts(m_latency_tx_queue_id,1,2);
-    //test_send_pkts(m_latency_tx_queue_id,1,3);
-
-
-    printf(" ---------\n");
-    printf(" rx queue 0 \n");
-    printf(" ---------\n");
-    rcv_send_all(0);
-    printf("\n\n");
-
-    printf(" ---------\n");
-    printf(" rx queue 1 \n");
-    printf(" ---------\n");
-    rcv_send_all(1);
-    printf(" ---------\n");
-
-    delay(1000);
-
-   #if 1
-    int j=0;
-   for (j=0; j<m_max_ports; j++) {
-        CPhyEthIF * lp=&m_ports[j];
-		printf(" port : %d \n",j);
-		printf(" ----------\n");
-
-		lp->update_counters();
-		lp->get_stats().Dump(stdout);
-        lp->dump_stats_extended(stdout);
-    }
-  /*for (j=0; j<4; j++) {
-       CPhyEthIF * lp=&m_ports[j];
-       lp->dump_stats_extended(stdout);
-   }*/
-   #endif
-
-    fprintf(stdout," drop : %llu \n", (unsigned long long)m_test_drop);
-
-    return (0);
-    #endif
-}
-
-
-
-const uint8_t udp_pkt[]={ 
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x08,0x00,
-
-    0x45,0x00,0x00,0x81,
-    0xaf,0x7e,0x00,0x00,
-    0xfe,0x06,0xd9,0x23,
-    0x01,0x01,0x01,0x01,
-    0x3d,0xad,0x72,0x1b,
-
-    0x11,0x11,
-    0x11,0x11,
-
-    0x00,0x6d,
-	0x00,0x00,
-
-    0x64,0x31,0x3a,0x61,
-    0x64,0x32,0x3a,0x69,0x64,
-    0x32,0x30,0x3a,0xd0,0x0e,
-    0xa1,0x4b,0x7b,0xbd,0xbd,
-    0x16,0xc6,0xdb,0xc4,0xbb,0x43,
-    0xf9,0x4b,0x51,0x68,0x33,0x72,
-    0x20,0x39,0x3a,0x69,0x6e,0x66,0x6f,
-    0x5f,0x68,0x61,0x73,0x68,0x32,0x30,0x3a,0xee,0xc6,0xa3,
-    0xd3,0x13,0xa8,0x43,0x06,0x03,0xd8,0x9e,0x3f,0x67,0x6f,
-    0xe7,0x0a,0xfd,0x18,0x13,0x8d,0x65,0x31,0x3a,0x71,0x39,
-    0x3a,0x67,0x65,0x74,0x5f,0x70,0x65,0x65,0x72,0x73,0x31,
-    0x3a,0x74,0x38,0x3a,0x3d,0xeb,0x0c,0xbf,0x0d,0x6a,0x0d,
-    0xa5,0x31,0x3a,0x79,0x31,0x3a,0x71,0x65,0x87,0xa6,0x7d,
-    0xe7
-};
-
-
-const uint8_t icmp_pkt1[]={
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x00,0x00,0x00,0x01,0x00,0x00,
-    0x08,0x00,
-
-    0x45,0x02,0x00,0x30,
-    0x00,0x00,0x40,0x00,
-    0xff,0x01,0xbd,0x04,
-    0x9b,0xe6,0x18,0x9b, //SIP
-    0xcb,0xff,0xfc,0xc2, //DIP
-
-    0x08, 0x00, 
-    0x01, 0x02,  //checksum
-    0xaa, 0xbb,  // id
-    0x00, 0x00,  // Sequence number
-
-    0x11,0x22,0x33,0x44, // magic 
-    0x00,0x00,0x00,0x00, //64 bit counter
-    0x00,0x00,0x00,0x00,
-    0x00,0x01,0xa0,0x00, //seq
-    0x00,0x00,0x00,0x00,
-
-}; 
-
-
-
-
-int CGlobalTRex::create_pkt(uint8_t *pkt,int pkt_size){
-
-    rte_mbuf_t * m= CGlobalInfo::pktmbuf_alloc(0,pkt_size);
-    if ( unlikely(m==0) )  {
-        printf("ERROR no packets \n");
-        return (0);
-    }
-    char *p=rte_pktmbuf_append(m, pkt_size);
-    assert(p);
-    /* set pkt data */
-    memcpy(p,pkt,pkt_size);
-    m_test = m;
-    return (0);
-}
-
-rte_mbuf_t *  CGlobalTRex::create_pkt_indirect(uint32_t new_pkt_size){
-
-    rte_mbuf_t * d= CGlobalInfo::pktmbuf_alloc(0,60);
-    assert(d);
-    rte_pktmbuf_attach(d,m_test);
-    d->data_len =new_pkt_size;
-    d->pkt_len =new_pkt_size;
-    return (d);
-}
-
-int CGlobalTRex::create_udp_pkt(){
-    return (create_pkt((uint8_t*)udp_pkt,sizeof(udp_pkt)));
-}
-
-int CGlobalTRex::create_udp_9k_pkt(){
-    uint16_t pkt_size=9*1024+21;
-    uint8_t *p=(uint8_t *)malloc(9*1024+22);
-    assert(p);
-    memset(p,0x55,pkt_size);
-    memcpy(p,(uint8_t*)udp_pkt,sizeof(udp_pkt));
-    create_pkt(p,pkt_size);
-    free(p);
-    return (0);
-}
-
-
-
-int CGlobalTRex::create_icmp_pkt(){
-    return (create_pkt((uint8_t*)icmp_pkt1,sizeof(icmp_pkt1)));
-}
-
-int CGlobalTRex::test_send_one_pkt(rte_mbuf_t *m,
-                                    uint16_t queue_id,
-                                      int port){
-
-    CPhyEthIF * lp=&m_ports[port];
-    rte_mbuf_t * tx_pkts[1];
-    tx_pkts[0]=m;
-
-    uint16_t res=lp->tx_burst(queue_id,tx_pkts,1);
-    if ((1-res)>0) {
-        m_test_drop+=(1-res);
-    }
-    return (0);
-}
-
-
-/* test by sending 10 packets ...*/
-int CGlobalTRex::test_send_pkts(uint16_t queue_id,
-                                      int pkt,
-                                      int port){
-
-    CPhyEthIF * lp=&m_ports[port];
-    rte_mbuf_t * tx_pkts[32];
-    if (pkt >32 ) {
-        pkt =32;
-    }
-
-    int i;
-    for (i=0; i<pkt; i++) {
-        rte_mbuf_refcnt_update(m_test,1);
-        tx_pkts[i]=m_test;
-    }
-    uint16_t res=lp->tx_burst(queue_id,tx_pkts,pkt);
-    if ((pkt-res)>0) {
-        m_test_drop+=(pkt-res);
-    }
-    return (0);
-}
-
-
-
-
-
-int  CGlobalTRex::set_promisc_all(bool enable){
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CPhyEthIF * _if=&m_ports[i];
-        _if->set_promiscuous(enable);
-    }
-
-    return (0);
-}
-
-
 
 int  CGlobalTRex::reset_counters(){
     int i;
@@ -4809,13 +4234,11 @@ int main_test(int argc , char * argv[]){
         g_trex.start_send_master();
     }
 
-
-	/* TBD_FDIR */
-#if 0
-	printf(" test_send \n");
-	g_trex.test_send();
-    exit(1);
-#endif
+    if (CGlobalInfo::m_options.m_debug_pkt_proto != 0) {
+        CTrexDebug debug = CTrexDebug(g_trex.m_ports, g_trex.m_max_ports);
+	debug.test_send(CGlobalInfo::m_options.m_debug_pkt_proto);
+	exit(1);
+    }
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
         rte_eal_mp_remote_launch(latency_one_lcore, NULL, CALL_MASTER);

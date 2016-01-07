@@ -26,8 +26,33 @@ limitations under the License.
 #include <json/json.h>
 #include <stdexcept>
 #include <sstream>
+#include <trex_streams_compiler.h>
 
 using namespace std;
+
+/****** utils ******/
+static string format_num(double num, const string &suffix = "") {
+    const char x[] = {' ','K','M','G','T','P'};
+
+    double my_num = num;
+
+    for (int i = 0; i < sizeof(x); i++) {
+        if (std::abs(my_num) < 1000.0) {
+            stringstream ss;
+
+            char buf[100];
+            snprintf(buf, sizeof(buf), "%.2f", my_num);
+
+            ss << buf << " " << x[i] << suffix;
+            return ss.str();
+
+        } else {
+            my_num /= 1000.0;
+        }
+    }
+
+    return "NaN";
+}
 
 TrexStateless * get_stateless_obj() {
     return SimStateless::get_instance().get_stateless_obj();
@@ -57,8 +82,12 @@ public:
 
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
     }
+
     virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+        driver_name = "TEST";
+        speed = TrexPlatformApi::SPEED_10G;
     }
+
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
     }
 
@@ -121,6 +150,7 @@ SimStateless::SimStateless() {
     m_dp_core_index     = -1;
     m_port_count        = -1;
     m_limit             = 0;
+    m_is_dry_run        = false;
 
     /* override ownership checks */
     TrexRpcCommand::test_set_override_ownership(true);
@@ -133,17 +163,19 @@ SimStateless::run(const string &json_filename,
                   int port_count,
                   int dp_core_count,
                   int dp_core_index,
-                  int limit) {
+                  int limit,
+                  bool is_dry_run) {
 
     assert(dp_core_count > 0);
 
     /* -1 means its not set or positive value between 0 and the dp core count - 1*/
-    assert( (dp_core_index == -1) || ( (dp_core_index >=0 ) && (dp_core_index < dp_core_count) ) );
+    assert( (dp_core_index == -1) || ( in_range(dp_core_index, 0, dp_core_count - 1)) );
 
     m_dp_core_count = dp_core_count;
     m_dp_core_index = dp_core_index;
     m_port_count    = port_count;
     m_limit         = limit;
+    m_is_dry_run    = is_dry_run;
 
     prepare_dataplane();
     prepare_control_plane();
@@ -220,7 +252,11 @@ SimStateless::prepare_dataplane() {
     m_fl.generate_p_thread_info(m_dp_core_count);
 
     for (int i = 0; i < m_dp_core_count; i++) {
-        m_fl.m_threads_info[i]->set_vif(&m_erf_vif);
+        if (should_capture_core(i)) {
+            m_fl.m_threads_info[i]->set_vif(&m_erf_vif);
+        } else {
+            m_fl.m_threads_info[i]->set_vif(&m_null_erf_vif);
+        }
     }
 }
 
@@ -267,60 +303,125 @@ SimStateless::validate_response(const Json::Value &resp) {
   
 }
 
+static inline bool is_debug() {
+    #ifdef DEBUG
+    return true;
+    #else
+    return false;
+    #endif
+}
+
+void
+SimStateless::show_intro(const std::string &out_filename) {
+    uint64_t bps = 0;
+    uint64_t pps = 0;
+
+    std::cout << "\nGeneral info:\n";
+    std::cout << "------------\n\n";
+
+    std::cout << "image type:               " << (is_debug() ? "debug" : "release") << "\n";
+    std::cout << "I/O output:               " << (m_is_dry_run ? "*DRY*" : out_filename) << "\n";
+
+    if (m_limit > 0) {
+        std::cout << "packet limit:             " << m_limit << "\n";
+    } else {
+        std::cout << "packet limit:             " << "*NO LIMIT*" << "\n";
+    }
+
+    if (m_dp_core_index != -1) {
+        std::cout << "core recording:           " << m_dp_core_index << "\n";
+    } else {
+        std::cout << "core recording:           merge all\n";
+    }
+
+    std::cout << "\nConfiguration info:\n";
+    std::cout << "-------------------\n\n";
+
+    std::cout << "ports:                    " << m_port_count << "\n";
+    std::cout << "cores:                    " << m_dp_core_count << "\n";
+   
+
+    std::cout << "\nPort Config:\n";
+    std::cout << "------------\n\n";
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(0);
+
+    std::cout << "stream count:             " << port->get_stream_count() << "\n";
+
+    port->get_port_effective_rate(bps, pps);
+
+    std::cout << "max BPS:                  " << format_num(bps, "bps") << "\n";
+    std::cout << "max PPS:                  " << format_num(pps, "pps") << "\n";
+
+    std::cout << "\n\nStarting simulation...\n";
+}
 
 void
 SimStateless::run_dp(const std::string &out_filename) {
-    uint64_t pkt_cnt = 0;
+   uint64_t simulated_pkts_cnt = 0;
+   uint64_t written_pkts_cnt = 0;
 
-    if (m_dp_core_count == 1) {
-        pkt_cnt = run_dp_core(0, out_filename);
-    } else {
+   show_intro(out_filename);
 
-        /* do we have a specific core index to capture ? */
-        if (m_dp_core_index != -1) {
-            for (int i = 0; i < m_dp_core_count; i++) {
-                if (i == m_dp_core_index) {
-                    pkt_cnt += run_dp_core(i, out_filename);
-                } else {
-                    run_dp_core(i, "/dev/null");
-                }
-            }
-        } else {
-            for (int i = 0; i < m_dp_core_count; i++) {
-                std::stringstream ss;
-                ss << out_filename << "-" << i;
-                pkt_cnt += run_dp_core(i, ss.str());
-            }
+    if (is_multiple_capture()) {
+        for (int i = 0; i < m_dp_core_count; i++) {
+            std::stringstream ss;
+            ss << out_filename << "-" << i;
+            run_dp_core(i, ss.str(), simulated_pkts_cnt, written_pkts_cnt);
         }
 
-    }
-
-  
-    std::cout << "\n";
-    std::cout << "ports:        " << m_port_count << "\n";
-    std::cout << "cores:        " << m_dp_core_count << "\n";
-
-    if (m_dp_core_index != -1) {
-        std::cout << "core index:   " << m_dp_core_index << "\n";
     } else {
-        std::cout << "core index:   merge all\n";
+        for (int i = 0; i < m_dp_core_count; i++) {
+            run_dp_core(i, out_filename, simulated_pkts_cnt, written_pkts_cnt);
+        }
     }
 
-    std::cout << "pkt limit:    " << m_limit << "\n";
-    std::cout << "\nwritten " << pkt_cnt << " packets " << "to '" << out_filename << "'\n\n";
+    std::cout << "\n\nSimulation summary:\n";
+    std::cout << "-------------------\n\n";
+    std::cout << "simulated " << simulated_pkts_cnt << " packets\n";
+
+    if (m_is_dry_run) {
+        std::cout << "*DRY RUN* - no packets were written\n";
+    } else {
+        std::cout << "written " << written_pkts_cnt << " packets " << "to '" << out_filename << "'\n\n";
+    }
+
+    std::cout << "\n";
 }
 
-uint64_t
-SimStateless::run_dp_core(int core_index, const std::string &out_filename) {
+
+uint64_t 
+SimStateless::get_limit_per_core(int core_index) {
+    /* global no limit ? */
+    if (m_limit == 0) {
+        return (0);
+    } else {
+        uint64_t l = std::max((uint64_t)1, m_limit / m_dp_core_count);
+        if (core_index == 0) {
+            l += (m_limit % m_dp_core_count);
+        }
+        return l;
+    }
+}
+
+void
+SimStateless::run_dp_core(int core_index,
+                          const std::string &out_filename,
+                          uint64_t &simulated_pkts,
+                          uint64_t &written_pkts) {
 
     CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
 
-    lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview, m_limit / m_dp_core_count);
+    lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview, get_limit_per_core(core_index));
     lpt->start_stateless_daemon_simulation();
 
     flush_dp_to_cp_messages_core(core_index);
 
-    return lpt->m_node_gen.m_cnt;
+    simulated_pkts += lpt->m_node_gen.m_cnt;
+
+    if (should_capture_core(core_index)) {
+        written_pkts += lpt->m_node_gen.m_cnt;
+    }
 }
 
 
@@ -344,3 +445,30 @@ SimStateless::flush_dp_to_cp_messages_core(int core_index) {
         delete msg;
     }
 }
+
+bool
+SimStateless::should_capture_core(int i) {
+
+    /* dry run - no core should be recordered */
+    if (m_is_dry_run) {
+        return false;
+    }
+
+    /* no specific core index ? record all */
+    if (m_dp_core_index == -1) {
+        return true;
+    } else {
+        return (i == m_dp_core_index);
+    }
+}
+
+bool
+SimStateless::is_multiple_capture() {
+    /* dry run - no core should be recordered */
+    if (m_is_dry_run) {
+        return false;
+    }
+
+    return ( (m_dp_core_count > 1) && (m_dp_core_index == -1) );
+}
+

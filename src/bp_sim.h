@@ -776,6 +776,7 @@ public:
     uint16_t        m_run_flags;
     uint8_t         m_mac_splitter;
     uint8_t         m_l_pkt_mode;
+    uint16_t        m_debug_pkt_proto;
     trex_run_mode_e    m_run_mode;
 
 
@@ -1835,7 +1836,7 @@ public:
 
 protected:
 
-    void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
+    virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
 
     CFileWriterBase         * m_writer;
     CCapPktRaw              * m_raw;
@@ -1849,6 +1850,41 @@ public:
     virtual int send_node(CGenNode * node);
 };
 
+/**
+ * same as regular STL but no I/O (dry run)
+ * 
+ * @author imarom (07-Jan-16)
+ */
+class CErfIFStlNull : public CErfIFStl {
+public:
+
+    virtual int open_file(std::string file_name) {
+        return (0);
+    }
+
+    virtual int write_pkt(CCapPktRaw *pkt_raw) {
+        return (0);
+    }
+
+    virtual int close_file(void) {
+        return (0);
+    }
+
+    virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir) {
+
+    }
+
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p){
+        return (0);
+    }
+
+
+    virtual int flush_tx_queue(void){
+        return (0);
+
+    }
+
+};
 
 
 static inline int fill_pkt(CCapPktRaw  * raw,rte_mbuf_t * m){
