@@ -589,6 +589,16 @@ TrexStatelessPort::validate(void) {
 }
 
 
+
+void
+TrexStatelessPort::get_port_effective_rate(uint64_t &bps, uint64_t &pps) {
+    if (!m_graph_obj) {
+        return;
+    }
+    bps = m_graph_obj->get_max_bps() * m_factor;
+    pps = m_graph_obj->get_max_pps() * m_factor;
+}
+
 /************* Trex Port Owner **************/
 
 TrexPortOwner::TrexPortOwner() {

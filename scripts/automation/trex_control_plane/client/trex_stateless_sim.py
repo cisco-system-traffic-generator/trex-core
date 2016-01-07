@@ -165,7 +165,11 @@ class SimRun(object):
             cmd = ['gdb', '--args'] + cmd
 
         print "executing command: '{0}'".format(" ".join(cmd))
-        subprocess.call(cmd)
+        try:
+            subprocess.call(cmd)
+        except KeyboardInterrupt as e:
+            print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
+            exit(-1)
 
         self.merge_results()
 
@@ -181,8 +185,10 @@ class SimRun(object):
             return
 
 
+        print "Mering cores output to a single pcap file...\n"
         inputs = ["{0}-{1}".format(self.options.output_file, index) for index in xrange(0, self.options.cores)]
         merge_cap_files(inputs, self.options.output_file, delete_src = True)
+
 
 
 

@@ -302,6 +302,17 @@ public:
         return m_owner;
     }
 
+
+    /**
+     * get the port effective rate (on a started / paused port)
+     * 
+     * @author imarom (07-Jan-16)
+     * 
+     * @param bps 
+     * @param pps 
+     */
+    void get_port_effective_rate(uint64_t &bps, uint64_t &pps);
+
 private:
 
 

@@ -26,8 +26,33 @@ limitations under the License.
 #include <json/json.h>
 #include <stdexcept>
 #include <sstream>
+#include <trex_streams_compiler.h>
 
 using namespace std;
+
+/****** utils ******/
+static string format_num(double num, const string &suffix = "") {
+    const char x[] = {' ','K','M','G','T','P'};
+
+    double my_num = num;
+
+    for (int i = 0; i < sizeof(x); i++) {
+        if (std::abs(my_num) < 1000.0) {
+            stringstream ss;
+
+            char buf[100];
+            snprintf(buf, sizeof(buf), "%.2f", my_num);
+
+            ss << buf << " " << x[i] << suffix;
+            return ss.str();
+
+        } else {
+            my_num /= 1000.0;
+        }
+    }
+
+    return "NaN";
+}
 
 TrexStateless * get_stateless_obj() {
     return SimStateless::get_instance().get_stateless_obj();
@@ -57,8 +82,12 @@ public:
 
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
     }
+
     virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+        driver_name = "TEST";
+        speed = TrexPlatformApi::SPEED_10G;
     }
+
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
     }
 
@@ -284,7 +313,12 @@ static inline bool is_debug() {
 
 void
 SimStateless::show_intro(const std::string &out_filename) {
-    std::cout << "\nGeneral info:\n\n";
+    uint64_t bps = 0;
+    uint64_t pps = 0;
+
+    std::cout << "\nGeneral info:\n";
+    std::cout << "------------\n\n";
+
     std::cout << "image type:               " << (is_debug() ? "debug" : "release") << "\n";
     std::cout << "I/O output:               " << (m_is_dry_run ? "*DRY*" : out_filename) << "\n";
 
@@ -300,22 +334,32 @@ SimStateless::show_intro(const std::string &out_filename) {
         std::cout << "core recording:           merge all\n";
     }
 
-    std::cout << "\nConfiguration info:\n\n";
+    std::cout << "\nConfiguration info:\n";
+    std::cout << "-------------------\n\n";
 
     std::cout << "ports:                    " << m_port_count << "\n";
     std::cout << "cores:                    " << m_dp_core_count << "\n";
    
 
-    std::cout << "\nPort Config:\n\n";
-    //TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(0);
-    //std::cout << "stream count:" << port->get_stream_by_id()
+    std::cout << "\nPort Config:\n";
+    std::cout << "------------\n\n";
 
-    std::cout << "\nStarting simulation...\n";
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(0);
+
+    std::cout << "stream count:             " << port->get_stream_count() << "\n";
+
+    port->get_port_effective_rate(bps, pps);
+
+    std::cout << "max BPS:                  " << format_num(bps, "bps") << "\n";
+    std::cout << "max PPS:                  " << format_num(pps, "pps") << "\n";
+
+    std::cout << "\n\nStarting simulation...\n";
 }
 
 void
 SimStateless::run_dp(const std::string &out_filename) {
-    uint64_t pkt_cnt = 0;
+   uint64_t simulated_pkts_cnt = 0;
+   uint64_t written_pkts_cnt = 0;
 
    show_intro(out_filename);
 
@@ -323,17 +367,26 @@ SimStateless::run_dp(const std::string &out_filename) {
         for (int i = 0; i < m_dp_core_count; i++) {
             std::stringstream ss;
             ss << out_filename << "-" << i;
-            pkt_cnt += run_dp_core(i, ss.str());
+            run_dp_core(i, ss.str(), simulated_pkts_cnt, written_pkts_cnt);
         }
 
     } else {
         for (int i = 0; i < m_dp_core_count; i++) {
-            pkt_cnt += run_dp_core(i, out_filename);
+            run_dp_core(i, out_filename, simulated_pkts_cnt, written_pkts_cnt);
         }
     }
 
-  
-    std::cout << "\nwritten " << pkt_cnt << " packets " << "to '" << out_filename << "'\n\n";
+    std::cout << "\n\nSimulation summary:\n";
+    std::cout << "-------------------\n\n";
+    std::cout << "simulated " << simulated_pkts_cnt << " packets\n";
+
+    if (m_is_dry_run) {
+        std::cout << "*DRY RUN* - no packets were written\n";
+    } else {
+        std::cout << "written " << written_pkts_cnt << " packets " << "to '" << out_filename << "'\n\n";
+    }
+
+    std::cout << "\n";
 }
 
 
@@ -351,8 +404,11 @@ SimStateless::get_limit_per_core(int core_index) {
     }
 }
 
-uint64_t
-SimStateless::run_dp_core(int core_index, const std::string &out_filename) {
+void
+SimStateless::run_dp_core(int core_index,
+                          const std::string &out_filename,
+                          uint64_t &simulated_pkts,
+                          uint64_t &written_pkts) {
 
     CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
 
@@ -361,12 +417,11 @@ SimStateless::run_dp_core(int core_index, const std::string &out_filename) {
 
     flush_dp_to_cp_messages_core(core_index);
 
+    simulated_pkts += lpt->m_node_gen.m_cnt;
+
     if (should_capture_core(core_index)) {
-        return lpt->m_node_gen.m_cnt;
-    } else {
-        return (0);
+        written_pkts += lpt->m_node_gen.m_cnt;
     }
-    
 }
 
 

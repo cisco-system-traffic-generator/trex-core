@@ -3180,10 +3180,12 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
 int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
     m_cnt++;
 
+    #ifdef _DEBUG
     if ( m_preview_mode.getVMode() >2 ){
         fprintf(stdout," %4lu ,", (ulong)m_cnt);
         node_sl->Dump(stdout);
     }
+    #endif
 
     return (0);
 }
