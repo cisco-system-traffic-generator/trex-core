@@ -55,7 +55,6 @@ def calculate_diff_raw (samples):
     return total
 
 
-
 class CTRexInfoGenerator(object):
     """
     This object is responsible of generating stats and information from objects maintained at
@@ -81,16 +80,15 @@ class CTRexInfoGenerator(object):
     def generate_streams_info(self, port_id_list, stream_id_list):
         relevant_ports = self.__get_relevant_ports(port_id_list)
 
-        # TODO: change to dict comperhantion
         return_data = {}
-        for port_id in relevant_ports:
-            return_data[port_id] = self._generate_single_port_streams_info(port_id, stream_id_list)
+        for port_obj in relevant_ports:
+            streams_data = self._generate_single_port_streams_info(port_obj, stream_id_list)
+            hdr_key = "Port {port}: {yaml_file}".format(port= port_obj.port_id,
+                                                        yaml_file= streams_data.raw_data.get('referring_file', ''))
 
+            # TODO: test for other ports with same stream structure, and join them
+            return_data[hdr_key] = streams_data
         return return_data
-
-    @staticmethod
-    def _trim_packet_headers(headers_str):
-        pass
 
     def _generate_global_stats(self):
         # stats_obj = self._async_stats.get_general_stats()
@@ -184,34 +182,25 @@ class CTRexInfoGenerator(object):
 
         return {"port_status": ExportableStats(return_stats_data, stats_table)}
 
-    def _generate_single_port_streams_info(self, port_id, stream_id_list):
+    def _generate_single_port_streams_info(self, port_obj, stream_id_list):
 
-        return_stream_data = []
-        port_status = port_obj.generate_port_status()
+        return_streams_data = port_obj.generate_loaded_streams_sum(stream_id_list)
 
-        for stream_id in sorted(stream_id_list):
-            return_stream_data.append(OrderedDict([("packet_type", self._trim_packet_headers()),
-                                                   ("length", ),
-                                                   ("mode",),
-                                                   ("rate",),
-                                                   ("next_stream",)
-                                                   ]))
-
-        per_field_stats = OrderedDict([("owner", []),
-                                       ("state", []),
-                                       ("--", []),])
-
+        # FORMAT VALUES ON DEMAND
+        for stream_id, stream_id_sum in return_streams_data['streams'].iteritems():
+            stream_id_sum['rate_pps'] = CTRexStats.format_num(stream_id_sum['rate_pps'], suffix='pps')
+            stream_id_sum['packet_type'] = self._trim_packet_headers(stream_id_sum['packet_type'], 20)
 
         info_table = text_tables.TRexTextTable()
-        info_table.set_cols_align(["l"] + ["c"]*len(relevant_ports))
-        info_table.set_cols_width([10] + [20] * len(relevant_ports))
+        info_table.set_cols_align(["c"] + ["l"] + ["r"] + ["c"] + ["r"] + ["c"])
+        info_table.set_cols_width([4]   + [20]  + [8]   + [16]  + [10]  + [12])
 
-        info_table.add_rows([[k] + v
-                              for k, v in per_field_status.iteritems()],
+        info_table.add_rows([v.values()
+                             for k, v in return_streams_data['streams'].iteritems()],
                              header=False)
-        info_table.header(["stream id", "packet type", "length", "mode", "rate", "next stream"])
+        info_table.header(["ID", "packet type", "length", "mode", "rate", "next stream"])
 
-        return ExportableStats(return_stats_data, info_table)
+        return ExportableStats(return_streams_data, info_table)
 
 
     def __get_relevant_ports(self, port_id_list):
@@ -231,6 +220,13 @@ class CTRexInfoGenerator(object):
             if key in dict_dest_ref:
                 dict_dest_ref[key].append(val)
 
+    @staticmethod
+    def _trim_packet_headers(headers_str, trim_limit):
+        if len(headers_str) < trim_limit:
+            # do nothing
+            return headers_str
+        else:
+            return (headers_str[:trim_limit-3] + "...")
 
 
 

@@ -10,7 +10,7 @@ import copy
 import os
 
 StreamPack = namedtuple('StreamPack', ['stream_id', 'stream'])
-LoadedStreamList = namedtuple('LoadedStreamList', ['loaded', 'compiled'])
+LoadedStreamList = namedtuple('LoadedStreamList', ['name', 'loaded', 'compiled'])
 
 class CStreamList(object):
 
@@ -176,8 +176,10 @@ class CStream(object):
     def __init__(self):
         self.is_loaded = False
         self._is_compiled = False
+        self._pkt_bld_obj = CTRexPktBuilder()
         for field in CStream.FIELDS:
             setattr(self, field, None)
+
 
     def load_data(self, **kwargs):
         try:
@@ -206,8 +208,13 @@ class CStream(object):
                         binary = kwargs[k]["binary"]
                         if isinstance(binary, list):
                             setattr(self, k, kwargs[k])
+                            # TODO: load to _pkt_bld_obj also when passed as byte array!
                         elif isinstance(binary, str) and binary.endswith(".pcap"):
-                            self.load_packet_from_pcap(binary, kwargs[k]["meta"])
+                            # self.load_packet_from_pcap(binary, kwargs[k]["meta"])
+                            self._pkt_bld_obj.load_packet_from_pcap(binary)
+                            self._pkt_bld_obj.metadata = kwargs[k]["meta"]
+                            self.packet = self._pkt_bld_obj.dump_pkt()
+
                         else:
                             raise ValueError("Packet binary attribute has been loaded with unsupported value."
                                              "Supported values are reference to pcap file with SINGLE packet, "
@@ -254,6 +261,10 @@ class CStream(object):
         else:
             raise RuntimeError("CStream object isn't loaded with data. Use 'load_data' method.")
 
+    def get_stream_layers(self, depth_limit=Ellipsis):
+        stream_layers = self._pkt_bld_obj.get_packet_layers(depth_limit)
+        return "/".join(stream_layers)
+
 
 
 # describes a stream DB
@@ -273,8 +284,8 @@ class CStreamsDB(object):
 
         try:
             compiled_streams = stream_list.compile_streams()
-            rc = self.load_streams(stream_pack_name,
-                                   LoadedStreamList(loaded_obj,
+            rc = self.load_streams(LoadedStreamList(stream_pack_name,
+                                                    loaded_obj,
                                                     [StreamPack(v.stream_id, v.stream.dump())
                                                      for k, v in compiled_streams.items()]))
 
@@ -283,11 +294,11 @@ class CStreamsDB(object):
 
         return self.get_stream_pack(stream_pack_name)
 
-    def load_streams(self, name, LoadedStreamList_obj):
-        if name in self.stream_packs:
+    def load_streams(self, LoadedStreamList_obj):
+        if LoadedStreamList_obj.name in self.stream_packs:
             return False
         else:
-            self.stream_packs[name] = LoadedStreamList_obj
+            self.stream_packs[LoadedStreamList_obj.name] = LoadedStreamList_obj
             return True
 
     def remove_stream_packs(self, *names):

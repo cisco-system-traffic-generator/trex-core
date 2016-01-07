@@ -22,12 +22,11 @@ class TRexTextInfo(Texttable):
 def generate_trex_stats_table():
     pass
 
-def print_table_with_header(texttable_obj, header=""):
-    header = header.replace("_", " ").title()
+def print_table_with_header(texttable_obj, header="", untouched_header=""):
+    header = header.replace("_", " ").title() + untouched_header
     print format_text(header, 'cyan', 'underline') + "\n"
     print texttable_obj.draw() + "\n"
 
-    pass
 
 if __name__ == "__main__":
     pass

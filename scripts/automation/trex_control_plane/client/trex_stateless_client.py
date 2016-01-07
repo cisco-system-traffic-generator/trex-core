@@ -61,7 +61,7 @@ class CTRexStatelessClient(object):
         self.global_stats = trex_stats.CGlobalStats(self._connection_info,
                                                     self.server_version,
                                                     self.ports)
-        self.stats_generator = trex_stats.CTRexStatsGenerator(self.global_stats,
+        self.stats_generator = trex_stats.CTRexInfoGenerator(self.global_stats,
                                                               self.ports)
 
         self.events = []
@@ -538,14 +538,14 @@ class CTRexStatelessClient(object):
 
       
 
-    def add_stream_pack(self, stream_pack_list, port_id_list = None):
+    def add_stream_pack(self, stream_pack, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].add_streams(stream_pack_list))
+            rc.add(self.ports[port_id].add_streams(stream_pack))
 
         return rc
 
@@ -821,7 +821,7 @@ class CTRexStatelessClient(object):
             return rc
 
 
-        rc = self.add_stream_pack(stream_list.compiled, port_id_list)
+        rc = self.add_stream_pack(stream_list, port_id_list)
         rc.annotate("Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
         if rc.bad():
             return rc
@@ -860,6 +860,12 @@ class CTRexStatelessClient(object):
         for stats_type in stats_opts:
             stats_obj.update(self.stats_generator.generate_single_statistic(port_id_list, stats_type))
         return stats_obj
+
+    def cmd_streams(self, port_id_list, streams_mask=set()):
+
+        streams_obj = self.stats_generator.generate_streams_info(port_id_list, streams_mask)
+
+        return streams_obj
 
 
     ############## High Level API With Parser ################
@@ -916,7 +922,7 @@ class CTRexStatelessClient(object):
 
         else:
             # load streams from file
-            stream_list = None;
+            stream_list = None
             try:
               stream_list = self.streams_db.load_yaml_file(opts.file[0])
             except Exception as e:
@@ -1050,8 +1056,33 @@ class CTRexStatelessClient(object):
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
 
+        return RC_OK()
+
+    def cmd_streams_line(self, line):
+        '''Fetch streams statistics from TRex server by port\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "streams",
+                                         self.cmd_streams_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STREAMS_MASK,
+                                         parsing_opts.FULL_OUTPUT)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return RC_ERR("bad command line parameters")
+
+        streams = self.cmd_streams(opts.ports, set(opts.streams))
+
+        # print stats to screen
+        for stream_hdr, port_streams_data in streams.iteritems():
+            text_tables.print_table_with_header(port_streams_data.text_table,
+                                                header= stream_hdr.split(":")[0] + ":",
+                                                untouched_header= stream_hdr.split(":")[1])
 
         return RC_OK()
+
 
 
 
