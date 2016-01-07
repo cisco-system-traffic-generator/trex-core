@@ -307,6 +307,27 @@ private:
                    uint8_t ttl);
 };
 
+class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase40G {
+public:
+    CTRexExtendedDriverBaseVIC(){
+    }
+
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverBaseVIC() );
+    }
+
+    virtual bool is_hardware_filter_is_supported(){
+        return (false);
+    }
+
+    bool flow_control_disable_supported(){return false;}
+
+    virtual void update_configuration(port_cfg_t * cfg);
+
+};
+
+
+
 typedef CTRexExtendedDriverBase * (*create_object_t) (void);
 
 
@@ -361,7 +382,7 @@ private:
         register_driver(std::string("rte_em_pmd"),CTRexExtendedDriverBase1GVm::create);
         register_driver(std::string("rte_vmxnet3_pmd"),CTRexExtendedDriverBase1GVm::create);
         register_driver(std::string("rte_virtio_pmd"),CTRexExtendedDriverBase1GVm::create);
-        register_driver(std::string("rte_enic_pmd"),CTRexExtendedDriverBase1GVm::create);
+        register_driver(std::string("rte_enic_pmd"),CTRexExtendedDriverBaseVIC::create);
         
 
 
@@ -5142,6 +5163,14 @@ void CTRexExtendedDriverBase40G::clear_extended_stats(CPhyEthIF * _if){
 
     rte_eth_stats_reset(_if->get_port_id());
 
+}
+
+
+void CTRexExtendedDriverBaseVIC::update_configuration(port_cfg_t * cfg){
+    cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
+    cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
+    cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
+    cfg->m_port_conf.rxmode.max_rx_pkt_len =9*1000-10;
 }
 
 void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
