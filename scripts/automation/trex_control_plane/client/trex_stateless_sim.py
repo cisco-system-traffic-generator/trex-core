@@ -39,6 +39,8 @@ import os
 from dpkt import pcap
 from operator import itemgetter
 
+class BpSimException(Exception):
+    pass
 
 def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
 
@@ -134,6 +136,7 @@ class SimRun(object):
             os.unlink(f.name)
 
 
+
     def execute_bp_sim (self, json_filename):
         exe = 'bp-sim-64' if self.options.release else 'bp-sim-64-debug'
         if not os.path.exists(exe):
@@ -159,17 +162,15 @@ class SimRun(object):
             cmd += ['--core_index', str(self.options.core_index)]
 
         if self.options.valgrind:
-            cmd = ['valgrind', '--leak-check=full'] + cmd
+            cmd = ['valgrind', '--leak-check=full', '--error-exitcode=1'] + cmd
 
         elif self.options.gdb:
             cmd = ['gdb', '--args'] + cmd
 
         print "executing command: '{0}'".format(" ".join(cmd))
-        try:
-            subprocess.call(cmd)
-        except KeyboardInterrupt as e:
-            print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
-            exit(-1)
+        rc = subprocess.call(cmd)
+        if rc != 0:
+            raise BpSimException()
 
         self.merge_results()
 
@@ -288,8 +289,17 @@ def main ():
 
     r = SimRun(options)
 
-    r.run()
+    try:
+        r.run()
+    except KeyboardInterrupt as e:
+        print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
+        exit(1)
 
+    except BpSimException as e:
+        print "\n\n*** BP sim exit code was non zero\n\n"
+        exit(1)
+
+    exit(0)
 
 if __name__ == '__main__':
     main()

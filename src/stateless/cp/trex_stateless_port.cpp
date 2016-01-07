@@ -76,6 +76,11 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     m_graph_obj = NULL;
 }
 
+TrexStatelessPort::~TrexStatelessPort() {
+    if (m_graph_obj) {
+        delete m_graph_obj;
+    }
+}
 
 /**
  * acquire the port

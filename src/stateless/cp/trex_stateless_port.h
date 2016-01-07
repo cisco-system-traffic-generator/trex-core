@@ -134,6 +134,8 @@ public:
   
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
     
+    ~TrexStatelessPort();
+
     /**
      * acquire port
      * throws TrexException in case of an error
