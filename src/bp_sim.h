@@ -776,6 +776,7 @@ public:
     uint16_t        m_run_flags;
     uint8_t         m_mac_splitter;
     uint8_t         m_l_pkt_mode;
+    uint16_t        m_debug_pkt_proto;
     trex_run_mode_e    m_run_mode;
 
 
