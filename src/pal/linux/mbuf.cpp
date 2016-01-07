@@ -89,7 +89,7 @@ void utl_rte_mempool_delete(rte_mempool_t * & pool){
 uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
 {
     utl_rte_pktmbuf_check(m);
-    uint32_t a=sanb_atomic_add_return_32_old(&m->refcnt_reserved,1);
+    uint32_t a=sanb_atomic_add_return_32_old(&m->refcnt_reserved, value);
 	return (a);
 }
 
@@ -136,9 +136,9 @@ rte_mbuf_t *rte_pktmbuf_alloc(rte_mempool_t *mp){
     m->buf_addr   =(char *)((char *)m+sizeof(rte_mbuf_t)+RTE_PKTMBUF_HEADROOM) ;
 
     rte_pktmbuf_reset(m);
+
     return (m);
 }
-
 
 
 void rte_pktmbuf_free_seg(rte_mbuf_t *m){
@@ -150,8 +150,10 @@ void rte_pktmbuf_free_seg(rte_mbuf_t *m){
 
         if ( md != m ) {
             rte_pktmbuf_detach(m);
-            if (rte_mbuf_refcnt_update(md, -1) == 0)
-                free(md);
+            if (rte_mbuf_refcnt_update(md, -1) == 0) {
+				free(md);
+			}
+                
         }
 
         free(m);
