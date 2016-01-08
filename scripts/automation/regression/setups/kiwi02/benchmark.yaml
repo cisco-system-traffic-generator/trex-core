@@ -136,3 +136,6 @@ test_rx_check_http_ipv6:
     rx_sample_rate    : 32
 
 
+test_jumbo:
+    multiplier : 56
+    cores      : 1

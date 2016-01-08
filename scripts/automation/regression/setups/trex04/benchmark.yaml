@@ -57,4 +57,6 @@ test_ipv6_simple    :
   cpu2core_dev : 0.07
 
 
-
+test_jumbo:
+    multiplier : 2.8
+    cores      : 1

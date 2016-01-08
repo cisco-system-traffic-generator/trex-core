@@ -14,7 +14,6 @@ import re
 import uuid
 import subprocess
 
-
 # these variables are mandatory ('/' are converted automatically)
 top = '../'
 out = 'build_dpdk'
@@ -26,6 +25,7 @@ C_VER_FILE      = "version.c"
 H_VER_FILE      = "version.h"
 
 BUILD_NUM_FILE  = "../VERSION" 
+USERS_ALLOWED_TO_RELEASE = ['hhaim']
 
 
 #######################################
@@ -84,6 +84,8 @@ class SrcGroups:
 def options(opt):
     opt.load('compiler_cxx')
     opt.load('compiler_cc')
+    opt.add_option('--pkg-dir', '--pkg_dir', dest='pkg_dir', default=False, action='store', help="Destination folder for 'pkg' option.")
+    opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
 
 def configure(conf):
     conf.load('g++')
@@ -885,14 +887,45 @@ class Env(object):
         s= Env().get_env('TREX_EX_WEB_SRV');
         return  s;
 
+def check_release_permission():
+    if os.getenv('USER') not in USERS_ALLOWED_TO_RELEASE:
+        print 'You are not allowed to release TRex. Please contact Hanoch.'
+        return False
+    return True
+
+# build package in parent dir. can provide custom name and folder with --pkg-dir and --pkg-file
+def pkg(self):
+    build_num = get_build_num()
+    pkg_dir = self.options.pkg_dir
+    if not pkg_dir:
+        pkg_dir = os.pardir
+    pkg_file = self.options.pkg_file
+    if not pkg_file:
+        pkg_file = '%s.tar.gz' % build_num
+    tmp_path = os.path.join(pkg_dir, '_%s' % pkg_file)
+    dst_path = os.path.join(pkg_dir, pkg_file)
+    build_path = os.path.join(os.pardir, build_num)
+
+    # clean old dir if exists
+    os.system('rm -rf %s' % build_path)
+    release(self, build_path + '/')
+    os.system("cp %s/%s.tar.gz %s" % (build_path, build_num, tmp_path))
+    os.system("mv %s %s" % (tmp_path, dst_path))
+
+    # clean new dir
+    os.system('rm -rf %s' % build_path)
 
 
-def release(bld):
+def release(bld, custom_dir = None):
     """ release to local folder  """
+    exec_p = Env().get_release_path()
+    if custom_dir:
+        exec_p = custom_dir
+    elif not check_release_permission():
+        return
     print "copy images and libs"
-    exec_p =Env().get_release_path();
     os.system(' mkdir -p '+exec_p);
-    
+
     for obj in build_types:
         copy_single_system (bld,exec_p,obj);
         copy_single_system1 (bld,exec_p,obj)
@@ -914,6 +947,8 @@ def release(bld):
 
 
 def publish(bld):
+    if not check_release_permission():
+        return
     exec_p = Env().get_release_path()
     rel=get_build_num ()
 
@@ -925,6 +960,8 @@ def publish(bld):
 
 
 def publish_ext(bld):
+    if not check_release_permission():
+        return
     exec_p = Env().get_release_path()
     rel=get_build_num ()
 
@@ -934,7 +971,9 @@ def publish_ext(bld):
     os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
     #os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
 
-
+#WIP
+def release_successful(self):
+    print 'Not implemented'
 
 def test (bld):
     r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")

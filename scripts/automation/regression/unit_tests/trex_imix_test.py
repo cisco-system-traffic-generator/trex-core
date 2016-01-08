@@ -1,10 +1,9 @@
-
 #!/router/bin/python
 from trex_general_test import CTRexGeneral_Test
 from CPlatform import CStaticRouteConfig
 from tests_exceptions import *
 #import sys
-import time;
+import time
 
 class CTRexIMIX_Test(CTRexGeneral_Test):
     """This class defines the IMIX testcase of the T-Rex traffic generator"""
@@ -166,6 +165,34 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_general_scenario_results(trex_res)
 
         self.check_CPU_benchmark(trex_res, 10)
+
+        
+    def test_jumbo(self):
+        if not self.is_loopback:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = "config")
+
+        mult = self.get_benchmark_param('multiplier')
+        core = self.get_benchmark_param('cores')
+
+        ret = self.trex.start_trex(
+            c = core,
+            m = mult,
+            p = True,
+            nc = True,
+            d = 100,   
+            f = 'cap2/imix_9k.yaml',
+            l = 1000)
+
+        trex_res = self.trex.sample_to_run_finish()
+        
+        # trex_res is a CTRexResults instance- and contains the summary of the test results
+        # you may see all the results keys by simply calling here for 'print trex_res.result'
+        print ("\nLATEST RESULT OBJECT:")
+        print trex_res
+
+        self.check_general_scenario_results(trex_res)
+        self.check_CPU_benchmark(trex_res, minimal_cpu = 0, maximal_cpu = 10)
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)

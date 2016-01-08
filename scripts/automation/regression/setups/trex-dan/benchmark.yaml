@@ -151,3 +151,8 @@ test_rx_check_http_negative:
         dual_port_mask           : 1.0.0.0
         pool_start               : 200.0.0.0
         pool_netmask             : 255.255.255.0
+
+
+test_jumbo:
+    multiplier : 2.8
+    cores      : 1

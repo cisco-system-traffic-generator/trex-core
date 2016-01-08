@@ -165,12 +165,15 @@ class CTRexGeneral_Test(unittest.TestCase):
         if res[name] != float(val):
             self.fail('TRex results[%s]==%f and not as expected %f ' % (name, res[name], val))
 
-    def check_CPU_benchmark (self, trex_res, err):
+    def check_CPU_benchmark (self, trex_res, err = 10, minimal_cpu = 30, maximal_cpu = 85):
             #cpu_util = float(trex_res.get_last_value("trex-global.data.m_cpu_util"))
             cpu_util = sum([float(x) for x in trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]]) / 3 # mean of 3 values before last
             
-            if cpu_util < 30 and not self.is_virt_nics:
-                self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
+            if not self.is_virt_nics:
+                if cpu_util > maximal_cpu:
+                    self.fail("CPU is too high (%s%%), probably queue full." % cpu_util )
+                if cpu_util < minimal_cpu:
+                    self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
             cores = self.get_benchmark_param('cores')
             trex_tx_bps  = trex_res.get_last_value("trex-global.data.m_total_tx_bytes")
@@ -236,16 +239,14 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             if check_latency:
                 # check that max latency does not exceed 1 msec in regular setup or 20ms in VM
-                allowed_latency = 20000 if self.is_VM else 1000
+                allowed_latency = 50000 if self.is_VM else 1000
                 if max(trex_res.get_max_latency().values()) > allowed_latency:
-                    print 'LatencyError: Maximal latency exceeds %s (usec)' % allowed_latency
-                    #raise AbnormalResultError('Maximal latency above 1ms')
+                    self.fail('LatencyError: Maximal latency exceeds %s (usec)' % allowed_latency)
     
                 # check that avg latency does not exceed 1 msec in regular setup or 3ms in VM
                 allowed_latency = 3000 if self.is_VM else 1000
                 if max(trex_res.get_avg_latency().values()) > allowed_latency:
-                    print 'LatencyError: Average latency exceeds %s (usec)' % allowed_latency
-                    #raise AbnormalResultError('Maximal latency above 1ms')
+                    self.fail('LatencyError: Average latency exceeds %s (usec)' % allowed_latency)
 
             if not self.is_loopback:
                 # check router number of drops --> deliberately masked- need to be figured out!!!!!

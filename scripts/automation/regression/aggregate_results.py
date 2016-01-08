@@ -65,7 +65,7 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
                 with open(category_info_file) as f:
                     for info_line in f.readlines():
                         key_value = info_line.split(':', 1)
-                        if key_value[0].startswith('User'): # always 'hhaim', no need to show
+                        if key_value[0].strip() in trex_info_dict.keys() + ['User']: # always 'hhaim', no need to show
                             continue
                         html_output += add_th_td('%s:' % key_value[0], key_value[1])
             else:
@@ -80,7 +80,7 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
 
     if not len(tests):
         return html_output + pad_tag('<br><font color=red>No tests!</font>', 'b') + '</div>'
-    html_output += '<br>\n<table class="reference">\n<tr><th align="left">'
+    html_output += '<br>\n<table class="reference" width="100%">\n<tr><th align="left">'
 
     if category == ERROR_CATEGORY:
         html_output += 'Setup</th><th align="left">Failed tests:'
@@ -115,10 +115,13 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
             html_output += '<font color="blue"><b>SKIPPED</b></font></td>'
         else:
             html_output += '<font color="green"><b>PASSED</b></font></td>'
-        html_output += '<td align="center"> '+ test.attrib['time'] + '</td></center></tr>'
+        html_output += '<td align="center"> '+ test.attrib['time'] + '</td></tr>'
 
         result, result_text = test.attrib.get('result', ('', ''))
         if result_text:
+            start_index_errors = result_text.find('Exception: The test is failed, reasons:')
+            if start_index_errors > 0:
+                result_text = result_text[start_index_errors + 10:].strip() # cut traceback
             result_text = '<b style="color:000080;">%s:</b><br>%s<br><br>' % (result.capitalize(), result_text.replace('\n', '<br>'))
         stderr = '' if brief and result_text else test.get('stderr', '')
         if stderr:
@@ -213,6 +216,8 @@ if __name__ == '__main__':
                    dest = 'output_titlefile', help='Name of output file to contain title of mail.')
     argparser.add_argument('--build_status_file', default='./reports/build_status',
                    dest = 'build_status_file', help='Name of output file to save scenaries build results (should not be wiped).')
+    argparser.add_argument('--last_passed_commit', default='./reports/last_passed_commit',
+                   dest = 'last_passed_commit', help='Name of output file to save last passed commit (should not be wiped).')
     args = argparser.parse_args()
 
 
@@ -221,7 +226,6 @@ if __name__ == '__main__':
     scenario                = os.environ.get('SCENARIO')
     build_url               = os.environ.get('BUILD_URL')
     build_id                = os.environ.get('BUILD_ID')
-    trex_last_commit_hash   = os.environ.get('TREX_LAST_COMMIT_HASH') # TODO: remove it, take from setups info
     trex_repo               = os.environ.get('TREX_CORE_REPO')
     if not scenario:
         print 'Warning: no environment variable SCENARIO, using default'
@@ -230,8 +234,24 @@ if __name__ == '__main__':
         print 'Warning: no environment variable BUILD_URL'
     if not build_id:
         print 'Warning: no environment variable BUILD_ID'
+
+    trex_info_dict = OrderedDict()
+    for file in glob.glob('%s/report_*.info' % args.input_dir):
+        with open(file) as f:
+            file_lines = f.readlines()
+            if not len(file_lines):
+                continue # to next file
+            for info_line in file_lines:
+                key_value = info_line.split(':', 1)
+                not_trex_keys = ['Server', 'Router', 'User']
+                if key_value[0].strip() in not_trex_keys:
+                    continue # to next parameters
+                trex_info_dict[key_value[0].strip()] = key_value[1].strip()
+            break
+
     trex_last_commit_info = ''
-    if scenario == 'trex_build' and trex_last_commit_hash and trex_repo:
+    trex_last_commit_hash = trex_info_dict.get('Git SHA')
+    if trex_last_commit_hash and trex_repo:
         try:
             print 'Getting TRex commit with hash %s' % trex_last_commit_hash
             command = 'timeout 10 git --git-dir %s show %s --quiet' % (trex_repo, trex_last_commit_hash)
@@ -348,8 +368,12 @@ if __name__ == '__main__':
         with open(start_time_file) as f:
             start_time = int(f.read())
         total_time = int(time.time()) - start_time
-        html_output += add_th_td('Started:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
-        html_output += add_th_td('Total duration:', datetime.timedelta(seconds = total_time))
+        html_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
+        html_output += add_th_td('Regression duration:', datetime.timedelta(seconds = total_time))
+    for key in trex_info_dict:
+        if key == 'Git SHA':
+            continue
+        html_output += add_th_td(key, trex_info_dict[key])
     if trex_last_commit_info:
         html_output += add_th_td('Last commit:', trex_last_commit_info)
     html_output += '</table><br>\n'
@@ -431,6 +455,12 @@ if __name__ == '__main__':
 </html>\
 '''
 
+# save html
+    with open(args.output_htmlfile, 'w') as f:
+        print('Writing output file: %s' % args.output_htmlfile)
+        f.write(html_output)
+    html_output = None
+
 # mail report (only error tests, expanded)
 
     mail_output = '''\
@@ -455,8 +485,13 @@ if __name__ == '__main__':
         with open(start_time_file) as f:
             start_time = int(f.read())
         total_time = int(time.time()) - start_time
-        mail_output += add_th_td('Started:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
-        mail_output += add_th_td('Total duration:', datetime.timedelta(seconds = total_time))
+        mail_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
+        mail_output += add_th_td('Regression duration:', datetime.timedelta(seconds = total_time))
+    for key in trex_info_dict:
+        if key == 'Git SHA':
+            continue
+        mail_output += add_th_td(key, trex_info_dict[key])
+
     if trex_last_commit_info:
         mail_output += add_th_td('Last commit:', trex_last_commit_info)
     mail_output += '</table><br>\n<table width=100%><tr><td>\n'
@@ -476,9 +511,9 @@ if __name__ == '__main__':
             with open(category_info_file) as f:
                 for info_line in f.readlines():
                     key_value = info_line.split(':', 1)
-                    if key_value[0].startswith('User'): # always 'hhaim', no need to show
+                    if key_value[0].strip() in trex_info_dict.keys() + ['User']: # always 'hhaim', no need to show
                         continue
-                    mail_output += add_th_td('%s:' % key_value[0], key_value[1])
+                    mail_output += add_th_td('%s:' % key_value[0].strip(), key_value[1].strip())
         else:
             mail_output += add_th_td('Info:', 'No info')
         mail_output += '</table>\n'
@@ -489,7 +524,7 @@ if __name__ == '__main__':
         if err:
             mail_output += '<font color=red>%s<font>' % '\n<br>'.join(err)
         if len(error_tests) > 5:
-            mail_output += '\n<br><font color=red>More than 5 failed tests, showing brief output.<font>\n<br>'
+            mail_output += '\n<font color=red>More than 5 failed tests, showing brief output.<font>\n<br>'
             # show only brief version (cut some info)
             mail_output += add_category_of_tests(ERROR_CATEGORY, error_tests, hidden=False, expanded=True, brief=True)
         else:
@@ -500,10 +535,6 @@ if __name__ == '__main__':
 
 ##### save outputs
 
-# html
-    with open(args.output_htmlfile, 'w') as f:
-        print('Writing output file: %s' % args.output_htmlfile)
-        f.write(html_output)
 
 # mail content
     with open(args.output_mailfile, 'w') as f:
@@ -537,12 +568,18 @@ if __name__ == '__main__':
         print('Writing output file: %s' % args.build_status_file)
         pickle.dump(category_dict_status, f)
 
+# last successful commit
+    if (current_status in ('Successful', 'Fixed')) and trex_last_commit_hash and jobs_list > 0 and scenario == 'nightly':
+        with open(args.last_passed_commit, 'w') as f:
+            print('Writing output file: %s' % args.last_passed_commit)
+            f.write(trex_last_commit_hash)
+
 # mail title
     mailtitle_output = scenario.capitalize()
     if build_id:
         mailtitle_output += ' - Build #%s' % build_id
     mailtitle_output += ' - %s!' % current_status
-    
+
     with open(args.output_titlefile, 'w') as f:
         print('Writing output file: %s' % args.output_titlefile)
         f.write(mailtitle_output)

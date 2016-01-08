@@ -9,7 +9,7 @@
 
 import ws_main
 
-#mandatory ....
+#mandatory
 top = ws_main.top
 out = ws_main.out
 
@@ -28,6 +28,8 @@ def build(bld):
 def build_info(bld):
     ws_main.build_info(bld)
 
+def pkg(bld):
+    ws_main.pkg(bld)
 
 def release(bld):
     ws_main.release(bld)
@@ -39,14 +41,16 @@ def publish_ext(bld):
     ws_main.publish_ext(bld)
 
 def publish_web(bld):
-        ws_main.publish_web(bld)
+    ws_main.publish_web(bld)
 
+def release_successful(bld):
+    ws_main.release_successful(bld)
 
 def sync(bld):
-      ws_main.sync(bld)
-      
+    ws_main.sync(bld)
+
 def test(bld):
-      ws_main.test(bld)
+    ws_main.test(bld)
 
 
 
