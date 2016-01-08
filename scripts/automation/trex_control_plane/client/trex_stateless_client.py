@@ -1065,8 +1065,8 @@ class CTRexStatelessClient(object):
                                          "streams",
                                          self.cmd_streams_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.STREAMS_MASK,
-                                         parsing_opts.FULL_OUTPUT)
+                                         parsing_opts.STREAMS_MASK)#,
+                                         #parsing_opts.FULL_OUTPUT)
 
         opts = parser.parse_args(line.split())
 
@@ -1074,14 +1074,18 @@ class CTRexStatelessClient(object):
             return RC_ERR("bad command line parameters")
 
         streams = self.cmd_streams(opts.ports, set(opts.streams))
+        if not streams:
+            # we got no streams running
 
-        # print stats to screen
-        for stream_hdr, port_streams_data in streams.iteritems():
-            text_tables.print_table_with_header(port_streams_data.text_table,
-                                                header= stream_hdr.split(":")[0] + ":",
-                                                untouched_header= stream_hdr.split(":")[1])
-
-        return RC_OK()
+            print format_text("No streams found with desired filter.\n", "bold", "magenta")
+            return RC_ERR("No streams found with desired filter.")
+        else:
+            # print stats to screen
+            for stream_hdr, port_streams_data in streams.iteritems():
+                text_tables.print_table_with_header(port_streams_data.text_table,
+                                                    header= stream_hdr.split(":")[0] + ":",
+                                                    untouched_header= stream_hdr.split(":")[1])
+            return RC_OK()
 
 
 

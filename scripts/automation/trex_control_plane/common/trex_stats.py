@@ -83,6 +83,8 @@ class CTRexInfoGenerator(object):
         return_data = {}
         for port_obj in relevant_ports:
             streams_data = self._generate_single_port_streams_info(port_obj, stream_id_list)
+            if not streams_data:
+                continue
             hdr_key = "Port {port}: {yaml_file}".format(port= port_obj.port_id,
                                                         yaml_file= streams_data.raw_data.get('referring_file', ''))
 
@@ -185,6 +187,10 @@ class CTRexInfoGenerator(object):
     def _generate_single_port_streams_info(self, port_obj, stream_id_list):
 
         return_streams_data = port_obj.generate_loaded_streams_sum(stream_id_list)
+
+        if not return_streams_data.get("streams"):
+            # we got no streams available
+            return None
 
         # FORMAT VALUES ON DEMAND
         for stream_id, stream_id_sum in return_streams_data['streams'].iteritems():
