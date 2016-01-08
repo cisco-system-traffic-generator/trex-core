@@ -922,7 +922,7 @@ def release(bld, custom_dir = None):
         exec_p = custom_dir
     elif not check_release_permission():
         return
-    else
+    else:
         exec_p = Env().get_release_path()
     print "copy images and libs"
     os.system(' mkdir -p '+exec_p);
