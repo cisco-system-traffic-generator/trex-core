@@ -238,8 +238,8 @@ class CTRexGeneral_Test(unittest.TestCase):
             #trex_exp_gbps = trex_exp_rate/(10**9)
 
             if check_latency:
-                # check that max latency does not exceed 1 msec in regular setup or 20ms in VM
-                allowed_latency = 50000 if self.is_VM else 1000
+                # check that max latency does not exceed 1 msec in regular setup or 100ms in VM
+                allowed_latency = 100000 if self.is_VM else 1000
                 if max(trex_res.get_max_latency().values()) > allowed_latency:
                     self.fail('LatencyError: Maximal latency exceeds %s (usec)' % allowed_latency)
     

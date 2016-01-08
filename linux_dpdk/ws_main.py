@@ -918,11 +918,12 @@ def pkg(self):
 
 def release(bld, custom_dir = None):
     """ release to local folder  """
-    exec_p = Env().get_release_path()
     if custom_dir:
         exec_p = custom_dir
     elif not check_release_permission():
         return
+    else
+        exec_p = Env().get_release_path()
     print "copy images and libs"
     os.system(' mkdir -p '+exec_p);
 
