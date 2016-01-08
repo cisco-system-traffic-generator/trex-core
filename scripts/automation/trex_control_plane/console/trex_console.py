@@ -416,6 +416,15 @@ class TRexConsole(TRexGeneralCmd):
         self.do_stats("-h")
 
     @verify_connected
+    def do_streams(self, line):
+        '''Fetch statistics from TRex server by port\n'''
+        self.stateless_client.cmd_streams_line(line)
+
+
+    def help_streams(self):
+        self.do_streams("-h")
+
+    @verify_connected
     def do_clear(self, line):
         '''Clear cached local statistics\n'''
         self.stateless_client.cmd_clear_line(line)

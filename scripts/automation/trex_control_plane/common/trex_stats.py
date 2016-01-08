@@ -55,10 +55,9 @@ def calculate_diff_raw (samples):
     return total
 
 
-
-class CTRexStatsGenerator(object):
+class CTRexInfoGenerator(object):
     """
-    This object is responsible of generating stats from objects maintained at
+    This object is responsible of generating stats and information from objects maintained at
     CTRexStatelessClient and the ports.
     """
 
@@ -77,6 +76,19 @@ class CTRexStatsGenerator(object):
         else:
             # ignore by returning empty object
             return {}
+
+    def generate_streams_info(self, port_id_list, stream_id_list):
+        relevant_ports = self.__get_relevant_ports(port_id_list)
+
+        return_data = {}
+        for port_obj in relevant_ports:
+            streams_data = self._generate_single_port_streams_info(port_obj, stream_id_list)
+            hdr_key = "Port {port}: {yaml_file}".format(port= port_obj.port_id,
+                                                        yaml_file= streams_data.raw_data.get('referring_file', ''))
+
+            # TODO: test for other ports with same stream structure, and join them
+            return_data[hdr_key] = streams_data
+        return return_data
 
     def _generate_global_stats(self):
         # stats_obj = self._async_stats.get_general_stats()
@@ -170,6 +182,27 @@ class CTRexStatsGenerator(object):
 
         return {"port_status": ExportableStats(return_stats_data, stats_table)}
 
+    def _generate_single_port_streams_info(self, port_obj, stream_id_list):
+
+        return_streams_data = port_obj.generate_loaded_streams_sum(stream_id_list)
+
+        # FORMAT VALUES ON DEMAND
+        for stream_id, stream_id_sum in return_streams_data['streams'].iteritems():
+            stream_id_sum['rate_pps'] = CTRexStats.format_num(stream_id_sum['rate_pps'], suffix='pps')
+            stream_id_sum['packet_type'] = self._trim_packet_headers(stream_id_sum['packet_type'], 20)
+
+        info_table = text_tables.TRexTextTable()
+        info_table.set_cols_align(["c"] + ["l"] + ["r"] + ["c"] + ["r"] + ["c"])
+        info_table.set_cols_width([4]   + [20]  + [8]   + [16]  + [10]  + [12])
+
+        info_table.add_rows([v.values()
+                             for k, v in return_streams_data['streams'].iteritems()],
+                             header=False)
+        info_table.header(["ID", "packet type", "length", "mode", "rate", "next stream"])
+
+        return ExportableStats(return_streams_data, info_table)
+
+
     def __get_relevant_ports(self, port_id_list):
         # fetch owned ports
         ports = [port_obj
@@ -187,6 +220,13 @@ class CTRexStatsGenerator(object):
             if key in dict_dest_ref:
                 dict_dest_ref[key].append(val)
 
+    @staticmethod
+    def _trim_packet_headers(headers_str, trim_limit):
+        if len(headers_str) < trim_limit:
+            # do nothing
+            return headers_str
+        else:
+            return (headers_str[:trim_limit-3] + "...")
 
 
 

@@ -9,6 +9,7 @@ import random
 import string
 import struct
 import re
+import itertools
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 
@@ -325,6 +326,17 @@ class CTRexPktBuilder(object):
         # arrive here ONLY if pcap contained SINGLE packet
         return
 
+    def load_from_stream_obj(self, stream_obj):
+        self.load_packet_from_byte_list(stream_obj['packet']['binary'])
+
+
+    def load_packet_from_byte_list(self, byte_list):
+        # convert byte array into buffer
+        buf = struct.pack('B'*len(byte_list), *byte_list)
+
+        # thn, load it based on dpkt parsing
+        self.load_packet(dpkt.ethernet.Ethernet(buf))
+
     def get_packet(self, get_ptr=False):
         """
         This method provides access to the built packet, as an instance or as a pointer to packet itself.
@@ -348,6 +360,9 @@ class CTRexPktBuilder(object):
             return self._packet
         else:
             return copy.copy(self._packet)
+
+    def get_packet_length(self):
+        return len(self._packet)
 
     def get_layer(self, layer_name):
         """
@@ -501,6 +516,29 @@ class CTRexPktBuilder(object):
                 return
         except IOError:
             raise IOError(2, "The provided path could not be accessed")
+
+    def get_packet_layers(self, depth_limit=Ellipsis):
+        if self._packet is None:
+            raise CTRexPktBuilder.EmptyPacketError()
+        cur_layer = self._packet
+        layer_types = []
+        if depth_limit == Ellipsis:
+            iterator = itertools.count(1)
+        else:
+            iterator = xrange(depth_limit)
+        for _ in iterator:
+            # append current layer type
+            if isinstance(cur_layer, dpkt.Packet):
+                layer_types.append(type(cur_layer).__name__)
+            else:
+                # if not dpkt layer, refer as payload
+                layer_types.append("PLD")
+            # advance to next layer
+            if not hasattr(cur_layer, "data"):
+                break
+            else:
+                cur_layer = cur_layer.data
+        return layer_types
 
     def export_pkt(self, file_path, link_pcap=False, pcap_name=None, pcap_ts=None):
         pass
