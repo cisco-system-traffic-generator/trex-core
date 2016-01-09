@@ -8,9 +8,9 @@ import time
 class CTRexIMIX_Test(CTRexGeneral_Test):
     """This class defines the IMIX testcase of the T-Rex traffic generator"""
     def __init__(self, *args, **kwargs):
-    	# super(CTRexIMIX_Test, self).__init__()
+        # super(CTRexIMIX_Test, self).__init__()
         CTRexGeneral_Test.__init__(self, *args, **kwargs)
-    	pass
+        pass
 
     def setUp(self):
         super(CTRexIMIX_Test, self).setUp() # launch super test class setUp process
@@ -169,6 +169,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         
     def test_jumbo(self):
         if not self.is_loopback:
+            self.skip('Verify drops in router') # TODO: verify and remove ASAP
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
 
@@ -196,7 +197,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)
-    	# remove nbar config here
+        # remove nbar config here
         pass
 
 if __name__ == "__main__":

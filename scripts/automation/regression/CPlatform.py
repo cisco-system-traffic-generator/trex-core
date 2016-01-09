@@ -20,7 +20,7 @@ class CPlatform(object):
         self.tftp_cfg           = None
         self.config_history     = { 'basic_if_config' : False, 'tftp_server_config' : False }
 
-    def configure_basic_interfaces(self):
+    def configure_basic_interfaces(self, mtu = 4000):
 
         cache = CCommandCache()
         for dual_if in self.if_mngr.get_dual_if_list():
@@ -28,14 +28,14 @@ class CPlatform(object):
             server_if_command_set   = []
 
             client_if_command_set.append ('mac-address {mac}'.format( mac = dual_if.client_if.get_src_mac_addr()) )
-            client_if_command_set.append ('mtu 4000')
+            client_if_command_set.append ('mtu %s' % mtu)
             client_if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = dual_if.client_if.get_ipv4_addr() ))
             client_if_command_set.append ('ipv6 address {ip}/64'.format( ip = dual_if.client_if.get_ipv6_addr() ))
 
             cache.add('IF', client_if_command_set, dual_if.client_if.get_name())
 
             server_if_command_set.append ('mac-address {mac}'.format( mac = dual_if.server_if.get_src_mac_addr()) )
-            server_if_command_set.append ('mtu 4000')
+            server_if_command_set.append ('mtu %s' % mtu)
             server_if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = dual_if.server_if.get_ipv4_addr() ))
             server_if_command_set.append ('ipv6 address {ip}/64'.format( ip = dual_if.server_if.get_ipv6_addr() ))
 
@@ -46,14 +46,14 @@ class CPlatform(object):
 
 
 
-    def configure_basic_filtered_interfaces(self, intf_list):
+    def configure_basic_filtered_interfaces(self, intf_list, mtu = 4000):
 
         cache = CCommandCache()
         for intf in intf_list:
             if_command_set   = []
 
             if_command_set.append ('mac-address {mac}'.format( mac = intf.get_src_mac_addr()) )
-            if_command_set.append ('mtu 4000')
+            if_command_set.append ('mtu %s' % mtu)
             if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = intf.get_ipv4_addr() ))
             if_command_set.append ('ipv6 address {ip}/64'.format( ip = intf.get_ipv6_addr() ))
 
