@@ -103,7 +103,7 @@ test_static_routing_imix_asymmetric:
     client_destination_mask : 255.0.0.0
     server_destination_mask : 255.0.0.0
   multiplier        : 18
-  cores             : 4
+  cores             : 1
   cpu_to_core_ratio : 3766666
   exp_latency       : 1
 
