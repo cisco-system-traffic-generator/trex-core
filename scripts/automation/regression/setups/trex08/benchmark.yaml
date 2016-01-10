@@ -34,4 +34,22 @@ test_ipv6_simple    :
   cpu2core_dev : 0.07
 
 
+test_rx_check_sfr:
+    multiplier        : 80
+    cores             : 7
+    rx_sample_rate    : 128
 
+test_rx_check_sfr_ipv6_disabled:
+    multiplier        : 80
+    cores             : 7
+    rx_sample_rate    : 128
+
+test_rx_check_http:
+    multiplier        : 99000
+    cores             : 3
+    rx_sample_rate    : 128
+
+test_rx_check_http_ipv6_disabled:
+    multiplier        : 99000
+    cores             : 3
+    rx_sample_rate    : 128

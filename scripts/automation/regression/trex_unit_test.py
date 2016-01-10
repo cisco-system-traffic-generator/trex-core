@@ -60,9 +60,6 @@ def get_trex_path():
         raise Exception('Could not determine trex_under_test folder, try setting env.var. TREX_UNDER_TEST')
     return latest_build_path
 
-DAEMON_STOP_COMMAND = 'cd %s; ./trex_daemon_server stop; sleep 1; ./trex_daemon_server stop;' % get_trex_path()
-DAEMON_START_COMMAND = DAEMON_STOP_COMMAND + 'sleep 1; rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
-
 def _start_stop_trex_remote_server(trex_data, command):
     # start t-rex server as daemon process
     # subprocess.call(["/usr/bin/python", "trex_daemon_server", "restart"], cwd = trex_latest_build)
@@ -116,9 +113,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--kill-running', '--kill_running', action="store_true", default = False,
                             dest="kill_running", 
                             help="Kills running TRex process on remote server (useful for regression).")
-        parser.add_option('--dave', action="store_true", default = False,
-                            dest="dave", 
-                            help="Dave's setup (temporary workaround flag, remove it ASAP).")
+        parser.add_option('--local', action="store_true", default = False,
+                            dest="local", 
+                            help="Don't connect to remote server for runnning daemon (useful for functional tests).")
 
     def configure(self, options, conf):
         if CTRexScenario.setup_dir and options.config_path:
@@ -137,22 +134,22 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.verbose_mode  = options.verbose_mode
         self.clean_config  = False if options.skip_clean_config else True
         self.server_logs   = options.server_logs
-        self.dave          = options.dave
+        self.local         = options.local
 
         if options.log_path:
             self.loggerPath = options.log_path
 
     def begin (self):
-        # launch t-rex server on relevant setup
-        if not self.dave:
-            start_trex_remote_server(self.configuration.trex, self.kill_running)
-
         # initialize CTRexScenario global testing class, to be used by all tests
         CTRexScenario.configuration = self.configuration
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
-        CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
+
+        # launch TRex daemon on relevant setup
+        if not self.local:
+            start_trex_remote_server(self.configuration.trex, self.kill_running)
+            CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg    = dict( config_dict  = self.configuration.router, 
                                                                         forceImageReload = self.load_image, 
@@ -166,7 +163,7 @@ class CTRexTestConfiguringPlugin(Plugin):
     
     def finalize(self, result):
         CTRexScenario.is_init       = False
-        if not self.dave:
+        if not self.local:
             stop_trex_remote_server(self.configuration.trex)
 
 
@@ -199,6 +196,9 @@ if __name__ == "__main__":
     long_test                   = False
     xml_name                    = 'unit_test.xml'
     CTRexScenario.report_dir    = 'reports'
+    CTRexScenario.scripts_dir   = get_trex_path()
+    DAEMON_STOP_COMMAND         = 'cd %s; ./trex_daemon_server stop; sleep 1; ./trex_daemon_server stop;' % CTRexScenario.scripts_dir
+    DAEMON_START_COMMAND        = DAEMON_STOP_COMMAND + 'sleep 1; rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
     setup_dir                   = os.getenv('SETUP_DIR', '').rstrip('/')
     CTRexScenario.setup_dir     = check_setup_path(setup_dir)
     if not CTRexScenario.setup_dir:

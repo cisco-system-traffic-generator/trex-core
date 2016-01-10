@@ -2319,6 +2319,9 @@ void CGlobalStats::dump_json(std::string & json){
     json+=GET_FIELD(m_tx_expected_cps);
     json+=GET_FIELD(m_tx_expected_pps);
     json+=GET_FIELD(m_tx_expected_bps);
+    json+=GET_FIELD(m_total_alloc_error);
+    json+=GET_FIELD(m_total_queue_full);
+    json+=GET_FIELD(m_total_queue_drop);
     json+=GET_FIELD(m_rx_drop_bps);
     json+=GET_FIELD(m_active_flows);
     json+=GET_FIELD(m_open_flows);

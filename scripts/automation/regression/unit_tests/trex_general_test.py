@@ -55,6 +55,7 @@ class CTRexScenario():
     trex_version     = None
     report_dir       = 'reports'
     # logger         = None
+    scripts_dir      = None
 
 #scenario = CTRexScenario()
 
@@ -150,7 +151,7 @@ class CTRexGeneral_Test(unittest.TestCase):
 
     def assert_gt(self, v1, v2, s):
         if not v1 > v2:
-            error='ERROR {big} >  {small}      {str}'.format(big = v1, small = v2, str = s)
+            error='ERROR {big} <  {small}      {str}'.format(big = v1, small = v2, str = s)
             self.fail(error)
 
     def check_results_eq (self,res,name,val):
@@ -231,6 +232,14 @@ class CTRexGeneral_Test(unittest.TestCase):
             trex_drop_rate  = trex_res.get_drop_rate()
             if ( (trex_drops/trex_tx_pckt) > 0.001) and (trex_drop_rate > 0.0):     # deliberately mask kickoff drops when T-Rex first initiated
                 self.fail('Number of packet drops larger than 0.1% of all traffic')
+
+            # check queue full, queue drop, allocation error
+            m_total_alloc_error = trex_res.get_last_value("trex-global.data.m_total_alloc_error")
+            m_total_queue_full = trex_res.get_last_value("trex-global.data.m_total_queue_full")
+            m_total_queue_drop = trex_res.get_last_value("trex-global.data.m_total_queue_drop")
+            self.assert_gt( 999, m_total_alloc_error, 'Got allocation errors. (%s), please review multiplier and templates configuration.' % m_total_alloc_error)
+            self.assert_gt( max(9999, trex_tx_pckt / 1000 ), m_total_queue_full, 'Too much queue_full (%s), please review multiplier.' % m_total_queue_full)
+            self.assert_gt( 999, m_total_queue_drop, 'Too much queue_drop (%s), please review multiplier.' % m_total_queue_drop)
 
             # # check T-Rex expected counters
             #trex_exp_rate = trex_res.get_expected_tx_rate().get('m_tx_expected_bps')

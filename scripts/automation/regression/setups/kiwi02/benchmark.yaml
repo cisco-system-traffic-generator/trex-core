@@ -78,8 +78,8 @@ test_routing_imix_64    :
   exp_latency       : 1
 
 test_routing_imix   :
-  multiplier        : 36
-  cores             : 4
+  multiplier        : 35
+  cores             : 2
   cpu_to_core_ratio : 8900
   exp_latency       : 1
 
@@ -90,8 +90,8 @@ test_static_routing_imix    :
     dual_port_mask          : 1.0.0.0
     client_destination_mask : 255.0.0.0
     server_destination_mask : 255.0.0.0
-  multiplier        : 36
-  cores             : 4
+  multiplier        : 35
+  cores             : 2
   cpu_to_core_ratio : 3766666
   exp_latency       : 1
 

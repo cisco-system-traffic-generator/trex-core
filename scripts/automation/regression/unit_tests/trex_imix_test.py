@@ -169,8 +169,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         
     def test_jumbo(self):
         if not self.is_loopback:
-            self.skip('Verify drops in router') # TODO: verify and remove ASAP
-            self.router.configure_basic_interfaces()
+            self.router.configure_basic_interfaces(mtu = 9216)
             self.router.config_pbr(mode = "config")
 
         mult = self.get_benchmark_param('multiplier')
