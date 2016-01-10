@@ -95,7 +95,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def golden_run (self, testname,  profile, options, silent = False):
-        output_cap = os.path.join(self.test_path, "{0}_test.cap".format(testname))
+        output_cap = os.path.join("/tmp/", "{0}_test.cap".format(testname))
         golden_cap = os.path.join(self.test_path, "stl/golden/{0}_golden.cap".format(testname))
 
         rc = self.run_sim(self.profiles[profile], output_cap, options, silent)
