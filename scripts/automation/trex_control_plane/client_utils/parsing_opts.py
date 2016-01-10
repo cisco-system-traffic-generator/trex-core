@@ -23,11 +23,18 @@ FORCE = 11
 DRY_RUN = 12
 XTERM = 13
 TOTAL = 14
+FULL_OUTPUT = 15
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
 PORT_STATUS = 52
 STATS_MASK = 53
+
+STREAMS_MASK = 60
+# ALL_STREAMS = 61
+# STREAM_LIST_WITH_ALL = 62
+
+
 
 # list of ArgumentGroup types
 MUTEX = 1
@@ -221,6 +228,10 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'default': False,
                                    'help': "Starts TUI in xterm window"}),
 
+              FULL_OUTPUT: ArgumentPack(['--full'],
+                                         {'action': 'store_true',
+                                          'help': "Prompt full info in a JSON format"}),
+
               GLOBAL_STATS: ArgumentPack(['-g'],
                                          {'action': 'store_true',
                                           'help': "Fetch only global statistics"}),
@@ -232,6 +243,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               PORT_STATUS: ArgumentPack(['--ps'],
                                         {'action': 'store_true',
                                          'help': "Fetch only port status data"}),
+
+              STREAMS_MASK: ArgumentPack(['--streams'],
+                                         {"nargs": '+',
+                                          'dest':'streams',
+                                          'metavar': 'STREAMS',
+                                          'type': int,
+                                          'help': "A list of stream IDs to query about. Default: analyze all streams",
+                                          'default': []}),
 
 
               # advanced options
