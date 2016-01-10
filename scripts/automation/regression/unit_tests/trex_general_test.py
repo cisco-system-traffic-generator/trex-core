@@ -53,6 +53,7 @@ class CTRexScenario():
     setup_dir        = None
     router_image     = None
     trex_version     = None
+    scripts_path     = None
     report_dir       = 'reports'
     # logger         = None
     scripts_dir      = None

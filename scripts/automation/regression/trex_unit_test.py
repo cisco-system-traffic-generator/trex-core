@@ -1,4 +1,4 @@
-#!/router/bin/python
+#!/usr/bin/env python
 
 __copyright__ = "Copyright 2014"
 
@@ -113,6 +113,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--kill-running', '--kill_running', action="store_true", default = False,
                             dest="kill_running", 
                             help="Kills running TRex process on remote server (useful for regression).")
+
         parser.add_option('--local', action="store_true", default = False,
                             dest="local", 
                             help="Don't connect to remote server for runnning daemon (useful for functional tests).")
@@ -145,11 +146,13 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
+        CTRexScenario.scripts_path  = get_trex_path()
 
         # launch TRex daemon on relevant setup
         if not self.local:
             start_trex_remote_server(self.configuration.trex, self.kill_running)
             CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
+
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg    = dict( config_dict  = self.configuration.router, 
                                                                         forceImageReload = self.load_image, 
