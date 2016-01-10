@@ -550,7 +550,7 @@ TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const Tre
 
     start_event.time = offset_usec + stream->m_isg_usec;
     start_event.diff_pps = stream->get_pps();
-    start_event.diff_bps = stream->get_bps();
+    start_event.diff_bps = ((TrexStream *)stream)->get_bps();
     m_graph_obj->add_rate_event(start_event);
 
     /* no more events after this stream */
@@ -577,7 +577,7 @@ TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, c
      /* start event */
     start_event.time = offset_usec + stream->m_isg_usec;
     start_event.diff_pps = stream->get_pps();
-    start_event.diff_bps = stream->get_bps();
+    start_event.diff_bps = ((TrexStream *)stream)->get_bps();
     m_graph_obj->add_rate_event(start_event);
 
     /* stop event */
@@ -606,7 +606,7 @@ TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, co
     /* for debug purposes */
     
     start_event.diff_pps   = stream->get_pps();
-    start_event.diff_bps   = stream->get_bps();
+    start_event.diff_bps   = ((TrexStream *)stream)->get_bps();
     start_event.stream_id  = stream->m_stream_id;
 
     stop_event.diff_pps    = -(start_event.diff_pps);

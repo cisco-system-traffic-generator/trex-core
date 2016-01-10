@@ -323,6 +323,7 @@ class TrexTUIPanelManager():
         if self.show_log:
             self.log.show()
 
+        sys.stdout.flush()
 
     def handle_key (self, ch):
         # check for the manager registered actions
@@ -393,7 +394,7 @@ class TrexTUI():
     def clear_screen (self):
         #os.system('clear')
         # maybe this is faster ?
-        sys.stderr.write("\x1b[2J\x1b[H")
+        sys.stdout.write("\x1b[2J\x1b[H")
 
 
 

@@ -199,6 +199,7 @@ public:
         /* deep copy */
         dp->m_pkt.clone(m_pkt.binary,m_pkt.len);
 
+        dp->m_expected_pkt_len      =   m_expected_pkt_len;
         dp->m_rx_check              =   m_rx_check;
         dp->m_pps                   =   m_pps;
         dp->m_burst_total_pkts      =   m_burst_total_pkts;
@@ -220,9 +221,21 @@ public:
         return ( (m_burst_total_pkts / m_pps) * 1000 * 1000);
     }
 
-    double get_bps() const {
+    double get_bps() {
+
+        /* lazy calculate the expected packet length */
+        if (m_expected_pkt_len == 0) {
+            /* if we have a VM - it might have changed the packet (even random) */
+            if (m_vm.is_vm_empty()) {
+                m_expected_pkt_len = m_pkt.len;
+            } else {
+                m_expected_pkt_len = m_vm.calc_expected_pkt_size(m_pkt.len);
+            }
+        }
+        
+
         /* packet length + 4 CRC bytes to bits and multiplied by PPS */
-        return (m_pps * (m_pkt.len + 4) * 8);
+        return (m_pps * (m_expected_pkt_len + 4) * 8);
     }
 
     void Dump(FILE *fd);
@@ -258,6 +271,8 @@ public:
     StreamVmDp   *m_vm_dp;
 
     CStreamPktData   m_pkt;
+    uint16_t         m_expected_pkt_len;
+
     /* pkt */
 
 

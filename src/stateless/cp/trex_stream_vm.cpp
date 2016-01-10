@@ -139,6 +139,18 @@ StreamVmInstruction::~StreamVmInstruction() {
  * 
  **************************/
 void StreamVm::add_instruction(StreamVmInstruction *inst) {
+
+    if (inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN) {
+        StreamVmInstructionFlowMan * ins_man=(StreamVmInstructionFlowMan *)inst;
+        if (ins_man->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM) {
+            m_is_random_var = true;
+        }
+    }
+
+    if (inst->get_instruction_type() == StreamVmInstruction::itPKT_SIZE_CHANGE) {
+        m_is_change_pkt_size = true;
+    }
+
     m_inst_list.push_back(inst);
 }
 
@@ -194,22 +206,8 @@ void StreamVm::build_flow_var_table() {
     var_clear_table();
     m_cur_var_offset=0;
     uint32_t ins_id=0;
-    m_is_random_var=false;
-    m_is_change_pkt_size=false;
-        /* scan all flow var instruction and build */
 
-    for (auto inst : m_inst_list) {
-        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN ){
-            StreamVmInstructionFlowMan * ins_man=(StreamVmInstructionFlowMan *)inst;
-            if (ins_man->m_op ==StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM){
-                m_is_random_var =true;
-            }
-        }
-
-        if ( inst->get_instruction_type() == StreamVmInstruction::itPKT_SIZE_CHANGE ){
-            m_is_change_pkt_size=true;
-        }
-    }
+    /* scan all flow var instruction and build */
 
     /* if we found allocate BSS +4 bytes */
     if ( m_is_random_var ){
@@ -346,6 +344,8 @@ void StreamVm::build_flow_var_table() {
             if ( var.m_ins.m_ins_flowv->m_min_value < 60) {
                 var.m_ins.m_ins_flowv->m_min_value =60;
             }
+
+            m_expected_pkt_size = (var.m_ins.m_ins_flowv->m_min_value + var.m_ins.m_ins_flowv->m_max_value) / 2;
         }
     }/* for */
 
@@ -781,6 +781,32 @@ StreamVm::~StreamVm() {
         delete inst;
     }          
     free_bss();
+}
+
+/**
+ * calculate expected packet size of stream's VM
+ * 
+ */
+uint16_t 
+StreamVm::calc_expected_pkt_size(uint16_t regular_pkt_size) const {
+
+    /* if no packet size change - simply return the regular packet size */
+    if (!m_is_change_pkt_size) {
+        return regular_pkt_size;
+    }
+    /* if we have an instruction that changes the packet size
+       so find the expected size
+       we must compile the VM temporarly to get this value
+     */
+
+    StreamVm dummy;
+
+    this->copy_instructions(dummy);
+    dummy.compile(regular_pkt_size);
+
+    assert(dummy.m_expected_pkt_size != 0);
+
+    return (dummy.m_expected_pkt_size);
 }
 
 /** 

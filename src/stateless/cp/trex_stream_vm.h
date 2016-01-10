@@ -1143,16 +1143,25 @@ public:
         m_prefix_size=0;
         m_bss=0;
         m_pkt_size=0;
+        m_expected_pkt_size=0;
         m_cur_var_offset=0;
+
         m_is_random_var=false;
+        m_is_change_pkt_size=false;
+
         m_split_instr=NULL;
         m_is_compiled = false;
     }
 
 
-    uint16_t get_packet_size() const {
-        return ( m_pkt_size);
-    }
+    /**
+     * calculate the expected packet size 
+     * might be different from regular_pkt_size 
+     * if the VM changes the packet length (random) 
+     * 
+     */
+    uint16_t calc_expected_pkt_size(uint16_t regular_pkt_size) const;
+
 
 
     void set_split_instruction(StreamVmInstructionVar *instr);
@@ -1227,7 +1236,7 @@ public:
     }
     
 
-    bool is_compiled() {
+    bool is_compiled() const {
         return m_is_compiled;
     }
 
@@ -1285,7 +1294,10 @@ private:
     bool                               m_is_change_pkt_size;
     bool                               m_is_compiled;
     uint16_t                           m_prefix_size;
+
     uint16_t                           m_pkt_size;
+    uint16_t                           m_expected_pkt_size;
+
     uint16_t                           m_cur_var_offset;
     uint16_t                           m_max_field_update; /* the location of the last byte that is going to be changed in the packet */ 
 
@@ -1296,6 +1308,8 @@ private:
     StreamDPVmInstructions             m_instructions;
     
     StreamVmInstructionVar             *m_split_instr;
+
+    
     
 };
 
