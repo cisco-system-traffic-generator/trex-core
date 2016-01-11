@@ -1,10 +1,9 @@
 - port_limit      : 2         # this option can limit the number of port of the platform
   version         : 2
-  interfaces    : ["03:00.0","03:00.1"] #
+  interfaces      : ["03:00.0","03:00.1"] #
   interface_mask  : [ "0000:11:00.00", "0000:11:00.01" ]  # deprecated
   scan_only_1g    : true
   enable_zmq_pub  : true  # enable publisher for stats data 
-  zmq_pub_port    : 4507
   telnet_port     : 4508 # the telnet port in case it is enable ( with intercative mode )
   platform :
         master_thread_id  : 12

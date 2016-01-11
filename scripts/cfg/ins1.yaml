@@ -1,8 +1,7 @@
-- version       : 2
-  interfaces    : ["03:00.0","03:00.1"]
-  port_limit    : 2 
+- version         : 2
+  interfaces      : ["03:00.0","03:00.1"]
+  port_limit      : 2 
   enable_zmq_pub  : true  # enable publisher for stats data 
-  zmq_pub_port    : 4507
   prefix          : setup1
   limit_memory    : 1024
   c               : 4

@@ -1,8 +1,7 @@
-- version       : 2
-  interfaces    : ["08:00.0","08:00.1"]
-  port_limit    : 2 
+- version         : 2
+  interfaces      : ["08:00.0","08:00.1"]
+  port_limit      : 2 
   enable_zmq_pub  : true  # enable publisher for stats data 
-  zmq_pub_port    : 4507
   c               : 4
 # for system of 1Gb/sec NIC or VM enable this  
   port_bandwidth_gb : 40  # port bandwidth 10Gb/sec , for VM put here 1 for XL710 put 40 
