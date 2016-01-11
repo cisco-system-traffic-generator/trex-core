@@ -2,6 +2,7 @@
 
 import sys
 import os
+import warnings
 
 CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
 ROOT_PATH           = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir))     # path to trex_control_plane directory
@@ -48,6 +49,7 @@ def import_platform_dirs ():
         del zmq
         return
     except:
+        sys.path.pop(0)
         pass
 
     full_path = os.path.join(PATH_TO_PYTHON_LIB, 'platform/cel59')
@@ -60,9 +62,10 @@ def import_platform_dirs ():
         return
 
     except:
-        raise Exception("unable to determine platform type for ZMQ import")
+        sys.path.pop(0)
+        sys.modules['zmq'] = None
+        warnings.warn("unable to determine platform type for ZMQ import")
 
-
+        
 
 import_client_utils_modules()
-

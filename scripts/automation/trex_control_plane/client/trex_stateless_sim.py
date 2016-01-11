@@ -24,13 +24,12 @@ except ImportError:
     # support import for Python 3
     import client.outer_packages
 
-from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
-from client_utils.packet_builder import CTRexPktBuilder
+from common.trex_streams import *
 from client_utils import parsing_opts
 
 import json
 
-from common.trex_streams import *
+
 
 import argparse
 import tempfile
@@ -138,7 +137,7 @@ class SimRun(object):
 
 
     def execute_bp_sim (self, json_filename):
-        exe = 'bp-sim-64' if self.options.release else 'bp-sim-64-debug'
+        exe = './bp-sim-64' if self.options.release else './bp-sim-64-debug'
         if not os.path.exists(exe):
             print "cannot find executable '{0}'".format(exe)
             exit(-1)

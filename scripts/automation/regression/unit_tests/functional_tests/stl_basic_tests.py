@@ -7,6 +7,7 @@ from nose.tools import assert_not_equal
 from unit_tests.trex_general_test import CTRexScenario
 from dpkt import pcap
 
+import sys
 import os
 import subprocess
 
@@ -80,7 +81,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def run_sim (self, yaml, output, options = "", silent = False):
         user_cmd = "{0} {1} {2}".format(yaml, output, options)
 
-        cmd = "{0} {1} {2}".format("python",
+        cmd = "{0} {1} {2}".format(sys.executable,
                                    self.stl_sim,
                                    user_cmd)
 
