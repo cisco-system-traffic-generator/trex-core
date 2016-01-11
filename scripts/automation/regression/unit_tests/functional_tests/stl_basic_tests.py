@@ -4,6 +4,7 @@ from platform_cmd_link import *
 import functional_general_test
 from nose.tools import assert_equal
 from nose.tools import assert_not_equal
+from nose.tools import nottest
 from unit_tests.trex_general_test import CTRexScenario
 from dpkt import pcap
 
@@ -11,6 +12,8 @@ import sys
 import os
 import subprocess
 
+# should be set to run explicitly, not as part of all regression tests
+@nottest
 class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp (self):
         self.test_path = os.path.abspath(os.getcwd())

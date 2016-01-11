@@ -56,7 +56,6 @@ class CTRexScenario():
     scripts_path     = None
     report_dir       = 'reports'
     # logger         = None
-    scripts_dir      = None
 
 #scenario = CTRexScenario()
 

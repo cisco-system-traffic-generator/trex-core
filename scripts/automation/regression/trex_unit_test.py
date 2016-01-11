@@ -146,7 +146,6 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
-        CTRexScenario.scripts_path  = get_trex_path()
 
         # launch TRex daemon on relevant setup
         if not self.local:
@@ -199,8 +198,8 @@ if __name__ == "__main__":
     long_test                   = False
     xml_name                    = 'unit_test.xml'
     CTRexScenario.report_dir    = 'reports'
-    CTRexScenario.scripts_dir   = get_trex_path()
-    DAEMON_STOP_COMMAND         = 'cd %s; ./trex_daemon_server stop; sleep 1; ./trex_daemon_server stop;' % CTRexScenario.scripts_dir
+    CTRexScenario.scripts_path  = get_trex_path()
+    DAEMON_STOP_COMMAND         = 'cd %s; ./trex_daemon_server stop; sleep 1; ./trex_daemon_server stop;' % CTRexScenario.scripts_path
     DAEMON_START_COMMAND        = DAEMON_STOP_COMMAND + 'sleep 1; rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
     setup_dir                   = os.getenv('SETUP_DIR', '').rstrip('/')
     CTRexScenario.setup_dir     = check_setup_path(setup_dir)
