@@ -111,7 +111,6 @@ class CTRexInfoGenerator(object):
         return_stats_data = {}
         per_field_stats = OrderedDict([("owner", []),
                                        ("state", []),
-                                       ("--", []),
                                        ("opackets", []),
                                        ("obytes", []),
                                        ("ipackets", []),
@@ -122,10 +121,8 @@ class CTRexInfoGenerator(object):
                                        ("rx-bytes", []),
                                        ("tx-pkts", []),
                                        ("rx-pkts", []),
-                                       ("---", []),
                                        ("Tx bps", []),
                                        ("Rx bps", []),
-                                       ("----", []),
                                        ("Tx pps", []),
                                        ("Rx pps", [])
                                       ]
@@ -149,6 +146,8 @@ class CTRexInfoGenerator(object):
                              header=False)
         stats_table.header(["port"] + [port.port_id
                                        for port in relevant_ports])
+
+        stats_table.add_div_rows('-', 2, 12, 14)
 
         return {"port_statistics": ExportableStats(return_stats_data, stats_table)}
 
