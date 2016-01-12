@@ -116,6 +116,8 @@ class TRexConsole(TRexGeneralCmd):
 
     def __init__(self, stateless_client, verbose=False):
         self.stateless_client = stateless_client
+        self.stateless_client.set_prompt_redraw_cb(self.prompt_redraw)
+
         TRexGeneralCmd.__init__(self)
 
         self.tui = trex_tui.TrexTUI(stateless_client)
@@ -129,6 +131,9 @@ class TRexConsole(TRexGeneralCmd):
 
 
     ################### internal section ########################
+
+    def prompt_redraw (self):
+        sys.stdout.write(self.prompt)
 
     def verify_connected(f):
         @wraps(f)

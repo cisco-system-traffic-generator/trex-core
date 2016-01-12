@@ -69,7 +69,7 @@ class CTRexStatelessClient(object):
         self.session_id = random.getrandbits(32)
         self.read_only = False
         self.connected = False
-
+        self.prompt_redraw_cb = None
 
 
     # returns the port object
@@ -99,7 +99,7 @@ class CTRexStatelessClient(object):
         self.events.append("{:<10} - {:^8} - {:}".format(st, prefix, format_text(msg, 'bold')))
 
         if show:
-            self.prn_func(format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold'))))
+            self.prn_func(format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold'))), redraw_console = True)
         
 
     def handle_async_stats_update(self, dump_data):
@@ -475,9 +475,20 @@ class CTRexStatelessClient(object):
     def get_verbose (self):
         return self.verbose
 
-    def prn_func (self, msg, level = VERBOSE_REGULAR):
-        if self.check_verbose(level):
+    def prn_func (self, msg, level = VERBOSE_REGULAR, redraw_console = False):
+        if not self.check_verbose(level):
+            return
+
+        if redraw_console and self.prompt_redraw_cb:
+            print "\n" + msg + "\n"
+            self.prompt_redraw_cb()
+        else:
             print msg
+
+        sys.stdout.flush()
+
+    def set_prompt_redraw_cb(self, cb):
+        self.prompt_redraw_cb = cb
 
     ############# server actions ################
 
