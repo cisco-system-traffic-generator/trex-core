@@ -113,12 +113,14 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--kill-running', '--kill_running', action="store_true", default = False,
                             dest="kill_running", 
                             help="Kills running TRex process on remote server (useful for regression).")
-
-        parser.add_option('--local', action="store_true", default = False,
-                            dest="local", 
-                            help="Don't connect to remote server for runnning daemon (useful for functional tests).")
+        parser.add_option('--functional', action="store_true", default = False,
+                            dest="functional", 
+                            help="Don't connect to remote server for runnning daemon (For functional tests).")
 
     def configure(self, options, conf):
+        self.functional = options.functional
+        if self.functional:
+            return
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
@@ -135,12 +137,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.verbose_mode  = options.verbose_mode
         self.clean_config  = False if options.skip_clean_config else True
         self.server_logs   = options.server_logs
-        self.local         = options.local
-
         if options.log_path:
             self.loggerPath = options.log_path
 
     def begin (self):
+        if self.functional:
+            return
         # initialize CTRexScenario global testing class, to be used by all tests
         CTRexScenario.configuration = self.configuration
         CTRexScenario.benchmark     = self.benchmark
@@ -148,9 +150,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.server_logs   = self.server_logs
 
         # launch TRex daemon on relevant setup
-        if not self.local:
-            start_trex_remote_server(self.configuration.trex, self.kill_running)
-            CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
+        start_trex_remote_server(self.configuration.trex, self.kill_running)
+        CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
 
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg    = dict( config_dict  = self.configuration.router, 
@@ -164,9 +165,10 @@ class CTRexTestConfiguringPlugin(Plugin):
             CustomLogger.setup_custom_logger('TRexLogger')
     
     def finalize(self, result):
+        if self.functional:
+            return
         CTRexScenario.is_init       = False
-        if not self.local:
-            stop_trex_remote_server(self.configuration.trex)
+        stop_trex_remote_server(self.configuration.trex)
 
 
 def save_setup_info():

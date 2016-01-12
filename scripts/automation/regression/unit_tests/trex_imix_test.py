@@ -46,8 +46,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         print trex_res
 
         self.check_general_scenario_results(trex_res)
-        
-        self.check_CPU_benchmark(trex_res, 10.0)
+        self.check_CPU_benchmark(trex_res)
 
     # the name intentionally not matches nose default pattern, including the test should be specified explicitly
     def dummy(self):
@@ -94,12 +93,12 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         self.check_general_scenario_results(trex_res)
 
-        self.check_CPU_benchmark(trex_res, 10.0)
+        self.check_CPU_benchmark(trex_res)
 
 
     def test_static_routing_imix (self):
-        if self.is_loopback: # in loopback mode this test acts same as test_routing_imix, disable to avoid duplication
-            self.skip()
+        if self.is_loopback:
+            self.skip('In loopback mode the test is same as test_routing_imix')
         # test initializtion
         if not self.is_loopback:
             self.router.configure_basic_interfaces()
@@ -122,7 +121,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             l = 1000)
 
         trex_res = self.trex.sample_to_run_finish()
-        
+
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
         print ("\nLATEST RESULT OBJECT:")
@@ -131,7 +130,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         print trex_res.get_latest_dump()
 
         self.check_general_scenario_results(trex_res)
-        self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res)
 
 
     def test_static_routing_imix_asymmetric (self):
@@ -156,7 +155,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             l = 1000)
 
         trex_res = self.trex.sample_to_run_finish()
-        
+
         # trex_res is a CTRexResults instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
         print ("\nLATEST RESULT OBJECT:")
@@ -164,9 +163,9 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         self.check_general_scenario_results(trex_res)
 
-        self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res)
 
-        
+
     def test_jumbo(self):
         if not self.is_loopback:
             self.router.configure_basic_interfaces(mtu = 9216)
@@ -185,7 +184,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             l = 1000)
 
         trex_res = self.trex.sample_to_run_finish()
-        
+
         # trex_res is a CTRexResults instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
         print ("\nLATEST RESULT OBJECT:")

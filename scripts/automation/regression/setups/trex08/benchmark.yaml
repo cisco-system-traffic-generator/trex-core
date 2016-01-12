@@ -53,3 +53,7 @@ test_rx_check_http_ipv6_disabled:
     multiplier        : 99000
     cores             : 3
     rx_sample_rate    : 128
+
+test_jumbo:
+    multiplier        : 150
+    cores             : 2
