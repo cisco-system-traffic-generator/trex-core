@@ -28,16 +28,6 @@ class CTRexAsyncStats(object):
         self.current = {}
         self.last_update_ts = datetime.datetime.now()
 
-    @staticmethod
-    def format_num (size, suffix = ""):
-
-        for unit in ['','K','M','G','T','P']:
-            if abs(size) < 1000.0:
-                return "%3.2f %s%s" % (size, unit, suffix)
-            size /= 1000.0
-
-        return "NaN"
-
     def update (self, snapshot):
 
         #update
@@ -60,7 +50,7 @@ class CTRexAsyncStats(object):
         if not format:
             return self.current[field]
         else:
-            return self.format_num(self.current[field], suffix)
+            return format_num(self.current[field], suffix)
 
     def get_rel (self, field, format=False, suffix=""):
         if not field in self.current:
@@ -69,7 +59,7 @@ class CTRexAsyncStats(object):
         if not format:
             return (self.current[field] - self.ref_point[field])
         else:
-            return self.format_num(self.current[field] - self.ref_point[field], suffix)
+            return format_num(self.current[field] - self.ref_point[field], suffix)
 
 
     # return true if new data has arrived in the past 2 seconds

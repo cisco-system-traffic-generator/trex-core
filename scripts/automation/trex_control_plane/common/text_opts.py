@@ -18,14 +18,42 @@ TEXT_CODES = {'bold': {'start': '\x1b[1m',
               'underline': {'start': '\x1b[4m',
                             'end': '\x1b[24m'}}
 
+class TextCodesStripper:
+    keys = [re.escape(v['start']) for k,v in TEXT_CODES.iteritems()]
+    keys += [re.escape(v['end']) for k,v in TEXT_CODES.iteritems()]
+    pattern = re.compile("|".join(keys))
 
-def format_num (size, suffix = ""):
-    for unit in ['','K','M','G','T','P']:
-        if abs(size) < 1000.0:
-            return "%3.2f %s%s" % (size, unit, suffix)
-        size /= 1000.0
+    @staticmethod
+    def strip (s):
+        return re.sub(TextCodesStripper.pattern, '', s)
 
-    return "NaN"
+def format_num (size, suffix = "", compact = True, opts = ()):
+    txt = "NaN"
+
+    if type(size) == str:
+        return "N/A"
+
+    u = ''
+
+    if compact:
+        for unit in ['','K','M','G','T','P']:
+            if abs(size) < 1000.0:
+                #txt = "%3.2f %s%s" % (size, unit, suffix)
+                u = unit
+                break
+            size /= 1000.0
+
+    if isinstance(size, float):
+        txt = "%3.2f %s%s" % (size, u, suffix)
+    else:
+        txt = "{:,} {:}{:}".format(size, u, suffix)
+
+    if isinstance(opts, tuple):
+        return format_text(txt, *opts)
+    else:
+        return format_text(txt, (opts))
+
+
 
 def format_time (t_sec):
     if t_sec < 0:
@@ -122,7 +150,9 @@ def format_text(text, *args):
         func = FUNC_DICT.get(i)
         if func:
             return_string = func(return_string)
+
     return return_string
+
 
 def format_threshold (value, red_zone, green_zone):
     if value >= red_zone[0] and value <= red_zone[1]:

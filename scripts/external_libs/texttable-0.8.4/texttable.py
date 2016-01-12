@@ -98,6 +98,7 @@ Maximilian Hils:
 
 import sys
 import string
+from common import text_opts
 
 try:
     if sys.version >= '2.3':
@@ -126,6 +127,10 @@ def len(iterable):
             return len(unicode(iterable, 'utf'))
     except:
         return iterable.__len__()
+
+
+def ansi_len (iterable):
+    return len(text_opts.TextCodesStripper.strip(iterable))
 
 
 class ArraySizeError(Exception):
@@ -532,7 +537,7 @@ class Texttable:
             for cell, width, align in zip(line, self._width, self._align):
                 length += 1
                 cell_line = cell[i]
-                fill = width - len(cell_line)
+                fill = width - ansi_len(cell_line)
                 if isheader:
                     align = "c"
                 if align == "r":
@@ -569,7 +574,11 @@ class Texttable:
                         c = str(c, 'utf', 'replace')
                     else:
                         c = unicode(c, 'utf', 'replace')
-                array.extend(textwrap.wrap(c, width))
+
+                # imarom - no wrap for now
+                #array.extend(textwrap.wrap(c, width))
+                array.extend([c])
+
             line_wrapped.append(array)
         max_cell_lines = reduce(max, list(map(len, line_wrapped)))
         for cell, valign in zip(line_wrapped, self._valign):

@@ -1,13 +1,14 @@
 #!/router/bin/python
 from collections import namedtuple, OrderedDict, deque
 from client_utils import text_tables
-from common.text_opts import format_text, format_threshold
+from common.text_opts import format_text, format_threshold, format_num
 from client.trex_async_client import CTRexAsyncStats
 import copy
 import datetime
 import time
 import re
 import math
+import copy
 
 GLOBAL_STATS = 'g'
 PORT_STATS = 'p'
@@ -80,7 +81,8 @@ class CTRexInfoGenerator(object):
     def generate_streams_info(self, port_id_list, stream_id_list):
         relevant_ports = self.__get_relevant_ports(port_id_list)
 
-        return_data = {}
+        return_data = OrderedDict()
+
         for port_obj in relevant_ports:
             streams_data = self._generate_single_port_streams_info(port_obj, stream_id_list)
             if not streams_data:
@@ -90,6 +92,7 @@ class CTRexInfoGenerator(object):
 
             # TODO: test for other ports with same stream structure, and join them
             return_data[hdr_key] = streams_data
+
         return return_data
 
     def _generate_global_stats(self):
@@ -99,6 +102,7 @@ class CTRexInfoGenerator(object):
         # build table representation
         stats_table = text_tables.TRexTextInfo()
         stats_table.set_cols_align(["l", "l"])
+
         stats_table.add_rows([[k.replace("_", " ").title(), v]
                               for k, v in stats_data.iteritems()],
                              header=False)
@@ -156,9 +160,9 @@ class CTRexInfoGenerator(object):
         relevant_ports = self.__get_relevant_ports(port_id_list)
 
         return_stats_data = {}
-        per_field_status = OrderedDict([("port-type", []),
+        per_field_status = OrderedDict([("type", []),
                                         ("maximum", []),
-                                        ("port-status", [])
+                                        ("status", [])
                                         ]
                                        )
 
@@ -193,8 +197,12 @@ class CTRexInfoGenerator(object):
             return None
 
         # FORMAT VALUES ON DEMAND
+
+        # because we mutate this - deep copy before
+        return_streams_data = copy.deepcopy(return_streams_data)
+
         for stream_id, stream_id_sum in return_streams_data['streams'].iteritems():
-            stream_id_sum['rate_pps'] = CTRexStats.format_num(stream_id_sum['rate_pps'], suffix='pps')
+            stream_id_sum['rate_pps'] = format_num(stream_id_sum['rate_pps'], suffix='pps')
             stream_id_sum['packet_type'] = self._trim_packet_headers(stream_id_sum['packet_type'], 20)
 
         info_table = text_tables.TRexTextTable()
@@ -277,16 +285,6 @@ class CTRexStats(object):
         # can't match to any known pattern, return N/A
         return "N/A"
 
-    @staticmethod
-    def format_num(size, suffix = ""):
-        if type(size) == str:
-            return "N/A"
-
-        for unit in ['','K','M','G','T','P']:
-            if abs(size) < 1000.0:
-                return "%3.2f %s%s" % (size, unit, suffix)
-            size /= 1000.0
-        return "NaN"
 
     def generate_stats(self):
         # must be implemented by designated classes (such as port/ global stats)
@@ -317,7 +315,7 @@ class CTRexStats(object):
         if not format:
             return self.latest_stats[field]
         else:
-            return self.format_num(self.latest_stats[field], suffix)
+            return format_num(self.latest_stats[field], suffix)
 
     def get_rel(self, field, format=False, suffix=""):
         if not field in self.latest_stats:
@@ -326,14 +324,19 @@ class CTRexStats(object):
         if not format:
             return (self.latest_stats[field] - self.reference_stats[field])
         else:
-            return self.format_num(self.latest_stats[field] - self.reference_stats[field], suffix)
+            return format_num(self.latest_stats[field] - self.reference_stats[field], suffix)
 
     # get trend for a field
-    def get_trend (self, field, use_raw = False):
+    def get_trend (self, field, use_raw = False, percision = 10.0):
         if not field in self.latest_stats:
             return 0
 
+        # not enough history - no trend
         if len(self.history) < 5:
+            return 0
+
+        # absolute value is too low 0 considered noise
+        if self.latest_stats[field] < percision:
             return 0
         
         field_samples = [sample[field] for sample in self.history]
@@ -344,7 +347,7 @@ class CTRexStats(object):
             return calculate_diff(field_samples)
 
 
-    def get_trend_gui (self, field, show_value = True, use_raw = False, up_color = 'red', down_color = 'green'):
+    def get_trend_gui (self, field, show_value = False, use_raw = False, up_color = 'red', down_color = 'green'):
         v = self.get_trend(field, use_raw)
 
         value = abs(v)
@@ -394,6 +397,8 @@ class CGlobalStats(CTRexStats):
                              ("cpu_util", u"{0}% {1}".format( format_threshold(self.get("m_cpu_util"), [85, 100], [0, 85]),
                                                               self.get_trend_gui("m_cpu_util", use_raw = True))),
 
+                             (" ", ""),
+
                              ("total_tx", u"{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
                                                               self.get_trend_gui("m_tx_bps"))),
 
@@ -403,10 +408,17 @@ class CGlobalStats(CTRexStats):
                              ("total_pps", u"{0} {1}".format( self.get("m_tx_pps", format=True, suffix="pkt/sec"),
                                                               self.get_trend_gui("m_tx_pps"))),
 
-                             ("total_streams", sum([len(port_obj.streams)
-                                                    for _, port_obj in self._ports_dict.iteritems()])),
-                             ("active_ports", sum([port_obj.is_active()
-                                                   for _, port_obj in self._ports_dict.iteritems()]))
+                             ("  ", ""),
+
+                             ("drop_rate", "{0}".format( format_num(self.get("m_rx_drop_bps"),
+                                                                    suffix = 'b/sec',
+                                                                    opts = 'green' if (self.get("m_rx_drop_bps")== 0) else 'red'))),
+
+                             ("queue_full", "{0}".format( format_num(self.get_rel("m_total_queue_full"),
+                                                                     suffix = 'pkts',
+                                                                     compact = False,
+                                                                     opts = 'green' if (self.get_rel("m_total_queue_full")== 0) else 'red'))),
+
                              ]
                             )
 
@@ -417,9 +429,10 @@ class CPortStats(CTRexStats):
         self._port_obj = port_obj
 
     def generate_stats(self):
+
         return {"owner": self._port_obj.user,
                 "state": self._port_obj.get_port_state_name(),
-                "--": "",
+                "--": " ",
                 "opackets" : self.get_rel("opackets"),
                 "obytes"   : self.get_rel("obytes"),
                 "ipackets" : self.get_rel("ipackets"),
@@ -433,17 +446,17 @@ class CPortStats(CTRexStats):
                 "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
 
                 "---": "",
-                "Tx bps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False, up_color = None, down_color = None),
+                "Tx bps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
                                             self.get("m_total_tx_bps", format = True, suffix = "bps")),
 
-                "Rx bps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False, up_color = None, down_color = None),
+                "Rx bps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
                                             self.get("m_total_rx_bps", format = True, suffix = "bps")),
 
                 "----": "",
-                "Tx pps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False, up_color = None, down_color = None),
+                "Tx pps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
                                             self.get("m_total_tx_pps", format = True, suffix = "pps")),
 
-                "Rx pps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False, up_color = None, down_color = None),
+                "Rx pps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
                                             self.get("m_total_rx_pps", format = True, suffix = "pps")),
 
                 }

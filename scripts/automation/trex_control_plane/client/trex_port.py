@@ -403,12 +403,11 @@ class Port(object):
     ################# stats handler ######################
     def generate_port_stats(self):
         return self.port_stats.generate_stats()
-        pass
 
     def generate_port_status(self):
-        return {"port-type": self.driver,
+        return {"type": self.driver,
                 "maximum": "{speed} Gb/s".format(speed=self.speed),
-                "port-status": self.get_port_state_name()
+                "status": self.get_port_state_name()
                 }
 
     def clear_stats(self):
