@@ -66,7 +66,14 @@ class TRexGeneralCmd(cmd.Cmd):
 
     def save_console_history(self):
         if not os.path.exists(self._history_file_dir):
-            os.makedirs(self._history_file_dir)
+            # make the directory available for every user
+            try:
+                original_umask = os.umask(0)
+                os.makedirs(self._history_file_dir, mode = 0777)
+            finally:
+                os.umask(original_umask)
+
+            
         # os.mknod(self._history_file)
         readline.write_history_file(self._history_file)
         return
