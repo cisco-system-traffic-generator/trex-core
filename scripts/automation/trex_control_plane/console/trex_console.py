@@ -102,12 +102,6 @@ class TRexGeneralCmd(cmd.Cmd):
         dotext = 'do_'+text
         return [a[3:]+' ' for a in self.get_names() if a.startswith(dotext)]
 
-    def precmd(self, line):
-        # before doing anything, save history snapshot of the console
-        # this is done before executing the command in case of ungraceful application exit
-        self.save_console_history()
-        return line
-
 
 #
 # main console object
@@ -133,7 +127,7 @@ class TRexConsole(TRexGeneralCmd):
     ################### internal section ########################
 
     def prompt_redraw (self):
-        sys.stdout.write(self.prompt)
+        sys.stdout.write(self.prompt + readline.get_line_buffer())
 
     def verify_connected(f):
         @wraps(f)
@@ -185,6 +179,22 @@ class TRexConsole(TRexGeneralCmd):
             for prefix in 'do_', 'help_', 'complete_':
                 if name.startswith(prefix):
                     self.__dict__[name] = getattr(self.trex_console, name)
+
+    def precmd(self, line):
+        # before doing anything, save history snapshot of the console
+        # this is done before executing the command in case of ungraceful application exit
+        self.save_console_history()
+
+        lines = line.split(';')
+
+        for line in lines:
+            stop = self.onecmd(line)
+            stop = self.postcmd(stop, line)
+            if stop:
+                return "quit"
+
+        return ""
+
 
     def postcmd(self, stop, line):
 
@@ -488,7 +498,7 @@ class TRexConsole(TRexGeneralCmd):
 
             exe += './trex-console -t -q -s {0} -p {1}'.format(self.stateless_client.get_server_ip(), self.stateless_client.get_server_port())
 
-            cmd = ['xterm', '-geometry', '105x42', '-title', 'trex_tui', '-e', exe]
+            cmd = ['xterm', '-geometry', '111x42', '-title', 'trex_tui', '-e', exe]
             subprocess.Popen(cmd)
 
             return

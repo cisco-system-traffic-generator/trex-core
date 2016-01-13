@@ -96,7 +96,6 @@ class CTRexInfoGenerator(object):
         return return_data
 
     def _generate_global_stats(self):
-        # stats_obj = self._async_stats.get_general_stats()
         stats_data = self._global_stats.generate_stats()
 
         # build table representation
@@ -135,24 +134,36 @@ class CTRexInfoGenerator(object):
                                       ]
                                       )
 
+        total_stats = CPortStats(None)
+
         for port_obj in relevant_ports:
             # fetch port data
             port_stats = port_obj.generate_port_stats()
+
+            total_stats += port_obj.port_stats
 
             # populate to data structures
             return_stats_data[port_obj.port_id] = port_stats
             self.__update_per_field_dict(port_stats, per_field_stats)
 
+        total_cols = len(relevant_ports)
+        header = ["port"] + [port.port_id for port in relevant_ports]
+
+        if (total_cols > 1):
+            self.__update_per_field_dict(total_stats.generate_stats(), per_field_stats)
+            header += ['total']
+            total_cols += 1
+
         stats_table = text_tables.TRexTextTable()
-        stats_table.set_cols_align(["l"] + ["r"]*len(relevant_ports))
-        stats_table.set_cols_width([10] + [20] * len(relevant_ports))
-        stats_table.set_cols_dtype(['t'] + ['t'] * len(relevant_ports))
+        stats_table.set_cols_align(["l"] + ["r"] * total_cols)
+        stats_table.set_cols_width([10] + [17]   * total_cols)
+        stats_table.set_cols_dtype(['t'] + ['t'] * total_cols)
 
         stats_table.add_rows([[k] + v
                               for k, v in per_field_stats.iteritems()],
-                             header=False)
-        stats_table.header(["port"] + [port.port_id
-                                       for port in relevant_ports])
+                              header=False)
+
+        stats_table.header(header)
 
         return {"port_statistics": ExportableStats(return_stats_data, stats_table)}
 
@@ -428,10 +439,43 @@ class CPortStats(CTRexStats):
         super(CPortStats, self).__init__()
         self._port_obj = port_obj
 
+    @staticmethod
+    def __merge_dicts (target, src):
+        for k, v in src.iteritems():
+            if k in target:
+                target[k] += v
+            else:
+                target[k] = v
+
+
+    def __add__ (self, x):
+        if not isinstance(x, CPortStats):
+            raise TypeError("cannot add non stats object to stats")
+
+        # main stats
+        self.__merge_dicts(self.latest_stats, x.latest_stats)
+
+        # reference stats
+        if x.reference_stats:
+            if not self.reference_stats:
+                self.reference_stats = x.reference_stats.copy()
+            else:
+                self.__merge_dicts(self.reference_stats, x.reference_stats)
+
+        # history
+        if not self.history:
+            self.history = copy.deepcopy(x.history)
+        else:
+            for h1, h2 in zip(self.history, x.history):
+                self.__merge_dicts(h1, h2)
+
+        return self
+
+
     def generate_stats(self):
 
-        return {"owner": self._port_obj.user,
-                "state": self._port_obj.get_port_state_name(),
+        return {"owner": self._port_obj.user if self._port_obj else "",
+                "state": self._port_obj.get_port_state_name() if self._port_obj else "",
                 "--": " ",
                 "opackets" : self.get_rel("opackets"),
                 "obytes"   : self.get_rel("obytes"),

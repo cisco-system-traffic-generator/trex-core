@@ -47,10 +47,10 @@ def check_negative(value):
 
 def match_time_unit(val):
     '''match some val against time shortcut inputs '''
-    match = re.match("^(\d+)([m|h]?)$", val)
+    match = re.match("^(\d+(\.\d+)?)([m|h]?)$", val)
     if match:
-        digit = int(match.group(1))
-        unit = match.group(2)
+        digit = float(match.group(1))
+        unit = match.group(3)
         if not unit:
             return digit
         elif unit == 'm':
