@@ -498,7 +498,7 @@ class TRexConsole(TRexGeneralCmd):
 
             exe += './trex-console -t -q -s {0} -p {1}'.format(self.stateless_client.get_server_ip(), self.stateless_client.get_server_port())
 
-            cmd = ['xterm', '-geometry', '111x42', '-title', 'trex_tui', '-e', exe]
+            cmd = ['xterm', '-geometry', '111x42', '-sl', '0', '-title', 'trex_tui', '-e', exe]
             subprocess.Popen(cmd)
 
             return

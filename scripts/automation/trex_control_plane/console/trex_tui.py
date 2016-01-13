@@ -7,6 +7,7 @@ from common import trex_stats
 from client_utils import text_tables
 from collections import OrderedDict
 import datetime
+from cStringIO import StringIO
 
 class SimpleBar(object):
     def __init__ (self, desc, pattern):
@@ -322,8 +323,7 @@ class TrexTUIPanelManager():
 
         if self.show_log:
             self.log.show()
-
-        sys.stdout.flush()
+        
 
     def handle_key (self, ch):
         # check for the manager registered actions
@@ -459,8 +459,17 @@ class TrexTUI():
     def draw_screen (self, force_draw = False):
 
         if (self.draw_policer >= 5) or (force_draw):
-            self.clear_screen()
+
+            # capture stdout to a string
+            old_stdout = sys.stdout
+            sys.stdout = mystdout = StringIO()
             self.pm.show()
+            sys.stdout = old_stdout
+
+            self.clear_screen()
+            print mystdout.getvalue()
+            sys.stdout.flush()
+
             self.draw_policer = 0
         else:
             self.draw_policer += 1 
