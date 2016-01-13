@@ -557,6 +557,20 @@ class TRexConsole(TRexGeneralCmd):
     
              print "{:<30} {:<30}".format(cmd + " - ", help)
 
+    # a custorm cmdloop wrapper
+    def start(self):
+        while True:
+            try:
+                self.cmdloop()
+                break
+            except KeyboardInterrupt as e:
+                 if not readline.get_line_buffer():
+                     raise KeyboardInterrupt
+                 else:
+                     print ""
+                     self.intro = None
+                     continue
+
     # aliases
     do_exit = do_EOF = do_q = do_quit
     do_h = do_history
@@ -650,11 +664,11 @@ def main():
         if options.tui:
             console.do_tui("")
         else:
-            console.cmdloop()
-
+            console.start()
+            
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
-        
+
     finally:
         stateless_client.disconnect()
 
