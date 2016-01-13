@@ -730,9 +730,10 @@ class CTRexPktBuilder(object):
                 None
             """
             super(CTRexPktBuilder.CTRexVM, self).__init__()
-            self.vm_variables = {'instructions': [], 'split_by_var': ""}
+            self.vm_variables = {}
             self._inst_by_offset = {}   # this data structure holds only offset-related instructions, ordered in tuples
             self._off_inst_by_name = {}
+            self.split_by_var = ''
 
         def set_vm_var_field(self, var_name, field_name, val, offset_inst=False):
             """
@@ -836,26 +837,23 @@ class CTRexPktBuilder(object):
 
         def dump(self):
             """
-            dumps a VM variables (instructions) into a list data structure.
+            dumps a VM variables (instructions) and split_by_var into a dict data structure.
 
             :parameters:
                 None
 
             :return:
-                list holds variables data of VM
+                dict with VM instructions as list and split_by_var as str
 
             """
 
-            return self.vm_variables
-            # !!! TODO: review code below !!!
-
             # at first, dump all CTRexVMFlowVariable instructions
-            ret_val = [var.dump()
-                       for key, var in self.vm_variables.items()]
+            inst_array = [var.dump() if hasattr(var, 'dump') else var
+                          for key, var in self.vm_variables.items()]
             # then, dump all the CTRexVMWrtFlowVarInst and CTRexVMChecksumInst instructions
-            ret_val += [self._inst_by_offset.get(key).inst.dump()
-                        for key in sorted(self._inst_by_offset)]
-            return ret_val
+            inst_array += [self._inst_by_offset.get(key).inst.dump()
+                           for key in sorted(self._inst_by_offset)]
+            return {'instructions': inst_array, 'split_by_var': self.split_by_var}
 
         class CVMAbstractInstruction(object):
             __metaclass__ = ABCMeta
