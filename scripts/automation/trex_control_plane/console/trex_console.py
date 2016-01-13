@@ -444,6 +444,7 @@ class TRexConsole(TRexGeneralCmd):
         '''Clear cached local statistics\n'''
         self.stateless_client.cmd_clear_line(line)
 
+
     def help_clear(self):
         self.do_clear("-h")
 

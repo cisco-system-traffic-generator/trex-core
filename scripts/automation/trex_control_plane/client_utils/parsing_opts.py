@@ -186,7 +186,9 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               ALL_PORTS: ArgumentPack(['-a'],
                                         {"action": "store_true",
                                          "dest": "all_ports",
-                                         'help': "Set this flag to apply the command on all available ports"}),
+                                         'help': "Set this flag to apply the command on all available ports",
+                                         'default': False},),
+
               DURATION: ArgumentPack(['-d'],
                                         {'action': "store",
                                          'metavar': 'TIME',
@@ -256,7 +258,8 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
-                                                {'required': True}),
+                                                {'required': False}),
+
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
                                                               FILE_FROM_DB],
                                                       {'required': True}),
@@ -279,10 +282,12 @@ class CCmdArgParser(argparse.ArgumentParser):
             if opts is None:
                 return None
 
-            if getattr(opts, "all_ports", None):
+            # if all ports are marked or 
+            if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
                 opts.ports = self.stateless_client.get_port_ids()
 
-            if getattr(opts, "ports", None):
+            # so maybe we have ports configured
+            elif (getattr(opts, "ports", None) == []):
                 for port in opts.ports:
                     if not self.stateless_client.validate_port_list([port]):
                         self.error("port id '{0}' is not a valid port id\n".format(port))

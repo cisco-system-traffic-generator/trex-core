@@ -1038,6 +1038,7 @@ class CTRexStatelessClient(object):
 
         if opts is None:
             return RC_ERR("bad command line parameters")
+
         return self.cmd_clear(opts.ports)
 
 
