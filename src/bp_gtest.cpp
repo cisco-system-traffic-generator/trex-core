@@ -2076,7 +2076,7 @@ int CRxCheckIF::send_node(CGenNode * node){
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
     if ( unlikely( node->is_rx_check_enabled() ) ) {
-        lp->do_generate_new_mbuf_rxcheck(m,node,p_id,m_one_dir);
+        lp->do_generate_new_mbuf_rxcheck(m, node, m_one_dir);
     }
 
     fill_pkt(m_raw,m);
@@ -2432,12 +2432,12 @@ class nat_check_system  : public testing::Test {
       CParserOption * po =&CGlobalInfo::m_options;
       po->preview.setVMode(0);
       po->preview.setFileWrite(true);
-      po->preview.set_lean_mode_enable(true);
+      po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
   }
 
   virtual void TearDown() {
       CParserOption * po =&CGlobalInfo::m_options;
-      po->preview.set_lean_mode_enable(false);
+      po->m_learn_mode = CParserOption::LEARN_MODE_DISABLED;
       m_mg.Delete();
   }
 public:
@@ -2609,9 +2609,31 @@ TEST_F(file_flow_info, http_add_ipv6_option) {
     po->preview.set_ipv6_mode_enable(false);
 }
 
+// Test error conditions when loading cap file
+TEST_F(file_flow_info, load_cap_file_errors) {
+    enum CCapFileFlowInfo::load_cap_file_err err;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK;
 
-
-
+    // file does not exist
+    err = m_flow_info.load_cap_file("/tmp/not_exist",1,0);
+    assert (err == CCapFileFlowInfo::kFileNotExist);
+    // file format not supported
+    err = m_flow_info.load_cap_file("cap2/dns.yaml",1,0);
+    assert (err == CCapFileFlowInfo::kFileNotExist);
+    // udp in tcp learn mode
+    err = m_flow_info.load_cap_file("./cap2/dns.pcap",1,0);
+    assert (err == CCapFileFlowInfo::kNoTCPFromServer);
+    // First TCP packet without syn
+    err = m_flow_info.load_cap_file("./exp/tcp_no_syn.pcap",1,0);
+    assert (err == CCapFileFlowInfo::kNoSyn);
+    // TCP flags offset is too big
+    err = m_flow_info.load_cap_file("./exp/many_ip_options.pcap",1,0);
+    assert (err == CCapFileFlowInfo::kTCPOffsetTooBig);
+    // Non IP packet
+    err = m_flow_info.load_cap_file("./exp/bad_not_ip.pcap",1,0);
+    assert (err == CCapFileFlowInfo::kPktProcessFail);
+}
 
 //////////////////////////////////////////////////////////////
 

@@ -436,7 +436,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
             case CNatOption::noIPV4_OPTION:
                     /* NAT learn option header */
                     CNatOption *lp;
-                    if ( ( !CGlobalInfo::is_learn_mode() ) ||
+                    if ( ( !CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION) ) ||
                          (opt_len < CNatOption::noOPTION_LEN) ) {
                         m_seq_error++;
                         return (false);
@@ -455,9 +455,14 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
                     return (false);
             } // End of switch
         } // End of while
+	if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)
+	    && parser.IsNatInfoPkt()) {
+		m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4);
+	}
 
         return (true);
     } // End of check for non-latency packet
+    // learn for latency packets. We only have one flow for latency, so translation is for it.
     if ( CGlobalInfo::is_learn_mode() && (m_nat_learn ==false) ) {
         do_learn(parser.m_ipv4->getSourceIp());
     }

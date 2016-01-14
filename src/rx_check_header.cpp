@@ -1,12 +1,10 @@
-#include "rx_check_header.h"
-#include <common/basic_utils.h>
 /*
  Hanoh Haim
  Cisco Systems, Inc.
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +18,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-
+#include "os_time.h"
+#include "rx_check_header.h"
 
 void CRx_check_header::dump(FILE *fd){
 
@@ -37,16 +35,3 @@ void CRx_check_header::dump(FILE *fd){
     fprintf(fd,"  flow_id    : %lx \n",m_flow_id);
     fprintf(fd,"  flags      : %x \n",m_flags);
 }
-
-
-
-void CNatOption::dump(FILE *fd){
-
-    fprintf(fd,"  op        : %x \n",get_option_type());
-    fprintf(fd,"  ol        : %x \n",get_option_len());
-    fprintf(fd,"  thread_id : %x \n",get_thread_id());
-    fprintf(fd,"  magic     : %x \n",get_magic());
-    fprintf(fd,"  fid       : %x \n",get_fid());
-    utl_DumpBuffer(stdout,(void *)&u.m_data[0],8,0);
-}
-

@@ -90,29 +90,35 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         pass
 
 
-    def test_nat_simple(self):
+    def test_nat_simple_mode1(self):
+        self.nat_simple_helper(learn_mode=1)
+
+    def test_nat_simple_mode2(self):
+        self.nat_simple_helper(learn_mode=2)
+
+    def nat_simple_helper(self, learn_mode=1):
         # test initializtion
         self.router.configure_basic_interfaces()
 
         
-        stat_route_dict = self.get_benchmark_param('stat_route_dict')
+        stat_route_dict = self.get_benchmark_param('stat_route_dict', test_name="test_nat_simple")
         stat_route_obj = CStaticRouteConfig(stat_route_dict)
         self.router.config_static_routing(stat_route_obj, mode = "config")
 
-        nat_dict = self.get_benchmark_param('nat_dict')
+        nat_dict = self.get_benchmark_param('nat_dict', test_name="test_nat_simple")
         nat_obj  = CNatConfig(nat_dict)
         self.router.config_nat(nat_obj)
 
 #       self.trex.set_yaml_file('cap2/http_simple.yaml')
-        mult = self.get_benchmark_param('multiplier')
-        core = self.get_benchmark_param('cores')
+        mult = self.get_benchmark_param('multiplier', test_name="test_nat_simple")
+        core = self.get_benchmark_param('cores', test_name="test_nat_simple")
 
 #       trex_res = self.trex.run(nc=False,multiplier = mult, cores = core, duration = 100, l = 1000, learn = True)
         ret = self.trex.start_trex(
             c = core,
             m = mult,
-            learn = True,
-            d = 100,   
+            learn_mode = learn_mode,
+            d = 100,
             f = 'cap2/http_simple.yaml',
             l = 1000)
 
@@ -124,7 +130,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         print trex_res.get_latest_dump()
 
         trex_nat_stats = trex_res.get_last_value("trex-global.data", ".*nat.*") # extract all nat data
-        if self.get_benchmark_param('allow_timeout_dev'):
+        if self.get_benchmark_param('allow_timeout_dev', test_name="test_nat_simple"):
             nat_timeout_ratio = trex_nat_stats['m_total_nat_time_out']/trex_nat_stats['m_total_nat_open']
             if nat_timeout_ratio > 0.005:
                 self.fail('TRex nat_timeout ratio %f > 0.5%%' % nat_timeout_ratio)

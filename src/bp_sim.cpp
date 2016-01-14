@@ -1469,7 +1469,11 @@ void CFlowTableManagerBase::Dump(FILE *fd){
     m_stats.Dump(fd);
 }
 
-CFlow * CFlowTableManagerBase::process(CFlowKey & key,bool &is_fif ){
+// Return flow that has given key. If flow does not exist, create one, and add to CFlow data structure.
+// key - key to lookup by.
+// is_fif - return: true if flow did not exist (This is the first packet we see in this flow).
+//                  false if flow already existed
+CFlow * CFlowTableManagerBase::process(const CFlowKey & key, bool & is_fif) {
     m_stats.m_lookup++;
     is_fif=false;
     CFlow * lp=lookup(key);
@@ -1490,7 +1494,6 @@ CFlow * CFlowTableManagerBase::process(CFlowKey & key,bool &is_fif ){
     return (lp);
 }
 
-
 bool CFlowTableMap::Create(int max_size){
     m_stats.Clear();
     return (true);
@@ -1500,7 +1503,7 @@ void CFlowTableMap::Delete(){
     remove_all();
 }
 
-void CFlowTableMap::remove(CFlowKey & key ){
+void CFlowTableMap::remove(const CFlowKey & key ) {
     CFlow *lp=lookup(key); 
     if ( lp ) {
         delete lp;
@@ -1513,7 +1516,7 @@ void CFlowTableMap::remove(CFlowKey & key ){
 }
 
 
-CFlow * CFlowTableMap::lookup(CFlowKey & key ){
+CFlow * CFlowTableMap::lookup(const CFlowKey & key ) {
     flow_map_t::iterator iter;
     iter = m_map.find(key);
     if (iter != m_map.end() ) {
@@ -1523,7 +1526,7 @@ CFlow * CFlowTableMap::lookup(CFlowKey & key ){
     }
 }
 
-CFlow * CFlowTableMap::add(CFlowKey & key ){
+CFlow * CFlowTableMap::add(const CFlowKey & key ) {
     CFlow * flow = new CFlow();
     m_map.insert(flow_map_t::value_type(key,flow));
     return (flow);
@@ -1559,7 +1562,6 @@ uint64_t CFlowTableMap::count(){
  */
 void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
                                  CGenNode * node,
-                                 pkt_dir_t dir,
                                  bool single_port){
 
     /* retrieve size of rx-check header, must be multiple of 8 */
@@ -1630,18 +1632,18 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         rxhdr->m_time_stamp = os_get_hr_tick_32();
     }
     rxhdr->m_magic      = RX_CHECK_MAGIC;
-    rxhdr->m_flow_id	 = node->m_flow_id | ( ( (uint64_t)(desc->getFlowId() & 0xf))<<52 ) ; // include thread_id, node->flow_id, sub_flow in case of multi-flow template 
-    rxhdr->m_flags		 = 	0;
+    rxhdr->m_flow_id     = node->m_flow_id | ( ( (uint64_t)(desc->getFlowId() & 0xf))<<52 ) ; // include thread_id, node->flow_id, sub_flow in case of multi-flow template 
+    rxhdr->m_flags       =  0;
     rxhdr->m_aging_sec   =  desc->GetMaxFlowTimeout();
     rxhdr->m_template_id    = (uint8_t)desc->getId();
 
     /* add the flow packets goes to the same port */
     if (single_port) {
-        rxhdr->m_pkt_id	 	= desc->getFlowPktNum();
+        rxhdr->m_pkt_id     = desc->getFlowPktNum();
         rxhdr->m_flow_size  = desc->GetMaxPktsPerFlow();
         
     }else{
-        rxhdr->m_pkt_id	 	= desc->GetDirInfo()->GetPktNum();
+        rxhdr->m_pkt_id     = desc->GetDirInfo()->GetPktNum();
         rxhdr->m_flow_size  = desc->GetDirInfo()->GetMaxPkts();
         /* set dir */
         rxhdr->set_dir(desc->IsInitSide()?1:0);
@@ -1704,26 +1706,26 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
     return (p);
 }
 
-
 void   CFlowPktInfo::mask_as_learn(){
     CNatOption *lpNat;
-    if ( m_pkt_indication.is_ipv6() ){
+    if ( m_pkt_indication.is_ipv6() ) {
         lpNat=(CNatOption *)push_ipv6_option_offline(CNatOption::noOPTION_LEN);
         lpNat->set_init_ipv6_header();
         lpNat->set_fid(0);
         lpNat->set_thread_id(0);
-    }else{
-        lpNat=(CNatOption *)push_ipv4_option_offline(CNatOption::noOPTION_LEN);
-        lpNat->set_init_ipv4_header();
-        lpNat->set_fid(0);
-        lpNat->set_thread_id(0);
-        m_pkt_indication.l3.m_ipv4->updateCheckSum();
+    } else {
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
+            // Make space in IPv4 header for NAT option
+            lpNat=(CNatOption *)push_ipv4_option_offline(CNatOption::noOPTION_LEN);
+            lpNat->set_init_ipv4_header();
+            lpNat->set_fid(0);
+            lpNat->set_thread_id(0);
+            m_pkt_indication.l3.m_ipv4->updateCheckSum();
+        }
+        /* learn is true */
+        m_pkt_indication.m_desc.SetLearn(true);
     }
-    /* learn is true */
-    m_pkt_indication.m_desc.SetLearn(true);
-
 }
-
 
 char * CFlowPktInfo::push_ipv6_option_offline(uint8_t bytes){
 
@@ -1769,7 +1771,7 @@ char * CFlowPktInfo::push_ipv6_option_offline(uint8_t bytes){
 void CFlowPktInfo::alloc_const_mbuf(){
 
     if ( m_packet->pkt_len > FIRST_PKT_SIZE ) {
-        /* pkt size in bigger than FIRST_PKT_SIZE let's create a offline buffer */
+        /* pkt size is bigger than FIRST_PKT_SIZE let's create an offline buffer */
         int i;
         for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
             if ( CGlobalInfo::m_socket.is_sockets_enable(i) ){
@@ -2023,7 +2025,7 @@ void CCapFileFlowInfo::update_info(){
 }
 
 
-int CCapFileFlowInfo::load_cap_file(std::string cap_file,uint16_t _id,uint8_t plugin_id){
+enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::string cap_file, uint16_t _id, uint8_t plugin_id) {
     RemoveAll();
 
     fprintf(stdout," -- loading cap file %s \n",cap_file.c_str());
@@ -2033,7 +2035,7 @@ int CCapFileFlowInfo::load_cap_file(std::string cap_file,uint16_t _id,uint8_t pl
 
     if (lp == 0) {
         printf(" ERROR file %s does not exist or not supported \n",(char *)cap_file.c_str());
-        return (-1);
+        return kFileNotExist;
     }
     bool multi_flow_enable =( (plugin_id!=0)?true:false);
 
@@ -2064,8 +2066,8 @@ int CCapFileFlowInfo::load_cap_file(std::string cap_file,uint16_t _id,uint8_t pl
             time_was_set=true;
         }else{
             if (raw_packet.get_time()<last_time) {
-                printf(" ERROR not valid pcap file,timestamp is negative at packet %d \n",cnt);
-                exit(-1);        
+                fprintf(stderr, "Error: Non valid pcap file. Timestamp is negative at packet %d\n", cnt);
+                return kNegTimestamp;
             }
             last_time=raw_packet.get_time();
         }
@@ -2094,41 +2096,56 @@ int CCapFileFlowInfo::load_cap_file(std::string cap_file,uint16_t _id,uint8_t pl
                         pkt_indication.setTTL(TTL_RESERVE_DUPLICATE-4);
                 }
 
+                // Validation for first packet in flow
                 if (is_fif) {
-
                     lpflow->flow_id = m_total_flows;
-
                     pkt_indication.m_desc.SetFlowId(lpflow->flow_id);
 
                     if (m_total_flows == 0) {
-                     /* first flow */
-                    first_flow =lpflow;/* save it for single flow support , to signal error */
-                    lpflow->is_fif_swap =pkt_indication.m_desc.IsSwapTuple();
-                    first_flow_fif_is_swap = pkt_indication.m_desc.IsSwapTuple();
-                    pkt_indication.m_desc.SetInitSide(true);
-                    Append(&pkt_indication);
-                    m_total_flows++;
-
-                }else{
-                    if ( multi_flow_enable ){
-
-                        lpflow->is_fif_swap = pkt_indication.m_desc.IsSwapTuple();
-                        /* in respect to the first flow */
-
-                        bool init_side_in_repect_to_first_flow =
-                            ((first_flow_fif_is_swap?true:false) == lpflow->is_fif_swap)?true:false;
-
-                        pkt_indication.m_desc.SetInitSide(init_side_in_repect_to_first_flow);
+                        /* first flow */
+                        first_flow =lpflow;/* save it for single flow support , to signal error */
+                        lpflow->is_fif_swap =pkt_indication.m_desc.IsSwapTuple();
+                        first_flow_fif_is_swap = pkt_indication.m_desc.IsSwapTuple();
+                        pkt_indication.m_desc.SetInitSide(true);
                         Append(&pkt_indication);
                         m_total_flows++;
-
-                    }else{
-                        printf(" more than one flow in this cap ignore it !! \n");
-                        pkt_indication.m_flow_key.Dump(stdout);
-                        m_total_errors++;
+                    } else {
+                        if ( multi_flow_enable ) {
+                            lpflow->is_fif_swap = pkt_indication.m_desc.IsSwapTuple();
+                            /* in respect to the first flow */
+                            bool init_side_in_repect_to_first_flow =
+                                ((first_flow_fif_is_swap?true:false) == lpflow->is_fif_swap)?true:false;
+                            pkt_indication.m_desc.SetInitSide(init_side_in_repect_to_first_flow);
+                            Append(&pkt_indication);
+                            m_total_flows++;
+                        } else {
+                            printf("More than one flow in this cap. Ignoring it !! \n");
+                            pkt_indication.m_flow_key.Dump(stderr);
+                            m_total_errors++;
+                        }
                     }
-                 }
 
+                    if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                        // in this mode, first TCP packet must be SYN from client.
+                        if (pkt_indication.getIpProto() == IPPROTO_TCP) {
+                            TCPHeader *tcp = (TCPHeader *)(pkt_indication.getBasePtr() + pkt_indication.getTcpOffset());
+                            if ( (! pkt_indication.m_desc.IsInitSide()) || (! tcp->getSynFlag()) ) {
+                                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet should be SYN from client side.\n");
+                                fprintf(stderr, "       In cap file, first packet side direction is %s. TCP header is:\n", pkt_indication.m_desc.IsInitSide() ? "outside":"inside");
+                                tcp->dump(stderr);
+                                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+
+                                return kNoSyn;
+                            }
+                            // We want at least the TCP flags to be inside first mbuf
+                            if (pkt_indication.getTcpOffset() + 14 > FIRST_PKT_SIZE) {
+                                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet TCP flags offset should be less than %d, but it is %d.\n"
+                                       , FIRST_PKT_SIZE, pkt_indication.getTcpOffset() + 14);
+                                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                                return kTCPOffsetTooBig;
+                            }
+                        }
+                    }
 
                 }else{ /* no FIF */
 
@@ -2157,13 +2174,23 @@ int CCapFileFlowInfo::load_cap_file(std::string cap_file,uint16_t _id,uint8_t pl
 
                     }
                 }
+
+                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                    // This test must be down here, after initializing init side indication
+                    if (pkt_indication.getIpProto() != IPPROTO_TCP && !pkt_indication.m_desc.IsInitSide()) {
+                        fprintf(stderr, "Error: In the chosen learn mode, all packets from server to client in CAP file should be TCP.\n");
+                        fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                        return kNoTCPFromServer;
+                    }
+                }
+
             }else{
-                printf("ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
-                exit(-1);
+                fprintf(stderr, "ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
+                return kPktNotSupp;
             }
         }else{
-            printf("ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
-            exit(-1);
+            fprintf(stderr, "ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
+            return kPktProcessFail;
         }
     }
 
@@ -2205,10 +2232,10 @@ int CCapFileFlowInfo::load_cap_file(std::string cap_file,uint16_t _id,uint8_t pl
     delete lp;
     if ( m_total_errors > 0 ) {
         parser.m_counter.Dump(stdout);
-        printf(" ERORR in one of the cap file, you should have one flow per cap file or valid plugin \n");
-        return(-1);
+        fprintf(stderr, " ERORR in one of the cap file, you should have one flow per cap file or valid plugin \n");
+        return kCapFileErr;
     }
-    return (0);
+    return kOK;
 }
 
 void CCapFileFlowInfo::update_pcap_mode(){
@@ -4455,8 +4482,20 @@ double CBwMeasure::add(uint64_t size) {
 
 
 
+/*
+ * Test if option value is within allowed range.
+ * val - Value to test
+ * min, max - minimum, maximum allowed values.
+ * opt_name - option name for error report.
+ */
+bool CParserOption::is_valid_opt_val(int val, int min, int max, const std::string &opt_name) {
+    if (val < min || val > max) {
+	std::cerr << "Value " << val << " for option " << opt_name << " is out of range. Should be (" <<  min << "-" << max << ")." << std::endl;
+	return false;
+    }
 
-
+    return true;
+}
 
 void CParserOption::dump(FILE *fd){
     preview.Dump(fd);
@@ -4514,7 +4553,7 @@ void CTupleGlobalGenerator::Delete(){
 #endif
 
 static uint32_t  get_rand_32(uint32_t MinimumRange , 
-					  uint32_t MaximumRange );
+                      uint32_t MaximumRange );
 
 
 #if 0
@@ -4636,23 +4675,20 @@ static uint32_t get_rand_32(uint32_t MinimumRange,
 
 static uint32_t get_rand_32(uint32_t MinimumRange,
                             uint32_t MaximumRange) {
+    enum {RANDS_NUM = 2 , RAND_MAX_BITS = 0xf , UNSIGNED_INT_BITS = 0x20 , TWO_BITS_MASK = 0x3};
+    const double TWO_POWER_32_BITS = 0x10000000 * (double)0x10;
+    uint32_t RandomNumber = 0;
 
-	enum {RANDS_NUM = 2 , RAND_MAX_BITS = 0xf , UNSIGNED_INT_BITS = 0x20 , TWO_BITS_MASK = 0x3};
-	
-	const double TWO_POWER_32_BITS = 0x10000000 * (double)0x10;
-	
-	uint32_t RandomNumber = 0;
-	for (int i = 0 ; i < RANDS_NUM;i++) {
-		RandomNumber = (RandomNumber<<RAND_MAX_BITS) + rand();
-	}
-	
-	RandomNumber = (RandomNumber<<(UNSIGNED_INT_BITS - RAND_MAX_BITS * RANDS_NUM)) + (rand() | TWO_BITS_MASK);
+    for (int i = 0 ; i < RANDS_NUM;i++) {
+        RandomNumber = (RandomNumber<<RAND_MAX_BITS) + rand();
+    }
+    RandomNumber = (RandomNumber<<(UNSIGNED_INT_BITS - RAND_MAX_BITS * RANDS_NUM)) + (rand() | TWO_BITS_MASK);
 
-	uint32_t Range;
-	if ((Range = MaximumRange - MinimumRange) == 0xffffffff) {
-		return RandomNumber; 
-	}
-	return (uint32_t)(((Range + 1) / TWO_POWER_32_BITS * RandomNumber) + MinimumRange );
+    uint32_t Range;
+    if ((Range = MaximumRange - MinimumRange) == 0xffffffff) {
+        return RandomNumber; 
+    }
+    return (uint32_t)(((Range + 1) / TWO_POWER_32_BITS * RandomNumber) + MinimumRange );
 }
 
 
@@ -6078,4 +6114,3 @@ void CGenNodeBase::free_base(){
     }
 
 }
-

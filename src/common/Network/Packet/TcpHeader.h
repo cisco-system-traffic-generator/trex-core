@@ -17,7 +17,7 @@ limitations under the License.
 #define _TCP_HEADER_H_
 
 #include "PacketHeaderBase.h"
-
+#define TCP_HEADER_LEN 20
                  
 class TCPHeader
 {

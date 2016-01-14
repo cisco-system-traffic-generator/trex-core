@@ -6,7 +6,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,13 +20,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <vector>
 #include <algorithm>
 #include <map>
-#include <string>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -34,7 +34,6 @@ limitations under the License.
 #include "mbuf.h"
 #include <common/c_common.h>
 #include <common/captureFile.h>
-#include <string>
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
 #include <common/Network/Packet/IcmpHeader.h>
@@ -61,7 +60,6 @@ limitations under the License.
 #include <trex_stateless_dp_core.h>
 
 #undef NAT_TRACE_
-
 
 static inline double
 usec_to_sec(double usec) {
@@ -473,24 +471,13 @@ public:
 
 
           /* learn & verify mode  */
-    void set_lean_and_verify_mode_enable(bool enable){
+    void set_learn_and_verify_mode_enable(bool enable){
         btSetMaskBit32(m_flags,5,5,enable?1:0);
     }
 
     bool get_learn_and_verify_mode_enable(){
         return (btGetMaskBit32(m_flags,5,5) ? true:false);
     }
-
-
-      /* learn mode  */
-    void set_lean_mode_enable(bool enable){
-        btSetMaskBit32(m_flags,6,6,enable?1:0);
-    }
-
-    bool get_learn_mode_enable(){
-        return (btGetMaskBit32(m_flags,6,6) ? true:false);
-    }
-
 
   /* IPv6 enable/disable */
     void set_ipv6_mode_enable(bool enable){
@@ -732,6 +719,13 @@ public:
         RUN_MODE_INTERACTIVE
     };
 
+    enum trex_learn_mode_e {
+	LEARN_MODE_DISABLED=0,
+	LEARN_MODE_TCP_ACK=1,
+	LEARN_MODE_IP_OPTION=2,
+	LEARN_MODE_MAX=LEARN_MODE_IP_OPTION
+    };
+
 public:
     CParserOption(){
         m_factor=1.0;
@@ -776,6 +770,7 @@ public:
     uint16_t        m_run_flags;
     uint8_t         m_mac_splitter;
     uint8_t         m_l_pkt_mode;
+    uint8_t         m_learn_mode;
     uint16_t        m_debug_pkt_proto;
     trex_run_mode_e    m_run_mode;
 
@@ -837,6 +832,7 @@ public:
         return (m_l_pkt_mode);
     }
     void dump(FILE *fd);
+    bool is_valid_opt_val(int val, int min, int max, const std::string &opt_name);
 };
 
 
@@ -1190,11 +1186,15 @@ public:
 
 
     static inline bool is_learn_verify_mode(){
-        return ( m_options.preview.get_learn_mode_enable() && m_options.preview.get_learn_and_verify_mode_enable());
+        return ( (m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED) && m_options.preview.get_learn_and_verify_mode_enable());
     }
 
     static inline bool is_learn_mode(){
-        return ( m_options.preview.get_learn_mode_enable() );
+        return ( (m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED));
+    }
+
+    static inline bool is_learn_mode(CParserOption::trex_learn_mode_e mode){
+        return ( (m_options.m_learn_mode == mode));
     }
 
     static inline bool is_ipv6_enable(void){
@@ -1628,10 +1628,8 @@ public:
     }
 
 public:
-
-
     inline uint32_t get_short_fid(void){
-        return ((uint32_t)m_flow_id);
+        return (((uint32_t)m_flow_id) & NAT_FLOW_ID_MASK);
     }
 
     inline uint8_t get_thread_id(void){
@@ -2236,6 +2234,7 @@ public:
         btSetMaskBit32(m_flags,12,8,flow_id);
 
     }
+
     inline uint16_t getFlowId(){
         return ( ( uint16_t)btGetMaskBit32(m_flags,12,8));
     }
@@ -2527,6 +2526,14 @@ public:
         }
     }
 
+    uint8_t getIpProto(){
+        BP_ASSERT(l3.m_ipv4);
+        if (is_ipv6()) {
+            return(l3.m_ipv6->getNextHdr());
+        }else{
+            return(l3.m_ipv4->getProtocol());
+        }
+    }
 
     uint8_t getFastEtherOffset(void){
         return (m_ether_offset);
@@ -2624,15 +2631,15 @@ public:
     virtual bool Create(int max_size)=0;
     virtual void Delete()=0;
 public:
-    CFlow * process(CFlowKey & key,bool &is_fif  );
-    virtual void remove(CFlowKey & key )=0;
+    CFlow * process(const CFlowKey & key,bool &is_fif  );
+    virtual void remove(const CFlowKey & key )=0;
     virtual void remove_all()=0;
     virtual uint64_t count()=0;
 public:
     void Dump(FILE *fd);
 protected:
-    virtual CFlow * lookup(CFlowKey & key )=0;
-    virtual CFlow * add(CFlowKey & key )=0;
+    virtual CFlow * lookup(const CFlowKey & key )=0;
+    virtual CFlow * add(const CFlowKey & key )=0;
 
     //virtual IterateFlows(CFlowTableInterator * iter)=0;
 protected:
@@ -2650,11 +2657,11 @@ class CFlowTableMap  : public CFlowTableManagerBase {
 public:
     virtual bool Create(int max_size);
     virtual void Delete();
-    virtual void remove(CFlowKey & key );
+    virtual void remove(const CFlowKey & key );
 
 protected:
-    virtual CFlow * lookup(CFlowKey & key );
-    virtual CFlow * add(CFlowKey & key );
+    virtual CFlow * lookup(const CFlowKey & key );
+    virtual CFlow * add(const CFlowKey & key );
     virtual void remove_all(void);
     uint64_t count(void);
 private:
@@ -2689,7 +2696,6 @@ public:
     /* new packet with rx check info in IP option */
     void do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
                                  CGenNode * node,
-                                 pkt_dir_t dir,
                                  bool single_port);
 
     inline rte_mbuf_t * do_generate_new_mbuf_ex(CGenNode * node,CFlowInfo * flow_info);
@@ -2869,41 +2875,53 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 
             if (m_pkt_indication.m_desc.IsLearn()) {
                 /* might be done twice */
-                #ifdef NAT_TRACE_
+#ifdef NAT_TRACE_
                 printf(" %.3f : DP :  learn packet !\n",now_sec());
-                #endif
+#endif
                 ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
 
                 /* first ipv4 option add the info in case of learn packet, usualy only the first packet */
-                CNatOption *lpNat =(CNatOption *)ipv4->getOption();
-                lpNat->set_fid(node->get_short_fid());
-                lpNat->set_thread_id(node->get_thread_id()); 
-                lpNat->set_rx_check(node->is_rx_check_enabled());
+		if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
+		    CNatOption *lpNat =(CNatOption *)ipv4->getOption();
+		    lpNat->set_fid(node->get_short_fid());
+		    lpNat->set_thread_id(node->get_thread_id()); 
+		} else {
+		    // This method only work on first TCP SYN
+		    if (ipv4->getProtocol() == IPPROTO_TCP) {
+			TCPHeader *tcp = (TCPHeader *)(((uint8_t *)ipv4) + ipv4->getHeaderLength());
+			if (tcp->getSynFlag()) {
+			    tcp->setAckNumber(CNatRxManager::calc_tcp_ack_val(node->get_short_fid(), node->get_thread_id()));
+			}
+#ifdef NAT_TRACE_
+			printf(" %.3f : flow_id: %x thread_id %x TCP ack %x\n",now_sec(), node->get_short_fid(), node->get_thread_id(), tcp->getAckNumber());
+#endif
+		    }
+		}
             }
             /* in call cases update the ip using the outside ip */
 
             if ( m_pkt_indication.m_desc.IsInitSide()  ) {
-                #ifdef NAT_TRACE_
+#ifdef NAT_TRACE_
                 if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
-                    printf(" %.3f : DP : i %x:%x -> %x  flow_id: %x\n",now_sec(),node->m_src_ip,node->m_src_port,node->m_dest_ip,node->m_flow_id);
+                    printf(" %.3f : DP : i %x:%x -> %x  flow_id: %lx\n",now_sec(),node->m_src_ip,node->m_src_port,node->m_dest_ip,node->m_flow_id);
                 }
-                #endif
+#endif
 
                 ipv4->updateIpSrc(node->m_src_ip);
                 ipv4->updateIpDst(node->m_dest_ip);
             }else{
-                #ifdef NAT_TRACE_
+#ifdef NAT_TRACE_
                 if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
-                    printf(" %.3f : r %x   -> %x:%x  flow_id: %x \n",now_sec(),node->m_dest_ip,node->m_src_ip,node->m_src_port,node->m_flow_id);
+                    printf(" %.3f : r %x   -> %x:%x  flow_id: %lx \n",now_sec(),node->m_dest_ip,node->m_src_ip,node->m_src_port,node->m_flow_id);
                 }
-                #endif
+#endif
                 src_port = node->get_nat_ipv4_port();
                 ipv4->updateIpSrc(node->get_nat_ipv4_addr_server());
                 ipv4->updateIpDst(node->get_nat_ipv4_addr());
             }
 
             /* TBD remove this */
-            #ifdef NAT_TRACE_
+#ifdef NAT_TRACE_
             if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
                 if ( m_pkt_indication.m_desc.IsInitSide() ==false ){
                     printf(" %.3f : pkt ==> %x:%x %x:%x \n",now_sec(),node->get_nat_ipv4_addr(),node->get_nat_ipv4_addr_server(),
@@ -2912,24 +2930,24 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                     printf(" %.3f : pkt ==> init pkt sent \n",now_sec());
                 }
             }
-            #endif
+#endif
 
 
         }else{
             if ( ip_dir ==  CLIENT_SIDE  ) {
-                #ifdef NAT_TRACE_
+#ifdef NAT_TRACE_
                 if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
                     printf(" %.3f : i %x:%x -> %x \n",now_sec(),node->m_src_ip,node->m_src_port,node->m_dest_ip);
                 }
-                #endif
+#endif
                 ipv4->updateIpSrc(node->m_src_ip);
                 ipv4->updateIpDst(node->m_dest_ip);
             }else{
-                #ifdef NAT_TRACE_
+#ifdef NAT_TRACE_
                 if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
                     printf(" %.3f : r %x   -> %x:%x  \n",now_sec(),node->m_dest_ip,node->m_src_ip,node->m_src_port);
                 }
-                #endif
+#endif
                 ipv4->updateIpSrc(node->m_dest_ip);
                 ipv4->updateIpDst(node->m_src_ip);
             }
@@ -3182,6 +3200,18 @@ public:
 
 class CCapFileFlowInfo {
 public:
+    enum load_cap_file_err {
+	kOK = 0,
+	kFileNotExist,
+	kNegTimestamp,
+	kNoSyn,
+	kTCPOffsetTooBig,
+	kNoTCPFromServer,
+	kPktNotSupp,
+	kPktProcessFail,
+	kCapFileErr
+    };
+
     bool Create();
     void Delete();
     uint64_t Size(void){
@@ -3191,7 +3221,7 @@ public:
     void Append(CPacketIndication * pkt_indication);
     void RemoveAll();
     void dump_pkt_sizes(void);
-    int load_cap_file(std::string cap_file,uint16_t _id,uint8_t plugin_id);
+    enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, uint8_t plugin_id);
 
     /* update flow info */
     void update_info();
@@ -3224,12 +3254,8 @@ public:
     void get_total_memory(CCCapFileMemoryUsage & memory);
 
 public:
-    void update_min_ipg(dsec_t min_ipg,
-                        dsec_t override_ipg);
-
+    void update_min_ipg(dsec_t min_ipg, dsec_t override_ipg);
     void update_pcap_mode();
-
-public:
     void Dump(FILE *fd);
 
 private:
@@ -3746,7 +3772,7 @@ inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tup
         if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ) {
             /* we are in learn mode */
             CFlowGenListPerThread  * lpThread=gen->Parent();
-            lpThread->associate((uint32_t)flow_id,node);  /* assosiate flow_id=>node */
+            lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK, node);  /* associate flow_id=>node */
             node->set_nat_first_state();
         }
     }

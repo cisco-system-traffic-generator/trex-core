@@ -88,15 +88,34 @@ public:
     uint8_t getTTl();
     uint16_t getPktSize();
 
+    // Check if packet contains latency data
     inline bool IsLatencyPkt(uint8_t *p) {
+	if (! p)
+	    return false;
+
         latency_header * h=(latency_header *)(p);
         if ( (h->magic & 0xffffff00) != LATENCY_MAGIC ){
-            return (false);
+            return false;
         }
 
         return true;
     }
 
+    // Check if this packet contains NAT info in TCP ack
+    inline bool IsNatInfoPkt() {
+	if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
+	    return false;
+	}
+	if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
+	    return false;
+	}
+	// If we are here, relevant fields from tcp header are guaranteed to be in first mbuf 
+	TCPHeader *tcp = (TCPHeader *)m_l4;
+	if (!tcp->getSynFlag() || (tcp->getAckNumber() == 0)) {
+	    return false;
+	}
+	return true;
+    }
 
 public:
     IPHeader *      m_ipv4;

@@ -495,6 +495,7 @@ enum { OPT_HELP,
     OPT_IO_MODE,
     OPT_IPV6,
     OPT_LEARN,
+    OPT_LEARN_MODE,
     OPT_LEARN_VERIFY,
     OPT_L_PKT_MODE,
     OPT_NO_FLOW_CONTROL,
@@ -555,6 +556,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_RX_CHECK_HOPS, "--hops", SO_REQ_SEP },
     { OPT_IPV6,       "--ipv6",       SO_NONE   },
     { OPT_LEARN, "--learn",       SO_NONE   },
+    { OPT_LEARN_MODE, "--learn-mode",       SO_REQ_SEP   },
     { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
     { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
     { OPT_NO_FLOW_CONTROL, "--no-flow-control-change",       SO_NONE   },
@@ -630,8 +632,10 @@ static int usage(){
     printf("  \n");
 
     printf(" --ipv6                     : work in ipv6 mode\n");
-
-    printf(" --learn                    : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
+    printf(" --learn (deprecated). Replaced by --learn-mode. To get older behaviour, use --learn-mode 2\n");
+    printf(" --learn-mode [1-2]         : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
+	printf("      1    Use TCP ACK in first SYN to pass NAT translation information. Will work only for TCP streams. Initial SYN packet must be present in stream.\n");
+	printf("      2    Add special IP option to pass NAT translation information. Will not work on certain firewalls if they drop packets with IP options\n");
     printf(" --learn-verify             : Learn the translation, but intended for verification of the mechanism in cases that NAT does not exist \n");
     printf("  \n");
     printf(" --l-pkt-mode [0-3]         : Set mode for sending latency packets.\n");
@@ -792,16 +796,27 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
 
             case OPT_LEARN :
-                po->preview.set_lean_mode_enable(true);
+                po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
+                break;
+
+            case OPT_LEARN_MODE :
+                sscanf(args.OptionArg(),"%d", &tmp_data);
+		if (! po->is_valid_opt_val(tmp_data, CParserOption::LEARN_MODE_DISABLED, CParserOption::LEARN_MODE_MAX, "--learn-mode")) {
+		    exit(-1);
+		}
+                po->m_learn_mode = (uint8_t)tmp_data;
                 break;
 
             case OPT_LEARN_VERIFY :
-                po->preview.set_lean_mode_enable(true);
-                po->preview.set_lean_and_verify_mode_enable(true);
+                po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
+                po->preview.set_learn_and_verify_mode_enable(true);
                 break;
 
             case OPT_L_PKT_MODE :
                 sscanf(args.OptionArg(),"%d", &tmp_data);
+		if (! po->is_valid_opt_val(tmp_data, 0, L_PKT_SUBMODE_0_SEQ, "--l-pkt-mode")) {
+		    exit(-1);
+		}
                 po->m_l_pkt_mode=(uint8_t)tmp_data;
                 break;
 
@@ -932,7 +947,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         parse_err(ss.str());
     }
 
-    if ( po->preview.get_learn_mode_enable()  ){
+    if ( CGlobalInfo::is_learn_mode()  ){
         if  ( po->preview.get_ipv6_mode_enable() ){
             parse_err("--learn mode is not supported with --ipv6, beacuse there is not such thing NAT66 ( ipv6-ipv6) \n" \
                       "if you think it is important,open a defect \n");
@@ -2044,7 +2059,7 @@ int CCoreEthIF::send_node(CGenNode * node){
 
 	if ( unlikely( node->is_rx_check_enabled() ) ) {
         lp_stats->m_tx_rx_check_pkt++;
-        lp->do_generate_new_mbuf_rxcheck(m,node,dir,single_port);
+        lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
         lp_stats->m_template.inc_template( node->get_template_id( ));
 	}else{
         // cache only if it is not sample as this is more complex mbuf struct 
@@ -4160,7 +4175,7 @@ int main_test(int argc , char * argv[]){
 
     update_global_info_from_platform_file();
 
-    /* it is not a mistake , give the user higher priorty over the configuration file */
+    /* It is not a mistake. Give the user higher priorty over the configuration file */
     parse_options(argc, argv, &CGlobalInfo::m_options ,false);
 
     
@@ -4212,7 +4227,7 @@ int main_test(int argc , char * argv[]){
 
     if (po->preview.get_is_rx_check_enable() &&  (po->m_rx_check_sampe< get_min_sample_rate()) ) {
         po->m_rx_check_sampe = get_min_sample_rate();
-        printf("Warning rx check sample rate should be lower than %d setting it to %d\n",get_min_sample_rate(),get_min_sample_rate());
+        printf("Warning:rx check sample rate should not be lower than %d. Setting it to %d\n",get_min_sample_rate(),get_min_sample_rate());
     }
 
     /* set dump mode */
