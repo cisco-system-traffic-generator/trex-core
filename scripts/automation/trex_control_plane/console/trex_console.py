@@ -16,7 +16,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
 import subprocess
 import cmd
 import json
@@ -39,6 +38,25 @@ from functools import wraps
 
 
 __version__ = "1.1"
+
+def set_window_always_on_top (title):
+    # we need the GDK module, if not available - ignroe this command
+    try:
+        import gtk.gdk
+    except ImportError:
+        return
+
+    # search the window and set it as above
+    root = gtk.gdk.get_default_root_window()
+
+    for id in root.property_get('_NET_CLIENT_LIST')[2]:
+        w = gtk.gdk.window_foreign_new(id)
+        if w:
+            name = w.property_get('WM_NAME')[2]
+            if name == title:
+                w.set_keep_above(True)
+                gtk.gdk.window_process_all_updates()
+                break
 
 
 class TRexGeneralCmd(cmd.Cmd):
@@ -122,6 +140,7 @@ class TRexConsole(TRexGeneralCmd):
         TRexGeneralCmd.__init__(self)
 
         self.tui = trex_tui.TrexTUI(stateless_client)
+        self.terminal = None
 
         self.verbose = verbose
 
@@ -500,16 +519,15 @@ class TRexConsole(TRexGeneralCmd):
             return
 
         if opts.xterm:
-            exe = ''
-            if os.path.isfile('/usr/bin/wmctrl'):
-                exe += '/usr/bin/wmctrl -r trex_tui -b add,above;'
 
-            exe += './trex-console -t -q -s {0} -p {1}'.format(self.stateless_client.get_server_ip(), self.stateless_client.get_server_port())
-
+            exe = './trex-console -t -q -s {0} -p {1}'.format(self.stateless_client.get_server_ip(), self.stateless_client.get_server_port())
             cmd = ['xterm', '-geometry', '111x42', '-sl', '0', '-title', 'trex_tui', '-e', exe]
-            subprocess.Popen(cmd)
+            self.terminal = subprocess.Popen(cmd)
 
             return
+
+
+        set_window_always_on_top('trex_tui')
 
         save_verbose = self.stateless_client.get_verbose()
 
@@ -572,16 +590,20 @@ class TRexConsole(TRexGeneralCmd):
                 self.cmdloop()
                 break
             except KeyboardInterrupt as e:
-                 if not readline.get_line_buffer():
-                     raise KeyboardInterrupt
-                 else:
-                     print ""
-                     self.intro = None
-                     continue
+                if not readline.get_line_buffer():
+                    raise KeyboardInterrupt
+                else:
+                    print ""
+                    self.intro = None
+                    continue
+
+        if self.terminal:
+            self.terminal.kill()
 
     # aliases
     do_exit = do_EOF = do_q = do_quit
     do_h = do_history
+
 
 #
 def is_valid_file(filename):
@@ -637,7 +659,7 @@ def setParserOptions():
 
     return parser
 
-
+    
 def main():
     parser = setParserOptions()
     options = parser.parse_args()
@@ -667,6 +689,7 @@ def main():
             return
         
     # console
+
     try:
         console = TRexConsole(stateless_client, options.verbose)
         if options.tui:
@@ -681,5 +704,6 @@ def main():
         stateless_client.disconnect()
 
 if __name__ == '__main__':
+    
     main()
 
