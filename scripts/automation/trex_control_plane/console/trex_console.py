@@ -153,7 +153,9 @@ class TRexConsole(TRexGeneralCmd):
     ################### internal section ########################
 
     def prompt_redraw (self):
-        sys.stdout.write(self.prompt + readline.get_line_buffer())
+        sys.stdout.write("\n" + self.prompt + readline.get_line_buffer())
+        sys.stdout.flush()
+
 
     def verify_connected(f):
         @wraps(f)
@@ -312,12 +314,12 @@ class TRexConsole(TRexGeneralCmd):
 
         elif line == "on":
             self.verbose = True
-            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_HIGH)
+            self.stateless_client.set_verbose(self.stateless_client.logger.VERBOSE_HIGH)
             print format_text("\nverbose set to on\n", 'green', 'bold')
 
         elif line == "off":
             self.verbose = False
-            self.stateless_client.set_verbose(self.stateless_client.VERBOSE_REGULAR)
+            self.stateless_client.set_verbose(self.stateless_client.logger.VERBOSE_REGULAR)
             print format_text("\nverbose set to off\n", 'green', 'bold')
 
         else:
@@ -531,7 +533,7 @@ class TRexConsole(TRexGeneralCmd):
 
         save_verbose = self.stateless_client.get_verbose()
 
-        self.stateless_client.set_verbose(self.stateless_client.VERBOSE_QUIET)
+        self.stateless_client.set_verbose(self.stateless_client.logger.VERBOSE_QUIET)
         self.tui.show()
         self.stateless_client.set_verbose(save_verbose)
 

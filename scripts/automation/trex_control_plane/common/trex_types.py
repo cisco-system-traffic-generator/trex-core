@@ -21,6 +21,9 @@ class RC():
             tuple_rc = namedtuple('RC', ['rc', 'data'])
             self.rc_list.append(tuple_rc(rc, data))
 
+    def __nonzero__ (self):
+        return self.good()
+
     def add (self, rc):
         self.rc_list += rc.rc_list
 
@@ -38,27 +41,30 @@ class RC():
         e = [x.data if not x.rc else "" for x in self.rc_list]
         return (e if len(e) > 1 else e[0])
 
-    def annotate (self, desc = None, show_status = True):
+    def __str__ (self):
+        return str(self.data()) if self else str(self.err())
+
+    def annotate (self, log_func, desc = None, show_status = True):
         if desc:
-            print format_text('\n{:<60}'.format(desc), 'bold'),
+            log_func(format_text('\n{:<60}'.format(desc), 'bold'), newline = False)
         else:
-            print ""
+            log_func("")
 
         if self.bad():
             # print all the errors
             print ""
             for x in self.rc_list:
                 if not x.rc:
-                    print format_text("\n{0}".format(x.data), 'bold')
+                    log_func(format_text("\n{0}".format(x.data), 'bold'))
 
             print ""
             if show_status:
-                print format_text("[FAILED]\n", 'red', 'bold')
+                log_func(format_text("[FAILED]\n", 'red', 'bold'))
 
 
         else:
             if show_status:
-                print format_text("[SUCCESS]\n", 'green', 'bold')
+                log_func(format_text("[SUCCESS]\n", 'green', 'bold'))
 
 
 def RC_OK(data = ""):

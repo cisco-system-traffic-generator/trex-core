@@ -8,6 +8,7 @@ except ImportError:
     import client.outer_packages
 
 from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
+from client_utils import general_utils
 from client_utils.packet_builder import CTRexPktBuilder
 import json
 
@@ -22,30 +23,82 @@ import re
 import random
 from trex_port import Port
 from common.trex_types import *
-
 from trex_async_client import CTRexAsyncClient
+
+# logger API for the client
+class LoggerApi(object):
+    # verbose levels
+    VERBOSE_QUIET   = 0
+    VERBOSE_REGULAR = 1
+    VERBOSE_HIGH    = 2
+
+    def __init__(self):
+        self.level = LoggerApi.VERBOSE_REGULAR
+
+    def write(self, msg, newline = True):
+        raise Exception("implement this")
+
+    def flush(self):
+        raise Exception("implement this")
+
+    def set_verbose (self, level):
+        if not level in xrange(self.VERBOSE_QUIET, self.VERBOSE_HIGH + 1):
+            raise ValueError("bad value provided for logger")
+
+        self.level = level
+
+    def get_verbose (self):
+        return self.level
+
+
+    def check_verbose (self, level):
+        return (self.level >= level)
+
+
+    def log (self, msg, level = VERBOSE_REGULAR, newline = True):
+        if not self.check_verbose(level):
+            return
+
+        self.write(msg, newline)
+
+
+# default logger - to stdout
+class DefaultLogger(LoggerApi):
+    def write (self, msg, newline = True):
+        if newline:
+            print msg
+        else:
+            print msg,
+
+    def flush (self):
+        sys.stdout.flush()
 
 
 class CTRexStatelessClient(object):
     """docstring for CTRexStatelessClient"""
 
-    # verbose levels
-    VERBOSE_QUIET = 0
-    VERBOSE_REGULAR = 1
-    VERBOSE_HIGH    = 2
-    
-    def __init__(self, username, server="localhost", sync_port = 5050, async_port = 4500, quiet = False, virtual = False):
+    def __init__(self,
+                 username = general_utils.get_current_user(),
+                 server = "localhost",
+                 sync_port = 4501,
+                 async_port = 4500,
+                 quiet = False,
+                 virtual = False,
+                 logger = None):
+
         super(CTRexStatelessClient, self).__init__()
 
         self.user = username
 
-        self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual, self.prn_func)
-
-        # default verbose level
-        if not quiet:
-            self.verbose = self.VERBOSE_REGULAR
+        if not logger:
+            self.logger = DefaultLogger()
         else:
-            self.verbose = self.VERBOSE_QUIET
+            self.logger = logger
+
+        if quiet:
+            self.logger.set_verbose(self.logger.VERBOSE_QUIET)
+
+        self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual, self.logger)
 
         self.ports = {}
         self._connection_info = {"server": server,
@@ -53,9 +106,8 @@ class CTRexStatelessClient(object):
                                  "async_port": async_port}
         self.system_info = {}
         self.server_version = {}
-        self.__err_log = None
 
-        self.async_client = CTRexAsyncClient(server, async_port, self, self.prn_func)
+        self.async_client = CTRexAsyncClient(server, async_port, self, self.logger.log)
 
         self.streams_db = CStreamsDB()
         self.global_stats = trex_stats.CGlobalStats(self._connection_info,
@@ -99,7 +151,10 @@ class CTRexStatelessClient(object):
         self.events.append("{:<10} - {:^8} - {:}".format(st, prefix, format_text(msg, 'bold')))
 
         if show:
-            self.prn_func(format_text("\n{:^8} - {:}".format(prefix, format_text(msg, 'bold'))), redraw_console = True)
+            self.logger.log(format_text("\n\n{:^8} - {:}".format(prefix, format_text(msg, 'bold'))))
+            if self.prompt_redraw_cb and self.logger.check_verbose(self.logger.VERBOSE_REGULAR):
+                self.prompt_redraw_cb()
+
         
 
     def handle_async_stats_update(self, dump_data):
@@ -243,6 +298,7 @@ class CTRexStatelessClient(object):
     # measure time for functions
     def timing(f):
         def wrap(*args):
+            
             time1 = time.time()
             ret = f(*args)
 
@@ -251,7 +307,9 @@ class CTRexStatelessClient(object):
                 return ret
 
             delta = time.time() - time1
-            print format_time(delta) + "\n"
+
+            client = args[0]
+            client.logger.log(format_time(delta) + "\n")
 
             return ret
 
@@ -289,7 +347,6 @@ class CTRexStatelessClient(object):
 
     ############ boot up section ################
 
-    # connection sequence
 
     # mode can be RW - read / write, RWF - read write with force , RO - read only
     def connect(self, mode = "RW"):
@@ -299,6 +356,7 @@ class CTRexStatelessClient(object):
 
         # clear this flag
         self.connected = False
+
 
         # connect sync channel
         rc = self.comm_link.connect()
@@ -351,8 +409,8 @@ class CTRexStatelessClient(object):
 
             # fallback to read only if failed
             if rc.bad():
-                rc.annotate(show_status = False)
-                print format_text("Switching to read only mode - only few commands will be available", 'bold')
+                self.annotate(rc, show_status = False)
+                self.logger.log(format_text("Switching to read only mode - only few commands will be available", 'bold'))
 
                 self.release(self.get_acquired_ports())
                 self.read_only = True
@@ -458,37 +516,19 @@ class CTRexStatelessClient(object):
                 for port_id, port_obj in self.ports.iteritems()
                 if port_obj.is_transmitting()]
 
-    def set_verbose(self, mode):
-
-        # on high - enable link verbose
-        if mode == self.VERBOSE_HIGH:
-            self.comm_link.set_verbose(True)
-        else:
-            self.comm_link.set_verbose(False)
-
-        self.verbose = mode
-
-
-    def check_verbose (self, level):
-        return (self.verbose >= level)
+    def set_verbose (self, level):
+        self.logger.set_verbose(level)
 
     def get_verbose (self):
-        return self.verbose
-
-    def prn_func (self, msg, level = VERBOSE_REGULAR, redraw_console = False):
-        if not self.check_verbose(level):
-            return
-
-        if redraw_console and self.prompt_redraw_cb:
-            print "\n" + msg + "\n"
-            self.prompt_redraw_cb()
-        else:
-            print msg
-
-        sys.stdout.flush()
+        return self.logger.get_verbose()
 
     def set_prompt_redraw_cb(self, cb):
         self.prompt_redraw_cb = cb
+
+
+    def annotate (self, rc, desc = None, show_status = True):
+
+        rc.annotate(self.logger.log, desc, show_status)
 
     ############# server actions ################
 
@@ -684,39 +724,38 @@ class CTRexStatelessClient(object):
     @timing
     def cmd_ping(self):
         rc = self.ping()
-        rc.annotate("Pinging the server on '{0}' port '{1}': ".format(self.get_connection_ip(), self.get_connection_port()))
+        self.annotate(rc, "Pinging the server on '{0}' port '{1}': ".format(self.get_connection_ip(), self.get_connection_port()))
         return rc
 
     def cmd_connect(self, mode = "RW"):
         rc = self.connect(mode)
-        rc.annotate()
+        self.annotate(rc)
         return rc
 
     def cmd_disconnect(self):
         rc = self.disconnect()
-        rc.annotate()
+        self.annotate(rc)
         return rc
 
     # reset
     def cmd_reset(self):
-        #self.release(self.get_acquired_ports())
 
         rc = self.acquire(force = True)
-        rc.annotate("Force acquiring all ports:")
+        self.annotate(rc, "Force acquiring all ports:")
         if rc.bad():
             return rc
 
 
         # force stop all ports
         rc = self.stop_traffic(self.get_port_ids(), True)
-        rc.annotate("Stop traffic on all ports:")
+        self.annotate(rc,"Stop traffic on all ports:")
         if rc.bad():
             return rc
 
 
         # remove all streams
         rc = self.remove_all_streams(self.get_port_ids())
-        rc.annotate("Removing all streams from all ports:")
+        self.annotate(rc,"Removing all streams from all ports:")
         if rc.bad():
             return rc
 
@@ -732,11 +771,11 @@ class CTRexStatelessClient(object):
 
         if not active_ports:
             msg = "No active traffic on provided ports"
-            print format_text(msg, 'bold')
+            self.logger.log(format_text(msg, 'bold'))
             return RC_ERR(msg)
 
         rc = self.stop_traffic(active_ports)
-        rc.annotate("Stopping traffic on port(s) {0}:".format(port_id_list))
+        self.annotate(rc,"Stopping traffic on port(s) {0}:".format(port_id_list))
         if rc.bad():
             return rc
 
@@ -750,11 +789,11 @@ class CTRexStatelessClient(object):
 
         if not active_ports:
             msg = "No active traffic on provided ports"
-            print format_text(msg, 'bold')
+            self.logger.log(format_text(msg, 'bold'))
             return RC_ERR(msg)
 
         rc = self.update_traffic(mult, active_ports)
-        rc.annotate("Updating traffic on port(s) {0}:".format(port_id_list))
+        self.annotate(rc,"Updating traffic on port(s) {0}:".format(port_id_list))
 
         return rc
 
@@ -785,11 +824,11 @@ class CTRexStatelessClient(object):
 
         if not active_ports:
             msg = "No active traffic on provided ports"
-            print format_text(msg, 'bold')
+            self.logger.log(format_text(msg, 'bold'))
             return RC_ERR(msg)
 
         rc = self.pause_traffic(active_ports)
-        rc.annotate("Pausing traffic on port(s) {0}:".format(port_id_list))
+        self.annotate(rc,"Pausing traffic on port(s) {0}:".format(port_id_list))
         return rc
 
 
@@ -802,11 +841,11 @@ class CTRexStatelessClient(object):
 
         if not active_ports:
             msg = "No active traffic on porvided ports"
-            print format_text(msg, 'bold')
+            self.logger.log(format_text(msg, 'bold'))
             return RC_ERR(msg)
 
         rc = self.resume_traffic(active_ports)
-        rc.annotate("Resume traffic on port(s) {0}:".format(port_id_list))
+        self.annotate(rc,"Resume traffic on port(s) {0}:".format(port_id_list))
         return rc
 
 
@@ -818,7 +857,7 @@ class CTRexStatelessClient(object):
         if active_ports:
             if not force:
                 msg = "Port(s) {0} are active - please stop them or add '--force'".format(active_ports)
-                print format_text(msg, 'bold')
+                self.logger.log(format_text(msg, 'bold'))
                 return RC_ERR(msg)
             else:
                 rc = self.cmd_stop(active_ports)
@@ -827,25 +866,25 @@ class CTRexStatelessClient(object):
 
 
         rc = self.remove_all_streams(port_id_list)
-        rc.annotate("Removing all streams from port(s) {0}:".format(port_id_list))
+        self.annotate(rc,"Removing all streams from port(s) {0}:".format(port_id_list))
         if rc.bad():
             return rc
 
 
         rc = self.add_stream_pack(stream_list, port_id_list)
-        rc.annotate("Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
+        self.annotate(rc,"Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
         if rc.bad():
             return rc
 
         # when not on dry - start the traffic , otherwise validate only
         if not dry:
             rc = self.start_traffic(mult, duration, port_id_list)
-            rc.annotate("Starting traffic on port(s) {0}:".format(port_id_list))
+            self.annotate(rc,"Starting traffic on port(s) {0}:".format(port_id_list))
 
             return rc
         else:
             rc = self.validate(port_id_list)
-            rc.annotate("Validating traffic profile on port(s) {0}:".format(port_id_list))
+            self.annotate(rc,"Validating traffic profile on port(s) {0}:".format(port_id_list))
 
             if rc.bad():
                 return rc
@@ -859,7 +898,7 @@ class CTRexStatelessClient(object):
     # validate port(s) profile
     def cmd_validate (self, port_id_list):
         rc = self.validate(port_id_list)
-        rc.annotate("Validating streams on port(s) {0}:".format(port_id_list))
+        self.annotate(rc,"Validating streams on port(s) {0}:".format(port_id_list))
         return rc
 
 
@@ -922,12 +961,12 @@ class CTRexStatelessClient(object):
 
 
         if opts.dry:
-            print format_text("\n*** DRY RUN ***", 'bold')
+            self.logger.log(format_text("\n*** DRY RUN ***", 'bold'))
 
         if opts.db:
             stream_list = self.streams_db.get_stream_pack(opts.db)
             rc = RC(stream_list != None)
-            rc.annotate("Load stream pack (from DB):")
+            self.annotate(rc,"Load stream pack (from DB):")
             if rc.bad():
                 return RC_ERR("Failed to load stream pack")
 
@@ -939,11 +978,11 @@ class CTRexStatelessClient(object):
             except Exception as e:
                 s = str(e)
                 rc=RC_ERR(s)
-                rc.annotate()
+                self.annotate(rc)
                 return rc
 
             rc = RC(stream_list != None)
-            rc.annotate("Load stream pack (from file):")
+            self.annotate(rc,"Load stream pack (from file):")
             if stream_list == None:
                 return RC_ERR("Failed to load stream pack")
 
@@ -1089,7 +1128,7 @@ class CTRexStatelessClient(object):
         if not streams:
             # we got no streams running
 
-            print format_text("No streams found with desired filter.\n", "bold", "magenta")
+            self.logger.log(format_text("No streams found with desired filter.\n", "bold", "magenta"))
             return RC_ERR("No streams found with desired filter.")
         else:
             # print stats to screen
@@ -1120,7 +1159,7 @@ class CTRexStatelessClient(object):
 
 
     def cmd_exit_line (self, line):
-        print format_text("Exiting\n", 'bold')
+        self.logger.log(format_text("Exiting\n", 'bold'))
         # a way to exit
         return RC_ERR("exit")
 
@@ -1139,7 +1178,7 @@ class CTRexStatelessClient(object):
 
         delay_sec = opts.duration if (opts.duration > 0) else 1
 
-        print format_text("Waiting for {0} seconds...\n".format(delay_sec), 'bold')
+        self.logger.log(format_text("Waiting for {0} seconds...\n".format(delay_sec), 'bold'))
         time.sleep(delay_sec)
 
         return RC_OK()
@@ -1147,7 +1186,7 @@ class CTRexStatelessClient(object):
     # run a script of commands
     def run_script_file (self, filename):
 
-        print format_text("\nRunning script file '{0}'...".format(filename), 'bold')
+        self.logger.log(format_text("\nRunning script file '{0}'...".format(filename), 'bold'))
 
         rc = self.cmd_connect()
         if rc.bad():
@@ -1179,18 +1218,18 @@ class CTRexStatelessClient(object):
             else:
                 args = ""
 
-            print format_text("Executing line {0} : '{1}'\n".format(index, line))
+            self.logger.log(format_text("Executing line {0} : '{1}'\n".format(index, line)))
 
             if not cmd in cmd_table:
                 print "\n*** Error at line {0} : '{1}'\n".format(index, line)
-                print format_text("unknown command '{0}'\n".format(cmd), 'bold')
+                self.logger.log(format_text("unknown command '{0}'\n".format(cmd), 'bold'))
                 return False
 
             rc = cmd_table[cmd](args)
             if rc.bad():
                 return False
 
-        print format_text("\n[Done]", 'bold')
+        self.logger.log(format_text("\n[Done]", 'bold'))
 
         return True
 
@@ -1219,7 +1258,6 @@ class CTRexStatelessClient(object):
             self.virtual = virtual
             self.server = server
             self.port = port
-            self.verbose = False
             self.rpc_link = JsonRpcClient(self.server, self.port, prn_func)
 
         @property
@@ -1234,10 +1272,6 @@ class CTRexStatelessClient(object):
 
         def get_port (self):
             return self.port
-
-        def set_verbose(self, mode):
-            self.verbose = mode
-            return self.rpc_link.set_verbose(mode)
 
         def connect(self):
             if not self.virtual:
