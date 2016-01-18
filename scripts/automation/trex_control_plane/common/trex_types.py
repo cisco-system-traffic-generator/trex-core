@@ -79,6 +79,7 @@ class RC():
 
 def RC_OK(data = ""):
     return RC(True, data)
+
 def RC_ERR (err):
     return RC(False, err)
 

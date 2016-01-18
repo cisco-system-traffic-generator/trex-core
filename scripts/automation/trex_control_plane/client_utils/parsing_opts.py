@@ -284,12 +284,12 @@ class CCmdArgParser(argparse.ArgumentParser):
 
             # if all ports are marked or 
             if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
-                opts.ports = self.stateless_client.get_port_ids()
+                opts.ports = self.stateless_client.get_all_ports()
 
             # so maybe we have ports configured
             elif (getattr(opts, "ports", None) == []):
                 for port in opts.ports:
-                    if not self.stateless_client.validate_port_list([port]):
+                    if not self.stateless_client._validate_port_list([port]):
                         self.error("port id '{0}' is not a valid port id\n".format(port))
 
             return opts

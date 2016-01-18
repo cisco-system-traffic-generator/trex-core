@@ -144,12 +144,15 @@ class CTRexAsyncStatsManager():
 
 
 class CTRexAsyncClient():
-    def __init__ (self, server, port, stateless_client, prn_func = None):
+    def __init__ (self, server, port, stateless_client):
 
         self.port = port
         self.server = server
+
         self.stateless_client = stateless_client
-        self.prn_func = prn_func
+
+        self.event_handler = stateless_client.event_handler
+        self.logger = self.stateless_client.logger
 
         self.raw_snapshot = {}
 
@@ -170,10 +173,7 @@ class CTRexAsyncClient():
 
         msg = "\nConnecting To ZMQ Publisher On {0}".format(self.tr)
 
-        if self.prn_func:
-            self.prn_func(msg)
-        else:
-            print msg
+        self.logger.log(msg)
 
         #  Socket to talk to server
         self.context = zmq.Context()
@@ -235,7 +235,7 @@ class CTRexAsyncClient():
 
                 # signal once
                 if not got_data:
-                    self.stateless_client.on_async_alive()
+                    self.event_handler.on_async_alive()
                     got_data = True
                 
 
@@ -244,7 +244,7 @@ class CTRexAsyncClient():
 
                 # signal once
                 if got_data:
-                    self.stateless_client.on_async_dead()
+                    self.event_handler.on_async_dead()
                     got_data = False
 
                 continue
@@ -284,11 +284,11 @@ class CTRexAsyncClient():
     def __dispatch (self, name, type, data):
         # stats
         if name == "trex-global":
-            self.stateless_client.handle_async_stats_update(data)
+            self.event_handler.handle_async_stats_update(data)
 
         # events
         elif name == "trex-event":
-            self.stateless_client.handle_async_event(type, data)
+            self.event_handler.handle_async_event(type, data)
 
         # barriers
         elif name == "trex-barrier":
@@ -315,7 +315,7 @@ class CTRexAsyncClient():
         # add to the queue
         self.async_barriers.append(barrier)
         
-        rc = self.stateless_client.transmit("publish_now", params = {'key' : key})
+        rc = self.stateless_client._transmit("publish_now", params = {'key' : key})
         if not rc:
             return rc
 

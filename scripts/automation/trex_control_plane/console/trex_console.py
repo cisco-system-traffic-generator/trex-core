@@ -39,6 +39,28 @@ from functools import wraps
 
 __version__ = "1.1"
 
+# console custom logger
+class ConsoleLogger(LoggerApi):
+    def __init__ (self):
+        self.prompt_redraw = None
+
+    def write (self, msg, newline = True):
+        if newline:
+            print msg
+        else:
+            print msg,
+
+    def flush (self):
+        sys.stdout.flush()
+
+    # override this for the prompt fix
+    def async_log (self, msg, level = LoggerApi.VERBOSE_REGULAR, newline = True):
+        self.log(msg, level, newline)
+        if self.prompt_redraw:
+            self.prompt_redraw()
+            self.flush()
+
+
 def set_window_always_on_top (title):
     # we need the GDK module, if not available - ignroe this command
     try:
@@ -133,9 +155,9 @@ class TRexGeneralCmd(cmd.Cmd):
 class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, stateless_client, verbose=False):
+    def __init__(self, stateless_client, verbose = False):
+
         self.stateless_client = stateless_client
-        self.stateless_client.set_prompt_redraw_cb(self.prompt_redraw)
 
         TRexGeneralCmd.__init__(self)
 
@@ -199,7 +221,7 @@ class TRexConsole(TRexGeneralCmd):
 
     def get_console_identifier(self):
         return "{context}_{server}".format(context=self.__class__.__name__,
-                                           server=self.stateless_client.get_server_ip())
+                                           server=self.stateless_client.get_connection_info()['server'])
     
     def register_main_console_methods(self):
         main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))
@@ -271,7 +293,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_ping (self, line):
         '''Ping the server\n'''
-        rc = self.stateless_client.cmd_ping()
+        rc = self.stateless_client.ping()
         if rc.bad():
             return
 
@@ -333,13 +355,13 @@ class TRexConsole(TRexGeneralCmd):
     def do_connect (self, line):
         '''Connects to the server\n'''
 
-        self.stateless_client.cmd_connect_line(line)
+        self.stateless_client.connect_line(line)
 
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
 
-        self.stateless_client.cmd_disconnect()
+        self.stateless_client.disconnect_line(line)
 
  
     ############### start
@@ -408,7 +430,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected_and_rw
     def do_reset (self, line):
         '''force stop all ports\n'''
-        self.stateless_client.cmd_reset_line(line)
+        self.stateless_client.reset_line(line)
 
 
     ######### validate
@@ -492,7 +514,9 @@ class TRexConsole(TRexGeneralCmd):
 
         if opts.xterm:
 
-            exe = './trex-console -t -q -s {0} -p {1}'.format(self.stateless_client.get_server_ip(), self.stateless_client.get_server_port())
+            info = self.stateless_client.get_connection_info()
+
+            exe = './trex-console -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
             cmd = ['xterm', '-geometry', '111x42', '-sl', '0', '-title', 'trex_tui', '-e', exe]
             self.terminal = subprocess.Popen(cmd)
 
@@ -645,11 +669,13 @@ def main():
         verbose_level = LoggerApi.VERBOSE_REGULAR
 
     # Stateless client connection
+    logger = ConsoleLogger()
     stateless_client = CTRexStatelessClient(options.user,
                                             options.server,
                                             options.port,
                                             options.pub,
-                                            verbose_level)
+                                            verbose_level,
+                                            logger)
 
     # TUI or no acquire will give us READ ONLY mode
     if options.tui or not options.acquire:
@@ -673,6 +699,8 @@ def main():
 
     try:
         console = TRexConsole(stateless_client, options.verbose)
+        logger.prompt_redraw = console.prompt_redraw
+
         if options.tui:
             console.do_tui("")
         else:
@@ -682,7 +710,7 @@ def main():
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
 
     finally:
-        stateless_client.disconnect()
+        stateless_client.teardown()
 
 if __name__ == '__main__':
     
