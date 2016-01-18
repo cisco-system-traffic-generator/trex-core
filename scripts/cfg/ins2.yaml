@@ -2,7 +2,6 @@
   interfaces    : ["82:00.0","82:00.1"]
   port_limit    : 2 
   enable_zmq_pub  : true  # enable publisher for stats data 
-  zmq_pub_port    : 4510
   #prefix          : setup3
   #limit_memory    : 2048
   c               : 4
