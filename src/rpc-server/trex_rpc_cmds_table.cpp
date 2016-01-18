@@ -34,6 +34,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
 
     /* general */
     register_command(new TrexRpcCmdPing());
+    register_command(new TrexRpcPublishNow());
     register_command(new TrexRpcCmdGetCmds());
     register_command(new TrexRpcCmdGetVersion());
     register_command(new TrexRpcCmdGetSysInfo());

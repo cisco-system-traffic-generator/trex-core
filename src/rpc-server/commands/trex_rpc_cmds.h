@@ -56,6 +56,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub", 2, false);
  * general cmds
  */
 TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping",                 0, false);
+TREX_RPC_CMD_DEFINE(TrexRpcPublishNow,    "publish_now",          1, false);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCmds,    "get_supported_cmds",   0, false);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetVersion, "get_version",          0, false);
 

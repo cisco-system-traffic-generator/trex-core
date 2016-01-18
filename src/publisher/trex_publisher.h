@@ -53,7 +53,19 @@ public:
         
     };
 
+    /**
+     * publishes an async event
+     * 
+     */
     virtual void publish_event(event_type_e type, const Json::Value &data = Json::nullValue);
+
+    /**
+     * publishes a barrier requested by the user
+     * 
+     * @author imarom (17-Jan-16)
+     * 
+     */
+    virtual void publish_barrier(uint32_t key);
 
 private:
     void show_zmq_last_error(const std::string &err);

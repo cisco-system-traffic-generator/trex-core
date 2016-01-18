@@ -55,12 +55,16 @@ class LoggerApi(object):
         return (self.level >= level)
 
 
+    # simple log message with verbose
     def log (self, msg, level = VERBOSE_REGULAR, newline = True):
         if not self.check_verbose(level):
             return
 
         self.write(msg, newline)
 
+    # annotates an action with a RC - writes to log the result
+    def annotate (self, rc, desc = None, show_status = True):
+        rc.annotate(self.log, desc, show_status)
 
 # default logger - to stdout
 class DefaultLogger(LoggerApi):
@@ -82,7 +86,7 @@ class CTRexStatelessClient(object):
                  server = "localhost",
                  sync_port = 4501,
                  async_port = 4500,
-                 quiet = False,
+                 verbose_level = LoggerApi.VERBOSE_REGULAR,
                  virtual = False,
                  logger = None):
 
@@ -90,13 +94,14 @@ class CTRexStatelessClient(object):
 
         self.user = username
 
+        # logger
         if not logger:
             self.logger = DefaultLogger()
         else:
             self.logger = logger
 
-        if quiet:
-            self.logger.set_verbose(self.logger.VERBOSE_QUIET)
+        # initial verbose
+        self.logger.set_verbose(verbose_level)
 
         self.comm_link = CTRexStatelessClient.CCommLink(server, sync_port, virtual, self.logger)
 

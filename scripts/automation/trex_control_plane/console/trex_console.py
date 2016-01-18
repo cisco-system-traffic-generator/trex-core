@@ -29,7 +29,7 @@ import sys
 import tty, termios
 import trex_root_path
 from common.trex_streams import *
-from client.trex_stateless_client import CTRexStatelessClient
+from client.trex_stateless_client import CTRexStatelessClient, LoggerApi
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 from client_utils import parsing_opts
@@ -265,36 +265,6 @@ class TRexConsole(TRexGeneralCmd):
                     targets.append(x + '/')
 
         return targets
-
-    # annotation method
-    @staticmethod
-    def annotate (desc, rc = None, err_log = None, ext_err_msg = None):
-        print format_text('\n{:<40}'.format(desc), 'bold'),
-        if rc == None:
-            print "\n"
-            return
-
-        if rc == False:
-            # do we have a complex log object ?
-            if isinstance(err_log, list):
-                print ""
-                for func in err_log:
-                    if func:
-                        print func
-                print ""
-
-            elif isinstance(err_log, str):
-                print "\n" + err_log + "\n"
-
-            print format_text("[FAILED]\n", 'red', 'bold')
-            if ext_err_msg:
-                print format_text(ext_err_msg + "\n", 'blue', 'bold')
-
-            return False
-
-        else:
-            print format_text("[SUCCESS]\n", 'green', 'bold')
-            return True
 
 
     ####################### shell commands #######################
@@ -667,10 +637,19 @@ def main():
     options = parser.parse_args()
 
     # Stateless client connection
-    stateless_client = CTRexStatelessClient(options.user, options.server, options.port, options.pub, options.quiet)
+    if options.quiet:
+        verbose_level = LoggerApi.VERBOSE_QUIET
+    elif options.verbose:
+        verbose_level = LoggerApi.VERBOSE_HIGH
+    else:
+        verbose_level = LoggerApi.VERBOSE_REGULAR
 
-    if not options.quiet:
-        print "\nlogged as {0}".format(format_text(options.user, 'bold'))
+    # Stateless client connection
+    stateless_client = CTRexStatelessClient(options.user,
+                                            options.server,
+                                            options.port,
+                                            options.pub,
+                                            verbose_level)
 
     # TUI or no acquire will give us READ ONLY mode
     if options.tui or not options.acquire:
@@ -679,7 +658,7 @@ def main():
         rc = stateless_client.connect("RW")
 
     # unable to connect - bye
-    if rc.bad():
+    if not rc:
         rc.annotate()
         return
 

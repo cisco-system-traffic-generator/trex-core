@@ -1,3 +1,9 @@
+#
+# TRex stateless API 
+# provides a layer for communicating with TRex
+# using Python API
+#
+
 import sys
 import os
 import time
@@ -43,24 +49,29 @@ class BasicTestAPI(object):
     # main object
     def __init__ (self, server = "localhost", sync_port = 4501, async_port = 4500):
         self.logger = BasicTestAPI.Logger()
-        self.client = CTRexStatelessClient(logger = self.logger, sync_port = sync_port, async_port = async_port)
+        self.client = CTRexStatelessClient(logger = self.logger,
+                                           sync_port = sync_port,
+                                           async_port = async_port,
+                                           verbose_level = LoggerApi.VERBOSE_REGULAR)
 
 
+        self.__invalid_stats = True
+
+    # connect to the stateless client
     def connect (self):
         rc = self.client.connect(mode = "RWF")
         self.__verify_rc(rc)
 
 
+    # disconnect from the stateless client
     def disconnect (self):
         self.client.disconnect()
 
 
-    def __verify_rc (self, rc):
-        if rc.bad():
-            raise self.Failure(rc)
-
     def inject_profile (self, filename, rate = "1", duration = None):
-        cmd = "-f {0} -m {1}".format(filename, rate)
+        self.__invalid_stats = True
+
+        cmd = "--total -f {0} -m {1}".format(filename, rate)
         if duration:
             cmd += " -d {0}".format(duration)
 
@@ -74,9 +85,24 @@ class BasicTestAPI(object):
 
 
     def get_stats (self):
+        if self.__invalid_stats:
+            # send a barrier
+            rc = self.client.block_on_stats()
+            self.__verify_rc(rc)
+            self.__invalid_stats = False
+
         total_stats = trex_stats.CPortStats(None)
 
         for port in self.client.ports.values():
             total_stats += port.port_stats
 
         return total_stats
+
+
+    # some internal methods
+
+    # verify RC return value
+    def __verify_rc (self, rc):
+        if not rc:
+            raise self.Failure(rc)
+

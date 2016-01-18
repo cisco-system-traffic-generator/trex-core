@@ -124,7 +124,7 @@ class JsonRpcClient(object):
                 break
             except zmq.Again:
                 tries += 1
-                if tries > 10:
+                if tries > 5:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to send message to server")
 
@@ -136,9 +136,9 @@ class JsonRpcClient(object):
                 break
             except zmq.Again:
                 tries += 1
-                if tries > 10:
+                if tries > 5:
                     self.disconnect()
-                    return RC_ERR("*** [RPC] - Failed to get server response")
+                    return RC_ERR("*** [RPC] - Failed to get server response at {0}".format(self.transport))
 
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
@@ -173,6 +173,7 @@ class JsonRpcClient(object):
             else:
                 return RC_ERR(response_json["error"]["message"])
 
+        
         # if no error there should be a result
         if ("result" not in response_json):
             return RC_ERR("Malformed Response ({0})".format(str(response_json)))

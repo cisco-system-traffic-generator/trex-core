@@ -110,6 +110,7 @@ public:
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const = 0;
     virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const = 0;
+    virtual void publish_async_data_now(uint32_t key) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
     
     virtual ~TrexPlatformApi() {}
@@ -127,6 +128,7 @@ public:
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
     void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const;
+    void publish_async_data_now(uint32_t key) const;
     uint8_t get_dp_core_count() const;
     
 };
@@ -146,6 +148,7 @@ public:
         speed = SPEED_INVALID;
     }
 
+    void publish_async_data_now(uint32_t key) const {}
     uint8_t get_dp_core_count() const;
 };
 

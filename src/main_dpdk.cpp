@@ -2609,8 +2609,12 @@ private:
     bool is_all_cores_finished();
 
 public:
+
+    void publish_async_data();
+    void publish_async_barrier(uint32_t key);
+
     void dump_stats(FILE *fd,
-                    std::string & json,CGlobalStats::DumpFormat format);
+                    CGlobalStats::DumpFormat format);
     void dump_template_info(std::string & json);
     bool sanity_check();
     void update_stats(void);
@@ -2649,6 +2653,7 @@ private:
     CLatencyVmPort      m_latency_vm_vports[BP_MAX_PORTS]; /* vm driver */
     CLatencyPktInfo     m_latency_pkt;
     TrexPublisher       m_zmq_publisher;
+    CGlobalStats        m_stats;
 
 public:
     TrexStateless       *m_trex_stateless;
@@ -3448,11 +3453,11 @@ void CGlobalTRex::dump_template_info(std::string & json){
     json+="]}" ;
 }
 
-void CGlobalTRex::dump_stats(FILE *fd,std::string & json,
-                                CGlobalStats::DumpFormat format){
-    CGlobalStats  stats;
+void CGlobalTRex::dump_stats(FILE *fd, CGlobalStats::DumpFormat format){
+
     update_stats();
-    get_stats(stats);
+    get_stats(m_stats);
+
     if (format==CGlobalStats::dmpTABLE) {
         if ( m_io_modes.m_g_mode == CTrexGlobalIoMode::gNORMAL ){
             switch (m_io_modes.m_pp_mode ){
@@ -3461,11 +3466,11 @@ void CGlobalTRex::dump_stats(FILE *fd,std::string & json,
                     break;
                 case CTrexGlobalIoMode::ppTABLE:
                     fprintf(fd,"\n-Per port stats table \n");
-                    stats.Dump(fd,CGlobalStats::dmpTABLE);
+                    m_stats.Dump(fd,CGlobalStats::dmpTABLE);
                     break;
                 case CTrexGlobalIoMode::ppSTANDARD:
                     fprintf(fd,"\n-Per port stats - standard\n");
-                    stats.Dump(fd,CGlobalStats::dmpSTANDARD);
+                    m_stats.Dump(fd,CGlobalStats::dmpSTANDARD);
                     break;
             };
 
@@ -3475,22 +3480,62 @@ void CGlobalTRex::dump_stats(FILE *fd,std::string & json,
                     break;
                 case   CTrexGlobalIoMode::apENABLE:
                     fprintf(fd,"\n-Global stats enabled \n");
-                    stats.DumpAllPorts(fd);
+                    m_stats.DumpAllPorts(fd);
                     break;
             };
         }
     }else{
         /* at exit , always need to dump it in standartd mode for scripts*/
-        stats.Dump(fd,format);
-        stats.DumpAllPorts(fd);
+        m_stats.Dump(fd,format);
+        m_stats.DumpAllPorts(fd);
     }
-    stats.dump_json(json);
+    
 }
 
 
-int CGlobalTRex::run_in_master(){
+void 
+CGlobalTRex::publish_async_data() {
+     std::string json;
 
-    std::string json;
+     m_stats.dump_json(json);
+     m_zmq_publisher.publish_json(json);
+
+     /* generator json , all cores are the same just sample the first one */
+     m_fl.m_threads_info[0]->m_node_gen.dump_json(json);
+     m_zmq_publisher.publish_json(json);
+
+        
+     if ( !get_is_stateless() ){
+         dump_template_info(json);
+         m_zmq_publisher.publish_json(json);
+     }
+
+     if ( get_is_rx_check_mode() ) {
+         m_mg.rx_check_dump_json(json );
+         m_zmq_publisher.publish_json(json);
+     }
+
+     /* backward compatible */
+     m_mg.dump_json(json );
+     m_zmq_publisher.publish_json(json);
+
+     /* more info */
+     m_mg.dump_json_v2(json );
+     m_zmq_publisher.publish_json(json);
+
+     /* stateless info - nothing for now */
+     //m_trex_stateless->generate_publish_snapshot(json);
+     //m_zmq_publisher.publish_json(json);
+}
+
+void 
+CGlobalTRex::publish_async_barrier(uint32_t key) {
+    m_zmq_publisher.publish_barrier(key);
+}
+
+int CGlobalTRex::run_in_master() {
+
+   
     bool was_stopped=false;
 
     if ( get_is_stateless() ) {
@@ -3530,7 +3575,7 @@ int CGlobalTRex::run_in_master(){
             m_io_modes.DumpHelp(stdout);
         }
 
-        dump_stats(stdout,json,CGlobalStats::dmpTABLE);
+        dump_stats(stdout,CGlobalStats::dmpTABLE);
 
         if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gNORMAL ) {
     		fprintf (stdout," current time    : %.1f sec  \n",now_sec());
@@ -3542,16 +3587,6 @@ int CGlobalTRex::run_in_master(){
     		fprintf (stdout," test duration   : %.1f sec  \n",d);
         }
 
-        m_zmq_publisher.publish_json(json);
-
-        /* generator json , all cores are the same just sample the first one */
-        m_fl.m_threads_info[0]->m_node_gen.dump_json(json);
-        m_zmq_publisher.publish_json(json);
-
-        if ( !get_is_stateless() ){
-            dump_template_info(json);
-            m_zmq_publisher.publish_json(json);
-        }
 
         if ( !CGlobalInfo::m_options.is_latency_disabled() ){
             m_mg.update();
@@ -3591,24 +3626,12 @@ int CGlobalTRex::run_in_master(){
 
             }
 
-            if ( get_is_rx_check_mode() ) {
-                m_mg.rx_check_dump_json(json );
-                m_zmq_publisher.publish_json(json);
-            }
-
-            /* backward compatible */
-            m_mg.dump_json(json );
-            m_zmq_publisher.publish_json(json);
-
-            /* more info */
-            m_mg.dump_json_v2(json );
-            m_zmq_publisher.publish_json(json);
+          
 
         }
 
-        /* stateless info */
-        m_trex_stateless->generate_publish_snapshot(json);
-        m_zmq_publisher.publish_json(json);
+        /* publish data */
+        publish_async_data();
 
         /* check from messages from DP */
         check_for_dp_messages();
@@ -3679,11 +3702,10 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
 int CGlobalTRex::stop_master(){
 
     delay(1000);
-    std::string json;
     fprintf(stdout," ==================\n");
     fprintf(stdout," interface sum \n");
     fprintf(stdout," ==================\n");
-    dump_stats(stdout,json,CGlobalStats::dmpSTANDARD);
+    dump_stats(stdout,CGlobalStats::dmpSTANDARD);
     fprintf(stdout," ==================\n");
     fprintf(stdout," \n\n");
 
@@ -3724,7 +3746,7 @@ int CGlobalTRex::stop_master(){
         m_mg.DumpRxCheckVerification(stdout,total_tx_rx_check);
     }
     
-    dump_stats(stdout,json,CGlobalStats::dmpSTANDARD);
+    dump_stats(stdout,CGlobalStats::dmpSTANDARD);
     dump_post_test_stats(stdout);
     m_fl.Delete();
 
@@ -4899,3 +4921,10 @@ TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id,
     driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
     speed = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed();
 }
+
+void
+TrexDpdkPlatformApi::publish_async_data_now(uint32_t key) const {
+    g_trex.publish_async_data();
+    g_trex.publish_async_barrier(key);
+}
+
