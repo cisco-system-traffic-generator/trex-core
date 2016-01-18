@@ -67,8 +67,7 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         self.check_results_gt (learning_stats, 'm_total_nat_open', expected_nat_opened)
 
         self.check_general_scenario_results(trex_res)
-
-        # self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res, minimal_cpu = 10, maximal_cpu = 85)
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)
@@ -128,7 +127,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         if self.get_benchmark_param('allow_timeout_dev'):
             nat_timeout_ratio = trex_nat_stats['m_total_nat_time_out']/trex_nat_stats['m_total_nat_open']
             if nat_timeout_ratio > 0.005:
-                self.fail('TRex nat_timeout ratio %f > 0.005 (0.5%) and not as expected to be less than 0.5%' %(nat_timeout_ratio))
+                self.fail('TRex nat_timeout ratio %f > 0.5%%' % nat_timeout_ratio)
         else:
             self.check_results_eq (trex_nat_stats,'m_total_nat_time_out', 0.0)
         self.check_results_eq (trex_nat_stats,'m_total_nat_no_fid', 0.0)
@@ -142,7 +141,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 #        test_norm_cpu = 2*(trex_tx_pckt/(core*cpu_util))
 #        print "test_norm_cpu is: ", test_norm_cpu
 
-        # self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res, minimal_cpu = 10, maximal_cpu = 85)
 
         #if ( abs((test_norm_cpu/self.get_benchmark_param('cpu_to_core_ratio')) - 1) > 0.03):
         #    raiseraise AbnormalResultError('Normalized bandwidth to CPU utilization ratio exceeds 3%')

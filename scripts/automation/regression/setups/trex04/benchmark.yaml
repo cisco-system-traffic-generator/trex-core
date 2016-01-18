@@ -20,7 +20,7 @@ test_routing_imix_64    :
   exp_latency       : 1
 
 test_routing_imix   :
-  multiplier        : 0.8
+  multiplier        : 0.5
   cores             : 1
   cpu_to_core_ratio : 1800
   exp_latency       : 1

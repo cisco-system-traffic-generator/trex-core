@@ -1,4 +1,9 @@
 #! /bin/bash
+if [ $USER != 'root' ]; then
+  echo 'Error: Please run as root (sudo etc.)'
+  exit -1
+fi
+
 ./trex-cfg $@
 RESULT=$?
 if [ $RESULT -ne 0 ]; then

@@ -223,9 +223,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             self.skip('This test uses NAT, not relevant for loopback')
 
         self.router.configure_basic_interfaces()
-        stat_route_dict = self.get_benchmark_param('stat_route_dict')
-        stat_route_obj = CStaticRouteConfig(stat_route_dict)
-        self.router.config_static_routing(stat_route_obj, mode = "config")
+        self.router.config_pbr(mode = "config")
 
         core  = self.get_benchmark_param('cores')
         mult  = self.get_benchmark_param('multiplier')
@@ -234,48 +232,40 @@ class CTRexRx_Test(CTRexGeneral_Test):
         ret = self.trex.start_trex(
             c = core,
             m = mult,
-            #p  = True,
-            #nc = True,
+            p = True,
             rx_check = sample_rate,
-            d = 80,
+            d = 50,
             f = 'cap2/http_simple.yaml',
             l = 1000,
             k = 10,
             learn_verify = True,
             l_pkt_mode = 2)
 
-        print 'Run for 2 minutes, expect no errors'
-        trex_res = self.trex.sample_x_seconds(60)
+        print 'Run for 40 seconds, expect no errors'
+        trex_res = self.trex.sample_x_seconds(40)
         print ("\nLATEST RESULT OBJECT:")
         print trex_res
         self.check_general_scenario_results(trex_res)
-        self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res)
         self.check_rx_errors(trex_res)
 
-        try:
-        # TODO: add nat/zbf config for router
-            nat_dict = self.get_benchmark_param('nat_dict')
-            nat_obj  = CNatConfig(nat_dict)
-            self.router.config_nat(nat_obj)
-            self.router.config_nat_verify()
-            self.router.config_zbf()
-
-            print 'Run until finish, expect errors'
-            trex_res = self.trex.sample_to_run_finish()
-
-            self.router.config_no_zbf()
-            self.router.clear_nat_translations()
-            print ("\nLATEST RESULT OBJECT:")
-            print trex_res
-            nat_stats = self.router.get_nat_stats()
-            print nat_stats
-            self.check_general_scenario_results(trex_res)
-            self.check_CPU_benchmark(trex_res, 10)
-            self.check_rx_errors(trex_res)
+        print 'Run until finish, expect errors'
+        old_errors = copy.deepcopy(self.fail_reasons)
+        nat_dict = self.get_benchmark_param('nat_dict', test_name = 'test_nat_simple')
+        nat_obj  = CNatConfig(nat_dict)
+        self.router.config_nat(nat_obj)
+        self.router.config_zbf()
+        trex_res = self.trex.sample_to_run_finish()
+        self.router.config_no_nat(nat_obj)
+        self.router.config_no_zbf()
+        print ("\nLATEST RESULT OBJECT:")
+        print trex_res
+        self.check_rx_errors(trex_res)
+        if self.fail_reasons == old_errors:
             self.fail('Expected errors here, got none.')
-        except Exception as e:
-            print 'Got errors as expected: %s' % e
-            pass
+        else:
+            print 'Got errors as expected.'
+            self.fail_reasons = old_errors
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)

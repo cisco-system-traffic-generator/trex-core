@@ -1,0 +1,6 @@
+#!/bin/bash
+
+source find_python.sh
+cd automation/regression
+$PYTHON trex_unit_test.py unit_tests/functional_tests --functional $@
+

@@ -49,9 +49,9 @@ test_nat_simple  :
     dual_port_mask           : 1.0.0.0
     pool_start               : 200.0.0.0
     pool_netmask             : 255.255.255.0
-  multiplier        : 400
+  multiplier        : 10000
   cpu_to_core_ratio : 37270000
-  cores             : 4
+  cores             : 1
   exp_bw            : 1
   exp_latency       : 1
   allow_timeout_dev : YES
@@ -63,8 +63,8 @@ test_nat_learning  :
     dual_port_mask          : 1.0.0.0
     client_destination_mask : 255.0.0.0
     server_destination_mask : 255.0.0.0
-  multiplier        : 400 
-  cores             : 4
+  multiplier        : 10000 
+  cores             : 1
   nat_opened        : 100000
   cpu_to_core_ratio : 37270000
   exp_bw            : 1
@@ -78,7 +78,7 @@ test_routing_imix_64    :
   exp_latency       : 1
 
 test_routing_imix   :
-  multiplier        : 35
+  multiplier        : 32
   cores             : 2
   cpu_to_core_ratio : 8900
   exp_latency       : 1
@@ -90,7 +90,7 @@ test_static_routing_imix    :
     dual_port_mask          : 1.0.0.0
     client_destination_mask : 255.0.0.0
     server_destination_mask : 255.0.0.0
-  multiplier        : 35
+  multiplier        : 32
   cores             : 2
   cpu_to_core_ratio : 3766666
   exp_latency       : 1
@@ -102,7 +102,7 @@ test_static_routing_imix_asymmetric:
     dual_port_mask          : 1.0.0.0
     client_destination_mask : 255.0.0.0
     server_destination_mask : 255.0.0.0
-  multiplier        : 18
+  multiplier        : 16
   cores             : 1
   cpu_to_core_ratio : 3766666
   exp_latency       : 1
@@ -135,7 +135,11 @@ test_rx_check_http_ipv6:
     cores             : 2
     rx_sample_rate    : 32
 
+test_rx_check_http_negative:
+    multiplier        : 40000
+    cores             : 2
+    rx_sample_rate    : 32
 
 test_jumbo:
-    multiplier : 56
+    multiplier : 55
     cores      : 1

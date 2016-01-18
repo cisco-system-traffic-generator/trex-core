@@ -61,14 +61,17 @@ class CTRexClient(object):
             socket errors, in case server could not be reached.
 
         """
-        self.trex_host          = trex_host
+        try:
+            self.trex_host          = socket.gethostbyname(trex_host)
+        except: # give it another try
+            self.trex_host          = socket.gethostbyname(trex_host)
         self.trex_daemon_port   = trex_daemon_port
         self.trex_zmq_port      = trex_zmq_port
         self.seq                = None
         self.verbose            = verbose
         self.result_obj         = CTRexResult(max_history_size)
         self.decoder            = JSONDecoder()
-        self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = trex_host, port = trex_daemon_port )
+        self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
         self.__verbose_print("Connecting to TRex @ {trex_path} ...".format( trex_path = self.trex_server_path ) )
         self.history            = jsonrpclib.history.History()
         self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)

@@ -213,7 +213,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         if not test_name:
             test_name = self.get_name()
         if test_name not in self.benchmark:
-            self.skip('No data in benchmark.yaml for test %s, skipping.' % test_name)
+            self.skip('No data in benchmark.yaml for test: %s, param: %s. Skipping.' % (test_name, param))
         if sub_param:
             return self.benchmark[test_name][param].get(sub_param)
         else:
@@ -230,7 +230,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
             trex_drops      = trex_res.get_total_drops()
             trex_drop_rate  = trex_res.get_drop_rate()
-            if ( (trex_drops/trex_tx_pckt) > 0.001) and (trex_drop_rate > 0.0):     # deliberately mask kickoff drops when T-Rex first initiated
+            if ( trex_drops > 0.001 * trex_tx_pckt) and (trex_drop_rate > 0.0):     # deliberately mask kickoff drops when T-Rex first initiated
                 self.fail('Number of packet drops larger than 0.1% of all traffic')
 
             # check queue full, queue drop, allocation error
@@ -282,7 +282,8 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.fail_reasons.append(reason)
 
     # skip running of the test, counts as 'passed' but prints 'skipped'
-    def skip(self, message = ''):
+    def skip(self, message = 'Unknown reason'):
+        print 'Skip: %s' % message
         self.skipping = True
         raise SkipTest(message)
 
