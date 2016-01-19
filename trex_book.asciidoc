@@ -126,7 +126,7 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 ** > sudo yum update kernel-devel
 ** > sudo yum update kernel-headers
 * For Intel XL710 NICs there is a need to verify the NVM is v4.42 or v4.53 see  xref:xl710-firmware[here] for more info
-**  > sudo ./t-rex-64 -f cap2/dns.yaml -d 0 --no-flow-control *-v 6* --nc | grep NVM +
+**  > sudo ./t-rex-64 -f cap2/dns.yaml -d 0 *-v 6* --nc | grep NVM +
     PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc +
     PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc +
     PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc +
@@ -716,9 +716,8 @@ TRex(0) -|                            |-TRex(1)
 
 === NAT support 
 
-TRex can learn dynamic NAT/PAT translation. To enable this feature add `--learn` to the command line. 
-//TBD: maybe... add the '--learn' option on the command line.
-This is done by adding an IPv4 option header with TRex info (8 bytes long 0x10 id) to the first packet of the flow.
+TRex can learn dynamic NAT/PAT translation. To enable this feature add `--learn-mode <val>` to the command line.
+In mode 2, this is done by adding an IPv4 option header with TRex info (8 bytes long 0x10 id) to the first packet of the flow. In mode 2, this is done by embedding NAT info in the ACK of the first TCP SYN.
 
 *Example:*::
 
@@ -726,14 +725,14 @@ This is done by adding an IPv4 option header with TRex info (8 bytes long 0x10 i
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/http_simple.yaml -c 4  -l 1000 -d 100000 -m 30  --learn 
+$sudo ./t-rex-64 -f cap2/http_simple.yaml -c 4  -l 1000 -d 100000 -m 30  --learn-mode 1
 ----
 
 *SFR traffic without bundeling/ALG support*
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4  -l 1000 -d 100000 -m 10  --learn 
+$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4  -l 1000 -d 100000 -m 10  --learn-mode 2
 ----
 
 *New terminal counters:*::
@@ -1165,10 +1164,12 @@ This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *
 *--ipv6*::
        Convert template to IPv6 mode.
 
-*--learn*::                   
-    Learn the dynamic NAT translation and ALG.
-    
-*--learn-verify*::          
+*--learn-mode <mode (1-2)>*::
+    Learn the dynamic NAT translation. +
+    1 - Use TCP ACK in first SYN to pass NAT translation information. Will work only for TCP streams. Initial SYN packet must be present in stream. +
+    2 - Add special IP option to pass NAT translation information. Will not work on certain firewalls if they drop packets with IP options.
+
+*--learn-verify*::
     Learn the translation. This feature is intended for verification of the mechanism in cases where there is no NAT.
   
 *-p*::                
@@ -1230,8 +1231,8 @@ This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *
 *--iom=MODE*::
         I/O mode for interactive mode. Possible values: 0 (silent), 1 (normal), 2 (short)
   
-*--no-flow-control*::
-  Prevents TRex from changing flow control. In default TRex operation, flow control is disabled at startup.
+*--no-flow-control-change*::
+  Prevents TRex from changing flow control. By default (without this option), TRex disables flow control at startup for all cards, except for the Intel XL710 40G card.
 
 *--mac-spread*::            
   Spread the destination mac by this this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1. The maximum is up to 128 devices.
