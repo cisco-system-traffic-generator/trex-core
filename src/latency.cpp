@@ -1003,9 +1003,11 @@ bool CLatencyPktModeICMP::IsLatencyPkt(IPHeader *ip) {
 void CLatencyPktModeICMP::update_recv(uint8_t *pkt, uint16_t *r_seq, uint16_t *t_seq) {
     ICMPHeader *m_icmp = (ICMPHeader *)(pkt);
     *r_seq = m_icmp->getSeqNum();
-    // handle wrap around, so can_send_packet will allow us to send
-    if (*r_seq == 0)
-        *t_seq = 0;
+    // Previously, we assumed we can send for sequences smaller than r_seq.
+    // Actually, if the DUT (firewall) dropped an ICMP request, we should not send response for the dropped packet.
+    // We are only sure that we can send reqponse for the request we just got.
+    // This should be OK, since we send requests and responses in the same rate.
+    *t_seq = *r_seq;
 }
 
 
