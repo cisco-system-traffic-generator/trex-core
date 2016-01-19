@@ -25,13 +25,10 @@ from trex_port import Port
 from common.trex_types import *
 from trex_async_client import CTRexAsyncClient
 
-############################     logger     #############################
-############################                #############################
-############################                #############################
-
-class STLFailure(Exception):
-    def __init__ (self, rc_or_str):
-        self.msg = str(rc_or_str)
+# basic error for API
+class STLError(Exception):
+    def __init__ (self, msg):
+        self.msg = str(msg)
 
     def __str__ (self):
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -39,11 +36,35 @@ class STLFailure(Exception):
 
 
         s = "\n******\n"
-        s += "Error reported at {0}:{1}\n\n".format(format_text(fname, 'bold'), format_text(exc_tb.tb_lineno), 'bold')
-        s += "specific error:\n\n'{0}'\n".format(format_text(self.msg, 'bold'))
+        s += "Error at {0}:{1}\n\n".format(format_text(fname, 'bold'), format_text(exc_tb.tb_lineno), 'bold')
+        s += "specific error:\n\n{0}\n".format(format_text(self.msg, 'bold'))
         
         return s
 
+    def brief (self):
+        return self.msg
+
+
+# raised when the client state is invalid for operation
+class STLStateError(STLError):
+    def __init__ (self, op, state):
+        self.msg = "Operation '{0}' is not valid while '{1}'".format(op, state)
+
+
+# raised when argument is not valid for operation
+class STLArgumentError(STLError):
+    def __init__ (self, name, got, valid_values = None, extended = None):
+        self.msg = "Argument: '{0}' invalid value: '{1}'".format(name, got)
+        if valid_values:
+            self.msg += " - valid values are '{0}'".format(valid_values)
+
+        if extended:
+            self.msg += "\n{0}".format(extended)
+
+
+############################     logger     #############################
+############################                #############################
+############################                #############################
 
 # logger API for the client
 class LoggerApi(object):
@@ -734,19 +755,19 @@ class CTRexStatelessClient(object):
                 self.logger.log(format_text(msg, 'bold'))
                 return RC_ERR(msg)
             else:
-                rc = self.cmd_stop(active_ports)
+                rc = self.__stop(active_ports)
                 if not rc:
                     return rc
 
 
         rc = self.__remove_all_streams(port_id_list)
-        self.logger.annotate(rc,"Removing all streams from port(s) {0}:".format(port_id_list))
+        self.logger.annotate(rc, "Removing all streams from port(s) {0}:".format(port_id_list))
         if rc.bad():
             return rc
  
 
         rc = self.__add_stream_pack(stream_list, port_id_list)
-        self.logger.annotate(rc,"Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
+        self.logger.annotate(rc, "Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
         if rc.bad():
             return rc
  
@@ -769,35 +790,85 @@ class CTRexStatelessClient(object):
             return rc
 
 
+    # stop cmd
+    def __stop (self, port_id_list):
 
-    def __verify_port_id_list (self, port_id_list):
-        # check arguments
-        if not isinstance(port_id_list, list):
-            return RC_ERR("ports should be an instance of 'list'")
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
 
-        # all ports are valid ports
-        if not all([port_id in self.get_all_ports() for port_id in port_id_list]):
-            return RC_ERR("Port IDs valid values are '{0}' but provided '{1}'".format(self.get_all_ports(), port_id_list))
+        if not active_ports:
+            msg = "No active traffic on provided ports"
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_WARN(msg)
 
-        return RC_OK()
-
-
-    def __verify_mult (self, mult, strict):
-        if not isinstance(mult, dict):
-            return RC_ERR("mult should be an instance of dict")
-
-        types = ["raw", "bps", "pps", "percentage"]
-        if not mult.get('type', None) in types:
-            return RC_ERR("mult should contain 'type' field of one of '{0}'".format(types))
-
-        if strict:
-            ops = ["abs"]
-        else:
-            ops = ["abs", "add", "sub"]
-        if not mult.get('op', None) in ops:
-            return RC_ERR("mult should contain 'op' field of one of '{0}'".format(ops))
+        rc = self.__stop_traffic(active_ports)
+        self.logger.annotate(rc, "Stopping traffic on port(s) {0}:".format(port_id_list))
+        if not rc:
+            return rc
 
         return RC_OK()
+
+    #update cmd
+    def __update (self, port_id_list, mult):
+
+        # find the relevant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on provided ports"
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_WARN(msg)
+
+        rc = self.__update_traffic(mult, active_ports)
+        self.logger.annotate(rc, "Updating traffic on port(s) {0}:".format(port_id_list))
+
+        return rc
+
+
+    # pause cmd
+    def __pause (self, port_id_list):
+
+        # find the relevant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on provided ports"
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_WARN(msg)
+
+        rc = self.__pause_traffic(active_ports)
+        self.logger.annotate(rc, "Pausing traffic on port(s) {0}:".format(port_id_list))
+        return rc
+
+
+    # resume cmd
+    def __resume (self, port_id_list):
+
+        # find the relveant ports
+        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+
+        if not active_ports:
+            msg = "No active traffic on porvided ports"
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_WARN(msg)
+
+        rc = self.__resume_traffic(active_ports)
+        self.logger.annotate(rc, "Resume traffic on port(s) {0}:".format(port_id_list))
+        return rc
+
+
+    # clear stats
+    def __clear_stats(self, port_id_list):
+
+        for port_id in port_id_list:
+            self.ports[port_id].clear_stats()
+
+        self.global_stats.clear_stats()
+
+        rc = RC_OK()
+        self.logger.annotate(rc, "clearing stats on port(s) {0}:".format(port_id_list))
+        return RC
+
 
     def __process_profiles (self, profiles, out):
 
@@ -815,7 +886,8 @@ class CTRexStatelessClient(object):
                     self.logger.annotate(rc)
                     return rc
 
-                out += stream_list
+                out.append(stream_list)
+
             else:
                 return RC_ERR("unknown profile '{0}'".format(profile))
 
@@ -850,14 +922,23 @@ class CTRexStatelessClient(object):
 
     ############ functions used by other classes but not users ##############
 
+    def _verify_port_id_list (self, port_id_list):
+        # check arguments
+        if not isinstance(port_id_list, list):
+            return RC_ERR("ports should be an instance of 'list' not {0}".format(type(port_id_list)))
+
+        # all ports are valid ports
+        if not port_id_list or not all([port_id in self.get_all_ports() for port_id in port_id_list]):
+            return RC_ERR("")
+
+        return RC_OK()
+
     def _validate_port_list(self, port_id_list):
         if not isinstance(port_id_list, list):
-            print type(port_id_list)
             return False
 
         # check each item of the sequence
-        return all([ (port_id >= 0) and (port_id < self.get_port_count())
-                      for port_id in port_id_list ])
+        return port_id_list and all([port_id in self.get_all_ports() for port_id in port_id_list])
 
 
     # transmit request on the RPC link
@@ -870,65 +951,12 @@ class CTRexStatelessClient(object):
 
     ############# helper functions section ##############
 
-    # measure time for functions
-    def timing(f):
-        def wrap(*args):
-            
-            time1 = time.time()
-            ret = f(*args)
-
-            # don't want to print on error
-            if ret.bad():
-                return ret
-
-            delta = time.time() - time1
-
-            client = args[0]
-            client.logger.log(format_time(delta) + "\n")
-
-            return ret
-
-        return wrap
-
-
-
+   
     ########## port commands ##############
  
     ######################### Console (high level) API #########################
 
-    # stop cmd
-    def cmd_stop (self, port_id_list):
-
-        # find the relveant ports
-        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
-
-        if not active_ports:
-            msg = "No active traffic on provided ports"
-            self.logger.log(format_text(msg, 'bold'))
-            return RC_ERR(msg)
-
-        rc = self.__stop_traffic(active_ports)
-        self.logger.annotate(rc,"Stopping traffic on port(s) {0}:".format(port_id_list))
-        if rc.bad():
-            return rc
-
-        return RC_OK()
-
-    # update cmd
-    def cmd_update (self, port_id_list, mult):
-
-        # find the relevant ports
-        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
-
-        if not active_ports:
-            msg = "No active traffic on provided ports"
-            self.logger.log(format_text(msg, 'bold'))
-            return RC_ERR(msg)
-
-        rc = self.__update_traffic(mult, active_ports)
-        self.logger.annotate(rc,"Updating traffic on port(s) {0}:".format(port_id_list))
-
-        return rc
+ 
 
     # clear stats
     def cmd_clear(self, port_id_list):
@@ -949,40 +977,11 @@ class CTRexStatelessClient(object):
 
         return RC_OK()
 
-    # pause cmd
-    def cmd_pause (self, port_id_list):
-
-        # find the relevant ports
-        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
-
-        if not active_ports:
-            msg = "No active traffic on provided ports"
-            self.logger.log(format_text(msg, 'bold'))
-            return RC_ERR(msg)
-
-        rc = self.__pause_traffic(active_ports)
-        self.logger.annotate(rc,"Pausing traffic on port(s) {0}:".format(port_id_list))
-        return rc
+  
 
 
 
-    # resume cmd
-    def cmd_resume (self, port_id_list):
-
-        # find the relveant ports
-        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
-
-        if not active_ports:
-            msg = "No active traffic on porvided ports"
-            self.logger.log(format_text(msg, 'bold'))
-            return RC_ERR(msg)
-
-        rc = self.__resume_traffic(active_ports)
-        self.logger.annotate(rc,"Resume traffic on port(s) {0}:".format(port_id_list))
-        return rc
-
-
-   
+ 
 
 
     # validate port(s) profile
@@ -1011,13 +1010,455 @@ class CTRexStatelessClient(object):
     ############## High Level API With Parser ################
 
 
-    @timing
-    def cmd_start_line (self, line):
+    #################################
+    # ------ private methods ------ #
+    @staticmethod
+    def __get_mask_keys(ok_values={True}, **kwargs):
+        masked_keys = set()
+        for key, val in kwargs.iteritems():
+            if val in ok_values:
+                masked_keys.add(key)
+        return masked_keys
+
+    @staticmethod
+    def __filter_namespace_args(namespace, ok_values):
+        return {k: v for k, v in namespace.__dict__.items() if k in ok_values}
+
+
+    # verify decorator - throws exception is client is disconnected
+    def __verify_connected(f):
+        def wrap(*args, **kwargs):
+            inst = args[0]
+            func_name = f.__name__
+
+            if not inst.is_connected():
+                raise STLStateError(func_name, 'disconnected')
+
+            ret = f(*args, **kwargs)
+            return ret
+
+        return wrap
+
+
+
+    ############################     API     #############################
+    ############################             #############################
+    ############################             #############################
+
+
+    ############################   Getters   #############################
+    ############################             #############################
+    ############################             #############################
+
+
+    # return verbose level of the logger
+    def get_verbose (self):
+        return self.logger.get_verbose()
+
+    # is the client on read only mode ?
+    def is_read_only (self):
+        return self.read_only
+
+    # is the client connected ?
+    def is_connected (self):
+        return self.connected and self.comm_link.is_connected
+
+
+    # get connection info
+    def get_connection_info (self):
+        return self.connection_info
+
+
+    # get supported commands by the server
+    def get_server_supported_cmds(self):
+        return self.supported_cmds
+
+    # get server version
+    def get_server_version(self):
+        return self.server_version
+
+    # get server system info
+    def get_server_system_info(self):
+        return self.system_info
+
+    # get port count
+    def get_port_count(self):
+        return len(self.ports)
+
+
+    # returns the port object
+    def get_port (self, port_id):
+        port_id = self.ports.get(port_id, None)
+        if (port_id != None):
+            return port_id
+        else:
+            raise STLArgumentError('port id', port_id, valid_values = self.get_all_ports())
+
+
+    # get all ports as IDs
+    def get_all_ports (self):
+        return self.ports.keys()
+
+    # get all acquired ports
+    def get_acquired_ports(self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_acquired()]
+
+    # get all active ports (TX or pause)
+    def get_active_ports(self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_active()]
+
+    # get paused ports
+    def get_paused_ports (self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_paused()]
+
+    # get all TX ports
+    def get_transmitting_ports (self):
+        return [port_id
+                for port_id, port_obj in self.ports.iteritems()
+                if port_obj.is_transmitting()]
+
+
+    ############################   Commands   #############################
+    ############################              #############################
+    ############################              #############################
+
+
+    # set the log on verbose level
+    def set_verbose (self, level):
+        self.logger.set_verbose(level)
+
+
+    # connects to the server
+    # mode can be:
+    # 'RO' - read only
+    # 'RW' - read/write
+    # 'RWF' - read write forced (take ownership)
+    def connect (self, mode = "RW"):
+        modes = ['RO', 'RW', 'RWF']
+        if not mode in modes:
+            raise STLArgumentError('mode', mode, modes)
+        
+        rc = self.__connect(mode)
+        self.logger.annotate(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+
+
+    # disconnects from the server
+    def disconnect (self, annotate = True):
+        rc = self.__disconnect()
+        if annotate:
+            self.logger.annotate(rc, "Disconnecting from server at '{0}':'{1}'".format(self.connection_info['server'],
+                                                                                       self.connection_info['sync_port']))
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+
+
+    # teardown - call after test is done
+    def teardown (self, stop_traffic = True):
+        
+        # stop traffic
+        if stop_traffic:
+            rc = self.stop()
+            if not rc:
+                raise STLError(rc)
+
+        # disconnect
+        rc = self.__disconnect()
+        if not rc:
+            raise STLError(rc)
+
+        
+
+        return rc
+
+
+    # pings the server on the RPC channel
+    @__verify_connected
+    def ping(self):
+        rc = self.__ping()
+        self.logger.annotate(rc, "Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
+                                                                                   self.connection_info['sync_port']))
+
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+
+
+    # reset the server by performing
+    # force acquire, stop, and remove all streams
+    @__verify_connected
+    def reset(self):
+
+        rc = self.__acquire(force = True)
+        self.logger.annotate(rc, "Force acquiring all ports:")
+        if not rc:
+            raise STLError(rc)
+
+
+        # force stop all ports
+        rc = self.__stop_traffic(self.get_all_ports(), True)
+        self.logger.annotate(rc,"Stop traffic on all ports:")
+        if not rc:
+            raise STLError(rc)
+
+
+        # remove all streams
+        rc = self.__remove_all_streams(self.get_all_ports())
+        self.logger.annotate(rc,"Removing all streams from all ports:")
+        if not rc:
+            raise STLError(rc)
+
+        # TODO: clear stats
+        return RC_OK()
+
+
+    # start cmd
+    @__verify_connected
+    def start (self,
+               profiles,
+               ports = None,
+               mult = "1",
+               force = False,
+               duration = -1,
+               dry = False,
+               total = False):
+
+
+        # by default use all ports
+        if ports == None:
+            ports = self.get_all_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+
+        # verify multiplier
+        mult_obj = parsing_opts.decode_multiplier(mult,
+                                                  allow_update = False,
+                                                  divide_count = len(ports) if total else 1)
+        if not mult_obj:
+            raise STLArgumentError('mult', mult)
+
+        # some type checkings
+
+        if not type(force) is bool:
+            raise STLArgumentError('force', force)
+
+        if not isinstance(duration, (int, float)):
+            raise STLArgumentError('duration', duration)
+
+        if not type(total) is bool:
+            raise STLArgumentError('total', total)
+
+
+        # process profiles
+        stream_list = []
+        rc = self.__process_profiles(profiles, stream_list)
+        if not rc:
+            raise STLError(rc)
+
+    
+        # dry run
+        if dry:
+            self.logger.log(format_text("\n*** DRY RUN ***", 'bold'))
+
+        # call private method to start
+        rc = self.__start(ports, stream_list[0], mult_obj, force, duration, dry)
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+
+
+    # stop traffic on ports
+    @__verify_connected
+    def stop (self, ports = None):
+        # by default use all ports
+        if ports == None:
+            ports = self.get_all_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        rc = self.__stop(ports)
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+
+        
+    # update traffic
+    @__verify_connected
+    def update (self, ports = None, mult = "1", total = False):
+
+         # by default use all ports
+        if ports == None:
+            ports = self.get_all_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+
+        # verify multiplier
+        mult_obj = parsing_opts.decode_multiplier(mult,
+                                                  allow_update = True,
+                                                  divide_count = len(ports) if total else 1)
+        if not mult_obj:
+            raise STLArgumentError('mult', mult)
+
+        # verify total
+        if not type(total) is bool:
+            raise STLArgumentError('total', total)
+
+
+        # call low level functions
+        rc = self.__update(ports, mult_obj)
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+
+
+    # pause traffic on ports
+    @__verify_connected
+    def pause (self, ports = None):
+        # by default use all ports
+        if ports == None:
+            ports = self.get_all_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        rc = self.__pause(ports)
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+              
+    
+    # resume traffic on ports
+    @__verify_connected
+    def resume (self, ports = None):
+        # by default use all ports
+        if ports == None:
+            ports = self.get_all_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        rc = self.__resume(ports)
+        if not rc:
+            raise STLError(rc)
+
+        return rc  
+
+
+    # clear stats
+    def clear_stats (self, ports = None):
+        # by default use all ports
+        if ports == None:
+            ports = self.get_all_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        rc = self.__clear_stats(ports)
+        if not rc:
+            raise STLError(rc)
+
+
+
+    ############################   Line       #############################
+    ############################   Commands   #############################
+    ############################              #############################
+    # console decorator
+    def __console(f):
+        def wrap(*args):
+            client = args[0]
+
+            time1 = time.time()
+
+            try:
+                rc = f(*args)
+            except STLError as e:
+                client.logger.log(format_text("\n" + e.brief() + "\n", 'bold'))
+                return
+
+            # don't want to print on error
+            if not rc or rc.warn():
+                return rc
+
+            delta = time.time() - time1
+
+
+            client.logger.log(format_time(delta) + "\n")
+
+            return rc
+
+        return wrap
+
+
+    @__console
+    def connect_line (self, line):
+        '''Connects to the TRex server'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "connect",
+                                         self.connect_line.__doc__,
+                                         parsing_opts.FORCE)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return
+
+        # call the API
+        mode = "RWF" if opts.force else "RW"
+        self.connect(mode)
+
+
+    @__console
+    def disconnect_line (self, line):
+        self.disconnect()
+
+
+    @__console
+    def reset_line (self, line):
+        self.reset()
+
+
+    @__console
+    def start_line (self, line):
         '''Start selected traffic in specified ports on TRex\n'''
         # define a parser
         parser = parsing_opts.gen_parser(self,
                                          "start",
-                                         self.cmd_start_line.__doc__,
+                                         self.start_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.TOTAL,
                                          parsing_opts.FORCE,
@@ -1030,131 +1471,103 @@ class CTRexStatelessClient(object):
 
 
         if opts is None:
-            return RC_ERR("bad command line parameters")
+            return
+
+        # pack the profile
+        profiles = [opts.file[0]]
+
+        self.start(profiles,
+                   opts.ports,
+                   opts.mult,
+                   opts.force,
+                   opts.duration,
+                   opts.dry,
+                   opts.total)
 
 
-        if opts.dry:
-            self.logger.log(format_text("\n*** DRY RUN ***", 'bold'))
 
-        if opts.db:
-            stream_list = self.streams_db.get_stream_pack(opts.db)
-            rc = RC(stream_list != None)
-            self.logger.annotate(rc,"Load stream pack (from DB):")
-            if rc.bad():
-                return RC_ERR("Failed to load stream pack")
-
-        else:
-            # load streams from file
-            stream_list = None
-            try:
-              stream_list = self.streams_db.load_yaml_file(opts.file[0])
-            except Exception as e:
-                s = str(e)
-                rc=RC_ERR(s)
-                self.logger.annotate(rc)
-                return rc
-
-            rc = RC(stream_list != None)
-            self.logger.annotate(rc,"Load stream pack (from file):")
-            if stream_list == None:
-                return RC_ERR("Failed to load stream pack")
-
-
-        # total has no meaning with percentage - its linear
-        if opts.total and (opts.mult['type'] != 'percentage'):
-            # if total was set - divide it between the ports
-            opts.mult['value'] = opts.mult['value'] / len(opts.ports)
-
-        return self.cmd_start(opts.ports, stream_list, opts.mult, opts.force, opts.duration, opts.dry)
-
-    @timing
-    def cmd_resume_line (self, line):
-        '''Resume active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self,
-                                         "resume",
-                                         self.cmd_stop_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return RC_ERR("bad command line parameters")
-
-        return self.cmd_resume(opts.ports)
-
-
-    @timing
-    def cmd_stop_line (self, line):
+    @__console
+    def stop_line (self, line):
         '''Stop active traffic in specified ports on TRex\n'''
         parser = parsing_opts.gen_parser(self,
                                          "stop",
-                                         self.cmd_stop_line.__doc__,
+                                         self.stop_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line parameters")
+            return
 
-        return self.cmd_stop(opts.ports)
-
-
-    @timing
-    def cmd_pause_line (self, line):
-        '''Pause active traffic in specified ports on TRex\n'''
-        parser = parsing_opts.gen_parser(self,
-                                         "pause",
-                                         self.cmd_stop_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return RC_ERR("bad command line parameters")
-
-        return self.cmd_pause(opts.ports)
+        self.stop(opts.ports)
 
 
-    @timing
-    def cmd_update_line (self, line):
+    @__console
+    def update_line (self, line):
         '''Update port(s) speed currently active\n'''
         parser = parsing_opts.gen_parser(self,
                                          "update",
-                                         self.cmd_update_line.__doc__,
+                                         self.update_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.MULTIPLIER,
                                          parsing_opts.TOTAL)
 
         opts = parser.parse_args(line.split())
         if opts is None:
-            return RC_ERR("bad command line paramters")
+            return
 
-        # total has no meaning with percentage - its linear
-        if opts.total and (opts.mult['type'] != 'percentage'):
-            # if total was set - divide it between the ports
-            opts.mult['value'] = opts.mult['value'] / len(opts.ports)
-
-        return self.cmd_update(opts.ports, opts.mult)
-
-    @timing
-    def cmd_reset_line (self, line):
-        return self.cmd_reset()
+        self.update(opts.ports, opts.mult, opts.total)
 
 
-    def cmd_clear_line (self, line):
+    @__console
+    def pause_line (self, line):
+        '''Pause active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "pause",
+                                         self.pause_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        self.pause(opts.ports)
+
+
+    @__console
+    def resume_line (self, line):
+        '''Resume active traffic in specified ports on TRex\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "resume",
+                                         self.resume_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        return self.resume(opts.ports)
+
+   
+    @__console
+    def clear_stats_line (self, line):
         '''Clear cached local statistics\n'''
         # define a parser
         parser = parsing_opts.gen_parser(self,
                                          "clear",
-                                         self.cmd_clear_line.__doc__,
+                                         self.clear_stats_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split())
 
         if opts is None:
-            return RC_ERR("bad command line parameters")
+            return
 
-        return self.cmd_clear(opts.ports)
+        self.clear_stats(opts.ports)
 
 
-    def cmd_stats_line (self, line):
+
+    @__console
+    def show_stats_line (self, line):
         '''Fetch statistics from TRex server by port\n'''
         # define a parser
         parser = parsing_opts.gen_parser(self,
@@ -1169,7 +1582,7 @@ class CTRexStatelessClient(object):
             return RC_ERR("bad command line parameters")
 
         # determine stats mask
-        mask = self._get_mask_keys(**self._filter_namespace_args(opts, trex_stats.ALL_STATS_OPTS))
+        mask = self.__get_mask_keys(**self.__filter_namespace_args(opts, trex_stats.ALL_STATS_OPTS))
         if not mask:
             # set to show all stats if no filter was given
             mask = trex_stats.ALL_STATS_OPTS
@@ -1214,7 +1627,7 @@ class CTRexStatelessClient(object):
 
 
 
-    @timing
+    @__console
     def cmd_validate_line (self, line):
         '''validates port(s) stream configuration\n'''
 
@@ -1306,264 +1719,3 @@ class CTRexStatelessClient(object):
 
         return True
 
-
-    #################################
-    # ------ private methods ------ #
-    @staticmethod
-    def _get_mask_keys(ok_values={True}, **kwargs):
-        masked_keys = set()
-        for key, val in kwargs.iteritems():
-            if val in ok_values:
-                masked_keys.add(key)
-        return masked_keys
-
-    @staticmethod
-    def _filter_namespace_args(namespace, ok_values):
-        return {k: v for k, v in namespace.__dict__.items() if k in ok_values}
-
-    def __verify_connected(f):
-        #@wraps(f)
-        def wrap(*args):
-            inst = args[0]
-            func_name = f.__name__
-
-            if not inst.stateless_client.is_connected():
-                return RC_ERR("cannot execute '{0}' while client is disconnected".format(func_name))
-
-            ret = f(*args)
-            return ret
-
-        return wrap
-
-
-
-    ############################     API     #############################
-    ############################             #############################
-    ############################             #############################
-
-
-    ############################   Getters   #############################
-    ############################             #############################
-    ############################             #############################
-
-
-    # return verbose level of the logger
-    def get_verbose (self):
-        return self.logger.get_verbose()
-
-    # is the client on read only mode ?
-    def is_read_only (self):
-        return self.read_only
-
-    # is the client connected ?
-    def is_connected (self):
-        return self.connected and self.comm_link.is_connected
-
-
-    # get connection info
-    def get_connection_info (self):
-        return self.connection_info
-
-
-    # get supported commands by the server
-    def get_server_supported_cmds(self):
-        return self.supported_cmds
-
-    # get server version
-    def get_server_version(self):
-        return self.server_version
-
-    # get server system info
-    def get_server_system_info(self):
-        return self.system_info
-
-    # get port count
-    def get_port_count(self):
-        return len(self.ports)
-
-    # returns the port object
-    def get_port (self, port_id):
-        return self.ports.get(port_id, RC_ERR("invalid port id"))
-
-    # get all ports as IDs
-    def get_all_ports (self):
-        return self.ports.keys()
-
-    # get all acquired ports
-    def get_acquired_ports(self):
-        return [port_id
-                for port_id, port_obj in self.ports.iteritems()
-                if port_obj.is_acquired()]
-
-    # get all active ports (TX or pause)
-    def get_active_ports(self):
-        return [port_id
-                for port_id, port_obj in self.ports.iteritems()
-                if port_obj.is_active()]
-
-    # get paused ports
-    def get_paused_ports (self):
-        return [port_id
-                for port_id, port_obj in self.ports.iteritems()
-                if port_obj.is_paused()]
-
-    # get all TX ports
-    def get_transmitting_ports (self):
-        return [port_id
-                for port_id, port_obj in self.ports.iteritems()
-                if port_obj.is_transmitting()]
-
-
-    ############################   Commands   #############################
-    ############################              #############################
-    ############################              #############################
-
-
-    # set the log on verbose level
-    def set_verbose (self, level):
-        self.logger.set_verbose(level)
-
-
-    # connects to the server
-    # mode can be:
-    # 'RO' - read only
-    # 'RW' - read/write
-    # 'RWF' - read write forced (take ownership)
-    def connect (self, mode = "RW"):
-        modes = ['RO', 'RW', 'RWF']
-        if not mode in modes:
-            return RC_ERR("invalid mode '{0}'".format(mode))
-        
-        rc = self.__connect(mode)
-        self.logger.annotate(rc)
-
-        if not rc:
-            raise STLFailure(rc)
-
-        return rc
-
-
-    # disconnects from the server
-    def disconnect (self, annotate = True):
-        rc = self.__disconnect()
-        if annotate:
-            self.logger.annotate(rc, "Disconnecting from server at '{0}':'{1}'".format(self.connection_info['server'],
-                                                                                       self.connection_info['sync_port']))
-        if not rc:
-            raise STLFailure(rc)
-
-        return rc
-
-
-    # teardown - call after test is done
-    def teardown (self):
-        # for now, its only disconnect
-        rc = self.__disconnect()
-        if not rc:
-            raise STLFailure(rc)
-
-        return rc
-
-
-    # pings the server on the RPC channel
-    def ping(self):
-        rc = self.__ping()
-        self.logger.annotate(rc, "Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
-                                                                                   self.connection_info['sync_port']))
-
-        if not rc:
-            raise STLFailure(rc)
-
-        return rc
-
-
-    # reset the server by performing
-    # force acquire, stop, and remove all streams
-    def reset(self):
-
-        rc = self.__acquire(force = True)
-        self.logger.annotate(rc, "Force acquiring all ports:")
-        if not rc:
-            raise STLFailure(rc)
-
-
-        # force stop all ports
-        rc = self.__stop_traffic(self.get_all_ports(), True)
-        self.logger.annotate(rc,"Stop traffic on all ports:")
-        if not rc:
-            raise STLFailure(rc)
-
-
-        # remove all streams
-        rc = self.__remove_all_streams(self.get_all_ports())
-        self.logger.annotate(rc,"Removing all streams from all ports:")
-        if not rc:
-            raise STLFailure(rc)
-
-        # TODO: clear stats
-        return RC_OK()
-
-    # start cmd
-    def start (self,
-               profiles,
-               ports = None,
-               mult = "1",
-               force = False,
-               duration = -1,
-               dry = False):
-
-
-        # by default use all ports
-        if ports == None:
-            ports = self.get_all_ports()
-
-        # verify valid port id list
-        rc = self.__verify_port_id_list(ports)
-        if not rc:
-            raise STLFailure(rc)
-
-
-        # verify multiplier
-        try:
-            result = parsing_opts.match_multiplier_common(mult)
-        except argparse.ArgumentTypeError:
-            raise STLFailure("bad format for multiplier: {0}".format(mult))
-
-        # process profiles
-        stream_list = []
-        rc = self.__process_profiles(profiles, stream_list)
-        if not rc:
-            raise STLFailure(rc)
-
-     
-
-
-    ############################   Line       #############################
-    ############################   Commands   #############################
-    ############################              #############################
-
-    def connect_line (self, line):
-        '''Connects to the TRex server'''
-        # define a parser
-        parser = parsing_opts.gen_parser(self,
-                                         "connect",
-                                         self.connect_line.__doc__,
-                                         parsing_opts.FORCE)
-
-        opts = parser.parse_args(line.split())
-
-        if opts is None:
-            return RC_ERR("bad command line parameters")
-
-        # call the API
-        if opts.force:
-            rc = self.connect(mode = "RWF")
-        else:
-            rc = self.connect(mode = "RW")
-
-
-    def disconnect_line (self, line):
-        return self.disconnect()
-
-    def reset_line (self, line):
-        return self.reset()

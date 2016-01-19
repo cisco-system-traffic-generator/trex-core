@@ -382,7 +382,7 @@ class TRexConsole(TRexGeneralCmd):
     def do_start(self, line):
         '''Start selected traffic in specified port(s) on TRex\n'''
 
-        self.stateless_client.cmd_start_line(line)
+        self.stateless_client.start_line(line)
 
         
 
@@ -395,7 +395,7 @@ class TRexConsole(TRexGeneralCmd):
     def do_stop(self, line):
         '''stops port(s) transmitting traffic\n'''
 
-        self.stateless_client.cmd_stop_line(line)
+        self.stateless_client.stop_line(line)
 
     def help_stop(self):
         self.do_stop("-h")
@@ -405,7 +405,7 @@ class TRexConsole(TRexGeneralCmd):
     def do_update(self, line):
         '''update speed of port(s)currently transmitting traffic\n'''
 
-        self.stateless_client.cmd_update_line(line)
+        self.stateless_client.update_line(line)
 
     def help_update (self):
         self.do_update("-h")
@@ -415,14 +415,14 @@ class TRexConsole(TRexGeneralCmd):
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
 
-        self.stateless_client.cmd_pause_line(line)
+        self.stateless_client.pause_line(line)
 
     ############# resume
     @verify_connected_and_rw
     def do_resume(self, line):
         '''resume port(s) transmitting traffic\n'''
 
-        self.stateless_client.cmd_resume_line(line)
+        self.stateless_client.resume_line(line)
 
    
 
@@ -444,7 +444,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_stats(self, line):
         '''Fetch statistics from TRex server by port\n'''
-        self.stateless_client.cmd_stats_line(line)
+        self.stateless_client.stats_line(line)
 
 
     def help_stats(self):
@@ -453,7 +453,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_streams(self, line):
         '''Fetch statistics from TRex server by port\n'''
-        self.stateless_client.cmd_streams_line(line)
+        self.stateless_client.show_streams_line(line)
 
 
     def help_streams(self):
@@ -462,7 +462,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_clear(self, line):
         '''Clear cached local statistics\n'''
-        self.stateless_client.cmd_clear_line(line)
+        self.stateless_client.clear_stats_line(line)
 
 
     def help_clear(self):
@@ -710,7 +710,7 @@ def main():
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
 
     finally:
-        stateless_client.teardown()
+        stateless_client.teardown(stop_traffic = False)
 
 if __name__ == '__main__':
     

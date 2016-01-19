@@ -14,15 +14,16 @@ class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg']
 # simple class to represent complex return value
 class RC():
 
-    def __init__ (self, rc = None, data = None):
+    def __init__ (self, rc = None, data = None, is_warn = False):
         self.rc_list = []
 
         if (rc != None):
-            tuple_rc = namedtuple('RC', ['rc', 'data'])
-            self.rc_list.append(tuple_rc(rc, data))
+            tuple_rc = namedtuple('RC', ['rc', 'data', 'is_warn'])
+            self.rc_list.append(tuple_rc(rc, data, is_warn))
 
     def __nonzero__ (self):
         return self.good()
+
 
     def add (self, rc):
         self.rc_list += rc.rc_list
@@ -32,6 +33,9 @@ class RC():
 
     def bad (self):
         return not self.good()
+
+    def warn (self):
+        return any([x.is_warn for x in self.rc_list])
 
     def data (self):
         d = [x.data if x.rc else "" for x in self.rc_list]
@@ -83,3 +87,5 @@ def RC_OK(data = ""):
 def RC_ERR (err):
     return RC(False, err)
 
+def RC_WARN (warn):
+    return RC(True, warn, is_warn = True)
