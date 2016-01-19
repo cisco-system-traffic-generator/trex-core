@@ -20,7 +20,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
         pass
 
 
-    def check_rx_errors(self, trex_res):
+    def check_rx_errors(self, trex_res, allow_error_tolerance = True):
         try:
             # counters to check
 
@@ -69,7 +69,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
             total_errors = sum(rx_counters.values()) + sum(latency_counters_compare.values())
             error_tolerance = self.get_benchmark_param('error_tolerance')
-            if not error_tolerance:
+            if not error_tolerance or not allow_error_tolerance:
                 error_tolerance = 0
             error_percentage = float(total_errors) * 100 / total_rx
 
@@ -114,7 +114,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
         #print trex_res.get_latest_dump()
 
         self.check_general_scenario_results(trex_res)
-        self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res)
         self.check_rx_errors(trex_res)
 
 
@@ -148,7 +148,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
         print trex_res
 
         self.check_general_scenario_results(trex_res)
-        self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res)
         self.check_rx_errors(trex_res)
 
 
@@ -182,7 +182,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
         #print trex_res.get_latest_dump()
 
         self.check_general_scenario_results(trex_res)
-        self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res)
         self.check_rx_errors(trex_res)
 
 
@@ -214,10 +214,10 @@ class CTRexRx_Test(CTRexGeneral_Test):
         print trex_res
 
         self.check_general_scenario_results(trex_res)
-        self.check_CPU_benchmark(trex_res, 10)
+        self.check_CPU_benchmark(trex_res)
         self.check_rx_errors(trex_res)
 
-    @nottest
+    #@nottest
     def test_rx_check_http_negative(self):
         if self.is_loopback:
             self.skip('This test uses NAT, not relevant for loopback')
@@ -234,7 +234,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             m = mult,
             p = True,
             rx_check = sample_rate,
-            d = 50,
+            d = 60,
             f = 'cap2/http_simple.yaml',
             l = 1000,
             k = 10,
@@ -256,11 +256,11 @@ class CTRexRx_Test(CTRexGeneral_Test):
         self.router.config_nat(nat_obj)
         self.router.config_zbf()
         trex_res = self.trex.sample_to_run_finish()
-        self.router.config_no_nat(nat_obj)
         self.router.config_no_zbf()
+        self.router.clear_nat_translations()
         print ("\nLATEST RESULT OBJECT:")
         print trex_res
-        self.check_rx_errors(trex_res)
+        self.check_rx_errors(trex_res, allow_error_tolerance = False)
         if self.fail_reasons == old_errors:
             self.fail('Expected errors here, got none.')
         else:

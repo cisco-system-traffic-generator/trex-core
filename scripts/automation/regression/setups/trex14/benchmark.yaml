@@ -36,7 +36,7 @@ test_rx_check :
   exp_bw            : 13
   exp_latency       : 1
 
-test_nat_simple  : 
+test_nat_simple : &test_nat_simple
   stat_route_dict :
     clients_start           : 16.0.0.1
     servers_start           : 48.0.0.1
@@ -55,6 +55,9 @@ test_nat_simple  :
   exp_bw            : 1
   exp_latency       : 1
   allow_timeout_dev : YES
+
+test_nat_simple_mode1 : *test_nat_simple
+test_nat_simple_mode2 : *test_nat_simple
 
 test_nat_learning  : 
   stat_route_dict :
@@ -147,6 +150,8 @@ test_rx_check_http_negative:
     multiplier        : 13000
     cores             : 1
     rx_sample_rate    : 16
+    # allow 0.03% errors, bad router
+    error_tolerance   : 0.03
     stat_route_dict :
         clients_start           : 16.0.0.1
         servers_start           : 48.0.0.1
