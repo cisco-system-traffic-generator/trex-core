@@ -53,6 +53,9 @@ scripts/exp/stl_vm_inc_size_64_128.pcap
 scripts/exp/stl_vm_rand_size_512B_64_128.pcap
 scripts/exp/stl_vm_rand_size_64_128.pcap
 scripts/exp/stl_vm_random_size_64_128.pcap
+scripts/automation/regression/reports/unit_test.xml
+scripts/automation/regression/unit_tests/functional_tests/test.pcap
+
 
 
 
