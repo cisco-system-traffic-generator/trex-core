@@ -31,6 +31,10 @@ The TRex RPC Server
 | 1.3    | Hanoch Haim (hhaim)
 |
 - update VM instructions 
+| 1.4    | Hanoch Haim (hhaim)
+|
+- add random trim instruction
+
 |=================
 
 
@@ -673,6 +677,13 @@ Any element in the array can be one of the following object types:
 | is_big_endian | boolean     | should write as big endian or little 
 |=================
 
+.Object type 'vm - trim_pkt_size'
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type        | Description
+| type          | string      | ''trim_pkt_size''
+| name          | string      | flow var name to take the new trim packet size from. The var size should be valid packet size and less than template packet size. see `stl/udp_rand_size.yaml` for an example
+|=================
 
 .Object type 'vm - tuple_flow_var'
 [options="header",cols="1,1,3"]
