@@ -18,9 +18,12 @@ def pad_tag(text, tag):
     return '<%s>%s</%s>' % (tag, text, tag)
 
 def is_functional_test_name(testname):
-    if testname.startswith('platform_') or testname.startswith('misc_methods_'):
-        return True
-    return False
+    #if testname.startswith(('platform_', 'misc_methods_', 'vm_', 'payload_gen_', 'pkt_builder_')):
+    #    return True
+    #return False
+    if testname.startswith('unit_tests.'):
+        return False
+    return True
 
 def is_good_status(text):
     return text in ('Successful', 'Fixed', 'Passed', 'True', 'Pass')

@@ -188,7 +188,7 @@ class CTRexPktBuilder_Test(pkt_bld_general_test.CGeneralPktBld_Test):
     def test_get_layer(self):
         assert_equal(self.pkt_bld.get_layer('no_such_layer'), None)
         assert(not(self.pkt_bld.get_layer('l2') is self.pkt_bld._packet))
-        assert(type(self.pkt_bld.get_layer('l2')).__name__, "ethernet")
+        assert_equal(type(self.pkt_bld.get_layer('l2')).__name__, "Ethernet")
 
     def test_dump_to_pcap(self):
         # set Ethernet layer attributes
@@ -212,11 +212,11 @@ class CTRexPktBuilder_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         # finally, set IP header len with relation to payload data
         self.pkt_bld.set_layer_attr("l3_ip", "len", len(self.pkt_bld.get_layer('l3_ip')))
 
-        filepath = "unit_tests/functional_tests/test.pcap"
+        filepath = "reports/test.pcap"
         self.pkt_bld.dump_pkt_to_pcap(filepath)
         assert os.path.isfile(filepath)
-        # remove pcap after creation - masked for now
-        # os.remove(filepath)
+        # remove pcap after ensuring it exists
+        os.remove(filepath)
         filepath = "/not/a/valid/path/test.pcap"
         assert_raises(IOError, self.pkt_bld.dump_pkt_to_pcap, filepath)
         # check that dump is not available for empty packet

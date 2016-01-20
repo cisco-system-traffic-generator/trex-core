@@ -101,3 +101,7 @@ Thumbs.db
 *.vpw
 *.vtg
 *.vpwhist
+
+# Regression #
+##############
+scripts/automation/regression/reports/*
