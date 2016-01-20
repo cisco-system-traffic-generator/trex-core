@@ -86,6 +86,7 @@ def options(opt):
     opt.load('compiler_cc')
     opt.add_option('--pkg-dir', '--pkg_dir', dest='pkg_dir', default=False, action='store', help="Destination folder for 'pkg' option.")
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
+    opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
 
 def configure(conf):
     conf.load('g++')
@@ -887,11 +888,14 @@ class Env(object):
         s= Env().get_env('TREX_EX_WEB_SRV');
         return  s;
 
+    @staticmethod
+    def get_trex_regression_workspace():
+        return Env().get_env('TREX_REGRESSION_WORKSPACE')
+
+
 def check_release_permission():
     if os.getenv('USER') not in USERS_ALLOWED_TO_RELEASE:
-        print 'You are not allowed to release TRex. Please contact Hanoch.'
-        return False
-    return True
+        raise Exception('You are not allowed to release TRex. Please contact Hanoch.')
 
 # build package in parent dir. can provide custom name and folder with --pkg-dir and --pkg-file
 def pkg(self):
@@ -920,9 +924,8 @@ def release(bld, custom_dir = None):
     """ release to local folder  """
     if custom_dir:
         exec_p = custom_dir
-    elif not check_release_permission():
-        return
     else:
+        check_release_permission()
         exec_p = Env().get_release_path()
     print "copy images and libs"
     os.system(' mkdir -p '+exec_p);
@@ -947,34 +950,77 @@ def release(bld, custom_dir = None):
     os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),rel,exec_p));
 
 
-def publish(bld):
-    if not check_release_permission():
-        return
+def publish(bld, custom_source = None):
+    check_release_permission()
     exec_p = Env().get_release_path()
     rel=get_build_num ()
 
     release_name ='%s.tar.gz' % (rel);
-    from_        = exec_p+'/'+release_name;
+    if custom_source:
+        from_ = custom_source
+    else:
+        from_ = exec_p+'/'+release_name;
     os.system("rsync -av %s %s:%s/%s " %(from_,Env().get_local_web_server(),Env().get_remote_release_path (), release_name))
     os.system("ssh %s 'cd %s;rm be_latest; ln -P %s be_latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
     #os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
 
 
-def publish_ext(bld):
-    if not check_release_permission():
-        return
+def publish_ext(bld, custom_source = None):
+    check_release_permission()
     exec_p = Env().get_release_path()
     rel=get_build_num ()
 
     release_name ='%s.tar.gz' % (rel);
-    from_        = exec_p+'/'+release_name;
+    if custom_source:
+        from_ = custom_source
+    else:
+        from_ = exec_p+'/'+release_name;
     os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/release/%s' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ,release_name) )
     os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
     #os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
 
-#WIP
-def release_successful(self):
-    print 'Not implemented'
+# publish latest passed regression package (or custom commit from  --publish_commit option) as be_latest to trex-tgn.cisco.com and internal wiki
+def publish_both(self):
+    check_release_permission()
+    packages_dir = Env().get_env('TREX_LOCAL_PUBLISH_PATH') + '/experiment/packages'
+    publish_commit = self.options.publish_commit
+    if publish_commit:
+        package_file = '%s/%s.tar.gz' % (packages_dir, publish_commit)
+    else:
+        last_passed_commit_file = Env().get_trex_regression_workspace() + '/reports/last_passed_commit'
+        with open(last_passed_commit_file) as f:
+            last_passed_commit = f.read().strip()
+        package_file = '%s/%s.tar.gz' % (packages_dir, last_passed_commit)
+    publish(self, custom_source = package_file)
+    publish_ext(self, custom_source = package_file)
+
+# print detailed latest passed regression commit + brief info of 5 commits before it
+def show(bld):
+    last_passed_commit_file = Env().get_trex_regression_workspace() + '/reports/last_passed_commit'
+    with open(last_passed_commit_file) as f:
+        last_passed_commit = f.read().strip()
+
+    # last passed nightly
+    command = 'timeout 10 git show %s --quiet' % last_passed_commit
+    result, output = commands.getstatusoutput(command)
+    if result == 0:
+        print 'Last passed regression commit:\n%s\n' % output
+    else:
+        raise Exception('Error getting commit info with command: %s' % command)
+
+    # brief list of 5 commits before passed
+    result, output = commands.getstatusoutput('git --version')
+    if result != 0 or output.startswith('git version 1'):
+        # old format, no color etc.
+        command = "timeout 10 git log --no-merges -n 5 --pretty=format:'%%h  %%an  %%ci  %%s' %s^@" % last_passed_commit
+    else:
+        # new format, with color, padding, truncating etc.
+        command = "timeout 10 git log --no-merges -n 5 --pretty=format:'%%C(auto)%%h%%Creset  %%<(10,trunc)%%an  %%ci  %%<(100,trunc)%%s' %s^@ " % last_passed_commit
+    result, output = commands.getstatusoutput(command)
+    if result == 0:
+        print output
+    else:
+        raise Exception('Error getting commits info with command: %s' % command)
 
 def test (bld):
     r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")

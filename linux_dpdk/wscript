@@ -43,17 +43,16 @@ def publish_ext(bld):
 def publish_web(bld):
     ws_main.publish_web(bld)
 
-def release_successful(bld):
-    ws_main.release_successful(bld)
-
 def sync(bld):
     ws_main.sync(bld)
 
 def test(bld):
     ws_main.test(bld)
 
+def show(bld):
+    ws_main.show(bld)
 
-
-
+def publish_both(bld):
+    ws_main.publish_both(bld)
 
 
