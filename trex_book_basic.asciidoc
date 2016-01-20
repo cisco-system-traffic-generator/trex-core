@@ -2683,7 +2683,7 @@ $.sudo /t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4 -m 20 -d 100 -l 1
 .Simple HTTP  1Gb/sec with NAT translation support 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 -l 1000 --learn 
+$.sudo /t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 -l 1000 --learn-mode 1
 ----
 
 .IMIX 1G/sec ,1600 flows 
@@ -2712,7 +2712,7 @@ $.sudo /t-rex-64 -f cap2/imix_64.yaml -c 4 -m 1 -d 100 -l 1000
 | name  | description 
 | cap2/dns.yaml     |  simple dns pcap file 
 | cap2/http_simple.yaml     |  simple http cap file 
-| avl/sfr_delay_10_1g_no_bundeling.yaml    |  sfr traffic profile capture from Avalanche - Spirent without bundeling support with RTT=10msec ( a delay machine), this can be used with --ipv6 and --learn mode
+| avl/sfr_delay_10_1g_no_bundeling.yaml    |  sfr traffic profile capture from Avalanche - Spirent without bundeling support with RTT=10msec ( a delay machine), this can be used with --ipv6 and --learn-mode
 | avl/sfr_delay_10_1g.yaml |  head-end sfr traffic profile capture from Avalanche - Spirent with bundeling support with RTT=10msec ( a delay machine), it is normalized to 1Gb/sec for m=1
 | avl/sfr_branch_profile_delay_10.yaml      |  branch sfr profile capture from Avalanche - Spirent with bundeling support with RTT=10msec it, is normalized to 1Gb/sec for m=1
 | cap2/imix_fast_1g.yaml     |  imix profile with 1600 flows normalized to 1Gb/sec.
