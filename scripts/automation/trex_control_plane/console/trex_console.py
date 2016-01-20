@@ -29,7 +29,7 @@ import sys
 import tty, termios
 import trex_root_path
 from common.trex_streams import *
-from client.trex_stateless_client import CTRexStatelessClient, LoggerApi
+from client.trex_stateless_client import CTRexStatelessClient, LoggerApi, STLError
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 from client_utils import parsing_opts
@@ -209,7 +209,7 @@ class TRexConsole(TRexGeneralCmd):
                 print format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold')
                 return
 
-            if inst.stateless_client.is_read_only():
+            if inst.stateless_client.is_all_ports_acquired():
                 print format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold')
                 return
 
@@ -253,7 +253,7 @@ class TRexConsole(TRexGeneralCmd):
             self.supported_rpc = None
             return stop
 
-        if self.stateless_client.is_read_only():
+        if self.stateless_client.is_all_ports_acquired():
             self.prompt = "TRex (read only) > "
             return stop
 
@@ -670,25 +670,41 @@ def main():
 
     # Stateless client connection
     logger = ConsoleLogger()
-    stateless_client = CTRexStatelessClient(options.user,
-                                            options.server,
-                                            options.port,
-                                            options.pub,
-                                            verbose_level,
-                                            logger)
+    stateless_client = CTRexStatelessClient(username = options.user,
+                                            server = options.server,
+                                            sync_port = options.port,
+                                            async_port = options.pub,
+                                            verbose_level = verbose_level,
+                                            logger = logger)
 
     # TUI or no acquire will give us READ ONLY mode
-    if options.tui or not options.acquire:
-        rc = stateless_client.connect("RO")
-    else:
-        rc = stateless_client.connect("RW")
-
-    # unable to connect - bye
-    if not rc:
-        rc.annotate()
+    try:
+        stateless_client.connect("RO")
+    except STLError as e:
+        logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
         return
 
+    if not options.tui and options.acquire:
+        try:
+            stateless_client.acquire()
+        except STLError as e:
+            logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
+            logger.log(format_text("\nSwitching to read only mode - only few commands will be available", 'bold'))
 
+
+ # if options.tui or not options.acquire:
+ #     rc = stateless_client.connect("RO")
+ # else:
+ #     try:
+ #         rc = stateless_client.connect("RW")
+ #     except STLError as e:
+ #         logger.log(format_text("Switching to read only mode - only few commands will be available", 'bold'))
+ #
+ #         with logger.supress():
+ #             rc = stateless_client.connect("RO")
+
+
+  
     # a script mode
     if options.batch:
         cont = stateless_client.run_script_file(options.batch[0])

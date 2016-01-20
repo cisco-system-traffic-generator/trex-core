@@ -314,6 +314,10 @@ class CTRexStats(object):
 
         self.last_update_ts = time.time()
 
+    def get_stats (self):
+        # copy and return
+        return dict(self.latest_stats)
+
     def clear_stats(self):
         self.reference_stats = self.latest_stats
 

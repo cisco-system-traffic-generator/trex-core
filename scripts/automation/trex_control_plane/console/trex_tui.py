@@ -71,8 +71,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
         allowed['c'] = self.key_actions['c']
 
-        # thats it for read only
-        if self.stateless_client.is_read_only():
+        if self.stateless_client.is_all_ports_acquired():
             return allowed
 
         if len(self.stateless_client.get_transmitting_ports()) > 0:
@@ -179,8 +178,7 @@ class TrexTUIPort(TrexTUIPanel):
 
         allowed['c'] = self.key_actions['c']
 
-        # thats it for read only
-        if self.stateless_client.is_read_only():
+        if self.stateless_client.is_all_ports_acquired():
             return allowed
 
         if self.port.state == self.port.STATE_TX:

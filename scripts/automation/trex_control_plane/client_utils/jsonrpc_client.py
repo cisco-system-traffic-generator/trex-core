@@ -204,9 +204,6 @@ class JsonRpcClient(object):
         #  Socket to talk to server
         self.transport = "tcp://{0}:{1}".format(self.server, self.port)
 
-        msg = "\nConnecting To RPC Server On {0}".format(self.transport)
-        self.logger.log(msg)
-
         self.socket = self.context.socket(zmq.REQ)
         try:
             self.socket.connect(self.transport)

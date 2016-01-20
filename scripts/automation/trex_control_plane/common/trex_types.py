@@ -46,7 +46,11 @@ class RC():
         return (e if len(e) != 1 else e[0])
 
     def __str__ (self):
-        return str(self.data()) if self else str(self.err())
+        s = ""
+        for x in self.rc_list:
+            if x.data:
+                s += format_text("\n{0}".format(x.data), 'bold')
+        return s
 
     def prn_func (self, msg, newline = True):
         if newline:

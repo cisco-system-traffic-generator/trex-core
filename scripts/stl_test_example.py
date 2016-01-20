@@ -10,15 +10,19 @@ from trex_stateless_client import CTRexStatelessClient, STLError
 c = CTRexStatelessClient()
 
 try:
-    c.connect()
-    c.stop()
+    for i in xrange(0, 100):
+        c.connect("RO")
+        c.disconnect()
+        
+    #
+    #c.stop()
     #before_ipackets = x.get_stats().get_rel('ipackets')
 
-    c.start(profiles = 'stl/imix_3pkt.yaml', ports = [0,1], mult = "1gbps")
+    #c.start(profiles = 'stl/imix_3pkt.yaml', ports = [0,1], mult = "1gbps")
 
-    for i in xrange(0, 10):
-        time.sleep(5)
-        c.update(ports = [0,1], mult = "1gbps+")
+    #for i in xrange(0, 10):
+    #    time.sleep(5)
+    #    c.update(ports = [0,1], mult = "1gbps+")
 
     #c.cmd_wait_on_traffic()
     #c.stop()
@@ -26,5 +30,6 @@ try:
 except STLError as e:
     print e
 finally:
-    c.teardown()
+    pass
+    #c.teardown()
 
