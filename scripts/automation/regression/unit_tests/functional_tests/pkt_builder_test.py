@@ -188,7 +188,7 @@ class CTRexPktBuilder_Test(pkt_bld_general_test.CGeneralPktBld_Test):
     def test_get_layer(self):
         assert_equal(self.pkt_bld.get_layer('no_such_layer'), None)
         assert(not(self.pkt_bld.get_layer('l2') is self.pkt_bld._packet))
-        assert_equal(type(self.pkt_bld.get_layer('l2')).__name__, "ethernet")
+        assert_equal(type(self.pkt_bld.get_layer('l2')).__name__, "Ethernet")
 
     def test_dump_to_pcap(self):
         # set Ethernet layer attributes
