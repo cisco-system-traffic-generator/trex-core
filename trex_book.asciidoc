@@ -330,7 +330,7 @@ Now edit the configuration file with the right values from the previous section
 <3> The list of interface from  `#>sudo ./dpdk_setup_ports.py -s`, in this example it was taken 
 
 When working with VM, you must set the destination mac of one port as the source or the other for loopback the port in the vSwitch 
-and you should take the right value from the hypervisor (in case of a physical NIC you can set the mac-address with virtual you can't and you should take it from the hypervisor)
+and you should take the right value from the hypervisor (in case of a physical NIC you can set the MAC address with virtual you can't and you should take it from the hypervisor)
 and example
 
 [source,python]
@@ -437,15 +437,15 @@ zmq publisher at: tcp://*:4500
 <13> Gb/sec generated per core of DP. Higer is better.
 <14> Rx and latency thread CPU utilization.
 
-WARNING: if you don't see rx packets, revisit your mac-address configuration.
+WARNING: if you don't see rx packets, revisit your MAC address configuration.
 
 ==== Running TRex for the first time with router
 
 You can follow this presentation link:trex_config_guide.html[first time TRex configuration] 
 //TBD: Note that the link does not work correctly in PDF rendition
 or continue reading. 
-TRex set source-mac of all port to `00:00:00:01:00:00` and expected to get to this MAC-address `00:00:00:01:00:00` without a config file.
-so you just need to configure router with the right mac-address.
+TRex set source-mac of all port to `00:00:00:01:00:00` and expected to get to this MAC address `00:00:00:01:00:00` without a config file.
+so you just need to configure router with the right MAC address.
 
 NOTE: Virtual routers on ESXi (for example, Cisco CSR1000v) must have a distinct MAC address for each port. Specify the address in the configuration file. see more xref:trex_config[here]. Another example is where the TRex is connected to a switch. In that case each of TRex port should have a distinc MAC address.
 
@@ -562,7 +562,7 @@ In this case both ports will have the same amount of traffic.
 <6> TRex MAC-address destination port 
 <7> PBR configuration rules
 
-=== Static source MAC-address setting  
+=== Static source MAC address setting  
 
 With this feature, TRex replaces the source MAC address with the client IP address.
 Note: This feature was requested by the Cisco ISG group. 
@@ -661,7 +661,7 @@ asr1k(config)#ipv6 route 5000::/64 3001::2
 
 === Source MAC-address mapping using a file 
 
-Extending the source MAC-address  replacment capability. 
+Extending the source MAC-address  replacment capability.
 It is possible to have a mapping betwean IPv4->MAC using the new `--mac` CLI switch  
 file format is YAML.
 
@@ -684,12 +684,12 @@ $sudo ./t-rex-64 -f cap2/sfr_delay_10_1g.yaml -c 4  -l 100 -d 100000 -m 30  --ma
 
 *Limitations:*::
 
-. It is assumed that most of the clients has MAC-addrees. at least 90% of the IP should have a MAC-addrees mapping.
+. It is assumed that most of the clients has MAC addrees. at least 90% of the IP should have a MAC addrees mapping.
 
 === Destination mac address spreadings anchor:mac_spread[] 
 
-Using this option, one can send traffic to a few destination devices. In normal mode all the packets are sent to the port destination mac-address.
-to enable this option add this CLI `--mac-spread` to the command line
+Using this option, one can send traffic to few destination devices. In normal mode all the packets are sent to the port destination mac-address.
+to enable this option add `--mac-spread` to the command line.
 
 example:
 
@@ -697,7 +697,7 @@ example:
 ----
 $sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -m 1000 -c 4 -l 100 --mac-spread 2
 ----
-in this case TRex will send to port destination mac and port destination mac +1 
+In this case TRex will send to port destination mac and port destination mac +1 
 using a switch you could connect TRex to a few DUT. 
 All the DUTs should return the traffic only to right port source address
 
@@ -716,17 +716,20 @@ TRex(0) -|                            |-TRex(1)
 
 === NAT support 
 
-TRex can learn dynamic NAT/PAT translation. To enable this feature add `--learn-mode <val>` to the command line.
+TRex can learn dynamic NAT/PAT translation. To enable this feature add `--learn-mode <mode>` to the command line.
+In order to learn the NAT translation, TRex must embed information describing the flow a packet belongs to, in the first
+packet of each flow. This can be done in two different methods, depending on the chosen <mode>.
 
 *mode 1:*::
 
-In this mode, It is done by embedding NAT info into the ACK of the first TCP SYN.
-In this mode, there is a limitation that UDP templates with two directions won't be supported (e.g. DNS). 
-The reason for this feature is that Cisco ASA drops any packet with ipv4 option.
+Flow info is embedded in the ACK of the first TCP SYN.
+In this mode, there is a limitation that bidirectional UDP templates (e.g. DNS) are not supported. 
+This mode was developed for testing NAT with firewalls (which usually can't work with mode 2).
 
 *mode 2:*::
 
-In this mode, it is done by adding an IPv4 option header with TRex info (8 bytes long 0x10 id) to the first packet of the flow. 
+Flow info is added in a special IPv4 option header (8 bytes long 0x10 id). The option is added only to the first packet in the flow.
+This mode does not work with DUTs that drop packets with IP options (for example, Cisco ASA firewall).
 
 ==== Examples
 
@@ -759,7 +762,7 @@ $sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4  -l 1000 -d 10000
 <1> The number of translations with timeout should be zero. Usually this occurs when the router drops the flow due to NAT. 
 <2> Translation not found. This can occur when there is large latency in the router input/output queue.
 <3> Active number of TRex traslation flows, should be low in the case of low RTT.
-<4> A total of TRex translation. May be different from the total number of flows in case template is uni-directional (no need a translation).
+<4> A total of TRex translation. May be different from the total number of flows in case template is uni-directional (and such does not need translation).
 
 
 *Configuration for Cisco ASR1000 Series:*::
@@ -816,17 +819,17 @@ access-list 8 permit 17.0.0.0 0.0.0.255
 
 === Flow order/latency verification ( `--rx-check` )
 
-In normal mode (without this feature enabled), received traffic is not checked by software. It only counted by hardware (Intel NIC) for drop packets verification at test end of the test. The only exception is the Latency/Jitter packets.
-This is one of the reasons that with TRex, you *cannot* check features that terminate traffic (for example TCP Proxy)
-To enable this feature you should add to the command line options `--rx-check [sample]` where sample is the sample rate. 
-1/sample flows will be loaded to the software for verification. For 40Gb/Sec traffic you can use a sample of 1/128. Watch for Rx CPU% utilization.
+In normal mode (without this feature enabled), received traffic is not checked by software. It is only counted by hardware (Intel NIC) for drop packets verification at the end of the test. The only exception is the Latency/Jitter packets.
+This is one of the reasons that with TRex, you *cannot* check features that terminate traffic (for example TCP Proxy).
+To enable this feature, you should add `--rx-check <sample>` to the command line options, where sample is the sample rate. 
+1/sample of the flows will be sent to the software for verification. For 40Gb/Sec traffic you can use a sample of 1/128. Watch for Rx CPU% utilization.
 
-INFO : This feature changes the TTL of the sample flows to 255 and expects 254 or 255 (one routing hop). If you have more than one hop in your setup, use `--hops` to change it to higher value. more than one hop could happned when there are number of routers betwean TRex client side to TRex server side.
+INFO : This feature changes the TTL of the sampled flows to 255 and expects to get packets with TTL 254 or 255 (one routing hop). If you have more than one hop in your setup, use `--hops` to change it to a higher value. More than one hop is possible if there are number of routers betwean TRex client side and TRex server side.
 
-With this feature enabled:
+With this feature enabled, you can verify that:
 
-* You can verify that packets get out of DUT in order (from each flow perspective)
-* There are no dropped packets. There is no need to wait for the end of the test. Without this feature enabled you must wait for the end of the test to be aware of dropped packets  because there is always a difference between TX and Rx due RTT. To be sure there is a need to stop the traffic and wait for the Rx traffic and this happens only at the end of the test.
+* Packets get out of DUT in order (from each flow perspective)
+* There are no packet drops (No need to wait for the end of the test). Without this flag, you must wait for the end of the test in order to identify packet drops, because there is always a difference between TX and Rx, due to RTT.
 
 
 .Full example 
@@ -1401,10 +1404,10 @@ You might need a power cycle and to run this command a few times to get the late
 
 === TRex with ASA 5585
 
-Running TRex aginst ASA 5585 has some limitation
+Running TRex aginst ASA 5585 has some limitations:
 
-* There is a need to disable TCP sequence randomization using the command `set connection random-sequence-number disable`
-* ASA can't forward ipv4 options so there is a need to use --learn-mode 1 in case of NAT. In this mode UDP with two directions are not supported  
+* There is a need to disable TCP sequence randomization in ASA, using the command `set connection random-sequence-number disable`
+* ASA can't forward ipv4 options, so there is a need to use --learn-mode 1 in case of NAT. In this mode, bidirectional UDP flows are not supported.
 * Latency should be tested using ICMP with `--l-pkt-mode 2`
 
 ====  ASA 5585 sample configuration
@@ -1539,11 +1542,11 @@ ciscoasa#
 
 ====  TRex commands example 
 
-Using these commands the configuration are:
+Using these commands the configuration is:
 
 1. NAT learn mode (TCP-ACK)
-2. Delay of 1 sec at start up (-k 1) it was added because ASA drop the first packets.
-3. Latency is configured to ICMP 
+2. Delay of 1 second at start up (-k 1). It was added because ASA drops the first packets.
+3. Latency is configured to ICMP reply mode (--l-pkt-mode 2).
 
 
 *Simple HTTP:*::
@@ -1552,7 +1555,7 @@ Using these commands the configuration are:
 $sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
 ----
 
-This is more realistic traffic for Enterprise (we removed from SFR the UDP traffic templates that have two sides as it is not supported right now).
+This is more realistic traffic for enterprise (we removed from SFR the bidirectional UDP traffic templates. As described above, ther are not supported in this mode).
 
 *Enterprise profile:*::
 [source,bash]
