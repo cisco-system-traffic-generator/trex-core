@@ -717,13 +717,18 @@ TRex(0) -|                            |-TRex(1)
 === NAT support 
 
 TRex can learn dynamic NAT/PAT translation. To enable this feature add `--learn-mode <val>` to the command line.
-In mode 2, this is done by adding an IPv4 option header with TRex info (8 bytes long 0x10 id) to the first packet of the flow. 
-In mode 1, this is done by embedding NAT info in the ACK of the first TCP SYN.
-In Mode 1 there is a limitation that only UDP from inside to outside are supported. UDP with both sides, for example DNS won't be supported in this mode.
-This mode was added to support Cisco ASA that in default drop any 
 
+*mode 1:*::
 
-*Example:*::
+In this mode, It is done by embedding NAT info into the ACK of the first TCP SYN.
+In this mode, there is a limitation that UDP templates with two directions won't be supported (e.g. DNS). 
+The reason for this feature is that Cisco ASA drops any packet with ipv4 option.
+
+*mode 2:*::
+
+In this mode, it is done by adding an IPv4 option header with TRex info (8 bytes long 0x10 id) to the first packet of the flow. 
+
+==== Examples
 
 *simple HTTP traffic*
 
@@ -1400,9 +1405,7 @@ Running TRex aginst ASA 5585 has some limitation
 
 * There is a need to disable TCP sequence randomization using the command `set connection random-sequence-number disable`
 * ASA can't forward ipv4 options so there is a need to use --learn-mode 1 in case of NAT. In this mode UDP with two directions are not supported  
-* Client side traffic goes from TenGigabitEthernet0/8 server side from TenGigabitEthernet0/9
 * Latency should be tested using ICMP with `--l-pkt-mode 2`
-
 
 ====  ASA 5585 sample configuration
 
@@ -1534,22 +1537,27 @@ ciscoasa#
 ----
 <1> Disable TCP sequence randomization
 
-====  TRex command example 
+====  TRex commands example 
 
-Using this command we send simple HTTP traffic with NAT learn mode and delay of 1 sec at start up
-We added the delay because it seems ASA drop the first packets.
-Latency is configured to ICMP with learn mode and learn mode to TCP-ACK mode.
+Using these commands the configuration are:
 
+1. NAT learn mode (TCP-ACK)
+2. Delay of 1 sec at start up (-k 1) it was added because ASA drop the first packets.
+3. Latency is configured to ICMP 
+
+
+*Simple HTTP:*::
 [source,bash]
 ----
 $sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
 ----
 
-This is more realistic traffic for Enterprise (we removed from SFR the UDP traffic that has two sides as it is not supported right now)
+This is more realistic traffic for Enterprise (we removed from SFR the UDP traffic templates that have two sides as it is not supported right now).
 
+*Enterprise profile:*::
 [source,bash]
 ----
-$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_asa_nat.yaml -d 1000 --cfg /etc/trex_cfg4.yaml -l 1000 --l-pkt-mode 2 -m 4 --learn-verify --learn-mode 1 -k 1
+$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_asa_nat.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 4 --learn-mode 1 -k 1
 ----
 
 The TRex output
