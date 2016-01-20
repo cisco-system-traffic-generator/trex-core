@@ -20,6 +20,13 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+
+== Release 1.86  ==
+
+* NAT Cisco ASA support 
+** Add support for learning using TCP-ACK field see more here link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
+* More stateless support 
+
 == Release 1.85  ==
 
 * Upgrade to DPDK 2.2.0  
