@@ -260,7 +260,7 @@ class CTRexStats(object):
 
     def __init__(self):
         self.reference_stats = None
-        self.latest_stats = {}
+        self.latest_stats = None
         self.last_update_ts = time.time()
         self.history = deque(maxlen = 10)
 
@@ -314,12 +314,10 @@ class CTRexStats(object):
 
         self.last_update_ts = time.time()
 
-    def get_stats (self):
-        # copy and return
-        return dict(self.latest_stats)
 
     def clear_stats(self):
         self.reference_stats = self.latest_stats
+
 
     def invalidate (self):
         self.latest_stats = {}
@@ -337,6 +335,10 @@ class CTRexStats(object):
             return "N/A"
 
         if not format:
+            if not field in self.reference_stats:
+                print "REF: " + str(self.reference_stats)
+                print "BASE: " + str(self.latest_stats)
+
             return (self.latest_stats[field] - self.reference_stats[field])
         else:
             return format_num(self.latest_stats[field] - self.reference_stats[field], suffix)
@@ -402,6 +404,24 @@ class CGlobalStats(CTRexStats):
         self.connection_info = connection_info
         self.server_version = server_version
         self._ports_dict = ports_dict_ref
+
+    def get_stats (self):
+        stats = {}
+
+        # absolute
+        stats['cpu_util'] = self.get("m_cpu_util")
+        stats['tx_bps'] = self.get("m_tx_bps")
+        stats['tx_pps'] = self.get("m_tx_pps")
+
+        stats['rx_bps'] = self.get("m_rx_bps")
+        stats['rx_pps'] = self.get("m_rx_pps")
+        stats['rx_drop_bps'] = self.get("m_rx_drop_bps")
+
+        # relatives
+        stats['queue_full'] = self.get_rel("m_total_queue_full")
+
+        return stats
+
 
     def generate_stats(self):
         return OrderedDict([("connection", "{host}, Port {port}".format(host=self.connection_info.get("server"),
@@ -474,6 +494,23 @@ class CPortStats(CTRexStats):
                 self.__merge_dicts(h1, h2)
 
         return self
+
+    # for port we need to do something smarter
+    def get_stats (self):
+        stats = {}
+
+        stats['opackets'] = self.get_rel("opackets")
+        stats['ipackets'] = self.get_rel("ipackets")
+        stats['obytes']   = self.get_rel("obytes")
+        stats['ibytes']   = self.get_rel("ibytes")
+        stats['oerrors']  = self.get_rel("oerrors")
+        stats['ierrors']  = self.get_rel("ierrors")
+        stats['tx_bps']   = self.get("m_total_tx_bps")
+        stats['tx_pps']   = self.get("m_total_tx_pps")
+        stats['rx_bps']   = self.get("m_total_rx_bps")
+        stats['rx_pps']   = self.get("m_total_rx_pps")
+
+        return stats
 
 
     def generate_stats(self):

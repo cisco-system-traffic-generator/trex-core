@@ -56,7 +56,7 @@ class Port(object):
     def err(self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
 
-    def ok(self, data = "ACK"):
+    def ok(self, data = ""):
         return RC_OK(data)
 
     def get_speed_bps (self):
@@ -283,8 +283,12 @@ class Port(object):
         if not self.is_acquired():
             return self.err("port is not owned")
 
-        if (not force) and (self.state != self.STATE_TX) and (self.state != self.STATE_PAUSE):
-            return self.err("port is not transmitting")
+        # port is already stopped
+        if not force:
+            if (self.state == self.STATE_IDLE) or (self.state == self.state == self.STATE_STREAMS):
+                return self.ok()
+
+
 
         params = {"handler": self.handler,
                   "port_id": self.port_id}

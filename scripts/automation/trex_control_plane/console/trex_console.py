@@ -438,13 +438,13 @@ class TRexConsole(TRexGeneralCmd):
     def do_validate (self, line):
         '''validates port(s) stream configuration\n'''
 
-        self.stateless_client.cmd_validate_line(line)
+        self.stateless_client.validate_line(line)
 
 
     @verify_connected
     def do_stats(self, line):
         '''Fetch statistics from TRex server by port\n'''
-        self.stateless_client.stats_line(line)
+        self.stateless_client.show_stats_line(line)
 
 
     def help_stats(self):
@@ -523,13 +523,8 @@ class TRexConsole(TRexGeneralCmd):
             return
 
 
-        set_window_always_on_top('trex_tui')
-
-        save_verbose = self.stateless_client.get_verbose()
-
-        self.stateless_client.set_verbose(self.stateless_client.logger.VERBOSE_QUIET)
-        self.tui.show()
-        self.stateless_client.set_verbose(save_verbose)
+        with self.stateless_client.logger.supress():
+            self.tui.show()
 
 
     def help_tui (self):
@@ -601,12 +596,58 @@ class TRexConsole(TRexGeneralCmd):
     do_h = do_history
 
 
+# run a script of commands
+def run_script_file (self, filename, stateless_client):
+
+    self.logger.log(format_text("\nRunning script file '{0}'...".format(filename), 'bold'))
+
+    with open(filename) as f:
+        script_lines = f.readlines()
+
+    cmd_table = {}
+
+    # register all the commands
+    cmd_table['start'] = stateless_client.start_line
+    cmd_table['stop']  = stateless_client.stop_line
+    cmd_table['reset'] = stateless_client.reset_line
+
+    for index, line in enumerate(script_lines, start = 1):
+        line = line.strip()
+        if line == "":
+            continue
+        if line.startswith("#"):
+            continue
+
+        sp = line.split(' ', 1)
+        cmd = sp[0]
+        if len(sp) == 2:
+            args = sp[1]
+        else:
+            args = ""
+
+        stateless_client.logger.log(format_text("Executing line {0} : '{1}'\n".format(index, line)))
+
+        if not cmd in cmd_table:
+            print "\n*** Error at line {0} : '{1}'\n".format(index, line)
+            stateless_client.logger.log(format_text("unknown command '{0}'\n".format(cmd), 'bold'))
+            return False
+
+        rc = cmd_table[cmd](args)
+        if rc.bad():
+            return False
+
+    stateless_client.logger.log(format_text("\n[Done]", 'bold'))
+
+    return True
+
+
 #
 def is_valid_file(filename):
     if not os.path.isfile(filename):
         raise argparse.ArgumentTypeError("The file '%s' does not exist" % filename)
 
     return filename
+
 
 
 def setParserOptions():
@@ -691,33 +732,20 @@ def main():
             logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
             logger.log(format_text("\nSwitching to read only mode - only few commands will be available", 'bold'))
 
-
- # if options.tui or not options.acquire:
- #     rc = stateless_client.connect("RO")
- # else:
- #     try:
- #         rc = stateless_client.connect("RW")
- #     except STLError as e:
- #         logger.log(format_text("Switching to read only mode - only few commands will be available", 'bold'))
- #
- #         with logger.supress():
- #             rc = stateless_client.connect("RO")
-
-
   
     # a script mode
     if options.batch:
-        cont = stateless_client.run_script_file(options.batch[0])
+        cont = run_script_file(options.batch[0], stateless_client)
         if not cont:
             return
         
     # console
-
     try:
         console = TRexConsole(stateless_client, options.verbose)
         logger.prompt_redraw = console.prompt_redraw
 
         if options.tui:
+            set_window_always_on_top('trex_tui')
             console.do_tui("")
         else:
             console.start()

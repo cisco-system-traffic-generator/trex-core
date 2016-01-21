@@ -156,7 +156,7 @@ def decode_multiplier(val, allow_update = False, divide_count = 1):
 
 def match_multiplier(val):
     '''match some val against multiplier  shortcut inputs '''
-    result = decode_multiplier(val, allow_update = False)
+    result = decode_multiplier(val, allow_update = True)
     if not result:
         raise argparse.ArgumentTypeError(match_multiplier_help)
 
@@ -165,7 +165,7 @@ def match_multiplier(val):
 
 def match_multiplier_strict(val):
     '''match some val against multiplier  shortcut inputs '''
-    result = decode_multiplier(val, allow_update = True)
+    result = decode_multiplier(val, allow_update = False)
     if not result:
         raise argparse.ArgumentTypeError(match_multiplier_help)
 
@@ -251,6 +251,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'dest': 'xterm',
                                    'default': False,
                                    'help': "Starts TUI in xterm window"}),
+
 
               FULL_OUTPUT: ArgumentPack(['--full'],
                                          {'action': 'store_true',
