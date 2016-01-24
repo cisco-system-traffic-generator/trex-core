@@ -162,7 +162,7 @@ public:
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(const TrexPortMultiplier &mul, double duration);
+    void start_traffic(const TrexPortMultiplier &mul, double duration, bool force = false);
 
     /**
      * stop traffic
@@ -186,7 +186,7 @@ public:
      * update current traffic on port
      * 
      */
-    void update_traffic(const TrexPortMultiplier &mul);
+    void update_traffic(const TrexPortMultiplier &mul, bool force);
 
     /**
      * get the port state
@@ -351,8 +351,8 @@ private:
      * calculate effective M per core
      * 
      */
-    double calculate_effective_factor(const TrexPortMultiplier &mul);
-
+    double calculate_effective_factor(const TrexPortMultiplier &mul, bool force = false);
+    double calculate_effective_factor_internal(const TrexPortMultiplier &mul);
   
 
     /**

@@ -605,14 +605,14 @@ class STLClient(object):
         return self.ports[port_id].get_stream_id_list()
 
 
-    def __start_traffic (self, multiplier, duration, port_id_list = None):
+    def __start_traffic (self, multiplier, duration, port_id_list = None, force = False):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].start(multiplier, duration))
+            rc.add(self.ports[port_id].start(multiplier, duration, force))
 
         return rc
 
@@ -655,7 +655,7 @@ class STLClient(object):
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].update(mult))
+            rc.add(self.ports[port_id].update(mult, force))
 
         return rc
 
@@ -786,7 +786,7 @@ class STLClient(object):
         if not dry:
 
             self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(port_id_list))
-            rc = self.__start_traffic(mult, duration, port_id_list)
+            rc = self.__start_traffic(mult, duration, port_id_list, force)
             self.logger.post_cmd(rc)
 
             return rc
@@ -815,10 +815,10 @@ class STLClient(object):
         return RC_OK()
 
     #update cmd
-    def __update (self, port_id_list, mult):
+    def __update (self, port_id_list, mult, force):
 
         self.logger.pre_cmd("Updating traffic on port(s) {0}:".format(port_id_list))
-        rc = self.__update_traffic(mult, port_id_list)
+        rc = self.__update_traffic(mult, port_id_list, force)
         self.logger.post_cmd(rc)
 
         return rc
@@ -1365,7 +1365,7 @@ class STLClient(object):
         
     # update traffic
     @__api_check(True)
-    def update (self, ports = None, mult = "1", total = False):
+    def update (self, ports = None, mult = "1", total = False, force = False):
 
         # by default the user means all the active ports
         if ports == None:
@@ -1389,7 +1389,7 @@ class STLClient(object):
 
 
         # call low level functions
-        rc = self.__update(ports, mult_obj)
+        rc = self.__update(ports, mult_obj, force)
         if not rc:
             raise STLError(rc)
 
@@ -1638,7 +1638,8 @@ class STLClient(object):
                                          self.update_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.MULTIPLIER,
-                                         parsing_opts.TOTAL)
+                                         parsing_opts.TOTAL,
+                                         parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split())
         if opts is None:
@@ -1651,7 +1652,7 @@ class STLClient(object):
             self.logger.log(format_text("No ports in valid state to update\n", 'bold'))
             return
 
-        self.update(ports, opts.mult, opts.total)
+        self.update(ports, opts.mult, opts.total, opts.force)
 
         # true means print time
         return True

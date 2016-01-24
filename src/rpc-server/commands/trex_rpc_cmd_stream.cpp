@@ -450,6 +450,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     double duration  = parse_double(params, "duration", result);
+    bool   force     = parse_bool(params, "force", result);
 
     /* multiplier */
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
@@ -457,7 +458,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
     std::string op     = parse_string(mul_obj, "op", result);
     double      value  = parse_double(mul_obj, "value", result);
-
+    
     if (op != "abs") {
         generate_parse_err(result, "start message can only specify absolute speed rate");
     }
@@ -465,9 +466,9 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     TrexPortMultiplier mul(type, op, value);
 
     try {
-        port->start_traffic(mul, duration);
+        port->start_traffic(mul, duration, force);
 
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -585,6 +586,8 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    bool force = parse_bool(params, "force", result);
+
     /* multiplier */
 
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
@@ -597,8 +600,8 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
 
 
     try {
-        port->update_traffic(mul);
-    } catch (const TrexRpcException &ex) {
+        port->update_traffic(mul, force);
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 

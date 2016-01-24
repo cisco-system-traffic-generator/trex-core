@@ -249,7 +249,7 @@ class Port(object):
         return self.streams
 
     # start traffic
-    def start (self, mul, duration):
+    def start (self, mul, duration, force):
 
         if not self.is_acquired():
             return self.err("port is not owned")
@@ -263,10 +263,11 @@ class Port(object):
         if self.state == self.STATE_TX:
             return self.err("Unable to start traffic - port is already transmitting")
 
-        params = {"handler": self.handler,
-                  "port_id": self.port_id,
-                  "mul": mul,
-                  "duration": duration}
+        params = {"handler":  self.handler,
+                  "port_id":  self.port_id,
+                  "mul":      mul,
+                  "duration": duration,
+                  "force":    force}
 
         rc = self.transmit("start_traffic", params)
         if rc.bad():
@@ -344,7 +345,7 @@ class Port(object):
         return self.ok()
 
 
-    def update (self, mul):
+    def update (self, mul, force):
 
         if not self.is_acquired():
             return self.err("port is not owned")
@@ -354,7 +355,8 @@ class Port(object):
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
-                  "mul": mul}
+                  "mul":     mul,
+                  "force":   force}
 
         rc = self.transmit("update_traffic", params)
         if rc.bad():

@@ -132,7 +132,7 @@ TrexStatelessPort::release(void) {
  * 
  */
 void
-TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration) {
+TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration, bool force) {
 
     /* command allowed only on state stream */
     verify_state(PORT_STATE_STREAMS);
@@ -143,7 +143,8 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration)
     /* on start - we can only provide absolute values */
     assert(mul.m_op == TrexPortMultiplier::OP_ABS);
 
-    double factor = calculate_effective_factor(mul);
+    /* caclulate the effective factor for DP */
+    double factor = calculate_effective_factor(mul, force);
 
     /* fetch all the streams from the table */
     vector<TrexStream *> streams;
@@ -274,14 +275,14 @@ TrexStatelessPort::resume_traffic(void) {
 }
 
 void
-TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul) {
+TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
 
     double factor;
 
     verify_state(PORT_STATE_TX | PORT_STATE_PAUSE);
 
     /* generate a message to all the relevant DP cores to start transmitting */
-    double new_factor = calculate_effective_factor(mul);
+    double new_factor = calculate_effective_factor(mul, force);
 
     switch (mul.m_op) {
     case TrexPortMultiplier::OP_ABS:
@@ -446,13 +447,31 @@ TrexStatelessPort::get_port_speed_bps() const {
     }
 }
 
-double
-TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul) {
+static inline double
+bps_to_gbps(double bps) {
+    return (bps / (1000.0 * 1000 * 1000));
+}
 
-    /* for a simple factor request */
-    if (mul.m_type == TrexPortMultiplier::MUL_FACTOR) {
-        return (mul.m_value);
+double
+TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, bool force) {
+
+    double factor = calculate_effective_factor_internal(mul);
+
+    /* did we exceeded the max L1 line rate ? */
+    double expected_l1_rate = factor * m_graph_obj->get_max_bps_l1();
+
+    /* if not force and exceeded - throw exception */
+    if ( (!force) && (expected_l1_rate > get_port_speed_bps()) ) {
+        stringstream ss;
+        ss << "Expected L1 B/W: '" << bps_to_gbps(expected_l1_rate) << " Gbps' exceeds port line rate: '" << bps_to_gbps(get_port_speed_bps()) << " Gbps'";
+        throw TrexException(ss.str());
     }
+
+    return factor;
+}
+
+double
+TrexStatelessPort::calculate_effective_factor_internal(const TrexPortMultiplier &mul) {
 
     /* we now need the graph - generate it if we don't have it (happens once) */
     if (!m_graph_obj) {
@@ -460,6 +479,10 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul) {
     }
 
     switch (mul.m_type) {
+
+    case TrexPortMultiplier::MUL_FACTOR:
+        return (mul.m_value);
+
     case TrexPortMultiplier::MUL_BPS:
         return (mul.m_value / m_graph_obj->get_max_bps_l2());
 
