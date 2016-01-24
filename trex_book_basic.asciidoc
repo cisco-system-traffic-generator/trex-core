@@ -3229,7 +3229,7 @@ The YAML configuration is something like this:
                distribution : "seq"
                ip_start : "58.0.0.1"
                ip_end : "58.0.1.255"
-               dual_port_mask : "1.0.0.0
+               dual_port_mask : "1.0.0.0"
  cap_info :
      - name: avl/delay_10_http_get_0.pcap
        cps : 404.52
