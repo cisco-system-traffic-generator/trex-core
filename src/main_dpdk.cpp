@@ -4563,9 +4563,13 @@ void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 
    int i;
    uint64_t t=0;
-    for (i=0; i<8;i++) {
-        t+=_if->pci_reg_read(IXGBE_MPC(i));
-    }
+
+   if ( !get_is_stateless() ) {
+
+        for (i=0; i<8;i++) {
+            t+=_if->pci_reg_read(IXGBE_MPC(i));
+        }
+   }
 
    stats->ipackets     +=  _if->pci_reg_read(IXGBE_GPRC) ;
    
