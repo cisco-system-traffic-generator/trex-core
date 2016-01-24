@@ -108,8 +108,9 @@ class SimRun(object):
                  "jsonrpc": "2.0",
                  "method": "start_traffic",
                  "params": {"handler": self.handler,
+                            "force":  False,
                             "port_id": self.port_id,
-                            "mul": self.mul,
+                            "mul": parsing_opts.decode_multiplier(self.mul),
                             "duration": self.duration}
                  }
 
