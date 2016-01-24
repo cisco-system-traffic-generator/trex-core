@@ -6,12 +6,12 @@ from client_utils import packet_builder
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
 ########## utlity ############
-def mult_to_factor (mult, max_bps, max_pps, line_util):
+def mult_to_factor (mult, max_bps_l2, max_pps, line_util):
     if mult['type'] == 'raw':
         return mult['value']
 
     if mult['type'] == 'bps':
-        return mult['value'] / max_bps
+        return mult['value'] / max_bps_l2
 
     if mult['type'] == 'pps':
         return mult['value'] / max_pps
@@ -398,16 +398,19 @@ class Port(object):
 
         print format_text("Profile Map Per Port\n", 'underline', 'bold')
 
-        factor = mult_to_factor(mult, rate['max_bps'], rate['max_pps'], rate['max_line_util'])
+        factor = mult_to_factor(mult, rate['max_bps_l2'], rate['max_pps'], rate['max_line_util'])
 
-        print "Profile max BPS    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps'], suffix = "bps"),
-                                                                          format_num(rate['max_bps'] * factor, suffix = "bps"))
+        print "Profile max BPS L2    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps_l2'], suffix = "bps"),
+                                                                             format_num(rate['max_bps_l2'] * factor, suffix = "bps"))
 
-        print "Profile max PPS    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_pps'], suffix = "pps"),
-                                                                          format_num(rate['max_pps'] * factor, suffix = "pps"),)
+        print "Profile max BPS L1    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps_l1'], suffix = "bps"),
+                                                                             format_num(rate['max_bps_l1'] * factor, suffix = "bps"))
 
-        print "Profile line util. (base / req):   {:^12} / {:^12}".format(format_percentage(rate['max_line_util'] * 100),
-                                                                          format_percentage(rate['max_line_util'] * factor * 100))
+        print "Profile max PPS       (base / req):   {:^12} / {:^12}".format(format_num(rate['max_pps'], suffix = "pps"),
+                                                                             format_num(rate['max_pps'] * factor, suffix = "pps"),)
+
+        print "Profile line util.    (base / req):   {:^12} / {:^12}".format(format_percentage(rate['max_line_util']),
+                                                                             format_percentage(rate['max_line_util'] * factor))
 
 
         # duration
@@ -422,8 +425,8 @@ class Port(object):
                 exp_time_factor_sec = duration
 
 
-        print "Duration           (base / req):   {:^12} / {:^12}".format(format_time(exp_time_base_sec),
-                                                                          format_time(exp_time_factor_sec))
+        print "Duration              (base / req):   {:^12} / {:^12}".format(format_time(exp_time_base_sec),
+                                                                             format_time(exp_time_factor_sec))
         print "\n"
 
 

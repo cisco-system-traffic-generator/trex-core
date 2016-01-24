@@ -629,9 +629,10 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     }
     
 
-    result["result"]["rate"]["max_bps"] = graph->get_max_bps();
-    result["result"]["rate"]["max_pps"] = graph->get_max_pps();
-    result["result"]["rate"]["max_line_util"] = graph->get_max_bps() / port->get_port_speed_bps();
+    result["result"]["rate"]["max_bps_l2"]    = graph->get_max_bps_l2();
+    result["result"]["rate"]["max_bps_l1"]    = graph->get_max_bps_l1();
+    result["result"]["rate"]["max_pps"]       = graph->get_max_pps();
+    result["result"]["rate"]["max_line_util"] = (graph->get_max_bps_l1() / port->get_port_speed_bps()) * 100.0;
 
     result["result"]["graph"]["expected_duration"] = graph->get_duration();
     result["result"]["graph"]["events_count"] = (int)graph->get_events().size();
@@ -643,10 +644,11 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     for (const auto &ev : graph->get_events()) {
         Json::Value ev_json;
 
-        ev_json["time_usec"]  = ev.time;
-        ev_json["diff_bps"]   = ev.diff_bps;
-        ev_json["diff_pps"]   = ev.diff_pps;
-        ev_json["stream_id"]  = ev.stream_id;
+        ev_json["time_usec"]     = ev.time;
+        ev_json["diff_bps_l2"]   = ev.diff_bps_l2;
+        ev_json["diff_bps_l1"]   = ev.diff_bps_l1;
+        ev_json["diff_pps"]      = ev.diff_pps;
+        ev_json["stream_id"]     = ev.stream_id;
 
         events_json.append(ev_json);
 

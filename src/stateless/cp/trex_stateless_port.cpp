@@ -461,7 +461,7 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul) {
 
     switch (mul.m_type) {
     case TrexPortMultiplier::MUL_BPS:
-        return (mul.m_value / m_graph_obj->get_max_bps());
+        return (mul.m_value / m_graph_obj->get_max_bps_l2());
 
     case TrexPortMultiplier::MUL_PPS:
          return (mul.m_value / m_graph_obj->get_max_pps());
@@ -471,7 +471,7 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul) {
 
         if (mul.m_op == TrexPortMultiplier::OP_ABS) {
             double required = (mul.m_value / 100.0) * get_port_speed_bps();
-            return (required / m_graph_obj->get_max_bps());
+            return (required / m_graph_obj->get_max_bps_l1());
         } else {
             return (m_factor * (mul.m_value / 100.0));
         }
@@ -606,7 +606,7 @@ TrexStatelessPort::get_port_effective_rate(uint64_t &bps, uint64_t &pps) {
         generate_streams_graph();
     }
 
-    bps = m_graph_obj->get_max_bps() * m_factor;
+    bps = m_graph_obj->get_max_bps_l2() * m_factor;
     pps = m_graph_obj->get_max_pps() * m_factor;
 }
 

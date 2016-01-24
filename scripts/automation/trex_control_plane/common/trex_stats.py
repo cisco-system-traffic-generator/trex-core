@@ -115,22 +115,27 @@ class CTRexInfoGenerator(object):
         per_field_stats = OrderedDict([("owner", []),
                                        ("state", []),
                                        ("--", []),
+                                       ("Tx bps", []),
+                                       ("Tx pps", []),
+
+                                       ("---", []),
+                                       ("Rx bps", []),
+                                       ("Rx pps", []),
+
+                                       ("----", []),
                                        ("opackets", []),
                                        ("ipackets", []),
                                        ("obytes", []),
                                        ("ibytes", []),
-                                       ("oerrors", []),
-                                       ("ierrors", []),
                                        ("tx-bytes", []),
                                        ("rx-bytes", []),
                                        ("tx-pkts", []),
                                        ("rx-pkts", []),
-                                       ("---", []),
-                                       ("Tx bps", []),
-                                       ("Rx bps", []),
-                                       ("----", []),
-                                       ("Tx pps", []),
-                                       ("Rx pps", [])
+
+                                       ("-----", []),
+                                       ("oerrors", []),
+                                       ("ierrors", []),
+
                                       ]
                                       )
 
@@ -259,8 +264,8 @@ class CTRexStats(object):
     """ This is an abstract class to represent a stats object """
 
     def __init__(self):
-        self.reference_stats = None
-        self.latest_stats = None
+        self.reference_stats = {}
+        self.latest_stats = {}
         self.last_update_ts = time.time()
         self.history = deque(maxlen = 10)
 
@@ -309,7 +314,7 @@ class CTRexStats(object):
         diff_time = time.time() - self.last_update_ts
 
         # 3 seconds is too much - this is the new reference
-        if (self.reference_stats == None) or (diff_time > 3):
+        if (not self.reference_stats) or (diff_time > 3):
             self.reference_stats = self.latest_stats
 
         self.last_update_ts = time.time()
@@ -520,32 +525,41 @@ class CPortStats(CTRexStats):
 
         return {"owner": self._port_obj.user if self._port_obj else "",
                 "state": self._port_obj.get_port_state_name() if self._port_obj else "",
+
                 "--": " ",
-                "opackets" : self.get_rel("opackets"),
-                "ipackets" : self.get_rel("ipackets"),
-                "obytes"   : self.get_rel("obytes"),
-                "ibytes"   : self.get_rel("ibytes"),
-                "oerrors"  : self.get_rel("oerrors"),
-                "ierrors"  : self.get_rel("ierrors"),
+                "---": " ",
+                "----": " ",
+                "-----": " ",
 
-                "tx-bytes": self.get_rel("obytes", format = True, suffix = "B"),
-                "rx-bytes": self.get_rel("ibytes", format = True, suffix = "B"),
-                "tx-pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
-                "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
-
-                "---": "",
                 "Tx bps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
                                             self.get("m_total_tx_bps", format = True, suffix = "bps")),
 
                 "Rx bps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
                                             self.get("m_total_rx_bps", format = True, suffix = "bps")),
-
-                "----": "",
+                  
                 "Tx pps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
                                             self.get("m_total_tx_pps", format = True, suffix = "pps")),
 
                 "Rx pps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
                                             self.get("m_total_rx_pps", format = True, suffix = "pps")),
+
+                 "opackets" : self.get_rel("opackets"),
+                 "ipackets" : self.get_rel("ipackets"),
+                 "obytes"   : self.get_rel("obytes"),
+                 "ibytes"   : self.get_rel("ibytes"),
+
+                 "tx-bytes": self.get_rel("obytes", format = True, suffix = "B"),
+                 "rx-bytes": self.get_rel("ibytes", format = True, suffix = "B"),
+                 "tx-pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
+                 "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
+
+                 "oerrors"  : format_num(self.get_rel("oerrors"),
+                                         compact = False,
+                                         opts = 'green' if (self.get_rel("oerrors")== 0) else 'red'),
+
+                 "ierrors"  : format_num(self.get_rel("ierrors"),
+                                         compact = False,
+                                         opts = 'green' if (self.get_rel("ierrors")== 0) else 'red'),
 
                 }
 

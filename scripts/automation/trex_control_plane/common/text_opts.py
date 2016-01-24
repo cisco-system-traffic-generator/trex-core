@@ -38,15 +38,17 @@ def format_num (size, suffix = "", compact = True, opts = ()):
     if compact:
         for unit in ['','K','M','G','T','P']:
             if abs(size) < 1000.0:
-                #txt = "%3.2f %s%s" % (size, unit, suffix)
                 u = unit
                 break
             size /= 1000.0
 
     if isinstance(size, float):
-        txt = "%3.2f %s%s" % (size, u, suffix)
+        txt = "%3.2f" % (size)
     else:
-        txt = "{:,} {:}{:}".format(size, u, suffix)
+        txt = "{:,}".format(size)
+
+    if u or suffix:
+        txt += " {:}{:}".format(u, suffix)
 
     if isinstance(opts, tuple):
         return format_text(txt, *opts)

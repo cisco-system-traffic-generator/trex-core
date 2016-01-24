@@ -142,7 +142,8 @@ public:
 
     TrexStreamsGraphObj() {
         m_max_pps           = 0;
-        m_max_bps           = 0;
+        m_max_bps_l1        = 0;
+        m_max_bps_l2        = 0;
         m_expected_duration = 0;
     }
 
@@ -156,7 +157,8 @@ public:
     struct rate_event_st {
         double time;
         double diff_pps;
-        double diff_bps;
+        double diff_bps_l1;
+        double diff_bps_l2;
         uint32_t stream_id;
     };
 
@@ -164,8 +166,12 @@ public:
         return m_max_pps;
     }
 
-    double get_max_bps() const {
-        return m_max_bps;
+    double get_max_bps_l1() const {
+        return m_max_bps_l1;
+    }
+
+    double get_max_bps_l2() const {
+        return m_max_bps_l2;
     }
 
     int get_duration() const {
@@ -191,7 +197,8 @@ private:
     void find_max_rate();
 
     double  m_max_pps;
-    double  m_max_bps;
+    double  m_max_bps_l1;
+    double  m_max_bps_l2;
     int     m_expected_duration;
 
     /* list of rate events */

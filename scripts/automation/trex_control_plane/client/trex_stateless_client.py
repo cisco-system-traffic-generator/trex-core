@@ -54,7 +54,7 @@ class STLStateError(STLError):
 # port state error
 class STLPortStateError(STLError):
     def __init__ (self, port, op, state):
-        self.msg = "Operation '{0}' on port '{1}' is not valid for state '{2}'".format(op, port, state)
+        self.msg = "Operation '{0}' on port(s) '{1}' is not valid while port(s) '{2}'".format(op, port, state)
 
 
 # raised when argument is not valid for operation
@@ -766,18 +766,6 @@ class STLClient(object):
     # start command
     def __start (self, port_id_list, stream_list, mult, force, duration, dry):
 
-        active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
-
-        if active_ports:
-            if not force:
-                msg = "Port(s) {0} are active - please stop them or add '--force'".format(active_ports)
-                self.logger.log(format_text(msg, 'bold'))
-                return RC_ERR(msg)
-            else:
-                rc = self.__stop(active_ports)
-                if not rc:
-                    return rc
-
 
         self.logger.pre_cmd("Removing all streams from port(s) {0}:".format(port_id_list))
         rc = self.__remove_all_streams(port_id_list)
@@ -804,11 +792,7 @@ class STLClient(object):
             return rc
         else:
 
-            self.logger.pre_cmd("Validating traffic profile on port(s) {0}:".format(port_id_list))
             rc = self.__validate(port_id_list)
-            self.logger.post_cmd(rc)
-            
-
             if rc.bad():
                 return rc
  
@@ -1335,6 +1319,19 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+
+        # verify ports are stopped or force stop them
+        active_ports = list(set(self.get_active_ports()).intersection(ports))
+        if active_ports:
+            if not force:
+                msg = "Port(s) {0} are active - please stop them or specify 'force'".format(active_ports)
+                raise STLError(msg)
+            else:
+                rc = self.__stop(active_ports)
+                if not rc:
+                    raise STLError(rc)
+
+
         # dry run
         if dry:
             self.logger.log(format_text("\n*** DRY RUN ***", 'bold'))
@@ -1581,6 +1578,16 @@ class STLClient(object):
 
         if opts is None:
             return
+
+
+        active_ports = list(set(self.get_active_ports()).intersection(opts.ports))
+
+        if active_ports:
+            if not opts.force:
+                msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
+                self.logger.log(format_text(msg, 'bold'))
+                return
+
 
         # pack the profile
         profiles = [opts.file[0]]

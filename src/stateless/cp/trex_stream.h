@@ -221,23 +221,15 @@ public:
         return ( (m_burst_total_pkts / m_pps) * 1000 * 1000);
     }
 
-    double get_bps() {
-
-        /* lazy calculate the expected packet length */
-        if (m_expected_pkt_len == 0) {
-            /* if we have a VM - it might have changed the packet (even random) */
-            if (m_vm.is_vm_empty()) {
-                m_expected_pkt_len = m_pkt.len;
-            } else {
-                m_expected_pkt_len = m_vm.calc_expected_pkt_size(m_pkt.len);
-            }
-        }
-        
-
-        /* packet length + 4 CRC bytes to bits and multiplied by PPS */
-        return (m_pps * (m_expected_pkt_len + 4) * 8);
+    double get_bps_l2() {
+        return get_bps(false);
     }
 
+    double get_bps_l1() {
+        return get_bps(true);
+    }
+
+ 
     void Dump(FILE *fd);
 
     StreamVmDp * getDpVm(){
@@ -296,6 +288,30 @@ public:
     /* original template provided by requester */
     Json::Value m_stream_json;
 
+private:
+
+    double get_bps(bool layer1) {
+
+        /* lazy calculate the expected packet length */
+        if (m_expected_pkt_len == 0) {
+            /* if we have a VM - it might have changed the packet (even random) */
+            if (m_vm.is_vm_empty()) {
+                m_expected_pkt_len = m_pkt.len;
+            } else {
+                m_expected_pkt_len = m_vm.calc_expected_pkt_size(m_pkt.len);
+            }
+        }
+        
+
+        /* packet length + 4 CRC bytes to bits and multiplied by PPS */
+
+        if (layer1) {
+            /* layer one includes preamble, frame delimiter and interpacket gap */
+            return (m_pps * (m_expected_pkt_len + 4 + 8 + 12) * 8);
+        } else {
+            return (m_pps * (m_expected_pkt_len + 4) * 8);
+        }
+    }
 };
 
 
