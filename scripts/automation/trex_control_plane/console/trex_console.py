@@ -29,7 +29,7 @@ import sys
 import tty, termios
 import trex_root_path
 from common.trex_streams import *
-from client.trex_stateless_client import CTRexStatelessClient, LoggerApi, STLError
+from client.trex_stateless_client import STLClient, LoggerApi, STLError
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 from client_utils import parsing_opts
@@ -175,6 +175,7 @@ class TRexConsole(TRexGeneralCmd):
     ################### internal section ########################
 
     def prompt_redraw (self):
+        self.postcmd(False, "")
         sys.stdout.write("\n" + self.prompt + readline.get_line_buffer())
         sys.stdout.flush()
 
@@ -293,9 +294,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_ping (self, line):
         '''Ping the server\n'''
-        rc = self.stateless_client.ping()
-        if rc.bad():
-            return
+        self.stateless_client.ping()
 
 
     # set verbose on / off
@@ -632,9 +631,7 @@ def run_script_file (self, filename, stateless_client):
             stateless_client.logger.log(format_text("unknown command '{0}'\n".format(cmd), 'bold'))
             return False
 
-        rc = cmd_table[cmd](args)
-        if rc.bad():
-            return False
+        cmd_table[cmd](args)
 
     stateless_client.logger.log(format_text("\n[Done]", 'bold'))
 
@@ -670,7 +667,7 @@ def setParserOptions():
                         default = get_current_user(),
                         type = str)
 
-    parser.add_argument("--verbose", dest="verbose",
+    parser.add_argument("-v", "--verbose", dest="verbose",
                         action="store_true", help="Switch ON verbose option. Default is: OFF.",
                         default = False)
 
@@ -711,12 +708,12 @@ def main():
 
     # Stateless client connection
     logger = ConsoleLogger()
-    stateless_client = CTRexStatelessClient(username = options.user,
-                                            server = options.server,
-                                            sync_port = options.port,
-                                            async_port = options.pub,
-                                            verbose_level = verbose_level,
-                                            logger = logger)
+    stateless_client = STLClient(username = options.user,
+                                 server = options.server,
+                                 sync_port = options.port,
+                                 async_port = options.pub,
+                                 verbose_level = verbose_level,
+                                 logger = logger)
 
     # TUI or no acquire will give us READ ONLY mode
     try:

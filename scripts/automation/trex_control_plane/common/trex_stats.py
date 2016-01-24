@@ -59,7 +59,7 @@ def calculate_diff_raw (samples):
 class CTRexInfoGenerator(object):
     """
     This object is responsible of generating stats and information from objects maintained at
-    CTRexStatelessClient and the ports.
+    STLClient and the ports.
     """
 
     def __init__(self, global_stats_ref, ports_dict_ref):
@@ -477,6 +477,9 @@ class CPortStats(CTRexStats):
             raise TypeError("cannot add non stats object to stats")
 
         # main stats
+        if not self.latest_stats:
+            self.latest_stats = {}
+
         self.__merge_dicts(self.latest_stats, x.latest_stats)
 
         # reference stats

@@ -419,8 +419,8 @@ class CCommLink(object):
 ############################                #############################
 ############################                #############################
 
-class CTRexStatelessClient(object):
-    """docstring for CTRexStatelessClient"""
+class STLClient(object):
+    """docstring for STLClient"""
 
     def __init__(self,
                  username = general_utils.get_current_user(),
@@ -968,6 +968,7 @@ class CTRexStatelessClient(object):
         stats_obj = {}
         for stats_type in stats_opts:
             stats_obj.update(self.stats_generator.generate_single_statistic(port_id_list, stats_type))
+
         return stats_obj
 
     def _get_streams(self, port_id_list, streams_mask=set()):
@@ -1244,9 +1245,11 @@ class CTRexStatelessClient(object):
     # pings the server on the RPC channel
     @__api_check(True)
     def ping(self):
-        rc = self.__ping()
         self.logger.pre_cmd( "Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
-                                                                                   self.connection_info['sync_port']))
+                                                                               self.connection_info['sync_port']))
+        rc = self.__ping()
+        
+        self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)

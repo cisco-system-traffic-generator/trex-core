@@ -2,7 +2,7 @@
 
 import trex_root_path
 from client_utils.packet_builder import CTRexPktBuilder
-from trex_stateless_client import CTRexStatelessClient
+from trex_stateless_client import STLClient
 from common.trex_streams import *
 from client_utils.general_utils import id_count_gen
 import dpkt
@@ -20,7 +20,7 @@ class CTRexHltApi(object):
     # sync = RPC, async = ZMQ
     def connect(self, device, port_list, username, sync_port = 4501, async_port = 4500, reset=False, break_locks=False):
         ret_dict = {"status": 0}
-        self.trex_client = CTRexStatelessClient(username, device, sync_port, async_port)
+        self.trex_client = STLClient(username, device, sync_port, async_port)
 
         rc = self.trex_client.connect()
         if rc.bad():

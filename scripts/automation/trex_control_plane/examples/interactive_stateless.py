@@ -25,7 +25,7 @@ class InteractiveStatelessTRex(cmd.Cmd):
 
         self.verbose = verbose
         self.virtual = virtual
-        self.trex = CTRexStatelessClient(trex_host, trex_port, self.virtual)
+        self.trex = STLClient(trex_host, trex_port, self.virtual)
         self.DEFAULT_RUN_PARAMS = dict(m=1.5,
                                        nc=True,
                                        p=True,

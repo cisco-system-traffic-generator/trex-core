@@ -1,0 +1,39 @@
+### Single stream UDP packet, 64B ###
+#####################################
+- name: stream0
+  stream:
+    self_start: True
+    next_stream_id: stream1
+    packet:
+      binary: udp_64B.pcap
+    mode:
+      type: single_burst
+      pps: 100
+      total_pkts : 100
+    rx_stats: []
+    vm: []
+    
+- name: stream1
+  stream:
+    self_start: False
+    next_stream_id: stream2
+    packet:
+      binary: udp_64B.pcap
+    mode:
+      type: single_burst
+      pps: 100
+      total_pkts : 200
+    rx_stats: []
+    vm: []
+
+- name: stream2
+  stream:
+    self_start: False
+    packet:
+      binary: udp_64B.pcap
+    mode:
+      type: single_burst
+      pps: 100
+      total_pkts : 300
+    rx_stats: []
+    vm: []    
