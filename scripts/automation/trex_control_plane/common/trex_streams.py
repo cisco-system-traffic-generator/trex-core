@@ -210,7 +210,6 @@ class CStream(object):
                             setattr(self, k, kwargs[k])
                             # TODO: load to _pkt_bld_obj also when passed as byte array!
                         elif isinstance(binary, str) and binary.endswith(".pcap"):
-                            # self.load_packet_from_pcap(binary, kwargs[k]["meta"])
                             self._pkt_bld_obj.load_packet_from_pcap(binary)
                             self._pkt_bld_obj.metadata = kwargs[k]["meta"]
                             self.packet = self._pkt_bld_obj.dump_pkt()

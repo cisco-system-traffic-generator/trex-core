@@ -94,6 +94,21 @@ TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
     publish_json(s);
 }
 
+void
+TrexPublisher::publish_barrier(uint32_t key) {
+    Json::FastWriter writer;
+    Json::Value value;
+    std::string s;
+    
+    value["name"] = "trex-barrier";
+    value["type"] = key;
+    value["data"] = Json::objectValue;
+
+    s = writer.write(value);
+    publish_json(s);
+}
+
+
 /**
  * error handling
  * 

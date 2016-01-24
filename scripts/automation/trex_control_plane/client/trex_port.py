@@ -56,7 +56,7 @@ class Port(object):
     def err(self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
 
-    def ok(self, data = "ACK"):
+    def ok(self, data = ""):
         return RC_OK(data)
 
     def get_speed_bps (self):
@@ -198,6 +198,9 @@ class Port(object):
     # remove stream from port
     def remove_stream (self, stream_id):
 
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
         if not stream_id in self.streams:
             return self.err("stream {0} does not exists".format(stream_id))
 
@@ -218,6 +221,9 @@ class Port(object):
 
     # remove all the streams
     def remove_all_streams (self):
+
+        if not self.is_acquired():
+            return self.err("port is not owned")
 
         params = {"handler": self.handler,
                   "port_id": self.port_id}
@@ -244,6 +250,10 @@ class Port(object):
 
     # start traffic
     def start (self, mul, duration):
+
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
         if self.state == self.STATE_DOWN:
             return self.err("Unable to start traffic - port is down")
 
@@ -270,8 +280,15 @@ class Port(object):
     # with force ignores the cached state and sends the command
     def stop (self, force = False):
 
-        if (not force) and (self.state != self.STATE_TX) and (self.state != self.STATE_PAUSE):
-            return self.err("port is not transmitting")
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
+        # port is already stopped
+        if not force:
+            if (self.state == self.STATE_IDLE) or (self.state == self.state == self.STATE_STREAMS):
+                return self.ok()
+
+
 
         params = {"handler": self.handler,
                   "port_id": self.port_id}
@@ -286,6 +303,9 @@ class Port(object):
         return self.ok()
 
     def pause (self):
+
+        if not self.is_acquired():
+            return self.err("port is not owned")
 
         if (self.state != self.STATE_TX) :
             return self.err("port is not transmitting")
@@ -305,6 +325,9 @@ class Port(object):
 
     def resume (self):
 
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
         if (self.state != self.STATE_PAUSE) :
             return self.err("port is not in pause mode")
 
@@ -322,6 +345,10 @@ class Port(object):
 
 
     def update (self, mul):
+
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
         if (self.state != self.STATE_TX) :
             return self.err("port is not transmitting")
 
@@ -337,6 +364,9 @@ class Port(object):
 
 
     def validate (self):
+
+        if not self.is_acquired():
+            return self.err("port is not owned")
 
         if (self.state == self.STATE_DOWN):
             return self.err("port is down")
@@ -412,6 +442,11 @@ class Port(object):
 
     def clear_stats(self):
         return self.port_stats.clear_stats()
+
+
+    def get_stats (self):
+        return self.port_stats.get_stats()
+
 
     def invalidate_stats(self):
         return self.port_stats.invalidate()

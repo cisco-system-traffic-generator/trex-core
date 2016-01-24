@@ -51,6 +51,8 @@ TrexRpcServerAsync::_prepare() {
  */
 void 
 TrexRpcServerAsync::_rpc_thread_cb() {
+/* disabled, using the main publisher */
+#if 0
     std::stringstream ss;
 
     /* create a socket based on the configuration */
@@ -105,6 +107,7 @@ TrexRpcServerAsync::_rpc_thread_cb() {
 
     /* must be closed from the same thread */
     zmq_close(m_socket);
+#endif
 }
 
 void 

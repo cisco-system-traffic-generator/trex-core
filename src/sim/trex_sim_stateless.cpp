@@ -97,6 +97,10 @@ public:
         }
     }
 
+    virtual void publish_async_data_now(uint32_t key) const {
+
+    }
+
 private:
     int m_dp_core_count;
 };

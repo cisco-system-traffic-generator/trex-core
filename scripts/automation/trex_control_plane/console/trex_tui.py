@@ -8,6 +8,7 @@ from client_utils import text_tables
 from collections import OrderedDict
 import datetime
 from cStringIO import StringIO
+from client.trex_stateless_client import STLError
 
 class SimpleBar(object):
     def __init__ (self, desc, pattern):
@@ -60,7 +61,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
 
     def show (self):
-        stats = self.stateless_client.cmd_stats(self.ports, trex_stats.COMPACT)
+        stats = self.stateless_client._get_formatted_stats(self.ports, trex_stats.COMPACT)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -71,8 +72,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
         allowed['c'] = self.key_actions['c']
 
-        # thats it for read only
-        if self.stateless_client.is_read_only():
+        if self.stateless_client.is_all_ports_acquired():
             return allowed
 
         if len(self.stateless_client.get_transmitting_ports()) > 0:
@@ -89,64 +89,44 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     ######### actions
     def action_pause (self):
-        rc = self.stateless_client.pause_traffic(self.mng.ports)
+        try:
+            rc = self.stateless_client.pause(ports = self.mng.ports)
+        except STLError:
+            pass
 
-        ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
-            if rc_single.rc:
-                ports_succeeded.append(port_id)
+        return ""
 
-        if len(ports_succeeded) > 0:
-            return "paused traffic on port(s): {0}".format(ports_succeeded)
-        else:
-            return ""
 
 
     def action_resume (self):
-        rc = self.stateless_client.resume_traffic(self.mng.ports)
+        try:
+            self.stateless_client.resume(ports = self.mng.ports)
+        except STLError:
+            pass
 
-        ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
-            if rc_single.rc:
-                ports_succeeded.append(port_id)
-
-        if len(ports_succeeded) > 0:
-            return "resumed traffic on port(s): {0}".format(ports_succeeded)
-        else:
-            return ""
+        return ""
 
 
     def action_raise (self):
-        mul = {'type': 'percentage', 'value': 5, 'op': 'add'}
-        rc = self.stateless_client.update_traffic(mul, self.mng.ports)
+        try:
+            self.stateless_client.update(mult = "5%+", ports = self.mng.ports)
+        except STLError:
+            pass
 
-        ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
-            if rc_single.rc:
-                ports_succeeded.append(port_id)
+        return ""
 
-        if len(ports_succeeded) > 0:
-            return "raised B/W by %5 on port(s): {0}".format(ports_succeeded)
-        else:
-            return ""
 
     def action_lower (self):
-        mul = {'type': 'percentage', 'value': 5, 'op': 'sub'}
-        rc = self.stateless_client.update_traffic(mul, self.mng.ports)
+        try:
+            self.stateless_client.update(mult = "5%-", ports = self.mng.ports)
+        except STLError:
+            pass
 
-        ports_succeeded = []
-        for rc_single, port_id in zip(rc.rc_list, self.mng.ports):
-            if rc_single.rc:
-                ports_succeeded.append(port_id)
-
-        if len(ports_succeeded) > 0:
-            return "lowered B/W by %5 on port(s): {0}".format(ports_succeeded)
-        else:
-            return ""
+        return ""
 
 
     def action_clear (self):
-        self.stateless_client.cmd_clear(self.mng.ports)
+        self.stateless_client.clear_stats(self.mng.ports)
         return "cleared all stats"
 
 
@@ -168,7 +148,7 @@ class TrexTUIPort(TrexTUIPanel):
 
 
     def show (self):
-        stats = self.stateless_client.cmd_stats([self.port_id], trex_stats.COMPACT)
+        stats = self.stateless_client._get_formatted_stats([self.port_id], trex_stats.COMPACT)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -179,8 +159,7 @@ class TrexTUIPort(TrexTUIPanel):
 
         allowed['c'] = self.key_actions['c']
 
-        # thats it for read only
-        if self.stateless_client.is_read_only():
+        if self.stateless_client.is_all_ports_acquired():
             return allowed
 
         if self.port.state == self.port.STATE_TX:
@@ -196,39 +175,44 @@ class TrexTUIPort(TrexTUIPanel):
 
     # actions
     def action_pause (self):
-        rc = self.stateless_client.pause_traffic([self.port_id])
-        if rc.good():
-            return "port {0}: paused traffic".format(self.port_id)
-        else:
-            return ""
+        try:
+            self.stateless_client.pause(ports = [self.port_id])
+        except STLError:
+            pass
+
+        return ""
 
     def action_resume (self):
-        rc = self.stateless_client.resume_traffic([self.port_id])
-        if rc.good():
-            return "port {0}: resumed traffic".format(self.port_id)
-        else:
-            return ""
+        try:
+            self.stateless_client.resume(ports = [self.port_id])
+        except STLError:
+            pass
+
+        return ""
+
 
     def action_raise (self):
-        mul = {'type': 'percentage', 'value': 5, 'op': 'add'}
-        rc = self.stateless_client.update_traffic(mul, [self.port_id])
+        mult = {'type': 'percentage', 'value': 5, 'op': 'add'}
 
-        if rc.good():
-            return "port {0}: raised B/W by 5%".format(self.port_id)
-        else:
-            return ""
+        try:
+            self.stateless_client.update(mult = mult, ports = [self.port_id])
+        except STLError:
+            pass
+
+        return ""
 
     def action_lower (self):
-        mul = {'type': 'percentage', 'value': 5, 'op': 'sub'}
-        rc = self.stateless_client.update_traffic(mul, [self.port_id])
+        mult = {'type': 'percentage', 'value': 5, 'op': 'sub'}
 
-        if rc.good():
-            return "port {0}: lowered B/W by 5%".format(self.port_id)
-        else:
-            return ""
+        try:
+            self.stateless_client.update(mult = mult, ports = [self.port_id])
+        except STLError:
+            pass
+
+        return ""
 
     def action_clear (self):
-        self.stateless_client.cmd_clear([self.port_id])
+        self.stateless_client.clear_stats([self.port_id])
         return "port {0}: cleared stats".format(self.port_id)
 
 # log
@@ -425,7 +409,7 @@ class TrexTUI():
                 if self.state == self.STATE_ACTIVE:
                     # if no connectivity - move to lost connecitivty
                     if not self.stateless_client.async_client.is_alive():
-                        self.stateless_client.cmd_invalidate(self.pm.ports)
+                        self.stateless_client._invalidate_stats(self.pm.ports)
                         self.state = self.STATE_LOST_CONT
 
 
@@ -440,11 +424,10 @@ class TrexTUI():
                 # restored connectivity - try to reconnect
                 elif self.state == self.STATE_RECONNECT:
 
-                    rc = self.stateless_client.connect("RO")
-                    if rc.good():
+                    try:
+                        self.stateless_client.connect("RO")
                         self.state = self.STATE_ACTIVE
-                    else:
-                        # maybe we lost it again
+                    except STLError:
                         self.state = self.STATE_LOST_CONT
 
 

@@ -69,10 +69,19 @@ match_multiplier_help = """Multiplier should be passed in the following format:
                           will provide a percentage of the line rate. examples
                           : '-m 10', '-m 10kbps', '-m 10mpps', '-m 23%%' """
 
-def match_multiplier_common(val, strict_abs = True):
 
-    # on strict absolute we do not allow +/-
-    if strict_abs:
+# decodes multiplier
+# if allow_update - no +/- is allowed
+# divide states between how many entities the
+# value should be divided
+def decode_multiplier(val, allow_update = False, divide_count = 1):
+
+    # must be string
+    if not isinstance(val, str):
+        return None
+
+    # do we allow updates ?  +/-
+    if not allow_update:
         match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
         op = None
     else:
@@ -136,19 +145,32 @@ def match_multiplier_common(val, strict_abs = True):
         else:
             result['op'] = "abs"
 
+        if result['op'] != 'percentage':
+            result['value'] = result['value'] / divide_count
+
         return result
 
     else:
-        raise argparse.ArgumentTypeError(match_multiplier_help)
+        return None
 
 
 def match_multiplier(val):
     '''match some val against multiplier  shortcut inputs '''
-    return match_multiplier_common(val, strict_abs = False)
+    result = decode_multiplier(val, allow_update = True)
+    if not result:
+        raise argparse.ArgumentTypeError(match_multiplier_help)
+
+    return val
+
 
 def match_multiplier_strict(val):
     '''match some val against multiplier  shortcut inputs '''
-    return match_multiplier_common(val, strict_abs = True)
+    result = decode_multiplier(val, allow_update = False)
+    if not result:
+        raise argparse.ArgumentTypeError(match_multiplier_help)
+
+    return val
+
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):
@@ -230,6 +252,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'default': False,
                                    'help': "Starts TUI in xterm window"}),
 
+
               FULL_OUTPUT: ArgumentPack(['--full'],
                                          {'action': 'store_true',
                                           'help': "Prompt full info in a JSON format"}),
@@ -284,12 +307,12 @@ class CCmdArgParser(argparse.ArgumentParser):
 
             # if all ports are marked or 
             if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
-                opts.ports = self.stateless_client.get_port_ids()
+                opts.ports = self.stateless_client.get_all_ports()
 
             # so maybe we have ports configured
-            elif (getattr(opts, "ports", None) == []):
+            elif getattr(opts, "ports", None):
                 for port in opts.ports:
-                    if not self.stateless_client.validate_port_list([port]):
+                    if not self.stateless_client._validate_port_list([port]):
                         self.error("port id '{0}' is not a valid port id\n".format(port))
 
             return opts

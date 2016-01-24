@@ -42,8 +42,8 @@ class BatchMessage(object):
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
 
-    def __init__ (self, default_server, default_port, prn_func = None):
-        self.verbose = False
+    def __init__ (self, default_server, default_port, logger):
+        self.logger = logger
         self.connected = False
 
         # default values
@@ -51,7 +51,6 @@ class JsonRpcClient(object):
         self.server = default_server
         self.id_gen = general_utils.random_id_gen()
 
-        self.prn_func = prn_func
 
     def get_connection_details (self):
         rc = {}
@@ -82,10 +81,7 @@ class JsonRpcClient(object):
         return pretty_str
 
     def verbose_msg (self, msg):
-        if not self.verbose:
-            return
-
-        print "[verbose] " + msg
+        self.logger.log("[verbose] " + msg, level = self.logger.VERBOSE_HIGH)
 
 
     # batch messages
@@ -128,7 +124,7 @@ class JsonRpcClient(object):
                 break
             except zmq.Again:
                 tries += 1
-                if tries > 10:
+                if tries > 5:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to send message to server")
 
@@ -140,9 +136,9 @@ class JsonRpcClient(object):
                 break
             except zmq.Again:
                 tries += 1
-                if tries > 10:
+                if tries > 5:
                     self.disconnect()
-                    return RC_ERR("*** [RPC] - Failed to get server response")
+                    return RC_ERR("*** [RPC] - Failed to get server response at {0}".format(self.transport))
 
 
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
@@ -177,16 +173,14 @@ class JsonRpcClient(object):
             else:
                 return RC_ERR(response_json["error"]["message"])
 
+        
         # if no error there should be a result
         if ("result" not in response_json):
             return RC_ERR("Malformed Response ({0})".format(str(response_json)))
 
         return RC_OK(response_json["result"])
 
-
   
-    def set_verbose(self, mode):
-        self.verbose = mode
 
     def disconnect (self):
         if self.connected:
@@ -198,7 +192,7 @@ class JsonRpcClient(object):
             return RC_ERR("Not connected to server")
 
 
-    def connect(self, server = None, port = None, prn_func = None):
+    def connect(self, server = None, port = None):
         if self.connected:
             self.disconnect()
 
@@ -209,12 +203,6 @@ class JsonRpcClient(object):
 
         #  Socket to talk to server
         self.transport = "tcp://{0}:{1}".format(self.server, self.port)
-
-        msg = "\nConnecting To RPC Server On {0}".format(self.transport)
-        if self.prn_func:
-            self.prn_func(msg)
-        else:
-            print msg
 
         self.socket = self.context.socket(zmq.REQ)
         try:
@@ -245,7 +233,7 @@ class JsonRpcClient(object):
         return self.connected
 
     def __del__(self):
-        print "Shutting down RPC client\n"
+        self.logger.log("Shutting down RPC client\n")
         if hasattr(self, "context"):
             self.context.destroy(linger=0)
 

@@ -14,12 +14,16 @@ class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg']
 # simple class to represent complex return value
 class RC():
 
-    def __init__ (self, rc = None, data = None):
+    def __init__ (self, rc = None, data = None, is_warn = False):
         self.rc_list = []
 
-        if (rc != None) and (data != None):
-            tuple_rc = namedtuple('RC', ['rc', 'data'])
-            self.rc_list.append(tuple_rc(rc, data))
+        if (rc != None):
+            tuple_rc = namedtuple('RC', ['rc', 'data', 'is_warn'])
+            self.rc_list.append(tuple_rc(rc, data, is_warn))
+
+    def __nonzero__ (self):
+        return self.good()
+
 
     def add (self, rc):
         self.rc_list += rc.rc_list
@@ -30,39 +34,62 @@ class RC():
     def bad (self):
         return not self.good()
 
+    def warn (self):
+        return any([x.is_warn for x in self.rc_list])
+
     def data (self):
         d = [x.data if x.rc else "" for x in self.rc_list]
-        return (d if len(d) > 1 else d[0])
+        return (d if len(d) != 1 else d[0])
 
     def err (self):
         e = [x.data if not x.rc else "" for x in self.rc_list]
-        return (e if len(e) > 1 else e[0])
+        return (e if len(e) != 1 else e[0])
 
-    def annotate (self, desc = None, show_status = True):
-        if desc:
-            print format_text('\n{:<60}'.format(desc), 'bold'),
+    def __str__ (self):
+        s = ""
+        for x in self.rc_list:
+            if x.data:
+                s += format_text("\n{0}".format(x.data), 'bold')
+        return s
+
+    def prn_func (self, msg, newline = True):
+        if newline:
+            print msg
         else:
-            print ""
+            print msg,
+
+    def annotate (self, log_func = None, desc = None, show_status = True):
+
+        if not log_func:
+            log_func = self.prn_func
+
+        if desc:
+            log_func(format_text('\n{:<60}'.format(desc), 'bold'), newline = False)
+        else:
+            log_func("")
 
         if self.bad():
             # print all the errors
             print ""
             for x in self.rc_list:
                 if not x.rc:
-                    print format_text("\n{0}".format(x.data), 'bold')
+                    log_func(format_text("\n{0}".format(x.data), 'bold'))
 
             print ""
             if show_status:
-                print format_text("[FAILED]\n", 'red', 'bold')
+                log_func(format_text("[FAILED]\n", 'red', 'bold'))
 
 
         else:
             if show_status:
-                print format_text("[SUCCESS]\n", 'green', 'bold')
+                log_func(format_text("[SUCCESS]\n", 'green', 'bold'))
 
 
 def RC_OK(data = ""):
     return RC(True, data)
+
 def RC_ERR (err):
     return RC(False, err)
 
+def RC_WARN (warn):
+    return RC(True, warn, is_warn = True)

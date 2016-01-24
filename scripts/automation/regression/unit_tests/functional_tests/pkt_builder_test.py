@@ -212,7 +212,7 @@ class CTRexPktBuilder_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         # finally, set IP header len with relation to payload data
         self.pkt_bld.set_layer_attr("l3_ip", "len", len(self.pkt_bld.get_layer('l3_ip')))
 
-        filepath = "reports/test.pcap"
+        filepath = 'reports/test%s.pcap' % os.getenv('SETUP_DIR', '')
         self.pkt_bld.dump_pkt_to_pcap(filepath)
         assert os.path.isfile(filepath)
         # remove pcap after ensuring it exists
