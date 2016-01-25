@@ -969,7 +969,7 @@ void CLatencyPktModeICMP::rcv_debug_print(uint8_t *pkt) {
 
 void CLatencyPktModeICMP::send_debug_print(uint8_t *pkt) {
     ICMPHeader *m_icmp = (ICMPHeader *)pkt;
-    printf ("Sending latency ICMP packet code:%d seq:%d\n", m_icmp->getType(), m_icmp->getSeqNum());
+    printf ("Sending latency ICMP packet code:%d seq:%x\n", m_icmp->getType(), m_icmp->getSeqNum());
 }
 
 void CLatencyPktModeICMP::update_pkt(uint8_t *pkt, bool is_client_to_server, uint16_t l4_len, uint16_t *tx_seq) {
