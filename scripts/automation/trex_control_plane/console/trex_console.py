@@ -36,7 +36,6 @@ from client_utils import parsing_opts
 import trex_tui
 from functools import wraps
 
-
 __version__ = "1.1"
 
 # console custom logger
@@ -56,7 +55,7 @@ class ConsoleLogger(LoggerApi):
     # override this for the prompt fix
     def async_log (self, msg, level = LoggerApi.VERBOSE_REGULAR, newline = True):
         self.log(msg, level, newline)
-        if self.prompt_redraw:
+        if ( (self.level >= LoggerApi.VERBOSE_REGULAR) and self.prompt_redraw ):
             self.prompt_redraw()
             self.flush()
 
@@ -717,13 +716,14 @@ def main():
 
     # TUI or no acquire will give us READ ONLY mode
     try:
-        stateless_client.connect("RO")
+        stateless_client.connect()
     except STLError as e:
         logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
         return
 
     if not options.tui and options.acquire:
         try:
+            # acquire all ports
             stateless_client.acquire()
         except STLError as e:
             logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
@@ -751,7 +751,8 @@ def main():
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
 
     finally:
-        stateless_client.teardown(stop_traffic = False)
+        with stateless_client.logger.supress():
+            stateless_client.disconnect()
 
 if __name__ == '__main__':
     

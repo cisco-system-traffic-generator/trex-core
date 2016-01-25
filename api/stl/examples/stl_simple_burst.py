@@ -12,36 +12,49 @@ def simple_burst ():
 
     passed = True
 
+    c = STLClient()
+
     try:
-        with STLClient() as c:
+        # activate this for some logging information
+        #c.logger.set_verbose(c.logger.VERBOSE_REGULAR)
 
-            # activate this for some logging information
-            #c.logger.set_verbose(c.logger.VERBOSE_REGULAR)
+        # connect to server
+        c.connect()
 
-            # repeat for 5 times
-            for i in xrange(1, 6):
+        # prepare port 0,1
+        c.reset(ports = [0, 1])
 
-                # read the stats before
-                before_ipackets = c.get_stats()['total']['ipackets']
+        # load profile to both ports
+        c.load_profile('../profiles/burst.yaml', ports = [0, 1])
 
-                # inject burst profile on two ports and block until done
-                c.start(profiles = '../profiles/burst.yaml', ports = [0, 1], mult = "1gbps")
-                c.wait_on_traffic(ports = [0, 1])
+        # repeat for 5 times
+        for i in xrange(1, 6):
 
-                after_ipackets  = c.get_stats()['total']['ipackets']
+            c.clear_stats()
 
-                print "Test iteration {0} - Packets Received: {1} ".format(i, (after_ipackets - before_ipackets))
+            # start traffic and block until done
+            c.start(ports = [0, 1], mult = "1gbps", duration = 5)
+            c.wait_on_traffic(ports = [0, 1])
 
-                # we have 600 packets in the burst and two ports
-                if (after_ipackets - before_ipackets) != (600 * 2):
-                    passed = False
+            # read the stats
+            stats = c.get_stats()
+            ipackets  = stats['total']['ipackets']
 
-    # error handling
+            print "Test iteration {0} - Packets Received: {1} ".format(i, ipackets)
+
+            # we have 600 packets in the burst and two ports
+            if (ipackets != (600 * 2)):
+                passed = False
+
+
+        # error handling
     except STLError as e:
         passed = False
         print e
 
-
+    # cleanup
+    finally:
+        c.disconnect()
   
     if passed:
         print "\nTest has passed :-)\n"

@@ -3,6 +3,7 @@ from collections import namedtuple, OrderedDict
 from common.trex_types import *
 from common import trex_stats
 from client_utils import packet_builder
+
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
 ########## utlity ############
