@@ -24,7 +24,7 @@ limitations under the License.
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
 #include <trex_streams_compiler.h>
-
+#include <common/base64.h>
 #include <iostream>
 
 using namespace std;
@@ -63,7 +63,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
 
     const Json::Value &pkt = parse_object(section, "packet", result);
-    const Json::Value &pkt_binary = parse_array(pkt, "binary", result);
+    std::string pkt_binary = base64_decode(parse_string(pkt, "binary", result));
 
     /* fetch the packet from the message */
 
@@ -73,9 +73,11 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         generate_internal_err(result, "unable to allocate memory");
     }
 
-    /* parse the packet */
+    /* copy the packet */
+    const char *pkt_buffer = pkt_binary.c_str();
+
     for (int i = 0; i < pkt_binary.size(); i++) {
-        stream->m_pkt.binary[i] = parse_byte(pkt_binary, i, result);
+        stream->m_pkt.binary[i] = pkt_buffer[i];
     }
 
     /* meta data */

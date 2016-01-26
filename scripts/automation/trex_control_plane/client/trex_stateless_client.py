@@ -636,19 +636,18 @@ class STLClient(object):
         self.connected = False
 
         # connect sync channel
-        self.logger.pre_cmd("connecting to RPC server on {0}:{1}".format(self.connection_info['server'], self.connection_info['sync_port']))
+        self.logger.pre_cmd("Connecting to RPC server on {0}:{1}".format(self.connection_info['server'], self.connection_info['sync_port']))
         rc = self.comm_link.connect()
         self.logger.post_cmd(rc)
 
         if not rc:
             return rc
 
-     
-
         # version
         rc = self._transmit("get_version")
         if not rc:
             return rc
+
 
         self.server_version = rc.data()
         self.global_stats.server_version = rc.data()

@@ -133,7 +133,8 @@ cmn_src = SrcGroup(dir='src/common',
         'basic_utils.cpp',
         'captureFile.cpp',
         'erf.cpp',
-        'pcap.cpp'
+        'pcap.cpp',
+        'base64.cpp'
         ]);
 
          
