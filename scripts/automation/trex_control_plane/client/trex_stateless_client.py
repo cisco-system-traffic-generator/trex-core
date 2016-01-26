@@ -23,55 +23,8 @@ import re
 import random
 from trex_port import Port
 from common.trex_types import *
+from common.trex_stl_exceptions import *
 from trex_async_client import CTRexAsyncClient
-
-# basic error for API
-class STLError(Exception):
-    def __init__ (self, msg):
-        self.msg = str(msg)
-
-    def __str__ (self):
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-
-
-        s = "\n******\n"
-        s += "Error at {0}:{1}\n\n".format(format_text(fname, 'bold'), format_text(exc_tb.tb_lineno), 'bold')
-        s += "specific error:\n\n{0}\n".format(format_text(self.msg, 'bold'))
-        
-        return s
-
-    def brief (self):
-        return self.msg
-
-
-# raised when the client state is invalid for operation
-class STLStateError(STLError):
-    def __init__ (self, op, state):
-        self.msg = "Operation '{0}' is not valid while '{1}'".format(op, state)
-
-
-# port state error
-class STLPortStateError(STLError):
-    def __init__ (self, port, op, state):
-        self.msg = "Operation '{0}' on port(s) '{1}' is not valid while port(s) '{2}'".format(op, port, state)
-
-
-# raised when argument is not valid for operation
-class STLArgumentError(STLError):
-    def __init__ (self, name, got, valid_values = None, extended = None):
-        self.msg = "Argument: '{0}' invalid value: '{1}'".format(name, got)
-        if valid_values:
-            self.msg += " - valid values are '{0}'".format(valid_values)
-
-        if extended:
-            self.msg += "\n{0}".format(extended)
-
-# raised when timeout occurs
-class STLTimeoutError(STLError):
-    def __init__ (self, timeout):
-        self.msg = "Timeout: operation took more than '{0}' seconds".format(timeout)
-
 
 
 ############################     logger     #############################
@@ -541,14 +494,14 @@ class STLClient(object):
         return rc
 
 
-    def __add_stream(self, stream_id, stream_obj, port_id_list = None):
+    def __add_streams(self, stream_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].add_stream(stream_id, stream_obj))
+            rc.add(self.ports[port_id].add_streams(stream_list))
 
         return rc
 
@@ -1209,7 +1162,8 @@ class STLClient(object):
         :parameters:
             ports : list
                 ports to execute the command
-                
+            streams: list
+                streams to attach
 
         :raises:
             + :exc:`STLError`
@@ -1226,8 +1180,16 @@ class STLClient(object):
         if not rc:
             raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
-        self.logger.pre_cmd("Attaching {0} streams to port(s) {1}:".format(len(streams.compiled), ports))
-        rc = self.__add_stream_pack(streams, ports)
+        # transform single stream
+        if not isinstance(streams, list):
+            streams = [streams]
+
+        # check streams
+        if not all([isinstance(stream, STLStream) for stream in streams]):
+            raise STLArgumentError('streams', streams)
+
+        self.logger.pre_cmd("Attaching {0} streams to port(s) {1}:".format(len(streams), ports))
+        rc = self.__add_streams(streams, ports)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -1266,11 +1228,16 @@ class STLClient(object):
 
         # load the YAML
         try:
-            streams = self.streams_db.load_yaml_file(filename)
+            streams_pack = self.streams_db.load_yaml_file(filename)
         except Exception as e:
             raise STLError(str(e))
 
-        # attach
+        # HACK - convert the stream pack to simple streams
+        streams = []
+        for stream in streams_pack.compiled:
+            s = HACKSTLStream(stream)
+            streams.append(s)
+
         self.add_streams(streams, ports)
 
 

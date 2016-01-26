@@ -4,10 +4,12 @@ import external_packages
 from client_utils.packet_builder import CTRexPktBuilder
 from collections import OrderedDict, namedtuple
 from client_utils.yaml_utils import *
+import trex_stl_exceptions
 import dpkt
 import struct
 import copy
 import os
+import random
 
 StreamPack = namedtuple('StreamPack', ['stream_id', 'stream'])
 LoadedStreamList = namedtuple('LoadedStreamList', ['name', 'loaded', 'compiled'])
@@ -323,3 +325,163 @@ class CStreamsDB(object):
         else:
             return self.stream_packs.get(name)
 
+
+########################### Simple Streams ###########################
+from trex_stl_exceptions import *
+
+class STLStream(object):
+
+    def __init__ (self,
+                  packet,
+                  pps = 1,
+                  enabled = True,
+                  self_start = True,
+                  isg = 0.0,
+                  rx_stats = None,
+                  next_stream_id = -1):
+
+        # type checking
+        if not isinstance(pps, (int, float)):
+            raise STLArgumentError('pps', pps)
+
+        if not isinstance(packet, CTRexPktBuilder):
+            raise STLArgumentError('packet', packet)
+
+        if not isinstance(enabled, bool):
+            raise STLArgumentError('enabled', enabled)
+
+        if not isinstance(self_start, bool):
+            raise STLArgumentError('self_start', self_start)
+
+        if not isinstance(isg, (int, float)):
+            raise STLArgumentError('isg', isg)
+
+        # use a random 31 bit for ID
+        self.stream_id = random.getrandbits(31)
+
+        self.fields = {}
+
+        # basic fields
+        self.fields['enabled'] = enabled
+        self.fields['self_start'] = self_start
+        self.fields['isg'] = isg
+
+        self.fields['next_stream_id'] = next_stream_id
+
+        # mode
+        self.fields['mode'] = {}
+        self.fields['mode']['pps']  = pps
+
+        # packet and VM
+        self.fields['packet'] = packet.dump_pkt()
+        self.fields['vm']     = packet.get_vm_data()
+
+        self.fields['rx_stats'] = {}
+        if not rx_stats:
+            self.fields['rx_stats']['enabled'] = False
+
+
+    def __str__ (self):
+        return json.dumps(self.fields, indent = 4, separators=(',', ': '), sort_keys = True)
+
+    def to_json (self):
+        return self.fields
+
+    def get_id (self):
+        return self.stream_id
+
+
+# continuous stream 
+class STLContStream(STLStream):
+    def __init__ (self,
+                  packet,
+                  pps = 1,
+                  enabled = True,
+                  self_start = True,
+                  isg = 0.0,
+                  rx_stats = None):
+
+        super(STLContStream, self).__init__(packet,
+                                            pps,
+                                            enabled,
+                                            self_start,
+                                            isg,
+                                            rx_stats,
+                                            next_stream_id = -1)
+        
+        # type
+        self.fields['mode']['type'] = "continuous"
+
+
+
+# single burst
+class STLSingleBurstStream(STLStream):
+    def __init__ (self,
+                  packet,
+                  total_pkts,
+                  pps = 1,
+                  enabled = True,
+                  self_start = True,
+                  isg = 0.0,
+                  rx_stats = None,
+                  next_stream_id = -1):
+
+
+        if not isinstance(total_pkts, int):
+            raise STLArgumentError('total_pkts', total_pkts)
+
+        super(STLSingleBurstStream, self).__init__(packet,
+                                                   pps,
+                                                   enabled,
+                                                   self_start,
+                                                   isg,
+                                                   rx_stats,
+                                                   next_stream_id)
+
+        self.fields['mode']['type'] = "single_burst"
+        self.fields['mode']['total_pkts']  = total_pkts
+
+
+# multi burst stream
+class STLMultiBurstStream(STLStream):
+    def __init__ (self,
+                  packet,
+                  pkts_per_burst = 1,
+                  pps = 1,
+                  ibg = 0.0,
+                  count = 1,
+                  enabled = True,
+                  self_start = True,
+                  isg = 0.0,
+                  rx_stats = None,
+                  next_stream_id = -1):
+
+
+        if not isinstance(pkts_per_burst, int):
+            raise STLArgumentError('pkts_per_burst', pkts_per_burst)
+
+        if not isinstance(count, int):
+            raise STLArgumentError('count', count)
+
+        if not isinstance(ibg, (int, float)):
+            raise STLArgumentError('ibg', ibg)
+
+        super(STLMultiBurstStream, self).__init__(packet, enabled, self_start, isg, rx_stats)
+
+        self.fields['mode']['type'] = "single_burst"
+        self.fields['mode']['pkts_per_burst']  = pkts_per_burst
+        self.fields['mode']['ibg']  = ibg
+        self.fields['mode']['count']  = count
+
+
+# REMOVE ME when can - convert from stream pack to a simple stream
+class HACKSTLStream(STLStream):
+    def __init__ (self, stream_pack):
+        if not isinstance(stream_pack, StreamPack):
+            raise Exception("internal error")
+
+        packet = CTRexPktBuilder()
+        packet.load_from_stream_obj(stream_pack.stream)
+        super(HACKSTLStream, self).__init__(packet)
+
+        self.fields = stream_pack.stream

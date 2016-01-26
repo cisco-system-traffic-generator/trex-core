@@ -29,11 +29,12 @@ import sys
 import tty, termios
 import trex_root_path
 from common.trex_streams import *
-from client.trex_stateless_client import STLClient, LoggerApi, STLError
+from client.trex_stateless_client import STLClient, LoggerApi
 from common.text_opts import *
 from client_utils.general_utils import user_input, get_current_user
 from client_utils import parsing_opts
 import trex_tui
+from common.trex_stl_exceptions import *
 from functools import wraps
 
 __version__ = "1.1"
@@ -752,7 +753,7 @@ def main():
 
     finally:
         with stateless_client.logger.supress():
-            stateless_client.disconnect()
+            stateless_client.disconnect(stop_traffic = False)
 
 if __name__ == '__main__':
     

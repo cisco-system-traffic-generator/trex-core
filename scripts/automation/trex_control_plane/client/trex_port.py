@@ -49,7 +49,6 @@ class Port(object):
         self.streams = {}
         self.profile = None
         self.session_id = session_id
-        self.loaded_stream_pack = None
 
         self.port_stats = trex_stats.CPortStats(self)
 
@@ -139,62 +138,43 @@ class Port(object):
         # operations on port can be done on state idle or state streams
         return ((self.state == self.STATE_IDLE) or (self.state == self.STATE_STREAMS))
 
-    # add stream to the port
-    def add_stream (self, stream_id, stream_obj):
+
+    # add streams
+    def add_streams (self, streams_list):
+
+        if not self.is_acquired():
+            return self.err("port is not owned")
 
         if not self.is_port_writable():
             return self.err("Please stop port before attempting to add streams")
 
-
-        params = {"handler": self.handler,
-                  "port_id": self.port_id,
-                  "stream_id": stream_id,
-                  "stream": stream_obj}
-
-        rc = self.transmit("add_stream", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        # add the stream
-        self.streams[stream_id] = StreamOnPort(stream_obj, Port._generate_stream_metadata(stream_id, stream_obj))
-
-        # the only valid state now
-        self.state = self.STATE_STREAMS
-
-        return self.ok()
-
-    # add multiple streams
-    def add_streams (self, LoadedStreamList_obj):
         batch = []
+        for stream in (streams_list if isinstance(streams_list, list) else [streams_list]):
 
-        self.loaded_stream_pack = LoadedStreamList_obj
-        compiled_stream_list = LoadedStreamList_obj.compiled
-
-        for stream_pack in compiled_stream_list:
             params = {"handler": self.handler,
                       "port_id": self.port_id,
-                      "stream_id": stream_pack.stream_id,
-                      "stream": stream_pack.stream}
+                      "stream_id": stream.get_id(),
+                      "stream": stream.to_json()}
 
             cmd = RpcCmdData('add_stream', params)
             batch.append(cmd)
 
+            # meta data for show streams
+            self.streams[stream.get_id()] = StreamOnPort(stream.to_json(),
+                                                         Port._generate_stream_metadata(stream.get_id(), stream.to_json()))
+
         rc = self.transmit_batch(batch)
-        if rc.bad():
+        if not rc:
             return self.err(rc.err())
 
-        # validate that every action succeeded
-
-        # add the stream
-        for stream_pack in compiled_stream_list:
-            self.streams[stream_pack.stream_id] = StreamOnPort(stream_pack.stream,
-                                                               Port._generate_stream_metadata(stream_pack.stream_id,
-                                                                                              stream_pack.stream))
+        
 
         # the only valid state now
         self.state = self.STATE_STREAMS
 
         return self.ok()
+
+
 
     # remove stream from port
     def remove_stream (self, stream_id):
@@ -461,10 +441,6 @@ class Port(object):
     def generate_loaded_streams_sum(self, stream_id_list):
         if self.state == self.STATE_DOWN or self.state == self.STATE_STREAMS:
             return {}
-        elif self.loaded_stream_pack is None:
-            # avoid crashing when sync with remote server isn't operational
-            # TODO: MAKE SURE TO HANDLE THIS CASE FOR BETTER UX
-            return {}
         streams_data = {}
 
         if not stream_id_list:
@@ -477,7 +453,7 @@ class Port(object):
                         if stream_id in self.streams}
 
 
-        return {"referring_file" : self.loaded_stream_pack.name,
+        return {"referring_file" : "",
                 "streams" : streams_data}
 
     @staticmethod
