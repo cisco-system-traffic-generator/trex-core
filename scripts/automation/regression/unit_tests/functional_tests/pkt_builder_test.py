@@ -251,7 +251,7 @@ class CTRexPktBuilder_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         self.print_packet(self.pkt_bld.get_packet())
         assert_equal(self.pkt_bld.dump_pkt(), {
-                     'binary': [224, 95, 185, 105, 233, 34, 0, 21, 23, 167, 117, 163, 8, 0, 69, 0, 0, 39, 0, 0, 0, 0, 64, 1, 79, 201, 21, 0, 0, 2, 22, 0, 0, 12, 8, 0, 217, 134, 95, 208, 44, 218, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100],
+                     'binary': '4F+5aekiABUXp3WjCABFAAAnAAAAAEABT8kVAAACFgAADAgA2YZf0CzaaGVsbG8gd29ybGQ=',
                      'meta': '',
                     })
 

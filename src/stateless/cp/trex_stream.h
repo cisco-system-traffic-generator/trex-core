@@ -125,7 +125,7 @@ public:
     virtual ~TrexStream();
 
     /* defines the min max per packet supported */
-    static const uint32_t MIN_PKT_SIZE_BYTES = 60;
+    static const uint32_t MIN_PKT_SIZE_BYTES = 14;
     static const uint32_t MAX_PKT_SIZE_BYTES = MAX_PKT_SIZE;
 
     /* provides storage for the stream json*/

@@ -27,7 +27,7 @@ def simple_burst ():
     pkt_bld.set_layer_attr("l4_tcp", "flags", 0)
     pkt_bld.set_layer_attr("l4_tcp", "win", 32768)
     pkt_bld.set_layer_attr("l4_tcp", "seq", 0)
-    pkt_bld.set_pkt_payload("abcdefgh")
+    #pkt_bld.set_pkt_payload("abcdefgh")
     pkt_bld.set_layer_attr("l3_ip", "len", len(pkt_bld.get_layer('l3_ip')))
 
    
