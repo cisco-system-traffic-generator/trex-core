@@ -36,6 +36,9 @@ class CTRexPktBuilder(object):
         self.vm = CTRexPktBuilder.CTRexVM()
         self.metadata = ""
 
+    def clone (self):
+        return copy.deepcopy(self)
+
     def add_pkt_layer(self, layer_name, pkt_layer):
         """
         This method adds additional header to the already existing packet
@@ -331,10 +334,8 @@ class CTRexPktBuilder(object):
 
 
     def load_packet_from_byte_list(self, byte_list):
-        # convert byte array into buffer
-        byte_list = [ord(c) for c in base64.b64decode(byte_list)]
-        buf = struct.pack('B'*len(byte_list), *byte_list)
 
+        buf = base64.b64decode(byte_list)
         # thn, load it based on dpkt parsing
         self.load_packet(dpkt.ethernet.Ethernet(buf))
 
@@ -381,11 +382,15 @@ class CTRexPktBuilder(object):
         layer = self._pkt_by_hdr.get(layer_name)
         return copy.copy(layer) if layer else None
 
+
     # VM access methods
     def set_vm_ip_range(self, ip_layer_name, ip_field,
-                        ip_init, ip_start, ip_end, add_value,
-                        operation, is_big_endian=False, val_size=4,
-                        ip_type="ipv4", add_checksum_inst=True):
+                        ip_start, ip_end, operation,
+                        ip_init = None, add_value = 0,
+                        is_big_endian=True, val_size=4,
+                        ip_type="ipv4", add_checksum_inst=True,
+                        split = False):
+
         if ip_field not in ["src", "dst"]:
             raise ValueError("set_vm_ip_range only available for source ('src') or destination ('dst') ip addresses")
         # set differences between IPv4 and IPv6
@@ -400,11 +405,18 @@ class CTRexPktBuilder(object):
 
         self._verify_layer_prop(ip_layer_name, ip_class)
         trim_size = ip_addr_size*2
-        init_val = int(binascii.hexlify(CTRexPktBuilder._decode_ip_addr(ip_init, ip_type))[-trim_size:], 16)
         start_val = int(binascii.hexlify(CTRexPktBuilder._decode_ip_addr(ip_start, ip_type))[-trim_size:], 16)
         end_val = int(binascii.hexlify(CTRexPktBuilder._decode_ip_addr(ip_end, ip_type))[-trim_size:], 16)
+
+        if ip_init == None:
+            init_val = start_val
+        else:
+            init_val = int(binascii.hexlify(CTRexPktBuilder._decode_ip_addr(ip_init, ip_type))[-trim_size:], 16)
+
+
         # All validations are done, start adding VM instructions
         flow_var_name = "{layer}__{field}".format(layer=ip_layer_name, field=ip_field)
+
         hdr_offset, field_abs_offset = self._calc_offset(ip_layer_name, ip_field, ip_addr_size)
         self.vm.add_flow_man_inst(flow_var_name, size=ip_addr_size, operation=operation,
                                   init_value=init_val,
@@ -415,6 +427,10 @@ class CTRexPktBuilder(object):
         self.vm.set_vm_off_inst_field(flow_var_name, "is_big_endian", is_big_endian)
         if ip_type == "ipv4" and add_checksum_inst:
             self.vm.add_fix_checksum_inst(self._pkt_by_hdr.get(ip_layer_name), hdr_offset)
+
+        if split:
+            self.vm.set_split_by_var(flow_var_name)
+
 
     def set_vm_eth_range(self, eth_layer_name, eth_field,
                          mac_init, mac_start, mac_end, add_value,
@@ -440,7 +456,7 @@ class CTRexPktBuilder(object):
 
     def set_vm_custom_range(self, layer_name, hdr_field,
                             init_val, start_val, end_val, add_val, val_size,
-                            operation, is_big_endian=False, range_name="",
+                            operation, is_big_endian=True, range_name="",
                             add_checksum_inst=True):
         # verify input validity for init/start/end values
         for val in [init_val, start_val, end_val]:
@@ -835,6 +851,13 @@ class CTRexPktBuilder(object):
             else:
                 raise CTRexPktBuilder.VMVarNameExistsError(flow_obj.name)
 
+        def set_split_by_var (self, var_name):
+            if var_name not in self.vm_variables:
+                raise KeyError("cannot set split by var to an unknown VM var ('{0}')".
+                               format(var_name))
+
+            self.split_by_var = var_name
+
         def dump(self):
             """
             dumps a VM variables (instructions) and split_by_var into a dict data structure.
@@ -958,9 +981,9 @@ class CTRexPktBuilder(object):
                         "size": self.size,
                         "op": self.operation,
                         # "split_by_core": self.split_by_core,
-                        "init_value": str(self.init_value),
-                        "min_value": str(self.min_value),
-                        "max_value": str(self.max_value)}
+                        "init_value": self.init_value,
+                        "min_value":  self.min_value,
+                        "max_value":  self.max_value}
 
         class CTRexVMChecksumInst(CVMAbstractInstruction):
 

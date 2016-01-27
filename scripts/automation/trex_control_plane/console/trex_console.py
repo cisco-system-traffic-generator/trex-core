@@ -221,7 +221,7 @@ class TRexConsole(TRexGeneralCmd):
 
 
     def get_console_identifier(self):
-        return "{context}_{server}".format(context=self.__class__.__name__,
+        return "{context}_{server}".format(context=get_current_user(),
                                            server=self.stateless_client.get_connection_info()['server'])
     
     def register_main_console_methods(self):
@@ -305,12 +305,12 @@ class TRexConsole(TRexGeneralCmd):
 
         elif line == "on":
             self.verbose = True
-            self.stateless_client.set_verbose(self.stateless_client.logger.VERBOSE_HIGH)
+            self.stateless_client.set_verbose("high")
             print format_text("\nverbose set to on\n", 'green', 'bold')
 
         elif line == "off":
             self.verbose = False
-            self.stateless_client.set_verbose(self.stateless_client.logger.VERBOSE_REGULAR)
+            self.stateless_client.set_verbose("normal")
             print format_text("\nverbose set to off\n", 'green', 'bold')
 
         else:
@@ -515,7 +515,7 @@ class TRexConsole(TRexGeneralCmd):
 
             info = self.stateless_client.get_connection_info()
 
-            exe = './trex-console -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
+            exe = './trex-console --top -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
             cmd = ['xterm', '-geometry', '111x42', '-sl', '0', '-title', 'trex_tui', '-e', exe]
             self.terminal = subprocess.Popen(cmd)
 
@@ -686,6 +686,13 @@ def setParserOptions():
                         action="store_true", help="Starts with TUI mode",
                         default = False)
 
+    parser.add_argument("-x", "--xtui", dest="xtui",
+                        action="store_true", help="Starts with XTERM TUI mode",
+                        default = False)
+
+    parser.add_argument("--top", dest="top",
+                        action="store_true", help="Set the window as always on top",
+                        default = False)
 
     parser.add_argument("-q", "--quiet", dest="quiet",
                         action="store_true", help="Starts with all outputs suppressed",
@@ -697,6 +704,14 @@ def setParserOptions():
 def main():
     parser = setParserOptions()
     options = parser.parse_args()
+
+    if options.xtui:
+        options.tui = True
+
+    # always on top
+    if options.top:
+        set_window_always_on_top('trex_tui')
+
 
     # Stateless client connection
     if options.quiet:
@@ -742,9 +757,9 @@ def main():
         console = TRexConsole(stateless_client, options.verbose)
         logger.prompt_redraw = console.prompt_redraw
 
+        # TUI
         if options.tui:
-            set_window_always_on_top('trex_tui')
-            console.do_tui("")
+            console.do_tui("-x" if options.xtui else "")
         else:
             console.start()
             

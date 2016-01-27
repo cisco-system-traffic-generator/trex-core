@@ -110,6 +110,10 @@ class LoggerApi(object):
 
 # default logger - to stdout
 class DefaultLogger(LoggerApi):
+
+    def __init__ (self):
+        super(DefaultLogger, self).__init__()
+
     def write (self, msg, newline = True):
         if newline:
             print msg
@@ -972,17 +976,22 @@ class STLClient(object):
         Sets verbose level
 
         :parameters:
-            level : enum
-                LoggerApi.VERBOSE_QUIET
-                LoggerApi.VERBOSE_NORMAL
-                LoggerApi.VERBOSE_HIGH
+            level : str
+                "high"
+                "low"
+                "normal"
 
         :raises:
             None
 
     """
     def set_verbose (self, level):
-        self.logger.set_verbose(level)
+        modes = {'low' : LoggerApi.VERBOSE_QUIET, 'normal': LoggerApi.VERBOSE_REGULAR, 'high': LoggerApi.VERBOSE_HIGH}
+
+        if not level in modes.keys():
+            raise STLArgumentError('level', level)
+
+        self.logger.set_verbose(modes[level])
 
 
     """

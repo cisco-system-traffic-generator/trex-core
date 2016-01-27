@@ -10,6 +10,8 @@ import struct
 import copy
 import os
 import random
+import yaml
+import base64
 
 StreamPack = namedtuple('StreamPack', ['stream_id', 'stream'])
 LoadedStreamList = namedtuple('LoadedStreamList', ['name', 'loaded', 'compiled'])
@@ -208,13 +210,17 @@ class CStream(object):
                                              "should not be supplied")
                     else:
                         binary = kwargs[k]["binary"]
-                        if isinstance(binary, list):
-                            setattr(self, k, kwargs[k])
+                        if isinstance(binary, str):
+
                             # TODO: load to _pkt_bld_obj also when passed as byte array!
-                        elif isinstance(binary, str) and binary.endswith(".pcap"):
-                            self._pkt_bld_obj.load_packet_from_pcap(binary)
-                            self._pkt_bld_obj.metadata = kwargs[k]["meta"]
-                            self.packet = self._pkt_bld_obj.dump_pkt()
+                            if binary.endswith(".pcap"):
+                                self._pkt_bld_obj.load_packet_from_pcap(binary)
+                                self._pkt_bld_obj.metadata = kwargs[k]["meta"]
+                                self.packet = self._pkt_bld_obj.dump_pkt()
+                            else:
+                                 self.packet = {}
+                                 self.packet['binary'] = binary
+                                 self.packet['meta'] = ""
 
                         else:
                             raise ValueError("Packet binary attribute has been loaded with unsupported value."
@@ -329,11 +335,82 @@ class CStreamsDB(object):
 ########################### Simple Streams ###########################
 from trex_stl_exceptions import *
 
+# base class for TX mode
+class STLTXMode(object):
+    def __init__ (self):
+        self.fields = {}
+
+    def to_json (self):
+        return self.fields
+
+
+# continuous mode
+class STLTXCont(STLTXMode):
+
+    def __init__ (self, pps = 1):
+
+        if not isinstance(pps, (int, float)):
+            raise STLArgumentError('pps', pps)
+
+        super(STLTXCont, self).__init__()
+
+        self.fields['type'] = 'continuous'
+        self.fields['pps']  = pps
+
+
+# single burst mode
+class STLTXSingleBurst(STLTXMode):
+
+    def __init__ (self, pps = 1, total_pkts = 1):
+
+        if not isinstance(pps, (int, float)):
+            raise STLArgumentError('pps', pps)
+
+        if not isinstance(total_pkts, int):
+            raise STLArgumentError('total_pkts', total_pkts)
+
+        super(STLTXSingleBurst, self).__init__()
+
+        self.fields['type'] = 'single_burst'
+        self.fields['pps']  = pps
+        self.fields['total_pkts'] = total_pkts
+
+
+# multi burst mode
+class STLTXMultiBurst(STLTXMode):
+
+    def __init__ (self,
+                  pps = 1,
+                  pkts_per_burst = 1,
+                  ibg = 0.0,
+                  count = 1):
+
+        if not isinstance(pps, (int, float)):
+            raise STLArgumentError('pps', pps)
+
+        if not isinstance(pkts_per_burst, int):
+            raise STLArgumentError('pkts_per_burst', pkts_per_burst)
+
+        if not isinstance(ibg, (int, float)):
+            raise STLArgumentError('ibg', ibg)
+
+        if not isinstance(count, int):
+            raise STLArgumentError('count', count)
+
+        super(STLTXMultiBurst, self).__init__()
+
+        self.fields['type'] = 'multi_burst'
+        self.fields['pps'] = pps
+        self.fields['pkts_per_burst'] = pkts_per_burst
+        self.fields['ibg'] = ibg
+        self.fields['count'] = count
+
+
 class STLStream(object):
 
     def __init__ (self,
                   packet,
-                  pps = 1,
+                  mode = STLTXCont(1),
                   enabled = True,
                   self_start = True,
                   isg = 0.0,
@@ -341,8 +418,8 @@ class STLStream(object):
                   next_stream_id = -1):
 
         # type checking
-        if not isinstance(pps, (int, float)):
-            raise STLArgumentError('pps', pps)
+        if not isinstance(mode, STLTXMode):
+            raise STLArgumentError('mode', mode)
 
         if not isinstance(packet, CTRexPktBuilder):
             raise STLArgumentError('packet', packet)
@@ -355,6 +432,9 @@ class STLStream(object):
 
         if not isinstance(isg, (int, float)):
             raise STLArgumentError('isg', isg)
+
+        if (type(mode) == STLTXCont) and (next_stream_id != -1):
+            raise STLError("continuous stream cannot have a next stream ID")
 
         # use a random 31 bit for ID
         self.stream_id = random.getrandbits(31)
@@ -369,8 +449,7 @@ class STLStream(object):
         self.fields['next_stream_id'] = next_stream_id
 
         # mode
-        self.fields['mode'] = {}
-        self.fields['mode']['pps']  = pps
+        self.fields['mode'] = mode.to_json()
 
         # packet and VM
         self.fields['packet'] = packet.dump_pkt()
@@ -390,88 +469,44 @@ class STLStream(object):
     def get_id (self):
         return self.stream_id
 
+    @staticmethod
+    def dump_to_yaml (yaml_file, stream_list):
 
-# continuous stream 
-class STLContStream(STLStream):
-    def __init__ (self,
-                  packet,
-                  pps = 1,
-                  enabled = True,
-                  self_start = True,
-                  isg = 0.0,
-                  rx_stats = None):
+        # type check
+        if isinstance(stream_list, STLStream):
+            stream_list = [stream_list]
 
-        super(STLContStream, self).__init__(packet,
-                                            pps,
-                                            enabled,
-                                            self_start,
-                                            isg,
-                                            rx_stats,
-                                            next_stream_id = -1)
-        
-        # type
-        self.fields['mode']['type'] = "continuous"
+        if not all([isinstance(stream, STLStream) for stream in stream_list]):
+            raise STLArgumentError('stream_list', stream_list)
 
 
+        names = {}
+        for i, stream in enumerate(stream_list):
+            names[stream.get_id()] = "stream-{0}".format(i)
 
-# single burst
-class STLSingleBurstStream(STLStream):
-    def __init__ (self,
-                  packet,
-                  total_pkts,
-                  pps = 1,
-                  enabled = True,
-                  self_start = True,
-                  isg = 0.0,
-                  rx_stats = None,
-                  next_stream_id = -1):
+        yaml_lst = []
+        for stream in stream_list:
 
+            fields = dict(stream.fields)
 
-        if not isinstance(total_pkts, int):
-            raise STLArgumentError('total_pkts', total_pkts)
+            # handle the next stream id
+            if fields['next_stream_id'] == -1:
+                del fields['next_stream_id']
 
-        super(STLSingleBurstStream, self).__init__(packet,
-                                                   pps,
-                                                   enabled,
-                                                   self_start,
-                                                   isg,
-                                                   rx_stats,
-                                                   next_stream_id)
+            else:
+                if not stream.get_id() in names:
+                    raise STLError('broken dependencies in stream list')
 
-        self.fields['mode']['type'] = "single_burst"
-        self.fields['mode']['total_pkts']  = total_pkts
+                fields['next_stream'] = names[stream.get_id()]
 
+            # add to list
+            yaml_lst.append({'name': names[stream.get_id()], 'stream': fields})
 
-# multi burst stream
-class STLMultiBurstStream(STLStream):
-    def __init__ (self,
-                  packet,
-                  pkts_per_burst = 1,
-                  pps = 1,
-                  ibg = 0.0,
-                  count = 1,
-                  enabled = True,
-                  self_start = True,
-                  isg = 0.0,
-                  rx_stats = None,
-                  next_stream_id = -1):
+        # write to file
+        x = yaml.dump(yaml_lst, default_flow_style=False)
+        with open(yaml_file, 'w') as f:
+            f.write(x)
 
-
-        if not isinstance(pkts_per_burst, int):
-            raise STLArgumentError('pkts_per_burst', pkts_per_burst)
-
-        if not isinstance(count, int):
-            raise STLArgumentError('count', count)
-
-        if not isinstance(ibg, (int, float)):
-            raise STLArgumentError('ibg', ibg)
-
-        super(STLMultiBurstStream, self).__init__(packet, enabled, self_start, isg, rx_stats)
-
-        self.fields['mode']['type'] = "single_burst"
-        self.fields['mode']['pkts_per_burst']  = pkts_per_burst
-        self.fields['mode']['ibg']  = ibg
-        self.fields['mode']['count']  = count
 
 
 # REMOVE ME when can - convert from stream pack to a simple stream

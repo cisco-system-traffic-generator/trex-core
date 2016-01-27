@@ -16,8 +16,10 @@ import client.trex_stateless_client
 
 STLClient              = client.trex_stateless_client.STLClient
 STLError               = common.trex_stl_exceptions.STLError
-STLContStream          = common.trex_streams.STLContStream
-STLSingleBurstStream   = common.trex_streams.STLSingleBurstStream
-STLMultiBurstStream    = common.trex_streams.STLMultiBurstStream
-STLPktBuilder          = CTRexPktBuilder
+STLStream              = common.trex_streams.STLStream
 
+STLTXCont              = common.trex_streams.STLTXCont
+STLTXSingleBurst       = common.trex_streams.STLTXSingleBurst
+STLTXMultiBurst        = common.trex_streams.STLTXMultiBurst
+
+STLPktBuilder          = CTRexPktBuilder

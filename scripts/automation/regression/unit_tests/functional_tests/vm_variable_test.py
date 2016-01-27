@@ -50,9 +50,9 @@ class CTRexVMVariable_Test(pkt_bld_general_test.CGeneralPktBld_Test):
                         # "big_endian": True,
                         "op": "inc",
 #                       "split_by_core": False,
-                        "init_value": "5",
-                        "min_value": "1",
-                        "max_value": "100"})
+                        "init_value": 5,
+                        "min_value": 1,
+                        "max_value": 100})
 
     def tearDown(self):
         pass

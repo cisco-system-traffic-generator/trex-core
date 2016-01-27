@@ -23,9 +23,9 @@ class CTRexVM_Test(pkt_bld_general_test.CGeneralPktBld_Test):
                       # "big_endian": True,
                       "op": "inc",
 #                     "split_by_core": False,
-                      "init_value": "5",
-                      "min_value": "1",
-                      "max_value": "100"})
+                      "init_value": 5,
+                      "min_value": 1,
+                      "max_value": 100})
         assert_raises(CTRexPktBuilder.VMFieldNameError, self.vm.add_flow_man_inst, "src_mac", no_field=1)
 
     def test_load_flow_man(self):
@@ -50,16 +50,16 @@ class CTRexVM_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         print ''
         pprint (self.vm.dump())
         assert_equal(self.vm.dump(),
-                {'instructions': [{'init_value': '10',
-                                   'max_value': '100',
-                                   'min_value': '2',
+                {'instructions': [{'init_value': 10,
+                                   'max_value':  100,
+                                   'min_value':   2,
                                    'name': 'src_ip',
                                    'op': 'dec',
                                    'size': 8,
                                    'type': 'flow_var'},
-                                  {'init_value': '5',
-                                   'max_value': '100',
-                                   'min_value': '1',
+                                  {'init_value': 5,
+                                   'max_value': 100,
+                                   'min_value': 1,
                                    'name': 'dst_ip',
                                    'op': 'inc',
                                    'size': 8,

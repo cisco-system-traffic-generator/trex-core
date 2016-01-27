@@ -36,11 +36,18 @@ def simple_burst ():
     passed = True
 
     try:
+        
         #c.logger.set_verbose(c.logger.VERBOSE_NORMAL)
 
         # create two bursts and link them
-        s1 = STLSingleBurstStream(packet = pkt_bld, total_pkts = 5000)
-        s2 = STLSingleBurstStream(packet = pkt_bld, total_pkts = 3000, next_stream_id = s1.get_id())
+        s1 = STLStream(packet = pkt_bld,
+                       mode = STLTXSingleBurst(total_pkts = 5000)
+                       )
+
+        s2 = STLStream(packet = pkt_bld,
+                       mode = STLTXSingleBurst(total_pkts = 3000),
+                       next_stream_id = s1.get_id())
+
 
         # connect to server
         c.connect()
