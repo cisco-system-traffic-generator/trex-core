@@ -13,7 +13,6 @@ import os
 import subprocess
 
 # should be set to run explicitly, not as part of all regression tests
-@nottest
 class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp (self):
         self.test_path = os.path.abspath(os.getcwd())

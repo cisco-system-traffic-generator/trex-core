@@ -247,7 +247,7 @@ def setParserOptions():
     parser.add_argument('-m', '--multiplier',
                         help = parsing_opts.match_multiplier_help,
                         dest = 'mult',
-                        default = {'type':'raw', 'value':1, 'op': 'abs'},
+                        default = "1",
                         type = parsing_opts.match_multiplier_strict)
 
     group = parser.add_mutually_exclusive_group()

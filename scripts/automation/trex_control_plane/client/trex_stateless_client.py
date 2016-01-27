@@ -23,55 +23,8 @@ import re
 import random
 from trex_port import Port
 from common.trex_types import *
+from common.trex_stl_exceptions import *
 from trex_async_client import CTRexAsyncClient
-
-# basic error for API
-class STLError(Exception):
-    def __init__ (self, msg):
-        self.msg = str(msg)
-
-    def __str__ (self):
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-
-
-        s = "\n******\n"
-        s += "Error at {0}:{1}\n\n".format(format_text(fname, 'bold'), format_text(exc_tb.tb_lineno), 'bold')
-        s += "specific error:\n\n{0}\n".format(format_text(self.msg, 'bold'))
-        
-        return s
-
-    def brief (self):
-        return self.msg
-
-
-# raised when the client state is invalid for operation
-class STLStateError(STLError):
-    def __init__ (self, op, state):
-        self.msg = "Operation '{0}' is not valid while '{1}'".format(op, state)
-
-
-# port state error
-class STLPortStateError(STLError):
-    def __init__ (self, port, op, state):
-        self.msg = "Operation '{0}' on port(s) '{1}' is not valid while port(s) '{2}'".format(op, port, state)
-
-
-# raised when argument is not valid for operation
-class STLArgumentError(STLError):
-    def __init__ (self, name, got, valid_values = None, extended = None):
-        self.msg = "Argument: '{0}' invalid value: '{1}'".format(name, got)
-        if valid_values:
-            self.msg += " - valid values are '{0}'".format(valid_values)
-
-        if extended:
-            self.msg += "\n{0}".format(extended)
-
-# raised when timeout occurs
-class STLTimeoutError(STLError):
-    def __init__ (self, timeout):
-        self.msg = "Timeout: operation took more than '{0}' seconds".format(timeout)
-
 
 
 ############################     logger     #############################
@@ -541,14 +494,14 @@ class STLClient(object):
         return rc
 
 
-    def __add_stream(self, stream_id, stream_obj, port_id_list = None):
+    def __add_streams(self, stream_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].add_stream(stream_id, stream_obj))
+            rc.add(self.ports[port_id].add_streams(stream_list))
 
         return rc
 
@@ -605,7 +558,7 @@ class STLClient(object):
         return self.ports[port_id].get_stream_id_list()
 
 
-    def __start_traffic (self, multiplier, duration, port_id_list = None, force = False):
+    def __start (self, multiplier, duration, port_id_list = None, force = False):
 
         port_id_list = self.__ports(port_id_list)
 
@@ -617,7 +570,7 @@ class STLClient(object):
         return rc
 
 
-    def __resume_traffic (self, port_id_list = None, force = False):
+    def __resume (self, port_id_list = None, force = False):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -627,7 +580,7 @@ class STLClient(object):
 
         return rc
 
-    def __pause_traffic (self, port_id_list = None, force = False):
+    def __pause (self, port_id_list = None, force = False):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -638,7 +591,7 @@ class STLClient(object):
         return rc
 
 
-    def __stop_traffic (self, port_id_list = None, force = False):
+    def __stop (self, port_id_list = None, force = False):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -649,7 +602,7 @@ class STLClient(object):
         return rc
 
 
-    def __update_traffic (self, mult, port_id_list = None, force = False):
+    def __update (self, mult, port_id_list = None, force = False):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -660,7 +613,7 @@ class STLClient(object):
         return rc
 
 
-    def __validate_traffic (self, port_id_list = None):
+    def __validate (self, port_id_list = None):
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
@@ -669,7 +622,6 @@ class STLClient(object):
             rc.add(self.ports[port_id].validate())
 
         return rc
-
 
 
 
@@ -684,16 +636,8 @@ class STLClient(object):
         self.connected = False
 
         # connect sync channel
-        self.logger.pre_cmd("connecting to RPC server on {0}:{1}".format(self.connection_info['server'], self.connection_info['sync_port']))
+        self.logger.pre_cmd("Connecting to RPC server on {0}:{1}".format(self.connection_info['server'], self.connection_info['sync_port']))
         rc = self.comm_link.connect()
-        self.logger.post_cmd(rc)
-
-        if not rc:
-            return rc
-
-        # connect async channel
-        self.logger.pre_cmd("connecting to publisher server on {0}:{1}".format(self.connection_info['server'], self.connection_info['async_port']))
-        rc = self.async_client.connect()
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -703,6 +647,7 @@ class STLClient(object):
         rc = self._transmit("get_version")
         if not rc:
             return rc
+
 
         self.server_version = rc.data()
         self.global_stats.server_version = rc.data()
@@ -740,7 +685,16 @@ class STLClient(object):
             return rc
 
         
+        # connect async channel
+        self.logger.pre_cmd("connecting to publisher server on {0}:{1}".format(self.connection_info['server'], self.connection_info['async_port']))
+        rc = self.async_client.connect()
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            return rc
+
         self.connected = True
+
         return RC_OK()
 
 
@@ -758,101 +712,6 @@ class STLClient(object):
         return RC_OK()
 
 
-    # ping server
-    def __ping (self):
-        return self._transmit("ping")
-
-
-    # start command
-    def __start (self, port_id_list, stream_list, mult, force, duration, dry):
-
-
-        self.logger.pre_cmd("Removing all streams from port(s) {0}:".format(port_id_list))
-        rc = self.__remove_all_streams(port_id_list)
-        self.logger.post_cmd(rc)
-
-        if not rc:
-            return rc
- 
-
-        self.logger.pre_cmd("Attaching {0} streams to port(s) {1}:".format(len(stream_list.compiled), port_id_list))
-        rc = self.__add_stream_pack(stream_list, port_id_list)
-        self.logger.post_cmd(rc)
-
-        if not rc:
-            return rc
- 
-        # when not on dry - start the traffic , otherwise validate only
-        if not dry:
-
-            self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(port_id_list))
-            rc = self.__start_traffic(mult, duration, port_id_list, force)
-            self.logger.post_cmd(rc)
-
-            return rc
-        else:
-
-            rc = self.__validate(port_id_list)
-            if rc.bad():
-                return rc
- 
-            # show a profile on one port for illustration
-            self.ports[port_id_list[0]].print_profile(mult, duration)
- 
-            return rc
-
-
-    # stop cmd
-    def __stop (self, port_id_list):
-
-        self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(port_id_list))
-        rc = self.__stop_traffic(port_id_list)
-        self.logger.post_cmd(rc)
-
-        if not rc:
-            return rc
-
-        return RC_OK()
-
-    #update cmd
-    def __update (self, port_id_list, mult, force):
-
-        self.logger.pre_cmd("Updating traffic on port(s) {0}:".format(port_id_list))
-        rc = self.__update_traffic(mult, port_id_list, force)
-        self.logger.post_cmd(rc)
-
-        return rc
-
-
-    # pause cmd
-    def __pause (self, port_id_list):
-
-        self.logger.pre_cmd("Pausing traffic on port(s) {0}:".format(port_id_list))
-        rc = self.__pause_traffic(port_id_list)
-        self.logger.post_cmd(rc)
-        
-        return rc
-
-
-    # resume cmd
-    def __resume (self, port_id_list):
-
-        self.logger.pre_cmd("Resume traffic on port(s) {0}:".format(port_id_list))
-        rc = self.__resume_traffic(port_id_list)
-        self.logger.post_cmd(rc)
-
-        return rc
-
-
-    # validate port(s) profile
-    def __validate (self, port_id_list):
-        self.logger.pre_cmd("Validating streams on port(s) {0}:".format(port_id_list))
-        rc = self.__validate_traffic(port_id_list)
-        self.logger.post_cmd(rc)
-
-        return rc
-
-
     # clear stats
     def __clear_stats(self, port_id_list, clear_global):
 
@@ -862,9 +721,7 @@ class STLClient(object):
         if clear_global:
             self.global_stats.clear_stats()
 
-        self.logger.pre_cmd("clearing stats on port(s) {0}:".format(port_id_list))
-        rc = RC_OK()
-        self.logger.post_cmd(rc)
+        self.logger.log_cmd("clearing stats on port(s) {0}:".format(port_id_list))
 
         return RC
 
@@ -889,30 +746,6 @@ class STLClient(object):
         stats['total'] = total
 
         return stats
-
-
-    def __process_profiles (self, profiles, out):
-
-        for profile in (profiles if isinstance(profiles, list) else [profiles]):
-            # filename
-            if isinstance(profile, str):
-
-                if not os.path.isfile(profile):
-                    return RC_ERR("file '{0}' does not exists".format(profile))
-
-                try:
-                    stream_list = self.streams_db.load_yaml_file(profile)
-                except Exception as e:
-                    rc = RC_ERR(str(e))
-                    return rc
-
-                out.append(stream_list)
-
-            else:
-                return RC_ERR("unknown profile '{0}'".format(profile))
-
-
-        return RC_OK()
 
 
     ############ functions used by other classes but not users ##############
@@ -1014,7 +847,8 @@ class STLClient(object):
     ############################             #############################
     ############################             #############################
     def __enter__ (self):
-        self.connect(mode = "RWF")
+        self.connect()
+        self.acquire(force = True)
         self.reset()
         return self
 
@@ -1134,36 +968,79 @@ class STLClient(object):
     ############################              #############################
 
 
-    # set the log on verbose level
+    """
+        Sets verbose level
+
+        :parameters:
+            level : enum
+                LoggerApi.VERBOSE_QUIET
+                LoggerApi.VERBOSE_NORMAL
+                LoggerApi.VERBOSE_HIGH
+
+        :raises:
+            None
+
+    """
     def set_verbose (self, level):
         self.logger.set_verbose(level)
 
 
-    # connects to the server
-    # mode can be:
-    # 'RO' - read only
-    # 'RW' - read/write
-    # 'RWF' - read write forced (take ownership)
+    """
+        Connects to the TRex server
+
+        :parameters:
+            None
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(False)
-    def connect (self, mode = "RW"):
-        modes = ['RO', 'RW', 'RWF']
-        if not mode in modes:
-            raise STLArgumentError('mode', mode, modes)
-        
+    def connect (self):
         rc = self.__connect()
         if not rc:
             raise STLError(rc)
         
-        # acquire all ports for 'RW' or 'RWF'
-        if (mode == "RW") or (mode == "RWF"):
-            self.acquire(ports = self.get_all_ports(), force = True if mode == "RWF" else False)
+
+    """
+        Disconnects from the server
+
+        :parameters:
+            stop_traffic : bool
+                tries to stop traffic before disconnecting
+                
+
+    """
+    @__api_check(False)
+    def disconnect (self, stop_traffic = True):
+
+        # try to stop ports but do nothing if not possible
+        if stop_traffic:
+            try:
+                self.stop()
+            except STLError:
+                pass
+
+        self.logger.pre_cmd("Disconnecting from server at '{0}':'{1}'".format(self.connection_info['server'],
+                                                                              self.connection_info['sync_port']))
+        rc = self.__disconnect()
+        self.logger.post_cmd(rc)
 
 
 
+    """
+        Acquires ports for executing commands
 
-    # acquire ports
-    # this is not needed if connect was called with "RW" or "RWF"
-    # but for "RO" this might be needed
+        :parameters:
+            ports : list
+                ports to execute the command
+            force : bool
+                force acquire the ports
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
     def acquire (self, ports = None, force = False):
         # by default use all ports
@@ -1186,52 +1063,28 @@ class STLClient(object):
         self.logger.post_cmd(rc)
 
         if not rc:
+            # cleanup
             self.__release(ports)
             raise STLError(rc)
 
 
 
-    # force connect syntatic sugar
-    @__api_check(False)
-    def fconnect (self):
-        self.connect(mode = "RWF")
+    """
+        Pings the server
 
+        :parameters:
+            None
+                
 
-    # disconnects from the server
-    @__api_check(False)
-    def disconnect (self, log = True):
-        rc = self.__disconnect()
-        if log:
-            self.logger.log_cmd("Disconnecting from server at '{0}':'{1}'".format(self.connection_info['server'],
-                                                                                  self.connection_info['sync_port']))
-        if not rc:
-            raise STLError(rc)
+        :raises:
+            + :exc:`STLError`
 
-
-
-    # teardown - call after test is done
-    # NEVER throws an exception
-    @__api_check(False)
-    def teardown (self, stop_traffic = True):
-        
-        # try to stop traffic
-        if stop_traffic and self.get_active_ports():
-            try:
-                self.stop()
-            except STLError:
-                pass
-
-        # disconnect
-        self.__disconnect()
-
-
-
-    # pings the server on the RPC channel
+    """
     @__api_check(True)
     def ping(self):
         self.logger.pre_cmd( "Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                                self.connection_info['sync_port']))
-        rc = self.__ping()
+        rc = self._transmit("ping")
         
         self.logger.post_cmd(rc)
 
@@ -1240,48 +1093,188 @@ class STLClient(object):
 
 
 
-    # reset the server by performing
-    # force acquire, stop, and remove all streams
+    """
+        force acquire ports, stop the traffic, remove all streams and clear stats
+
+        :parameters:
+            ports : list
+               ports to execute the command
+                
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
-    def reset(self):
+    def reset(self, ports = None):
 
-        self.logger.pre_cmd("Force acquiring all ports:")
-        rc = self.__acquire(force = True)
+        # by default use all ports
+        if ports == None:
+            ports = self.get_all_ports()
+
+        # verify ports
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        self.acquire(ports, force = True)
+        self.stop(ports)
+        self.remove_all_streams(ports)
+        self.clear_stats(ports)
+
+
+    """
+        remove all streams from port(s)
+
+        :parameters:
+            ports : list
+                ports to execute the command
+                
+
+        :raises:
+            + :exc:`STLError`
+
+    """
+    @__api_check(True)
+    def remove_all_streams (self, ports = None):
+
+        # by default use all ports
+        if ports == None:
+            ports = self.get_acquired_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        self.logger.pre_cmd("Removing all streams from port(s) {0}:".format(ports))
+        rc = self.__remove_all_streams(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+ 
+    """
+        add a list of streams to port(s)
+
+        :parameters:
+            ports : list
+                ports to execute the command
+            streams: list
+                streams to attach
+
+        :raises:
+            + :exc:`STLError`
+
+    """
+    @__api_check(True)
+    def add_streams (self, streams, ports = None):
+        # by default use all ports
+        if ports == None:
+            ports = self.get_acquired_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        # transform single stream
+        if not isinstance(streams, list):
+            streams = [streams]
+
+        # check streams
+        if not all([isinstance(stream, STLStream) for stream in streams]):
+            raise STLArgumentError('streams', streams)
+
+        self.logger.pre_cmd("Attaching {0} streams to port(s) {1}:".format(len(streams), ports))
+        rc = self.__add_streams(streams, ports)
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
 
 
-        # force stop all ports
-        self.logger.pre_cmd("Stop traffic on all ports:")
-        rc = self.__stop_traffic(self.get_all_ports(), True)
-        self.logger.post_cmd(rc)
+    """
+        load a profile file to port(s)
 
+        :parameters:
+            filename : str
+                filename to load
+            ports : list
+                ports to execute the command
+                
+
+        :raises:
+            + :exc:`STLError`
+
+    """
+    @__api_check(True)
+    def load_profile (self, filename, ports = None):
+
+        # check filename
+        if not os.path.isfile(filename):
+            raise STLError("file '{0}' does not exists".format(filename))
+
+        # by default use all ports
+        if ports == None:
+            ports = self.get_acquired_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
         if not rc:
-            raise STLError(rc)
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        # load the YAML
+        try:
+            streams_pack = self.streams_db.load_yaml_file(filename)
+        except Exception as e:
+            raise STLError(str(e))
+
+        # HACK - convert the stream pack to simple streams
+        streams = []
+        for stream in streams_pack.compiled:
+            s = HACKSTLStream(stream)
+            streams.append(s)
+
+        self.add_streams(streams, ports)
 
 
-        # remove all streams
-        self.logger.pre_cmd("Removing all streams from all ports:")
-        rc = self.__remove_all_streams(self.get_all_ports())
-        self.logger.post_cmd(rc)
 
-        if not rc:
-            raise STLError(rc)
+    """
+        start traffic on port(s)
 
-        self.clear_stats()
+        :parameters:
+            ports : list
+                ports to execute command
 
+            mult : str
+                multiplier in a form of pps, bps, or line util in %
+                examples: "5kpps", "10gbps", "85%", "32mbps"
 
-    # start cmd
+            force : bool
+                imply stopping the port of active and also
+                forces a profile that exceeds the L1 BW
+
+            duration : int
+                limit the run for time in seconds
+                -1 means unlimited
+
+            total : bool
+                should the B/W be divided by the ports
+                or duplicated for each
+                
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
     def start (self,
-               profiles,
                ports = None,
                mult = "1",
                force = False,
                duration = -1,
-               dry = False,
                total = False):
 
 
@@ -1313,57 +1306,87 @@ class STLClient(object):
             raise STLArgumentError('total', total)
 
 
-        # process profiles
-        stream_list = []
-        rc = self.__process_profiles(profiles, stream_list)
-        if not rc:
-            raise STLError(rc)
-
-
         # verify ports are stopped or force stop them
         active_ports = list(set(self.get_active_ports()).intersection(ports))
         if active_ports:
             if not force:
-                msg = "Port(s) {0} are active - please stop them or specify 'force'".format(active_ports)
-                raise STLError(msg)
+                raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
             else:
-                rc = self.__stop(active_ports)
+                rc = self.stop(active_ports)
                 if not rc:
                     raise STLError(rc)
 
 
-        # dry run
-        if dry:
-            self.logger.log(format_text("\n*** DRY RUN ***", 'bold'))
+        # start traffic
+        self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(ports))
+        rc = self.__start(mult_obj, duration, ports, force)
+        self.logger.post_cmd(rc)
 
-        # call private method to start
-
-        rc = self.__start(ports, stream_list[0], mult_obj, force, duration, dry)
         if not rc:
             raise STLError(rc)
 
 
 
-    # stop traffic on ports
+    
+    """
+        stop port(s)
+
+        :parameters:
+            ports : list
+                ports to execute the command
+                
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
     def stop (self, ports = None):
 
         # by default the user means all the active ports
         if ports == None:
             ports = self.get_active_ports()
+            if not ports:
+                return
 
         # verify valid port id list
         rc = self._validate_port_list(ports)
         if not rc:
             raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
+        self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
         rc = self.__stop(ports)
+        self.logger.post_cmd(rc)
+
         if not rc:
             raise STLError(rc)
 
 
         
-    # update traffic
+    """
+        update traffic on port(s)
+
+        :parameters:
+            ports : list
+                ports to execute command
+
+            mult : str
+                multiplier in a form of pps, bps, or line util in %
+                and also with +/-
+                examples: "5kpps+", "10gbps-", "85%", "32mbps", "20%+"
+
+            force : bool
+                forces a profile that exceeds the L1 BW
+
+            total : bool
+                should the B/W be divided by the ports
+                or duplicated for each
+                
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
     def update (self, ports = None, mult = "1", total = False, force = False):
 
@@ -1389,13 +1412,26 @@ class STLClient(object):
 
 
         # call low level functions
-        rc = self.__update(ports, mult_obj, force)
+        self.logger.pre_cmd("Updating traffic on port(s) {0}:".format(ports))
+        rc = self.__update(mult, ports, force)
+        self.logger.post_cmd(rc)
+
         if not rc:
             raise STLError(rc)
 
 
 
-    # pause traffic on ports
+    """
+        pause traffic on port(s)
+
+        :parameters:
+            ports : list
+                ports to execute command
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
     def pause (self, ports = None):
 
@@ -1408,13 +1444,26 @@ class STLClient(object):
         if not rc:
             raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
+        self.logger.pre_cmd("Pausing traffic on port(s) {0}:".format(ports))
         rc = self.__pause(ports)
+        self.logger.post_cmd(rc)
+
         if not rc:
             raise STLError(rc)
 
               
     
-    # resume traffic on ports
+    """
+        resume traffic on port(s)
+
+        :parameters:
+            ports : list
+                ports to execute command
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
     def resume (self, ports = None):
 
@@ -1427,13 +1476,39 @@ class STLClient(object):
         if not rc:
             raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
+        self.logger.pre_cmd("Resume traffic on port(s) {0}:".format(ports))
         rc = self.__resume(ports)
+        self.logger.post_cmd(rc)
+
         if not rc:
             raise STLError(rc)
 
 
+    """
+        validate port(s) configuration
+
+        :parameters:
+            ports : list
+                ports to execute command
+
+         mult : str
+                multiplier in a form of pps, bps, or line util in %
+                examples: "5kpps", "10gbps", "85%", "32mbps"
+
+        duration : int
+                limit the run for time in seconds
+                -1 means unlimited
+
+        total : bool
+                should the B/W be divided by the ports
+                or duplicated for each
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(True)
-    def validate (self, ports = None):
+    def validate (self, ports = None, mult = "1", duration = "-1", total = False):
         if ports == None:
             ports = self.get_acquired_ports()
 
@@ -1442,18 +1517,47 @@ class STLClient(object):
         if not rc:
             raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
+        # verify multiplier
+        mult_obj = parsing_opts.decode_multiplier(mult,
+                                                  allow_update = True,
+                                                  divide_count = len(ports) if total else 1)
+        if not mult_obj:
+            raise STLArgumentError('mult', mult)
+
+
+        if not isinstance(duration, (int, float)):
+            raise STLArgumentError('duration', duration)
+
+
+        self.logger.pre_cmd("Validating streams on port(s) {0}:".format(ports))
         rc = self.__validate(ports)
-        if not rc:
-            raise STLError(rc)
+        self.logger.post_cmd(rc)
 
 
-    # clear stats
+        for port in ports:
+            self.ports[port].print_profile(mult_obj, duration)
+
+
+    """
+        clear stats on port(s)
+
+        :parameters:
+            ports : list
+                ports to execute command
+            
+            clear_global : bool
+                clear the global stats
+
+        :raises:
+            + :exc:`STLError`
+
+    """
     @__api_check(False)
     def clear_stats (self, ports = None, clear_global = True):
 
         # by default use all ports
         if ports == None:
-            ports = self.get_acquired_ports()
+            ports = self.get_all_ports()
 
         # verify valid port id list
         rc = self._validate_port_list(ports)
@@ -1473,7 +1577,21 @@ class STLClient(object):
   
 
 
-    # wait while traffic is on, on timeout throw STLTimeoutError
+    """
+        block until specify port(s) traffic has ended
+
+        :parameters:
+            ports : list
+                ports to execute command
+            
+            timeout : int
+                timeout in seconds
+
+        :raises:
+            + :exc:`STLTimeoutError` - in case timeout has expired
+            + :exe:'STLError'
+
+    """
     @__api_check(True)
     def wait_on_traffic (self, ports = None, timeout = 60):
 
@@ -1495,13 +1613,24 @@ class STLClient(object):
                 raise STLTimeoutError(timeout)
 
 
-    # clear all async events
+    """
+        clear all events
+
+        :parameters:
+            None
+
+        :raises:
+            None
+
+    """
     def clear_events (self):
         self.event_handler.clear_events()
+
 
     ############################   Line       #############################
     ############################   Commands   #############################
     ############################              #############################
+
     # console decorator
     def __console(f):
         def wrap(*args):
@@ -1539,7 +1668,8 @@ class STLClient(object):
             return
 
         # call the API
-        self.connect("RWF" if opts.force else "RW")
+        self.connect()
+        self.acquire(force = opts.force)
 
         # true means print time
         return True
@@ -1587,18 +1717,24 @@ class STLClient(object):
                 msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
                 self.logger.log(format_text(msg, 'bold'))
                 return
+            else:
+                self.stop(active_ports)
 
+
+        # remove all streams
+        self.remove_all_streams(opts.ports)
 
         # pack the profile
-        profiles = [opts.file[0]]
+        self.load_profile(opts.file[0], opts.ports)
 
-        self.start(profiles,
-                   opts.ports,
-                   opts.mult,
-                   opts.force,
-                   opts.duration,
-                   opts.dry,
-                   opts.total)
+        if opts.dry:
+            self.validate(opts.ports, opts.mult, opts.duration, opts.total)
+        else:
+            self.start(opts.ports,
+                       opts.mult,
+                       opts.force,
+                       opts.duration,
+                       opts.total)
 
         # true means print time
         return True

@@ -24,7 +24,7 @@ limitations under the License.
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
 #include <trex_streams_compiler.h>
-
+#include <common/base64.h>
 #include <iostream>
 
 using namespace std;
@@ -63,19 +63,31 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
 
     const Json::Value &pkt = parse_object(section, "packet", result);
-    const Json::Value &pkt_binary = parse_array(pkt, "binary", result);
+    std::string pkt_binary = base64_decode(parse_string(pkt, "binary", result));
+
+    /* check packet size */
+    if ( (pkt_binary.size() < TrexStream::MIN_PKT_SIZE_BYTES) || (pkt_binary.size() > TrexStream::MAX_PKT_SIZE_BYTES) ) {
+        std::stringstream ss;
+        ss << "bad packet size provided: should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
+        delete stream;
+        generate_execute_err(result, ss.str()); 
+    }
 
     /* fetch the packet from the message */
 
-    stream->m_pkt.len    = pkt_binary.size();
-    stream->m_pkt.binary = new uint8_t[pkt_binary.size()];
+    stream->m_pkt.len    = std::max(pkt_binary.size(), 60UL);
+
+    /* allocate and init to zero ( with () ) */
+    stream->m_pkt.binary = new uint8_t[pkt_binary.size()]();
     if (!stream->m_pkt.binary) {
         generate_internal_err(result, "unable to allocate memory");
     }
 
-    /* parse the packet */
+    const char *pkt_buffer = pkt_binary.c_str();
+
+    /* copy the packet - if less than 60 it will remain zeroes */
     for (int i = 0; i < pkt_binary.size(); i++) {
-        stream->m_pkt.binary[i] = parse_byte(pkt_binary, i, result);
+        stream->m_pkt.binary[i] = pkt_buffer[i];
     }
 
     /* meta data */
@@ -303,14 +315,6 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::V
 
 void
 TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &result) {
-
-    /* check packet size */
-    if ( (stream->m_pkt.len < TrexStream::MIN_PKT_SIZE_BYTES) || (stream->m_pkt.len > TrexStream::MAX_PKT_SIZE_BYTES) ) {
-        std::stringstream ss;
-        ss << "bad packet size provided: should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
-        delete stream;
-        generate_execute_err(result, ss.str()); 
-    }
 
     /* add the stream to the port's stream table */
     TrexStatelessPort * port = get_stateless_obj()->get_port_by_id(stream->m_port_id);

@@ -12,7 +12,7 @@ import re
 import itertools
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
-
+import base64
 
 class CTRexPktBuilder(object):
     """
@@ -332,6 +332,7 @@ class CTRexPktBuilder(object):
 
     def load_packet_from_byte_list(self, byte_list):
         # convert byte array into buffer
+        byte_list = [ord(c) for c in base64.b64decode(byte_list)]
         buf = struct.pack('B'*len(byte_list), *byte_list)
 
         # thn, load it based on dpkt parsing
@@ -480,11 +481,10 @@ class CTRexPktBuilder(object):
         """
         if self._packet is None:
             raise CTRexPktBuilder.EmptyPacketError()
-        pkt_in_hex = binascii.hexlify(str(self._packet))
-        return {"binary": [int(pkt_in_hex[i:i+2], 16)
-                           for i in range(0, len(pkt_in_hex), 2)],
+
+        return {"binary": base64.b64encode(str(self._packet)),
                 "meta": self.metadata}
-        # return [pkt_in_hex[i:i+2] for i in range(0, len(pkt_in_hex), 2)]
+
 
     def dump_pkt_to_pcap(self, file_path, ts=None):
         """

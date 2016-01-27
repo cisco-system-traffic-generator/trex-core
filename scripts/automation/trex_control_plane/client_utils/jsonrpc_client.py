@@ -81,7 +81,7 @@ class JsonRpcClient(object):
         return pretty_str
 
     def verbose_msg (self, msg):
-        self.logger.log("[verbose] " + msg, level = self.logger.VERBOSE_HIGH)
+        self.logger.log("\n\n[verbose] " + msg, level = self.logger.VERBOSE_HIGH)
 
 
     # batch messages
@@ -215,6 +215,11 @@ class JsonRpcClient(object):
 
         self.connected = True
 
+        rc = self.invoke_rpc_method('ping')
+        if not rc:
+            self.connected = False
+            return rc
+        
         return RC_OK()
 
 

@@ -223,7 +223,8 @@ class CTRexInfoGenerator(object):
 
         info_table = text_tables.TRexTextTable()
         info_table.set_cols_align(["c"] + ["l"] + ["r"] + ["c"] + ["r"] + ["c"])
-        info_table.set_cols_width([4]   + [20]  + [8]   + [16]  + [10]  + [12])
+        info_table.set_cols_width([10]   + [20]  + [8]   + [16]  + [10]  + [12])
+        info_table.set_cols_dtype(["t"] + ["t"] + ["t"] + ["t"] + ["t"] + ["t"])
 
         info_table.add_rows([v.values()
                              for k, v in return_streams_data['streams'].iteritems()],

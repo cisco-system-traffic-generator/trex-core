@@ -1,53 +1,83 @@
 import sys
 sys.path.insert(0, "../")
 
-import trex_stl_api
-
-from trex_stl_api import STLClient, STLError
-
+from trex_stl_api import *
+import dpkt
 import time
 
-# define a simple burst test
 def simple_burst ():
+    
+    # build a simple packet
 
+    pkt_bld = STLPktBuilder()
+    pkt_bld.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
+    # set Ethernet layer attributes
+    pkt_bld.set_eth_layer_addr("l2", "src", "00:15:17:a7:75:a3")
+    pkt_bld.set_eth_layer_addr("l2", "dst", "e0:5f:b9:69:e9:22")
+    pkt_bld.set_layer_attr("l2", "type", dpkt.ethernet.ETH_TYPE_IP)
+    # set IP layer attributes
+    pkt_bld.add_pkt_layer("l3_ip", dpkt.ip.IP())
+    pkt_bld.set_ip_layer_addr("l3_ip", "src", "21.0.0.2")
+    pkt_bld.set_ip_layer_addr("l3_ip", "dst", "22.0.0.12")
+    pkt_bld.set_layer_attr("l3_ip", "p", dpkt.ip.IP_PROTO_TCP)
+    # set TCP layer attributes
+    pkt_bld.add_pkt_layer("l4_tcp", dpkt.tcp.TCP())
+    pkt_bld.set_layer_attr("l4_tcp", "sport", 13311)
+    pkt_bld.set_layer_attr("l4_tcp", "dport", 80)
+    pkt_bld.set_layer_attr("l4_tcp", "flags", 0)
+    pkt_bld.set_layer_attr("l4_tcp", "win", 32768)
+    pkt_bld.set_layer_attr("l4_tcp", "seq", 0)
+    #pkt_bld.set_pkt_payload("abcdefgh")
+    pkt_bld.set_layer_attr("l3_ip", "len", len(pkt_bld.get_layer('l3_ip')))
+
+   
+    # create client
+    c = STLClient()
     passed = True
 
     try:
-        with STLClient() as c:
+        #c.logger.set_verbose(c.logger.VERBOSE_NORMAL)
 
-            # activate this for some logging information
-            #c.logger.set_verbose(c.logger.VERBOSE_REGULAR)
+        # create two bursts and link them
+        s1 = STLSingleBurstStream(packet = pkt_bld, total_pkts = 5000)
+        s2 = STLSingleBurstStream(packet = pkt_bld, total_pkts = 3000, next_stream_id = s1.get_id())
 
-            # repeat for 5 times
-            for i in xrange(1, 6):
+        # connect to server
+        c.connect()
 
-                # read the stats before
-                before_ipackets = c.get_stats()['total']['ipackets']
+        # prepare our ports
+        c.reset(ports = [0, 1])
 
-                # inject burst profile on two ports and block until done
-                c.start(profiles = '../profiles/burst.yaml', ports = [0, 1], mult = "1gbps")
-                c.wait_on_traffic(ports = [0, 1])
+        # add both streams to ports
+        c.add_streams([s1, s2], ports = [0, 1])
 
-                after_ipackets  = c.get_stats()['total']['ipackets']
+        # run 5 times
+        for i in xrange(1, 6):
+            c.clear_stats()
+            c.start(ports = [0, 1], mult = "1gbps")
+            c.wait_on_traffic(ports = [0, 1])
 
-                print "Test iteration {0} - Packets Received: {1} ".format(i, (after_ipackets - before_ipackets))
+            stats = c.get_stats()
+            ipackets  = stats['total']['ipackets']
 
-                # we have 600 packets in the burst and two ports
-                if (after_ipackets - before_ipackets) != (600 * 2):
-                    passed = False
+            print "Test iteration {0} - Packets Received: {1} ".format(i, ipackets)
+            # (5000 + 3000) * 2 ports = 16,000
+            if (ipackets != (16000)):
+                passed = False
 
-    # error handling
     except STLError as e:
         passed = False
         print e
 
+    finally:
+        c.disconnect()
 
-  
     if passed:
         print "\nTest has passed :-)\n"
     else:
         print "\nTest has failed :-(\n"
 
 
+# run the tests
 simple_burst()
 
