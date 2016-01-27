@@ -20,6 +20,11 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.87  ==
+
+* Fix some 82599 ierror in case of high rate 
+* First Stateless API examples under api folder (not part of the package)
+
 
 == Release 1.86  ==
 
