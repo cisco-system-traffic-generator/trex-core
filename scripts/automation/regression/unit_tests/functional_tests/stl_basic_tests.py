@@ -5,6 +5,7 @@ import functional_general_test
 from nose.tools import assert_equal
 from nose.tools import assert_not_equal
 from nose.tools import nottest
+from nose.plugins.attrib import attr
 from unit_tests.trex_general_test import CTRexScenario
 from dpkt import pcap
 
@@ -13,6 +14,7 @@ import os
 import subprocess
 
 # should be set to run explicitly, not as part of all regression tests
+@attr('requires_client')
 class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp (self):
         self.test_path = os.path.abspath(os.getcwd())
