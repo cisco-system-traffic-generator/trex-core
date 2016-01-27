@@ -20,6 +20,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+
+== Release 1.88  ==
+
+* Add the Python API to the package 
+* Remove mock support 
+
 == Release 1.87  ==
 
 * Fix some 82599 ierror in case of high rate 
