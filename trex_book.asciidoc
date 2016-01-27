@@ -1607,4 +1607,11 @@ The TRex output
 <1>  this counter should be zero 
 
 
+===  Troubleshoot installation, FAQ
+
+Q: During OS installation, screen is skewed / error "Out of range" / resolution not supported etc. +
+A:
+
+* Fedora - during installation, choose "Troubleshooting" -> Install in basic graphic mode
+* Ubuntu - try Ubuntu server, which has textual installation
 
