@@ -6,7 +6,7 @@ import time
 # update the import path to include the stateless client
 root_path = os.path.dirname(os.path.abspath(__file__))
 
-sys.path.insert(0, os.path.join(root_path, '../../scripts/automation/trex_control_plane/'))
+sys.path.insert(0, os.path.join(root_path, '../../automation/trex_control_plane/'))
 
 # aliasing
 import common.trex_streams

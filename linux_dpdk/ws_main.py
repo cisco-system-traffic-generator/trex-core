@@ -831,7 +831,6 @@ files_list=[
             'bp-sim-64',
             'bp-sim-64-debug',
             't-rex-debug-gdb',
-            'mock-rpc-server-64-debug',
             'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
@@ -840,7 +839,7 @@ files_list=[
             'trex-console'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api']
 
 
 class Env(object):
