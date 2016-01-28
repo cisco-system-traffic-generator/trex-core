@@ -17,6 +17,13 @@ ERROR_CATEGORY = 'Error'
 def pad_tag(text, tag):
     return '<%s>%s</%s>' % (tag, text, tag)
 
+def add_color_string(text, color, is_bold = False):
+    string = '<font color=%s>%s</font>' % (color, text)
+    if is_bold:
+        return pad_tag(string, 'b')
+    return string
+
+
 def is_functional_test_name(testname):
     #if testname.startswith(('platform_', 'misc_methods_', 'vm_', 'payload_gen_', 'pkt_builder_')):
     #    return True
@@ -316,6 +323,17 @@ if __name__ == '__main__':
             test.attrib['classname'] = job
             aggregated_root.append(test)
 
+    total_tests_count   = int(aggregated_root.attrib.get('tests', 0))
+    error_tests_count   = int(aggregated_root.attrib.get('errors', 0))
+    failure_tests_count = int(aggregated_root.attrib.get('failures', 0))
+    skipped_tests_count = int(aggregated_root.attrib.get('skip', 0))
+    passed_tests_count  = total_tests_count - error_tests_count - failure_tests_count - skipped_tests_count
+    tests_count_string = 'Total: %s, ' % total_tests_count
+    tests_count_string += add_color_string('Passed: %s' % passed_tests_count, 'green', error_tests_count + failure_tests_count > 0) + ', '
+    tests_count_string += add_color_string('Error: %s' % error_tests_count, 'red', error_tests_count > 0) + ', '
+    tests_count_string += add_color_string('Failure: %s' % failure_tests_count, 'red', failure_tests_count > 0) + ', '
+    tests_count_string += add_color_string('Skipped: %s' % skipped_tests_count, 'blue')
+
 ##### save output xml
 
     print('Writing output file: %s' % args.output_xmlfile)
@@ -373,6 +391,7 @@ if __name__ == '__main__':
         total_time = int(time.time()) - start_time
         html_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
         html_output += add_th_td('Regression duration:', datetime.timedelta(seconds = total_time))
+    html_output += add_th_td('Tests count:', tests_count_string)
     for key in trex_info_dict:
         if key == 'Git SHA':
             continue
@@ -490,6 +509,7 @@ if __name__ == '__main__':
         total_time = int(time.time()) - start_time
         mail_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
         mail_output += add_th_td('Regression duration:', datetime.timedelta(seconds = total_time))
+    mail_output += add_th_td('Tests count:', tests_count_string)
     for key in trex_info_dict:
         if key == 'Git SHA':
             continue

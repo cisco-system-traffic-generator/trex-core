@@ -90,7 +90,12 @@ def id_count_gen():
         yield return_id
         return_id += 1
 
-
+# try to get integer from input, return None in case of fail
+def get_integer(input):
+    try:
+        return int(input)
+    except:
+        return None
 
 if __name__ == "__main__":
     pass
