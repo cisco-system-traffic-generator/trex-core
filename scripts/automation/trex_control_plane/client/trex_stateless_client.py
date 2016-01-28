@@ -511,26 +511,14 @@ class STLClient(object):
 
 
 
-    def __add_stream_pack(self, stream_pack, port_id_list = None):
+    def __remove_streams(self, stream_id_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].add_streams(stream_pack))
-
-        return rc
-
-
-
-    def __remove_stream(self, stream_id, port_id_list = None):
-        port_id_list = self.__ports(port_id_list)
-
-        rc = RC()
-
-        for port_id in port_id_list:
-            rc.add(self.ports[port_id].remove_stream(stream_id))
+            rc.add(self.ports[port_id].remove_streams(stream_id_list))
 
         return rc
 
@@ -703,9 +691,9 @@ class STLClient(object):
 
 
     # disconenct from server
-    def __disconnect(self):
+    def __disconnect(self, release_ports = True):
         # release any previous acquired ports
-        if self.is_connected():
+        if self.is_connected() and release_ports:
             self.__release(self.get_acquired_ports())
 
         self.comm_link.disconnect()
@@ -1017,11 +1005,12 @@ class STLClient(object):
         :parameters:
             stop_traffic : bool
                 tries to stop traffic before disconnecting
-                
+            release_ports : bool
+                tries to release all the acquired ports
 
     """
     @__api_check(False)
-    def disconnect (self, stop_traffic = True):
+    def disconnect (self, stop_traffic = True, release_ports = True):
 
         # try to stop ports but do nothing if not possible
         if stop_traffic:
@@ -1030,9 +1019,10 @@ class STLClient(object):
             except STLError:
                 pass
 
+
         self.logger.pre_cmd("Disconnecting from server at '{0}':'{1}'".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
-        rc = self.__disconnect()
+        rc = self.__disconnect(release_ports)
         self.logger.post_cmd(rc)
 
 
@@ -1077,6 +1067,34 @@ class STLClient(object):
             raise STLError(rc)
 
 
+    """
+        Release ports
+
+        :parameters:
+            ports : list
+                ports to execute the command
+
+        :raises:
+            + :exc:`STLError`
+
+    """
+    @__api_check(True)
+    def release (self, ports = None):
+        # by default use all acquired ports
+        if ports == None:
+            ports = self.get_acquired_ports()
+
+        # verify ports
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        self.logger.pre_cmd("Releasing ports {0}:".format(ports))
+        rc = self.__release(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
 
     """
         Pings the server
@@ -1173,6 +1191,9 @@ class STLClient(object):
             streams: list
                 streams to attach
 
+        :returns:
+            list of stream IDs in order of the stream list
+
         :raises:
             + :exc:`STLError`
 
@@ -1198,6 +1219,50 @@ class STLClient(object):
 
         self.logger.pre_cmd("Attaching {0} streams to port(s) {1}:".format(len(streams), ports))
         rc = self.__add_streams(streams, ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+        return [stream.get_id() for stream in streams]
+
+
+    """
+        remove a list of streams from ports
+
+        :parameters:
+            ports : list
+                ports to execute the command
+            stream_id_list: list
+                stream id list to remove
+
+
+        :raises:
+            + :exc:`STLError`
+
+    """
+    @__api_check(True)
+    def remove_streams (self, stream_id_list, ports = None):
+        # by default use all ports
+        if ports == None:
+            ports = self.get_acquired_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        # transform single stream
+        if not isinstance(stream_id_list, list):
+            stream_id_list = [stream_id_list]
+
+        # check streams
+        if not all([isinstance(stream_id, long) for stream_id in stream_id_list]):
+            raise STLArgumentError('stream_id_list', stream_id_list)
+
+        # remove streams
+        self.logger.pre_cmd("Removing {0} streams from port(s) {1}:".format(len(stream_id_list), ports))
+        rc = self.__remove_streams(stream_id_list, ports)
         self.logger.post_cmd(rc)
 
         if not rc:

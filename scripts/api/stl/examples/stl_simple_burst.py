@@ -37,7 +37,7 @@ def simple_burst ():
 
     try:
         
-        #c.logger.set_verbose(c.logger.VERBOSE_NORMAL)
+        #c.set_verbose("high")
 
         # create two bursts and link them
         s1 = STLStream(packet = pkt_bld,
@@ -56,7 +56,7 @@ def simple_burst ():
         c.reset(ports = [0, 1])
 
         # add both streams to ports
-        c.add_streams([s1, s2], ports = [0, 1])
+        stream_ids = c.add_streams([s1, s2], ports = [0, 1])
 
         # run 5 times
         for i in xrange(1, 6):
