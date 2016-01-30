@@ -9,6 +9,13 @@ else
     OS=unknown
 fi    
 
+MACHINE_TYPE=`uname -m`
+if [ ${MACHINE_TYPE} != 'x86_64' ]; then
+  echo "ERROR, only 64bit OS are supported, please reinstall x86 64 bit OS"
+  exit 1
+fi
+
+
 
 if [ -d /mnt/huge ]; then
   echo >> /dev/null
