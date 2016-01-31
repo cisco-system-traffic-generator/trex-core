@@ -389,7 +389,7 @@ if __name__ == '__main__':
         with open(start_time_file) as f:
             start_time = int(f.read())
         total_time = int(time.time()) - start_time
-        html_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
+        html_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M'))
         html_output += add_th_td('Regression duration:', datetime.timedelta(seconds = total_time))
     html_output += add_th_td('Tests count:', tests_count_string)
     for key in trex_info_dict:
@@ -507,7 +507,7 @@ if __name__ == '__main__':
         with open(start_time_file) as f:
             start_time = int(f.read())
         total_time = int(time.time()) - start_time
-        mail_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M:%S'))
+        mail_output += add_th_td('Regression start:', datetime.datetime.fromtimestamp(start_time).strftime('%d/%m/%Y %H:%M'))
         mail_output += add_th_td('Regression duration:', datetime.timedelta(seconds = total_time))
     mail_output += add_th_td('Tests count:', tests_count_string)
     for key in trex_info_dict:

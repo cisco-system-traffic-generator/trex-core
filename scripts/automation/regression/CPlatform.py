@@ -651,7 +651,7 @@ class CPlatform(object):
             response = self.cmd_link.run_single_command(command, timeout = 10)
             if CShowParser.parse_image_existence(response, img_name):
                 self.needed_image_path = '%s:%s' % (search_drive, img_name)
-                print 'Found image in platform:', self.needed_image_path
+                print('Found image in platform:', self.needed_image_path)
                 return True
         return False
 
@@ -707,8 +707,8 @@ class CPlatform(object):
                 progress_thread.start()
 
                 response = self.cmd_link.run_single_command(cache, timeout = 900, read_until = ['\?', '\#'])
-                print "RESPONSE:"
-                print response
+                print("RESPONSE:")
+                print(response)
                 progress_thread.join()
                 copy_ok = CShowParser.parse_file_copy(response)
 
@@ -865,7 +865,7 @@ class CStaticRouteConfig(object):
 
     def dump_config (self):
         import yaml
-        print yaml.dump( self.static_route_dict , default_flow_style=False)
+        print(yaml.dump( self.static_route_dict , default_flow_style=False))
 
 
 class CNatConfig(object):
@@ -901,7 +901,7 @@ class CNatConfig(object):
 
     def dump_config (self):
         import yaml
-        print yaml.dump( self.nat_dict , default_flow_style=False)
+        print(yaml.dump( self.nat_dict , default_flow_style=False))
 
 
 if __name__ == "__main__":

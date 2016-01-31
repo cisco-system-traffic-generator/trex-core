@@ -13,7 +13,7 @@ cleanup_session()
     maintain_lock
     port_list
     port_handle
-    
+
 traffic_config()
     mode                ( create | modify | remove | reset )
     port_handle
@@ -29,15 +29,16 @@ traffic_config()
     ip_dst_addr
     l3_length
     l4_protocol
-    
+
 traffic_control()
     action              ( run | stop )
     port_handle
-    
+
+traffic_stats()
+    mode                ( aggregate )
+    port_handle
+
 '''
-
-
-
 
 
 
@@ -45,18 +46,19 @@ import trex_root_path
 from client_utils.packet_builder import CTRexPktBuilder
 from trex_stateless_client import STLClient
 from common.trex_streams import *
-from client_utils.general_utils import id_count_gen, get_integer
+from client_utils.general_utils import get_integer
 import dpkt
 import socket
 from misc_methods import print_r
 import traceback
-from functools import partial
 
 class HLT_ERR(dict):
     def __init__(self, log = 'Unknown error', **kwargs):
         dict.__init__(self, {'status': 0})
         if type(log) is dict:
             dict.update(self, log)
+        elif type(log) is str and not log.startswith('[ERR]'):
+            self['log'] = '[ERR] ' + log
         else:
             self['log'] = log
         dict.update(self, kwargs)
@@ -74,15 +76,15 @@ class CTRexHltApi(object):
         self.trex_client = None
         self.connected = False
         self.verbose = verbose
-        # self._stream_db = CStreamList()
-        #self._port_data = {}
-        self._stream_id_gen = id_count_gen() # common to all ports
-        self._hlt_streams_history = {} # streams per stream_id in format of hlt arguments
+        self._hlt_streams_history = {} # streams per stream_id in format of HLT arguments for modify later
 
-    # ----- session functions ----- #
-    # device: ip or hostname, will take all available ports
-    # sync = RPC, async = ZMQ
-    def connect(self, device, port_list, username='', reset=False, break_locks=False, sync_port=4501, async_port=4500, virtual = False):
+
+###########################
+#    Session functions    #
+###########################
+
+    # device: ip or hostname
+    def connect(self, device, port_list, username='', reset=False, break_locks=False):
 
         try:
             device = socket.gethostbyname(device) # work with ip
@@ -90,18 +92,19 @@ class CTRexHltApi(object):
             try:
                 device = socket.gethostbyname(device)
             except Exception as e:
-                return HLT_ERR('[ERR] Could not translate hostname "%s" to IP: %s' % (device, e))
+                return HLT_ERR('Could not translate hostname "%s" to IP: %s' % (device, e))
 
         try:
-            self.trex_client = STLClient(username, device, sync_port, async_port, verbose_level = self.verbose)
+            # sync = RPC, async = ZMQ
+            self.trex_client = STLClient(username, device, sync_port = 4501, async_port = 4500, verbose_level = self.verbose)
         except Exception as e:
             self.trex_client = None
-            return HLT_ERR('[ERR] Could not init stateless client %s: %s' % (device, e))
+            return HLT_ERR('Could not init stateless client %s: %s' % (device, e))
         try:
             self.trex_client.connect()
         except Exception as e:
             self.trex_client = None
-            return HLT_ERR('[ERR] Could not connect to device %s: %s' % (device, e))
+            return HLT_ERR('Could not connect to device %s: %s' % (device, e))
 
         # connection successfully created with server, try acquiring ports of TRex
         try:
@@ -109,7 +112,7 @@ class CTRexHltApi(object):
             self.trex_client.acquire(ports = port_list, force = break_locks)
         except Exception as e:
             self.trex_client = None
-            return HLT_ERR('[ERR] Could not acquire ports %s: %s' % (port_list, e))
+            return HLT_ERR('Could not acquire ports %s: %s' % (port_list, e))
 
         # since only supporting single TRex at the moment, 1:1 map
         port_handle = self.trex_client.get_acquired_ports()
@@ -142,7 +145,7 @@ class CTRexHltApi(object):
             except Exception as e:
                 return HLT_ERR('Unable to release ports %s: %s' % (port_list, e))
         try:
-            self.trex_client.disconnect()
+            self.trex_client.disconnect(stop_traffic = False, release_ports = False)
         except Exception as e:
             return HLT_ERR('Error disconnecting: %s' % e)
         self.trex_client = None
@@ -154,15 +157,23 @@ class CTRexHltApi(object):
         if mode not in ALLOWED_MODES:
             return HLT_ERR('Mode must be one of the following values: %s' % ALLOWED_MODES)
         # pass this function for now...
-        return HLT_OK()
+        return HLT_ERR('interface_config not implemented yet')
 
-    # ----- traffic functions ----- #
-    def traffic_config(self, mode, port_handle, transmit_mode = 'continuous', rate_pps = 1, **kwargs):
+
+###########################
+#    Traffic functions    #
+###########################
+
+    def traffic_config(self, mode, port_handle, **kwargs):
         stream_id = kwargs.get('stream_id')
-        if type(stream_id) in (list, set):
+        if type(stream_id) is list:
+            del kwargs['stream_id']
             for each_stream_id in stream_id:
-                traffic_config(self, mode, port_handle, transmit_mode = 'continuous', rate_pps = 1, stream_id = each_stream_id, **kwargs):
-                
+                res = self.traffic_config(mode, port_handle, stream_id = each_stream_id, **kwargs)
+                if type(res) is HLT_ERR:
+                    return res
+            return HLT_OK()
+
         if type(port_handle) is not list:
             port_handle = [port_handle]
         ALLOWED_MODES = ['create', 'modify', 'remove', 'enable', 'disable', 'reset']
@@ -191,13 +202,13 @@ class CTRexHltApi(object):
                     return HLT_ERR('Could not remove streams with specified by %s, error: %s' % (stream_id, log))
             return HLT_OK()
 
-        if mode == 'enable':
-            stream_id = kwargs.get('stream_id')
-            if stream_id is None:
-                return HLT_ERR('Please specify stream_id to enable.')
-            if stream_id not in self._hlt_streams_history:
-                return HLT_ERR('This stream_id (%s) was not used before, please create new.' % stream_id)
-            self._hlt_streams_history[stream_id].update(kwargs) # <- the modification
+        #if mode == 'enable':
+        #    stream_id = kwargs.get('stream_id')
+        #    if stream_id is None:
+        #        return HLT_ERR('Please specify stream_id to enable.')
+        #    if stream_id not in self._hlt_streams_history:
+        #        return HLT_ERR('This stream_id (%s) was not used before, please create new.' % stream_id)
+        #    self._hlt_streams_history[stream_id].update(kwargs) # <- the modification
             
 
         if mode == 'modify': # we remove stream and create new one with same stream_id
@@ -208,13 +219,13 @@ class CTRexHltApi(object):
                 return HLT_ERR('This stream_id (%s) was not used before, please create new.' % stream_id)
             self._hlt_streams_history[stream_id].update(kwargs) # <- the modification
             kwargs = self._hlt_streams_history[stream_id]
-            for port_id in port_handle:
-                if stream_id not in self.trex_client.get_stream_id_list(port_id):
-                    return HLT_ERR('Port %s does not have stream_id %s.' % (port_id, stream_id))
+            #for port_id in port_handle:
+            #    if stream_id not in self.trex_client.get_stream_id_list(port_id):
+            #        return HLT_ERR('Port %s does not have stream_id %s.' % (port_id, stream_id))
             try:
-                self.trex_client.remove_stream(stream_id, port_handle)
+                self.trex_client.remove_streams(stream_id, port_handle)
             except Exception as e:
-                return HLT_ERR('Could not remove streams specified by %s, error: %s' % (stream_id, log))
+                return HLT_ERR('Could not remove streams specified by %s: %s' % (stream_id, e))
 
         if mode == 'create' or mode == 'modify':
             # create a new stream with desired attributes, starting by creating packet
@@ -227,8 +238,8 @@ class CTRexHltApi(object):
                 if mac_src not in kwargs or mac_dst not in kwargs:
                     return HLT_ERR(bidirect_err + 'mac_src and mac_dst should be specified')
                 try:
-                    res1 = self.traffic_config(mode, port_handle[0], transmit_mode, rate_pps, **kwargs)
-                    res2 = self.traffic_config(mode, port_handle[1], transmit_mode, rate_pps, mac_src = kwargs['mac_dst'], mac_dst = kwargs['mac_src'], **kwargs)
+                    res1 = self.traffic_config(mode, port_handle[0], **kwargs)
+                    res2 = self.traffic_config(mode, port_handle[1], mac_src = kwargs['mac_dst'], mac_dst = kwargs['mac_src'], **kwargs)
                 except Exception as e:
                     return HLT_ERR('Could not generate bidirectional traffic: %s' % e)
                 return HLT_OK(stream_id = [res1['stream_id'], res2['stream_id']])
@@ -237,7 +248,7 @@ class CTRexHltApi(object):
                 packet = CTRexHltApi._generate_stream(**kwargs)
             except Exception as e:
                 return HLT_ERR('Could not generate stream: %s' % e)
-                # set transmission attributes
+            # set transmission attributes
             #try:
             #    tx_mode = CTxMode(type = transmit_mode, pps = rate_pps, **kwargs)
             #except Exception as e:
@@ -245,19 +256,38 @@ class CTRexHltApi(object):
 
             try:
                 # set rx_stats
-                rx_stats = CRxStats()   # defaults with disabled
+                #rx_stats = CRxStats()   # defaults with disabled
+                rx_stats = None
             except Exception as e:
                 return HLT_ERR('Could not init CTxMode: %s' % e)
 
             try:
+                transmit_mode = kwargs.get('transmit_mode', 'continuous')
+                rate_pps = kwargs.get('rate_pps', 1)
+                pkts_per_burst = kwargs.get('pkts_per_burst', 1)
+                burst_loop_count = kwargs.get('burst_loop_count', 1)
+                inter_burst_gap = kwargs.get('inter_burst_gap', 12)
+                if transmit_mode == 'continuous':
+                    transmit_mode_class = STLTXCont(pps = rate_pps)
+                elif transmit_mode == 'single_burst':
+                    transmit_mode_class = STLTXSingleBurst(pps = rate_pps, total_pkts = pkts_per_burst)
+                elif transmit_mode == 'multi_burst':
+                    transmit_mode_class = STLTXMultiBurst(pps = rate_pps, total_pkts = pkts_per_burst, count = burst_loop_count, ibg = inter_burst_gap)
+                else:
+                    return HLT_ERR('transmit_mode %s not supported/implemented')
+            except Exception as e:
+                # some exception happened during the stream creation
+                return HLT_ERR('Could not create transmit_mode class %s: %s' % (transmit_mode, e))
+
+            try:
                 # join the generated data into stream
+                    
                 stream_obj = STLStream(packet = packet,
-                                       pps = rate_pps,
-                                       enabled = False,
-                                       self_start = True,
-                                       isg = 0.0,
+                                       #enabled = True,
+                                       #self_start = True,
+                                       mode = transmit_mode_class,
                                        rx_stats = rx_stats,
-                                       next_stream_id = -1
+                                       #next_stream_id = -1
                                        )
                 # using CStream
                 #stream_obj_params = {'enabled': False,
@@ -268,23 +298,21 @@ class CTRexHltApi(object):
                 #                     'rx_stats': rx_stats,
                 #                     'packet': packet}  # vm is excluded from this list since CTRexPktBuilder obj is passed
                 #stream_obj.load_data(**stream_obj_params)
+                #print stream_obj.get_id()
             except Exception as e:
                 # some exception happened during the stream creation
                 return HLT_ERR(e)
 
-            if stream_id is None:
-                stream_id = self._get_next_stream_id()
+            stream_id = stream_obj.get_id()
+            #print stream_obj
             # try adding the stream per ports
-            #print 'one'
-            #print stream_obj.dump()
-
             try:
-                self.trex_client.add_streams(streams=stream_obj.dump(),
+                self.trex_client.add_streams(streams=stream_obj,
                                              ports=port_handle)
                 self._hlt_streams_history[stream_id] = kwargs
             except Exception as e:
                 return HLT_ERR('Could not add stream to ports: %s' % e)
-            return HLT_OK(stream_id = stream_id)
+            return HLT_OK(stream_id = stream_obj.get_id())
 
         return HLT_ERR('Got to the end of traffic_config, mode not implemented or forgot "return" function somewhere.')
 
@@ -292,7 +320,7 @@ class CTRexHltApi(object):
         ALLOWED_ACTIONS = ['clear_stats', 'run', 'stop', 'sync_run']
         if action not in ALLOWED_ACTIONS:
             return HLT_ERR('Action must be one of the following values: {actions}'.format(actions=ALLOWED_ACTIONS))
-        if type(port_handle) is not list():
+        if type(port_handle) is not list:
             port_handle = [port_handle]
 
         if action == 'run':
@@ -300,15 +328,15 @@ class CTRexHltApi(object):
             try:
                 self.trex_client.start(duration = kwargs.get('duration', -1), ports = port_handle)
             except Exception as e:
-                return HLT_ERR('Could start traffic: %s' % e)
+                return HLT_ERR('Could not start traffic: %s' % e)
             return HLT_OK(stopped = 0)
 
         elif action == 'stop':
 
             try:
-                self.trex_client.stop_traffic(port_id_list=port_handle)
+                self.trex_client.stop(ports = port_handle)
             except Exception as e:
-                return HLT_ERR('Could start traffic: %s' % e)
+                return HLT_ERR('Could not start traffic: %s' % e)
             return HLT_OK(stopped = 1)
         else:
             return HLT_ERR("Action '{0}' is not supported yet on TRex".format(action))
@@ -317,68 +345,43 @@ class CTRexHltApi(object):
         return HLT_ERR("Probably action '%s' is not implemented" % action)
 
     def traffic_stats(self, port_handle, mode):
-        ALLOWED_MODES = ["aggregate", "streams", "all"]
+        ALLOWED_MODES = ['aggregate', 'streams', 'all']
         if mode not in ALLOWED_MODES:
-            raise ValueError("mode must be one of the following values: {modes}".format(modes=ALLOWED_MODES))
-        # pass this function for now...
-        if mode == "aggregate":
-            # create a new stream with desired attributes, starting by creating packet
+            return HLT_ERR("'mode' must be one of the following values: %s" % ALLOWED_MODES)
+        if mode == 'streams':
+            return HLT_ERR("'mode = streams' not implemented'")
+        if mode in ('all', 'aggregate'):
+            hlt_stats_dict = {}
             try:
-                packet = CTRexHltApi.generate_stream(l2_encap, mac_src, mac_dst,
-                                                     l3_protocol, ip_src_addr, ip_dst_addr, l3_length)
-                # set transmission attributes
-                tx_mode = CTxMode(transmit_mode, rate_pps, **kwargs)
-                # set rx_stats
-                rx_stats = CRxStats()   # defaults with disabled
-                # join the generated data into stream
-                stream_obj = CStream()
-                stream_obj_params = {'enabled': True,
-                                     'self_start': True,
-                                     'next_stream_id': -1,
-                                     'isg': 0.0,
-                                     'mode': tx_mode,
-                                     'rx_stats': rx_stats,
-                                     'packet': packet}  # vm is excluded from this list since CTRexPktBuilder obj is passed
-                stream_obj.load_data(**stream_obj_params)
+                stats = self.trex_client.get_stats(port_handle)
             except Exception as e:
-                # some exception happened during the stream creation
-                return {'status': 0, 'log': str(e)}
-            # try adding the stream, until free stream_id is found
-            #port_data = self._port_data.get(port_handle)
-            id_candidate = None
-            # TODO: change this to better implementation
-            while True:
-                 id_candidate = port_data['stream_id_gen'].next()
-                 response = self.trex_client.add_streams(stream_id=id_candidate,
-                                                         stream_obj=stream_obj,
-                                                         port_id=port_handle)
-                 res_ok, log = CTRexHltApi.process_response(port_handle, response)
-                 if res_ok:
-                     # found non-taken stream_id on server
-                     # save it for modifying needs
-                     port_data['streams'].update({id_candidate: stream_obj})
-                     break
-                 else:
-                     # proceed to another iteration to use another id
-                     continue
-            return {'status': 1,
-                    'stream_id': id_candidate,
-                    'log': None}
-        else:
-            raise NotImplementedError("mode '{0}' is not supported yet on TRex".format(mode))
+                return HLT_ERR('Could not retrieve stats: %s' % e)
+            for port_id, stat_dict in stats.iteritems():
+                if type(port_id) is int:
+                    hlt_stats_dict[port_id] = {
+                        'aggregate': {
+                            'tx': {
+                                'pkt_bit_rate': stat_dict.get('tx_bps'),
+                                'pkt_byte_count': stat_dict.get('obytes'),
+                                'pkt_count': stat_dict.get('opackets'),
+                                'pkt_rate': stat_dict.get('tx_pps'),
+                                'total_pkt_bytes': stat_dict.get('obytes'),
+                                'total_pkt_rate': stat_dict.get('tx_pps'),
+                                'total_pkts': stat_dict.get('opackets'),
+                                },
+                            'rx': {
+                                'pkt_bit_rate': stat_dict.get('rx_bps'),
+                                'pkt_byte_count': stat_dict.get('ibytes'),
+                                'pkt_count': stat_dict.get('ipackets'),
+                                'pkt_rate': stat_dict.get('rx_pps'),
+                                'total_pkt_bytes': stat_dict.get('ibytes'),
+                                'total_pkt_rate': stat_dict.get('rx_pps'),
+                                'total_pkts': stat_dict.get('ipackets'),
+                                }
+                            }
+                        }
+            return HLT_OK(hlt_stats_dict)
 
-    def get_aggregate_port_stats(self, port_handle):
-        return self.traffic_stats(port_handle, mode='aggregate')
-
-    def get_stream_stats(self, port_handle):
-        return self.traffic_stats(port_handle, mode="streams")
-
-    def get_port_streams(self, port_id):
-        return self.trex_client.ports[port_id].get_all_streams()
-
-    # ----- internal functions ----- #
-    def _get_next_stream_id(self):
-        return self._stream_id_gen.next()
 
     # remove streams from given port(s).
     # stream_id can be:
@@ -388,7 +391,7 @@ class CTRexHltApi(object):
     def _remove_stream(self, stream_id, port_handle):
         if get_integer(stream_id) is not None: # exact value of int or str
             self.trex_client.remove_stream(get_integer(stream_id), port_handle)    # actual remove
-        if type(stream_id) in (list, set): # list of values/strings
+        if type(stream_id) is list: # list of values/strings
             for each_stream_id in stream_id:
                 self._remove_stream(each_stream_id, port_handle)                   # recurse
             return
@@ -411,6 +414,11 @@ class CTRexHltApi(object):
                     self._remove_stream(each_stream_id, port_handle)               # recurse
                 return
         raise Exception('_remove_stream: wrong param %s' % stream_id)
+
+
+###########################
+#    Private functions    #
+###########################
 
     # obsolete
     @staticmethod
@@ -512,7 +520,9 @@ class CTRexHltApi(object):
             raise NotImplementedError("l4_protocol '{0}' is not supported by TRex yet.".format(l3_protocol))
 
         pkt_bld.set_pkt_payload('Hello, World' + '!'*58)
-        pkt_bld.dump_pkt_to_pcap('stream_test.pcap')
+
+        # debug
+        #pkt_bld.dump_pkt_to_pcap('stream_test.pcap')
         return pkt_bld
 
 

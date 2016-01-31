@@ -415,7 +415,8 @@ class STLStream(object):
                   self_start = True,
                   isg = 0.0,
                   rx_stats = None,
-                  next_stream_id = -1):
+                  next_stream_id = -1,
+                  stream_id = None):
 
         # type checking
         if not isinstance(mode, STLTXMode):
@@ -437,7 +438,7 @@ class STLStream(object):
             raise STLError("continuous stream cannot have a next stream ID")
 
         # use a random 31 bit for ID
-        self.stream_id = random.getrandbits(31)
+        self.stream_id = stream_id if stream_id is not None else random.getrandbits(31)
 
         self.fields = {}
 

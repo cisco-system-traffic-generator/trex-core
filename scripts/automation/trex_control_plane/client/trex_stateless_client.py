@@ -727,7 +727,7 @@ class STLClient(object):
         total = {}
         for port_id in port_id_list:
             port_stats = self.ports[port_id].get_stats()
-            stats["port {0}".format(port_id)] = port_stats
+            stats[port_id] = port_stats
 
             for k, v in port_stats.iteritems():
                 if not k in total:
