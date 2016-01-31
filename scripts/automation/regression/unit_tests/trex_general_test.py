@@ -54,6 +54,7 @@ class CTRexScenario():
     router_image     = None
     trex_version     = None
     scripts_path     = None
+    benchmark        = None
     report_dir       = 'reports'
     # logger         = None
 

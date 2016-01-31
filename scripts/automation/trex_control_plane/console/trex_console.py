@@ -320,6 +320,10 @@ class TRexConsole(TRexGeneralCmd):
     def help_history (self):
         self.do_history("-h")
 
+    def do_shell (self, line):
+        return self.do_history(line)
+
+
     def do_history (self, line):
         '''Manage the command history\n'''
 
@@ -346,7 +350,9 @@ class TRexConsole(TRexGeneralCmd):
             if cmd == None:
                 return
 
-            self.onecmd(cmd)
+            print "Executing '{0}'".format(cmd)
+
+            return self.onecmd(cmd)
 
 
 

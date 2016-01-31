@@ -90,11 +90,11 @@ def simple_burst ():
         # read the stats after the test
         stats = c.get_stats()
 
-        print json.dumps(stats["port 0"], indent = 4, separators=(',', ': '), sort_keys = True)
-        print json.dumps(stats["port 1"], indent = 4, separators=(',', ': '), sort_keys = True)
+        print json.dumps(stats[0], indent = 4, separators=(',', ': '), sort_keys = True)
+        print json.dumps(stats[1], indent = 4, separators=(',', ': '), sort_keys = True)
 
-        lost_a = stats["port 0"]["opackets"] - stats["port 1"]["ipackets"]
-        lost_b = stats["port 1"]["opackets"] - stats["port 0"]["ipackets"]
+        lost_a = stats[0]["opackets"] - stats[1]["ipackets"]
+        lost_b = stats[1]["opackets"] - stats[0]["ipackets"]
 
         print "\npackets lost from 0 --> 1:   {0} pkts".format(lost_a)
         print "packets lost from 1 --> 0:   {0} pkts".format(lost_b)

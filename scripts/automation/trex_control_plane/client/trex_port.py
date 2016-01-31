@@ -177,28 +177,42 @@ class Port(object):
 
 
     # remove stream from port
-    def remove_stream (self, stream_id):
+    def remove_streams (self, stream_id_list):
 
         if not self.is_acquired():
             return self.err("port is not owned")
 
-        if not stream_id in self.streams:
+        if not self.is_port_writable():
+            return self.err("Please stop port before attempting to remove streams")
+
+        # single element to list
+        stream_id_list = stream_id_list if isinstance(stream_id_list, list) else [stream_id_list]
+
+        # verify existance
+        if not all([stream_id in self.streams for stream_id in stream_id_list]):
             return self.err("stream {0} does not exists".format(stream_id))
 
-        params = {"handler": self.handler,
-                  "port_id": self.port_id,
-                  "stream_id": stream_id}
+        batch = []
+
+        for stream_id in stream_id_list:
+            params = {"handler": self.handler,
+                      "port_id": self.port_id,
+                      "stream_id": stream_id}
+
+            cmd = RpcCmdData('remove_stream', params)
+            batch.append(cmd)
+
+            del self.streams[stream_id]
 
 
-        rc = self.transmit("remove_stream", params)
-        if rc.bad():
+        rc = self.transmit_batch(batch)
+        if not rc:
             return self.err(rc.err())
-
-        self.streams[stream_id] = None
 
         self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
 
         return self.ok()
+
 
     # remove all the streams
     def remove_all_streams (self):
@@ -206,11 +220,14 @@ class Port(object):
         if not self.is_acquired():
             return self.err("port is not owned")
 
+        if not self.is_port_writable():
+            return self.err("Please stop port before attempting to remove streams")
+
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
         rc = self.transmit("remove_all_streams", params)
-        if rc.bad():
+        if not rc:
             return self.err(rc.err())
 
         self.streams = {}
@@ -231,7 +248,6 @@ class Port(object):
 
     # start traffic
     def start (self, mul, duration, force):
-
         if not self.is_acquired():
             return self.err("port is not owned")
 
