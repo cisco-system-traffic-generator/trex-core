@@ -13,7 +13,6 @@
   #cap_ipg    : true
   #cap_ipg_min    : 100
   #cap_override_ipg    : 200
-  one_app_server : true
   wlength    : 7
   mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
   cap_info : 
