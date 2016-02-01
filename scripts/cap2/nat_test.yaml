@@ -16,7 +16,6 @@
   #cap_ipg_min    : 30
   #cap_override_ipg    : 200
   wlength    : 107
-  one_app_server : false
   cap_info :
      - name: avl/delay_10_video_call_0.pcap
        cps : 30
