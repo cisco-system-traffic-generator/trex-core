@@ -2615,13 +2615,11 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
    }
 
    if (node.FindValue("one_app_server")) {
-       node["one_app_server"] >> flows_info.m_one_app_server;
-       flows_info.m_one_app_server_was_set=true;
-   }else{
-       flows_info.m_one_app_server =false;
-       flows_info.m_one_app_server_was_set=false;
+       printf("one_app_server should be configured per template. \n"
+              "Will ignore this configuration\n");
    }
-
+   flows_info.m_one_app_server =false;
+   flows_info.m_one_app_server_was_set=false;
 
    if (node.FindValue("vlan")) {
        node["vlan"] >> flows_info.m_vlan_info;
