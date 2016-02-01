@@ -181,6 +181,15 @@ public:
 
 
     /**
+     * return true if core has any pending messages from CP
+     * 
+     */
+    bool are_any_pending_cp_messages() {
+        return (!m_ring_from_cp->isEmpty());
+    }
+
+
+    /**
      * check for and handle messages from CP
      * 
      * @author imarom (27-Oct-15)

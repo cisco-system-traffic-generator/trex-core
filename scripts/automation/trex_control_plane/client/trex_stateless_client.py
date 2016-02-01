@@ -25,6 +25,7 @@ from trex_port import Port
 from common.trex_types import *
 from common.trex_stl_exceptions import *
 from trex_async_client import CTRexAsyncClient
+from yaml import YAMLError
 
 
 ############################     logger     #############################
@@ -435,9 +436,6 @@ class STLClient(object):
 
         self.stats_generator = trex_stats.CTRexInfoGenerator(self.global_stats,
                                                               self.ports)
-
-        # stream DB
-        self.streams_db = CStreamsDB()
 
  
  
@@ -1301,17 +1299,28 @@ class STLClient(object):
         if not rc:
             raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
-        # load the YAML
-        try:
-            streams_pack = self.streams_db.load_yaml_file(filename)
-        except Exception as e:
-            raise STLError(str(e))
 
-        # HACK - convert the stream pack to simple streams
-        streams = []
-        for stream in streams_pack.compiled:
-            s = HACKSTLStream(stream)
-            streams.append(s)
+        streams = None
+
+        # try YAML
+        try:
+            streams_db = CStreamsDB()
+            stream_list = streams_db.load_yaml_file(filename)
+
+            # convert to new style stream object
+            streams = [HACKSTLStream(stream) for stream in stream_list.compiled]
+        except YAMLError:
+            # try python
+            try:
+                basedir = os.path.dirname(filename)
+                sys.path.append(basedir)
+                file    = os.path.basename(filename).split('.')[0]
+                module = __import__(file, globals(), locals(), [], -1)
+
+                streams = module.register().get_streams()
+
+            except (AttributeError, ImportError):
+                raise STLError("bad format input file '{0}'".format(filename))
 
         self.add_streams(streams, ports)
 

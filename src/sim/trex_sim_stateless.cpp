@@ -422,6 +422,7 @@ SimStateless::run_dp_core(int core_index,
 
     lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview, get_limit_per_core(core_index));
     lpt->start_stateless_daemon_simulation();
+    lpt->stop_stateless_simulation_file();
 
     flush_dp_to_cp_messages_core(core_index);
 

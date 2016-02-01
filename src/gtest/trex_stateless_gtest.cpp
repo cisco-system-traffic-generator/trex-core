@@ -1432,7 +1432,7 @@ public:
         }
 
         lpt->start_stateless_daemon_simulation();
-
+        lpt->stop_stateless_simulation_file();
 
         //lpt->m_node_gen.DumpHist(stdout);
 
@@ -3054,6 +3054,8 @@ public:
         assert(compile.compile(0, streams, objs, dp_core_count));
 
         /* choose one DP object */
+        assert(objs[dp_core_to_check]);
+
         TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(0, 0, objs[dp_core_to_check], 1 /*sec */ );
         objs[dp_core_to_check] = NULL;
         /* free all the non used DP objects */
@@ -3089,7 +3091,8 @@ TEST_F(basic_stl, vm_split_flow_var_inc) {
     VmSplitTest split("exp/stl_vm_split_flow_var_inc.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
-    stream.set_pps(1000);
+    stream.set_single_burst(1000);
+    stream.set_pps(100000);
 
     split.set_stream(&stream);
     split.run(8, 4);
@@ -3101,7 +3104,8 @@ TEST_F(basic_stl, vm_split_flow_var_small_range) {
     VmSplitTest split("exp/stl_vm_split_flow_var_small_range.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
-    stream.set_pps(1000);
+    stream.set_single_burst(1000);
+    stream.set_pps(100000);
 
     split.set_stream(&stream);
     split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, 0, 1, 0);
@@ -3114,7 +3118,8 @@ TEST_F(basic_stl, vm_split_flow_var_big_range) {
     VmSplitTest split("exp/stl_vm_split_flow_var_big_range.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
-    stream.set_pps(1000);
+    stream.set_single_burst(1000);
+    stream.set_pps(100000);
 
     split.set_stream(&stream);
     split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC, 1, 1000, 1000);
@@ -3128,7 +3133,8 @@ TEST_F(basic_stl, vm_split_client_var) {
      VmSplitTest split("exp/stl_vm_split_client_var.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
-    stream.set_pps(1000);
+    stream.set_single_burst(1000);
+    stream.set_pps(100000);
 
     split.set_stream(&stream);
     split.set_client_var_as_split(0x10000001, 0x100000fe, 5000, 5050);

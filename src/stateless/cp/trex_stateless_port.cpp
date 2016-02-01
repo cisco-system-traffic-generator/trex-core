@@ -184,8 +184,15 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     int index = 0;
     for (auto core_id : m_cores_id_list) {
 
-        TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(m_port_id, event_id, compiled_objs[index], duration);
-        send_message_to_dp(core_id, start_msg);
+        /* was the core assigned a compiled object ? */
+        if (compiled_objs[index]) {
+            TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(m_port_id, event_id, compiled_objs[index], duration);
+            send_message_to_dp(core_id, start_msg);
+        } else {
+
+            /* mimic an end event */
+            m_dp_events.handle_event(TrexDpPortEvent::EVENT_STOP, core_id, event_id);
+        }
 
         index++;
     }

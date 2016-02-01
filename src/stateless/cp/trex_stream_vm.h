@@ -1196,7 +1196,7 @@ public:
     void copy_instructions(StreamVm &other) const;
 
     
-    bool is_vm_empty() {
+    bool is_vm_empty() const {
         return (m_inst_list.size() == 0);
     }
 

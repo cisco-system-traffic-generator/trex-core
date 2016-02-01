@@ -65,6 +65,10 @@ public:
 
     TrexStreamsCompiledObj* clone();
 
+    bool is_empty() {
+        return (m_objs.size() == 0);
+    }
+
 private:
     void add_compiled_stream(TrexStream *stream);
 
@@ -124,6 +128,19 @@ private:
                         uint8_t dp_core_count,
                         std::vector<TrexStreamsCompiledObj *> &objs,
                         GraphNodeMap &nodes);
+
+    void compile_stream_on_single_core(const TrexStream *stream,
+                                       double factor,
+                                       TrexStreamsCompiledObj *obj,
+                                       int new_id,
+                                       int new_next_id);
+
+    void compile_stream_on_all_cores(const TrexStream *stream,
+                                     double factor,
+                                     uint8_t dp_core_count,
+                                     std::vector<TrexStreamsCompiledObj *> &objs,
+                                     int new_id,
+                                     int new_next_id);
 
     std::vector<std::string> m_warnings;
 };

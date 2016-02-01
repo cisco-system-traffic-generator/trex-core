@@ -790,13 +790,18 @@ int CErfIF::write_pkt(CCapPktRaw *pkt_raw){
 
 int CErfIF::close_file(void){
 
-    BP_ASSERT(m_raw);
-    delete m_raw;
-    if ( m_preview_mode->getFileWrite() ){
-        BP_ASSERT(m_writer);
-        delete m_writer;
-        m_writer=0;
+    if (m_raw) {
+        delete m_raw;
+        m_raw = NULL;
     }
+
+    if ( m_preview_mode->getFileWrite() ){
+        if (m_writer) {
+            delete m_writer;
+            m_writer = NULL;
+        }
+    }
+
     return (0);
 }
 
@@ -4042,7 +4047,11 @@ void CFlowGenListPerThread::stop_stateless_simulation_file(){
 void CFlowGenListPerThread::start_stateless_daemon_simulation(){
 
     m_cur_time_sec = 0;
-    m_stateless_dp_info.run_once();
+
+    /* if no pending CP messages - the core will simply be stuck forever */
+    if (m_stateless_dp_info.are_any_pending_cp_messages()) {
+        m_stateless_dp_info.run_once();
+    }
 }
 
 
