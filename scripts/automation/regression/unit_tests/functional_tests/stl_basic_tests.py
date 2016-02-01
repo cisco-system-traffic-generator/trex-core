@@ -83,7 +83,10 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def run_sim (self, yaml, output, options = "", silent = False):
-        user_cmd = "{0} {1} {2}".format(yaml, output, options)
+        if output:
+            user_cmd = "{0} -o {1} {2}".format(yaml, output, options)
+        else:
+            user_cmd = "{0} {1}".format(yaml, options)
 
         cmd = "{0} {1} {2}".format(sys.executable,
                                    self.stl_sim,
@@ -100,13 +103,18 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def golden_run (self, testname,  profile, options, silent = False):
+
         output_cap = os.path.join("/tmp/", "{0}_test.cap".format(testname))
         golden_cap = os.path.join(self.test_path, "stl/golden/{0}_golden.cap".format(testname))
 
-        rc = self.run_sim(self.profiles[profile], output_cap, options, silent)
-        assert_equal(rc, True)
+        try:
+            rc = self.run_sim(self.profiles[profile], output_cap, options, silent)
+            assert_equal(rc, True)
 
-        self.compare_caps(output_cap, golden_cap)
+            self.compare_caps(output_cap, golden_cap)
+
+        finally:
+            os.unlink(output_cap)
 
                                   
 
@@ -129,7 +137,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         print "\n"
         for profile in self.valgrind_profiles:
             print "\n*** testing profile '{0}' ***\n".format(profile)
-            rc = self.run_sim(profile, output = "dummy.cap", options = "--dry --cores 8 --limit 500 --valgrind", silent = False)
+            rc = self.run_sim(profile, output = None, options = "--cores 8 --limit 500 --valgrind", silent = False)
             assert_equal(rc, True)
 
 

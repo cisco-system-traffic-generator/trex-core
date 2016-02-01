@@ -114,9 +114,9 @@ TrexStatelessPort::acquire(const std::string &user, uint32_t session_id, bool fo
     } else {
         /* not same user or session id and not force - report error */
         if (get_owner().get_name() == user) {
-            throw TrexRpcException("port is already owned by another session of '" + user + "'");
+            throw TrexException("port is already owned by another session of '" + user + "'");
         } else {
-            throw TrexRpcException("port is already taken by '" + get_owner().get_name() + "'");
+            throw TrexException("port is already taken by '" + get_owner().get_name() + "'");
         }
     }
 
@@ -163,7 +163,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
                                factor,
                                &fail_msg);
     if (!rc) {
-        throw TrexRpcException(fail_msg);
+        throw TrexException(fail_msg);
     }
 
     /* generate a message to all the relevant DP cores to start transmitting */
@@ -238,11 +238,11 @@ TrexStatelessPort::pause_traffic(void) {
     verify_state(PORT_STATE_TX);
 
     if (m_last_all_streams_continues == false) {
-        throw TrexRpcException(" pause is supported when all streams are in continues mode ");
+        throw TrexException(" pause is supported when all streams are in continues mode ");
     }
 
     if ( m_last_duration>0.0 ) {
-        throw TrexRpcException(" pause is supported when duration is not enable is start command ");
+        throw TrexException(" pause is supported when duration is not enable is start command ");
     }
 
     TrexStatelessCpToDpMsgBase *pause_msg = new TrexStatelessDpPause(m_port_id);
@@ -296,7 +296,7 @@ TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
     case TrexPortMultiplier::OP_SUB:
         factor = (m_factor - new_factor) / m_factor;
         if (factor <= 0) {
-            throw TrexRpcException("Update request will lower traffic to less than zero");
+            throw TrexException("Update request will lower traffic to less than zero");
         }
         break;
 
@@ -347,7 +347,7 @@ bool
 TrexStatelessPort::verify_state(int state, bool should_throw) const {
     if ( (state & m_port_state) == 0 ) {
         if (should_throw) {
-            throw TrexRpcException("command cannot be executed on current state: '" + get_state_as_string() + "'");
+            throw TrexException("command cannot be executed on current state: '" + get_state_as_string() + "'");
         } else {
             return false;
         }

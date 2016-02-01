@@ -524,8 +524,16 @@ class CPortStats(CTRexStats):
 
     def generate_stats(self):
 
+        state = self._port_obj.get_port_state_name() if self._port_obj else "" 
+        if state == "ACTIVE":
+            state = format_text(state, 'green', 'bold')
+        elif state == "PAUSE":
+            state = format_text(state, 'magenta', 'bold')
+        else:
+            state = format_text(state, 'bold')
+
         return {"owner": self._port_obj.user if self._port_obj else "",
-                "state": self._port_obj.get_port_state_name() if self._port_obj else "",
+                "state": "{0}".format(state),
 
                 "--": " ",
                 "---": " ",
