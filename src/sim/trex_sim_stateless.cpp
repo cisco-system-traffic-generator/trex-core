@@ -268,12 +268,16 @@ SimStateless::prepare_dataplane() {
 
 void
 SimStateless::execute_json(const std::string &json_filename) {
-
+    std::string rep;
     std::ifstream test(json_filename);
     std::stringstream buffer;
     buffer << test.rdbuf();
 
-    std::string rep = m_trex_stateless->get_rpc_server()->test_inject_request(buffer.str());
+    try {
+        rep = m_trex_stateless->get_rpc_server()->test_inject_request(buffer.str());
+    } catch (TrexRpcException &e) {
+        throw SimRunException(e.what());
+    }
 
     Json::Value root;
     Json::Reader reader;

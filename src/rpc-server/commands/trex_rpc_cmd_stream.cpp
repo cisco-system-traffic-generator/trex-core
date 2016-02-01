@@ -116,7 +116,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
     try {
         port->add_stream(stream);
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -350,7 +350,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
 
     try {
         port->remove_stream(stream);
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
     
@@ -374,7 +374,7 @@ TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result)
 
     try {
         port->remove_and_delete_all_streams();
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -493,7 +493,7 @@ TrexRpcCmdStopTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     try {
         port->stop_traffic();
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -550,7 +550,7 @@ TrexRpcCmdPauseTraffic::_run(const Json::Value &params, Json::Value &result) {
 
      try {
         port->pause_traffic();
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -571,7 +571,7 @@ TrexRpcCmdResumeTraffic::_run(const Json::Value &params, Json::Value &result) {
 
      try {
         port->resume_traffic();
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 

@@ -243,7 +243,7 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
 
     try {
         port->acquire(new_owner, session_id, force);
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -265,7 +265,7 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 
     try {
         port->release();
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -287,7 +287,7 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
 
     try {
         port->encode_stats(result["result"]);
-    } catch (const TrexRpcException &ex) {
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
