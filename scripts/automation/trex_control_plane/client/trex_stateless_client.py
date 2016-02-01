@@ -932,6 +932,8 @@ class STLClient(object):
         # by default use all ports
         if ports == None:
             ports = self.get_all_ports()
+        else:
+            ports = self.__ports(ports)
 
         # verify valid port id list
         rc = self._validate_port_list(ports)
@@ -1632,6 +1634,8 @@ class STLClient(object):
         # by default use all ports
         if ports == None:
             ports = self.get_all_ports()
+        else:
+            ports = self.__ports(ports)
 
         # verify valid port id list
         rc = self._validate_port_list(ports)
