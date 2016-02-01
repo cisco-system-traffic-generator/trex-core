@@ -4,7 +4,7 @@
 function find_python {
     # two candidates - machine python and cisco linux python
     MACHINE_PYTHON=python
-    CEL_PYTHON=/router/bin/python
+    CEL_PYTHON=/router/bin/python-2.7.4
 
     # try the machine python
     PYTHON=$MACHINE_PYTHON
