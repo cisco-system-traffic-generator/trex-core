@@ -77,11 +77,11 @@ static inline uint16_t calc_writable_mbuf_size(uint16_t max_offset_writable,
     }
 
     //pkt_size> 128
-    uint16_t non_writable = pkt_size - (max_offset_writable -1) ;
+    uint16_t non_writable = pkt_size - (max_offset_writable +1) ;
     if ( non_writable<64 ) {
         return (pkt_size);
     }
-    return(max_offset_writable-1);
+    return(max_offset_writable+1);
 }
 
 

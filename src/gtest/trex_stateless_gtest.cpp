@@ -148,11 +148,11 @@ TEST_F(basic_vm, pkt_size) {
     EXPECT_EQ(calc_writable_mbuf_size(45,65),65);
     EXPECT_EQ(calc_writable_mbuf_size(66,65),65);
     EXPECT_EQ(calc_writable_mbuf_size(62,128),128);
-    EXPECT_EQ(calc_writable_mbuf_size(62,252),61);
-    EXPECT_EQ(calc_writable_mbuf_size(121,252),120);
-    EXPECT_EQ(calc_writable_mbuf_size(253,252),252);
+    EXPECT_EQ(calc_writable_mbuf_size(62,252),63);
+    EXPECT_EQ(calc_writable_mbuf_size(121,252),122);
+    EXPECT_EQ(calc_writable_mbuf_size(253,252),254);
     EXPECT_EQ(calc_writable_mbuf_size(250,252),252);
-    EXPECT_EQ(calc_writable_mbuf_size(184,252),183);
+    EXPECT_EQ(calc_writable_mbuf_size(184,252),185);
 }
 
 
