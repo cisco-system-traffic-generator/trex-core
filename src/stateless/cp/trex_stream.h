@@ -165,6 +165,19 @@ public:
     }
 
 
+    /* can this stream be split ? */
+    bool is_splitable(uint8_t dp_core_count) const {
+
+        /* cont stream is always splitable */
+        if (m_type == stCONTINUOUS) {
+            return true;
+        }
+
+        int per_core_burst_total_pkts = (m_burst_total_pkts / dp_core_count);
+
+        return (per_core_burst_total_pkts > 0);
+
+    }
 
     void set_multi_burst(uint32_t   burst_total_pkts, 
                          uint32_t   num_bursts,

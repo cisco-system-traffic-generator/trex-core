@@ -25,7 +25,7 @@ except ImportError:
     import client.outer_packages
 
 from common.trex_stl_exceptions import STLError
-from yaml.scanner import ScannerError
+from yaml import YAMLError
 from common.trex_streams import *
 from client_utils import parsing_opts
 
@@ -103,7 +103,7 @@ class STLSim(object):
 
             # convert to new style stream object
             return [HACKSTLStream(stream) for stream in stream_list.compiled]
-        except ScannerError:
+        except YAMLError:
             pass
 
         # try python
@@ -111,12 +111,12 @@ class STLSim(object):
             basedir = os.path.dirname(input_file)
             sys.path.append(basedir)
 
-            file    = os.path.basename(input_file).split('.py')[0]
+            file    = os.path.basename(input_file).split('.')[0]
             module = __import__(file, globals(), locals(), [], -1)
 
             return module.register().get_streams()
 
-        except AttributeError:
+        except (AttributeError, ImportError):
             pass
 
         raise STLError("bad format input file '{0}'".format(input_file))

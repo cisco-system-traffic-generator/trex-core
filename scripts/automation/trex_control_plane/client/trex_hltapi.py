@@ -23,12 +23,33 @@ traffic_config()
     bidirectional
     l2_encap
     mac_src
+    mac_src2
     mac_dst
+    mac_dst2
     l3_protocol
+    ip_tos_field
+    l3_length
+    ip_id
+    ip_fragment_offset
+    ip_ttl
+    ip_checksum
     ip_src_addr
     ip_dst_addr
-    l3_length
     l4_protocol
+    tcp_src_port
+    tcp_dst_port
+    tcp_seq_num
+    tcp_ack_num
+    tcp_data_offset
+    tcp_fin_flag
+    tcp_syn_flag
+    tcp_rst_flag
+    tcp_psh_flag
+    tcp_ack_flag
+    tcp_urg_flag
+    tcp_window
+    tcp_checksum
+    tcp_urgent_ptr
 
 traffic_control()
     action              ( run | stop )
@@ -51,6 +72,7 @@ import dpkt
 import socket
 from misc_methods import print_r
 import traceback
+import time
 
 class HLT_ERR(dict):
     def __init__(self, log = 'Unknown error', **kwargs):
@@ -72,7 +94,7 @@ class HLT_OK(dict):
 
 class CTRexHltApi(object):
 
-    def __init__(self, verbose = 1):
+    def __init__(self, verbose = 0):
         self.trex_client = None
         self.connected = False
         self.verbose = verbose
@@ -84,7 +106,7 @@ class CTRexHltApi(object):
 ###########################
 
     # device: ip or hostname
-    def connect(self, device, port_list, username='', reset=False, break_locks=False):
+    def connect(self, device, port_list, username = '', reset = False, break_locks = False):
 
         try:
             device = socket.gethostbyname(device) # work with ip
@@ -235,76 +257,26 @@ class CTRexHltApi(object):
                 bidirect_err = 'When using bidirectional flag, '
                 if len(port_handle) != 2:
                     return HLT_ERR(bidirect_err + 'number of ports should be exactly 2')
-                if mac_src not in kwargs or mac_dst not in kwargs:
-                    return HLT_ERR(bidirect_err + 'mac_src and mac_dst should be specified')
                 try:
                     res1 = self.traffic_config(mode, port_handle[0], **kwargs)
-                    res2 = self.traffic_config(mode, port_handle[1], mac_src = kwargs['mac_dst'], mac_dst = kwargs['mac_src'], **kwargs)
+                    res2 = self.traffic_config(mode, port_handle[1],
+                            mac_src = kwargs.get(mac_src2, '00-00-01-00-00-01'),
+                            mac_dst = kwargs.get(mac_dst2, '00-00-00-00-00-00'),
+                            ip_src_addr = kwargs.get(ip_dst_addr, '192.0.0.1'),
+                            ip_dst_addr = kwargs.get(ip_src_addr, '0.0.0.0'),
+                            ipv6_src_addr = kwargs.get(ipv6_dst_addr, 'fe80:0:0:0:0:0:0:22'),
+                            ipv6_dst_addr = kwargs.get(ipv6_src_addr, 'fe80:0:0:0:0:0:0:12'),
+                            **kwargs)
                 except Exception as e:
                     return HLT_ERR('Could not generate bidirectional traffic: %s' % e)
-                return HLT_OK(stream_id = [res1['stream_id'], res2['stream_id']])
+                return HLT_OK(stream_id = {port_handle[0]: res1['stream_id'], port_handle[1]: res2['stream_id']})
 
             try:
-                packet = CTRexHltApi._generate_stream(**kwargs)
+                stream_obj = CTRexHltApi._generate_stream(**kwargs)
             except Exception as e:
-                return HLT_ERR('Could not generate stream: %s' % e)
-            # set transmission attributes
-            #try:
-            #    tx_mode = CTxMode(type = transmit_mode, pps = rate_pps, **kwargs)
-            #except Exception as e:
-            #    return HLT_ERR('Could not init CTxMode: %s' % e)
-
-            try:
-                # set rx_stats
-                #rx_stats = CRxStats()   # defaults with disabled
-                rx_stats = None
-            except Exception as e:
-                return HLT_ERR('Could not init CTxMode: %s' % e)
-
-            try:
-                transmit_mode = kwargs.get('transmit_mode', 'continuous')
-                rate_pps = kwargs.get('rate_pps', 1)
-                pkts_per_burst = kwargs.get('pkts_per_burst', 1)
-                burst_loop_count = kwargs.get('burst_loop_count', 1)
-                inter_burst_gap = kwargs.get('inter_burst_gap', 12)
-                if transmit_mode == 'continuous':
-                    transmit_mode_class = STLTXCont(pps = rate_pps)
-                elif transmit_mode == 'single_burst':
-                    transmit_mode_class = STLTXSingleBurst(pps = rate_pps, total_pkts = pkts_per_burst)
-                elif transmit_mode == 'multi_burst':
-                    transmit_mode_class = STLTXMultiBurst(pps = rate_pps, total_pkts = pkts_per_burst, count = burst_loop_count, ibg = inter_burst_gap)
-                else:
-                    return HLT_ERR('transmit_mode %s not supported/implemented')
-            except Exception as e:
-                # some exception happened during the stream creation
-                return HLT_ERR('Could not create transmit_mode class %s: %s' % (transmit_mode, e))
-
-            try:
-                # join the generated data into stream
-                    
-                stream_obj = STLStream(packet = packet,
-                                       #enabled = True,
-                                       #self_start = True,
-                                       mode = transmit_mode_class,
-                                       rx_stats = rx_stats,
-                                       #next_stream_id = -1
-                                       )
-                # using CStream
-                #stream_obj_params = {'enabled': False,
-                #                     'self_start': True,
-                #                     'next_stream_id': -1,
-                #                     'isg': 0.0,
-                #                     'mode': tx_mode,
-                #                     'rx_stats': rx_stats,
-                #                     'packet': packet}  # vm is excluded from this list since CTRexPktBuilder obj is passed
-                #stream_obj.load_data(**stream_obj_params)
-                #print stream_obj.get_id()
-            except Exception as e:
-                # some exception happened during the stream creation
-                return HLT_ERR(e)
-
+                return HLT_ERR('Could not create stream: %s' % e)
             stream_id = stream_obj.get_id()
-            #print stream_obj
+
             # try adding the stream per ports
             try:
                 self.trex_client.add_streams(streams=stream_obj,
@@ -446,21 +418,90 @@ class CTRexHltApi(object):
         return responses
 
     @staticmethod
-    def _generate_stream(l2_encap = 'ethernet_ii', mac_src = '00:00:01:00:00:01', mac_dst = '00:00:00:00:00:00',
-                         l3_protocol = 'ipv4', ip_src_addr = '0.0.0.0', ip_dst_addr = '192.0.0.1', l3_length = 110,
-                         l4_protocol = 'tcp',
-                         **kwards):
+    def _generate_stream(**kwargs):
+        try:
+            packet = CTRexHltApi._generate_packet(**kwargs)
+        except Exception as e:
+            raise Exception('Could not generate packet: %s' % e)
+
+        try:
+            transmit_mode = kwargs.get('transmit_mode', 'continuous')
+            rate_pps = kwargs.get('rate_pps', 1)
+            pkts_per_burst = kwargs.get('pkts_per_burst', 1)
+            burst_loop_count = kwargs.get('burst_loop_count', 1)
+            inter_burst_gap = kwargs.get('inter_burst_gap', 12)
+            if transmit_mode == 'continuous':
+                transmit_mode_class = STLTXCont(pps = rate_pps)
+            elif transmit_mode == 'single_burst':
+                transmit_mode_class = STLTXSingleBurst(pps = rate_pps, total_pkts = pkts_per_burst)
+            elif transmit_mode == 'multi_burst':
+                transmit_mode_class = STLTXMultiBurst(pps = rate_pps, total_pkts = pkts_per_burst, count = burst_loop_count, ibg = inter_burst_gap)
+            else:
+                raise Exception('transmit_mode %s not supported/implemented')
+        except Exception as e:
+            raise Exception('Could not create transmit_mode class %s: %s' % (transmit_mode, e))
+
+        try:
+            stream_obj = STLStream(packet = packet,
+                                   #enabled = True,
+                                   #self_start = True,
+                                   mode = transmit_mode_class,
+                                   #rx_stats = rx_stats,
+                                   #next_stream_id = -1
+                                   )
+        except Exception as e:
+            raise Exception('Could not create stream: %s' % e)
+
+        debug_filename = kwargs.get('save_to_yaml')
+        if type(debug_filename) is str:
+            stream_obj.dump_to_yaml(debug_filename, stream_obj)
+        return stream_obj
+
+    @staticmethod
+    def _generate_packet(
+                l2_encap = 'ethernet_ii',
+                mac_src = '00:00:01:00:00:01',
+                mac_dst = '00:00:00:00:00:00',
+
+                l3_protocol = 'ipv4',
+                ip_tos_field = 0,
+                l3_length = 110,
+                ip_id = 0,
+                ip_fragment_offset = 0,
+                ip_ttl = 64,
+                ip_checksum = 0,
+                ip_src_addr = '0.0.0.0',
+                ip_dst_addr = '192.0.0.1',
+                
+                l4_protocol = 'tcp',
+                tcp_src_port = 1024,
+                tcp_dst_port = 80,
+                tcp_seq_num = 1,
+                tcp_ack_num = 1,
+                tcp_data_offset = 1,
+                tcp_fin_flag = 0,
+                tcp_syn_flag = 0,
+                tcp_rst_flag = 0,
+                tcp_psh_flag = 0,
+                tcp_ack_flag = 0,
+                tcp_urg_flag = 0,
+                tcp_window = 4069,
+                tcp_checksum = 0,
+                tcp_urgent_ptr = 0,
+                **kwargs):
         ALLOWED_L3_PROTOCOL = {'ipv4': dpkt.ethernet.ETH_TYPE_IP,
-                               'ipv6': dpkt.ethernet.ETH_TYPE_IP6,
-                               'arp': dpkt.ethernet.ETH_TYPE_ARP}
+                               #'ipv6': dpkt.ethernet.ETH_TYPE_IP6,
+                               #'arp': dpkt.ethernet.ETH_TYPE_ARP
+                               }
         ALLOWED_L4_PROTOCOL = {'tcp': dpkt.ip.IP_PROTO_TCP,
-                               'udp': dpkt.ip.IP_PROTO_UDP,
-                               'icmp': dpkt.ip.IP_PROTO_ICMP,
-                               'icmpv6': dpkt.ip.IP_PROTO_ICMP6,
-                               'igmp': dpkt.ip.IP_PROTO_IGMP,
-                               'rtp': dpkt.ip.IP_PROTO_IRTP,
-                               'isis': dpkt.ip.IP_PROTO_ISIS,
-                               'ospf': dpkt.ip.IP_PROTO_OSPF}
+                               #'udp': dpkt.ip.IP_PROTO_UDP,
+                               #'icmp': dpkt.ip.IP_PROTO_ICMP,
+                               #'icmpv6': dpkt.ip.IP_PROTO_ICMP6,
+                               #'igmp': dpkt.ip.IP_PROTO_IGMP,
+                               #'rtp': dpkt.ip.IP_PROTO_IRTP,
+                               #'isis': dpkt.ip.IP_PROTO_ISIS,
+                               #'ospf': dpkt.ip.IP_PROTO_OSPF
+                               }
 
         pkt_bld = CTRexPktBuilder()
         if l2_encap == 'ethernet_ii':
@@ -491,9 +532,14 @@ class CTRexHltApi(object):
                     #('src', '4s', '\x00' * 4),
                     #('dst', '4s', '\x00' * 4)
             pkt_bld.add_pkt_layer('l3', dpkt.ip.IP())
+            pkt_bld.set_layer_attr('l3', 'tos', ip_tos_field)
+            pkt_bld.set_layer_attr('l3', 'len', l3_length)
+            pkt_bld.set_layer_attr('l3', 'id', ip_id)
+            pkt_bld.set_layer_attr('l3', 'off', ip_fragment_offset)
+            pkt_bld.set_layer_attr('l3', 'ttl', ip_ttl)
+            pkt_bld.set_layer_attr('l3', 'sum', ip_checksum)
             pkt_bld.set_ip_layer_addr('l3', 'src', ip_src_addr)
             pkt_bld.set_ip_layer_addr('l3', 'dst', ip_dst_addr)
-            pkt_bld.set_layer_attr('l3', 'len', l3_length)
         else:
             raise NotImplementedError("l3_protocol '{0}' is not supported by TRex yet.".format(l3_protocol))
 
@@ -514,15 +560,38 @@ class CTRexHltApi(object):
                     #('win', 'H', TCP_WIN_MAX),
                     #('sum', 'H', 0),
                     #('urp', 'H', 0)
-            #pkt_bld.set_ip_layer_addr('l4', 'sport', ip_src_addr)
-            #pkt_bld.set_ip_layer_addr('l4', 'dport', ip_dst_addr)
+            pkt_bld.set_layer_attr('l4', 'sport', tcp_src_port)
+            pkt_bld.set_layer_attr('l4', 'dport', tcp_dst_port)
+            pkt_bld.set_layer_attr('l4', 'seq', tcp_seq_num)
+            pkt_bld.set_layer_attr('l4', 'ack', tcp_ack_num)
+            pkt_bld.set_layer_attr('l4', 'off_x2', tcp_data_offset)
+                    #TH_FIN		= 0x01		# end of data
+                    #TH_SYN		= 0x02		# synchronize sequence numbers
+                    #TH_RST		= 0x04		# reset connection
+                    #TH_PUSH	= 0x08		# push
+                    #TH_ACK		= 0x10		# acknowledgment number set
+                    #TH_URG		= 0x20		# urgent pointer set
+                    #TH_ECE		= 0x40		# ECN echo, RFC 3168
+                    #TH_CWR		= 0x80		# congestion window reduced
+            tcp_flags = (tcp_fin_flag * dpkt.tcp.TH_FIN +
+                        tcp_syn_flag * dpkt.tcp.TH_SYN +
+                        tcp_rst_flag * dpkt.tcp.TH_RST +
+                        tcp_psh_flag * dpkt.tcp.TH_PUSH +
+                        tcp_ack_flag * dpkt.tcp.TH_ACK +
+                        tcp_urg_flag * dpkt.tcp.TH_URG)
+            pkt_bld.set_layer_attr('l4', 'flags', tcp_flags)
+            pkt_bld.set_layer_attr('l4', 'win', tcp_window)
+            pkt_bld.set_layer_attr('l4', 'sum', tcp_checksum)
+            pkt_bld.set_layer_attr('l4', 'urp', tcp_urgent_ptr)
         else:
             raise NotImplementedError("l4_protocol '{0}' is not supported by TRex yet.".format(l3_protocol))
 
         pkt_bld.set_pkt_payload('Hello, World' + '!'*58)
 
         # debug
-        #pkt_bld.dump_pkt_to_pcap('stream_test.pcap')
+        debug_filename = kwargs.get('save_to_pcap')
+        if type(debug_filename) is str:
+            pkt_bld.dump_pkt_to_pcap(debug_filename)
         return pkt_bld
 
 
