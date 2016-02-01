@@ -6,6 +6,7 @@ import socket
 import json
 import yaml
 import binascii
+import base64
 
 
 from scapy.all import *
@@ -576,9 +577,7 @@ class CScapyTRexPktBuilder(object):
 
         assert(self.pkt);
 
-        pkt_in_hex = binascii.hexlify(str(self.pkt))
-        return {"binary": [int(pkt_in_hex[i:i+2], 16)
-                           for i in range(0, len(pkt_in_hex), 2)],
+        return {"binary": base64.b64encode(str(self.pkt)),
                 "meta": self.metadata}
 
 
@@ -647,191 +646,5 @@ class CScapyTRexPktBuilder(object):
         pass;
 
 
-
-################################################################################################
-# tests 
-################################################################################################
-# what should I do 
-# 1. iterator on the headers 
-# 2. do I have one IP? 
-# 3. offset of the UDP/TCP?
-# offset of each field inside the packet ? 
-
-def test_vm1 ():
-    a=CTRexVmDescFlowVar(name="a",min_val=0,max_val=255,init_val=0,size=4,op="inc");
-    a.dump_as_yaml ()
-    a.dump_bjson()
-
-    a=CTRexVmDescFlowVar(name="a",min_val="10.0.0.1",max_val="10.0.0.10",init_val="10.0.0.1",size=4,op="inc");
-    a.dump_as_yaml ()
-    a.dump_bjson()
-
-    raw = CTRexScRaw()
-    raw.add_cmd( CTRexVmDescFlowVar(name="a",min_val=0,max_val=255,init_val=0,size=4,op="inc") )
-    raw.add_cmd( CTRexVmDescFixIpv4(offset = "IP") )
-    raw.add_cmd( CTRexVmDescWrFlowVar (fv_name="a",pkt_offset= "IP.src") )
-
-
-    raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="a",min_val="16.0.0.1",max_val="16.0.0.10",init_val="16.0.0.1",size=4,op="inc"),
-                          CTRexVmDescWrFlowVar (fv_name="a",pkt_offset= "IP.src"),
-                          CTRexVmDescFixIpv4(offset = "IP")]
-                      );
-
-    pkt_builder = CScapyTRexPktBuilder();
-
-    py='5'*128
-    pkt=Ether()/ \
-             IP(src="16.0.0.1",dst="48.0.0.1")/ \
-             UDP(dport=12,sport=1025)/IP()/py
-
-    # set packet 
-    pkt_builder.set_packet(pkt);
-    pkt_builder.add_command ( raw1 )
-    pkt_builder.compile();
-
-    pkt_builder.dump_scripts ()
-
-    print pkt_builder.dump_pkt()
-    print pkt_builder.get_vm_data()
-
-    print "hey"
-
-
-
-
-
-
-
-def test_udp ():
-    py='5'*128
-    p1=Ether()/ \
-             IP(src="16.0.0.1",dst="48.0.0.1")/ \
-             UDP(dport=12,sport=1025)/IP()/py
-
-    p1.build();
-    #print p1.haslayer("UDP.tos:1");
-
-    #pkt_utl=CTRexScapyPktUtl(p1);
-    #pkt_utl.has_layer("IP");
-
-    p_utl=CTRexScapyPktUtl(p1);
-    for p in p_utl.pkt_iter():
-        print p.name,":"
-
-    print p_utl.get_pkt_layers();
-
-    print p_utl.layer_offset("IP")
-    #print p_utl.layer_offset("IP",2)
-    t=p_utl.get_field_offet("IP",0,"src")
-    print t
-    t=p_utl.get_field_offet("IP",0,"dst")
-    print t
-    t=p_utl.get_field_offet_by_str("IP:0.src")
-    print t
-
-    t=p_utl.get_field_offet_by_str("IP.src")
-    print t
-
-
-
-
-
-
-    #p1.dump_layers_offset()
-    #p1.show2();
-    #hexdump(p1);
-
-    #wrpcap("ipv4.pcap", p1);
-
-
-def test5 ():
-    # build packet
-    pass;
-
-
-def test4 ():
-    print "test4"
-    a = CScapyTRexPktBuilder()
-    a.add_command ( CTRexScIpv4TupleGen("16.0.0.1","16.0.0.5",flags=CTRexScIpv4TupleGen.FLAGS_ULIMIT_FLOWS))
-    a.dump_scripts ()
-    a.compile()
-
-
-def convert_to_hex (buffer):
-    for i in buffer:
-         print hex(ord(i))
-
-
-def test3 ():
-
-    vm=CTRexVmEngine()
-    vm.add_ins(CTRexVmInsFixIpv4(12))
-    vm.add_ins(CTRexVmInsFixIpv4(15))
-    #vm.dump();
-    vm.dump_bjson ()
-    vm.dump_as_yaml ()
-
-
-
-def test2 ():
-   vm_ins= CTRexVmInsTupleGen("a",0x12000001,0x12000007,1025,1027,limit_flows=10000)
-   print vm_ins.__dict__
-
-
-
-def test1 ():
-    a  = CTRexScFieldRangeValue("ip.src","inc",12,14)
-    print a.__dict__
-    b  = CTRexScIpv4SimpleRange("ip.src","inc","16.0.0.1","16.0.0.254")
-    print b.__dict__
-    c= CTRexScIpv4TupleGen("16.0.0.1","16.0.0.5");
-    print c.__dict__
-
-    d= CTRexScIpv4TupleGen("16.0.0.1","16.0.0.5",flags=CTRexScIpv4TupleGen.FLAGS_ULIMIT_FLOWS);
-    print d.__dict__
-
-    e= CTRexScTrimPacketSize();
-    print e.__dict__
-
-    e1= CTRexScTrimPacketSize(min_pkt_size=120, max_pkt_size=130);
-    print e1.__dict__
-
-
-
-
-def main ():
-    test_vm1 ();
-    return 
-    test_udp ()
-    return 
-
-    test4 ();
-    return 
-
-    test3 ();
-    return 
-    test2 ();
-    return 
-    test1 ();
-    return
-    #a=CTRexScIpv4SimpleRange("16.0.0.1","16.0.0.16");
-    #s=is_valid_ipv4("16.0.0.1");
-    #s=is_valid_ipv4("\x16\x01\x01\x01");
-    #s=is_valid_ipv4(0x16000101);
-    print ipv4_str_to_num("\x10\x01\x01\x01")
-    return 
-
-    print ipv4_str_to_num (s)
-
-
-    print s
-    print type(s);
-    len(s);
-    for i in s:
-         print hex(ord(i))
-
-
-
-main();
 
 
