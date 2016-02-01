@@ -5,70 +5,101 @@ from client.trex_hltapi import CTRexHltApi
 import traceback
 import sys, time
 from pprint import pprint
+import argparse
 
-def check_response(res):
+def check_res(res):
     if res['status'] == 0:
-        print 'Encountered error:\n%s' % res['log']
+        print('Encountered error:\n%s' % res['log'])
         sys.exit(1)
+    return res
+
+def save_streams_id(res, streams_id_arr):
+    stream_id = res.get('stream_id')
+    if type(stream_id) in (int, long):
+        streams_id_arr.append(stream_id)
+    elif type(stream_id) is list:
+        streams_id_arr.extend(stream_id)
+
+def print_brief_stats(res):
+    title_str = ' '*3
+    tx_str = 'TX:'
+    rx_str = 'RX:'
+    for port_id, stat in res.iteritems():
+        if type(port_id) is not int:
+            continue
+        title_str += ' '*10 + 'Port%s' % port_id
+        tx_str    += '%15s' % res[port_id]['aggregate']['tx']['total_pkts']
+        rx_str    += '%15s' % res[port_id]['aggregate']['rx']['total_pkts']
+    print(title_str)
+    print(tx_str)
+    print(rx_str)
+
+def wait_with_progress(seconds):
+    for i in range(0, seconds):
+        time.sleep(1)
+        sys.stdout.write('.')
+        sys.stdout.flush()
+    print('')
 
 if __name__ == "__main__":
     try:
-        is_verbose = 2 if '--verbose' in sys.argv else 1
-        hlt_client = CTRexHltApi(verbose = is_verbose)
+        parser = argparse.ArgumentParser(description='Example of using stateless TRex via HLT API.', formatter_class=argparse.RawTextHelpFormatter)
+        parser.add_argument('-v', dest = 'verbose', default = 0, help='Stateless API verbosity:\n0: No prints\n1: Commands and their status\n2: Same as 1 + ZMQ in&out')
+        parser.add_argument('--device', dest = 'device', default = 'localhost', help='Address of TRex server')
+        args = parser.parse_args()
+        hlt_client = CTRexHltApi(verbose = int(args.verbose))
+        streams_id_arr = []
        
-        print 'Connecting...'
-        res = hlt_client.connect(device = 'csi-trex-04', port_list = [0], username = 'danklei', break_locks = True, reset = True)
-        check_response(res)
+        print('Connecting to %s...' % args.device)
+        res = check_res(hlt_client.connect(device = args.device, port_list = [0, 1], username = 'danklei', break_locks = True, reset = True))
         port_handle = res['port_handle']
-        print 'Connected.'
+        print('Connected.')
 
-        res = hlt_client.traffic_config('reset', port_handle = port_handle[:], ip_src_addr='1.1.1.1')
-        print res
-        check_response(res)
+        print('Create single_burst 100 packets rate_pps=100 on port 0')
+        res = check_res(hlt_client.traffic_config('create', port_handle = port_handle[0], transmit_mode = 'single_burst', pkts_per_burst = 100, rate_pps = 100))
+        save_streams_id(res, streams_id_arr)
 
-        res = hlt_client.traffic_config('create', port_handle = port_handle[:], ip_src_addr='1.1.1.1')
-        print res
-        check_response(res)
+        print('Create continuous stream for port 1, rate_pps = 1')
+        res = check_res(hlt_client.traffic_config('create', port_handle = port_handle[1]))
+        save_streams_id(res, streams_id_arr)
+        
+        print('Run traffic on both ports for 20s')
+        check_res(hlt_client.traffic_control(action = 'run', port_handle = port_handle, mul = {'type': 'raw', 'op': 'abs', 'value': 1}, duration = 20))
+        wait_with_progress(5)
 
+        print('All available HLT stats after 5s')
+        res = check_res(hlt_client.traffic_stats(mode = 'all', port_handle = port_handle))
+        pprint(res)
 
-        res = hlt_client.traffic_config('create', port_handle = port_handle[0], ip_src_addr='2.2.2.2')
-        check_response(res)
+        # delete the single_burst
+        print('Port 0 has finished the burst, delete it and put continuous with rate 1000. No stopping of other ports.')
+        check_res(hlt_client.traffic_config('reset', port_handle = port_handle[0]))
+        res = check_res(hlt_client.traffic_config('create', port_handle = port_handle[0], rate_pps = 1000))
+        save_streams_id(res, streams_id_arr)
+        check_res(hlt_client.traffic_control(action = 'run', port_handle = port_handle[0], mul = {'type': 'raw', 'op': 'abs', 'value': 1}, duration = 15))
+        wait_with_progress(5)
+        print('Sample after another %s seconds (only packets count)' % 5)
+        res = check_res(hlt_client.traffic_stats(mode = 'aggregate', port_handle = port_handle))
+        print_brief_stats(res)
 
+        #print('Stop the traffic on port 1')
+        #res = check_res(hlt_client.traffic_control('stop', port_handle = port_handle[1]))
+        #wait_with_progress(sample_duration)
+        #print('Sample after another %s seconds (only packets count)' % sample_duration)
+        #res = check_res(hlt_client.traffic_stats(mode = 'all', port_handle = port_handle))
+        #print_brief_stats(res)
 
-        res = hlt_client.get_stats()
-        res = hlt_client.traffic_config('modify', port_handle = port_handle[0], stream_id = 1, ip_src_addr='6.6.6.6')
-        check_response(res)
-        #for stream_id, stream_data in hlt_client.get_port_streams(0).iteritems():
-        #    print '>>>>>>>>> %s: %s' % (stream_id, stream_data)
+        print('Stop traffic at port 1')
+        res = check_res(hlt_client.traffic_control('stop', port_handle = port_handle[1]))
+        wait_with_progress(5)
+        print('Sample after another %s seconds (only packets count)' % 5)
+        res = check_res(hlt_client.traffic_stats(mode = 'aggregate', port_handle = port_handle))
+        print_brief_stats(res)
 
-
-        check_response(hlt_client.traffic_config('create', port_handle = port_handle[1], ip_src_addr='3.3.3.3'))
-        check_response(hlt_client.traffic_config('create', port_handle = port_handle[1], ip_src_addr='4.4.4.4'))
-        print '2'
-        check_response(htl_client.traffic_config('create', port_handle = port_handle[:], stream_id = 999, ip_src_addr='5.5.5.5'))
-        check_response(hlt_client.traffic_config('modify', port_handle = port_handle[0], stream_id = 1, ip_src_addr='6.6.6.6'))
-        print '3'
-        check_response(hlt_client.traffic_config('modify', port_handle = port_handle[1], stream_id = 1))
-
-#        res = hlt_client.traffic_config('create', port_handle = port_handle[1])#, ip_src_addr='2000.2.2')
-#        if res['status'] == 0:
-#            fail(res['log'])
-
-        print 'got to running!'
-        check_response(hlt_client.traffic_control('run', port_handle = port_handle[1], mul = {'type': 'raw', 'op': 'abs', 'value': 10}, duration = 15))
-        for i in range(0, 15):
-            print '.',
-            time.sleep(1)
-
-        print 'stop the traffic!'
-        check_response(hlt_client.traffic_control('stop', port_handle = port_handle[1]))
-
-
+        check_res(hlt_client.cleanup_session())
     except Exception as e:
-        print traceback.print_exc()
-        print e
+        print(traceback.print_exc())
+        print(e)
         raise
     finally:
-        print 'Done.'
-        #if hlt_client.trex_client:
-        #    res = hlt_client.teardown()
+        print('Done.')
