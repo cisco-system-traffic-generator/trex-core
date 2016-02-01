@@ -10,7 +10,8 @@ PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pard
 
 CLIENT_UTILS_MODULES = ['dpkt-1.8.6',
                         'yaml-3.11',
-                        'texttable-0.8.4'
+                        'texttable-0.8.4',
+                        'scapy-2.3.1'
                         ]
 
 def import_client_utils_modules():
