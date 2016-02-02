@@ -560,7 +560,7 @@ class CScapyTRexPktBuilder(object):
             + :exc:`AssertionError`, in case VM is not compiled (is None).
         """
 
-        assert self.vm_low_level is None, 'vm_low_level is None, please use compile()'
+        assert self.vm_low_level is not None, 'vm_low_level is None, please use compile()'
 
         return self.vm_low_level.get_json() 
 
