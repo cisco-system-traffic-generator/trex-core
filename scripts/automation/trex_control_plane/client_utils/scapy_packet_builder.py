@@ -97,7 +97,7 @@ class CTRexScFieldRangeValue(CTRexScFieldRangeBase):
         if min_value > max_value:
             raise CTRexPacketBuildException(-12, 'min is greater than max');
         if min_value == max_value:
-            raise CTRexPacketBuildException(-13, 'min value is equal to max value, you can't use this type of range');
+            raise CTRexPacketBuildException(-13, "min value is equal to max value, you can't use this type of range");
 
 
 class CTRexScIpv4SimpleRange(CTRexScFieldRangeBase):
