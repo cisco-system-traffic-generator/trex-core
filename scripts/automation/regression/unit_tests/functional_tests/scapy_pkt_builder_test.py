@@ -105,7 +105,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_scapy_9k_ip_len(self):
         """
-        build 128 byte packet with 0x35 as pyld
+        build 9k ipv4 len packet
         """
 
 
@@ -120,6 +120,24 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         #pkt.show2();
         #hexdump(pkt);
         assert_equal(len(pkt),9*1024+14)
+
+    def test_simple_scapy_ipv6_1(self):
+        """
+        build ipv6 packet 
+        """
+
+        print "start "
+        py='\x55'*(64)
+
+        p=Ether()/IPv6()/UDP(dport=12,sport=1025)/py
+        #p.build();
+        #p.dump_layers_offset()
+        hexdump(p);
+        p.show2();
+
+        p_utl=CTRexScapyPktUtl(p);
+
+        assert_equal(p_utl.get_field_offet_by_str("IPv6.src"),(38,16));
 
 
 

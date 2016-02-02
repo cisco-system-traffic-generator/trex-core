@@ -357,7 +357,7 @@ class IPv6(_IPv6GuessPayload, Packet, IPTools):
                     ByteField("hlim", 64),
                     IP6Field("dst", "::2"),
                     #SourceIP6Field("src", "dst"), # dst is for src @ selection
-                    IP6Field("dst", "::1") ]
+                    IP6Field("src", "::1") ]
 
     def route(self):
         dst = self.dst
