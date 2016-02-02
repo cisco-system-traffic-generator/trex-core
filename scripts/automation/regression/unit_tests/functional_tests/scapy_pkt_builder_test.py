@@ -85,6 +85,26 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         assert_equal(p_utl.get_field_offet_by_str("802|1Q:1.vlan"),(18,0));
         assert_equal(p_utl.get_field_offet_by_str("IP.src"),(34,4));
 
+    def test_simple_scapy_128_udp(self):
+        """
+        build 128 byte packet with 0x35 as pyld
+        """
+
+
+        pkt_size =128 
+        p1=Ether(src="00:00:00:01:00:00",dst="00:00:00:01:00:00")/ \
+                 IP(src="16.0.0.1",dst="48.0.0.1")/ \
+                 UDP(dport=12,sport=1025)
+        pyld_size=pkt_size-len(p1);
+
+        pkt=p1/('5'*(pyld_size))
+
+        pkt.show2();
+        hexdump(pkt);
+        assert_equal(len(pkt),128)
+
+
+
     def tearDown(self):
         pass
 
