@@ -103,6 +103,24 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         hexdump(pkt);
         assert_equal(len(pkt),128)
 
+    def test_simple_scapy_9k_ip_len(self):
+        """
+        build 128 byte packet with 0x35 as pyld
+        """
+
+
+        ip_pkt_size =9*1024
+        p_l2=Ether(src="00:00:00:01:00:00",dst="00:00:00:01:00:00");
+        p_l3=    IP(src="16.0.0.1",dst="48.0.0.1")/ \
+                 UDP(dport=12,sport=1025)
+        pyld_size = ip_pkt_size-len(p_l3);
+
+        pkt=p_l2/p_l3/('\x55'*(pyld_size))
+
+        #pkt.show2();
+        #hexdump(pkt);
+        assert_equal(len(pkt),9*1024+14)
+
 
 
     def tearDown(self):
