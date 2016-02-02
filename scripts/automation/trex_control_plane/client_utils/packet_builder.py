@@ -32,7 +32,6 @@ class CTRexPktBuilder(object):
         self._pkt_by_hdr = {}
         self._pkt_top_layer = None
         self._max_pkt_size = max_pkt_size
-        self.payload_gen = CTRexPktBuilder.CTRexPayloadGen(self._packet, self._max_pkt_size)
         self.vm = CTRexPktBuilder.CTRexVM()
         self.metadata = ""
 
@@ -481,12 +480,15 @@ class CTRexPktBuilder(object):
     def get_vm_data(self):
         return self.vm.dump()
 
-    def dump_pkt(self):
+    def dump_pkt(self, encode = True):
         """
         Dumps the packet as a decimal array of bytes (each item x gets value between 0-255)
 
         :parameters:
-            None
+            encode : bool
+                Encode using base64. (disable for debug)
+
+                Default: **True**
 
         :return:
             + packet representation as array of bytes
@@ -498,7 +500,10 @@ class CTRexPktBuilder(object):
         if self._packet is None:
             raise CTRexPktBuilder.EmptyPacketError()
 
-        return {"binary": base64.b64encode(str(self._packet)),
+        if encode:
+            return {"binary": base64.b64encode(str(self._packet)),
+                    "meta": self.metadata}
+        return {"binary": str(self._packet),
                 "meta": self.metadata}
 
 
@@ -628,6 +633,10 @@ class CTRexPktBuilder(object):
                                                                "given packet layer ('{1}')".format(field_name,
                                                                                                    layer_name))
         return
+
+    @property
+    def payload_gen(self):
+        return CTRexPktBuilder.CTRexPayloadGen(self._packet, self._max_pkt_size)
 
     @staticmethod
     def _decode_mac_addr(mac_addr):

@@ -31,9 +31,9 @@ class CTRexPacketBuildException(Exception):
 
 def ipv4_str_to_num (ipv4_buffer):
 
-    assert(type(ipv4_buffer)==str);
-    assert(len(ipv4_buffer)==4);
-    res=0;
+    assert type(ipv4_buffer)==str, 'type of ipv4_buffer is not str'
+    assert len(ipv4_buffer)==4, 'size of ipv4_buffer is not 4'
+    res=0
     shift=24
     for i in ipv4_buffer:
        res = res + (ord(i)<<shift);
@@ -70,7 +70,7 @@ class CTRexScriptsBase(object):
 
 class CTRexScFieldRangeBase(CTRexScriptsBase):
 
-    FILED_TYPES = ["inc","dec","rand"]  
+    FILED_TYPES = ['inc', 'dec', 'rand']
 
     def __init__(self, field_name,
                        field_type
@@ -79,7 +79,7 @@ class CTRexScFieldRangeBase(CTRexScriptsBase):
         self.field_name =field_name
         self.field_type =field_type
         if not self.field_type in CTRexScFieldRangeBase.FILED_TYPES :
-            raise CTRexPacketBuildException(-12,"field type should be in [inc,dec,rand] ");
+            raise CTRexPacketBuildException(-12, 'field type should be in %s' % FILED_TYPES);
 
 
 class CTRexScFieldRangeValue(CTRexScFieldRangeBase):
@@ -88,30 +88,30 @@ class CTRexScFieldRangeValue(CTRexScFieldRangeBase):
     """
     def __init__(self, field_name, 
                        field_type,
-                       min_val,
-                       max_val
+                       min_value,
+                       max_value
                            ):
         super(CTRexScFieldRangeValue, self).__init__(field_name,field_type)
-        self.min_val =min_val;
-        self.max_val =max_val;
-        if min_val > max_val:
-            raise CTRexPacketBuildException(-12,"min is greater than max ");
-        if min_val == max_val:
-            raise CTRexPacketBuildException(-13,"min value is equal to max value, you can't use this type of range ");
+        self.min_value =min_value;
+        self.max_value =max_value;
+        if min_value > max_value:
+            raise CTRexPacketBuildException(-12, 'min is greater than max');
+        if min_value == max_value:
+            raise CTRexPacketBuildException(-13, 'min value is equal to max value, you can't use this type of range');
 
 
 class CTRexScIpv4SimpleRange(CTRexScFieldRangeBase):
     """
     range of ipv4 ip
     """
-    def __init__(self, field_name,field_type,min_ip, max_ip):
+    def __init__(self, field_name, field_type, min_ip, max_ip):
         super(CTRexScIpv4SimpleRange, self).__init__(field_name,field_type)
         self.min_ip = min_ip
         self.max_ip = max_ip
         mmin=ipv4_str_to_num (is_valid_ipv4(min_ip))
         mmax=ipv4_str_to_num (is_valid_ipv4(max_ip))
         if  mmin > mmax :
-            raise CTRexPacketBuildException(-11,"CTRexScIpv4SimpleRange m_min ip is bigger than max ");
+            raise CTRexPacketBuildException(-11, 'CTRexScIpv4SimpleRange m_min ip is bigger than max');
 
 
 class CTRexScIpv4TupleGen(CTRexScriptsBase):
@@ -120,14 +120,14 @@ class CTRexScIpv4TupleGen(CTRexScriptsBase):
     """
     FLAGS_ULIMIT_FLOWS =1
 
-    def __init__(self, min_ipv4, max_ipv4,num_flows=100000,min_port=1025,max_port=65535,flags=0):
+    def __init__(self, min_ipv4, max_ipv4, num_flows=100000, min_port=1025, max_port=65535, flags=0):
         super(CTRexScIpv4TupleGen, self).__init__()
         self.min_ip = min_ipv4
         self.max_ip = max_ipv4
         mmin=ipv4_str_to_num (is_valid_ipv4(min_ipv4))
         mmax=ipv4_str_to_num (is_valid_ipv4(max_ipv4))
         if  mmin > mmax :
-            raise CTRexPacketBuildException(-11,"CTRexScIpv4SimpleRange m_min ip is bigger than max ");
+            raise CTRexPacketBuildException(-11, 'CTRexScIpv4SimpleRange m_min ip is bigger than max');
 
         self.num_flows=num_flows;
 
@@ -147,10 +147,10 @@ class CTRexScTrimPacketSize(CTRexScriptsBase):
         self.max_pkt_size = max_pkt_size
         if max_pkt_size != None and min_pkt_size !=None :
             if min_pkt_size == max_pkt_size:
-                raise CTRexPacketBuildException(-11,"CTRexScTrimPacketSize min_pkt_size is the same as max_pkt_size ");
+                raise CTRexPacketBuildException(-11, 'CTRexScTrimPacketSize min_pkt_size is the same as max_pkt_size ');
 
             if min_pkt_size > max_pkt_size:
-                raise CTRexPacketBuildException(-11,"CTRexScTrimPacketSize min_pkt_size is bigger than max_pkt_size ");
+                raise CTRexPacketBuildException(-11, 'CTRexScTrimPacketSize min_pkt_size is bigger than max_pkt_size ');
 
 class CTRexScRaw(CTRexScriptsBase):
     """
@@ -176,59 +176,59 @@ class CTRexVmInsBase(object):
     """
     instruction base
     """
-    def __init__(self,ins_type):
+    def __init__(self, ins_type):
         self.type = ins_type
-        assert(type(ins_type)==str);
+        assert type(ins_type)==str, 'type of ins_type is not str'
 
 class CTRexVmInsFixIpv4(CTRexVmInsBase):
-    def __init__(self,offset):
+    def __init__(self, offset):
         super(CTRexVmInsFixIpv4, self).__init__("fix_checksum_ipv4")
         self.offset = offset
-        assert(type(offset)==int);
+        assert type(offset)==int, 'type of offset is not int'
 
 
 class CTRexVmInsFlowVar(CTRexVmInsBase):
     #TBD add more validation tests
 
-    OPERATIONS =["inc", "dec", "random"]
-    VALID_SIZES =[1,2,4,8]
+    OPERATIONS =['inc', 'dec', 'random']
+    VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self,fv_name,size,op,init_val,min_val,max_val):
+    def __init__(self, fv_name, size, op, init_value, min_value, max_value):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
-        self.name =fv_name;
-        assert(type(fv_name)==str);
-        self.size =size
-        self.op =op
-        self.init_val=init_val
-        assert(type(init_val)==int);
-        self.min_val=min_val
-        assert(type(min_val)==int);
-        self.max_val=max_val
-        assert(type(max_val)==int);
+        self.name = fv_name;
+        assert type(fv_name)==str, 'type of fv_name is not str'
+        self.size = size
+        self.op = op
+        self.init_value = init_value
+        assert type(init_value)==int, 'type of init_value is not int'
+        self.min_value=min_value
+        assert type(min_value)==int, 'type of min_value is not int'
+        self.max_value=max_value
+        assert type(max_value)==int, 'type of min_value is not int'
 
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
-    def __init__(self,fv_name,pkt_offset,add_val=0,is_big=True):
+    def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
         super(CTRexVmInsWrFlowVar, self).__init__("write_flow_var")
-        self.name =fv_name
-        assert(type(fv_name)==str);
-        self.pkt_offset =pkt_offset
-        assert(type(pkt_offset)==int);
-        self.add_val =add_val
-        assert(type(add_val)==int);
-        self.is_big =is_big;
-        assert(type(is_big)==bool);
+        self.name = fv_name
+        assert type(fv_name)==str, 'type of fv_name is not str'
+        self.pkt_offset = pkt_offset
+        assert type(pkt_offset)==int, 'type of pkt_offset is not int'
+        self.add_value = add_value
+        assert type(add_value)==int, 'type of add_value is not int'
+        self.is_big_endian = is_big_endian
+        assert type(is_big_endian)==bool, 'type of is_big_endian is not bool'
 
 class CTRexVmInsTrimPktSize(CTRexVmInsBase):
     def __init__(self,fv_name):
         super(CTRexVmInsTrimPktSize, self).__init__("trim_pkt_size")
         self.fv_name =fv_name
-        assert(type(fv_name)==str);
+        assert type(fv_name)==str, 'type of fv_name is not str'
 
 class CTRexVmInsTupleGen(CTRexVmInsBase):
-    def __init__(self,fv_name,ip_min,ip_max,port_min,port_max,limit_flows,flags=0):
+    def __init__(self, fv_name, ip_min, ip_max, port_min, port_max, limit_flows, flags=0):
         super(CTRexVmInsTupleGen, self).__init__("tuple_flow_var")
         self.name =fv_name
-        assert(type(fv_name)==str);
+        assert type(fv_name)==str, 'type of fv_name is not str'
         self.ip_min = ip_min;
         self.ip_max = ip_max;
         self.port_min = port_min;
@@ -281,7 +281,7 @@ class CTRexVmEngine(object):
 
 class CTRexScapyPktUtl(object):
 
-    def __init__(self,scapy_pkt):
+    def __init__(self, scapy_pkt):
         self.pkt = scapy_pkt
 
     def pkt_iter (self):
@@ -292,12 +292,12 @@ class CTRexScapyPktUtl(object):
             if p ==None or isinstance(p,NoPayload):
                 break;
 
-    def get_list_iter (self):
+    def get_list_iter(self):
         l=list(self.pkt_iter())
         return l
 
 
-    def get_pkt_layers (self):
+    def get_pkt_layers(self):
         """
         return string 'IP:UDP:TCP'
         """
@@ -305,7 +305,7 @@ class CTRexScapyPktUtl(object):
         l1=map(lambda p: p.name,l );
         return ":".join(l1);
 
-    def _layer_offset(self,name,cnt=0):
+    def _layer_offset(self, name, cnt = 0):
         """
         return offset of layer e.g 'IP',1 will return offfset of layer ip:1 
         """
@@ -317,10 +317,10 @@ class CTRexScapyPktUtl(object):
                 else:
                     cnt=cnt -1
 
-        raise CTRexPacketBuildException(-11,("no layer %s-%d" % (name,save_cnt)));
+        raise CTRexPacketBuildException(-11,("no layer %s-%d" % (name, save_cnt)));
 
 
-    def layer_offset(self,name,cnt=0):
+    def layer_offset(self, name, cnt = 0):
         """
         return offset of layer e.g 'IP',1 will return offfset of layer ip:1 
         """
@@ -332,9 +332,9 @@ class CTRexScapyPktUtl(object):
                 else:
                     cnt=cnt -1
 
-        raise CTRexPacketBuildException(-11,("no layer %s-%d" % (name,save_cnt)));
+        raise CTRexPacketBuildException(-11,("no layer %s-%d" % (name, save_cnt)));
 
-    def get_field_offet(self,layer,layer_cnt,field_name):
+    def get_field_offet(self, layer, layer_cnt, field_name):
         """
         return offset of layer e.g 'IP',1 will return offfset of layer ip:1 
         """
@@ -348,9 +348,9 @@ class CTRexScapyPktUtl(object):
             if f.name == field_name:
                 return (l_offset+f.offset,f.get_size_bytes ());
 
-        raise CTRexPacketBuildException(-11,("no layer %s-%d." % (name,save_cnt,field_name)));
+        raise CTRexPacketBuildException(-11, "no layer %s-%d." % (name, save_cnt, field_name));
 
-    def  get_layer_offet_by_str(self,layer_des):
+    def get_layer_offet_by_str(self, layer_des):
         """
         return layer offset by string  
 
@@ -369,11 +369,11 @@ class CTRexScapyPktUtl(object):
             layer=l1[0];
             layer_cnt=int(l1[1]);
 
-        return self.layer_offset(layer,layer_cnt)
+        return self.layer_offset(layer, layer_cnt)
 
 
 
-    def  get_field_offet_by_str(self,field_des):
+    def get_field_offet_by_str(self, field_des):
         """
         return field_des (offset,size) layer:cnt.field 
         for example 
@@ -388,7 +388,7 @@ class CTRexScapyPktUtl(object):
 
         s=field_des.split(".");
         if len(s)!=2:
-            raise CTRexPacketBuildException(-11,("field desription should be layer:cnt.field e.g IP.src or IP:1.src "));
+            raise CTRexPacketBuildException(-11, ("field desription should be layer:cnt.field e.g IP.src or IP:1.src"));
 
 
         layer_ex = s[0]
@@ -424,16 +424,16 @@ class CTRexVmDescBase(object):
     def __init__(self):
        pass;
 
-    def get_obj (self):
+    def get_obj(self):
         return self;
 
-    def get_json (self):
+    def get_json(self):
         return self.get_obj().__dict__
 
-    def dump_bjson (self):
+    def dump_bjson(self):
        print json.dumps(self.get_json(), sort_keys=True, indent=4)
 
-    def dump_as_yaml (self):
+    def dump_as_yaml(self):
        print yaml.dump(self.get_json(), default_flow_style=False)
 
 
@@ -469,30 +469,30 @@ def convert_val (val):
 
 
 class CTRexVmDescFlowVar(CTRexVmDescBase):
-    def __init__(self,name,init_val=0,min_val=0,max_val=255,size=4,op="inc"):
+    def __init__(self, name, init_value=0, min_value=0, max_value=255, size=4, op="inc"):
         super(CTRexVmDescFlowVar, self).__init__()
         self.name = name;
-        assert(type(name)==str);
+        assert type(name)==str, 'type of name is not str'
         self.size =size
         valid_fv_size(size)
         self.op =op
         valid_fv_ops (op)
-        self.init_val = convert_val (init_val)
-        self.min_val  = convert_val (min_val);
-        self.max_val  = convert_val (max_val)
+        self.init_value = convert_val (init_value)
+        self.min_value  = convert_val (min_value);
+        self.max_value  = convert_val (max_value)
 
-        if self.min_val > self.max_val :
-            raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_val,self.min_val)  );
+        if self.min_value > self.max_value :
+            raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
 
     def get_obj (self):
-        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_val,self.min_val,self.max_val);
+        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value);
 
     def get_var_name(self):
         return self.name
 
 
 class CTRexVmDescFixIpv4(CTRexVmDescBase):
-    def __init__(self,offset):
+    def __init__(self, offset):
         super(CTRexVmDescFixIpv4, self).__init__()
         self.offset = offset; # could be a name of offset 
 
@@ -504,18 +504,18 @@ class CTRexVmDescFixIpv4(CTRexVmDescBase):
             self.offset = parent._pkt_layer_offset(self.offset);
 
 class CTRexVmDescWrFlowVar(CTRexVmDescBase):
-    def __init__(self,fv_name,pkt_offset,add_val=0,is_big=True):
+    def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
         super(CTRexVmDescWrFlowVar, self).__init__()
-        self.name =fv_name
-        assert(type(fv_name)==str);
-        self.pkt_offset =pkt_offset
-        self.add_val =add_val
-        assert(type(add_val)==int);
-        self.is_big =is_big;
-        assert(type(is_big)==bool);
+        self.name = fv_name
+        assert type(fv_name)==str, 'type of fv_name is not str'
+        self.pkt_offset = pkt_offset
+        self.add_value = add_value
+        assert type(add_value)==int, 'type of add_value is not int'
+        self.is_big_endian =is_big_endian;
+        assert type(is_big_endian)==bool, 'type of is_big_endian is not bool'
 
-    def get_obj (self):
-            return  CTRexVmInsWrFlowVar(self.name,self.pkt_offset,self.add_val,self.is_big)
+    def get_obj(self):
+            return CTRexVmInsWrFlowVar(self.name, self.pkt_offset, self.add_value, self.is_big_endian)
 
     def compile(self,parent): 
         if type(self.pkt_offset)==str:
@@ -541,7 +541,7 @@ class CScapyTRexPktBuilder(object):
 
         """
         super(CScapyTRexPktBuilder, self).__init__()
-        self._pkt = None # scapy packet 
+        self.pkt = None # scapy packet
         self.vm_scripts = [] # list of high level instructions
         self.vm_low_level = None
         self.metadata=""
@@ -556,53 +556,62 @@ class CScapyTRexPktBuilder(object):
         :return:
             + json object of instructions
 
+        :raises:
+            + :exc:`AssertionError`, in case VM is not compiled (is None).
         """
 
-        return self.vm_low_level.get_json () 
+        assert self.vm_low_level is None, 'vm_low_level is None, please use compile()'
 
-    def dump_pkt(self):
+        return self.vm_low_level.get_json() 
+
+    def dump_pkt(self, encode = True):
         """
         Dumps the packet as a decimal array of bytes (each item x gets value between 0-255)
 
         :parameters:
-            None
+            encode : bool
+                Encode using base64. (disable for debug)
+
+                Default: **True**
 
         :return:
             + packet representation as array of bytes
 
         :raises:
-            + :exc:`CTRexPktBuilder.EmptyPacketError`, in case packet is empty.
+            + :exc:`AssertionError`, in case packet is empty.
 
         """
 
-        assert(self.pkt);
+        assert self.pkt, 'empty packet'
 
-        return {"binary": base64.b64encode(str(self.pkt)),
-                "meta": self.metadata}
+        return {'binary': base64.b64encode(str(self.pkt)) if encode else str(self.pkt),
+                'meta': self.metadata}
 
+    def dump_pkt_to_pcap(self, file_path):
+        wrpcap(file_path, self.pkt)
 
-    def add_command (self,script):
+    def add_command (self, script):
         self.vm_scripts.append(script.clone());
 
     def dump_scripts (self):
-        self.vm_low_level.dump_as_yaml ()
+        self.vm_low_level.dump_as_yaml()
 
-    def set_packet (self,pkt):
+    def set_packet (self, pkt):
         """
         Scapy packet   Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/"A"*10
         """
-        self.pkt =pkt;
+        self.pkt = pkt;
 
 
     def compile (self):
         self.vm_low_level=CTRexVmEngine()
-        assert(self.pkt);
+        assert self.pkt, 'empty packet'
         self.pkt.build();
 
         
         for sc in self.vm_scripts:
             if isinstance(sc, CTRexScRaw):
-                self._compile_raw (sc)
+                self._compile_raw(sc)
 
         #for obj in self.vm_scripts:
         #    # tuple gen script 
@@ -622,7 +631,7 @@ class CScapyTRexPktBuilder(object):
             print var_name
             if var_name :
                 if vars.has_key(var_name):
-                    raise CTRexPacketBuildException(-11,("varible %s define twice ") % (var_name)  );
+                    raise CTRexPacketBuildException(-11, 'varible %s is defined twice' % var_name);
                 else:
                     vars[var_name]=1
             desc.compile(self);
@@ -632,16 +641,16 @@ class CScapyTRexPktBuilder(object):
 
 
     def _pkt_layer_offset (self,layer_name):
-        assert(self.pkt != None);
+        assert self.pkt != None, 'empty packet'
         p_utl=CTRexScapyPktUtl(self.pkt);
         return p_utl.get_layer_offet_by_str(layer_name)
 
     def _name_to_offset(self,field_name):
-        assert(self.pkt != None);
+        assert self.pkt != None, 'empty packet'
         p_utl=CTRexScapyPktUtl(self.pkt);
         return p_utl.get_field_offet_by_str(field_name)
 
-    def  _add_tuple_gen(self,tuple_gen):
+    def _add_tuple_gen(self,tuple_gen):
 
         pass;
 
