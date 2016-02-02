@@ -183,7 +183,7 @@ class CTRexVmInsBase(object):
 class CTRexVmInsFixIpv4(CTRexVmInsBase):
     def __init__(self, offset):
         super(CTRexVmInsFixIpv4, self).__init__("fix_checksum_ipv4")
-        self.offset = offset
+        self.pkt_offset = offset
         assert type(offset)==int, 'type of offset is not int'
 
 
