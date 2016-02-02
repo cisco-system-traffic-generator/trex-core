@@ -354,9 +354,12 @@ class CTRexScapyPktUtl(object):
         """
         return layer offset by string  
 
+       :parameters:
+
         IP:0
         IP:1
         return offset
+
 
         """
         l1=layer_des.split(":")
@@ -377,12 +380,13 @@ class CTRexScapyPktUtl(object):
         """
         return field_des (offset,size) layer:cnt.field 
         for example 
-
+        802|1Q.vlan get 802.1Q->valn replace | with .
         IP.src
         IP:0.src  (first IP.src like IP.src)
         for example IP:1.src  for internal IP
 
         return (offset, size) as tuple 
+
 
         """
 
@@ -391,7 +395,7 @@ class CTRexScapyPktUtl(object):
             raise CTRexPacketBuildException(-11,("field desription should be layer:cnt.field e.g IP.src or IP:1.src "));
 
 
-        layer_ex = s[0]
+        layer_ex = s[0].replace("|",".")
         field = s[1]
 
         l1=layer_ex.split(":")

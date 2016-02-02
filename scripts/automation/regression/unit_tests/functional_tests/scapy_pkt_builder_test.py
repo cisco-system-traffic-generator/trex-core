@@ -61,6 +61,29 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
                     'split_by_var': ''}
         )
 
+    def test_simple_scapy_vlan(self):
+
+        py='5'*(9)
+        p1=Ether(src="00:00:00:01:00:00",dst="00:00:00:01:00:00")/ \
+                 Dot1Q(vlan=12)/ \
+                 Dot1Q(vlan=17)/ \
+                 IP(src="10.0.0.10",dst="48.0.0.1")/ \
+                 UDP(dport=12,sport=1025)/py
+
+        p1.build();
+        p1.dump_layers_offset()
+        p1.show2();
+        hexdump(p1);
+        #wrpcap("ipv4_udp_9k.pcap", p1);
+
+        p_utl=CTRexScapyPktUtl(p1);
+
+        assert_equal(p_utl.get_pkt_layers(),"Ethernet:802.1Q:802.1Q:IP:UDP:Raw")
+        assert_equal(p_utl.layer_offset("802.1Q",0),14);
+        assert_equal(p_utl.layer_offset("802.1Q",1),18);
+        assert_equal(p_utl.get_field_offet_by_str("802|1Q.vlan"),(14,0));
+        assert_equal(p_utl.get_field_offet_by_str("802|1Q:1.vlan"),(18,0));
+        assert_equal(p_utl.get_field_offet_by_str("IP.src"),(34,4));
 
     def tearDown(self):
         pass
