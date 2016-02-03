@@ -501,7 +501,7 @@ class CTRexVmDescFlowVar(CTRexVmDescBase):
         return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value);
 
     def get_var_name(self):
-        return (self.name)
+        return [self.name]
 
 
 class CTRexVmDescFixIpv4(CTRexVmDescBase):
@@ -572,7 +572,7 @@ class CTRexVmDescTupleGen(CTRexVmDescBase):
         check_for_int(flags)
 
     def get_var_name(self):
-        return (self.name+".ip",self.name+".port")
+        return [self.name+".ip",self.name+".port"]
 
     def get_obj (self):
         return  CTRexVmInsTupleGen(self.name, self.ip_min, self.ip_max, self.port_min, self.port_max, self.limit_flows, self.flags);
@@ -689,6 +689,7 @@ class CScapyTRexPktBuilder(object):
             var_names =  desc.get_var_name()
 
             if var_names :
+                print var_names
                 for var_name in var_names:
                     if vars.has_key(var_name):
                         raise CTRexPacketBuildException(-11,("variable %s define twice ") % (var_name)  );
