@@ -441,6 +441,12 @@ class CTRexVmDescBase(object):
        print yaml.dump(self.get_json(), default_flow_style=False)
 
 
+    def get_var_ref (self):
+        '''
+          virtual function return a ref var name
+        ''' 
+        return None
+
     def get_var_name(self):
         '''
           virtual function return the varible name if exists
@@ -519,6 +525,9 @@ class CTRexVmDescWrFlowVar(CTRexVmDescBase):
         assert(type(add_val)==int);
         self.is_big =is_big;
         assert(type(is_big)==bool);
+
+    def get_var_ref (self):
+        return self.name
 
     def get_obj (self):
             return  CTRexVmInsWrFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.add_val,self.is_big)
@@ -622,15 +631,22 @@ class CScapyTRexPktBuilder(object):
 
         # make sure we have varibles once 
         vars={};
+
+        # add it add var to dit
         for desc in obj.commands:
-            print desc.__dict__
             var_name =  desc.get_var_name()
-            print var_name
             if var_name :
                 if vars.has_key(var_name):
-                    raise CTRexPacketBuildException(-11,("varible %s define twice ") % (var_name)  );
+                    raise CTRexPacketBuildException(-11,("variable %s define twice ") % (var_name)  );
                 else:
                     vars[var_name]=1
+
+        # check that all write exits
+        for desc in obj.commands:
+            var_name =  desc.get_var_ref()
+            if var_name :
+                if not vars.has_key(var_name):
+                    raise CTRexPacketBuildException(-11,("variable %s does not exists  ") % (var_name)  );
             desc.compile(self);
 
         for desc in obj.commands:
