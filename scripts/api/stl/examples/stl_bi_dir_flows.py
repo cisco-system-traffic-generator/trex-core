@@ -22,11 +22,11 @@ def create_pkt (size, direction):
 
     vm = [
         # src
-        STLVmFlowVar(name="src",min_val=src['start'],max_val=src['end'],size=4,op="inc"),
+        STLVmFlowVar(name="src",min_value=src['start'],max_value=src['end'],size=4,op="inc"),
         STLVmWriteFlowVar(fv_name="src",pkt_offset= "IP.src"),
 
         # dst
-        STLVmFlowVar(name="dst",min_val=dst['start'],max_val=dst['end'],size=4,op="inc"),
+        STLVmFlowVar(name="dst",min_value=dst['start'],max_value=dst['end'],size=4,op="inc"),
         STLVmWriteFlowVar(fv_name="dst",pkt_offset= "IP.dst"),
 
         # checksum

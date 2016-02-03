@@ -493,8 +493,8 @@ class CTRexVmDescFlowVar(CTRexVmDescBase):
         valid_fv_ops (op)
 
         # choose default value for init val
-        if init_val == None:
-            init_val = max_val if op == "dec" else min_val
+        if init_value == None:
+            init_value = max_value if op == "dec" else min_value
 
         self.init_value = convert_val (init_value)
         self.min_value  = convert_val (min_value);
@@ -711,7 +711,6 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             var_names =  desc.get_var_name()
 
             if var_names :
-                print var_names
                 for var_name in var_names:
                     if vars.has_key(var_name):
                         raise CTRexPacketBuildException(-11,("variable %s define twice ") % (var_name)  );

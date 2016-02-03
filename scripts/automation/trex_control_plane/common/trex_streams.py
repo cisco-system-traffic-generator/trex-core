@@ -2,6 +2,7 @@
 
 import external_packages
 from client_utils.packet_builder_interface import CTrexPktBuilderInterface
+from client_utils.packet_builder import CTRexPktBuilder
 from collections import OrderedDict, namedtuple
 from client_utils.yaml_utils import *
 import trex_stl_exceptions
