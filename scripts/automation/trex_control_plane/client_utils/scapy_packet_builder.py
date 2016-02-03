@@ -508,10 +508,12 @@ class CTRexVmDescFixIpv4(CTRexVmDescBase):
             self.offset = parent._pkt_layer_offset(self.offset);
 
 class CTRexVmDescWrFlowVar(CTRexVmDescBase):
-    def __init__(self,fv_name,pkt_offset,add_val=0,is_big=True):
+    def __init__(self,fv_name,pkt_offset,offset_fixup=0,add_val=0,is_big=True):
         super(CTRexVmDescWrFlowVar, self).__init__()
         self.name =fv_name
         assert(type(fv_name)==str);
+        self.offset_fixup =offset_fixup
+        assert(type(offset_fixup)==int);
         self.pkt_offset =pkt_offset
         self.add_val =add_val
         assert(type(add_val)==int);
@@ -519,7 +521,7 @@ class CTRexVmDescWrFlowVar(CTRexVmDescBase):
         assert(type(is_big)==bool);
 
     def get_obj (self):
-            return  CTRexVmInsWrFlowVar(self.name,self.pkt_offset,self.add_val,self.is_big)
+            return  CTRexVmInsWrFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.add_val,self.is_big)
 
     def compile(self,parent): 
         if type(self.pkt_offset)==str:

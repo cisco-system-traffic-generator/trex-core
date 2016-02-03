@@ -140,6 +140,30 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         assert_equal(p_utl.get_field_offet_by_str("IPv6.src"),(38,16));
 
 
+    def test_simple_vm2(self):
+        raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="my_valn",min_val=0,max_val=10,init_val=2,size=1,op="inc"),
+                             CTRexVmDescWrFlowVar (fv_name="my_valn",pkt_offset= "802|1Q.vlan" ,offset_fixup=3) # fix the offset as valn is bitfield and not supported right now 
+                              ]
+                          );
+
+        pkt_builder = CScapyTRexPktBuilder();
+
+        py='5'*128
+        pkt=Ether()/ \
+        Dot1Q(vlan=12)/ \
+                 IP(src="16.0.0.1",dst="48.0.0.1")/ \
+                 UDP(dport=12,sport=1025)/IP()/py
+
+        # set packet 
+        pkt_builder.set_packet(pkt);
+        pkt_builder.add_command ( raw1 )
+        pkt_builder.compile();
+
+
+        d= pkt_builder.get_vm_data()
+        assert_equal(d['instructions'][1]['pkt_offset'],17)
+
+
 
     def tearDown(self):
         pass
