@@ -64,7 +64,7 @@ traffic_stats()
 
 
 import trex_root_path
-from client_utils.packet_builder import CTRexPktBuilder
+import client_utils.scapy_packet_builder as pkt_bld
 from trex_stateless_client import STLClient
 from common.trex_streams import *
 from client_utils.general_utils import get_integer
@@ -459,19 +459,27 @@ class CTRexHltApi(object):
 
     @staticmethod
     def _generate_packet(
+                # L2
+                frame_size = 64,
                 l2_encap = 'ethernet_ii',
                 mac_src = '00:00:01:00:00:01',
                 mac_dst = '00:00:00:00:00:00',
 
+                # L3 IPv4
                 l3_protocol = 'ipv4',
                 ip_tos_field = 0,
-                l3_length = 110,
+                l3_length = 50,
                 ip_id = 0,
                 ip_fragment_offset = 0,
                 ip_ttl = 64,
-                ip_checksum = 0,
+                ip_checksum = None,
                 ip_src_addr = '0.0.0.0',
                 ip_dst_addr = '192.0.0.1',
+
+                # L3 IPv4 FE
+                ip_src_mode = 'fixed',
+                ip_src_step = 1,
+                ip_src_count = 1,
                 
                 l4_protocol = 'tcp',
                 tcp_src_port = 1024,
@@ -486,113 +494,114 @@ class CTRexHltApi(object):
                 tcp_ack_flag = 0,
                 tcp_urg_flag = 0,
                 tcp_window = 4069,
-                tcp_checksum = 0,
+                tcp_checksum = None,
                 tcp_urgent_ptr = 0,
                 **kwargs):
-        ALLOWED_L3_PROTOCOL = {'ipv4': dpkt.ethernet.ETH_TYPE_IP,
-                               #'ipv6': dpkt.ethernet.ETH_TYPE_IP6,
-                               #'arp': dpkt.ethernet.ETH_TYPE_ARP
-                               }
-        ALLOWED_L4_PROTOCOL = {'tcp': dpkt.ip.IP_PROTO_TCP,
-                               #'udp': dpkt.ip.IP_PROTO_UDP,
-                               #'icmp': dpkt.ip.IP_PROTO_ICMP,
-                               #'icmpv6': dpkt.ip.IP_PROTO_ICMP6,
-                               #'igmp': dpkt.ip.IP_PROTO_IGMP,
-                               #'rtp': dpkt.ip.IP_PROTO_IRTP,
-                               #'isis': dpkt.ip.IP_PROTO_ISIS,
-                               #'ospf': dpkt.ip.IP_PROTO_OSPF
-                               }
 
-        pkt_bld = CTRexPktBuilder()
+        pkt_plus_vm = pkt_bld.CScapyTRexPktBuilder()
+
+        ### L2 ###
         if l2_encap == 'ethernet_ii':
-                    #('dst', '6s', ''),
-                    #('src', '6s', ''),
-                    #('type', 'H', ETH_TYPE_IP)
-            pkt_bld.add_pkt_layer('l2', dpkt.ethernet.Ethernet())
-            # set Ethernet layer attributes
-            pkt_bld.set_eth_layer_addr('l2', 'src', mac_src)
-            pkt_bld.set_eth_layer_addr('l2', 'dst', mac_dst)
+                    #fields_desc = [ MACField("dst","00:00:00:01:00:00"),
+                    #                MACField("src","00:00:00:02:00:00"), 
+                    #                XShortEnumField("type", 0x9000, ETHER_TYPES) ]
+            pkt = pkt_bld.Ether(src = mac_src, dst = mac_dst)
         else:
-            raise NotImplementedError("l2_encap does not support the desired encapsulation '{0}'".format(l2_encap))
-        # set l3 on l2
-        if l3_protocol not in ALLOWED_L3_PROTOCOL:
-            raise ValueError('l3_protocol must be one of the following: {0}'.format(ALLOWED_L3_PROTOCOL))
-        pkt_bld.set_layer_attr('l2', 'type', ALLOWED_L3_PROTOCOL[l3_protocol])
+            raise NotImplementedError("l2_encap does not support the desired encapsulation '%s'" % l2_encap)
 
-        # set l3 attributes
+        ### L3 ###
         if l3_protocol == 'ipv4':
-                    #('v_hl', 'B', (4 << 4) | (20 >> 2)),
-                    #('tos', 'B', 0),
-                    #('len', 'H', 20),
-                    #('id', 'H', 0),
-                    #('off', 'H', 0),
-                    #('ttl', 'B', 64),
-                    #('p', 'B', 0),
-                    #('sum', 'H', 0),
-                    #('src', '4s', '\x00' * 4),
-                    #('dst', '4s', '\x00' * 4)
-            pkt_bld.add_pkt_layer('l3', dpkt.ip.IP())
-            pkt_bld.set_layer_attr('l3', 'tos', ip_tos_field)
-            pkt_bld.set_layer_attr('l3', 'len', l3_length)
-            pkt_bld.set_layer_attr('l3', 'id', ip_id)
-            pkt_bld.set_layer_attr('l3', 'off', ip_fragment_offset)
-            pkt_bld.set_layer_attr('l3', 'ttl', ip_ttl)
-            pkt_bld.set_layer_attr('l3', 'sum', ip_checksum)
-            pkt_bld.set_ip_layer_addr('l3', 'src', ip_src_addr)
-            pkt_bld.set_ip_layer_addr('l3', 'dst', ip_dst_addr)
+                    #fields_desc = [ BitField("version" , 4 , 4),
+                    #                BitField("ihl", None, 4),
+                    #                XByteField("tos", 0),
+                    #                ShortField("len", None),
+                    #                ShortField("id", 1),
+                    #                FlagsField("flags", 0, 3, ["MF","DF","evil"]),
+                    #                BitField("frag", 0, 13),
+                    #                ByteField("ttl", 64),
+                    #                ByteEnumField("proto", 0, IP_PROTOS),
+                    #                XShortField("chksum", None),
+                    #                #IPField("src", "127.0.0.1"),
+                    #                #Emph(SourceIPField("src","dst")),
+                    #                Emph(IPField("src", "16.0.0.1")),
+                    #                Emph(IPField("dst", "48.0.0.1")),
+                    #                PacketListField("options", [], IPOption, length_from=lambda p:p.ihl*4-20) ]
+            pkt /= pkt_bld.IP(tos = ip_tos_field,
+                              len = l3_length,
+                              id = ip_id,
+                              frag = ip_fragment_offset,
+                              ttl = ip_ttl,
+                              chksum = ip_checksum,
+                              src = ip_src_addr,
+                              dst = ip_dst_addr
+                              )
+            # IP FE (Field Engine)
+            print dir(pkt_bld.IP.src.fld)
+            print_r(pkt_bld.IP.src.fld)
+            if ip_src_mode == 'increment':
+                ip_src_vm = pkt_bld.CTRexScRaw([ pkt_bld.CTRexVmDescFlowVar(name='a', min_value='16.0.0.1', max_value='16.0.0.10', init_value='16.0.0.1', size=4, op='inc'),
+                          pkt_bld.CTRexVmDescWrFlowVar (fv_name='a', pkt_offset = 'IP.src'),
+                          pkt_bld.CTRexVmDescFixIpv4(offset = 'IP')])
+                pkt_plus_vm.add_command(ip_src_vm)
+
+                #print '>> is inc'
+                #if ip_src_step != 1:
+                #    return HLT_ERR('ip_src_step has to be 1 (TRex limitation)')
+                #FE_var_ip_src_addr = pkt_bld.vm.CTRexVMFlowVariable('ip_src_addr')
+                #FE_var_ip_src_addr.set_field('size', 4)
+                #FE_var_ip_src_addr.set_field('operation', 'inc')
+                #FE_var_ip_src_addr.set_field('init_value', ip_src_addr)
+                #FE_var_ip_src_addr.set_field('init_value', 1)
+                #FE_var_ip_src_addr.set_field('max_value', ip_src_count)
+                #pkt_bld.vm.vm_var.set_field('split_by_core', False)
         else:
-            raise NotImplementedError("l3_protocol '{0}' is not supported by TRex yet.".format(l3_protocol))
+            raise NotImplementedError("l3_protocol '%s' is not supported by TRex yet." % l3_protocol)
 
-        # set l4 on l3
-        if l4_protocol not in ALLOWED_L4_PROTOCOL:
-            raise ValueError('l4_protocol must be one of the following: {0}'.format(ALLOWED_L3_PROTOCOL))
-        pkt_bld.set_layer_attr('l3', 'p', ALLOWED_L4_PROTOCOL[l4_protocol])
-
-        # set l4 attributes
+        ### L4 ###
         if l4_protocol == 'tcp':
-            pkt_bld.add_pkt_layer('l4', dpkt.tcp.TCP())
-                    #('sport', 'H', 0xdead),
-                    #('dport', 'H', 0),
-                    #('seq', 'I', 0xdeadbeefL),
-                    #('ack', 'I', 0),
-                    #('off_x2', 'B', ((5 << 4) | 0)),
-                    #('flags', 'B', TH_SYN),
-                    #('win', 'H', TCP_WIN_MAX),
-                    #('sum', 'H', 0),
-                    #('urp', 'H', 0)
-            pkt_bld.set_layer_attr('l4', 'sport', tcp_src_port)
-            pkt_bld.set_layer_attr('l4', 'dport', tcp_dst_port)
-            pkt_bld.set_layer_attr('l4', 'seq', tcp_seq_num)
-            pkt_bld.set_layer_attr('l4', 'ack', tcp_ack_num)
-            pkt_bld.set_layer_attr('l4', 'off_x2', tcp_data_offset)
-                    #TH_FIN		= 0x01		# end of data
-                    #TH_SYN		= 0x02		# synchronize sequence numbers
-                    #TH_RST		= 0x04		# reset connection
-                    #TH_PUSH	= 0x08		# push
-                    #TH_ACK		= 0x10		# acknowledgment number set
-                    #TH_URG		= 0x20		# urgent pointer set
-                    #TH_ECE		= 0x40		# ECN echo, RFC 3168
-                    #TH_CWR		= 0x80		# congestion window reduced
-            tcp_flags = (tcp_fin_flag * dpkt.tcp.TH_FIN +
-                        tcp_syn_flag * dpkt.tcp.TH_SYN +
-                        tcp_rst_flag * dpkt.tcp.TH_RST +
-                        tcp_psh_flag * dpkt.tcp.TH_PUSH +
-                        tcp_ack_flag * dpkt.tcp.TH_ACK +
-                        tcp_urg_flag * dpkt.tcp.TH_URG)
-            pkt_bld.set_layer_attr('l4', 'flags', tcp_flags)
-            pkt_bld.set_layer_attr('l4', 'win', tcp_window)
-            pkt_bld.set_layer_attr('l4', 'sum', tcp_checksum)
-            pkt_bld.set_layer_attr('l4', 'urp', tcp_urgent_ptr)
+                    #fields_desc = [ ShortEnumField("sport", 20, TCP_SERVICES),
+                    #                ShortEnumField("dport", 80, TCP_SERVICES),
+                    #                IntField("seq", 0),
+                    #                IntField("ack", 0),
+                    #                BitField("dataofs", None, 4),
+                    #                BitField("reserved", 0, 4),
+                    #                FlagsField("flags", 0x2, 8, "FSRPAUEC"),
+                    #                ShortField("window", 8192),
+                    #                XShortField("chksum", None),
+                    #                ShortField("urgptr", 0),
+                    #                TCPOptionsField("options", {}) ]
+            tcp_flags = ('F' if tcp_fin_flag else '' +
+                         'S' if tcp_syn_flag else '' +
+                         'R' if tcp_rst_flag else '' +
+                         'P' if tcp_psh_flag else '' +
+                         'A' if tcp_ack_flag else '' +
+                         'U' if tcp_urg_flag else '')
+
+            pkt /= pkt_bld.TCP(sport = tcp_src_port,
+                               dport = tcp_dst_port,
+                               seq = tcp_seq_num,
+                               ack = tcp_ack_num,
+                               dataofs = tcp_data_offset,
+                               flags = tcp_flags,
+                               window = tcp_window,
+                               chksum = tcp_checksum,
+                               urgptr = tcp_urgent_ptr,
+                               )
         else:
-            raise NotImplementedError("l4_protocol '{0}' is not supported by TRex yet.".format(l3_protocol))
-
-        pkt_bld.set_pkt_payload('Hello, World' + '!'*58)
-
-        # debug
+            raise NotImplementedError("l4_protocol '%s' is not supported by TRex yet." % l3_protocol)
+        pkt /= 'payload'
+        pkt_plus_vm.set_packet(pkt)
+        #payload = frame_size - pkt
+        #payload = pkt_bld.payload_gen.gen_repeat_ptrn('Hello, World!')
+        #pkt_bld.set_pkt_payload(payload)
+            
+        #print pkt_bld.vm
+        # debug (only base packet, without FE)
         debug_filename = kwargs.get('save_to_pcap')
         if type(debug_filename) is str:
-            pkt_bld.dump_pkt_to_pcap(debug_filename)
-        return pkt_bld
+            pkt_plus_vm.dump_pkt_to_pcap(debug_filename)
+        pkt_plus_vm.compile()
+        return pkt_plus_vm
 
 
 

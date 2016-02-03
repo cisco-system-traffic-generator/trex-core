@@ -17,7 +17,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         pass
 
     def test_simple_vm1(self):
-        raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="a",min_val="16.0.0.1",max_val="16.0.0.10",init_val="16.0.0.1",size=4,op="inc"),
+        raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="a",min_value="16.0.0.1",max_value="16.0.0.10",init_value="16.0.0.1",size=4,op="inc"),
                               CTRexVmDescWrFlowVar (fv_name="a",pkt_offset= "IP.src"),
                               CTRexVmDescFixIpv4(offset = "IP")]
                           );
@@ -38,7 +38,9 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         print pkt_builder.get_vm_data()
 
-        assert_equal( pkt_builder.get_vm_data(), {'split_by_var': '', 'instructions': [{'init_val': 268435457, 'name': 'a', 'min_val': 268435457, 'max_val': 268435466, 'size': 4, 'type': 'flow_var', 'op': 'inc'}, {'pkt_offset': 26, 'type': 'write_flow_var', 'name': 'a', 'add_val': 0, 'is_big': True}, {'type': 'fix_checksum_ipv4', 'offset': 14}]})
+        assert_equal( pkt_builder.get_vm_data(), {'split_by_var': '', 'instructions': [{'name': 'a', 'max_value': 268435466, 'min_value': 268435457, 'init_value': 268435457, 'size': 4, 'type': 'flow_var', 'op': 'inc'}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var', 'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
+                                                 
+
 
     def test_simple_no_vm1(self):
 
@@ -141,7 +143,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
 
     def test_simple_vm2(self):
-        raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="my_valn",min_val=0,max_val=10,init_val=2,size=1,op="inc"),
+        raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="my_valn",min_value=0,max_value=10,init_value=2,size=1,op="inc"),
                              CTRexVmDescWrFlowVar (fv_name="my_valn",pkt_offset= "802|1Q.vlan" ,offset_fixup=3) # fix the offset as valn is bitfield and not supported right now 
                               ]
                           );
@@ -165,7 +167,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_vm3(self):
         try:
-            raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="my_valn",min_val=0,max_val=10,init_val=2,size=1,op="inc"),
+            raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="my_valn",min_value=0,max_value=10,init_value=2,size=1,op="inc"),
                                  CTRexVmDescWrFlowVar (fv_name="my_valn_err",pkt_offset= "802|1Q.vlan" ,offset_fixup=3) # fix the offset as valn is bitfield and not supported right now 
                                   ]
                               );
