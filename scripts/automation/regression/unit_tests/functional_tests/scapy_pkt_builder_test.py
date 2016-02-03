@@ -190,6 +190,33 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         except  CTRexPacketBuildException as e:
             assert_equal(str(e), "[errcode:-11] 'variable my_valn_err does not exists  '")
 
+    def test_simple_tuple_gen(self):
+        vm = CTRexScRaw( [ CTRexVmDescTupleGen (name="tuple"), # define tuple gen 
+                             CTRexVmDescWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                             CTRexVmDescFixIpv4(offset = "IP"),                                # fix checksum
+                             CTRexVmDescWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
+                                  ]
+                              );
+        pkt_builder = CScapyTRexPktBuilder();
+
+        py='5'*128
+        pkt=Ether()/ \
+        Dot1Q(vlan=12)/ \
+                 IP(src="16.0.0.1",dst="48.0.0.1")/ \
+                 UDP(dport=12,sport=1025)/IP()/py
+
+        # set packet 
+        pkt_builder.set_packet(pkt);
+        pkt_builder.add_command ( vm )
+        pkt_builder.compile();
+        d= pkt_builder.get_vm_data()
+        pkt_builder.dump_vm_data_as_yaml()
+
+        assert_equal(d['instructions'][1]['pkt_offset'],30)
+        assert_equal(d['instructions'][3]['pkt_offset'],38)
+
+
+
 
     def tearDown(self):
         pass

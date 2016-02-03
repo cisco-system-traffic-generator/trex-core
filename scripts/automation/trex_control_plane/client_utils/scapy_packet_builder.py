@@ -221,7 +221,7 @@ class CTRexVmInsWrFlowVar(CTRexVmInsBase):
 class CTRexVmInsTrimPktSize(CTRexVmInsBase):
     def __init__(self,fv_name):
         super(CTRexVmInsTrimPktSize, self).__init__("trim_pkt_size")
-        self.fv_name =fv_name
+        self.name = fv_name
         assert type(fv_name)==str, 'type of fv_name is not str'
 
 class CTRexVmInsTupleGen(CTRexVmInsBase):
@@ -477,6 +477,9 @@ def convert_val (val):
         else:
             raise CTRexPacketBuildException(-11,("init val not valid %s ") % val  );
 
+def check_for_int (val):
+    assert type(val)==int, 'type of vcal is not int'
+
 
 class CTRexVmDescFlowVar(CTRexVmDescBase):
     def __init__(self, name, init_value=0, min_value=0, max_value=255, size=4, op="inc"):
@@ -498,7 +501,7 @@ class CTRexVmDescFlowVar(CTRexVmDescBase):
         return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value);
 
     def get_var_name(self):
-        return self.name
+        return (self.name)
 
 
 class CTRexVmDescFixIpv4(CTRexVmDescBase):
@@ -538,6 +541,43 @@ class CTRexVmDescWrFlowVar(CTRexVmDescBase):
             self.pkt_offset = t[0]
 
 
+class CTRexVmDescTrimPktSize(CTRexVmDescBase):
+    def __init__(self,fv_name):
+        super(CTRexVmDescTrimPktSize, self).__init__()
+        self.name = fv_name
+        assert type(fv_name)==str, 'type of fv_name is not str'
+
+    def get_var_ref (self):
+        return self.name
+
+    def get_obj (self):
+        return  CTRexVmInsTrimPktSize(self.name)
+
+
+
+class CTRexVmDescTupleGen(CTRexVmDescBase):
+    def __init__(self,name, ip_min="0.0.0.1", ip_max="0.0.0.10", port_min=1025, port_max=65535, limit_flows=100000, flags=0):
+        super(CTRexVmDescTupleGen, self).__init__()
+        self.name = name
+        assert type(name)==str, 'type of fv_name is not str'
+        self.ip_min = convert_val(ip_min);
+        self.ip_max = convert_val(ip_max);
+        self.port_min = port_min;
+        check_for_int (port_min)
+        self.port_max = port_max;
+        check_for_int(port_max)
+        self.limit_flows = limit_flows;
+        check_for_int(limit_flows)
+        self.flags       =flags;
+        check_for_int(flags)
+
+    def get_var_name(self):
+        return (self.name+".ip",self.name+".port")
+
+    def get_obj (self):
+        return  CTRexVmInsTupleGen(self.name, self.ip_min, self.ip_max, self.port_min, self.port_max, self.limit_flows, self.flags);
+
+
 ################################################################################################
 
 
@@ -560,6 +600,9 @@ class CScapyTRexPktBuilder(object):
         self.vm_scripts = [] # list of high level instructions
         self.vm_low_level = None
         self.metadata=""
+
+    def dump_vm_data_as_yaml(self):
+       print yaml.dump(self.get_vm_data(), default_flow_style=False)
 
     def get_vm_data(self):
         """
@@ -643,12 +686,14 @@ class CScapyTRexPktBuilder(object):
 
         # add it add var to dit
         for desc in obj.commands:
-            var_name =  desc.get_var_name()
-            if var_name :
-                if vars.has_key(var_name):
-                    raise CTRexPacketBuildException(-11,("variable %s define twice ") % (var_name)  );
-                else:
-                    vars[var_name]=1
+            var_names =  desc.get_var_name()
+
+            if var_names :
+                for var_name in var_names:
+                    if vars.has_key(var_name):
+                        raise CTRexPacketBuildException(-11,("variable %s define twice ") % (var_name)  );
+                    else:
+                        vars[var_name]=1
 
         # check that all write exits
         for desc in obj.commands:
