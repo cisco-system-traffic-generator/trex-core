@@ -518,6 +518,6 @@ class HACKSTLStream(STLStream):
 
         packet = CTRexPktBuilder()
         packet.load_from_stream_obj(stream_pack.stream)
-        super(HACKSTLStream, self).__init__(packet)
+        super(HACKSTLStream, self).__init__(packet, stream_id = stream_pack.stream_id)
 
         self.fields = stream_pack.stream
