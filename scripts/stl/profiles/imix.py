@@ -38,9 +38,9 @@ class STLImix(object):
                          mode = STLTXCont())
 
 
-    def get_streams (self, flip = False):
+    def get_streams (self, direction = 0):
 
-        if not flip:
+        if direction == 0:
             src = self.ip_range['src']
             dst = self.ip_range['dst']
         else:
