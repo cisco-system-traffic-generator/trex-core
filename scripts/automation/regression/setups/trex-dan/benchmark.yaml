@@ -75,8 +75,8 @@ test_nat_learning  :
   allow_timeout_dev : YES
 
 test_routing_imix_64    :
-  multiplier        : 28
-  cores             : 1
+  multiplier        : 150
+  cores             : 4
   cpu_to_core_ratio : 280
   exp_latency       : 1
 

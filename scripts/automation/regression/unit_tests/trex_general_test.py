@@ -227,6 +227,10 @@ class CTRexGeneral_Test(unittest.TestCase):
             if not trex_res.is_done_warmup():
                 self.fail('T-Rex did not reach warm-up situtaion. Results are not valid.')
 
+            # check history size is enough
+            if len(trex_res._history) < 5:
+                self.fail('T-Rex results list is too short. Increase the test duration or check unexpected stopping.')
+
             # check T-Rex number of drops
             trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
             trex_drops      = trex_res.get_total_drops()

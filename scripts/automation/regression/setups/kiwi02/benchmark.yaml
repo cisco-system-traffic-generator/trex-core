@@ -111,7 +111,7 @@ test_static_routing_imix_asymmetric:
   exp_latency       : 1
 
 test_ipv6_simple    :
-  multiplier        : 36
+  multiplier        : 32
   cores             : 4
   cpu_to_core_ratio : 30070000
   cpu2core_custom_dev: YES
