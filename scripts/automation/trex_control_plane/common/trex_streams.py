@@ -1,7 +1,7 @@
 #!/router/bin/python
 
 import external_packages
-from client_utils.packet_builder import CTRexPktBuilder
+from client_utils.packet_builder_interface import CTrexPktBuilderInterface
 from collections import OrderedDict, namedtuple
 from client_utils.yaml_utils import *
 import trex_stl_exceptions
@@ -422,7 +422,7 @@ class STLStream(object):
         if not isinstance(mode, STLTXMode):
             raise STLArgumentError('mode', mode)
 
-        if not isinstance(packet, CTRexPktBuilder):
+        if not isinstance(packet, CTrexPktBuilderInterface):
             raise STLArgumentError('packet', packet)
 
         if not isinstance(enabled, bool):
@@ -451,6 +451,8 @@ class STLStream(object):
 
         # mode
         self.fields['mode'] = mode.to_json()
+
+        packet.compile()
 
         # packet and VM
         self.fields['packet'] = packet.dump_pkt()

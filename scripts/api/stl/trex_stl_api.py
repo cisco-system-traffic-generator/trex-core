@@ -1,7 +1,8 @@
 import os
 import sys
 import time
-
+import json
+import math
 
 # update the import path to include the stateless client
 root_path = os.path.dirname(os.path.abspath(__file__))
@@ -11,7 +12,7 @@ sys.path.insert(0, os.path.join(root_path, '../../stl/'))
 
 # aliasing
 import common.trex_streams
-from client_utils.packet_builder import CTRexPktBuilder
+from client_utils.scapy_packet_builder import *
 import common.trex_stl_exceptions
 import client.trex_stateless_client
 import client.trex_stateless_sim
@@ -27,7 +28,12 @@ STLTXSingleBurst       = common.trex_streams.STLTXSingleBurst
 STLTXMultiBurst        = common.trex_streams.STLTXMultiBurst
 
 # packet builder
-STLPktBuilder          = CTRexPktBuilder
+STLPktBuilder          = CScapyTRexPktBuilder
+
+# VM
+STLVmFlowVar           = CTRexVmDescFlowVar
+STLVmWriteFlowVar      = CTRexVmDescWrFlowVar
+STLVmFixIpv4           = CTRexVmDescFixIpv4
 
 # simulator
 STLSim                 = client.trex_stateless_sim.STLSim

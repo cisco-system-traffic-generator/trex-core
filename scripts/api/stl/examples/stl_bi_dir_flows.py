@@ -4,51 +4,46 @@ sys.path.insert(0, "../")
 
 from trex_stl_api import *
 
-import dpkt
 import time
 import json
 
+# simple packet creation
+def create_pkt (size, direction):
+
+    ip_range = {'src': {'start': "10.0.0.1", 'end': "10.0.0.254"},
+                'dst': {'start': "8.0.0.1",  'end': "8.0.0.254"}}
+
+    if (direction == 0):
+        src = ip_range['src']
+        dst = ip_range['dst']
+    else:
+        src = ip_range['dst']
+        dst = ip_range['src']
+
+    vm = [
+        # src
+        STLVmFlowVar(name="src",min_val=src['start'],max_val=src['end'],size=4,op="inc"),
+        STLVmWriteFlowVar(fv_name="src",pkt_offset= "IP.src"),
+
+        # dst
+        STLVmFlowVar(name="dst",min_val=dst['start'],max_val=dst['end'],size=4,op="inc"),
+        STLVmWriteFlowVar(fv_name="dst",pkt_offset= "IP.dst"),
+
+        # checksum
+        STLVmFixIpv4(offset = "IP")
+        ]
+
+
+    base = Ether()/IP()/UDP()
+    pad = max(0, len(base)) * 'x'
+
+    return STLPktBuilder(pkt = base/pad,
+                         vm  = vm)
+
 
 def simple_burst ():
-    
-    # build A side packet
-    pkt_a = STLPktBuilder()
-
-    pkt_a.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
-    pkt_a.add_pkt_layer("l3_ip", dpkt.ip.IP())
-    pkt_a.add_pkt_layer("l4_udp", dpkt.udp.UDP())
-    pkt_a.set_pkt_payload("somepayload")
-    pkt_a.set_layer_attr("l3_ip", "len", len(pkt_a.get_layer('l3_ip')))
-
-    # build B side packet
-    pkt_b = pkt_a.clone()
-
-    # set IP range for pkt and split it by multiple cores
-    pkt_a.set_vm_ip_range(ip_layer_name = "l3_ip",
-                          ip_field = "src",
-                          ip_start="10.0.0.1", ip_end="10.0.0.254",
-                          operation = "inc",
-                          split = True)
-
-    pkt_a.set_vm_ip_range(ip_layer_name = "l3_ip",
-                          ip_field = "dst",
-                          ip_start="8.0.0.1", ip_end="8.0.0.254",
-                          operation = "inc")
-
-
-    # build B side packet
-    pkt_b.set_vm_ip_range(ip_layer_name = "l3_ip",
-                          ip_field = "src",
-                          ip_start="8.0.0.1", ip_end="8.0.0.254",
-                          operation = "inc",
-                          split = True)
-
-    pkt_b.set_vm_ip_range(ip_layer_name = "l3_ip",
-                          ip_field = "dst",
-                          ip_start="10.0.0.1", ip_end="10.0.0.254",
-                          operation = "inc")
-
    
+  
     # create client
     c = STLClient()
     passed = True
@@ -58,11 +53,11 @@ def simple_burst ():
         #c.set_verbose("high")
 
         # create two streams
-        s1 = STLStream(packet = pkt_a,
+        s1 = STLStream(packet = create_pkt(200, 0),
                        mode = STLTXCont(pps = 100))
 
         # second stream with a phase of 1ms (inter stream gap)
-        s2 = STLStream(packet = pkt_b,
+        s2 = STLStream(packet = create_pkt(200, 1),
                        isg = 1000,
                        mode = STLTXCont(pps = 100))
 

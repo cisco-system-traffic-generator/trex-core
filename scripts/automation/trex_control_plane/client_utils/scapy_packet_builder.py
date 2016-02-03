@@ -8,6 +8,7 @@ import yaml
 import binascii
 import base64
 
+from packet_builder_interface import CTrexPktBuilderInterface
 
 from scapy.all import *
 
@@ -482,7 +483,7 @@ def check_for_int (val):
 
 
 class CTRexVmDescFlowVar(CTRexVmDescBase):
-    def __init__(self, name, init_value=0, min_value=0, max_value=255, size=4, op="inc"):
+    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, op="inc"):
         super(CTRexVmDescFlowVar, self).__init__()
         self.name = name;
         assert type(name)==str, 'type of name is not str'
@@ -490,6 +491,11 @@ class CTRexVmDescFlowVar(CTRexVmDescBase):
         valid_fv_size(size)
         self.op =op
         valid_fv_ops (op)
+
+        # choose default value for init val
+        if init_val == None:
+            init_val = max_val if op == "dec" else min_val
+
         self.init_value = convert_val (init_value)
         self.min_value  = convert_val (min_value);
         self.max_value  = convert_val (max_value)
@@ -581,13 +587,13 @@ class CTRexVmDescTupleGen(CTRexVmDescBase):
 ################################################################################################
 
 
-class CScapyTRexPktBuilder(object):
+class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     """
     This class defines the TRex API of building a packet using dpkt package.
     Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
     """
-    def __init__(self):
+    def __init__(self, pkt = None, vm = None):
         """
         Instantiate a CTRexPktBuilder object
 
@@ -596,10 +602,26 @@ class CScapyTRexPktBuilder(object):
 
         """
         super(CScapyTRexPktBuilder, self).__init__()
-        self.pkt = None # scapy packet
+
+        self.pkt = None
         self.vm_scripts = [] # list of high level instructions
         self.vm_low_level = None
         self.metadata=""
+
+
+        # process packet
+        if pkt != None:
+            if not isinstance(pkt, Packet):
+                raise CTRexPacketBuildException(-14, "bad value for variable pkt")
+            self.set_packet(pkt)
+
+        # process VM
+        if vm != None:
+            if not isinstance(vm, (CTRexScRaw, list)):
+                raise CTRexPacketBuildException(-14, "bad value for variable pkt")
+
+            self.add_command(vm if isinstance(vm, CTRexScRaw) else CTRexScRaw(vm))
+
 
     def dump_vm_data_as_yaml(self):
        print yaml.dump(self.get_vm_data(), default_flow_style=False)
