@@ -16,7 +16,6 @@ class STLS1(object):
         self.max_pkt_size_l3  =9*1024;
 
     def create_stream (self):
-
         # pkt 
         p_l2  = Ether();
         p_l3  = IP(src="16.0.0.1",dst="48.0.0.1")
