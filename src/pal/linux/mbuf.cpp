@@ -343,7 +343,8 @@ void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *md)
 	mi->data_off = md->data_off;
 
 	mi->next = NULL;
-	mi->pkt_len = mi->data_len;
+    mi->data_len = md->data_len;
+	mi->pkt_len  = mi->data_len;
 	mi->nb_segs = 1;
 }
 

@@ -260,7 +260,7 @@ class STLSim(object):
             cmd = ['valgrind', '--leak-check=full', '--error-exitcode=1'] + cmd
 
         elif self.mode == 'gdb':
-            cmd = ['gdb', '--args'] + cmd
+            cmd = ['/bin/gdb', '--args'] + cmd
 
         print "executing command: '{0}'".format(" ".join(cmd))
         rc = subprocess.call(cmd)
