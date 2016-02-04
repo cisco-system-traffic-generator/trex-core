@@ -825,18 +825,20 @@ def copy_single_system1 (bld, exec_p, build_obj):
 
 
 files_list=[
-            'libzmq.so.3.1.0',
             'libzmq.so.3',
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
             't-rex-debug-gdb',
+            'stl-sim',
+            'find_python.sh'
             'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
             'doc_process.py',
             'trex_daemon_server',
-            'trex-console'
+            'trex-console',
+            'daemon_server'
             ];
 
 files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api']
