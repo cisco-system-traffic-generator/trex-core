@@ -34,6 +34,9 @@ STLPktBuilder          = CScapyTRexPktBuilder
 STLVmFlowVar           = CTRexVmDescFlowVar
 STLVmWriteFlowVar      = CTRexVmDescWrFlowVar
 STLVmFixIpv4           = CTRexVmDescFixIpv4
+STLVmTrimPktSize       = CTRexVmDescTrimPktSize
+STLVmTupleGen          = CTRexVmDescTupleGen
+
 
 # simulator
 STLSim                 = client.trex_stateless_sim.STLSim
