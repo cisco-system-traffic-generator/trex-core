@@ -305,9 +305,11 @@ def unsigned_int (x):
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="stl_sim.py")
 
-    parser.add_argument("input_file",
+    parser.add_argument("-f",
+                        dest ="input_file",
                         help = "input file in YAML or Python format",
-                        type = is_valid_file)
+                        type = is_valid_file,
+                        required=True)
 
     parser.add_argument("-o",
                         dest = "output_file",

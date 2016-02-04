@@ -84,9 +84,9 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def run_sim (self, yaml, output, options = "", silent = False):
         if output:
-            user_cmd = "{0} -o {1} {2}".format(yaml, output, options)
+            user_cmd = "-f {0} -o {1} {2}".format(yaml, output, options)
         else:
-            user_cmd = "{0} {1}".format(yaml, options)
+            user_cmd = "-f {0} {1}".format(yaml, options)
 
         cmd = "{0} {1} {2}".format(sys.executable,
                                    self.stl_sim,
