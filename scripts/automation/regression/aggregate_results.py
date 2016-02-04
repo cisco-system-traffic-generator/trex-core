@@ -17,11 +17,10 @@ ERROR_CATEGORY = 'Error'
 def pad_tag(text, tag):
     return '<%s>%s</%s>' % (tag, text, tag)
 
-def add_color_string(text, color, is_bold = False):
-    string = '<font color=%s>%s</font>' % (color, text)
-    if is_bold:
-        return pad_tag(string, 'b')
-    return string
+def mark_string(text, color, condition):
+    if condition:
+        return '<font color=%s><b>%s</b></font>' % (color, text)
+    return text
 
 
 def is_functional_test_name(testname):
@@ -328,11 +327,12 @@ if __name__ == '__main__':
     failure_tests_count = int(aggregated_root.attrib.get('failures', 0))
     skipped_tests_count = int(aggregated_root.attrib.get('skip', 0))
     passed_tests_count  = total_tests_count - error_tests_count - failure_tests_count - skipped_tests_count
-    tests_count_string = 'Total: %s, ' % total_tests_count
-    tests_count_string += add_color_string('Passed: %s' % passed_tests_count, 'green', error_tests_count + failure_tests_count > 0) + ', '
-    tests_count_string += add_color_string('Error: %s' % error_tests_count, 'red', error_tests_count > 0) + ', '
-    tests_count_string += add_color_string('Failure: %s' % failure_tests_count, 'red', failure_tests_count > 0) + ', '
-    tests_count_string += add_color_string('Skipped: %s' % skipped_tests_count, 'blue')
+
+    tests_count_string = mark_string('Total: %s' % total_tests_count, 'red', total_tests_count == 0) + ', '
+    tests_count_string += mark_string('Passed: %s' % passed_tests_count, 'red', error_tests_count + failure_tests_count > 0) + ', '
+    tests_count_string += mark_string('Error: %s' % error_tests_count, 'red', error_tests_count > 0) + ', '
+    tests_count_string += mark_string('Failure: %s' % failure_tests_count, 'red', failure_tests_count > 0) + ', '
+    tests_count_string += 'Skipped: %s' % skipped_tests_count
 
 ##### save output xml
 
