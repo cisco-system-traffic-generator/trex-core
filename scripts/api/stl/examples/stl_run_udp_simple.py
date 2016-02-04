@@ -1,7 +1,14 @@
 #!/usr/bin/python
 import sys, getopt
 import argparse;
+""" 
+Sample API application, 
+Connect to TRex 
+Send UDP packet in specific length 
+Each direction has its own IP range
+Compare  Rx-pkts to TX-pkts assuming ports are loopback
 
+"""
 
 sys.path.insert(0, "../")
 
@@ -141,7 +148,21 @@ def simple_burst (duration = 10, frame_size = 9000, speed = '1gbps'):
 
 def process_options ():
     parser = argparse.ArgumentParser(usage=""" 
-    connect to TRex and send burst of packets 
+    connect to TRex and send burst of packets
+
+    examples
+
+     stl_run_udp_simple.py -s 9001  
+
+     stl_run_udp_simple.py -s 9000 -d 2     
+
+     stl_run_udp_simple.py -s 3000 -d 3 -m 10mbps
+
+     stl_run_udp_simple.py -s 3000 -d 3 -m 10mbps --debug
+
+     then run the simulator on the output 
+       ./stl-sim -f example.yaml -o a.pcap  ==> a.pcap include the packet
+
     """,
     description="example for TRex api",
     epilog=" written by hhaim");
