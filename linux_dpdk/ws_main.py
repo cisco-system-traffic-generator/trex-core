@@ -831,7 +831,7 @@ files_list=[
             'bp-sim-64-debug',
             't-rex-debug-gdb',
             'stl-sim',
-            'find_python.sh'
+            'find_python.sh',
             'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
