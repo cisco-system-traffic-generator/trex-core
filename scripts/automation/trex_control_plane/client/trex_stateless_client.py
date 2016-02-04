@@ -28,6 +28,7 @@ from trex_async_client import CTRexAsyncClient
 from yaml import YAMLError
 
 
+
 ############################     logger     #############################
 ############################                #############################
 ############################                #############################
@@ -1309,17 +1310,22 @@ class STLClient(object):
             # convert to new style stream object
             streams = [HACKSTLStream(stream) for stream in stream_list.compiled]
         except YAMLError:
-            # try python
+            # try python loader
             try:
                 basedir = os.path.dirname(filename)
+
                 sys.path.append(basedir)
                 file    = os.path.basename(filename).split('.')[0]
                 module = __import__(file, globals(), locals(), [], -1)
+                reload(module) # reload the update 
 
                 streams = module.register().get_streams()
 
-            except (AttributeError, ImportError):
-                raise STLError("bad format input file '{0}'".format(filename))
+            except Exception as e :
+                print str(e);
+                traceback.print_exc(file=sys.stdout)
+                raise STLError("Unexpected error: '{0}'".format(filename))
+
 
         self.add_streams(streams, ports)
 
