@@ -1,87 +1,76 @@
+import sys
+import os
 
-from common.trex_streams import *
-from client_utils.packet_builder import CTRexPktBuilder
+# we need the API path
+CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
+API_PATH     = os.path.join(CURRENT_PATH, "../../api/stl")
+sys.path.insert(0, API_PATH)
 
+from trex_stl_api import *
+from scapy.all import *
 
+# IMIX profile - involves 3 streams of UDP packets
+# 1 - 60 bytes
+# 2 - 590 bytes
+# 3 - 1514 bytes
 class STLImix(object):
 
     def __init__ (self):
-        ip_range = {'src' : {}, 'dst': {}}
+        # default IP range
+        self.ip_range = {'src': {'start': "10.0.0.1", 'end': "10.0.0.254"},
+                         'dst': {'start': "8.0.0.1",  'end': "8.0.0.254"}}
 
-        ip_range['src']['start'] = "10.0.0.1"
-        ip_range['src']['end']   = "10.0.0.254"
-        ip_range['dst']['start'] = "8.0.0.1"
-        ip_range['dst']['end']   = "8.0.0.254"
-
-        self.ip_range = ip_range
-
-    def get_streams (self, flip = False):
-
-        # construct the base packet for the profile
-        base_pkt = CTRexPktBuilder()
-
-        base_pkt.add_pkt_layer("l2", dpkt.ethernet.Ethernet())
-        base_pkt.set_layer_attr("l2", "type", dpkt.ethernet.ETH_TYPE_IP)
-        base_pkt.add_pkt_layer("l3_ip", dpkt.ip.IP())
-        base_pkt.add_pkt_layer("l4_udp", dpkt.udp.UDP())
+        # default IMIX properties
+        self.imix_table = [ {'size': 60,   'pps': 28},
+                            {'size': 590,  'pps': 20},
+                            {'size': 1514, 'pps': 4}]
 
 
-        if not flip:
+    def create_stream (self, size, pps, vm):
+        # create a base packet and pad it to size
+        base_pkt = Ether()/IP()/UDP()
+        pad = max(0, size - len(base_pkt)) * 'x'
+
+        pkt = STLPktBuilder(pkt = base_pkt/pad,
+                            vm = vm)
+
+        return STLStream(packet = pkt,
+                         mode = STLTXCont())
+
+
+    def get_streams (self, direction = 0):
+
+        if direction == 0:
             src = self.ip_range['src']
             dst = self.ip_range['dst']
         else:
             src = self.ip_range['dst']
             dst = self.ip_range['src']
 
-        base_pkt.set_vm_ip_range(ip_layer_name = "l3_ip",
-                                 ip_field = "src",
-                                 ip_start = src['start'],
-                                 ip_end = src['end'],
-                                 operation = "inc",
-                                 split = True)
+        # construct the base packet for the profile
 
-        base_pkt.set_vm_ip_range(ip_layer_name = "l3_ip",
-                                 ip_field = "dst",
-                                 ip_start = dst['start'],
-                                 ip_end = dst['end'],
-                                 operation = "inc")
+        vm =[
+            # src
+            STLVmFlowVar(name="src",min_value=src['start'],max_value=src['end'],size=4,op="inc"),
+            STLVmWriteFlowVar(fv_name="src",pkt_offset= "IP.src"),
 
+            # dst
+            STLVmFlowVar(name="dst",min_value=dst['start'],max_value=dst['end'],size=4,op="inc"),
+            STLVmWriteFlowVar(fv_name="dst",pkt_offset= "IP.dst"),
 
+            # checksum
+            STLVmFixIpv4(offset = "IP")
 
-        # pad to 60 bytes
-        pkt_1 = base_pkt.clone()
-        payload_size = 60 - len(pkt_1.get_layer('l2'))
-        pkt_1.set_pkt_payload("a" * payload_size)
+            ]
 
-        pkt_1.set_layer_attr("l3_ip", "len", len(pkt_1.get_layer('l3_ip')))
+        # create imix streams
+        return [self.create_stream(x['size'], x['pps'], vm) for x in self.imix_table]
 
 
-        s1 = STLStream(packet = pkt_1,
-                       mode = STLTXCont())
 
-        # stream 2
-        pkt_2 = base_pkt.clone()
-        payload_size = 590 - len(pkt_2.get_layer('l2'))
-        pkt_2.set_pkt_payload("a" * payload_size)
-
-        pkt_2.set_layer_attr("l3_ip", "len", len(pkt_2.get_layer('l3_ip')))
-
-        s2 = STLStream(packet = pkt_2,
-                       mode = STLTXCont())
-
-
-        # stream 3
-        pkt_3 = base_pkt.clone()
-        payload_size = 1514 - len(pkt_3.get_layer('l2'))
-        pkt_3.set_pkt_payload("a" * payload_size)
-
-        pkt_3.set_layer_attr("l3_ip", "len", len(pkt_3.get_layer('l3_ip')))
-
-        s3 = STLStream(packet = pkt_3,
-                       mode = STLTXCont())
-
-        return [s1, s2, s3]
-
-# dynamic load
+# dynamic load - used for trex console or simulator
 def register():
     return STLImix()
+
+
+

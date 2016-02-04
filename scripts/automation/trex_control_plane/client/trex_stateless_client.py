@@ -929,7 +929,7 @@ class STLClient(object):
     def get_stats (self, ports = None, async_barrier = True):
         # by default use all ports
         if ports == None:
-            ports = self.get_all_ports()
+            ports = self.get_acquired_ports()
         else:
             ports = self.__ports(ports)
 
@@ -1306,7 +1306,6 @@ class STLClient(object):
         try:
             streams_db = CStreamsDB()
             stream_list = streams_db.load_yaml_file(filename)
-
             # convert to new style stream object
             streams = [HACKSTLStream(stream) for stream in stream_list.compiled]
         except YAMLError:

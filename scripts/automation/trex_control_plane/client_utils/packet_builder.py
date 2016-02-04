@@ -14,7 +14,9 @@ from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 import base64
 
-class CTRexPktBuilder(object):
+from packet_builder_interface import CTrexPktBuilderInterface
+
+class CTRexPktBuilder(CTrexPktBuilderInterface):
     """
     This class defines the TRex API of building a packet using dpkt package.
     Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
@@ -479,6 +481,9 @@ class CTRexPktBuilder(object):
 
     def get_vm_data(self):
         return self.vm.dump()
+
+    def compile (self):
+        pass
 
     def dump_pkt(self, encode = True):
         """

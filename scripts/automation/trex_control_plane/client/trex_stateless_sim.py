@@ -116,8 +116,8 @@ class STLSim(object):
 
             return module.register().get_streams()
 
-        except (AttributeError, ImportError):
-            pass
+        except (AttributeError, ImportError) as e:
+            print "specific error: {0}".format(e)
 
         raise STLError("bad format input file '{0}'".format(input_file))
 
