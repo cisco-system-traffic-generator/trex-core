@@ -10,7 +10,8 @@ PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pard
 CLIENT_MODULES = ['enum34-1.0.4',
                   'jsonrpclib-pelix-0.2.5',
                   'termstyle',
-                  'rpc_exceptions-0.1'
+                  'rpc_exceptions-0.1',
+                  'yaml-3.11'
                   ]
 
 
