@@ -510,7 +510,7 @@ class STLStream(object):
         x = yaml.dump(yaml_lst, default_flow_style=False)
         with open(yaml_file, 'w') as f:
             f.write(x)
-
+        return x
 
 
 # REMOVE ME when can - convert from stream pack to a simple stream

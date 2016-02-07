@@ -618,7 +618,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         # process VM
         if vm != None:
             if not isinstance(vm, (CTRexScRaw, list)):
-                raise CTRexPacketBuildException(-14, "bad value for variable pkt")
+                raise CTRexPacketBuildException(-14, "bad value for variable vm")
 
             self.add_command(vm if isinstance(vm, CTRexScRaw) else CTRexScRaw(vm))
 
