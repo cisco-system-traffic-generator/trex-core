@@ -1,5 +1,5 @@
 import stl_path
-from trex_control_plane.stl.api import *
+from trex_stl_lib.api import *
 
 import time
 import json

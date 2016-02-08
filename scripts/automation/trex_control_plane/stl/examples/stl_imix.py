@@ -1,5 +1,5 @@
 import stl_path
-from trex_control_plane.stl.api import *
+from trex_stl_lib.api import *
 
 import time
 import json
@@ -35,7 +35,7 @@ def imix_test ():
         dir_1 = table['dir'][1]
 
         # load IMIX profile
-        streams = c.load_profile('../../../stl/profiles/imix.py')
+        streams = c.load_profile('../../../../stl/profiles/imix.py')
 
         # add both streams to ports
         c.add_streams(streams, ports = dir_0)
@@ -82,6 +82,7 @@ def imix_test ():
             passed = True
         else:
             passed = False
+
 
     except STLError as e:
         passed = False
