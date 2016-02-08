@@ -248,6 +248,54 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         assert_equal(d['instructions'][2]['pkt_offset'],16)
         assert_equal(d['instructions'][4]['pkt_offset'],38)
 
+    def test_simple_pkt_loader(self):
+        p=RawPcapReader("stl/golden/basic_imix_golden.cap")
+        print ""
+        for pkt in p:
+            print pkt[1]
+            print hexdump(str(pkt[0]))
+            break;
+
+    def test_simple_pkt_loader1(self):
+
+        pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/basic_imix_golden.cap");
+        print ""
+        pkt_builder.dump_as_hex()
+        r = pkt_builder.pkt_raw
+        assert_equal(ord(r[1]),0x50)
+        assert_equal(ord(r[0]),0x00)
+        assert_equal(ord(r[0x240]),0x16)
+        assert_equal(ord(r[0x24d]),0x79)
+        assert_equal(len(r),590)
+
+        print len(r)
+
+    def test_simple_pkt_loader2(self):
+
+        pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/basic_imix_golden.cap");
+        assert_equal(pkt_builder.pkt_layers_desc (), "Ethernet:IP:UDP:Raw");
+
+    def test_simple_pkt_loader3(self):
+
+        #pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/basic_imix_golden.cap");
+        #r = pkt_builder.pkt_raw
+        #print ""
+        #hexdump(str(r))
+
+
+        #print pkt_builder.pkt_layers_desc ()
+
+
+        #pkt_builder.set_packet(pkt);
+
+        py='\x55'*(64)
+
+        p=Ether()/IP()/UDP(dport=12,sport=1025)/py
+        pkt_str = str(p);
+        print ""
+        hexdump(pkt_str);
+        scapy_pkt = Ether(pkt_str);
+        scapy_pkt.show2();
 
     def tearDown(self):
         pass

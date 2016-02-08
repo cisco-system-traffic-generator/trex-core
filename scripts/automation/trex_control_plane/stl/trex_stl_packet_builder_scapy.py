@@ -585,12 +585,12 @@ class CTRexVmDescTupleGen(CTRexVmDescBase):
 
 ################################################################################################
 
-
-class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
+lass CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     """
     This class defines the TRex API of building a packet using dpkt package.
     Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
+    pkt could be Scapy pkt or pcap file name 
     """
     def __init__(self, pkt = None, vm = None):
         """
@@ -602,17 +602,18 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         """
         super(CScapyTRexPktBuilder, self).__init__()
 
-        self.pkt = None
+        self.pkt = None     # as input 
+        self.pkt_raw = None # from raw pcap file
         self.vm_scripts = [] # list of high level instructions
         self.vm_low_level = None
         self.metadata=""
+        was_set=False
 
 
         # process packet
         if pkt != None:
-            if not isinstance(pkt, Packet):
-                raise CTRexPacketBuildException(-14, "bad value for variable pkt")
             self.set_packet(pkt)
+            was_set=True
 
         # process VM
         if vm != None:
@@ -620,6 +621,10 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
                 raise CTRexPacketBuildException(-14, "bad value for variable vm")
 
             self.add_command(vm if isinstance(vm, CTRexScRaw) else CTRexScRaw(vm))
+            was_set=True
+
+        if was_set:
+            self.compile ()
 
 
     def dump_vm_data_as_yaml(self):
@@ -662,12 +667,13 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         """
 
         assert self.pkt, 'empty packet'
+        pkt_buf = self._get_pkt_as_str()
 
-        return {'binary': base64.b64encode(str(self.pkt)) if encode else str(self.pkt),
+        return {'binary': base64.b64encode(pkt_buf) if encode else pkt_buf,
                 'meta': self.metadata}
 
     def dump_pkt_to_pcap(self, file_path):
-        wrpcap(file_path, self.pkt)
+        wrpcap(file_path, self._get_pkt_as_str())
 
     def add_command (self, script):
         self.vm_scripts.append(script.clone());
@@ -675,18 +681,67 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
     def dump_scripts (self):
         self.vm_low_level.dump_as_yaml()
 
+    def dump_as_hex (self):
+        pkt_buf = self._get_pkt_as_str()
+        print hexdump(pkt_buf)
+
+    def pkt_layers_desc (self):
+        """
+        return layer description like this IP:TCP:Pyload
+
+        """
+        pkt_buf = self._get_pkt_as_str()
+        scapy_pkt = Ether(pkt_buf);
+        pkt_utl = CTRexScapyPktUtl(scapy_pkt);
+        return pkt_utl.get_pkt_layers()
+
+    def set_pkt_as_str (self, pkt_buffer):
+        assert type(pkt_buffer)==str, "pkt_buffer should be string"
+        self.pkt_raw = pkt_buffer
+
+    def set_pcap_file (self, pcap_file):
+        """
+        load raw pcap file into a buffer. load only the first packet 
+
+        :parameters:
+            pcap_file : file_name
+
+        :raises:
+            + :exc:`AssertionError`, in case packet is empty.
+
+        """
+
+        p=RawPcapReader(pcap_file)
+        was_set = False
+
+        for pkt in p:
+            was_set=True;
+            self.pkt_raw = str(pkt[0])
+            break
+        if not was_set :
+            raise CTRexPacketBuildException(-14, "no buffer inside the pcap file")
+
     def set_packet (self, pkt):
         """
         Scapy packet   Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/"A"*10
         """
-        self.pkt = pkt;
+        if  isinstance(pkt, Packet):
+            self.pkt = pkt;
+        else:
+            if isinstance(pkt, str):
+                self.set_pcap_file(pkt)
+            else:
+                raise CTRexPacketBuildException(-14, "bad packet" )
+
 
 
     def compile (self):
         self.vm_low_level=CTRexVmEngine()
-        assert self.pkt, 'empty packet'
-        self.pkt.build();
+        if self.pkt == None and self.pkt_raw == None:
+            raise CTRexPacketBuildException(-14, "Packet is empty")
 
+        if self.pkt:
+            self.pkt.build();
         
         for sc in self.vm_scripts:
             if isinstance(sc, CTRexScRaw):
@@ -738,10 +793,16 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         p_utl=CTRexScapyPktUtl(self.pkt);
         return p_utl.get_field_offet_by_str(field_name)
 
+    def _get_pkt_as_str(self):
+        if self.pkt :
+            str(self.pkt)
+        if self.pkt_raw:
+            return self.pkt_raw
+        raise CTRexPacketBuildException(-11,('empty packet') % (var_name) );  
+
     def _add_tuple_gen(self,tuple_gen):
 
         pass;
-
 
 
 
