@@ -394,11 +394,18 @@ public:
     }
 
     /* create new stream */
-    TrexStream * clone() const {
+    TrexStream * clone(bool full = false) const {
 
         /* not all fields will be cloned */
 
         TrexStream *dp = new TrexStream(m_type,m_port_id,m_stream_id);
+
+        /* on full clone we copy also VM */
+        if (full) {
+            m_vm.copy_instructions(dp->m_vm);
+        }
+
+        /* copy VM DP product */
         if (m_vm_dp) {
             dp->m_vm_dp = m_vm_dp->clone();
         } else {
@@ -500,10 +507,10 @@ public:
 
     /* RX check */
     struct {
-        bool      m_enable;
+        bool      m_enabled;
         bool      m_seq_enabled;
         bool      m_latency;
-        uint32_t  m_stream_id;
+        uint32_t  m_user_id;
 
     } m_rx_check;
 
@@ -559,12 +566,7 @@ public:
      */
     void remove_stream(TrexStream *stream);
 
-    /**
-     * remove all streams on the table
-     * memory will be deleted
-     */
-    void remove_and_delete_all_streams();
-
+ 
     /**
      * fetch a stream if exists 
      * o.w NULL 

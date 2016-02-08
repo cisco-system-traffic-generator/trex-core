@@ -32,6 +32,7 @@ limitations under the License.
 #include <trex_rpc_server_api.h>
 #include <publisher/trex_publisher.h>
 
+#include <flow_stat.h>
 #include <internal_api/trex_platform_api.h>
 
 /**
@@ -164,6 +165,8 @@ public:
     TrexRpcServer * get_rpc_server() {
         return m_rpc_server;
     }
+
+    CFlowStatRuleMgr                     m_rx_flow_stat;
 
 protected:
 

@@ -103,11 +103,11 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     /* parse RX info */
     const Json::Value &rx = parse_object(section, "rx_stats", result);
 
-    stream->m_rx_check.m_enable = parse_bool(rx, "enabled", result);
+    stream->m_rx_check.m_enabled = parse_bool(rx, "enabled", result);
 
     /* if it is enabled - we need more fields */
-    if (stream->m_rx_check.m_enable) {
-        stream->m_rx_check.m_stream_id   = parse_int(rx, "stream_id", result);
+    if (stream->m_rx_check.m_enabled) {
+        stream->m_rx_check.m_user_id   = parse_int(rx, "stream_id", result);
         stream->m_rx_check.m_seq_enabled = parse_bool(rx, "seq_enabled", result);
         stream->m_rx_check.m_latency     = parse_bool(rx, "latency_enabled", result);
     }

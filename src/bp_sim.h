@@ -43,6 +43,7 @@ limitations under the License.
 #include <math.h>
 #include <common/bitMan.h> 
 #include <yaml-cpp/yaml.h>
+#include "trex_defs.h"
 #include "os_time.h"
 #include "pal_utl.h"
 #include "rx_check_header.h"
@@ -69,7 +70,7 @@ usec_to_sec(double usec) {
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 
-#define MAX_LATENCY_PORTS 12
+#define MAX_LATENCY_PORTS TREX_MAX_PORTS
 
 /* IP address, last 32-bits of IPv6 remaps IPv4 */
 typedef struct {

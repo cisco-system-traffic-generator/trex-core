@@ -78,6 +78,7 @@
 #define I40E_FDIR_FLUSH_RETRY       50
 #define I40E_FDIR_FLUSH_INTERVAL_MS 5
 
+#define TREX_PATCH
 #define I40E_COUNTER_PF           2
 /* Statistic counter index for one pf */
 #define I40E_COUNTER_INDEX_FDIR(pf_id)   (0 + (pf_id) * I40E_COUNTER_PF)
@@ -719,8 +720,10 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		ip->version_ihl = I40E_FDIR_IP_DEFAULT_VERSION_IHL;
 		/* set len to by default */
 		ip->total_length = rte_cpu_to_be_16(I40E_FDIR_IP_DEFAULT_LEN);
-		// TREX_PATCH
+#ifdef TREX_PATCH
 		ip->time_to_live = fdir_input->flow.ip4_flow.ttl;
+        ip->packet_id = rte_cpu_to_be_16(fdir_input->flow.ip4_flow.ip_id);
+#endif
 		/*
 		 * The source and destination fields in the transmitted packet
 		 * need to be presented in a reversed order with respect
@@ -1145,7 +1148,11 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 	fdirdp->dtype_cmd_cntindex |=
 			rte_cpu_to_le_32(I40E_TXD_FLTR_QW1_CNT_ENA_MASK);
 	fdirdp->dtype_cmd_cntindex |=
+#ifdef TREX_PATCH
+			rte_cpu_to_le_32((fdir_action->stat_count_index <<
+#else
 			rte_cpu_to_le_32((pf->fdir.match_counter_index <<
+#endif
 			I40E_TXD_FLTR_QW1_CNTINDEX_SHIFT) &
 			I40E_TXD_FLTR_QW1_CNTINDEX_MASK);
 

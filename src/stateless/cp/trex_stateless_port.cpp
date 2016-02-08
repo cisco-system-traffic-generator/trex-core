@@ -179,7 +179,6 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     m_last_duration = duration;
     change_state(PORT_STATE_TX);
 
-
     /* update the DP - messages will be freed by the DP */
     int index = 0;
     for (auto core_id : m_cores_id_list) {
@@ -231,12 +230,32 @@ TrexStatelessPort::stop_traffic(void) {
 
     send_message_to_all_dp(stop_msg);
 
+    /* continue to general actions */
+    common_port_stop_actions(false);
+  
+}
+
+/**
+ * when a port stops, perform various actions
+ * 
+ */
+void
+TrexStatelessPort::common_port_stop_actions(bool event_triggered) {
+
     change_state(PORT_STATE_STREAMS);
     
     Json::Value data;
     data["port_id"] = m_port_id;
-    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
 
+    if (event_triggered) {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
+    } else {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FINISHED_TX, data);
+    }
+
+    for (auto entry : m_stream_table) {
+        get_stateless_obj()->m_rx_flow_stat.stop_stream(entry.second);
+    }
 }
 
 void
@@ -428,12 +447,7 @@ TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
     switch (event_type) {
 
     case TrexDpPortEvent::EVENT_STOP:
-        /* set a stop event */
-        change_state(PORT_STATE_STREAMS);
-        /* send a ZMQ event */
-
-        data["port_id"] = m_port_id;
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FINISHED_TX, data);
+        common_port_stop_actions(true);
         break;
 
     default:
@@ -649,6 +663,47 @@ TrexStatelessPort::get_port_effective_rate(double &pps,
     bps_L2     = m_graph_obj->get_max_bps_l2() * m_factor;
     percentage = (bps_L1 / get_port_speed_bps()) * 100.0;
     
+}
+
+void
+TrexStatelessPort::add_stream(TrexStream *stream) {
+
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+
+    m_stream_table.add_stream(stream);
+    delete_streams_graph();
+
+    get_stateless_obj()->m_rx_flow_stat.add_stream(stream);
+
+    change_state(PORT_STATE_STREAMS);
+}
+
+void
+TrexStatelessPort::remove_stream(TrexStream *stream) {
+
+    verify_state(PORT_STATE_STREAMS);
+
+    get_stateless_obj()->m_rx_flow_stat.del_stream(stream);
+
+    m_stream_table.remove_stream(stream);
+    delete_streams_graph();
+
+    if (m_stream_table.size() == 0) {
+        change_state(PORT_STATE_IDLE);
+    }
+}
+
+void
+TrexStatelessPort::remove_and_delete_all_streams() {
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+
+    vector<TrexStream *> streams;
+    get_object_list(streams);
+
+    for (auto stream : streams) {
+        remove_stream(stream);
+        delete stream;
+    }
 }
 
 /************* Trex Port Owner **************/

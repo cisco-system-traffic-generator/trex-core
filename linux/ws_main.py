@@ -118,8 +118,10 @@ main_src = SrcGroup(dir='src',
              'utl_cpuu.cpp',
              'msg_manager.cpp',
              'publisher/trex_publisher.cpp',
-	     'latency.cpp',
-
+             'latency.cpp',
+             'flow_stat.cpp',
+             'flow_stat_parser.cpp',
+            
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp',
              'sim/trex_sim_stateless.cpp',

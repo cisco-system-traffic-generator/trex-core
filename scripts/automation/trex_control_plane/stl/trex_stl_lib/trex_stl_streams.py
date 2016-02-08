@@ -121,7 +121,21 @@ STLStreamDstMAC_CFG_FILE=0
 STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
+# RX stats class
+class STLRxStats(object):
+    def __init__ (self, user_id):
+        self.fields = {}
+        self.fields['stream_id'] = user_id
+        self.fields['enabled'] = True
+        self.fields['seq_enabled'] = False
+        self.fields['latency_enabled'] = False
 
+    def to_json (self):
+        return dict(self.fields)
+
+    @staticmethod
+    def defaults ():
+        return {'enabled' : False}
 
 class STLStream(object):
 
@@ -216,10 +230,9 @@ class STLStream(object):
         self.packet_desc = None
 
         if not rx_stats:
-            self.fields['rx_stats'] = {}
-            self.fields['rx_stats']['enabled'] = False
+            self.fields['rx_stats'] = STLRxStats.defaults()
         else:
-            self.fields['rx_stats'] = rx_stats
+            self.fields['rx_stats'] = rx_stats.to_json()
 
 
     def __str__ (self):

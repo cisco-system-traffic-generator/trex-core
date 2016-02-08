@@ -236,34 +236,9 @@ public:
      * 
      */
 
-    void add_stream(TrexStream *stream) {
-        verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
-
-        m_stream_table.add_stream(stream);
-        delete_streams_graph();
-
-        change_state(PORT_STATE_STREAMS);
-    }
-
-    void remove_stream(TrexStream *stream) {
-        verify_state(PORT_STATE_STREAMS);
-
-        m_stream_table.remove_stream(stream);
-        delete_streams_graph();
-
-        if (m_stream_table.size() == 0) {
-            change_state(PORT_STATE_IDLE);
-        }
-    }
-
-    void remove_and_delete_all_streams() {
-        verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
-
-        m_stream_table.remove_and_delete_all_streams();
-        delete_streams_graph();
-
-        change_state(PORT_STATE_IDLE);
-    }
+    void add_stream(TrexStream *stream);
+    void remove_stream(TrexStream *stream);
+    void remove_and_delete_all_streams();
 
     TrexStream * get_stream_by_id(uint32_t stream_id) {
         return m_stream_table.get_stream_by_id(stream_id);
@@ -367,6 +342,12 @@ private:
      */
     void on_dp_event_occured(TrexDpPortEvent::event_e event_type);
 
+
+    /**
+     * when a port stops, perform various actions
+     * 
+     */
+    void common_port_stop_actions(bool event_triggered);
 
     /**
      * calculate effective M per core

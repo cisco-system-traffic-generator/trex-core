@@ -134,7 +134,7 @@ public:
     inline  void    updateIpDst(uint32_t ipsrc);
 
 
-
+    inline  void    updateCheckSum(uint16_t old_val, uint16_t new_val);
     inline  void    updateCheckSum      ();
     inline  void    updateCheckSum2(uint8_t* data1, uint16_t len1, uint8_t* data2 , uint16_t len2);
 
