@@ -16,18 +16,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
-try:
-    # support import for Python 2
-    import outer_packages
-except ImportError:
-    # support import for Python 3
-    import client.outer_packages
-
-from common.trex_stl_exceptions import STLError
+from trex_stl_exceptions import *
 from yaml import YAMLError
-from common.trex_streams import *
+from trex_stl_streams import *
 from client_utils import parsing_opts
+from trex_stl_client import STLClient
 
 import re
 import json
@@ -95,33 +88,6 @@ class STLSim(object):
         self.port_id = port_id
 
 
-    def load_input_file (self, input_file):
-        # try YAML
-        try:
-            streams_db = CStreamsDB()
-            stream_list = streams_db.load_yaml_file(input_file)
-
-            # convert to new style stream object
-            return [HACKSTLStream(stream) for stream in stream_list.compiled]
-        except YAMLError:
-            pass
-
-        # try python
-        try:
-            basedir = os.path.dirname(input_file)
-            sys.path.append(basedir)
-
-            file    = os.path.basename(input_file).split('.')[0]
-            module = __import__(file, globals(), locals(), [], -1)
-
-            return module.register().get_streams()
-
-        except (AttributeError, ImportError) as e:
-            print "specific error: {0}".format(e)
-
-        raise STLError("bad format input file '{0}'".format(input_file))
-
-
     def generate_start_cmd (self, mult = "1", force = True, duration = -1):
         return  {"id":1,
                  "jsonrpc": "2.0",
@@ -171,7 +137,7 @@ class STLSim(object):
 
         # handle YAMLs
         for input_file in input_files:
-            stream_list += self.load_input_file(input_file)
+            stream_list += STLClient.load_profile(input_file)
 
 
         # load streams

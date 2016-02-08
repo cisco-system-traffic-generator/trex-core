@@ -1,5 +1,5 @@
 #!/bin/bash
 
 source find_python.sh
-$PYTHON automation/trex_control_plane/console/trex_console.py $@
+$PYTHON automation/wrap_stl_console.py $@
 

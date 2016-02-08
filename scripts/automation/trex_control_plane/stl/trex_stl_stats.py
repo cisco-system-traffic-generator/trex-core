@@ -1,8 +1,11 @@
 #!/router/bin/python
-from collections import namedtuple, OrderedDict, deque
+
 from client_utils import text_tables
 from common.text_opts import format_text, format_threshold, format_num
-from client.trex_async_client import CTRexAsyncStats
+
+from trex_stl_async_client import CTRexAsyncStats
+
+from collections import namedtuple, OrderedDict, deque
 import copy
 import datetime
 import time

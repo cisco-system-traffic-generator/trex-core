@@ -1,8 +1,5 @@
-# include the path of trex_stl_api.py
-import sys
-sys.path.insert(0, "../")
-
-from trex_stl_api import *
+import stl_path
+from trex_control_plane.stl.api import *
 
 import time
 import json

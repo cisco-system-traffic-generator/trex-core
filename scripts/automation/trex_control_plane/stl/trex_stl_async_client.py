@@ -1,15 +1,5 @@
 #!/router/bin/python
 
-try:
-    # support import for Python 2
-    import outer_packages
-except ImportError:
-    # support import for Python 3
-    import client.outer_packages
-from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
-
-from common.text_opts import *
-
 import json
 import threading
 import time
@@ -18,9 +8,11 @@ import zmq
 import re
 import random
 
-from common.trex_stats import *
-from common.trex_streams import *
-from common.trex_types import *
+from trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
+
+from common.text_opts import *
+from trex_stl_stats import *
+from trex_stl_types import *
 
 # basic async stats class
 class CTRexAsyncStats(object):

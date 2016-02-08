@@ -1,13 +1,12 @@
 #!/router/bin/python
 
-import external_packages
 import zmq
 import json
-import general_utils
+import client_utils.general_utils
 import re
 from time import sleep
 from collections import namedtuple
-from common.trex_types import *
+from trex_stl_types import *
 
 class bcolors:
     BLUE = '\033[94m'
@@ -49,7 +48,7 @@ class JsonRpcClient(object):
         # default values
         self.port   = default_port
         self.server = default_server
-        self.id_gen = general_utils.random_id_gen()
+        self.id_gen = client_utils.general_utils.random_id_gen()
 
 
     def get_connection_details (self):

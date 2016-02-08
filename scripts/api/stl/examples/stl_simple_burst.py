@@ -1,8 +1,6 @@
-import sys
-sys.path.insert(0, "../")
+import stl_path
+from trex_control_plane.stl.api import *
 
-from trex_stl_api import *
-from scapy.all import *
 import time
 
 def simple_burst ():
@@ -13,7 +11,6 @@ def simple_burst ():
     passed = True
     
     try:
-
         pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
 
         # create two bursts and link them
@@ -24,7 +21,11 @@ def simple_burst ():
                        mode = STLTXSingleBurst(total_pkts = 3000),
                        next_stream_id = s1.get_id())
 
-
+        STLStream.dump_to_yaml([s1, s2], '1.yaml')
+        stream_list = STLStream.load_from_yaml('1.yaml')
+        print s2
+        print stream_list[1]
+        exit(0)
         # connect to server
         c.connect()
 

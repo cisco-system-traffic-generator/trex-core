@@ -4,7 +4,7 @@
   stream:
     self_start: True
     packet:
-      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+      binary: yaml/udp_64B_no_crc.pcap  # pcap should not include CRC
     mode:
       type: continuous
       pps: 100

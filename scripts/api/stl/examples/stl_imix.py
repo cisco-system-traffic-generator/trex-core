@@ -1,10 +1,5 @@
-# include the path of trex_stl_api.py
-import sys
-sys.path.insert(0, "../")
-
-from trex_stl_api import *
-from trex_stl_lib import *
-from profiles.imix import STLImix
+import stl_path
+from trex_control_plane.stl.api import *
 
 import time
 import json
@@ -26,9 +21,6 @@ def imix_test ():
 
     try:
 
-        # base profile - imix
-        profile = STLImix()
-
         # connect to server
         c.connect()
 
@@ -42,9 +34,12 @@ def imix_test ():
         dir_0 = table['dir'][0]
         dir_1 = table['dir'][1]
 
+        # load IMIX profile
+        streams = c.load_profile('../../../stl/profiles/imix.py')
+
         # add both streams to ports
-        c.add_streams(profile.get_streams(direction = 0), ports = dir_0)
-        c.add_streams(profile.get_streams(direction = 1), ports = dir_1)
+        c.add_streams(streams, ports = dir_0)
+        c.add_streams(streams, ports = dir_1)
         
         # clear the stats before injecting
         c.clear_stats()

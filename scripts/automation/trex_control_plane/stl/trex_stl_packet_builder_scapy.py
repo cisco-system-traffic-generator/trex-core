@@ -1,4 +1,3 @@
-import external_packages
 import random
 import string
 import struct
@@ -8,7 +7,7 @@ import yaml
 import binascii
 import base64
 
-from packet_builder_interface import CTrexPktBuilderInterface
+from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 
 from scapy.all import *
 

@@ -1,9 +1,5 @@
-
-from trex_stl_api import *
-from scapy.all import *
-
-# stl library for various utilities
-
+from trex_stl_streams import *
+from trex_stl_packet_builder_scapy import *
 
 # map ports
 # will destroy all streams/data on the ports
@@ -17,7 +13,7 @@ def stl_map_ports (client, ports = None):
     client.reset(ports)
 
     # generate streams
-    base_pkt = STLPktBuilder(pkt = Ether()/IP())
+    base_pkt = CScapyTRexPktBuilder(pkt = Ether()/IP())
     
     pkts = 1
     for port in ports:

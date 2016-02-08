@@ -1,14 +1,5 @@
-import sys
-import os
 
-# Should be removed 
-# TBD fix this 
-CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-API_PATH     = os.path.join(CURRENT_PATH, "../../api/stl")
-sys.path.insert(0, API_PATH)
-
-from scapy.all import *
-from trex_stl_api import *
+from trex_control_plane.stl.api import *
 
 class STLS1(object):
 

@@ -1,33 +1,28 @@
 #!/router/bin/python
 
-try:
-    # support import for Python 2
-    import outer_packages
-except ImportError:
-    # support import for Python 3
-    import client.outer_packages
+# for API usage the path name must be full
+from trex_control_plane.stl.trex_stl_exceptions import *
+#from trex_control_plane.stl.trex_stl_streams import *
+from trex_stl_streams import *
 
-from client_utils.jsonrpc_client import JsonRpcClient, BatchMessage
-from client_utils import general_utils
-from client_utils.packet_builder import CTRexPktBuilder
-import json
+from trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
+import trex_stl_stats
 
-from common.trex_streams import *
+from trex_stl_port import Port
+from trex_stl_types import *
+from trex_stl_async_client import CTRexAsyncClient
+
+from trex_control_plane.client_utils import parsing_opts, text_tables, general_utils
+from trex_control_plane.common.text_opts import *
+
+
 from collections import namedtuple
-from common.text_opts import *
-from common import trex_stats
-from client_utils import parsing_opts, text_tables
+from yaml import YAMLError
 import time
 import datetime
 import re
 import random
-from trex_port import Port
-from common.trex_types import *
-from common.trex_stl_exceptions import *
-from trex_async_client import CTRexAsyncClient
-from yaml import YAMLError
-
-
+import json
 
 ############################     logger     #############################
 ############################                #############################
@@ -193,7 +188,6 @@ class AsyncEventHandler(object):
     # dispatcher for server async events (port started, port stopped and etc.)
     def handle_async_event (self, type, data):
         # DP stopped
-
         show_event = False
 
         # port started
@@ -431,11 +425,11 @@ class STLClient(object):
                                 "virtual":    virtual}
 
         
-        self.global_stats = trex_stats.CGlobalStats(self.connection_info,
+        self.global_stats = trex_stl_stats.CGlobalStats(self.connection_info,
                                                     self.server_version,
                                                     self.ports)
 
-        self.stats_generator = trex_stats.CTRexInfoGenerator(self.global_stats,
+        self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
                                                               self.ports)
 
  
@@ -770,8 +764,8 @@ class STLClient(object):
         return self.comm_link.transmit_batch(batch_list)
 
     # stats
-    def _get_formatted_stats(self, port_id_list, stats_mask=set()):
-        stats_opts = trex_stats.ALL_STATS_OPTS.intersection(stats_mask)
+    def _get_formatted_stats(self, port_id_list, stats_mask = trex_stl_stats.COMPACT):
+        stats_opts = trex_stl_stats.ALL_STATS_OPTS.intersection(stats_mask)
 
         stats_obj = {}
         for stats_type in stats_opts:
@@ -1271,44 +1265,34 @@ class STLClient(object):
 
 
     """
-        load a profile file to port(s)
+        load a profile from file
 
         :parameters:
             filename : str
                 filename to load
-            ports : list
-                ports to execute the command
                 
+        :returns:
+            list of streams from the profile
 
         :raises:
             + :exc:`STLError`
 
     """
-    @__api_check(True)
-    def load_profile (self, filename, ports = None):
+    @staticmethod
+    def load_profile (filename):
 
         # check filename
         if not os.path.isfile(filename):
             raise STLError("file '{0}' does not exists".format(filename))
 
-        # by default use all ports
-        if ports == None:
-            ports = self.get_acquired_ports()
-
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
-
-
         streams = None
 
         # try YAML
         try:
-            streams_db = CStreamsDB()
-            stream_list = streams_db.load_yaml_file(filename)
-            # convert to new style stream object
-            streams = [HACKSTLStream(stream) for stream in stream_list.compiled]
+            streams = STLStream.load_from_yaml(filename)
+            print "***** YAML IS NOT WORKING !!! *********"
+
+
         except YAMLError:
             # try python loader
             try:
@@ -1326,8 +1310,8 @@ class STLClient(object):
                 traceback.print_exc(file=sys.stdout)
                 raise STLError("Unexpected error: '{0}'".format(filename))
 
+        return streams
 
-        self.add_streams(streams, ports)
 
 
 
@@ -1817,7 +1801,8 @@ class STLClient(object):
         self.remove_all_streams(opts.ports)
 
         # pack the profile
-        self.load_profile(opts.file[0], opts.ports)
+        streams = self.load_profile(opts.file[0])
+        self.add_streams(streams, ports = opts.ports)
 
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)
@@ -1971,12 +1956,12 @@ class STLClient(object):
             return
 
         # determine stats mask
-        mask = self.__get_mask_keys(**self.__filter_namespace_args(opts, trex_stats.ALL_STATS_OPTS))
+        mask = self.__get_mask_keys(**self.__filter_namespace_args(opts, trex_stl_stats.ALL_STATS_OPTS))
         if not mask:
             # set to show all stats if no filter was given
-            mask = trex_stats.ALL_STATS_OPTS
+            mask = trex_stl_stats.ALL_STATS_OPTS
 
-        stats_opts = trex_stats.ALL_STATS_OPTS.intersection(mask)
+        stats_opts = trex_stl_stats.ALL_STATS_OPTS.intersection(mask)
 
         stats = self._get_formatted_stats(opts.ports, mask)
 

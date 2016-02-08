@@ -2,13 +2,15 @@ import termios
 import sys
 import os
 import time
-from common.text_opts import *
-from common import trex_stats
-from client_utils import text_tables
 from collections import OrderedDict
 import datetime
 from cStringIO import StringIO
-from client.trex_stateless_client import STLError
+
+from common.text_opts import *
+from client_utils import text_tables
+
+# for STL exceptions
+from trex_control_plane.stl.api import *
 
 class SimpleBar(object):
     def __init__ (self, desc, pattern):
@@ -61,7 +63,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
 
     def show (self):
-        stats = self.stateless_client._get_formatted_stats(self.ports, trex_stats.COMPACT)
+        stats = self.stateless_client._get_formatted_stats(self.ports)
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -148,7 +150,7 @@ class TrexTUIPort(TrexTUIPanel):
 
 
     def show (self):
-        stats = self.stateless_client._get_formatted_stats([self.port_id], trex_stats.COMPACT)
+        stats = self.stateless_client._get_formatted_stats([self.port_id])
         # print stats to screen
         for stat_type, stat_data in stats.iteritems():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)

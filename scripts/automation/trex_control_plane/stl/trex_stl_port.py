@@ -1,8 +1,8 @@
 
 from collections import namedtuple, OrderedDict
-from common.trex_types import *
-from common import trex_stats
-from client_utils import packet_builder
+
+import trex_stl_stats
+from trex_stl_types import *
 
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
@@ -50,7 +50,7 @@ class Port(object):
         self.profile = None
         self.session_id = session_id
 
-        self.port_stats = trex_stats.CPortStats(self)
+        self.port_stats = trex_stl_stats.CPortStats(self)
 
 
     def err(self, msg):
@@ -161,7 +161,7 @@ class Port(object):
 
             # meta data for show streams
             self.streams[stream.get_id()] = StreamOnPort(stream.to_json(),
-                                                         Port._generate_stream_metadata(stream.get_id(), stream.to_json()))
+                                                         Port._generate_stream_metadata(stream))
 
         rc = self.transmit_batch(batch)
         if not rc:
@@ -473,21 +473,21 @@ class Port(object):
                 "streams" : streams_data}
 
     @staticmethod
-    def _generate_stream_metadata(stream_id, compiled_stream_obj):
+    def _generate_stream_metadata(stream):
         meta_dict = {}
         # create packet stream description
-        pkt_bld_obj = packet_builder.CTRexPktBuilder()
-        pkt_bld_obj.load_from_stream_obj(compiled_stream_obj)
+        #pkt_bld_obj = packet_builder.CTRexPktBuilder()
+        #pkt_bld_obj.load_from_stream_obj(compiled_stream_obj)
         # generate stream summary based on that
 
-        next_stream = "None" if compiled_stream_obj['next_stream_id']==-1 else compiled_stream_obj['next_stream_id']
+        #next_stream = "None" if stream['next_stream_id']==-1 else stream['next_stream_id']
 
-        meta_dict['stream_sum'] = OrderedDict([("id", stream_id),
-                                               ("packet_type", "/".join(pkt_bld_obj.get_packet_layers())),
-                                               ("length", pkt_bld_obj.get_packet_length()),
-                                               ("mode", compiled_stream_obj['mode']['type']),
-                                               ("rate_pps", compiled_stream_obj['mode']['pps']),
-                                               ("next_stream", next_stream)
+        meta_dict['stream_sum'] = OrderedDict([("id", stream.get_id()),
+                                               ("packet_type", "FIXME!!!"),
+                                               ("length", "FIXME!!!"),
+                                               ("mode", "FIXME!!!"),
+                                               ("rate_pps", "FIXME!!!"),
+                                               ("next_stream", "FIXME!!!")
                                                ])
         return meta_dict
 

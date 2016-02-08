@@ -1,13 +1,5 @@
-import sys
-import os
 
-# we need the API path
-CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-API_PATH     = os.path.join(CURRENT_PATH, "../../api/stl")
-sys.path.insert(0, API_PATH)
-
-from trex_stl_api import *
-from scapy.all import *
+from trex_control_plane.stl.api import *
 
 # IMIX profile - involves 3 streams of UDP packets
 # 1 - 60 bytes

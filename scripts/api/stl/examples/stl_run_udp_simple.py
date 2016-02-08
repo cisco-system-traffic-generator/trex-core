@@ -10,9 +10,8 @@ Compare  Rx-pkts to TX-pkts assuming ports are loopback
 
 """
 
-sys.path.insert(0, "../")
-
-from trex_stl_api import *
+import stl_path
+from trex_control_plane.stl.api import *
 
 H_VER = "trex-x v0.1 "
 

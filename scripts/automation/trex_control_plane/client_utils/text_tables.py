@@ -1,7 +1,5 @@
-
-import external_packages
 from texttable import Texttable
-from common.text_opts import format_text
+from trex_control_plane.common.text_opts import format_text
 
 class TRexTextTable(Texttable):
 

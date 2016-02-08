@@ -1,0 +1,124 @@
+##############################################################
+####         TRex RPC stream list default values          ####
+##############################################################
+
+# this document is based on TRex RPC server spec and its fields:
+# http://trex-tgn.cisco.com/trex/doc/trex_rpc_server_spec.html
+
+### HOW TO READ THIS FILE
+# 1. Each key represents an object type
+# 2. Each value can be either a value field or another object
+# 2.1. If a value field, read as:
+#      + type: type of field
+#      + has_default: if the value has any default
+#      + default: the default value (Only appears if has_default field is 'YES')
+# 2.2. If an object type, jump to corresponding object key.
+# 3. If an object has more than one instance type, another layer with the type shall be added.
+#    For example, 'mode' object has 3 types: 'continuous', 'single_burst', 'multi_burst'
+#    So, 3 mode objects will be defined, named: 
+#    - mode['continuous']
+#    - mode['single_burst']
+#    - mode['multi_burst']
+#    In this case, there's no default for the 'type' field on the object
+# 4. Some values has 'multiply' property attached.
+#    In such case, the loaded value will be multiplied by the multiplier
+#    For example, if the mode's 'pps' field value is 10, and its multiplier is 5,
+#    the loaded pps value will be 10*5=50
+# 5. Any object type must be listed by the user, even if all its field are defaults.
+#    The most basic option would be to declare the object with "[]", which stands for empty object in YAML syntax.
+
+
+stream:
+  enabled:
+    type: boolean
+    has_default: YES
+    default: True
+  self_start:
+    type: boolean
+    has_default: YES
+    default: True
+  isg:
+    type: [int, double, string]
+    has_default: YES
+    default: 0.0
+  next_stream_id:
+    type: string   # string to allow naming binding
+    has_default: YES
+    default: -1  # no next streams
+  packet:
+    type: object
+  mode:
+    type: object
+  vm:
+    type: object
+  rx_stats:
+    type: object
+
+packet:
+  binary:
+    type: [array,string]
+    has_default: NO
+  meta:
+    type: string
+    has_default: YES
+    default: ""
+
+mode:
+  continuous:
+    pps:
+      type: [int, double]
+      has_default: NO
+      multiply: YES
+  single_burst:
+    pps:
+      type: [int, double]
+      has_default: NO
+      multiply: YES
+    total_pkts:
+      type: int
+      has_default: NO
+  multi_burst:
+    pps:
+      type: [int, double]
+      has_default: NO
+      multiply: YES
+    pkts_per_burst:
+      type: int
+      has_default: NO
+    ibg:
+      type: [int, double, string]
+      has_default: YES
+      default: 100.0
+    count:
+      type: int
+      has_default: YES
+      default: 0  # loop forever
+
+rx_stats:
+  enabled:
+    type: boolean
+    has_default: YES
+    default: False
+  stream_id:
+    type: string
+    has_default: YES
+    default: False  # use related stream_id
+  seq_enabled:
+    type: boolean
+    has_default: YES
+    default: False
+  latency_enabled:
+    type: boolean
+    has_default: YES
+    default: False
+
+vm:
+  instructions:
+    type: array
+    has_default: YES
+    default: [] 
+  split_by_var:
+    type: string
+    has_default: YES
+    default: ""
+
