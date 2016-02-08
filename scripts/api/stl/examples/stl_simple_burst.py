@@ -21,11 +21,6 @@ def simple_burst ():
                        mode = STLTXSingleBurst(total_pkts = 3000),
                        next_stream_id = s1.get_id())
 
-        STLStream.dump_to_yaml([s1, s2], '1.yaml')
-        stream_list = STLStream.load_from_yaml('1.yaml')
-        print s2
-        print stream_list[1]
-        exit(0)
         # connect to server
         c.connect()
 
