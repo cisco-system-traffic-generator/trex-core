@@ -11,6 +11,11 @@ from dpkt import pcap
 import random
 import yaml
 import base64
+import string
+
+def random_name (l):
+    return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(l))
+
 
 # base class for TX mode
 class STLTXMode(object):
@@ -86,13 +91,14 @@ class STLTXMultiBurst(STLTXMode):
 class STLStream(object):
 
     def __init__ (self,
+                  name = random_name(8),
                   packet = None,
                   mode = STLTXCont(1),
                   enabled = True,
                   self_start = True,
                   isg = 0.0,
                   rx_stats = None,
-                  next_stream_id = -1,
+                  next = None,
                   stream_id = None):
 
         # type checking
@@ -111,20 +117,20 @@ class STLStream(object):
         if not isinstance(isg, (int, float)):
             raise STLArgumentError('isg', isg)
 
-        if (type(mode) == STLTXCont) and (next_stream_id != -1):
+        if (type(mode) == STLTXCont) and (next != None):
             raise STLError("continuous stream cannot have a next stream ID")
 
-        self.fields = {}
+        # tag for the stream and next - can be anything
+        self.name = name
+        self.next = next
+        self.set_id(stream_id)
 
-        # use a random 31 bit for ID
-        self.fields['stream_id'] = stream_id if stream_id is not None else random.getrandbits(31)
+        self.fields = {}
 
         # basic fields
         self.fields['enabled'] = enabled
         self.fields['self_start'] = self_start
         self.fields['isg'] = isg
-
-        self.fields['next_stream_id'] = next_stream_id
 
         # mode
         self.fields['mode'] = mode.to_json()
@@ -153,8 +159,20 @@ class STLStream(object):
         return self.fields
 
     def get_id (self):
-        return self.fields['stream_id']
+        return self.id
 
+    def set_id (self, id):
+        self.id = id
+
+    def get_name (self):
+        return self.name
+
+    def get_next (self):
+        return self.next
+
+
+    def to_yaml (self):
+        fields = dict(stream.fields)
 
 
     @staticmethod
@@ -228,3 +246,15 @@ class STLStream(object):
 
         return streams
 
+
+class STLYAMLLoader(object):
+    def __init__ (self, yaml_file):
+        self.yaml_file = yaml_file
+
+    def load (self):
+        with open(self.yaml_file, 'r') as f:
+            yaml_str = f.read()
+            objects = yaml.load(yaml_str)
+
+            for object in objects:
+                pass

@@ -52,6 +52,8 @@ class Port(object):
 
         self.port_stats = trex_stl_stats.CPortStats(self)
 
+        self.next_available_id = 1
+
 
     def err(self, msg):
         return RC_ERR("port {0} : {1}".format(self.port_id, msg))
@@ -130,6 +132,8 @@ class Port(object):
 
         # TODO: handle syncing the streams into stream_db
 
+        self.next_available_id = rc.data()['max_stream_id']
+
         return self.ok()
 
 
@@ -137,6 +141,12 @@ class Port(object):
     def is_port_writable (self):
         # operations on port can be done on state idle or state streams
         return ((self.state == self.STATE_IDLE) or (self.state == self.STATE_STREAMS))
+
+
+    def __allocate_stream_id (self):
+        id = self.next_available_id
+        self.next_available_id += 1
+        return id
 
 
     # add streams
@@ -148,8 +158,33 @@ class Port(object):
         if not self.is_port_writable():
             return self.err("Please stop port before attempting to add streams")
 
+        # listify
+        streams_list = streams_list if isinstance(streams_list, list) else [streams_list]
+
+        lookup = {}
+
+        # allocate IDs
+        for stream in streams_list:
+            if stream.get_id() == None:
+                stream.set_id(self.__allocate_stream_id())
+
+            lookup[stream.get_name()] = stream.get_id()
+
+        # resolve names
+        for stream in streams_list:
+            next_id = -1
+
+            next = stream.get_next()
+            if next:
+                if not next in lookup:
+                    return self.err("stream dependency error - unable to find '{0}'".format(next))
+                next_id = lookup[next]
+
+            stream.fields['next_stream_id'] = next_id
+
+
         batch = []
-        for stream in (streams_list if isinstance(streams_list, list) else [streams_list]):
+        for stream in streams_list:
 
             params = {"handler": self.handler,
                       "port_id": self.port_id,

@@ -14,12 +14,15 @@ def simple_burst ():
         pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
 
         # create two bursts and link them
-        s1 = STLStream(packet = pkt,
-                       mode = STLTXSingleBurst(total_pkts = 5000))
+        s1 = STLStream(name = 'A',
+                       packet = pkt,
+                       mode = STLTXSingleBurst(total_pkts = 5000),
+                       next = 'B')
         
-        s2 = STLStream(packet = pkt,
-                       mode = STLTXSingleBurst(total_pkts = 3000),
-                       next_stream_id = s1.get_id())
+        s2 = STLStream(name = 'B',
+                       self_start = False,
+                       packet = pkt,
+                       mode = STLTXSingleBurst(total_pkts = 3000))
 
         # connect to server
         c.connect()

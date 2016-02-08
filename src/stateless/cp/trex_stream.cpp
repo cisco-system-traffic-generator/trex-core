@@ -201,6 +201,17 @@ TrexStream * TrexStreamTable::get_stream_by_id(uint32_t stream_id) {
     }
 }
 
+int
+TrexStreamTable::get_max_stream_id() const {
+    int max_id = 0;
+
+    for (const auto stream : m_stream_table) {
+        max_id = std::max(stream.first, max_id);
+    }
+
+    return max_id;
+}
+
 void TrexStreamTable::get_id_list(std::vector<uint32_t> &id_list) {
     id_list.clear();
 

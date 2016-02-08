@@ -203,6 +203,12 @@ public:
     std::string get_state_as_string() const;
 
     /**
+     * the the max stream id currently assigned
+     * 
+     */
+    int get_max_stream_id() const;
+
+    /**
      * fill up properties of the port
      * 
      * @author imarom (16-Sep-15)

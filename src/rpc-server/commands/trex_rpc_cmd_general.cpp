@@ -310,9 +310,9 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    result["result"]["owner"]  = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
-    result["result"]["state"] = port->get_state_as_string();
-
+    result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
+    result["result"]["state"]         = port->get_state_as_string();
+    result["result"]["max_stream_id"] = port->get_max_stream_id();
 
     return (TREX_RPC_CMD_OK);
 }

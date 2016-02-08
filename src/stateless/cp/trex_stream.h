@@ -363,6 +363,14 @@ public:
     TrexStream * get_stream_by_id(uint32_t stream_id);
 
     /**
+     * get max stream ID assigned
+     * 
+     * 
+     * @return int
+     */
+    int get_max_stream_id() const;
+
+    /**
      * populate a list with all the stream IDs
      * 
      * @author imarom (06-Sep-15)

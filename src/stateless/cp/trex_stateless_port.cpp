@@ -343,6 +343,11 @@ TrexStatelessPort::get_state_as_string() const {
     return "UNKNOWN";
 }
 
+int
+TrexStatelessPort::get_max_stream_id() const {
+    return m_stream_table.get_max_stream_id();
+}
+
 void
 TrexStatelessPort::get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed) {
 
