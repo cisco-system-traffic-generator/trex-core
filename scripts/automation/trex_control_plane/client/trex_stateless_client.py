@@ -1503,7 +1503,7 @@ class STLClient(object):
 
         # call low level functions
         self.logger.pre_cmd("Updating traffic on port(s) {0}:".format(ports))
-        rc = self.__update(mult, ports, force)
+        rc = self.__update(mult_obj, ports, force)
         self.logger.post_cmd(rc)
 
         if not rc:
