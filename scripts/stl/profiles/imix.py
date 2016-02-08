@@ -1,5 +1,5 @@
 
-from trex_control_plane.stl.api import *
+from trex_stl_lib.api import *
 
 # IMIX profile - involves 3 streams of UDP packets
 # 1 - 60 bytes

@@ -6,11 +6,11 @@ from collections import OrderedDict
 import datetime
 from cStringIO import StringIO
 
-from common.text_opts import *
-from client_utils import text_tables
+from trex_stl_lib.utils.text_opts import *
+from trex_stl_lib.utils import text_tables
 
 # for STL exceptions
-from trex_control_plane.stl.api import *
+from trex_stl_lib.api import *
 
 class SimpleBar(object):
     def __init__ (self, desc, pattern):

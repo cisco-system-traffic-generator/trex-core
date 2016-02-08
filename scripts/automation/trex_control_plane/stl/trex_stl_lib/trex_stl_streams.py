@@ -5,8 +5,6 @@ from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP
 from collections import OrderedDict, namedtuple
 
-from trex_control_plane.client_utils.yaml_utils import *
-
 from dpkt import pcap
 import random
 import yaml
@@ -143,6 +141,7 @@ class STLStream(object):
 
         # packet builder
         packet.compile()
+
         # packet and VM
         self.fields['packet'] = packet.dump_pkt()
         self.fields['vm']     = packet.get_vm_data()

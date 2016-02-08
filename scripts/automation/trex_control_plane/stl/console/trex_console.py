@@ -28,11 +28,11 @@ import os
 import sys
 import tty, termios
 
-from trex_control_plane.stl.api import *
+from trex_stl_lib.api import *
 
-from trex_control_plane.common.text_opts import *
-from trex_control_plane.client_utils.general_utils import user_input, get_current_user
-from trex_control_plane.client_utils import parsing_opts
+from trex_stl_lib.utils.text_opts import *
+from trex_stl_lib.utils.common import user_input, get_current_user
+from trex_stl_lib.utils import parsing_opts
 
 
 import trex_tui

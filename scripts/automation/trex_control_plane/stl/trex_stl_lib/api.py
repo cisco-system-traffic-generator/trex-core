@@ -1,6 +1,6 @@
 
 # get external libs
-import trex_control_plane.client_utils.external_packages
+import trex_stl_ext
 
 # client and exceptions
 from trex_stl_exceptions import *

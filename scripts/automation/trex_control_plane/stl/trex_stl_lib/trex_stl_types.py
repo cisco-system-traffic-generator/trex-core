@@ -1,6 +1,6 @@
 
 from collections import namedtuple
-from common.text_opts import *
+from utils.text_opts import *
 
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
 

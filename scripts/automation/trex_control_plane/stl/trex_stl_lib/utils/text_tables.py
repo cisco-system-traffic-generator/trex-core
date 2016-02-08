@@ -1,5 +1,5 @@
 from texttable import Texttable
-from trex_control_plane.common.text_opts import format_text
+from text_opts import format_text
 
 class TRexTextTable(Texttable):
 

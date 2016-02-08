@@ -16,10 +16,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+# simulator can be run as a standalone
+import trex_stl_ext
+
 from trex_stl_exceptions import *
 from yaml import YAMLError
 from trex_stl_streams import *
-from client_utils import parsing_opts
+from utils import parsing_opts
 from trex_stl_client import STLClient
 
 import re
@@ -142,6 +145,29 @@ class STLSim(object):
 
         # load streams
         cmds_json = []
+
+        id = 1
+
+        lookup = {}
+        # allocate IDs
+        for stream in stream_list:
+            if stream.get_id() == None:
+                stream.set_id(id)
+                id += 1
+
+            lookup[stream.get_name()] = stream.get_id()
+
+        # resolve names
+        for stream in stream_list:
+            next_id = -1
+            next = stream.get_next()
+            if next:
+                if not next in lookup:
+                    raise STLError("stream dependency error - unable to find '{0}'".format(next))
+                next_id = lookup[next]
+
+            stream.fields['next_stream_id'] = next_id
+
         for stream in stream_list:
             cmd = {"id":1,
                    "jsonrpc": "2.0",

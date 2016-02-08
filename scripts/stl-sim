@@ -1,5 +1,6 @@
 #!/bin/bash
 
 source find_python.sh
-$PYTHON automation/wrap_stl_sim.py $@
 
+export PYTHONPATH=automation/trex_control_plane/stl
+$PYTHON -m trex_stl_lib.trex_stl_sim $@

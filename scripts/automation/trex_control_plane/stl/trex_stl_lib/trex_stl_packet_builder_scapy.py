@@ -585,7 +585,7 @@ class CTRexVmDescTupleGen(CTRexVmDescBase):
 
 ################################################################################################
 
-lass CScapyTRexPktBuilder(CTrexPktBuilderInterface):
+class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     """
     This class defines the TRex API of building a packet using dpkt package.
@@ -794,11 +794,11 @@ lass CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         return p_utl.get_field_offet_by_str(field_name)
 
     def _get_pkt_as_str(self):
-        if self.pkt :
-            str(self.pkt)
+        if self.pkt:
+            return str(self.pkt)
         if self.pkt_raw:
             return self.pkt_raw
-        raise CTRexPacketBuildException(-11,('empty packet') % (var_name) );  
+        raise CTRexPacketBuildException(-11, 'empty packet');  
 
     def _add_tuple_gen(self,tuple_gen):
 

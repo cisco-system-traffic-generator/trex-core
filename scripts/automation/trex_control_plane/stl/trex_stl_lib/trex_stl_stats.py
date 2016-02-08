@@ -1,7 +1,7 @@
 #!/router/bin/python
 
-from client_utils import text_tables
-from common.text_opts import format_text, format_threshold, format_num
+from utils import text_tables
+from utils.text_opts import format_text, format_threshold, format_num
 
 from trex_stl_async_client import CTRexAsyncStats
 

@@ -1,9 +1,8 @@
 #!/router/bin/python
 
 # for API usage the path name must be full
-from trex_control_plane.stl.trex_stl_exceptions import *
-#from trex_control_plane.stl.trex_stl_streams import *
-from trex_stl_streams import *
+from trex_stl_lib.trex_stl_exceptions import *
+from trex_stl_lib.trex_stl_streams import *
 
 from trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
 import trex_stl_stats
@@ -12,8 +11,8 @@ from trex_stl_port import Port
 from trex_stl_types import *
 from trex_stl_async_client import CTRexAsyncClient
 
-from trex_control_plane.client_utils import parsing_opts, text_tables, general_utils
-from trex_control_plane.common.text_opts import *
+from utils import parsing_opts, text_tables, common
+from utils.text_opts import *
 
 
 from collections import namedtuple
@@ -23,6 +22,7 @@ import datetime
 import re
 import random
 import json
+import traceback
 
 ############################     logger     #############################
 ############################                #############################
@@ -376,7 +376,7 @@ class STLClient(object):
     """docstring for STLClient"""
 
     def __init__(self,
-                 username = general_utils.get_current_user(),
+                 username = common.get_current_user(),
                  server = "localhost",
                  sync_port = 4501,
                  async_port = 4500,

@@ -1,7 +1,7 @@
 import os
 import sys
 
-from trex_control_plane.common.text_opts import *
+from utils.text_opts import *
 
 # basic error for API
 class STLError(Exception):

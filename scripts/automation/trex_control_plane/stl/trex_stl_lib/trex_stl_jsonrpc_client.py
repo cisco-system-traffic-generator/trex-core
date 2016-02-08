@@ -2,11 +2,11 @@
 
 import zmq
 import json
-import client_utils.general_utils
 import re
 from time import sleep
 from collections import namedtuple
 from trex_stl_types import *
+from utils.common import random_id_gen
 
 class bcolors:
     BLUE = '\033[94m'
@@ -48,7 +48,8 @@ class JsonRpcClient(object):
         # default values
         self.port   = default_port
         self.server = default_server
-        self.id_gen = client_utils.general_utils.random_id_gen()
+
+        self.id_gen = random_id_gen()
 
 
     def get_connection_details (self):

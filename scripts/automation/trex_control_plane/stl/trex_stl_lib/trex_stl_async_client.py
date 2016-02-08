@@ -10,7 +10,7 @@ import random
 
 from trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
 
-from common.text_opts import *
+from utils.text_opts import *
 from trex_stl_stats import *
 from trex_stl_types import *
 
