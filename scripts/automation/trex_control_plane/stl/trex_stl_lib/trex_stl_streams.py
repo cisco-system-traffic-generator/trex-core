@@ -10,6 +10,7 @@ import random
 import yaml
 import base64
 import string
+import traceback
 
 def random_name (l):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(l))
@@ -146,9 +147,11 @@ class STLStream(object):
         self.fields['packet'] = packet.dump_pkt()
         self.fields['vm']     = packet.get_vm_data()
 
-        self.fields['rx_stats'] = {}
         if not rx_stats:
+            self.fields['rx_stats'] = {}
             self.fields['rx_stats']['enabled'] = False
+        else:
+            self.fields['rx_stats'] = rx_stats
 
 
     def __str__ (self):
@@ -171,89 +174,209 @@ class STLStream(object):
 
 
     def to_yaml (self):
-        fields = dict(stream.fields)
+        return {'name': self.name, 'stream': self.fields}
+  
 
 
-    @staticmethod
-    def dump_to_yaml (stream_list, yaml_file = None):
+class YAMLLoader(object):
 
-        # type check
-        if isinstance(stream_list, STLStream):
-            stream_list = [stream_list]
-
-        if not all([isinstance(stream, STLStream) for stream in stream_list]):
-            raise STLArgumentError('stream_list', stream_list)
-
-
-        names = {}
-        for i, stream in enumerate(stream_list):
-            names[stream.get_id()] = "stream-{0}".format(i)
-
-        yaml_lst = []
-        for stream in stream_list:
-
-            fields = dict(stream.fields)
-
-            # handle the next stream id
-            if fields['next_stream_id'] == -1:
-                del fields['next_stream_id']
-
-            else:
-                if not stream.get_id() in names:
-                    raise STLError('broken dependencies in stream list')
-
-                fields['next_stream'] = names[stream.get_id()]
-
-            # add to list
-            yaml_lst.append({'name': names[stream.get_id()], 'stream': fields})
-
-        # write to file
-        x = yaml.dump(yaml_lst, default_flow_style=False)
-        if yaml_file:
-            with open(yaml_file, 'w') as f:
-                f.write(x)
-
-        return x
-
-
-    @staticmethod
-    def load_from_yaml (yaml_file):
-
-        with open(yaml_file, 'r') as f:
-            yaml_str = f.read()
-
-
-        # load YAML
-        lst = yaml.load(yaml_str)
-
-        # decode to streams
-        streams = []
-        for stream in lst:
-            # for defaults
-            defaults = STLStream()
-            s = STLStream(packet = None,
-                          mode = STLTXCont(1),
-                          enabled = True,
-                          self_start = True,
-                          isg = 0.0,
-                          rx_stats = None,
-                          next_stream_id = -1,
-                          stream_id = None
-                          )
-
-            streams.append(s)
-
-        return streams
-
-
-class STLYAMLLoader(object):
     def __init__ (self, yaml_file):
+        self.yaml_path = os.path.dirname(yaml_file)
         self.yaml_file = yaml_file
 
-    def load (self):
-        with open(self.yaml_file, 'r') as f:
-            yaml_str = f.read()
-            objects = yaml.load(yaml_str)
 
-            for object in objects:
-                pass
+    def __parse_packet (self, packet_dict):
+        builder = CScapyTRexPktBuilder()
+
+        packet_type = set(packet_dict).intersection(['binary', 'pcap'])
+        if len(packet_type) != 1:
+            raise STLError("packet section must contain either 'binary' or 'pcap'")
+
+        if 'binary' in packet_type:
+            try:
+                pkt_str = base64.b64decode(packet_dict['binary'])
+            except TypeError:
+                raise STLError("'binary' field is not a valid packet format")
+
+            builder.set_pkt_as_str(pkt_str)
+
+        elif 'pcap' in packet_type:
+            pcap = os.path.join(self.yaml_path, packet_dict['pcap'])
+
+            if not os.path.exists(pcap):
+                raise STLError("'pcap' - cannot find '{0}'".format(pcap))
+
+            builder.set_packet(pcap)
+
+        return builder
+
+
+    def __parse_mode (self, mode_obj):
+
+        mode_type = mode_obj.get('type')
+
+        if mode_type == 'continuous':
+            defaults = STLTXCont()
+            mode = STLTXCont(pps = mode_obj.get('pps', defaults.fields['pps']))
+
+        elif mode_type == 'single_burst':
+            defaults = STLTXSingleBurst()
+            mode = STLTXSingleBurst(pps         = mode_obj.get('pps', defaults.fields['pps']),
+                                    total_pkts  = mode_obj.get('total_pkts', defaults.fields['total_pkts']))
+
+        elif mode_type == 'multi_burst':
+            defaults = STLTXMultiBurst()
+            mode = STLTXMultiBurst(pps            = mode_obj.get('pps', defaults.fields['pps']),
+                                   pkts_per_burst = mode_obj.get('pkts_per_burst', defaults.fields['pkts_per_burst']),
+                                   ibg            = mode_obj.get('ibg', defaults.fields['ibg']),
+                                   count          = mode_obj.get('count', defaults.fields['count']))
+
+        else:
+            raise STLError("mode type can be 'continuous', 'single_burst' or 'multi_burst")
+
+
+        return mode
+
+
+    def __parse_stream (self, yaml_object):
+        s_obj = yaml_object['stream']
+
+        # parse packet
+        packet = s_obj.get('packet')
+        if not packet:
+            raise STLError("YAML file must contain 'packet' field")
+
+        builder = self.__parse_packet(packet)
+
+
+        # mode
+        mode_obj = s_obj.get('mode')
+        if not mode_obj:
+            raise STLError("YAML file must contain 'mode' field")
+
+        mode = self.__parse_mode(mode_obj)
+
+        
+        defaults = STLStream()
+
+        # create the stream
+        stream = STLStream(name       = yaml_object.get('name'),
+                           packet     = builder,
+                           mode       = mode,
+                           enabled    = s_obj.get('enabled', defaults.fields['enabled']),
+                           self_start = s_obj.get('self_start', defaults.fields['self_start']),
+                           isg        = s_obj.get('isg', defaults.fields['isg']),
+                           rx_stats   = s_obj.get('rx_stats', defaults.fields['rx_stats']),
+                           next       = yaml_object.get('next'))
+
+        # hack the VM fields for now
+        if 'vm' in s_obj:
+            stream.fields['vm'] = s_obj['vm']
+
+        return stream
+
+
+    def parse (self):
+        with open(self.yaml_file, 'r') as f:
+            # read YAML and pass it down to stream object
+            yaml_str = f.read()
+
+            objects = yaml.load(yaml_str)
+            streams = [self.__parse_stream(object) for object in objects]
+            
+            return streams
+
+
+# profile class
+class STLProfile(object):
+    def __init__ (self, streams = None):
+        if streams == None:
+            streams = []
+
+        if not type(streams) == list:
+            streams = [streams]
+
+        if not all([isinstance(stream, STLStream) for stream in streams]):
+            raise STLArgumentError('streams', streams)
+
+        self.streams = streams
+
+
+    def get_streams (self):
+        return self.streams
+
+    def __str__ (self):
+        return '\n'.join([str(stream) for stream in self.streams])
+
+
+    @staticmethod
+    def load_yaml (yaml_file):
+        # check filename
+        if not os.path.isfile(yaml_file):
+            raise STLError("file '{0}' does not exists".format(yaml_file))
+
+        yaml_loader = YAMLLoader(yaml_file)
+        streams = yaml_loader.parse()
+
+        return STLProfile(streams)
+
+
+    @staticmethod
+    def load_py (python_file):
+        # check filename
+        if not os.path.isfile(python_file):
+            raise STLError("file '{0}' does not exists".format(python_file))
+
+        basedir = os.path.dirname(python_file)
+        sys.path.append(basedir)
+
+        try:
+            file    = os.path.basename(python_file).split('.')[0]
+            module = __import__(file, globals(), locals(), [], -1)
+            reload(module) # reload the update 
+
+            streams = module.register().get_streams()
+
+            return STLProfile(streams)
+
+        except Exception as e:
+            a, b, tb = sys.exc_info()
+            x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
+
+            summary = "\nPython Traceback follows:\n\n" + x
+            raise STLError(summary)
+
+
+        finally:
+            sys.path.remove(basedir)
+
+
+    @staticmethod
+    def load (filename):
+        x = os.path.basename(filename).split('.')
+        suffix = x[1] if (len(x) == 2) else None
+
+        if suffix == 'py':
+            profile = STLProfile.load_py(filename)
+
+        elif suffix == 'yaml':
+            profile = STLProfile.load_yaml(filename)
+
+        else:
+            raise STLError("unknown profile file type: '{0}'".format(suffix))
+
+        return profile
+
+
+    def to_yaml (self, yaml_file = None):
+        yaml_list = [stream.to_yaml() for stream in self.streams]
+        yaml_str = yaml.dump(yaml_list, default_flow_style = False)
+
+        # write to file if provided
+        if yaml_file:
+            with open(yaml_file, 'w') as f:
+                f.write(yaml_str)
+
+        return yaml_str
+
+

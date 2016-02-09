@@ -3,7 +3,10 @@ import os
 import warnings
 
 # if not set - set it to default
-if not 'TREX_STL_EXT_PATH' in globals():
+TREX_STL_EXT_PATH = os.environ.get('TREX_STL_EXT_PATH')
+
+# take default
+if not TREX_STL_EXT_PATH:
     CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
     # ../../../../external_libs
     TREX_STL_EXT_PATH   = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))

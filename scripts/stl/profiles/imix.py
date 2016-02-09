@@ -1,4 +1,3 @@
-
 from trex_stl_lib.api import *
 
 # IMIX profile - involves 3 streams of UDP packets

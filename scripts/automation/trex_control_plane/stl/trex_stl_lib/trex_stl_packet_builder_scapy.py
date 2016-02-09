@@ -665,13 +665,12 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             + :exc:`AssertionError`, in case packet is empty.
 
         """
-
-        assert self.pkt, 'empty packet'
         pkt_buf = self._get_pkt_as_str()
 
         return {'binary': base64.b64encode(pkt_buf) if encode else pkt_buf,
                 'meta': self.metadata}
 
+    
     def dump_pkt_to_pcap(self, file_path):
         wrpcap(file_path, self._get_pkt_as_str())
 

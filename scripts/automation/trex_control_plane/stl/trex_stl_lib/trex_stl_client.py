@@ -1264,57 +1264,7 @@ class STLClient(object):
             raise STLError(rc)
 
 
-    """
-        load a profile from file
-
-        :parameters:
-            filename : str
-                filename to load
-                
-        :returns:
-            list of streams from the profile
-
-        :raises:
-            + :exc:`STLError`
-
-    """
-    @staticmethod
-    def load_profile (filename):
-
-        # check filename
-        if not os.path.isfile(filename):
-            raise STLError("file '{0}' does not exists".format(filename))
-
-        streams = None
-
-        # try YAML
-        try:
-            streams = STLStream.load_from_yaml(filename)
-            print "***** YAML IS NOT WORKING !!! *********"
-
-
-        except YAMLError:
-            # try python loader
-            try:
-                basedir = os.path.dirname(filename)
-
-                sys.path.append(basedir)
-                file    = os.path.basename(filename).split('.')[0]
-                module = __import__(file, globals(), locals(), [], -1)
-                reload(module) # reload the update 
-
-                streams = module.register().get_streams()
-
-            except Exception as e :
-                print str(e);
-                traceback.print_exc(file=sys.stdout)
-                raise STLError("Unexpected error: '{0}'".format(filename))
-
-        return streams
-
-
-
-
+   
     """
         start traffic on port(s)
 
@@ -1801,8 +1751,15 @@ class STLClient(object):
         self.remove_all_streams(opts.ports)
 
         # pack the profile
-        streams = self.load_profile(opts.file[0])
-        self.add_streams(streams, ports = opts.ports)
+        try:
+            profile = STLProfile.load(opts.file[0])
+        except STLError as e:
+            print format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold')
+            print e.brief() + "\n"
+            return
+
+
+        self.add_streams(profile.get_streams(), ports = opts.ports)
 
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)
