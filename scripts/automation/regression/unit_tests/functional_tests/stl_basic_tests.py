@@ -26,7 +26,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         self.verify_exists(self.stl_sim)
 
-        self.profiles_path = os.path.join(self.scripts_path, "yaml/")
+        self.profiles_path = os.path.join(self.scripts_path, "stl/yaml/")
 
         self.profiles = {}
         self.profiles['imix_3pkt'] = os.path.join(self.profiles_path, "imix_3pkt.yaml")

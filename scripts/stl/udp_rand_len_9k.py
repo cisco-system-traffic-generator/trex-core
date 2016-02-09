@@ -1,5 +1,5 @@
 
-from trex_control_plane.stl.api import *
+from trex_stl_lib.api import *
 
 class STLS1(object):
 

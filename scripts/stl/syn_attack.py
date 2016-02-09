@@ -1,4 +1,4 @@
-from trex_control_plane.stl.api import *
+from trex_stl_lib.api import *
 
 class STLS1(object):
     """ attack 48.0.0.1 at port 80
