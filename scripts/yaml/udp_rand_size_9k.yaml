@@ -4,11 +4,10 @@
   stream:
     self_start: True
     packet:
-      binary: stl/ipv4_udp_9k.pcap # should not include CRC 9K ip+14 = 9230 +FCS(by NIC)=9234 
+      pcap: ipv4_udp_9k.pcap # should not include CRC 9K ip+14 = 9230 +FCS(by NIC)=9234 
     mode:
       type: continuous
       pps: 100
-    rx_stats: []
 
     # random packet size 60-max packet size update ip.len/checksum/udp.len
     vm: 

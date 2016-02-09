@@ -271,7 +271,7 @@ class YAMLLoader(object):
 
         # hack the VM fields for now
         if 'vm' in s_obj:
-            stream.fields['vm'] = s_obj['vm']
+            stream.fields['vm'].update(s_obj['vm'])
 
         return stream
 
@@ -281,7 +281,11 @@ class YAMLLoader(object):
             # read YAML and pass it down to stream object
             yaml_str = f.read()
 
-            objects = yaml.load(yaml_str)
+            try:
+                objects = yaml.load(yaml_str)
+            except yaml.parser.ParserError as e:
+                raise STLError(str(e))
+
             streams = [self.__parse_stream(object) for object in objects]
             
             return streams

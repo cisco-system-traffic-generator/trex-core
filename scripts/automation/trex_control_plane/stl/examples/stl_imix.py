@@ -35,7 +35,8 @@ def imix_test ():
         dir_1 = table['dir'][1]
 
         # load IMIX profile
-        streams = c.load_profile('../../../../stl/profiles/imix.py')
+        profile = STLProfile.load_py('../../../../stl/profiles/imix.py')
+        streams = profile.get_streams()
 
         # add both streams to ports
         c.add_streams(streams, ports = dir_0)

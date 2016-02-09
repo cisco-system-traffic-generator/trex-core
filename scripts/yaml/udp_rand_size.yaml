@@ -4,11 +4,10 @@
   stream:
     self_start: True
     packet:
-      binary: stl/udp_1518B_no_crc.pcap 
+      pcap: udp_1518B_no_crc.pcap 
     mode:
       type: continuous
       pps: 100
-    rx_stats: []
 
     # random packet size 60-1500 update ip.len/checksum/udp.len
     vm: 

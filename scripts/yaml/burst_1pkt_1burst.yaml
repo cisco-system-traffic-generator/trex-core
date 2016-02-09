@@ -4,11 +4,8 @@
   stream:
     self_start: True
     packet:
-      binary: cap2/udp_64B.pcap
+      pcap: udp_64B_no_crc.pcap
     mode:
       type: single_burst
       pps: 100
       total_pkts : 100
-    rx_stats: []
-    vm: []
-    

@@ -140,7 +140,14 @@ class STLSim(object):
 
         # handle YAMLs
         for input_file in input_files:
-            stream_list += STLClient.load_profile(input_file)
+            try:
+                profile = STLProfile.load(input_file)
+            except STLError as e:
+                print format_text("\nError while loading profile '{0}'\n".format(input_file), 'bold')
+                print e.brief() + "\n"
+                return
+
+            stream_list += profile.get_streams()
 
 
         # load streams

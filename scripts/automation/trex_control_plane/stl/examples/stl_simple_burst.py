@@ -59,31 +59,6 @@ def simple_burst ():
         print "\nTest has failed :-(\n"
 
 
-#
-def sheker ():
-    pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
-
-    # create two bursts and link them
-    s1 = STLStream(name = 'A',
-                   packet = pkt,
-                   mode = STLTXSingleBurst(total_pkts = 5000),
-                   next = 'B')
-        
-    s2 = STLStream(name = 'B',
-                   self_start = False,
-                   packet = pkt,
-                   mode = STLTXSingleBurst(total_pkts = 3000))
-
-    profile = STLProfile([s1, s2])
-    print "**** BEFORE ****\n"
-    print profile
-    profile.to_yaml('1.yaml')
-    loaded_profile = STLProfile.load_yaml('1.yaml')
-    print "**** AFTER ****\n"
-    print loaded_profile
-    exit(0)
-
-sheker()
 # run the tests
-#simple_burst()
+simple_burst()
 
