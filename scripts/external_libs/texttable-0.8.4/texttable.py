@@ -98,7 +98,7 @@ Maximilian Hils:
 
 import sys
 import string
-from common import text_opts
+import re
 
 try:
     if sys.version >= '2.3':
@@ -129,8 +129,34 @@ def len(iterable):
         return iterable.__len__()
 
 
+TEXT_CODES = {'bold': {'start': '\x1b[1m',
+                       'end': '\x1b[22m'},
+              'cyan': {'start': '\x1b[36m',
+                       'end': '\x1b[39m'},
+              'blue': {'start': '\x1b[34m',
+                       'end': '\x1b[39m'},
+              'red': {'start': '\x1b[31m',
+                      'end': '\x1b[39m'},
+              'magenta': {'start': '\x1b[35m',
+                          'end': '\x1b[39m'},
+              'green': {'start': '\x1b[32m',
+                        'end': '\x1b[39m'},
+              'yellow': {'start': '\x1b[33m',
+                         'end': '\x1b[39m'},
+              'underline': {'start': '\x1b[4m',
+                            'end': '\x1b[24m'}}
+
+class TextCodesStripper:
+    keys = [re.escape(v['start']) for k,v in TEXT_CODES.iteritems()]
+    keys += [re.escape(v['end']) for k,v in TEXT_CODES.iteritems()]
+    pattern = re.compile("|".join(keys))
+
+    @staticmethod
+    def strip (s):
+        return re.sub(TextCodesStripper.pattern, '', s)
+
 def ansi_len (iterable):
-    return len(text_opts.TextCodesStripper.strip(iterable))
+    return len(TextCodesStripper.strip(iterable))
 
 
 class ArraySizeError(Exception):

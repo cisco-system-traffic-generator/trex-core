@@ -1,0 +1,28 @@
+### Three-stream UDP packets, 64B, 594B and 1518B ###
+#####################################################
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      pcap: udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 28
+- name: udp_594B
+  stream:
+    isg: 50.0
+    self_start: True
+    packet:
+      pcap: udp_594B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 20
+- name: udp_1518B
+  stream:
+    isg: 100.0
+    self_start: True
+    packet:
+      pcap: udp_1518B_no_crc.pcap # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 4

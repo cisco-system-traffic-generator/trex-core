@@ -16,7 +16,6 @@ limitations under the License.
 """
 import traceback
 import sys
-import external_packages
 import yaml
 
 
