@@ -20,6 +20,41 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.90  ==
+
+* Missing file in the pkg
+
+== Release 1.89  ==
+
+* Integrate Scapy as a packet builder see `stl/profiles` folder 
+* Improve Python API, samples can be seen link:https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/api/stl/examples[here] 
+* Add Stateless simulator into the package 
+
+Example how to run 
+[source,bash]
+----
+./stl-sim -f stl/profiles/udp_1pkt.py -l 10 -o a.pcap            #<1>
+./stl-sim -f stl/profiles/udp_1pkt_tuple_gen.py -l 20 -o a.pcap  #<2>
+./stl-sim -f stl/profiles/imix.py -l 100 -o a.pcap  --json       #<3>
+----
+<1> Limit the number of packets to 10 
+<2> Tuple generator example 
+<3> imix 
+
+The simulator takes Stateless profile,YAML or Py and output pcap file or json  
+
+* Console can load the new Python profile 
+
+[source,bash]
+----
+TRex > start -f stl/profiles/udp_1pkt.py -a -m 1mbps 
+----
+
+* Basic Python HLTAPI support 
+
+=== fix issues: ===
+
+* Dependent streams (e.g. `stl/burst_1000_pkt.yaml`) can be loaded 
 
 == Release 1.88  ==
 
