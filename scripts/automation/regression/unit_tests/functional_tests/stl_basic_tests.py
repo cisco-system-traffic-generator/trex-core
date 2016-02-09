@@ -154,13 +154,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_tuple_gen.py","-m 1 -l 50",True],
             ["udp_rand_len_9k.py","-m 1 -l 50",False],           # can't do the compare 
             ["udp_1pkt_mpls.py","-m 1 -l 50",True],
-            ["udp_1pkt_mpls_vm.py","-m 1 ",True]
+            ["udp_1pkt_mpls_vm.py","-m 1 ",True],
+            ["imix.py","-m 1 -l 100",True]
           ];
 
-        #p=[ ["udp_1pkt_mpls_vm.py","-m 1 ",True] ]
+        #p=[ ["imix.py","-m 1 -l 100",True] ]
 
         for obj in p:
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=True)
+            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
 
 
 
