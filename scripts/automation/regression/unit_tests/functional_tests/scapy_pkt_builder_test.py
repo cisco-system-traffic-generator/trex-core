@@ -1,7 +1,16 @@
 #!/router/bin/python
 
 import pkt_bld_general_test
-from client_utils.scapy_packet_builder import *
+
+#HACK FIX ME START
+import sys
+import os
+
+CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(CURRENT_PATH, '../../../trex_control_plane/stl/'))
+#HACK FIX ME END
+from trex_stl_lib.trex_stl_packet_builder_scapy import *
+
 from scapy.all import *
 from nose.tools import assert_equal
 from nose.tools import assert_not_equal
@@ -258,7 +267,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_pkt_loader1(self):
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/basic_imix_golden.cap");
+        pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/udp_590.cap");
         print ""
         pkt_builder.dump_as_hex()
         r = pkt_builder.pkt_raw

@@ -372,7 +372,7 @@ class STLProfile(object):
         return profile
 
 
-    def to_yaml (self, yaml_file = None):
+    def dump_to_yaml (self, yaml_file = None):
         yaml_list = [stream.to_yaml() for stream in self.streams]
         yaml_str = yaml.dump(yaml_list, default_flow_style = False)
 

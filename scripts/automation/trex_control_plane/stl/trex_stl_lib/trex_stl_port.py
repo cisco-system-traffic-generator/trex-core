@@ -519,7 +519,7 @@ class Port(object):
 
         meta_dict['stream_sum'] = OrderedDict([("id", stream.get_id()),
                                                ("packet_type", "FIXME!!!"),
-                                               ("length", "FIXME!!!"),
+                                               ("L2 len", "FIXME!!! +++4"),
                                                ("mode", "FIXME!!!"),
                                                ("rate_pps", "FIXME!!!"),
                                                ("next_stream", "FIXME!!!")

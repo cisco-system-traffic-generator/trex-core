@@ -6,7 +6,6 @@ from nose.tools import assert_raises
 from nose.tools import raises
 import sys
 import outer_packages
-from client_utils.packet_builder import *
 
 
 class CGeneralPktBld_Test(object): 

@@ -4,12 +4,11 @@
   stream:
     self_start: True
     packet:
-      binary: stl/udp_64B_no_crc.pcap  # pcap should not include CRC
+      pcap: udp_64B_no_crc.pcap  # pcap should not include CRC
     mode:
       type: single_burst
       total_pkts: 100
       pps: 100
-    rx_stats: []
 
     vm:
       instructions: [
@@ -34,13 +33,13 @@
 
 - name: udp_594B
   stream:
+    isg: 50.0
     self_start: True
     packet:
-      binary: stl/udp_594B_no_crc.pcap  # pcap should not include CRC
+      pcap: udp_594B_no_crc.pcap  # pcap should not include CRC
     mode:
       type: continuous
       pps: 20
-    rx_stats: []
     vm:
       instructions: [
                {
@@ -64,14 +63,14 @@
 
 - name: udp_1518B
   stream:
+    isg: 100.0
     self_start: True
     packet:
-      binary: stl/udp_1518B_no_crc.pcap # pcap should not include CRC
+      pcap: udp_1518B_no_crc.pcap # pcap should not include CRC
     mode:
       type: single_burst
       total_pkts: 100
       pps: 4
-    rx_stats: []
     vm:
       instructions: [
                {

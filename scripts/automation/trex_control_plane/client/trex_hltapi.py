@@ -108,11 +108,22 @@ traffic_stats_kwargs = {
 }
 
 
-#import trex_root_path
-import client_utils.scapy_packet_builder as pkt_bld
-from client_utils.scapy_packet_builder import CTRexVmDescFlowVar, CTRexVmDescWrFlowVar
-from trex_stateless_client import STLClient
-from common.trex_streams import *
+#HACK FIX ME START
+import sys
+import os
+
+CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(CURRENT_PATH, '../stl/'))
+#HACK FIX ME END
+
+from trex_stl_lib.api import *
+import trex_stl_lib.api as pkt_bld
+#import trex_stl_lib.trex_stl_packet_builder_scapy as pkt_bld
+#from trex_stl_lib.trex_stl_packet_builder_scapy import import CTRexVmDescFlowVar, CTRexVmDescWrFlowVar
+#from trex_stl_lib.trex_stl_client import STLClient
+#from common.trex_streams import *
+
+import trex_root_path
 from client_utils.general_utils import get_integer
 import socket
 import copy
@@ -523,7 +534,7 @@ class CTRexHltApiPktBuilder:
 
         debug_filename = kwargs.get('save_to_yaml')
         if type(debug_filename) is str:
-            stream_obj.dump_to_yaml(debug_filename, stream_obj)
+            STLProfile(stream_obj).dump_to_yaml(debug_filename)
         return stream_obj
 
     @staticmethod

@@ -22,14 +22,15 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         self.verify_exists(os.path.join(self.scripts_path, "bp-sim-64-debug"))
 
-        self.stl_sim = os.path.join(self.scripts_path, "automation/trex_control_plane/client/trex_stateless_sim.py")
+        self.stl_sim = os.path.join(self.scripts_path, "stl-sim")
+
         self.verify_exists(self.stl_sim)
 
-        self.profiles_path = os.path.join(self.scripts_path, "stl/")
+        self.profiles_path = os.path.join(self.scripts_path, "yaml/")
 
         self.profiles = {}
         self.profiles['imix_3pkt'] = os.path.join(self.profiles_path, "imix_3pkt.yaml")
-        self.profiles['imix_3pkt_vm'] = os.path.join(self.profiles_path, "imix_3pkt.yaml")
+        self.profiles['imix_3pkt_vm'] = os.path.join(self.profiles_path, "imix_3pkt_vm.yaml")
         self.profiles['random_size'] = os.path.join(self.profiles_path, "udp_rand_size.yaml")
         self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "udp_rand_size_9k.yaml")
         self.profiles['imix_tuple_gen'] = os.path.join(self.profiles_path, "imix_1pkt_tuple_gen.yaml")
@@ -88,9 +89,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         else:
             user_cmd = "-f {0} {1}".format(yaml, options)
 
-        cmd = "{0} {1} {2}".format(sys.executable,
-                                   self.stl_sim,
-                                   user_cmd)
+        cmd = "{0} {1}".format(self.stl_sim,
+                               user_cmd)
 
         if silent:
             devnull = open('/dev/null', 'w')

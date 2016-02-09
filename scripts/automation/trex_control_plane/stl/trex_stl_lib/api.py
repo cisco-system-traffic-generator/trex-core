@@ -1,7 +1,4 @@
 
-# get external libs
-import trex_stl_ext
-
 # client and exceptions
 from trex_stl_exceptions import *
 from trex_stl_client import STLClient, LoggerApi
