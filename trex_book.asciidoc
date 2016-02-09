@@ -258,6 +258,8 @@ To obtain a specific version, do the following:
 $wget --no-cache $WEB_URL/release/vX.XX.tar.gz #<1>
 ----
 
+<1> X.XX = The version number
+
 === Running TRex for the first time in loopback 
 
 If you have 10Gb/sec TRex (based on Intel 520-D2 NICs) you can verify that it works correctly by loopback the ports.
