@@ -12,12 +12,12 @@ class STLImix(object):
                          'dst': {'start': "8.0.0.1",  'end': "8.0.0.254"}}
 
         # default IMIX properties
-        self.imix_table = [ {'size': 60,   'pps': 28},
-                            {'size': 590,  'pps': 20},
-                            {'size': 1514, 'pps': 4}]
+        self.imix_table = [ {'size': 60,   'pps': 28,  'isg':0 },
+                            {'size': 590,  'pps': 20,  'isg':0.1 },
+                            {'size': 1514, 'pps': 4,   'isg':0.2 } ]
 
 
-    def create_stream (self, size, pps, vm):
+    def create_stream (self, size, pps,isg, vm ):
         # create a base packet and pad it to size
         base_pkt = Ether()/IP()/UDP()
         pad = max(0, size - len(base_pkt)) * 'x'
@@ -25,7 +25,8 @@ class STLImix(object):
         pkt = STLPktBuilder(pkt = base_pkt/pad,
                             vm = vm)
 
-        return STLStream(packet = pkt,
+        return STLStream(isg = isg,
+                         packet = pkt,
                          mode = STLTXCont())
 
 
@@ -55,7 +56,7 @@ class STLImix(object):
             ]
 
         # create imix streams
-        return [self.create_stream(x['size'], x['pps'], vm) for x in self.imix_table]
+        return [self.create_stream(x['size'], x['pps'],x['isg'] , vm) for x in self.imix_table]
 
 
 

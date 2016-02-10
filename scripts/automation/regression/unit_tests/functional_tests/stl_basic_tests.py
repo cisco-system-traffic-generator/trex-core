@@ -116,7 +116,21 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         finally:
             os.unlink(output_cap)
 
-                                  
+
+    def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True):
+        output_cap = "a.pcap"
+        input_file =  os.path.join('stl/profiles/', profile)
+        golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');
+        try:
+            rc = self.run_sim(input_file, output_cap, options, silent)
+            assert_equal(rc, True)
+            if compare:
+                self.compare_caps(output_cap, golden_file)
+        finally:
+            if  not do_no_remove: 
+                os.unlink(output_cap)
+
+
 
     # test for IMIX
     def test_imix (self):
@@ -129,6 +143,27 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def test_tuple_gen (self):
         self.golden_run("basic_tuple_gen", "imix_tuple_gen", "-m 50kpps --limit 500 --cores 8", silent = False)
+
+    def test_all_profiles (self):
+        p=[ 
+            ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
+            ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
+            ["udp_1pkt_1mac.py","-m 1 -l 50",True],
+            ["udp_1pkt_mac.py","-m 1 -l 50",True],
+            ["udp_1pkt.py","-m 1 -l 50",True],
+            ["udp_1pkt_tuple_gen.py","-m 1 -l 50",True],
+            ["udp_rand_len_9k.py","-m 1 -l 50",False],           # can't do the compare 
+            ["udp_1pkt_mpls.py","-m 1 -l 50",True],
+            ["udp_1pkt_mpls_vm.py","-m 1 ",True],
+            ["imix.py","-m 1 -l 100",True],
+            ["udp_inc_len_9k.py","-m 1 -l 100",True]
+          ];
+
+        #p=[ ["udp_inc_len_9k.py","-m 1 -l 100",True] ]
+
+        for obj in p:
+            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
+
 
 
     # valgrind tests
