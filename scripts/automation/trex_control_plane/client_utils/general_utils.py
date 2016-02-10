@@ -90,9 +90,11 @@ def id_count_gen():
         yield return_id
         return_id += 1
 
-# try to get integer from input, return None in case of fail
-def get_integer(input):
+# try to get number from input, return None in case of fail
+def get_number(input):
     try:
+        if type(input) in (int, long):
+            return input
         return int(input)
     except:
         return None

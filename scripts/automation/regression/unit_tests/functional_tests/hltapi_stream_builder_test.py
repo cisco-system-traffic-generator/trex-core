@@ -1,10 +1,10 @@
 #!/router/bin/python
 
-from client.trex_hltapi import CTRexHltApiPktBuilder
+from stl.trex_stl_lib.api import *
 import os
 import unittest
 
-gen_stream = CTRexHltApiPktBuilder.generate_stream
+gen_stream = CTRexHltApiBuilder.generate_stream
 
 def compare_yamls(yaml1, yaml2):
     if type(yaml1) is not str:
@@ -29,8 +29,8 @@ class CTRexHltApi_Test(unittest.TestCase):
 
     # Eth/IP/TCP, all values default, no VM instructions
     def test_default(self):
-        test_stream = gen_stream()
-        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location(), test_stream)
+        test_stream = gen_stream(name = 'stream-0')
+        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
   stream:
@@ -57,8 +57,9 @@ class CTRexHltApi_Test(unittest.TestCase):
                                  ip_src_count = 5,
                                  ip_dst_addr = '5.5.5.5',
                                  ip_dst_count = 2,
-                                 ip_dst_mode = 'random')
-        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location(), test_stream)
+                                 ip_dst_mode = 'random',
+                                 name = 'stream-0')
+        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
   stream:
@@ -111,8 +112,9 @@ class CTRexHltApi_Test(unittest.TestCase):
                                  tcp_src_port_count = 10,
                                  tcp_dst_port_mode = 'random',
                                  tcp_dst_port_count = 10,
-                                 tcp_dst_port = 1234)
-        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location(), test_stream)
+                                 tcp_dst_port = 1234,
+                                 name = 'stream-0')
+        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
   stream:
@@ -183,8 +185,9 @@ class CTRexHltApi_Test(unittest.TestCase):
                                  udp_src_port = 1234,
                                  udp_dst_port_mode = 'increment',
                                  udp_dst_port_count = 10,
-                                 udp_dst_port = 1234)
-        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location(), test_stream)
+                                 udp_dst_port = 1234,
+                                 name = 'stream-0')
+        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
   stream:
@@ -244,8 +247,9 @@ class CTRexHltApi_Test(unittest.TestCase):
                    frame_size_max = 3000)
         test_stream = gen_stream(length_mode = 'decrement',
                                  frame_size_min = 100,
-                                 frame_size_max = 3000)
-        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location(), test_stream)
+                                 frame_size_max = 3000,
+                                 name = 'stream-0')
+        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
   stream:
@@ -293,8 +297,9 @@ class CTRexHltApi_Test(unittest.TestCase):
         test_stream = gen_stream(l4_protocol = 'udp',
                                  length_mode = 'random',
                                  l3_length_min = 100,
-                                 l3_length_max = 400)
-        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location(), test_stream)
+                                 l3_length_max = 400,
+                                 name = 'stream-0')
+        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
   stream:

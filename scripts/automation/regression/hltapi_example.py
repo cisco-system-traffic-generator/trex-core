@@ -1,24 +1,24 @@
 #!/router/bin/python
 
 import outer_packages
-from client.trex_hltapi import CTRexHltApi
+from client.trex_hltapi import CTRexHltApi, CStreamsPerPort
 import traceback
 import sys, time
 from pprint import pprint
 import argparse
 
+def error(err = None):
+    if not err:
+        raise Exception('Unknown exception, look traceback')
+    if type(err) is str and not err.startswith('[ERR]'):
+        err = '[ERR] ' + err
+    print err
+    sys.exit(1)
+
 def check_res(res):
     if res['status'] == 0:
-        print('Encountered error:\n%s' % res['log'])
-        sys.exit(1)
+        error('Encountered error:\n%s' % res['log'])
     return res
-
-def save_streams_id(res, streams_id_arr):
-    stream_id = res.get('stream_id')
-    if type(stream_id) in (int, long):
-        streams_id_arr.append(stream_id)
-    elif type(stream_id) is list:
-        streams_id_arr.extend(stream_id)
 
 def print_brief_stats(res):
     title_str = ' '*3
@@ -48,37 +48,66 @@ if __name__ == "__main__":
         parser.add_argument('--device', dest = 'device', default = 'localhost', help='Address of TRex server')
         args = parser.parse_args()
         hlt_client = CTRexHltApi(verbose = int(args.verbose))
-        streams_id_arr = []
-       
+
         print('Connecting to %s...' % args.device)
         res = check_res(hlt_client.connect(device = args.device, port_list = [0, 1], username = 'danklei', break_locks = True, reset = True))
         port_handle = res['port_handle']
-        print('Connected.')
+        print('Connected, got port handles %s' % port_handle)
+        ports_streams_dict = CStreamsPerPort(port_handle)
+
+        print('Imix should create 3 streams (forth ratio is 0)')
+        res = check_res(hlt_client.traffic_config(mode = 'create', l2_encap = 'ethernet_ii_vlan', bidirectional = True, length_mode = 'imix',
+                                                  port_handle = port_handle, save_to_yaml = '/tmp/d1.yaml'))
+        ports_streams_dict.add_streams_from_res(res)
+
+        #print ports_streams_dict
+        #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[0])
+        res = check_res(hlt_client.traffic_config(mode = 'modify', port_handle = port_handle[0], stream_id = ports_streams_dict[0][0],
+                                                  mac_src = '1-2-3:4:5:6', l4_protocol = 'udp', save_to_yaml = '/tmp/d2.yaml'))
+        #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[0])
+        #print hlt_client._streams_history
+        res = check_res(hlt_client.traffic_config(mode = 'modify', port_handle = port_handle[0], stream_id = ports_streams_dict[0][0],
+                                                  mac_dst = '{ 7 7 7-7:7:7}', save_to_yaml = '/tmp/d3.yaml'))
+        #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[0])
+        check_res(hlt_client.traffic_config(mode = 'reset', port_handle = port_handle))
+
+        res = check_res(hlt_client.traffic_config(mode = 'create', bidirectional = True, length_mode = 'fixed', port_handle = port_handle,
+                                                  transmit_mode = 'single_burst', pkts_per_burst = 100, rate_pps = 100,
+                                                  mac_src = '1-2-3-4-5-6',
+                                                  mac_dst = '6:5:4:4:5:6',
+                                                  save_to_yaml = '/tmp/imix.yaml'))
+        ports_streams_dict.add_streams_from_res(res)
 
         print('Create single_burst 100 packets rate_pps=100 on port 0')
-        res = check_res(hlt_client.traffic_config(mode = 'create', port_handle = port_handle[0], transmit_mode = 'single_burst', pkts_per_burst = 100, rate_pps = 100))
-        #save_streams_id(res, streams_id_arr)
+        res = check_res(hlt_client.traffic_config(mode = 'create', port_handle = port_handle[0], transmit_mode = 'single_burst',
+                                                  pkts_per_burst = 100, rate_pps = 100))
+        ports_streams_dict.add_streams_from_res(res)
 
         # playground - creating various streams on port 1
         res = check_res(hlt_client.traffic_config(mode = 'create', port_handle = port_handle[1], save_to_yaml = '/tmp/hlt2.yaml',
                         tcp_src_port_mode = 'decrement',
                         tcp_src_port_count = 10, tcp_dst_port_count = 10, tcp_dst_port_mode = 'random'))
+        ports_streams_dict.add_streams_from_res(res)
 
         res = check_res(hlt_client.traffic_config(mode = 'create', port_handle = port_handle[1], save_to_yaml = '/tmp/hlt3.yaml',
                         l4_protocol = 'udp',
                         udp_src_port_mode = 'decrement',
                         udp_src_port_count = 10, udp_dst_port_count = 10, udp_dst_port_mode = 'random'))
+        ports_streams_dict.add_streams_from_res(res)
 
         res = check_res(hlt_client.traffic_config(mode = 'create', port_handle = port_handle[1], save_to_yaml = '/tmp/hlt4.yaml',
                         length_mode = 'increment',
                         #ip_src_addr = '192.168.1.1', ip_src_mode = 'increment', ip_src_count = 5,
                         ip_dst_addr = '5.5.5.5', ip_dst_mode = 'random', ip_dst_count = 2))
+        ports_streams_dict.add_streams_from_res(res)
 
         res = check_res(hlt_client.traffic_config(mode = 'create', port_handle = port_handle[1], save_to_yaml = '/tmp/hlt5.yaml',
                         length_mode = 'decrement', frame_size_min = 100, frame_size_max = 3000,
                         #ip_src_addr = '192.168.1.1', ip_src_mode = 'increment', ip_src_count = 5,
                         #ip_dst_addr = '5.5.5.5', ip_dst_mode = 'random', ip_dst_count = 2
                         ))
+        ports_streams_dict.add_streams_from_res(res)
+
         # remove the playground
         check_res(hlt_client.traffic_config(mode = 'reset', port_handle = port_handle[1]))
 
@@ -99,7 +128,7 @@ if __name__ == "__main__":
         check_res(hlt_client.traffic_control(action = 'stop', port_handle = port_handle[0]))
         check_res(hlt_client.traffic_config(mode = 'reset', port_handle = port_handle[0]))
         res = check_res(hlt_client.traffic_config(mode = 'create', port_handle = port_handle[0], rate_pps = 1000))
-        save_streams_id(res, streams_id_arr)
+        ports_streams_dict.add_streams_from_res(res)
         check_res(hlt_client.traffic_control(action = 'run', port_handle = port_handle[0]))
         wait_with_progress(5)
         print('Sample after another 5 seconds (only packets count)')
