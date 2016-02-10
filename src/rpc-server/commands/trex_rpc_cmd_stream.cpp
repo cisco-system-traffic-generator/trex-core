@@ -159,7 +159,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
         double    pps              = parse_double(mode, "pps", result);
         double    ibg_usec         = parse_double(mode, "ibg", result);
-        uint32_t  num_bursts       = parse_int(mode, "number_of_bursts", result);
+        uint32_t  num_bursts       = parse_int(mode, "count", result);
         uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
 
         stream = new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id );
