@@ -8,7 +8,6 @@ The packet generator module does extensive usage with `dkpt <https://github.com/
 .. toctree::
     :maxdepth: 4
 
-    packet_builder_code
 
 .. toctree::
     :maxdepth: 0
