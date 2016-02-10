@@ -14,21 +14,21 @@ class STLS1(object):
 
 
         # vm
-        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="ip_src", 
+        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src", 
                                               min_value="16.0.0.0", 
                                               max_value="18.0.0.254", 
                                               size=4, op="random"),
 
-                            CTRexVmDescFlowVar(name="src_port", 
+                            STLVmFlowVar(name="src_port", 
                                               min_value=1025, 
                                               max_value=65000, 
                                               size=2, op="random"),
 
-                           CTRexVmDescWrFlowVar(fv_name="ip_src", pkt_offset= "IP.src" ),
+                           STLVmWrFlowVar(fv_name="ip_src", pkt_offset= "IP.src" ),
 
-                           CTRexVmDescFixIpv4(offset = "IP"), # fix checksum
+                           STLVmFixIpv4(offset = "IP"), # fix checksum
 
-                           CTRexVmDescWrFlowVar(fv_name="src_port", 
+                           STLVmWrFlowVar(fv_name="src_port", 
                                                 pkt_offset= "TCP.sport") # fix udp len  
 
                           ]

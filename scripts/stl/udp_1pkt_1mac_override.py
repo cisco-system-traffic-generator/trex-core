@@ -15,15 +15,15 @@ class STLS1(object):
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
-        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="dyn_mac_src", min_value=1, max_value=10, size=1, op="inc"), # 1 byte varible, range 1-1 ( workaround)
+        vm = CTRexScRaw( [ STLVmFlowVar(name="dyn_mac_src", min_value=1, max_value=10, size=1, op="inc"), # 1 byte varible, range 1-1 ( workaround)
 
-                           CTRexVmDescFlowVar(name="static_mac_src_lsb", min_value=0x12345600, max_value=0x12345600, size=4, op="inc"), # workaround to override the mac 4 LSB byte
-                           CTRexVmDescFlowVar(name="static_mac_src_msb", min_value=0x00bb, max_value=0x00bb, size=2, op="inc"),         # workaround to override the mac 2 MSB byte
+                           STLVmFlowVar(name="static_mac_src_lsb", min_value=0x12345600, max_value=0x12345600, size=4, op="inc"), # workaround to override the mac 4 LSB byte
+                           STLVmFlowVar(name="static_mac_src_msb", min_value=0x00bb, max_value=0x00bb, size=2, op="inc"),         # workaround to override the mac 2 MSB byte
 
-                           CTRexVmDescWrFlowVar(fv_name="static_mac_src_msb", pkt_offset= 6),                           
-                           CTRexVmDescWrFlowVar(fv_name="static_mac_src_lsb", pkt_offset= 8),                           
+                           STLVmWrFlowVar(fv_name="static_mac_src_msb", pkt_offset= 6),                           
+                           STLVmWrFlowVar(fv_name="static_mac_src_lsb", pkt_offset= 8),                           
 
-                           CTRexVmDescWrFlowVar(fv_name="dyn_mac_src", pkt_offset= 11)                           
+                           STLVmWrFlowVar(fv_name="dyn_mac_src", pkt_offset= 11)                           
                           ]
                        )
 

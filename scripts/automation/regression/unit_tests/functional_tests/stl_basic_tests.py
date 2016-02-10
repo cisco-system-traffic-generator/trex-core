@@ -156,10 +156,11 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_mpls.py","-m 1 -l 50",True],
             ["udp_1pkt_mpls_vm.py","-m 1 ",True],
             ["imix.py","-m 1 -l 100",True],
-            ["udp_inc_len_9k.py","-m 1 -l 100",True]
+            ["udp_inc_len_9k.py","-m 1 -l 100",True],
+            ["udp_1pkt_range_clients.py","-m 1 -l 100",True]
           ];
 
-        #p=[ ["udp_inc_len_9k.py","-m 1 -l 100",True] ]
+        #p=[ ["udp_1pkt_range_clients.py","-m 1 -l 100",True] ]
 
         for obj in p:
             self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
