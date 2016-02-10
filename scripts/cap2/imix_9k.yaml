@@ -19,49 +19,49 @@
 # but for now it like this , you should have at least 8 
 #  
   cap_info : 
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000
        w     : 1
        limit : 200
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000
        w     : 1
        limit : 200
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000
        w     : 1
        limit : 200
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000
        w     : 1
        limit : 200
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000
        w     : 1
        limit : 200
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000
        w     : 1
        limit : 200
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000
        w     : 1
        limit : 200
-     - name: stl/ipv4_udp_9k.pcap
+     - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0
        ipg   : 10000
        rtt   : 10000

@@ -19,7 +19,7 @@
 # but for now it like this , you should have at least 8 
 #  
   cap_info : 
-     - name: stl/ipv4_udp_9k_burst_10.pcap
+     - name: stl/yaml/ipv4_udp_9k_burst_10.pcap
        cps   : 0.1
        ipg   : 10000
        rtt   : 10000
