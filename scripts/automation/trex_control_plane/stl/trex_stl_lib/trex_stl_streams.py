@@ -2,7 +2,7 @@
 
 from trex_stl_exceptions import *
 from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
-from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP
+from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP, RawPcapReader
 from collections import OrderedDict, namedtuple
 
 from dpkt import pcap
@@ -155,7 +155,10 @@ class STLStream(object):
 
 
     def __str__ (self):
-        return json.dumps(self.fields, indent = 4, separators=(',', ': '), sort_keys = True)
+        s =  "Stream Name: {0}\n".format(self.name)
+        s += "Stream Next: {0}\n".format(self.next)
+        s += "Stream JSON:\n{0}\n".format(json.dumps(self.fields, indent = 4, separators=(',', ': '), sort_keys = True))
+        return s
 
     def to_json (self):
         return self.fields
@@ -186,7 +189,6 @@ class YAMLLoader(object):
 
 
     def __parse_packet (self, packet_dict):
-        builder = CScapyTRexPktBuilder()
 
         packet_type = set(packet_dict).intersection(['binary', 'pcap'])
         if len(packet_type) != 1:
@@ -198,7 +200,7 @@ class YAMLLoader(object):
             except TypeError:
                 raise STLError("'binary' field is not a valid packet format")
 
-            builder.set_pkt_as_str(pkt_str)
+            builder = CScapyTRexPktBuilder(pkt_buffer = pkt_str)
 
         elif 'pcap' in packet_type:
             pcap = os.path.join(self.yaml_path, packet_dict['pcap'])
@@ -206,7 +208,7 @@ class YAMLLoader(object):
             if not os.path.exists(pcap):
                 raise STLError("'pcap' - cannot find '{0}'".format(pcap))
 
-            builder.set_packet(pcap)
+            builder = CScapyTRexPktBuilder(pkt = pcap)
 
         return builder
 
@@ -354,6 +356,30 @@ class STLProfile(object):
         finally:
             sys.path.remove(basedir)
 
+    @staticmethod
+    def load_pcap (pcap_file):
+        # check filename
+        if not os.path.isfile(pcap_file):
+            raise STLError("file '{0}' does not exists".format(pcap_file))
+
+        streams = []
+        last_ts_usec = 0
+
+        pkts = RawPcapReader(pcap_file).read_all()
+        
+        for i, (cap, meta) in enumerate(pkts, start = 1):
+            ts_usec = meta[0] * 1e6 + meta[1]
+            streams.append(STLStream(name = i,
+                                     packet = CScapyTRexPktBuilder(pkt_buffer = cap),
+                                     mode = STLTXSingleBurst(total_pkts = 1),
+                                     self_start = True if (i == 1) else False,
+                                     isg = (ts_usec - last_ts_usec),  # seconds to usec
+                                     next = (i + 1) if i != len(pkts) else None))
+            last_ts_usec = ts_usec
+
+        return STLProfile(streams)
+
+      
 
     @staticmethod
     def load (filename):
@@ -365,6 +391,9 @@ class STLProfile(object):
 
         elif suffix == 'yaml':
             profile = STLProfile.load_yaml(filename)
+
+        elif suffix in ['cap', 'pcap']:
+            profile = STLProfile.load_pcap(filename)
 
         else:
             raise STLError("unknown profile file type: '{0}'".format(suffix))

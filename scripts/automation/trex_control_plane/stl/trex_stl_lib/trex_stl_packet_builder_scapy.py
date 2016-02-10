@@ -592,7 +592,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
     Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
     pkt could be Scapy pkt or pcap file name 
     """
-    def __init__(self, pkt = None, vm = None):
+    def __init__(self, pkt = None, pkt_buffer = None, vm = None):
         """
         Instantiate a CTRexPktBuilder object
 
@@ -609,11 +609,16 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         self.metadata=""
         was_set=False
 
+        if pkt != None and pkt_buffer != None:
+            raise CTRexPacketBuildException(-15, "packet builder cannot be provided with both pkt and pkt_buffer")
 
         # process packet
         if pkt != None:
             self.set_packet(pkt)
             was_set=True
+
+        if pkt_buffer != None:
+            self.set_pkt_as_str(pkt_buffer)
 
         # process VM
         if vm != None:
