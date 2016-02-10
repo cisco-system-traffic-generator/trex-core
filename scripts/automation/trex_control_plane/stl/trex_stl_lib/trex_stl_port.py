@@ -52,7 +52,7 @@ class Port(object):
 
         self.port_stats = trex_stl_stats.CPortStats(self)
 
-        self.next_available_id = 1
+        self.next_available_id = long(1)
 
 
     def err(self, msg):
@@ -132,7 +132,7 @@ class Port(object):
 
         # TODO: handle syncing the streams into stream_db
 
-        self.next_available_id = rc.data()['max_stream_id']
+        self.next_available_id = long(rc.data()['max_stream_id'])
 
         return self.ok()
 

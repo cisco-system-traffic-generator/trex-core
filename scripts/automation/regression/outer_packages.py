@@ -9,6 +9,7 @@ if not TREX_PATH or not os.path.isfile('%s/trex_daemon_server' % TREX_PATH):
     TREX_PATH       = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir, os.pardir))
 PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(TREX_PATH, 'external_libs'))
 PATH_TO_CTRL_PLANE  = os.path.abspath(os.path.join(TREX_PATH, 'automation', 'trex_control_plane')) 
+PATH_STL_API        = os.path.abspath(os.path.join(PATH_TO_CTRL_PLANE, 'stl')) 
 
 NIGHTLY_MODULES = ['enum34-1.0.4',
                    'nose-1.3.4',
@@ -22,6 +23,7 @@ NIGHTLY_MODULES = ['enum34-1.0.4',
 def import_nightly_modules ():
     sys.path.append(TREX_PATH)
     sys.path.append(PATH_TO_CTRL_PLANE)
+    sys.path.append(PATH_STL_API)
     import_module_list(NIGHTLY_MODULES)
 
 def import_module_list (modules_list):

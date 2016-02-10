@@ -90,7 +90,7 @@ class STLTXMultiBurst(STLTXMode):
 class STLStream(object):
 
     def __init__ (self,
-                  name = random_name(8),
+                  name = None,
                   packet = None,
                   mode = STLTXCont(1),
                   enabled = True,
@@ -120,7 +120,7 @@ class STLStream(object):
             raise STLError("continuous stream cannot have a next stream ID")
 
         # tag for the stream and next - can be anything
-        self.name = name
+        self.name = name if name else random_name(8)
         self.next = next
         self.set_id(stream_id)
 
@@ -179,7 +179,15 @@ class STLStream(object):
     def to_yaml (self):
         return {'name': self.name, 'stream': self.fields}
   
+    def dump_to_yaml (self, yaml_file = None):
+        yaml_dump = yaml.dump([self.to_yaml()], default_flow_style = False)
 
+        # write to file if provided
+        if yaml_file:
+            with open(yaml_file, 'w') as f:
+                f.write(yaml_dump)
+
+        return yaml_dump
 
 class YAMLLoader(object):
 
@@ -303,7 +311,7 @@ class STLProfile(object):
             streams = [streams]
 
         if not all([isinstance(stream, STLStream) for stream in streams]):
-            raise STLArgumentError('streams', streams)
+            raise STLArgumentError('streams', streams, valid_values = STLStream)
 
         self.streams = streams
 
