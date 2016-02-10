@@ -1,6 +1,6 @@
 #!/router/bin/python
 
-from stl.trex_stl_lib.api import *
+from client.trex_hltapi import CTRexHltApiBuilder
 import os
 import unittest
 
