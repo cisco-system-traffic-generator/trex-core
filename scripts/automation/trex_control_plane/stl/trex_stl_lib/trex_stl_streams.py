@@ -63,7 +63,7 @@ class STLTXMultiBurst(STLTXMode):
     def __init__ (self,
                   pps = 1,
                   pkts_per_burst = 1,
-                  ibg = 0.0,
+                  ibg = 0.0,   # usec not SEC
                   count = 1):
 
         if not isinstance(pps, (int, float)):

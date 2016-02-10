@@ -145,7 +145,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         self.golden_run("basic_tuple_gen", "imix_tuple_gen", "-m 50kpps --limit 500 --cores 8", silent = False)
 
     def test_all_profiles (self):
-        p=[ 
+        p1=[ 
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
             ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
             ["udp_1pkt_1mac.py","-m 1 -l 50",True],
@@ -157,13 +157,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_mpls_vm.py","-m 1 ",True],
             ["imix.py","-m 1 -l 100",True],
             ["udp_inc_len_9k.py","-m 1 -l 100",True],
-            ["udp_1pkt_range_clients.py","-m 1 -l 100",True]
+            ["udp_1pkt_range_clients.py","-m 1 -l 100",True],
+            ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True]
           ];
 
-        #p=[ ["burst_3st_600pkt.py","-m 1 -l 100",True] ]
+        p=[ ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True] ]
 
         for obj in p:
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
+            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=True)
 
 
 
