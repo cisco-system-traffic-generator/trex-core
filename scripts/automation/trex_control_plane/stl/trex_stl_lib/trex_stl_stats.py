@@ -12,6 +12,7 @@ import time
 import re
 import math
 import copy
+import threading
 
 GLOBAL_STATS = 'g'
 PORT_STATS = 'p'
@@ -272,6 +273,7 @@ class CTRexStats(object):
         self.latest_stats = {}
         self.last_update_ts = time.time()
         self.history = deque(maxlen = 10)
+        self.lock = threading.Lock()
 
     def __getitem__(self, item):
         # override this to allow quick and clean access to fields
@@ -313,7 +315,9 @@ class CTRexStats(object):
     def update(self, snapshot):
         # update
         self.latest_stats = snapshot
-        self.history.append(snapshot)
+
+        with self.lock:
+            self.history.append(snapshot)
 
         diff_time = time.time() - self.last_update_ts
 
@@ -365,7 +369,9 @@ class CTRexStats(object):
         if self.latest_stats[field] < percision:
             return 0
         
-        field_samples = [sample[field] for sample in self.history]
+        # must lock, deque is not thread-safe for iteration
+        with self.lock:
+            field_samples = [sample[field] for sample in self.history]
 
         if use_raw:
             return calculate_diff_raw(field_samples)

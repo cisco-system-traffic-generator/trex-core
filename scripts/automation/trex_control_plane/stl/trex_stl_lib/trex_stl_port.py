@@ -132,7 +132,7 @@ class Port(object):
 
         # TODO: handle syncing the streams into stream_db
 
-        self.next_available_id = long(rc.data()['max_stream_id'])
+        self.next_available_id = long(rc.data()['max_stream_id']) + 1
 
         return self.ok()
 
