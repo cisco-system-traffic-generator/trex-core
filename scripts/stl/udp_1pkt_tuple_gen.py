@@ -12,14 +12,14 @@ class STLS1(object):
         base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
         pad = max(0, size - len(base_pkt)) * 'x'
-
-        vm = CTRexScRaw( [   CTRexVmDescTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
+                             
+        vm = CTRexScRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
                                                    port_min=1025, port_max=65535,
                                                     name="tuple"), # define tuple gen 
 
-                             CTRexVmDescWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
-                             CTRexVmDescFixIpv4(offset = "IP"),                                # fix checksum
-                             CTRexVmDescWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
+                             STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                             STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                             STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
                                   ]
                               );
 

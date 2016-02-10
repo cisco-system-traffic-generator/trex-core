@@ -1,16 +1,6 @@
-import sys
-import os
+from trex_stl_lib.api import *
 
-# Should be removed 
-# TBD fix this 
-CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-API_PATH     = os.path.join(CURRENT_PATH, "../../api/stl")
-sys.path.insert(0, API_PATH)
-
-from scapy.all import *
-from trex_stl_api import *
-
-# 10 clients override the LSB of destination
+# 1 clients MAC override the LSB of destination
 class STLS1(object):
 
     def __init__ (self):
@@ -23,8 +13,8 @@ class STLS1(object):
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
-        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="mac_src", min_value=1, max_value=10, size=1, op="inc"), # 1 byte varible, range 1-10
-                           CTRexVmDescWrFlowVar(fv_name="mac_src", pkt_offset= 11)                           # write it to LSB of SRC
+        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="mac_src", min_value=1, max_value=1, size=1, op="inc"), # 1 byte varible, range 1-1 ( workaround)
+                           CTRexVmDescWrFlowVar(fv_name="mac_src", pkt_offset= 11)                           # write it to LSB of SRC offset it 11
                           ]
                        )
 

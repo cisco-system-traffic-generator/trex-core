@@ -1,15 +1,5 @@
-import sys
-import os
-
-# Should be removed 
-# TBD fix this 
-CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-API_PATH     = os.path.join(CURRENT_PATH, "../../api/stl")
-sys.path.insert(0, API_PATH)
-
-from scapy.all import *
+from trex_stl_lib.api import *
 from scapy.contrib.mpls import * # import from contrib folder of scapy 
-from trex_stl_api import *
 
 
 class STLS1(object):
@@ -21,8 +11,8 @@ class STLS1(object):
         # 2 MPLS label the internal with  s=1 (last one)
         pkt =  Ether()/MPLS(label=17,cos=1,s=0,ttl=255)/MPLS(label=0,cos=1,s=1,ttl=12)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('x'*20)
 
-        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="mlabel", min_value=1, max_value=2000, size=2, op="inc"), # 2 bytes var
-                           CTRexVmDescWrFlowVar(fv_name="mlabel", pkt_offset= "MPLS:1.label")                # LABEL is 20 bits expected is val*8 as 3 LSB are off, 16,32,64 .. using new instruction it will be possible to write to any bits
+        vm = CTRexScRaw( [ STLVmFlowVar(name="mlabel", min_value=1, max_value=2000, size=2, op="inc"), # 2 bytes var
+                           STLVmWrFlowVar(fv_name="mlabel", pkt_offset= "MPLS:1.label")                # LABEL is 20 bits expected is val*8 as 3 LSB are off, 16,32,64 .. using new instruction it will be possible to write to any bits
                           ]
                        )
 

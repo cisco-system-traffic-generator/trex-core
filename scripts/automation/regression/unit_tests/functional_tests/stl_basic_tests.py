@@ -119,7 +119,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True):
         output_cap = "a.pcap"
-        input_file =  os.path.join('stl/profiles/', profile)
+        input_file =  os.path.join('stl/', profile)
         golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');
         try:
             rc = self.run_sim(input_file, output_cap, options, silent)

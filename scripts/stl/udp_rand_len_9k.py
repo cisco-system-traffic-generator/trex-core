@@ -1,4 +1,3 @@
-
 from trex_stl_lib.api import *
 
 class STLS1(object):
@@ -19,11 +18,11 @@ class STLS1(object):
 
 
         # vm
-        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="fv_rand", min_value=64, max_value=len(base_pkt), size=2, op="random"),
-                           CTRexVmDescTrimPktSize("fv_rand"), # total packet size
-                           CTRexVmDescWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), # fix ip len 
-                           CTRexVmDescFixIpv4(offset = "IP"),                                # fix checksum
-                           CTRexVmDescWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix) # fix udp len  
+        vm = CTRexScRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, max_value=len(base_pkt), size=2, op="random"),
+                           STLVmTrimPktSize("fv_rand"), # total packet size
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), # fix ip len 
+                           STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix) # fix udp len  
                           ]
                        )
 

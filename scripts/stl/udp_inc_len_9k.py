@@ -1,14 +1,4 @@
-import sys
-import os
-
-# Should be removed 
-# TBD fix this 
-CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-API_PATH     = os.path.join(CURRENT_PATH, "../../api/stl")
-sys.path.insert(0, API_PATH)
-
-from scapy.all import *
-from trex_stl_api import *
+from trex_stl_lib.api import *
 
 class STLS1(object):
 
@@ -28,11 +18,11 @@ class STLS1(object):
 
 
         # vm
-        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="fv_rand", min_value=64, max_value=len(base_pkt), size=2, op="inc"),
-                           CTRexVmDescTrimPktSize("fv_rand"), # total packet size
-                           CTRexVmDescWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), # fix ip len 
-                           CTRexVmDescFixIpv4(offset = "IP"),                                # fix checksum
-                           CTRexVmDescWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix) # fix udp len  
+        vm = CTRexScRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, max_value=len(base_pkt), size=2, op="inc"),
+                           STLVmTrimPktSize("fv_rand"), # total packet size
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), # fix ip len 
+                           STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix) # fix udp len  
                           ]
                        )
 
