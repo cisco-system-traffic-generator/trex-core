@@ -84,7 +84,7 @@ class STLTXMultiBurst(STLTXMode):
         self.fields['pps'] = pps
         self.fields['pkts_per_burst'] = pkts_per_burst
         self.fields['ibg'] = ibg
-        self.fields['count'] = count
+        self.fields['number_of_bursts'] = count
 
 
 class STLStream(object):
