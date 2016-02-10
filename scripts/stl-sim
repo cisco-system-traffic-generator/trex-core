@@ -3,4 +3,4 @@
 source find_python.sh
 
 export PYTHONPATH=automation/trex_control_plane/stl
-$PYTHON -m trex_stl_lib.trex_stl_sim $@
+$PYTHON -m trex_stl_lib.trex_stl_sim -p $PWD $@

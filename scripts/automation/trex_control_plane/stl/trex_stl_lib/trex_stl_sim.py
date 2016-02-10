@@ -259,7 +259,7 @@ class STLSim(object):
             cmd = ['valgrind', '--leak-check=full', '--error-exitcode=1'] + cmd
 
         elif self.mode == 'gdb':
-            cmd = ['/bin/gdb', '--args'] + cmd
+            cmd = ['/usr/bin/gdb', '--args'] + cmd
 
         print "executing command: '{0}'".format(" ".join(cmd))
         rc = subprocess.call(cmd)
@@ -352,6 +352,12 @@ def setParserOptions():
                         default = -1,
                         type = float)
 
+    parser.add_argument('-p', '--path',
+                        help = "BP sim path",
+                        dest = 'bp_sim_path',
+                        default = None,
+                        type = str)
+
 
     group = parser.add_mutually_exclusive_group()
 
@@ -402,7 +408,8 @@ def main ():
         mode = 'none'
 
     try:
-        r = STLSim()
+        r = STLSim(bp_sim_path = options.bp_sim_path)
+
         r.run(input_list = options.input_file,
               outfile = options.output_file,
               dp_core_count = options.dp_core_count,
