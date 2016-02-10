@@ -31,8 +31,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         self.profiles = {}
         self.profiles['imix_3pkt'] = os.path.join(self.profiles_path, "imix_3pkt.yaml")
         self.profiles['imix_3pkt_vm'] = os.path.join(self.profiles_path, "imix_3pkt_vm.yaml")
-        self.profiles['random_size'] = os.path.join(self.profiles_path, "udp_rand_size.yaml")
-        self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "udp_rand_size_9k.yaml")
+        self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "../udp_rand_len_9k.py")
         self.profiles['imix_tuple_gen'] = os.path.join(self.profiles_path, "imix_1pkt_tuple_gen.yaml")
 
         for k, v in self.profiles.iteritems():
@@ -145,7 +144,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         self.golden_run("basic_tuple_gen", "imix_tuple_gen", "-m 50kpps --limit 500 --cores 8", silent = False)
 
     def test_all_profiles (self):
-        p=[ 
+        p = [ 
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
             ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
             ["udp_1pkt_1mac.py","-m 1 -l 50",True],
@@ -158,13 +157,24 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["imix.py","-m 1 -l 100",True],
             ["udp_inc_len_9k.py","-m 1 -l 100",True],
             ["udp_1pkt_range_clients.py","-m 1 -l 100",True],
-            ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True]
+            ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True],
+
+            # YAML test
+            ["yaml/burst_1000_pkt.yaml","-m 1 -l 100",True],
+            ["yaml/burst_1pkt_1burst.yaml","-m 1 -l 100",True],
+            ["yaml/burst_1pkt_vm.yaml","-m 1 -l 100",True],
+            ["yaml/imix_1pkt.yaml","-m 1 -l 100",True],
+            ["yaml/imix_1pkt_2.yaml","-m 1 -l 100",True],
+            ["yaml/imix_1pkt_tuple_gen.yaml","-m 1 -l 100",True],
+            ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True]
+
           ];
 
-        #p=[ ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True] ]
+        p1=[ ["yaml/imix_1pkt_2.yaml","-m 1 -l 100",True] ]
+        
 
         for obj in p:
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
+            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=True)
 
 
 
@@ -174,7 +184,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         print "\n"
         for profile in self.valgrind_profiles:
             print "\n*** testing profile '{0}' ***\n".format(profile)
-            rc = self.run_sim(profile, output = None, options = "--cores 8 --limit 500 --valgrind", silent = False)
+            rc = self.run_sim(profile, output = None, options = "--cores 8 --limit 20 --valgrind", silent = False)
             assert_equal(rc, True)
 
 
