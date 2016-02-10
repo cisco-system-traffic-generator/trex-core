@@ -160,7 +160,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_range_clients.py","-m 1 -l 100",True]
           ];
 
-        #p=[ ["udp_1pkt_range_clients.py","-m 1 -l 100",True] ]
+        #p=[ ["burst_3st_600pkt.py","-m 1 -l 100",True] ]
 
         for obj in p:
             self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
