@@ -24,6 +24,8 @@ DRY_RUN = 12
 XTERM = 13
 TOTAL = 14
 FULL_OUTPUT = 15
+IPG = 16
+SPEEDUP = 17
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -197,6 +199,19 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                   'default': False,
                                   'action': "store_true"}),
 
+              IPG: ArgumentPack(['-i', '--ipg'],
+                                {'help': "IPG value in usec between packets. default will be from the pcap",
+                                 'dest': "ipg_usec",
+                                 'default':  None,
+                                 'type': float}),
+
+
+              SPEEDUP: ArgumentPack(['-s', '--speedup'],
+                                   {'help': "Factor to accelerate the injection. effectively means IPG = IPG / SPEEDUP",
+                                    'dest': "speedup",
+                                    'default':  1.0,
+                                    'type': float}),
+
               PORT_LIST: ArgumentPack(['--port'],
                                         {"nargs": '+',
                                          'dest':'ports',
@@ -217,19 +232,20 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'dest': 'duration',
                                          'type': match_time_unit,
                                          'default': -1.0,
-                                         'help': "Set duration time for TRex."}),
+                                         'help': "Set duration time for job."}),
 
               FORCE: ArgumentPack(['--force'],
                                         {"action": "store_true",
                                          'default': False,
-                                         'help': "Set if you want to stop active ports before applying new TRex run on them."}),
+                                         'help': "Set if you want to stop active ports before appyling command."}),
 
               FILE_PATH: ArgumentPack(['-f'],
                                       {'metavar': 'FILE',
                                        'dest': 'file',
                                        'nargs': 1,
+                                       'required': True,
                                        'type': is_valid_file,
-                                       'help': "File path to YAML file that describes a stream pack. "}),
+                                       'help': "File path to load"}),
 
               FILE_FROM_DB: ArgumentPack(['--db'],
                                          {'metavar': 'LOADED_STREAM_PACK',

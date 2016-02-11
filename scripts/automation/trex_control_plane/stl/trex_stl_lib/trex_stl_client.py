@@ -1724,7 +1724,7 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.TOTAL,
                                          parsing_opts.FORCE,
-                                         parsing_opts.STREAM_FROM_PATH_OR_FILE,
+                                         parsing_opts.FILE_PATH,
                                          parsing_opts.DURATION,
                                          parsing_opts.MULTIPLIER_STRICT,
                                          parsing_opts.DRY_RUN)
@@ -1975,3 +1975,47 @@ class STLClient(object):
 
 
  
+    @__console
+    def push_line (self, line):
+        '''Push a PCAP file '''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "push",
+                                         self.push_line.__doc__,
+                                         parsing_opts.FILE_PATH,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.DURATION,
+                                         parsing_opts.IPG,
+                                         parsing_opts.SPEEDUP,
+                                         parsing_opts.FORCE)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        active_ports = list(set(self.get_active_ports()).intersection(opts.ports))
+
+        if active_ports:
+            if not opts.force:
+                msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
+                self.logger.log(format_text(msg, 'bold'))
+                return
+            else:
+                self.stop(active_ports)
+
+        try:
+            # pcap injection removes all previous streams from the ports
+            self.remove_all_streams(ports = opts.ports)
+            profile = STLProfile.load_pcap(opts.file[0],
+                                           opts.ipg_usec,
+                                           opts.speedup,
+                                           loop = True if opts.duration != -1 else False)
+
+            id_list = self.add_streams(profile.get_streams(), opts.ports)
+            self.start(ports = opts.ports, duration = opts.duration, force = opts.force)
+
+        except STLError as e:
+            print e.brief()
+            return
+
+

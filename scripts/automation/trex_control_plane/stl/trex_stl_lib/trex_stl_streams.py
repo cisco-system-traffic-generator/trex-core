@@ -365,7 +365,7 @@ class STLProfile(object):
             sys.path.remove(basedir)
 
     @staticmethod
-    def load_pcap (pcap_file):
+    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop = False):
         # check filename
         if not os.path.isfile(pcap_file):
             raise STLError("file '{0}' does not exists".format(pcap_file))
@@ -376,13 +376,24 @@ class STLProfile(object):
         pkts = RawPcapReader(pcap_file).read_all()
         
         for i, (cap, meta) in enumerate(pkts, start = 1):
-            ts_usec = meta[0] * 1e6 + meta[1]
+            # IPG - if not provided, take from cap
+            if ipg_usec == None:
+                ts_usec = (meta[0] * 1e6 + meta[1]) / float(speedup)
+            else:
+                ts_usec = (ipg_usec * i) / float(speedup)
+
+            # handle last packet
+            if i == len(pkts):
+                next = 1 if loop else None
+            else:
+                next = i + 1
+
             streams.append(STLStream(name = i,
                                      packet = CScapyTRexPktBuilder(pkt_buffer = cap),
                                      mode = STLTXSingleBurst(total_pkts = 1),
                                      self_start = True if (i == 1) else False,
                                      isg = (ts_usec - last_ts_usec),  # seconds to usec
-                                     next = (i + 1) if i != len(pkts) else None))
+                                     next = next))
             last_ts_usec = ts_usec
 
         return STLProfile(streams)
@@ -401,7 +412,7 @@ class STLProfile(object):
             profile = STLProfile.load_yaml(filename)
 
         elif suffix in ['cap', 'pcap']:
-            profile = STLProfile.load_pcap(filename)
+            profile = STLProfile.load_pcap(filename, speedup = 1, ipg_usec = 1e6)
 
         else:
             raise STLError("unknown profile file type: '{0}'".format(suffix))
