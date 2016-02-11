@@ -147,7 +147,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         self.golden_run("basic_tuple_gen", "imix_tuple_gen", "-m 50kpps --limit 500 --cores 8", silent = False)
 
     def test_stl_profiles (self):
-        p0 = [ 
+        p = [ 
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
             ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
             ["udp_1pkt_1mac.py","-m 1 -l 50",True],
