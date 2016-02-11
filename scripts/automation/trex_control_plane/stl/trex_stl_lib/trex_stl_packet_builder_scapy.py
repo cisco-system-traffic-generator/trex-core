@@ -153,12 +153,14 @@ class CTRexScTrimPacketSize(CTRexScriptsBase):
             if min_pkt_size > max_pkt_size:
                 raise CTRexPacketBuildException(-11, 'CTRexScTrimPacketSize min_pkt_size is bigger than max_pkt_size ');
 
+
 class CTRexScRaw(CTRexScriptsBase):
     """
     raw instructions 
     """
-    def __init__(self,list_of_commands=None):
+    def __init__(self,list_of_commands=None,split_by_field=None):
         super(CTRexScRaw, self).__init__()
+        self.split_by_field = split_by_field
         if list_of_commands==None:
             self.commands =[]
         else:
@@ -818,6 +820,14 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
         for desc in obj.commands:
             self.vm_low_level.add_ins(desc.get_obj());
+
+        # set split_by_var
+        if obj.split_by_field : 
+            assert type(obj.split_by_field)==str, "type of split by var should be string"
+            #if not vars.has_key(obj.split_by_field):
+            #    raise CTRexPacketBuildException(-11,("variable %s does not exists. change split_by_var args ") % (var_name) );  
+
+            self.vm_low_level.split_by_var = obj.split_by_field
 
 
     def _pkt_layer_offset (self,layer_name):

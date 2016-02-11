@@ -178,7 +178,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
           ];
 
 
-        p0  =[ ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True] ]
+        p1  = [ ["udp_1pkt_tuple_gen_split.py","-m 1 -l 3",True] ]
         
 
         for obj in p:
