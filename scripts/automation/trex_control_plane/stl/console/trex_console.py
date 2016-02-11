@@ -325,6 +325,13 @@ class TRexConsole(TRexGeneralCmd):
     def do_shell (self, line):
         return self.do_history(line)
 
+    def do_push (self, line):
+        '''Push a PCAP file\n'''
+        return self.stateless_client.push_line(line)
+
+    def help_push (self):
+        return self.do_push("-h")
+
 
     def do_history (self, line):
         '''Manage the command history\n'''
@@ -384,6 +391,7 @@ class TRexConsole(TRexGeneralCmd):
 
         if (l > 2) and (s[l - 2] in file_flags):
             return TRexConsole.tree_autocomplete(s[l - 1])
+
 
     @verify_connected_and_rw
     def do_start(self, line):
@@ -566,8 +574,9 @@ class TRexConsole(TRexGeneralCmd):
          print "----------------------------\n"
     
          cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
+         hidden = ['EOF', 'q', 'exit', 'h', 'shell']
          for cmd in cmds:
-             if ( (cmd == "EOF") or (cmd == "q") or (cmd == "exit") or (cmd == "h")):
+             if cmd in hidden:
                  continue
     
              try:
