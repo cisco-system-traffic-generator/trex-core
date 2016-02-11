@@ -17,7 +17,7 @@ class STLImix(object):
                             {'size': 1514, 'pps': 4,   'isg':0.2 } ]
 
 
-    def create_stream (self, size, pps,isg, vm ):
+    def create_stream (self, size, pps, isg, vm ):
         # create a base packet and pad it to size
         base_pkt = Ether()/IP()/UDP()
         pad = max(0, size - len(base_pkt)) * 'x'
@@ -27,7 +27,7 @@ class STLImix(object):
 
         return STLStream(isg = isg,
                          packet = pkt,
-                         mode = STLTXCont())
+                         mode = STLTXCont(pps = pps))
 
 
     def get_streams (self, direction = 0):

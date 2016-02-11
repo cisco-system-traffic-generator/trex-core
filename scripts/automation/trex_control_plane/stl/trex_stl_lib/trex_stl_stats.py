@@ -84,15 +84,13 @@ class CTRexInfoGenerator(object):
 
     def generate_streams_info(self, port_id_list, stream_id_list):
         relevant_ports = self.__get_relevant_ports(port_id_list)
-
         return_data = OrderedDict()
 
         for port_obj in relevant_ports:
             streams_data = self._generate_single_port_streams_info(port_obj, stream_id_list)
             if not streams_data:
                 continue
-            hdr_key = "Port {port}: {yaml_file}".format(port= port_obj.port_id,
-                                                        yaml_file= streams_data.raw_data.get('referring_file', ''))
+            hdr_key = "Port {port}:".format(port= port_obj.port_id)
 
             # TODO: test for other ports with same stream structure, and join them
             return_data[hdr_key] = streams_data

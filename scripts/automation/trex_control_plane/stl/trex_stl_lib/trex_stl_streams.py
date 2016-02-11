@@ -38,6 +38,8 @@ class STLTXCont(STLTXMode):
         self.fields['type'] = 'continuous'
         self.fields['pps']  = pps
 
+    def __str__ (self):
+        return "Continuous"
 
 # single burst mode
 class STLTXSingleBurst(STLTXMode):
@@ -56,6 +58,8 @@ class STLTXSingleBurst(STLTXMode):
         self.fields['pps']  = pps
         self.fields['total_pkts'] = total_pkts
 
+    def __str__ (self):
+        return "Single Burst"
 
 # multi burst mode
 class STLTXMultiBurst(STLTXMode):
@@ -85,6 +89,9 @@ class STLTXMultiBurst(STLTXMode):
         self.fields['pkts_per_burst'] = pkts_per_burst
         self.fields['ibg'] = ibg
         self.fields['count'] = count
+
+    def __str__ (self):
+        return "Multi Burst"
 
 
 class STLStream(object):
@@ -122,6 +129,8 @@ class STLStream(object):
         # tag for the stream and next - can be anything
         self.name = name if name else random_name(8)
         self.next = next
+
+        # ID
         self.set_id(stream_id)
 
         self.fields = {}
@@ -133,6 +142,7 @@ class STLStream(object):
 
         # mode
         self.fields['mode'] = mode.to_json()
+        self.mode_desc      = str(mode)
 
         self.fields['packet'] = {}
         self.fields['vm'] = {}
@@ -146,6 +156,7 @@ class STLStream(object):
         # packet and VM
         self.fields['packet'] = packet.dump_pkt()
         self.fields['vm']     = packet.get_vm_data()
+        self.packet_desc      = packet.pkt_layers_desc()
 
         if not rx_stats:
             self.fields['rx_stats'] = {}
@@ -169,11 +180,33 @@ class STLStream(object):
     def set_id (self, id):
         self.id = id
 
+    def get_next_id (self):
+        return self.fields.get('next_stream_id')
+
+    def set_next_id (self, next_stream_id):
+        self.fields['next_stream_id'] = next_stream_id
+
     def get_name (self):
         return self.name
 
     def get_next (self):
         return self.next
+
+    def get_pkt_type (self):
+        return self.packet_desc
+
+    def get_pkt_len (self, count_crc = True):
+       pkt_len = len(base64.b64decode(self.fields['packet']['binary']))
+       if count_crc:
+           pkt_len += 4
+
+       return pkt_len
+
+    def get_pps (self):
+        return self.fields['mode']['pps']
+
+    def get_mode (self):
+        return self.mode_desc
 
 
     def to_yaml (self):

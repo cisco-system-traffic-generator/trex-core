@@ -180,7 +180,8 @@ class Port(object):
                     return self.err("stream dependency error - unable to find '{0}'".format(next))
                 next_id = lookup[next]
 
-            stream.fields['next_stream_id'] = next_id
+
+            stream.set_next_id(next_id)
 
 
         batch = []
@@ -490,39 +491,36 @@ class Port(object):
 
     ################# stream printout ######################
     def generate_loaded_streams_sum(self, stream_id_list):
-        if self.state == self.STATE_DOWN or self.state == self.STATE_STREAMS:
+        if self.state == self.STATE_DOWN:
             return {}
         streams_data = {}
 
         if not stream_id_list:
             # if no mask has been provided, apply to all streams on port
             stream_id_list = self.streams.keys()
-
+            
 
         streams_data = {stream_id: self.streams[stream_id].metadata.get('stream_sum', ["N/A"] * 6)
                         for stream_id in stream_id_list
                         if stream_id in self.streams}
 
-
-        return {"referring_file" : "",
-                "streams" : streams_data}
+        # sort the data
+        return {"streams" : OrderedDict(sorted(streams_data.items())) }
 
     @staticmethod
     def _generate_stream_metadata(stream):
         meta_dict = {}
-        # create packet stream description
-        #pkt_bld_obj = packet_builder.CTRexPktBuilder()
-        #pkt_bld_obj.load_from_stream_obj(compiled_stream_obj)
-        # generate stream summary based on that
 
-        #next_stream = "None" if stream['next_stream_id']==-1 else stream['next_stream_id']
+        next = stream.get_next_id()
+        if next == -1:
+            next = "-"
 
-        meta_dict['stream_sum'] = OrderedDict([("id", stream.get_id()),
-                                               ("packet_type", "FIXME!!!"),
-                                               ("L2 len", "FIXME!!! +++4"),
-                                               ("mode", "FIXME!!!"),
-                                               ("rate_pps", "FIXME!!!"),
-                                               ("next_stream", "FIXME!!!")
+        meta_dict['stream_sum'] = OrderedDict([("id",           stream.get_id()),
+                                               ("packet_type",  stream.get_pkt_type()),
+                                               ("L2 len",       stream.get_pkt_len()),
+                                               ("mode",         stream.get_mode()),
+                                               ("rate_pps",     stream.get_pps()),
+                                               ("next_stream",  next)
                                                ])
         return meta_dict
 

@@ -700,9 +700,14 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
         """
         pkt_buf = self._get_pkt_as_str()
+        return self.pkt_layers_desc_from_buffer(pkt_buf)
+
+    @staticmethod
+    def pkt_layers_desc_from_buffer (pkt_buf):
         scapy_pkt = Ether(pkt_buf);
         pkt_utl = CTRexScapyPktUtl(scapy_pkt);
         return pkt_utl.get_pkt_layers()
+
 
     def set_pkt_as_str (self, pkt_buffer):
         assert type(pkt_buffer)==str, "pkt_buffer should be string"
