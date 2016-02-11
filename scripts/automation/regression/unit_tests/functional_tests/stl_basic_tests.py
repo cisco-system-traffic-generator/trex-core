@@ -105,7 +105,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         output_cap = os.path.join("/tmp/", "{0}_test.cap".format(testname))
         golden_cap = os.path.join(self.test_path, "stl/golden/{0}_golden.cap".format(testname))
-
+        if os.path.exists(output_cap):
+            os.unlink(output_cap)
         try:
             rc = self.run_sim(self.profiles[profile], output_cap, options, silent)
             assert_equal(rc, True)
@@ -120,6 +121,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         output_cap = "a.pcap"
         input_file =  os.path.join('stl/', profile)
         golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');
+        if os.path.exists(output_cap):
+            os.unlink(output_cap)
         try:
             rc = self.run_sim(input_file, output_cap, options, silent)
             assert_equal(rc, True)
@@ -143,7 +146,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def test_tuple_gen (self):
         self.golden_run("basic_tuple_gen", "imix_tuple_gen", "-m 50kpps --limit 500 --cores 8", silent = False)
 
-    def test_all_profiles (self):
+    def test_stl_profiles (self):
         p = [ 
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
             ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
@@ -178,6 +181,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
 
 
+    def test_hlt_profiles (self):
+        p = (
+            ['hlt/hlt_udp_inc_len_9k.py', '-m 1 -l 50', False],
+            )
+        
+
+        for obj in p:
+            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=False)
 
     # valgrind tests
     def test_valgrind_various_profiles (self):

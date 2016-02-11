@@ -1,26 +1,27 @@
 #!/router/bin/python
 
-from client.trex_hltapi import CTRexHltApiBuilder
 import os
 import unittest
-
-gen_stream = CTRexHltApiBuilder.generate_stream
+from nose.plugins.attrib import attr
 
 def compare_yamls(yaml1, yaml2):
-    if type(yaml1) is not str:
-        raise Exception("yaml1 is '%s', expected str" % type(yaml1))
-    if type(yaml2) is not str:
-        raise Exception("yaml2 is '%s', expected str" % type(yaml2))
+    from trex_stl_lib.trex_stl_types import validate_type
+    validate_type('yaml1', yaml1, str)
+    validate_type('yaml2', yaml2, str)
     i = 0
     for line1, line2 in zip(yaml1.strip().split('\n'), yaml2.strip().split('\n')):
         i += 1
         if line1 != line2:
             raise Exception('yamls are not equal starting from line %s:\n%s\n\t<->\n%s' % (i, line1.strip(), line2.strip()))
 
+@attr('run_on_trex')
 class CTRexHltApi_Test(unittest.TestCase):
     ''' Checks correct HLTAPI creation of packet/VM '''
 
     def setUp(self):
+        from trex_stl_lib.trex_stl_hltapi import CTRexHltApiBuilder
+        self.gen_stream = CTRexHltApiBuilder.generate_stream
+
         self.golden_yaml = None
         self.test_yaml = None
 
@@ -29,7 +30,7 @@ class CTRexHltApi_Test(unittest.TestCase):
 
     # Eth/IP/TCP, all values default, no VM instructions
     def test_default(self):
-        test_stream = gen_stream(name = 'stream-0')
+        test_stream = self.gen_stream(name = 'stream-0')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
@@ -52,7 +53,7 @@ class CTRexHltApi_Test(unittest.TestCase):
 
     # Eth/IP/TCP, ip src and dest is changed by VM
     def test_ip_ranges(self):
-        test_stream = gen_stream(ip_src_addr = '192.168.1.1',
+        test_stream = self.gen_stream(ip_src_addr = '192.168.1.1',
                                  ip_src_mode = 'increment',
                                  ip_src_count = 5,
                                  ip_dst_addr = '5.5.5.5',
@@ -108,7 +109,7 @@ class CTRexHltApi_Test(unittest.TestCase):
 
     # Eth / IP / TCP, tcp ports are changed by VM
     def test_tcp_ranges(self):
-        test_stream = gen_stream(tcp_src_port_mode = 'decrement',
+        test_stream = self.gen_stream(tcp_src_port_mode = 'decrement',
                                  tcp_src_port_count = 10,
                                  tcp_dst_port_mode = 'random',
                                  tcp_dst_port_count = 10,
@@ -163,7 +164,7 @@ class CTRexHltApi_Test(unittest.TestCase):
     # Eth / IP / UDP, udp ports are changed by VM
     def test_udp_ranges(self):
         # UDP is not set, expecting ignore of wrong UDP arguments
-        gen_stream(udp_src_port_mode = 'qwerqwer',
+        self.gen_stream(udp_src_port_mode = 'qwerqwer',
                    udp_src_port_count = 'weqwer',
                    udp_src_port = 'qwerqwer',
                    udp_dst_port_mode = 'qwerqwe',
@@ -171,7 +172,7 @@ class CTRexHltApi_Test(unittest.TestCase):
                    udp_dst_port = 'sdfgsdfg')
         # UDP is set, expecting fail due to wrong UDP arguments
         with self.assertRaises(Exception):
-            gen_stream(l4_protocol = 'udp',
+            self.gen_stream(l4_protocol = 'udp',
                        udp_src_port_mode = 'qwerqwer',
                        udp_src_port_count = 'weqwer',
                        udp_src_port = 'qwerqwer',
@@ -179,7 +180,7 @@ class CTRexHltApi_Test(unittest.TestCase):
                        udp_dst_port_count = 'sfgsdfg',
                        udp_dst_port = 'sdfgsdfg')
         # generate it already with correct arguments
-        test_stream = gen_stream(l4_protocol = 'udp',
+        test_stream = self.gen_stream(l4_protocol = 'udp',
                                  udp_src_port_mode = 'decrement',
                                  udp_src_port_count = 10,
                                  udp_src_port = 1234,
@@ -237,15 +238,15 @@ class CTRexHltApi_Test(unittest.TestCase):
     def test_pkt_len_by_framesize(self):
         # frame_size_step should be 1 (as default)
         with self.assertRaises(Exception):
-            test_stream = gen_stream(length_mode = 'decrement',
+            test_stream = self.self.gen_stream(length_mode = 'decrement',
                                      frame_size_min = 100,
                                      frame_size_max = 3000,
                                      frame_size_step = 20)
         # just check errors, no compare to golden
-        gen_stream(length_mode = 'increment',
+        self.gen_stream(length_mode = 'increment',
                    frame_size_min = 100,
                    frame_size_max = 3000)
-        test_stream = gen_stream(length_mode = 'decrement',
+        test_stream = self.gen_stream(length_mode = 'decrement',
                                  frame_size_min = 100,
                                  frame_size_max = 3000,
                                  name = 'stream-0')
@@ -289,12 +290,12 @@ class CTRexHltApi_Test(unittest.TestCase):
     def test_pkt_len_by_l3length(self):
         # l3_length_step should be 1
         with self.assertRaises(Exception):
-            gen_stream(l4_protocol = 'udp',
+            self.gen_stream(l4_protocol = 'udp',
                        length_mode = 'random',
                        l3_length_min = 100,
                        l3_length_max = 400,
                        l3_length_step = 20)
-        test_stream = gen_stream(l4_protocol = 'udp',
+        test_stream = self.gen_stream(l4_protocol = 'udp',
                                  length_mode = 'random',
                                  l3_length_min = 100,
                                  l3_length_max = 400,

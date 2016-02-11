@@ -132,10 +132,9 @@ sys.path.append(os.path.join(CURRENT_PATH, '../stl/'))
 
 from trex_stl_lib.api import *
 
-from client_utils.general_utils import get_number
+from utils.common import get_number
 import socket
 import copy
-from misc_methods import print_r
 
 
 class HLT_ERR(dict):

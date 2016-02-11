@@ -1,7 +1,7 @@
 #!/router/bin/python
 
 import outer_packages
-from client.trex_hltapi import CTRexHltApi, CStreamsPerPort
+from trex_stl_lib.trex_stl_hltapi import CTRexHltApi, CStreamsPerPort
 import traceback
 import sys, time
 from pprint import pprint
