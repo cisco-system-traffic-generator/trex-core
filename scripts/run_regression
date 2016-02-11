@@ -2,5 +2,5 @@
 
 source find_python.sh
 cd automation/regression
-$PYTHON trex_unit_test.py --functional $@
+$PYTHON trex_unit_test.py --exclude functional $@
 

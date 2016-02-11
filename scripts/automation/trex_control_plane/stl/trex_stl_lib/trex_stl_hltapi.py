@@ -512,7 +512,7 @@ class CTRexHltApi(object):
                     return HLT_ERR('Could not generate imix streams: %s' % e)
                 return HLT_OK(stream_id = streams_per_port)
             try:
-                stream_obj = CTRexHltApiBuilder.generate_stream(**kwargs)
+                stream_obj = STLHltStream(**kwargs)
             except Exception as e:
                 return HLT_ERR('Could not create stream: %s' % e)
 
@@ -672,14 +672,12 @@ class CTRexHltApi(object):
             return '\n'. join([str(response) for response in responses])
         return responses
 
-class CTRexHltApiBuilder:
-    @staticmethod
-    def generate_stream(**user_kwargs):
+class STLHltStream(STLStream):
+    def __init__(self, **user_kwargs):
         kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
         try:
-            packet = CTRexHltApiBuilder.generate_packet(**kwargs)
-        #except Exception as e:
-        except ValueError as e:
+            packet = STLHltStream.generate_packet(**kwargs)
+        except Exception as e:
             raise Exception('Could not generate packet: %s' % e)
 
         try:
@@ -699,27 +697,26 @@ class CTRexHltApiBuilder:
             raise Exception('Could not create transmit_mode class %s: %s' % (transmit_mode, e))
 
         try:
-            stream_obj = STLStream(packet = packet,
-                                   #enabled = True,
-                                   #self_start = True,
-                                   mode = transmit_mode_class,
-                                   #rx_stats = rx_stats,
-                                   #next_stream_id = -1,
-                                   stream_id = kwargs.get('stream_id'),
-                                   name = kwargs.get('name'),
-                                   )
+            STLStream.__init__(self,
+                               packet = packet,
+                               #enabled = True,
+                               #self_start = True,
+                               mode = transmit_mode_class,
+                               #rx_stats = rx_stats,
+                               #next_stream_id = -1,
+                               stream_id = kwargs.get('stream_id'),
+                               name = kwargs.get('name'),
+                               )
         except Exception as e:
             raise Exception('Could not create stream: %s' % e)
 
         debug_filename = kwargs.get('save_to_yaml')
         if type(debug_filename) is str:
             stream_obj.dump_to_yaml(debug_filename)
-        return stream_obj
 
     @staticmethod
     def generate_packet(**user_kwargs):
         kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
-        pkt = STLPktBuilder()
 
         vm_cmds = []
         fix_ipv4_checksum = False
@@ -985,6 +982,7 @@ class CTRexHltApiBuilder:
             raise Exception('Packet length is bigger than defined by frame_size* or l3_length*')
         base_pkt /= '!' * payload_len
 
+        pkt = STLPktBuilder()
         pkt.set_packet(base_pkt)
         if fix_ipv4_checksum and l3_layer.name == 'IP' and kwargs['ip_checksum'] is None:
             vm_cmds.append(CTRexVmDescFixIpv4(offset = 'IP'))
@@ -995,7 +993,5 @@ class CTRexHltApiBuilder:
         debug_filename = kwargs.get('save_to_pcap')
         if type(debug_filename) is str:
             pkt.dump_pkt_to_pcap(debug_filename)
-        #pkt.compile()
-        #pkt.dump_scripts()
         return pkt
 

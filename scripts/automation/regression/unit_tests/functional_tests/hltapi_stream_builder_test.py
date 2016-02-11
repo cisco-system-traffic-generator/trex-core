@@ -2,10 +2,11 @@
 
 import os
 import unittest
+from trex_stl_lib.trex_stl_hltapi import STLHltStream
+from trex_stl_lib.trex_stl_types import validate_type
 from nose.plugins.attrib import attr
 
 def compare_yamls(yaml1, yaml2):
-    from trex_stl_lib.trex_stl_types import validate_type
     validate_type('yaml1', yaml1, str)
     validate_type('yaml2', yaml2, str)
     i = 0
@@ -14,14 +15,11 @@ def compare_yamls(yaml1, yaml2):
         if line1 != line2:
             raise Exception('yamls are not equal starting from line %s:\n%s\n\t<->\n%s' % (i, line1.strip(), line2.strip()))
 
-@attr('run_on_trex')
+
 class CTRexHltApi_Test(unittest.TestCase):
     ''' Checks correct HLTAPI creation of packet/VM '''
 
     def setUp(self):
-        from trex_stl_lib.trex_stl_hltapi import CTRexHltApiBuilder
-        self.gen_stream = CTRexHltApiBuilder.generate_stream
-
         self.golden_yaml = None
         self.test_yaml = None
 
@@ -30,7 +28,7 @@ class CTRexHltApi_Test(unittest.TestCase):
 
     # Eth/IP/TCP, all values default, no VM instructions
     def test_default(self):
-        test_stream = self.gen_stream(name = 'stream-0')
+        test_stream = STLHltStream(name = 'stream-0')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
@@ -53,13 +51,13 @@ class CTRexHltApi_Test(unittest.TestCase):
 
     # Eth/IP/TCP, ip src and dest is changed by VM
     def test_ip_ranges(self):
-        test_stream = self.gen_stream(ip_src_addr = '192.168.1.1',
-                                 ip_src_mode = 'increment',
-                                 ip_src_count = 5,
-                                 ip_dst_addr = '5.5.5.5',
-                                 ip_dst_count = 2,
-                                 ip_dst_mode = 'random',
-                                 name = 'stream-0')
+        test_stream = STLHltStream(ip_src_addr = '192.168.1.1',
+                                   ip_src_mode = 'increment',
+                                   ip_src_count = 5,
+                                   ip_dst_addr = '5.5.5.5',
+                                   ip_dst_count = 2,
+                                   ip_dst_mode = 'random',
+                                   name = 'stream-0')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
@@ -109,12 +107,12 @@ class CTRexHltApi_Test(unittest.TestCase):
 
     # Eth / IP / TCP, tcp ports are changed by VM
     def test_tcp_ranges(self):
-        test_stream = self.gen_stream(tcp_src_port_mode = 'decrement',
-                                 tcp_src_port_count = 10,
-                                 tcp_dst_port_mode = 'random',
-                                 tcp_dst_port_count = 10,
-                                 tcp_dst_port = 1234,
-                                 name = 'stream-0')
+        test_stream = STLHltStream(tcp_src_port_mode = 'decrement',
+                                   tcp_src_port_count = 10,
+                                   tcp_dst_port_mode = 'random',
+                                   tcp_dst_port_count = 10,
+                                   tcp_dst_port = 1234,
+                                   name = 'stream-0')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
@@ -164,30 +162,30 @@ class CTRexHltApi_Test(unittest.TestCase):
     # Eth / IP / UDP, udp ports are changed by VM
     def test_udp_ranges(self):
         # UDP is not set, expecting ignore of wrong UDP arguments
-        self.gen_stream(udp_src_port_mode = 'qwerqwer',
-                   udp_src_port_count = 'weqwer',
-                   udp_src_port = 'qwerqwer',
-                   udp_dst_port_mode = 'qwerqwe',
-                   udp_dst_port_count = 'sfgsdfg',
-                   udp_dst_port = 'sdfgsdfg')
+        STLHltStream(udp_src_port_mode = 'qwerqwer',
+                     udp_src_port_count = 'weqwer',
+                     udp_src_port = 'qwerqwer',
+                     udp_dst_port_mode = 'qwerqwe',
+                     udp_dst_port_count = 'sfgsdfg',
+                     udp_dst_port = 'sdfgsdfg')
         # UDP is set, expecting fail due to wrong UDP arguments
         with self.assertRaises(Exception):
-            self.gen_stream(l4_protocol = 'udp',
-                       udp_src_port_mode = 'qwerqwer',
-                       udp_src_port_count = 'weqwer',
-                       udp_src_port = 'qwerqwer',
-                       udp_dst_port_mode = 'qwerqwe',
-                       udp_dst_port_count = 'sfgsdfg',
-                       udp_dst_port = 'sdfgsdfg')
+            STLHltStream(l4_protocol = 'udp',
+                         udp_src_port_mode = 'qwerqwer',
+                         udp_src_port_count = 'weqwer',
+                         udp_src_port = 'qwerqwer',
+                         udp_dst_port_mode = 'qwerqwe',
+                         udp_dst_port_count = 'sfgsdfg',
+                         udp_dst_port = 'sdfgsdfg')
         # generate it already with correct arguments
-        test_stream = self.gen_stream(l4_protocol = 'udp',
-                                 udp_src_port_mode = 'decrement',
-                                 udp_src_port_count = 10,
-                                 udp_src_port = 1234,
-                                 udp_dst_port_mode = 'increment',
-                                 udp_dst_port_count = 10,
-                                 udp_dst_port = 1234,
-                                 name = 'stream-0')
+        test_stream = STLHltStream(l4_protocol = 'udp',
+                                   udp_src_port_mode = 'decrement',
+                                   udp_src_port_count = 10,
+                                   udp_src_port = 1234,
+                                   udp_dst_port_mode = 'increment',
+                                   udp_dst_port_count = 10,
+                                   udp_dst_port = 1234,
+                                   name = 'stream-0')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
@@ -238,18 +236,18 @@ class CTRexHltApi_Test(unittest.TestCase):
     def test_pkt_len_by_framesize(self):
         # frame_size_step should be 1 (as default)
         with self.assertRaises(Exception):
-            test_stream = self.self.gen_stream(length_mode = 'decrement',
-                                     frame_size_min = 100,
-                                     frame_size_max = 3000,
-                                     frame_size_step = 20)
+            test_stream = STLHltStream(length_mode = 'decrement',
+                                       frame_size_min = 100,
+                                       frame_size_max = 3000,
+                                       frame_size_step = 20)
         # just check errors, no compare to golden
-        self.gen_stream(length_mode = 'increment',
-                   frame_size_min = 100,
-                   frame_size_max = 3000)
-        test_stream = self.gen_stream(length_mode = 'decrement',
-                                 frame_size_min = 100,
-                                 frame_size_max = 3000,
-                                 name = 'stream-0')
+        STLHltStream(length_mode = 'increment',
+                     frame_size_min = 100,
+                     frame_size_max = 3000)
+        test_stream = STLHltStream(length_mode = 'decrement',
+                                   frame_size_min = 100,
+                                   frame_size_max = 3000,
+                                   name = 'stream-0')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0
@@ -290,16 +288,16 @@ class CTRexHltApi_Test(unittest.TestCase):
     def test_pkt_len_by_l3length(self):
         # l3_length_step should be 1
         with self.assertRaises(Exception):
-            self.gen_stream(l4_protocol = 'udp',
-                       length_mode = 'random',
-                       l3_length_min = 100,
-                       l3_length_max = 400,
-                       l3_length_step = 20)
-        test_stream = self.gen_stream(l4_protocol = 'udp',
-                                 length_mode = 'random',
-                                 l3_length_min = 100,
-                                 l3_length_max = 400,
-                                 name = 'stream-0')
+            STLHltStream(l4_protocol = 'udp',
+                         length_mode = 'random',
+                         l3_length_min = 100,
+                         l3_length_max = 400,
+                         l3_length_step = 20)
+        test_stream = STLHltStream(l4_protocol = 'udp',
+                                   length_mode = 'random',
+                                   l3_length_min = 100,
+                                   l3_length_max = 400,
+                                   name = 'stream-0')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: stream-0

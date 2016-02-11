@@ -119,7 +119,8 @@ class CTRexTestConfiguringPlugin(Plugin):
 
     def configure(self, options, conf):
         self.functional = options.functional
-        if self.functional:
+        self.collect_only = options.collect_only
+        if self.functional or self.collect_only:
             return
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
@@ -141,7 +142,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             self.loggerPath = options.log_path
 
     def begin (self):
-        if self.functional:
+        if self.functional or self.collect_only:
             return
         # initialize CTRexScenario global testing class, to be used by all tests
         CTRexScenario.configuration = self.configuration
@@ -165,7 +166,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             CustomLogger.setup_custom_logger('TRexLogger')
     
     def finalize(self, result):
-        if self.functional:
+        if self.functional or self.collect_only:
             return
         CTRexScenario.is_init       = False
         stop_trex_remote_server(self.configuration.trex)
@@ -212,22 +213,28 @@ if __name__ == "__main__":
         CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
         xml_name =  'report_%s.xml' % CTRexScenario.setup_name
 
-    nose_argv= sys.argv + ['-s', '-v', '--exe', '--rednose', '--detailed-errors', '--with-xunit', '--xunit-file=%s/%s' % (CTRexScenario.report_dir, xml_name)]
-    
-    for arg in sys.argv:
+    nose_argv = ['-s', '-v', '--exe', '--rednose', '--detailed-errors']
+    if '--collect-only' in sys.argv: # this is a user trying simply to view the available tests. no need xunit.
+        CTRexScenario.is_test_list = True
+    else:
+        nose_argv += ['--with-xunit', '--xunit-file=%s/%s' % (CTRexScenario.report_dir, xml_name)]
+        set_report_dir(CTRexScenario.report_dir)
+
+    for i, arg in enumerate(sys.argv):
         if 'unit_tests/' in arg:
             specific_tests = True
+            sys.argv[i] = arg[arg.find('unit_tests/'):]
         if 'log-path' in arg:
             disableLogCapture = True
-        if arg == '--collect-only':   # this is a user trying simply to view the available tests. removing xunit param from nose args
-            nose_argv[-3:-1] = []
-            CTRexScenario.is_test_list = True
-        else:
-            set_report_dir(CTRexScenario.report_dir)
+
+    nose_argv += sys.argv
 
     # Run all of the unit tests or just the selected ones
     if not specific_tests:
-        nose_argv += ['unit_tests']
+        if '--functional' in sys.argv:
+            nose_argv += ['unit_tests/functional_tests']
+        else:
+            nose_argv += ['unit_tests']
     if disableLogCapture:
         nose_argv += ['--nologcapture']
 

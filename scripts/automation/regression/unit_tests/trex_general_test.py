@@ -83,6 +83,8 @@ class CTRexGeneral_Test(unittest.TestCase):
     """This class defines the general testcase of the T-Rex traffic generator"""
     def __init__ (self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
+        if CTRexScenario.is_test_list:
+            return
         # Point test object to scenario global object
         self.configuration         = CTRexScenario.configuration
         self.benchmark             = CTRexScenario.benchmark
@@ -125,7 +127,6 @@ class CTRexGeneral_Test(unittest.TestCase):
                         print 'Matches needed image: %s' % needed_image
                 CTRexScenario.router_image = running_image
 
-                    
             if self.modes:
                 print termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes))
 
