@@ -6,6 +6,7 @@ import json
 import yaml
 import binascii
 import base64
+import inspect
 
 from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 
@@ -591,8 +592,10 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
     This class defines the TRex API of building a packet using dpkt package.
     Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
     pkt could be Scapy pkt or pcap file name 
+
+    When path_relative_to_profile is True load pcap file from path relative to the profile
     """
-    def __init__(self, pkt = None, pkt_buffer = None, vm = None):
+    def __init__(self, pkt = None, pkt_buffer = None, vm = None, path_relative_to_profile = False):
         """
         Instantiate a CTRexPktBuilder object
 
@@ -607,6 +610,8 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         self.vm_scripts = [] # list of high level instructions
         self.vm_low_level = None
         self.metadata=""
+        self.path_relative_to_profile = path_relative_to_profile
+
         was_set=False
 
         if pkt != None and pkt_buffer != None:
@@ -703,6 +708,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         assert type(pkt_buffer)==str, "pkt_buffer should be string"
         self.pkt_raw = pkt_buffer
 
+
     def set_pcap_file (self, pcap_file):
         """
         load raw pcap file into a buffer. load only the first packet 
@@ -714,8 +720,9 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             + :exc:`AssertionError`, in case packet is empty.
 
         """
+        f_path = self._get_pcap_file_path (pcap_file)
 
-        p=RawPcapReader(pcap_file)
+        p=RawPcapReader(f_path)
         was_set = False
 
         for pkt in p:
@@ -723,7 +730,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             self.pkt_raw = str(pkt[0])
             break
         if not was_set :
-            raise CTRexPacketBuildException(-14, "no buffer inside the pcap file")
+            raise CTRexPacketBuildException(-14, "no buffer inside the pcap file {0}".format(f_path))
 
     def set_packet (self, pkt):
         """
@@ -758,6 +765,27 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     ####################################################
     # private 
+
+
+    def _get_pcap_file_path (self,pcap_file_name):
+        f_path = pcap_file_name
+        if os.path.isabs(pcap_file_name):
+            f_path = pcap_file_name
+        else:
+            if self.path_relative_to_profile:
+                p = self._get_path_relative_to_profile () # loader 
+                if p :
+                  f_path=os.path.abspath(os.path.join(os.path.dirname(p),pcap_file_name))
+
+        return f_path
+
+
+    def _get_path_relative_to_profile (self):
+        p = inspect.stack()
+        for obj in p:
+            if obj[3]=='get_streams':
+                return obj[1]
+        return None
 
     def _compile_raw (self,obj):
 
