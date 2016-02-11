@@ -10,6 +10,8 @@ class STLError(Exception):
 
     def __str__ (self):
         exc_type, exc_obj, exc_tb = sys.exc_info()
+        if not exc_tb:
+            return self.msg
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
 
 
@@ -35,7 +37,7 @@ class STLPortStateError(STLError):
         self.msg = "Operation '{0}' on port(s) '{1}' is not valid while port(s) '{2}'".format(op, port, state)
 
 
-# raised when argument is not valid for operation
+# raised when argument value is not valid for operation
 class STLArgumentError(STLError):
     def __init__ (self, name, got, valid_values = None, extended = None):
         self.msg = "Argument: '{0}' invalid value: '{1}'".format(name, got)
@@ -45,10 +47,14 @@ class STLArgumentError(STLError):
         if extended:
             self.msg += "\n{0}".format(extended)
 
+# raised when argument type is not valid for operation
+class STLTypeError(STLError):
+    def __init__ (self, arg_name, arg_type, valid_types):
+        self.msg = "Argument: '%s' invalid type: %s, expecting type(s): %s." % (arg_name, arg_type, valid_types)
+
 # raised when timeout occurs
 class STLTimeoutError(STLError):
     def __init__ (self, timeout):
         self.msg = "Timeout: operation took more than '{0}' seconds".format(timeout)
-
 
 

@@ -126,16 +126,10 @@ traffic_stats_kwargs = {
 
 import sys
 import os
-
-CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(CURRENT_PATH, '../stl/'))
-
-from trex_stl_lib.api import *
-
-from client_utils.general_utils import get_number
 import socket
 import copy
-from misc_methods import print_r
+from trex_stl_lib.api import *
+from utils.common import get_number
 
 
 class HLT_ERR(dict):

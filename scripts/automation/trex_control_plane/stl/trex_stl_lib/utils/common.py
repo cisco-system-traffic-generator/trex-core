@@ -45,3 +45,12 @@ def random_id_gen(length=8):
         for i in range(length):
             return_id += random.choice(id_chars)
         yield return_id
+
+# try to get number from input, return None in case of fail
+def get_number(input):
+    try:
+        if type(input) in (int, long):
+            return input
+        return int(input)
+    except:
+        return None

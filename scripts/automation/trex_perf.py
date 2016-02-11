@@ -643,7 +643,7 @@ def _trex_run (job_summary, m, duration):
 
     try:
         results = trex_thread.run(m, duration)
-    except Exception,e:
+    except Exception as e:
         p.stop()
         raise
 
@@ -1042,7 +1042,7 @@ def prepare_for_run (job_summary):
     # create dir for reports
     try:
         job_summary['job_dir'] = os.path.abspath( os.path.join(os.getcwd(), 'logs', job_summary['job_dir']) )
-        print job_summary['job_dir']
+        print(job_summary['job_dir'])
         os.makedirs( job_summary['job_dir'] )
         
     except OSError as err:

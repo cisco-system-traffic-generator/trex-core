@@ -1,6 +1,7 @@
 
 from collections import namedtuple
 from utils.text_opts import *
+from trex_stl_exceptions import *
 
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
 
@@ -93,3 +94,17 @@ def RC_ERR (err):
 
 def RC_WARN (warn):
     return RC(True, warn, is_warn = True)
+
+
+# validate type of arg
+# example1: validate_type('somearg', somearg, [int, long])
+# example2: validate_type('another_arg', another_arg, str)
+def validate_type(arg_name, arg, valid_types):
+    if type(valid_types) is list:
+        valid_types = tuple(valid_types)
+    if type(valid_types) is type or type(valid_types) is tuple:
+        if isinstance(arg, valid_types):
+            return
+        raise STLTypeError(arg_name, type(arg), valid_types)
+    else:
+        raise STLError('validate_type: valid_types should be type or list or tuple of types')
