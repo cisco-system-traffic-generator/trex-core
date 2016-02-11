@@ -20,6 +20,47 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.91  ==
+
+* Convert Stateless traffic profile to Scapy see `stl/*.py` sample folder
+* Add HLTAPI tests and profile `stl/hlt/*.py`
+* Fix simulator path issue fix
+* The Stateless python library is not self-contained.  in `automation/trex_control_plane/stl/` library is `automation/trex_control_plane/stl/trex_stl_lib/` (import trex_stl_lib)
+
+How to run the simulator 
+[source,bash]
+----
+./stl-sim -f stl/udp_1pkt_range_clients_split.py -o b.pcap -l 100 -c 2
+----
+
+* Add push command to convert pcap to streams 
+
+-------------------
+TRex > push --help
+usage: push [-h] -f FILE [--port PORTS [PORTS ...] | -a] [-d TIME]
+            [-i IPG_USEC] [-s SPEEDUP] [--force]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f FILE               File path to load
+  --port PORTS [PORTS ...]
+                        A list of ports on which to apply the command
+  -a                    Set this flag to apply the command on all available
+                        ports
+  -d TIME               Set duration time for job.
+  -i IPG_USEC, --ipg IPG_USEC
+                        IPG value in usec between packets. default will be
+                        from the pcap
+  -s SPEEDUP, --speedup SPEEDUP
+                        Factor to accelerate the injection. effectively means
+                        IPG = IPG / SPEEDUP
+  --force               Set if you want to stop active ports before appyling
+                        command.
+TRex >push -f cap2/dns.pcap  --port 0 -i 10  
+-------------------
+
+
+
 == Release 1.90  ==
 
 * Missing file in the pkg
