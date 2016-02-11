@@ -147,6 +147,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         self.golden_run("basic_tuple_gen", "imix_tuple_gen", "-m 50kpps --limit 500 --cores 8", silent = False)
 
     def test_stl_profiles (self):
+
         p = [ 
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
             ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
@@ -173,12 +174,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_pcap.py","-m 1 -l 10",True],
             ["udp_3pkt_pcap.py","-m 1 -l 10",True],
             #["udp_1pkt_simple.py","-m 1 -l 3",True],
-            ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True]
+            ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True],
+            ["udp_1pkt_tuple_gen_split.py","-m 1 -c 2 -l 100",True],
+            ["udp_1pkt_range_clients_split.py","-m 1 -c 2 -l 100",True]
 
           ];
 
 
-        p1  = [ ["udp_1pkt_tuple_gen_split.py","-m 1 -l 3",True] ]
+        p1  = [ ["udp_1pkt_range_clients_split.py","-m 1 -c 2 -l 100",True] ]
         
 
         for obj in p:
