@@ -3,7 +3,7 @@ from trex_stl_lib.api import *
 
 # x clients override the LSB of destination
 #Base src ip : 55.55.1.1, dst ip: Fixed
-#Increment host port portion starting at 55.55.1.1 for 'n' number of clients (55.55.1.1, 55.55.1.2)
+#Increment src ipt portion starting at 55.55.1.1 for 'n' number of clients (55.55.1.1, 55.55.1.2)
 #Src MAC: start with 0000.dddd.0001, increment mac in steps of 1
 #Dst MAC: Fixed    (will be taken from trex_conf.yaml
 
@@ -25,7 +25,10 @@ class STLS1(object):
                            STLVmFlowVar(name="mac_src_wa", min_value=0x0000dddd, max_value=0x0000dddd, size=4, op="inc"), # workaround hardcoded the src MAC MSB, will be solved as an option in the stream
 
                            STLVmWrFlowVar(fv_name="mac_src_wa", pkt_offset= 6),                        # write constrant 0000.ddddd
-                           STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 10)                           # write it to LSB of ethernet.src 
+                           STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 10),                          # write it to LSB of ethernet.src 
+                           STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="IP.src",offset_fixup=2),       # it is 2 byte so there is a need to fixup in 2 bytes
+                           STLVmFixIpv4(offset = "IP")
+
                           ]
                        )
 

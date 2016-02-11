@@ -171,18 +171,20 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["yaml/imix_1pkt_tuple_gen.yaml","-m 1 -l 100",True],
             ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True],
             ["udp_1pkt_pcap.py","-m 1 -l 10",True],
-            ["udp_3pkt_pcap.py","-m 1 -l 10",True]
+            ["udp_3pkt_pcap.py","-m 1 -l 10",True],
+            ["udp_1pkt_simple.py","-m 1 -l 3",True]
 
           ];
 
-        p1=[ ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True] ]
+
+        p0 =[ ["udp_1pkt_simple.py","-m 1 -l 3",True] ]
         
 
         for obj in p:
             self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=True)
 
 
-    def test_hlt_profiles (self):
+    def hlt_profiles (self):
         p = (
             ['hlt/hlt_udp_inc_len_9k.py', '-m 1 -l 50', False],
             )
