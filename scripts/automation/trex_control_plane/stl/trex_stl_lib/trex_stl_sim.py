@@ -124,7 +124,7 @@ class STLSim(object):
              duration = -1,
              mode = 'none'):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json']:
+        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml']:
             raise STLArgumentError('mode', mode)
 
         # listify
@@ -173,16 +173,20 @@ class STLSim(object):
                     raise STLError("stream dependency error - unable to find '{0}'".format(next))
                 next_id = lookup[next]
 
-            stream.fields['next_stream_id'] = next_id
+            stream.set_next_id(next_id)
 
         for stream in stream_list:
+
+            stream_json = stream.to_json()
+            stream_json['next_stream_id'] = stream.get_next_id()
+
             cmd = {"id":1,
                    "jsonrpc": "2.0",
                    "method": "add_stream",
                    "params": {"handler": self.handler,
                               "port_id": self.port_id,
                               "stream_id": stream.get_id(),
-                              "stream": stream.to_json()}
+                              "stream": stream_json}
                    }
 
             cmds_json.append(cmd)
@@ -194,6 +198,9 @@ class STLSim(object):
 
         if mode == 'json':
             print json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True)
+            return
+        elif mode == 'yaml':
+            print STLProfile(stream_list).dump_to_yaml()
             return
 
         # start simulation
@@ -376,6 +383,11 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
+    group.add_argument("--yaml",
+                       help = "generate YAML from input file [default is False]",
+                       action = "store_true",
+                       default = False)
+
     return parser
 
 
@@ -404,6 +416,8 @@ def main ():
         mode = 'gdb'
     elif options.json:
         mode = 'json'
+    elif options.yaml:
+        mode = 'yaml'
     else:
         mode = 'none'
 

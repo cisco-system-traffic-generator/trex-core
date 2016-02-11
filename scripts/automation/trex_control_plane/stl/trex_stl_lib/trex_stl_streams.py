@@ -127,11 +127,12 @@ class STLStream(object):
             raise STLError("continuous stream cannot have a next stream ID")
 
         # tag for the stream and next - can be anything
-        self.name = name if name else random_name(8)
+        self.name = name
         self.next = next
 
         # ID
         self.set_id(stream_id)
+        self.set_next_id(None)
 
         self.fields = {}
 
@@ -172,7 +173,7 @@ class STLStream(object):
         return s
 
     def to_json (self):
-        return self.fields
+        return dict(self.fields)
 
     def get_id (self):
         return self.id
@@ -181,10 +182,10 @@ class STLStream(object):
         self.id = id
 
     def get_next_id (self):
-        return self.fields.get('next_stream_id')
+        return self.next_id
 
-    def set_next_id (self, next_stream_id):
-        self.fields['next_stream_id'] = next_stream_id
+    def set_next_id (self, next_id):
+        self.next_id = next_id
 
     def get_name (self):
         return self.name
@@ -210,7 +211,17 @@ class STLStream(object):
 
 
     def to_yaml (self):
-        return {'name': self.name, 'stream': self.fields}
+        y = {}
+
+        if self.name:
+            y['name'] = self.name
+
+        if self.next:
+            y['next'] = self.next
+
+        y['stream'] = self.fields
+
+        return y
   
     def dump_to_yaml (self, yaml_file = None):
         yaml_dump = yaml.dump([self.to_yaml()], default_flow_style = False)

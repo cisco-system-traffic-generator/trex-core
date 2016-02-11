@@ -187,10 +187,13 @@ class Port(object):
         batch = []
         for stream in streams_list:
 
+            stream_json = stream.to_json()
+            stream_json['next_stream_id'] = stream.get_next_id()
+
             params = {"handler": self.handler,
                       "port_id": self.port_id,
                       "stream_id": stream.get_id(),
-                      "stream": stream.to_json()}
+                      "stream": stream_json}
 
             cmd = RpcCmdData('add_stream', params)
             batch.append(cmd)
