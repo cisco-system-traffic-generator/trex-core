@@ -143,9 +143,9 @@ class STLSim(object):
             try:
                 profile = STLProfile.load(input_file)
             except STLError as e:
-                print format_text("\nError while loading profile '{0}'\n".format(input_file), 'bold')
-                print e.brief() + "\n"
-                return
+                s = format_text("\nError while loading profile '{0}'\n".format(input_file), 'bold')
+                s += "\n" + e.brief()
+                raise STLError(s)
 
             stream_list += profile.get_streams()
 
