@@ -166,15 +166,16 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["yaml/imix_1pkt.yaml","-m 1 -l 100",True],
             ["yaml/imix_1pkt_2.yaml","-m 1 -l 100",True],
             ["yaml/imix_1pkt_tuple_gen.yaml","-m 1 -l 100",True],
-            ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True]
+            ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True],
+            ["udp_1pkt_pcap.py","-m 1 -l 10",True]
 
           ];
 
-        p1=[ ["yaml/imix_1pkt_2.yaml","-m 1 -l 100",True] ]
+        p1=[ ["udp_1pkt_pcap.py","-m 1 -l 10",True] ]
         
 
         for obj in p:
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=True)
+            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=False)
 
 
 
