@@ -105,10 +105,10 @@ html, body {
 * TRex is directly connected to ASR1K ports. 
 
 image::images/TrexConfig.png[title="TRex/Router setup"]
-. TRex port 0 - clients side
+. TRex port 0 - Client side
 . Router TenG 0/0/0 
 . Router TenG 0/0/1
-. TRex port 1 - servers side
+. TRex port 1 - Server side
  
 
 == TRex configuration 
@@ -129,7 +129,7 @@ image::images/TrexConfig.png[title="TRex/Router setup"]
 ----
 <1>  Correspond to TRex port 0 - should be Router TenG 0/0/0 mac-address
 <2>  Should be distinc mac-addrees, router should be configure to sent to this mac-addrees
-<3>  Correspond to TRex port 0 - should be Router TenG 0/0/1 mac-address
+<3>  Correspond to TRex port 1 - should be Router TenG 0/0/1 mac-address
 <4>  Should be distinc mac-addrees, router should be configure to sent to this mac-addrees
 
 
