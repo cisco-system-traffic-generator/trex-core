@@ -122,10 +122,10 @@ image::images/TrexConfig.png[title="TRex/Router setup"]
 ----
  - port_limit      : 2    
     port_info       :  # set eh mac addr 
-    - dest_mac        :   [0x1,0x0,0x0,0x1,0x0,0x00] <1>
-      src_mac         :   [0x2,0x0,0x0,0x2,0x0,0x00] <2>
-    - dest_mac        :   [0x3,0x0,0x0,0x3,0x0,0x00] <3>
-      src_mac         :   [0x4,0x0,0x0,0x4,0x0,0x00] <4>
+    - dest_mac        :   [0x0,0x0,0x0,0x1,0x0,0x00] <1>
+      src_mac         :   [0x0,0x0,0x0,0x2,0x0,0x00] <2>
+    - dest_mac        :   [0x0,0x0,0x0,0x3,0x0,0x00] <3>
+      src_mac         :   [0x0,0x0,0x0,0x4,0x0,0x00] <4>
 ----
 <1>  Correspond to TRex port 0 - should be Router TenG 0/0/0 mac-address
 <2>  Should be distinc mac-addrees, router should be configure to sent to this mac-addrees
@@ -144,7 +144,7 @@ image::images/TrexConfig.png[title="TRex/Router setup"]
 [source,python]
 ----
 interface TenGigabitEthernet0/0/0
- mac-address 0100.0001.0000                     <1>
+ mac-address 0000.0001.0000                     <1>
  mtu 4000                                       <2>
  ip address 11.11.11.11 255.255.255.0           <3>
  ip policy route-map p1_to_p2                   <4>
@@ -152,7 +152,7 @@ interface TenGigabitEthernet0/0/0
 !
 
 interface TenGigabitEthernet0/0/1
- mac-address 0300.0003.0000                     <5>     
+ mac-address 0000.0003.0000                     <5>     
  mtu 4000                                       
  ip address 12.11.11.11 255.255.255.0           
  ip policy route-map p2_to_p1                   
@@ -189,8 +189,8 @@ route-map p2_to_p1 permit 10
 
 [source,python]
 ----
- arp 11.11.11.12 0200.0002.0000 ARPA  <1>
- arp 12.11.11.12 0400.0004.0000 ARPA  <2>
+ arp 11.11.11.12 0000.0002.0000 ARPA  <1>
+ arp 12.11.11.12 0000.0004.0000 ARPA  <2>
 ----
 <1> Destination mac-addrees of packets sent from If 0/0/0 is matched to TRex source mac-address port-0
 <2> Destination mac-addrees of packets sent from If 0/0/1 is matched to TRex source mac-address port-1
@@ -221,13 +221,13 @@ generator :
 [source,python]
 ----
 interface TenGigabitEthernet0/0/0       
- mac-address 0100.0001.0000
+ mac-address 0000.0001.0000
  mtu 4000 
  ip address 11.11.11.11 255.255.255.0
 !         
 `
 interface TenGigabitEthernet0/0/1       
- mac-address 0300.0003.0000
+ mac-address 0000.0003.0000
  mtu 4000 
  ip address 22.11.11.11 255.255.255.0
 !         
@@ -250,6 +250,12 @@ $./t-rex-64 -f cap2/dns.yaml -m 1  -d 100  -l 1000 --lo --lm 1
 * to send only from TRex port 1 do this:
 ...........................................
 $./t-rex-64 -f cap2/dns.yaml -m 1  -d 100  -l 1000 --lo --lm 2
+...........................................
+
+* In case you are connected to a Switch you must send packet from both direction first 
+
+...........................................
+$./t-rex-64 -f cap2/dns.yaml -m 1  -d 100  -l 1000 
 ...........................................
 
 
