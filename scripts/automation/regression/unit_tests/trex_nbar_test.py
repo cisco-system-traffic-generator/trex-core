@@ -93,7 +93,7 @@ class CTRexNbar_Test(CTRexGeneral_Test):
         print trex_res.get_latest_dump()
 
 
-        self.check_general_scenario_results(trex_res, check_latency = False)
+        self.check_general_scenario_results(trex_res, check_latency = False) # NBAR can cause latency
         #       test_norm_cpu = 2*(trex_res.result['total-tx']/(core*trex_res.result['cpu_utilization']))
         trex_tx_pckt  = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
         cpu_util = trex_res.get_last_value("trex-global.data.m_cpu_util")

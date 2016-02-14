@@ -140,7 +140,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         self.check_results_gt (trex_nat_stats,'m_total_nat_open', 6000)
 
 
-        self.check_general_scenario_results(trex_res)
+        self.check_general_scenario_results(trex_res, check_latency = False) # NAT can cause latency
 ##       test_norm_cpu = 2*(trex_res.result['total-tx']/(core*trex_res.result['cpu_utilization']))
 #        trex_tx_pckt  = trex_res.get_last_value("trex-global.data.m_total_tx_bps")
 #        cpu_util = int(trex_res.get_last_value("trex-global.data.m_cpu_util"))
