@@ -163,7 +163,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         p_utl=CTRexScapyPktUtl(p);
 
-        assert_equal(p_utl.get_field_offet_by_str("IPv6.src"),(38,16));
+        assert_equal(p_utl.get_field_offet_by_str("IPv6.src"),(22,16));
 
 
     def test_simple_vm2(self):
