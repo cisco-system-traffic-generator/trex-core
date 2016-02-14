@@ -355,9 +355,9 @@ class IPv6(_IPv6GuessPayload, Packet, IPTools):
                     ShortField("plen", None),
                     ByteEnumField("nh", 59, ipv6nh),
                     ByteField("hlim", 64),
-                    IP6Field("dst", "::2"),
+                    IP6Field("src", "::2"),
                     #SourceIP6Field("src", "dst"), # dst is for src @ selection
-                    IP6Field("src", "::1") ]
+                    IP6Field("dst", "::1") ]
 
     def route(self):
         dst = self.dst

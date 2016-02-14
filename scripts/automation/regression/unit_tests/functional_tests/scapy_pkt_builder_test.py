@@ -72,6 +72,21 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
                     'split_by_var': ''}
         )
 
+
+
+    def test_simple_teredo(self):
+
+        pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=3797,sport=3544)/IPv6(src="2001:0:4137:9350:8000:f12a:b9c8:2815",dst="2001:4860:0:2001::68")/UDP(dport=12,sport=1025)/ICMPv6Unknown()
+
+        pkt.build();
+        p_utl=CTRexScapyPktUtl(pkt);
+
+        assert_equal( p_utl.get_field_offet_by_str("IPv6.src"), (50,16) )
+        assert_equal( p_utl.get_field_offet_by_str("IPv6.dst"), (66,16) )
+
+
+
+
     def test_simple_scapy_vlan(self):
 
         py='5'*(9)
