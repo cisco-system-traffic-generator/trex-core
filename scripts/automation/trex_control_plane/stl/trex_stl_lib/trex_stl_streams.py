@@ -93,6 +93,11 @@ class STLTXMultiBurst(STLTXMode):
     def __str__ (self):
         return "Multi Burst"
 
+STLStreamDstMAC_CFG_FILE=0
+STLStreamDstMAC_PKT     =1
+STLStreamDstMAC_ARP     =2
+
+
 
 class STLStream(object):
 
@@ -105,7 +110,11 @@ class STLStream(object):
                   isg = 0.0,
                   rx_stats = None,
                   next = None,
-                  stream_id = None):
+                  stream_id = None,
+                  action_count =0,
+                  mac_src_override_by_pkt=None,
+                  mac_dst_override_mode=None    #see  STLStreamDstMAC_xx
+                  ):
 
         # type checking
         if not isinstance(mode, STLTXMode):
@@ -134,7 +143,34 @@ class STLStream(object):
         self.set_id(stream_id)
         self.set_next_id(None)
 
+
         self.fields = {}
+
+        int_mac_src_override_by_pkt = 0;
+        int_mac_dst_override_mode   = 0;
+
+
+        if mac_src_override_by_pkt == None:
+            int_mac_src_override_by_pkt=0
+            if packet :
+                if packet.is_def_src_mac ()==False:
+                    int_mac_src_override_by_pkt=1
+
+        else:
+            int_mac_src_override_by_pkt = int(mac_src_override_by_pkt);
+
+        if mac_dst_override_mode == None:
+            int_mac_dst_override_mode   = 0;
+            if packet :
+                if packet.is_def_dst_mac ()==False:
+                    int_mac_dst_override_mode=STLStreamDstMAC_PKT
+        else:
+            int_mac_dst_override_mode = int(mac_dst_override_mode);
+
+
+        self.fields['flags'] = (int_mac_src_override_by_pkt&1) +  ((int_mac_dst_override_mode&3)<<1)
+
+        self.fields['action_count'] = action_count
 
         # basic fields
         self.fields['enabled'] = enabled
@@ -327,7 +363,11 @@ class YAMLLoader(object):
                            self_start = s_obj.get('self_start', defaults.fields['self_start']),
                            isg        = s_obj.get('isg', defaults.fields['isg']),
                            rx_stats   = s_obj.get('rx_stats', defaults.fields['rx_stats']),
-                           next       = yaml_object.get('next'))
+                           next       = yaml_object.get('next'),
+                           action_count = s_obj.get('action_count', defaults.fields['action_count']),
+                           mac_src_override_by_pkt = s_obj.get('mac_src_override_by_pkt', 0),
+                           mac_dst_override_mode = s_obj.get('mac_src_override_by_pkt', 0) 
+                           )
 
         # hack the VM fields for now
         if 'vm' in s_obj:

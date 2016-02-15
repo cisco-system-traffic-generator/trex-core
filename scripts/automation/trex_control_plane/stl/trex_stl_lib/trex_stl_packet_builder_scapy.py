@@ -751,7 +751,21 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             else:
                 raise CTRexPacketBuildException(-14, "bad packet" )
 
+    def is_def_src_mac (self):
+        p = self.pkt
+        if isinstance(p, Packet):
+            if isinstance(p,Ether):
+                if 'src' in p.fields :
+                    return False
+        return True
 
+    def is_def_dst_mac (self):
+        p = self.pkt
+        if isinstance(p, Packet):
+            if isinstance(p,Ether):
+                if 'dst' in p.fields :
+                    return False
+        return True
 
     def compile (self):
         self.vm_low_level=CTRexVmEngine()

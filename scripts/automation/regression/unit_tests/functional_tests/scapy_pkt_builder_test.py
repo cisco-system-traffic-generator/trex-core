@@ -73,6 +73,32 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         )
 
 
+    def test_simple_mac_default(self):
+
+        pkt =  Ether()/IP()/UDP()
+
+
+        pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
+
+        assert_equal( pkt_builder.is_def_src_mac () ,True)
+        assert_equal( pkt_builder.is_def_dst_mac () ,True)
+
+        pkt =  Ether(src="00:00:00:00:00:01")/IP()/UDP()
+
+        pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
+
+        assert_equal( pkt_builder.is_def_src_mac (), False)
+        assert_equal( pkt_builder.is_def_dst_mac (), True)
+
+        pkt =  Ether(dst="00:00:00:00:00:01")/IP()/UDP()
+
+        pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
+
+        assert_equal( pkt_builder.is_def_src_mac (),True)
+        assert_equal(  pkt_builder.is_def_dst_mac (),False)
+
+
+
 
     def test_simple_teredo(self):
 

@@ -228,7 +228,7 @@ public:
         dp->m_num_bursts            =   m_num_bursts;
         dp->m_ibg_usec              =   m_ibg_usec;
         dp->m_flags                 =   m_flags;
-        dp->m_stream_count          =   m_stream_count;
+        dp->m_action_count          =   m_action_count;
 
         return(dp);
     }
@@ -290,7 +290,7 @@ public:
     uint8_t       m_port_id;
     uint16_t      m_flags;
     uint32_t      m_stream_id;              /* id from RPC can be anything */
-    uint16_t      m_stream_count;       
+    uint16_t      m_action_count;       
     
 
     /* config fields */
