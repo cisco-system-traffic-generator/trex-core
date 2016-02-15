@@ -130,6 +130,8 @@ TrexStream::TrexStream(uint8_t type,
     m_num_bursts=1; 
     m_ibg_usec=0.0;  
     m_vm_dp = NULL;
+    m_flags=0;
+    m_stream_count=0;
 }
 
 TrexStream::~TrexStream() {

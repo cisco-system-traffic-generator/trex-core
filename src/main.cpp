@@ -238,6 +238,15 @@ static int parse_options(int argc,
     return 0;
 }
 
+void set_default_mac_addr(){
+
+    int i;
+    for (i=0; i<4; i++) {
+        memset(CGlobalInfo::m_options.get_dst_src_mac_addr(i),((i+1)<<4),6);
+        memset(CGlobalInfo::m_options.get_src_mac_addr(i),((i+1)<<4)+8,6);
+    }
+}
+
 
 int main(int argc , char * argv[]){
 
@@ -246,6 +255,7 @@ int main(int argc , char * argv[]){
     if ( parse_options(argc, argv, &CGlobalInfo::m_options , params) != 0) {
         exit(-1);
     }
+    set_default_mac_addr();
 
     opt_type_e type = (opt_type_e) params["type"];
 

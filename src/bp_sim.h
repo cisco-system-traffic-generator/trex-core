@@ -1846,6 +1846,12 @@ class CErfIFStl : public CErfIF {
 public:
 
     virtual int send_node(CGenNode * node);
+
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p);
+
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
+
+
 };
 
 /**
@@ -1872,9 +1878,6 @@ public:
 
     }
 
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p){
-        return (0);
-    }
 
 
     virtual int flush_tx_queue(void){

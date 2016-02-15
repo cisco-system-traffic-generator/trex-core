@@ -200,6 +200,7 @@ public:
             lpt->m_node_gen.DumpHist(stdout);
 
             cmp.d_sec = m_time_diff;
+            //compare
             if ( cmp.compare(std::string(buf),std::string(buf_ex)) != true ) {
                 res=false;
             }
@@ -686,14 +687,14 @@ bool
 verify_latency_pkt(uint8_t *p, uint8_t proto, uint16_t icmp_seq, uint8_t icmp_type) {
     EthernetHeader *eth = (EthernetHeader *)p;
     IPHeader *ip = (IPHeader *)(p + 14);
-    uint8_t  srcmac[]={0,0,0,1,0,0};    
-    uint8_t  dstmac[]={0,0,0,1,0,0};
+    uint8_t  srcmac[]={0x10,0x10,0x10,0x10,0x10,0x10};    
+    //uint8_t  dstmac[]={0x0,0x0,0x0,0x0,0x0,0x0};
     latency_header * h;
  
     // eth
     EXPECT_EQ_UINT32(eth->getNextProtocol(), 0x0800)<< "Failed ethernet next protocol check";
     EXPECT_EQ_UINT32(memcmp(p, srcmac, 6), 0)<<  "Failed ethernet source MAC check";
-    EXPECT_EQ_UINT32(memcmp(p, dstmac, 6), 0)<<  "Failed ethernet dest MAC check";
+    //EXPECT_EQ_UINT32(memcmp(p, dstmac, 6), 0)<<  "Failed ethernet dest MAC check";
     // IP
     EXPECT_EQ_UINT32(ip->getSourceIp(), l_pkt_test_s_ip)<<  "Failed IP src check";
     EXPECT_EQ_UINT32(ip->getDestIp(), l_pkt_test_d_ip)<<  "Failed IP dst check";

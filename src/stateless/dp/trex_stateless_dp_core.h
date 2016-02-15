@@ -271,6 +271,11 @@ private:
 
     void add_global_duration(double duration);
 
+    void update_mac_addr(TrexStream * stream,
+                         CGenNodeStateless *node,
+                         uint8_t dir,
+                         char *raw_pkt);
+
     void add_stream(TrexStatelessDpPerPort * lp_port,
                     TrexStream * stream,
                     TrexStreamsCompiledObj *comp);

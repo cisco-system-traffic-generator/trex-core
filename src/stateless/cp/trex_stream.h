@@ -33,6 +33,8 @@ limitations under the License.
 #include <stdio.h>
 #include <string.h>
 #include <common/captureFile.h>
+#include <common/bitMan.h> 
+
 
 
 class TrexRpcCmdAddStream;
@@ -118,6 +120,15 @@ public:
 
     typedef uint8_t stream_type_t ;
 
+    enum DST_MAC_TYPE {
+        stCFG_FILE     = 0,
+        stPKT          = 1,
+        stARP          = 2
+    };
+
+    typedef uint8_t stream_dst_mac_t ;
+
+
     static std::string get_stream_type_str(stream_type_t stream_type);
 
 public:
@@ -163,8 +174,6 @@ public:
             return (true);
         }
     }
-
-
     /* can this stream be split ? */
     bool is_splitable(uint8_t dp_core_count) const {
 
@@ -218,6 +227,8 @@ public:
         dp->m_burst_total_pkts      =   m_burst_total_pkts;
         dp->m_num_bursts            =   m_num_bursts;
         dp->m_ibg_usec              =   m_ibg_usec;
+        dp->m_flags                 =   m_flags;
+        dp->m_stream_count          =   m_stream_count;
 
         return(dp);
     }
@@ -256,10 +267,30 @@ public:
     void vm_compile();
 
 public:
+
+    void set_override_src_mac_by_pkt_data(bool enable){
+        btSetMaskBit16(m_flags,0,0,enable?1:0);
+    }
+
+    bool get_override_src_mac_by_pkt_data(){
+        return (btGetMaskBit16(m_flags,0,0) ?true:false);
+    }
+
+    void set_override_dst_mac_mode(stream_dst_mac_t  val){
+        btSetMaskBit16(m_flags,2,1,val&0x3);
+    }
+
+    stream_dst_mac_t get_override_dst_mac_mode(){
+        return ((stream_dst_mac_t)btGetMaskBit16(m_flags,2,1));
+    }
+
+public:
     /* basic */
     uint8_t       m_type;
     uint8_t       m_port_id;
+    uint16_t      m_flags;
     uint32_t      m_stream_id;              /* id from RPC can be anything */
+    uint16_t      m_stream_count;       
     
 
     /* config fields */
