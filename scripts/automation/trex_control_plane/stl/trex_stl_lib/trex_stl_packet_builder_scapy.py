@@ -12,8 +12,6 @@ from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 
 from scapy.all import *
 
-
-
 class CTRexPacketBuildException(Exception):
     """
     This is the general Packet Building error exception class.
@@ -60,6 +58,19 @@ def is_valid_ipv4(ip_addr):
     except socket.error:  # not a valid address
         raise CTRexPacketBuildException(-10,"not valid ipv4 format");
 
+
+def is_valid_ipv6(ipv6_addr):
+    """
+    return buffer in network order
+    """
+    if type(ipv6_addr)==str and len(ipv6_addr) == 16:
+        return ipv6_addr
+    try:
+        return socket.inet_pton(socket.AF_INET6, ipv6_addr)
+    except AttributeError:  # no inet_pton here, sorry
+        raise CTRexPacketBuildException(-10, 'No inet_pton function available')
+    except:
+        raise CTRexPacketBuildException(-10, 'Not valid ipv6 format')
 
 class CTRexScriptsBase(object):
     """
