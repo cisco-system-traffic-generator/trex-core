@@ -81,8 +81,8 @@ private:
     void *              m_cache_mbuf;
 
     double              m_next_time_offset; /* in sec */
-    double              m_ibg_sec; /* inter burst time in sec */
-
+    uint32_t            m_pad11;
+    uint32_t            m_pad12;
 
     stream_state_t      m_state;
     uint8_t             m_port_id;
@@ -167,7 +167,7 @@ public:
     }
 
     inline double   get_multi_ibg_sec(){
-        return (m_ibg_sec);
+        return (usec_to_sec(m_ref_stream_info->m_ibg_usec));
     }
 
     inline uint32_t   get_multi_burst_cnt(){
@@ -222,7 +222,7 @@ public:
                 }
 
             }else{
-                m_time += m_ibg_sec;
+                m_time += get_multi_ibg_sec();
                 m_single_burst = m_single_burst_refill;
                 thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
             }

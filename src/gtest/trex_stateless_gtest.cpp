@@ -1437,6 +1437,7 @@ public:
         //lpt->m_node_gen.DumpHist(stdout);
 
         cmp.d_sec = m_time_diff;
+
         if ( cmp.compare(std::string(buf),std::string(buf_ex)) != true ) {
             res=false;
         }
@@ -2221,6 +2222,7 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
 
 
+
 TEST_F(basic_stl, single_pkt) {
 
     CBasicStl t1;
@@ -2265,6 +2267,84 @@ TEST_F(basic_stl, single_pkt) {
      delete stream1 ;
 
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+void test_mac_replace(bool replace_src_by_pkt,
+                      int replace_dst_mode,
+                      std::string file){
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file = file;
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_override_src_mac_by_pkt_data(replace_src_by_pkt);
+     stream1->set_override_dst_mac_mode((TrexStream::stream_dst_mac_t)replace_dst_mode);
+
+     stream1->set_pps(1.0);
+
+
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+     // stream - clean 
+
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpstart = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
+
+
+     t1.m_msg = lpstart;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+TEST_F(basic_stl, single_pkt_mac0) {
+
+    test_mac_replace(false,
+                     TrexStream::stCFG_FILE,
+                     "exp/stl_single_stream_mac0");
+}
+
+TEST_F(basic_stl, single_pkt_mac11) {
+
+    test_mac_replace(true,
+                     TrexStream::stPKT,
+                     "exp/stl_single_stream_mac11");
+}
+
+TEST_F(basic_stl, single_pkt_mac10) {
+
+    test_mac_replace(false,
+                     TrexStream::stPKT,
+                     "exp/stl_single_stream_mac01");
+}
+
+TEST_F(basic_stl, single_pkt_mac01) {
+
+    test_mac_replace(true,
+                     TrexStream::stCFG_FILE,
+                     "exp/stl_single_stream_mac10");
 }
 
 

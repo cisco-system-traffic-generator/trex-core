@@ -157,6 +157,33 @@ bool CCapPktRaw::Compare(CCapPktRaw * obj,int dump,double dsec){
     }
 }
 
+#define  CPY_BUFSIZE 1024
+
+bool CErfCmp::cpy(std::string src,std::string dst){
+
+    char mybuf[CPY_BUFSIZE] ;
+    FILE *ifd = NULL;
+    FILE *ofd = NULL;
+    ifd = fopen( src.c_str(), "rb" );
+    ofd = fopen( dst.c_str(), "w+");
+    assert(ifd!=NULL);
+    assert(ofd!=NULL);
+
+    int n;
+    while ( true){
+        n = fread(mybuf, sizeof(char), CPY_BUFSIZE ,ifd);
+        if (n>0) {
+            fwrite(mybuf, sizeof(char),n,ofd);
+        }else{
+            break;
+        }
+    }
+
+    fclose(ifd);
+    fclose(ofd);
+    return true;
+}
+
 
 bool CErfCmp::compare(std::string f1, std::string f2 ){
 

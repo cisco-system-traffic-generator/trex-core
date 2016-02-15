@@ -4726,6 +4726,17 @@ void CErfIF::fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir){
 }
 
 
+pkt_dir_t CErfIFStl::port_id_to_dir(uint8_t port_id) {
+     return ((pkt_dir_t)(port_id&1));
+}
+
+
+int CErfIFStl::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
+    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(dir),12);
+    return (0);
+}
+
+
 int CErfIFStl::send_node(CGenNode * _no_to_use){
 
     if ( m_preview_mode->getFileWrite() ){
@@ -4755,6 +4766,7 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
 
     return (0);
 }
+
 
 
 int CErfIF::send_node(CGenNode * node){

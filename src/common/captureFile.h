@@ -279,6 +279,8 @@ public:
         d_sec=0.001;
     }
     bool compare(std::string f1, std::string f2 );
+
+    bool cpy(std::string src,std::string dst);
 public:
     bool dump;
     double d_sec;

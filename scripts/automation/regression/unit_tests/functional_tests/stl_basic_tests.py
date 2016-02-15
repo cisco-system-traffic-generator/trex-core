@@ -126,25 +126,16 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         try:
             rc = self.run_sim(input_file, output_cap, options, silent)
             assert_equal(rc, True)
+            #s='cp  '+output_cap+' '+golden_file;
+            #print s
+            #os.system(s)
+
             if compare:
                 self.compare_caps(output_cap, golden_file)
         finally:
             if  not do_no_remove: 
                 os.unlink(output_cap)
 
-
-
-    # test for IMIX
-    def test_imix (self):
-        self.golden_run("basic_imix", "imix_3pkt", "-m 50kpps --limit 500 --cores 8", silent = False)
-
-
-    def test_vm (self):
-        self.golden_run("basic_imix_vm", "imix_3pkt_vm", "-m 50kpps --limit 500 --cores 8", silent = False)
-
-
-    def test_tuple_gen (self):
-        self.golden_run("basic_tuple_gen", "imix_tuple_gen", "-m 50kpps --limit 500 --cores 8", silent = False)
 
     def test_stl_profiles (self):
 
@@ -178,11 +169,22 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_tuple_gen_split.py","-m 1 -c 2 -l 100",True],
             ["udp_1pkt_range_clients_split.py","-m 1 -c 2 -l 100",True],
             ["udp_1pkt_vxlan.py","-m 1 -c 1 -l 17",True],
-            ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -c 1 -l 17",True]
+            ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -c 1 -l 17",True],
+            ["yaml/imix_3pkt.yaml","-m 50kpps --limit 20 --cores 2",True],
+            ["yaml/imix_3pkt_vm.yaml","-m 50kpps --limit 20 --cores 2",True],
+            #["yaml/imix_1pkt_tuple_gen.yaml","-m 50kpps --limit 20 --cores 2",True]
+
+            #imix_1pkt_tuple_gen.yaml
           ];
 
 
-        p1  = [ ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -c 1 -l 17",True] ]
+          #self.profiles['imix_3pkt'] = os.path.join(self.profiles_path, "imix_3pkt.yaml")
+          #self.profiles['imix_3pkt_vm'] = os.path.join(self.profiles_path, "imix_3pkt_vm.yaml")
+          #self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "../udp_rand_len_9k.py")
+          #self.profiles['imix_tuple_gen'] = os.path.join(self.profiles_path, "imix_1pkt_tuple_gen.yaml")
+
+
+        p1  = [ ["yaml/imix_1pkt_tuple_gen.yaml","-m 50kpps --limit 20 --cores 2",True] ]
         
 
         for obj in p:

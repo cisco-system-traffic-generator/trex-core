@@ -506,6 +506,43 @@ TrexStatelessDpCore::add_port_duration(double duration,
 }
 
 
+void TrexStatelessDpCore::update_mac_addr(TrexStream * stream,
+                                          CGenNodeStateless *node,
+                                          pkt_dir_t dir,
+                                          char *raw_pkt){
+    bool              ov_src = stream->get_override_src_mac_by_pkt_data();
+    TrexStream::stream_dst_mac_t  ov_dst = stream->get_override_dst_mac_mode();
+
+
+    if ( (ov_src == true) && (ov_dst == TrexStream::stPKT) ) {
+        /* nothing to do, take from the packet both */
+        return;
+    }
+
+        /* take from cfg_file */
+    if ( (ov_src == false) && 
+         (ov_dst == TrexStream::stCFG_FILE) ){
+
+          m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,(uint8_t*)raw_pkt);
+          return;
+    }
+
+    /* save the pkt*/
+    char tmp_pkt[12];
+    memcpy(tmp_pkt,raw_pkt,12);
+
+    m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,(uint8_t*)raw_pkt);
+
+    if ((ov_src == true) && (ov_dst == TrexStream::stCFG_FILE)) {
+        memcpy(raw_pkt+6,tmp_pkt+6,6);
+    }
+
+    if ((ov_src == false) && (ov_dst == TrexStream::stPKT)) {
+        memcpy(raw_pkt,tmp_pkt,6);
+    }
+}
+
+
 void
 TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
                                 TrexStream * stream,
@@ -561,7 +598,6 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         node->m_single_burst=0;
         node->m_single_burst_refill=0;
         node->m_multi_bursts=0;
-        node->m_ibg_sec                 = 0.0;
         break;
 
     case TrexStream::stSINGLE_BURST :
@@ -569,14 +605,12 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         node->m_single_burst            = stream->m_burst_total_pkts;
         node->m_single_burst_refill     = stream->m_burst_total_pkts;
         node->m_multi_bursts            = 1;  /* single burst in multi burst of 1 */
-        node->m_ibg_sec                 = 0.0;
         break;
 
     case TrexStream::stMULTI_BURST :
         node->m_single_burst        = stream->m_burst_total_pkts;
         node->m_single_burst_refill = stream->m_burst_total_pkts;
         node->m_multi_bursts        = stream->m_num_bursts;
-        node->m_ibg_sec             = usec_to_sec( stream->m_ibg_usec );
         break;
     default:
 
@@ -605,8 +639,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         /* copy the packet */
         memcpy(p,stream_pkt,pkt_size);
     
-        /* TBD repace the mac if req we should add flag  */
-        m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,(uint8_t*) p);
+        update_mac_addr(stream,node,dir,p);
     
         /* set the packet as a readonly */
         node->set_cache_mbuf(m);
@@ -659,8 +692,8 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         assert(p);
 
         memcpy(p,stream_pkt , header_size);
-        /* TBD repace the mac if req we should add flag  */
-        m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, p);
+
+        update_mac_addr(stream,node,dir,(char *)p);
     }
 
 
