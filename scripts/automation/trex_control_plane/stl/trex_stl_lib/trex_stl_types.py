@@ -4,6 +4,7 @@ from utils.text_opts import *
 from trex_stl_exceptions import *
 
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
+TupleRC    = namedtuple('RC', ['rc', 'data', 'is_warn'])
 
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):
         __slots__ = ()
@@ -19,8 +20,7 @@ class RC():
         self.rc_list = []
 
         if (rc != None):
-            tuple_rc = namedtuple('RC', ['rc', 'data', 'is_warn'])
-            self.rc_list.append(tuple_rc(rc, data, is_warn))
+            self.rc_list.append(TupleRC(rc, data, is_warn))
 
     def __nonzero__ (self):
         return self.good()

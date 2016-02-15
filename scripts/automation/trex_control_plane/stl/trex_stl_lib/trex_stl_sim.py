@@ -27,7 +27,8 @@ from trex_stl_client import STLClient
 
 import re
 import json
-
+import zlib
+import struct
 
 
 import argparse
@@ -221,7 +222,12 @@ class STLSim(object):
 
         # write to temp file
         f = tempfile.NamedTemporaryFile(delete = False)
-        f.write(json.dumps(cmds_json))
+
+        msg = json.dumps(cmds_json)
+        compressed = zlib.compress(msg)
+        new_msg = struct.pack(">II", 0xABE85CEA, len(msg)) + compressed
+
+        f.write(new_msg)
         f.close()
 
         # launch bp-sim

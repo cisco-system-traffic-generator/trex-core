@@ -2006,6 +2006,7 @@ class STLClient(object):
         try:
             # pcap injection removes all previous streams from the ports
             self.remove_all_streams(ports = opts.ports)
+            
             profile = STLProfile.load_pcap(opts.file[0],
                                            opts.ipg_usec,
                                            opts.speedup,
@@ -2018,4 +2019,5 @@ class STLClient(object):
             print e.brief()
             return
 
+        return True
 

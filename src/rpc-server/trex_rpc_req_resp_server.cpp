@@ -22,6 +22,7 @@ limitations under the License.
 #include <trex_rpc_server_api.h>
 #include <trex_rpc_req_resp_server.h>
 #include <trex_rpc_jsonrpc_v2_parser.h>
+#include <trex_rpc_zip.h>
 
 #include <unistd.h>
 #include <sstream>
@@ -138,20 +139,33 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
  * respondes to the request
  */
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
-    std::string response_str = process_request(request);
-    zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
+    std::string response;
+
+    process_request(request, response);
+
+    zmq_send(m_socket, response.c_str(), response.size(), 0);
+}
+
+void TrexRpcServerReqRes::process_request(const std::string &request, std::string &response) {
+
+    if (TrexRpcZip::is_compressed(request)) {
+        process_zipped_request(request, response);
+    } else {
+        process_request_raw(request, response);
+    }
+
 }
 
 /**
  * main processing of the request
  * 
  */
-std::string TrexRpcServerReqRes::process_request(const std::string &request) {
+void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::string &response) {
 
     std::vector<TrexJsonRpcV2ParsedObject *> commands;
 
     Json::FastWriter writer;
-    Json::Value response;
+    Json::Value response_json;
 
     /* first parse the request using JSON RPC V2 parser */
     TrexJsonRpcV2Parser rpc_request(request);
@@ -171,7 +185,7 @@ std::string TrexRpcServerReqRes::process_request(const std::string &request) {
         command->execute(single_response);
         delete command;
 
-        response[index++] = single_response;
+        response_json[index++] = single_response;
 
     }
 
@@ -181,17 +195,32 @@ std::string TrexRpcServerReqRes::process_request(const std::string &request) {
     }
 
     /* write the JSON to string and sever on ZMQ */
-    std::string response_str;
 
     if (response.size() == 1) {
-        response_str = writer.write(response[0]);
+        response = writer.write(response_json[0]);
     } else {
-        response_str = writer.write(response);
+        response = writer.write(response_json);
     }
     
-    verbose_json("Server Replied:  ", response_str);
+    verbose_json("Server Replied:  ", response);
 
-    return response_str;
+}
+
+void TrexRpcServerReqRes::process_zipped_request(const std::string &request, std::string &response) {
+    std::string unzipped;
+
+    /* try to uncomrpess - if fails, last shot is the JSON RPC */
+    bool rc = TrexRpcZip::uncompress(request, unzipped);
+    if (!rc) {
+        return process_request_raw(request, response);
+    }
+
+    /* process the request */
+    std::string raw_response;
+    process_request_raw(unzipped, raw_response);
+
+    TrexRpcZip::compress(raw_response, response);
+
 }
 
 /**
@@ -218,7 +247,11 @@ TrexRpcServerReqRes::handle_server_error(const std::string &specific_err) {
 
 std::string
 TrexRpcServerReqRes::test_inject_request(const std::string &req) {
-    return process_request(req);
+    std::string response;
+
+    process_request(req, response);
+
+    return response;
 }
 
 

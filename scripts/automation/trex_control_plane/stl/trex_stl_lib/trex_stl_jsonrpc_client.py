@@ -3,10 +3,12 @@
 import zmq
 import json
 import re
-from time import sleep
 from collections import namedtuple
 from trex_stl_types import *
 from utils.common import random_id_gen
+import zlib
+import struct
+
 
 class bcolors:
     BLUE = '\033[94m'
@@ -35,11 +37,14 @@ class BatchMessage(object):
 
         msg = json.dumps(self.batch_list)
 
-        return self.rpc_client.send_raw_msg(msg)
+        return self.rpc_client.send_msg(msg)
 
 
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
+
+    MSG_COMPRESS_THRESHOLD = 4096
+    MSG_COMPRESS_HEADER_MAGIC = 0xABE85CEA
 
     def __init__ (self, default_server, default_port, logger):
         self.logger = logger
@@ -109,13 +114,63 @@ class JsonRpcClient(object):
 
         id, msg = self.create_jsonrpc_v2(method_name, params)
 
-        return self.send_raw_msg(msg)
+        return self.send_msg(msg)
+
+
+    def compress_msg (self, msg):
+        # compress
+        compressed = zlib.compress(msg)
+        new_msg = struct.pack(">II", self.MSG_COMPRESS_HEADER_MAGIC, len(msg)) + compressed
+        return new_msg
+
+
+    def decompress_msg (self, msg):
+        if len(msg) < 8:
+            return None
+
+        t = struct.unpack(">II", msg[:8])
+        if (t[0] != self.MSG_COMPRESS_HEADER_MAGIC):
+            return None
+
+        x = zlib.decompress(msg[8:])
+        if len(x) != t[1]:
+            return None
+
+        return x
+
+    def send_msg (self, msg):
+        # print before
+        if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
+            self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
+
+        if len(msg) > self.MSG_COMPRESS_THRESHOLD:
+            response = self.send_raw_msg(self.compress_msg(msg))
+            if response:
+                response = self.decompress_msg(response)
+        else:
+            response = self.send_raw_msg(msg)
+
+        if response == None:
+            return RC_ERR("*** [RPC] - Failed to decode response from server")
+
+
+        # print after
+        if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
+            self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
+
+        # process response (batch and regular)
+       
+        response_json = json.loads(response)
+
+        if isinstance(response_json, list):
+            return self.process_batch_response(response_json)
+        else:
+            return self.process_single_response(response_json)
+
 
 
     # low level send of string message
     def send_raw_msg (self, msg):
-
-        self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
         tries = 0
         while True:
@@ -141,26 +196,11 @@ class JsonRpcClient(object):
                     return RC_ERR("*** [RPC] - Failed to get server response at {0}".format(self.transport))
 
 
-        self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
+        return response
+       
+     
 
-        # decode
-
-        # batch ?
-        response_json = json.loads(response)
-
-        if isinstance(response_json, list):
-            rc_batch = RC()
-
-            for single_response in response_json:
-                rc = self.process_single_response(single_response)
-                rc_batch.add(rc)
-
-            return rc_batch
-
-        else:
-            return self.process_single_response(response_json)
-
-
+    # processs a single response from server
     def process_single_response (self, response_json):
 
         if (response_json.get("jsonrpc") != "2.0"):
@@ -181,6 +221,17 @@ class JsonRpcClient(object):
         return RC_OK(response_json["result"])
 
   
+
+    # process a batch response
+    def process_batch_response (self, response_json):
+        rc_batch = RC()
+
+        for single_response in response_json:
+            rc = self.process_single_response(single_response)
+            rc_batch.add(rc)
+
+        return rc_batch
+
 
     def disconnect (self):
         if self.connected:

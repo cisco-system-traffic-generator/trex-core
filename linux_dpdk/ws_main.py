@@ -153,6 +153,7 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
+                              'trex_rpc_zip.cpp',
 
                               'commands/trex_rpc_cmd_test.cpp',
                               'commands/trex_rpc_cmd_general.cpp',
@@ -696,7 +697,7 @@ def build_prog (bld, build_obj):
                 includes =includes_path,
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags() ,
-                lib=['pthread','dl'],
+                lib=['pthread','dl', 'z'],
                 use =[build_obj.get_dpdk_target(),'zmq'],
                 source = bp.file_list(top),
                 target = build_obj.get_target())

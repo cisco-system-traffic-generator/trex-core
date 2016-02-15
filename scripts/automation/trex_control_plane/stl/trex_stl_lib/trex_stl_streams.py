@@ -157,7 +157,10 @@ class STLStream(object):
         # packet and VM
         self.fields['packet'] = packet.dump_pkt()
         self.fields['vm']     = packet.get_vm_data()
-        self.packet_desc      = packet.pkt_layers_desc()
+
+
+        # this is heavy, calculate lazy
+        self.packet_desc = None
 
         if not rx_stats:
             self.fields['rx_stats'] = {}
@@ -194,6 +197,9 @@ class STLStream(object):
         return self.next
 
     def get_pkt_type (self):
+        if self.packet_desc == None:
+            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(base64.b64decode(self.fields['packet']['binary']))
+
         return self.packet_desc
 
     def get_pkt_len (self, count_crc = True):
@@ -432,13 +438,16 @@ class STLProfile(object):
             else:
                 next = i + 1
 
+            
             streams.append(STLStream(name = i,
                                      packet = CScapyTRexPktBuilder(pkt_buffer = cap),
                                      mode = STLTXSingleBurst(total_pkts = 1),
                                      self_start = True if (i == 1) else False,
                                      isg = (ts_usec - last_ts_usec),  # seconds to usec
                                      next = next))
+        
             last_ts_usec = ts_usec
+
 
         return STLProfile(streams)
 

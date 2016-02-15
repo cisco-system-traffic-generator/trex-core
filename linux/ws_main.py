@@ -170,6 +170,7 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
+                              'trex_rpc_zip.cpp',
 
                               'commands/trex_rpc_cmd_test.cpp',
                               'commands/trex_rpc_cmd_general.cpp',
@@ -428,6 +429,7 @@ def build_prog (bld, build_obj):
                 linkflags = build_obj.get_link_flags(),
                 source = build_obj.get_src(),
                 use = build_obj.get_use_libs(),
+                lib = ['z'],
                 rpath  = bld.env.RPATH + build_obj.get_rpath(),
                 target = build_obj.get_target())
 

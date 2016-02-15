@@ -3,6 +3,7 @@ from collections import namedtuple, OrderedDict
 
 import trex_stl_stats
 from trex_stl_types import *
+import time
 
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
@@ -199,14 +200,13 @@ class Port(object):
             batch.append(cmd)
 
             # meta data for show streams
-            self.streams[stream.get_id()] = StreamOnPort(stream.to_json(),
-                                                         Port._generate_stream_metadata(stream))
+            #self.streams[stream.get_id()] = StreamOnPort(stream.to_json(),
+            #                                             Port._generate_stream_metadata(stream))
 
         rc = self.transmit_batch(batch)
         if not rc:
             return self.err(rc.err())
 
-        
 
         # the only valid state now
         self.state = self.STATE_STREAMS
