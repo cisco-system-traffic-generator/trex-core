@@ -218,14 +218,17 @@ class STLSim(object):
 
 
     # internal run
-    def __run (self, cmds_json):
+    def __run (self, cmds_json, zipped = True):
 
         # write to temp file
         f = tempfile.NamedTemporaryFile(delete = False)
 
         msg = json.dumps(cmds_json)
-        compressed = zlib.compress(msg)
-        new_msg = struct.pack(">II", 0xABE85CEA, len(msg)) + compressed
+
+        # stress the zip path
+        if zipped:
+            compressed = zlib.compress(msg)
+            new_msg = struct.pack(">II", 0xABE85CEA, len(msg)) + compressed
 
         f.write(new_msg)
         f.close()

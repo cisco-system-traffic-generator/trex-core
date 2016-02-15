@@ -199,9 +199,7 @@ class Port(object):
             cmd = RpcCmdData('add_stream', params)
             batch.append(cmd)
 
-            # meta data for show streams
-            #self.streams[stream.get_id()] = StreamOnPort(stream.to_json(),
-            #                                             Port._generate_stream_metadata(stream))
+            self.streams[stream.get_id()] = stream
 
         rc = self.transmit_batch(batch)
         if not rc:
@@ -493,39 +491,22 @@ class Port(object):
         return self.port_stats.invalidate()
 
     ################# stream printout ######################
-    def generate_loaded_streams_sum(self, stream_id_list):
+    def generate_loaded_streams_sum(self):
         if self.state == self.STATE_DOWN:
             return {}
-        streams_data = {}
 
-        if not stream_id_list:
-            # if no mask has been provided, apply to all streams on port
-            stream_id_list = self.streams.keys()
-            
-
-        streams_data = {stream_id: self.streams[stream_id].metadata.get('stream_sum', ["N/A"] * 6)
-                        for stream_id in stream_id_list
-                        if stream_id in self.streams}
-
-        # sort the data
-        return {"streams" : OrderedDict(sorted(streams_data.items())) }
-
-    @staticmethod
-    def _generate_stream_metadata(stream):
-        meta_dict = {}
-
-        next = stream.get_next_id()
-        if next == -1:
-            next = "-"
-
-        meta_dict['stream_sum'] = OrderedDict([("id",           stream.get_id()),
-                                               ("packet_type",  stream.get_pkt_type()),
-                                               ("L2 len",       stream.get_pkt_len()),
-                                               ("mode",         stream.get_mode()),
-                                               ("rate_pps",     stream.get_pps()),
-                                               ("next_stream",  next)
-                                               ])
-        return meta_dict
+        data = {}
+        for id, stream in self.streams.iteritems():
+            data[id] = OrderedDict([ ('id',  id),
+                                     ('packet_type', stream.get_pkt_type()),
+                                     ('L2 len', stream.get_pkt_len()),
+                                     ('mode' , stream.get_mode()),
+                                     ('rate_pps', stream.get_pps()),
+                                     ('next_stream', stream.get_next_id())
+                                    ])
+    
+        return {"streams" : OrderedDict(sorted(data.items())) }
+    
 
     ################# events handler ######################
     def async_event_port_stopped (self):
