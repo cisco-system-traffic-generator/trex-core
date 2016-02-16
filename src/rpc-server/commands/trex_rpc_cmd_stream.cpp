@@ -61,7 +61,6 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     if (cnt<0 || cnt >= UINT16_MAX) {
         std::stringstream ss;
         ss << "bad action_count provided: should be between " << 0 << " and " << UINT16_MAX;
-        printf(" %s \n",ss.str().c_str());
         delete stream;
         generate_execute_err(result, ss.str()); 
     }
