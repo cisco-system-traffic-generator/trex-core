@@ -27,8 +27,6 @@ from trex_stl_client import STLClient
 
 import re
 import json
-import zlib
-import struct
 
 
 import argparse
@@ -218,19 +216,14 @@ class STLSim(object):
 
 
     # internal run
-    def __run (self, cmds_json, zipped = True):
+    def __run (self, cmds_json):
 
         # write to temp file
         f = tempfile.NamedTemporaryFile(delete = False)
 
         msg = json.dumps(cmds_json)
 
-        # stress the zip path
-        if zipped:
-            compressed = zlib.compress(msg)
-            new_msg = struct.pack(">II", 0xABE85CEA, len(msg)) + compressed
-
-        f.write(new_msg)
+        f.write(msg)
         f.close()
 
         # launch bp-sim

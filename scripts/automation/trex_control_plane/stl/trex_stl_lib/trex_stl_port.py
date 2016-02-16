@@ -57,7 +57,7 @@ class Port(object):
 
 
     def err(self, msg):
-        return RC_ERR("port {0} : {1}".format(self.port_id, msg))
+        return RC_ERR("port {0} : {1}\n".format(self.port_id, msg))
 
     def ok(self, data = ""):
         return RC_OK(data)
@@ -203,7 +203,7 @@ class Port(object):
 
         rc = self.transmit_batch(batch)
         if not rc:
-            return self.err(rc.err())
+            return self.err(str(rc))
 
 
         # the only valid state now

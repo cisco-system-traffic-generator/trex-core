@@ -71,7 +71,7 @@ match_multiplier_help = """Multiplier should be passed in the following format:
                           will provide a percentage of the line rate. examples
                           '-m 10', '-m 10kbps', '-m 10mpps', '-m 23%%'
 
-                          '-m 23%%'   : is 23% L1 bandwidth 
+                          '-m 23%%'   : is 23%% L1 bandwidth 
                           '-m 23mbps' : is 23mbps in L2 bandwidth (including FCS+4)
                           """
 

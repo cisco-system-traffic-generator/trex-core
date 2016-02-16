@@ -26,6 +26,7 @@ limitations under the License.
 #include <trex_streams_compiler.h>
 #include <common/base64.h>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 
@@ -48,7 +49,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     string type = parse_string(mode, "type", result);
 
     /* allocate a new stream based on the type */
-    TrexStream *stream = allocate_new_stream(section, port_id, stream_id, result);
+    std::unique_ptr<TrexStream> stream( allocate_new_stream(section, port_id, stream_id, result) );
 
     /* save this for future queries */
     stream->store_stream_json(section);
@@ -57,14 +58,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_enabled         = parse_bool(section, "enabled", result);
     stream->m_self_start      = parse_bool(section, "self_start", result);
     stream->m_flags           = parse_int(section, "flags", result);
-    int cnt  = parse_int(section, "action_count", result);
-    if (cnt<0 || cnt >= UINT16_MAX) {
-        std::stringstream ss;
-        ss << "bad action_count provided: should be between " << 0 << " and " << UINT16_MAX;
-        delete stream;
-        generate_execute_err(result, ss.str()); 
-    }
-    stream->m_action_count    = (uint16_t)cnt;
+    stream->m_action_count    = parse_uint16(section, "action_count", result);
 
     /* inter stream gap */
     stream->m_isg_usec  = parse_double(section, "isg", result);
@@ -78,7 +72,6 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     if ( (pkt_binary.size() < TrexStream::MIN_PKT_SIZE_BYTES) || (pkt_binary.size() > TrexStream::MAX_PKT_SIZE_BYTES) ) {
         std::stringstream ss;
         ss << "bad packet size provided: should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
-        delete stream;
         generate_execute_err(result, ss.str()); 
     }
 
@@ -104,7 +97,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
     /* parse VM */
     const Json::Value &vm =  parse_object(section ,"vm", result);
-    parse_vm(vm, stream, result);
+    parse_vm(vm, stream.get(), result);
 
     /* parse RX info */
     const Json::Value &rx = parse_object(section, "rx_stats", result);
@@ -119,12 +112,13 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     }
 
     /* make sure this is a valid stream to add */
-    validate_stream(stream, result);
+    validate_stream(stream.get(), result);
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
 
     try {
-        port->add_stream(stream);
+        port->add_stream(stream.get());
+        stream.release();
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }

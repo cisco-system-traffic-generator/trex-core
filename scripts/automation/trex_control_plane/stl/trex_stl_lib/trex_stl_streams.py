@@ -111,7 +111,7 @@ class STLStream(object):
                   rx_stats = None,
                   next = None,
                   stream_id = None,
-                  action_count =0,
+                  action_count = 0,
                   mac_src_override_by_pkt=None,
                   mac_dst_override_mode=None    #see  STLStreamDstMAC_xx
                   ):
