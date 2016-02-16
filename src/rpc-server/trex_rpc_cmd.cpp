@@ -145,102 +145,6 @@ TrexRpcCommand::json_type_to_name(const Json::Value &value) {
 
 }
 
-uint8_t  
-TrexRpcCommand::parse_byte(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_BYTE, result);
-    return parent[name].asUInt();
-}
-
-uint8_t  
-TrexRpcCommand::parse_byte(const Json::Value &parent, int index, Json::Value &result) {
-    check_field_type(parent, index, FIELD_TYPE_BYTE, result);
-    return parent[index].asUInt();
-}
-
-uint16_t 
-TrexRpcCommand::parse_uint16(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_UINT16, result);
-    return parent[name].asUInt();
-}
-
-uint16_t  
-TrexRpcCommand::parse_uint16(const Json::Value &parent, int index, Json::Value &result) {
-    check_field_type(parent, index, FIELD_TYPE_UINT16, result);
-    return parent[index].asUInt();
-}
-
-uint32_t 
-TrexRpcCommand::parse_uint32(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_UINT32, result);
-    return parent[name].asUInt();
-}
-
-uint32_t  
-TrexRpcCommand::parse_uint32(const Json::Value &parent, int index, Json::Value &result) {
-    check_field_type(parent, index, FIELD_TYPE_UINT32, result);
-    return parent[index].asUInt();
-}
-
-uint64_t 
-TrexRpcCommand::parse_uint64(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_UINT64, result);
-    return parent[name].asUInt64();
-}
-
-uint64_t  
-TrexRpcCommand::parse_uint64(const Json::Value &parent, int index, Json::Value &result) {
-    check_field_type(parent, index, FIELD_TYPE_UINT64, result);
-    return parent[index].asUInt64();
-}
-
-int
-TrexRpcCommand::parse_int(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_INT, result);
-    return parent[name].asInt();
-}
-
-bool
-TrexRpcCommand::parse_bool(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_BOOL, result);
-    return parent[name].asBool();
-}
-
-double
-TrexRpcCommand::parse_double(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_DOUBLE, result);
-    return parent[name].asDouble();
-}
-
-const std::string
-TrexRpcCommand::parse_string(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_STR, result);
-    return parent[name].asString();
-}
-
-/**
- * object version
- */
-const Json::Value &
-TrexRpcCommand::parse_object(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_OBJ, result);
-    return parent[name];
-}
-
-/**
- * index version
- */
-const Json::Value &
-TrexRpcCommand::parse_object(const Json::Value &parent, int index, Json::Value &result) {
-    check_field_type(parent, index, FIELD_TYPE_OBJ, result);
-    return parent[index];
-}
-
-const Json::Value &
-TrexRpcCommand::parse_array(const Json::Value &parent, const std::string &name, Json::Value &result) {
-    check_field_type(parent, name, FIELD_TYPE_ARRAY, result);
-    return parent[name];
-}
-
 /**
  * for index element (array)
  */
@@ -269,6 +173,7 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &n
     const Json::Value &field = parent[name];
     check_field_type_common(field, name, type, result);
 }
+
 void 
 TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::string &name, field_type_e type, Json::Value &result) {
     std::stringstream ss;
