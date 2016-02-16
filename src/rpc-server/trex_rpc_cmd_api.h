@@ -146,27 +146,139 @@ protected:
      * parse functions
      * 
      */
-    uint8_t  parse_byte(const Json::Value &parent, const std::string &name, Json::Value &result);
-    uint16_t parse_uint16(const Json::Value &parent, const std::string &name, Json::Value &result);
-    uint32_t parse_uint32(const Json::Value &parent, const std::string &name, Json::Value &result);
-    uint64_t parse_uint64(const Json::Value &parent, const std::string &name, Json::Value &result);
-    int      parse_int(const Json::Value &parent, const std::string &name, Json::Value &result);
-    double   parse_double(const Json::Value &parent, const std::string &name, Json::Value &result);
-    bool     parse_bool(const Json::Value &parent, const std::string &name, Json::Value &result);
-    const std::string  parse_string(const Json::Value &parent, const std::string &name, Json::Value &result);
-    const Json::Value & parse_object(const Json::Value &parent, const std::string &name, Json::Value &result);
-    const Json::Value & parse_array(const Json::Value &parent, const std::string &name, Json::Value &result);
+    template<typename T> uint8_t parse_byte(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_BYTE, result);
+        return parent[param].asUInt();
+    }
 
-    uint8_t  parse_byte(const Json::Value &parent, int index, Json::Value &result);
-    uint16_t parse_uint16(const Json::Value &parent, int index, Json::Value &result);
-    uint32_t parse_uint32(const Json::Value &parent, int index, Json::Value &result);
-    uint64_t parse_uint64(const Json::Value &parent, int index, Json::Value &result);
-    int      parse_int(const Json::Value &parent, int index, Json::Value &result);
-    double   parse_double(const Json::Value &parent, int index, Json::Value &result);
-    bool     parse_bool(const Json::Value &parent, int index, Json::Value &result);
-    const std::string  parse_string(const Json::Value &parent, int index, Json::Value &result);
-    const Json::Value & parse_object(const Json::Value &parent, int index, Json::Value &result);
-    const Json::Value & parse_array(const Json::Value &parent, int index, Json::Value &result);
+    template<typename T> uint16_t parse_uint16(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_UINT16, result);
+        return parent[param].asUInt();
+    }
+
+    template<typename T> uint32_t parse_uint32(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_UINT32, result);
+        return parent[param].asUInt();
+    }
+
+    template<typename T> uint64_t parse_uint64(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_UINT64, result);
+        return parent[param].asUInt64();
+    }
+
+    template<typename T> int parse_int(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_INT, result);
+        return parent[param].asInt();
+    }
+
+    template<typename T> double parse_double(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_DOUBLE, result);
+        return parent[param].asDouble();
+    }
+
+    template<typename T> bool parse_bool(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_BOOL, result);
+        return parent[param].asBool();
+    }
+
+    template<typename T> const std::string  parse_string(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_STR, result);
+        return parent[param].asString();
+    }
+
+    template<typename T> const Json::Value & parse_object(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_OBJ, result);
+        return parent[param];
+    }
+
+    template<typename T> const Json::Value & parse_array(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_ARRAY, result);
+        return parent[param];
+    }
+
+   
+    /**
+     * parse with defaults
+     */
+    template<typename T> uint8_t parse_byte(const Json::Value &parent, const T &param, Json::Value &result, uint8_t def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_byte(parent, param, result);
+    }
+
+     template<typename T> uint16_t parse_uint16(const Json::Value &parent, const T &param, Json::Value &result, uint16_t def) {
+         /* if not exists - default */
+         if (parent[param] == Json::Value::null) {
+             return def;
+         }
+         return parse_uint16(parent, param, result);
+    }
+
+    template<typename T> uint32_t parse_uint32(const Json::Value &parent, const T &param, Json::Value &result, uint32_t def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_uint32(parent, param, result);
+    }
+
+    template<typename T> uint64_t parse_uint64(const Json::Value &parent, const T &param, Json::Value &result, uint64_t def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_uint64(parent, param, result);
+    }
+
+    template<typename T> int parse_int(const Json::Value &parent, const T &param, Json::Value &result, int def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_int(parent, param, result);
+    }
+
+    template<typename T> double parse_double(const Json::Value &parent, const T &param, Json::Value &result, double def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_double(parent, param, result);
+    }
+
+    template<typename T> bool parse_bool(const Json::Value &parent, const T &param, Json::Value &result, bool def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_bool(parent, param, result);
+    }
+
+    template<typename T> const std::string  parse_string(const Json::Value &parent, const T &param, Json::Value &result, const std::string &def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_string(parent, param, result);
+    }
+
+    template<typename T> const Json::Value & parse_object(const Json::Value &parent, const T &param, Json::Value &result, const Json::Value &def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_object(parent, param, result);
+    }
+
+    template<typename T> const Json::Value & parse_array(const Json::Value &parent, const T &param, Json::Value &result, const Json::Value &def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            return def;
+        }
+        return parse_array(parent, param, result);
+    }
 
     /* shortcut for parsing port id */
     uint8_t parse_port(const Json::Value &params, Json::Value &result);
