@@ -101,6 +101,11 @@ TrexVmSplitter::split_by_flow_var(const StreamVmInstructionFlowMan *instr) {
         return false;
     }
 
+    /* split only step of 1 */
+    if (!instr->is_valid_for_split() ){
+        return false;
+    }
+
     /* we need to split - duplicate VM now */
     duplicate_vm();
 

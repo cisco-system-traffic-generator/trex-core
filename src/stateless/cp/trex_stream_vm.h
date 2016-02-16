@@ -215,6 +215,128 @@ public:
 } __attribute__((packed)) ;
 
 
+
+struct StreamDPOpFlowVar8Step {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint8_t m_min_val;
+    uint8_t m_max_val;
+    uint8_t m_step;
+public:
+    void dump(FILE *fd,std::string opt);
+
+    inline void run_inc(uint8_t * flow_var) {
+        uint8_t *p = (flow_var + m_flow_offset);
+        if (*p >= (m_max_val-m_step)) {
+            *p = m_min_val;
+        } else {
+            *p = *p + m_step;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint8_t *p = (flow_var + m_flow_offset);
+        if (*p <= (m_min_val+m_step)) {
+            *p = m_max_val;
+        } else {
+            *p = *p - m_step;
+        }
+    }
+
+} __attribute__((packed)) ;
+
+struct StreamDPOpFlowVar16Step {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint16_t m_min_val;
+    uint16_t m_max_val;
+    uint16_t m_step;
+
+public:
+    void dump(FILE *fd,std::string opt);
+
+    inline void run_inc(uint8_t * flow_var) {
+        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if (*p >= (m_max_val-m_step)) {
+            *p = m_min_val;
+        } else {
+            *p = *p + m_step;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if (*p <= (m_min_val+m_step)) {
+            *p = m_max_val;
+        } else {
+            *p = *p - m_step;
+        }
+    }
+
+} __attribute__((packed)) ;
+
+struct StreamDPOpFlowVar32Step {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint32_t m_min_val;
+    uint32_t m_max_val;
+    uint32_t m_step;
+public:
+    void dump(FILE *fd,std::string opt);
+
+    inline void run_inc(uint8_t * flow_var) {
+        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if (*p >= (m_max_val-m_step)) {
+            *p = m_min_val;
+        } else {
+            *p = *p + m_step;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if (*p <= (m_min_val+m_step)) {
+            *p = m_max_val;
+        } else {
+            *p = *p - m_step;
+        }
+    }
+
+} __attribute__((packed)) ;
+
+struct StreamDPOpFlowVar64Step {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint64_t m_min_val;
+    uint64_t m_max_val;
+    uint64_t m_step;
+public:
+    void dump(FILE *fd,std::string opt);
+
+    inline void run_inc(uint8_t * flow_var) {
+        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if (*p >= (m_max_val-m_step) ) {
+            *p = m_min_val;
+        } else {
+            *p = *p + m_step;
+        }
+    }
+
+    inline void run_dec(uint8_t * flow_var) {
+        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if (*p <= m_min_val+m_step) {
+            *p = m_max_val;
+        } else {
+            *p = *p - m_step;
+        }
+    }
+
+
+} __attribute__((packed)) ;
+
+///////////////////////////////////////////////////////////////////////
+
+
 struct StreamDPOpPktWrBase {
     enum {
         PKT_WR_IS_BIG = 1
@@ -440,6 +562,18 @@ public:
         itCLIENT_VAR_UNLIMIT ,
         itPKT_SIZE_CHANGE ,
 
+        /* inc/dec with step*/
+        ditINC8_STEP         ,
+        ditINC16_STEP        ,
+        ditINC32_STEP        ,
+        ditINC64_STEP        ,
+
+        ditDEC8_STEP         ,
+        ditDEC16_STEP        ,
+        ditDEC32_STEP        ,
+        ditDEC64_STEP        ,
+
+
     };
 
 
@@ -462,7 +596,14 @@ class StreamDPVmInstructionsRunner {
 public:
     StreamDPVmInstructionsRunner(){
         m_new_pkt_size=0;;
+
     }
+
+    void   slow_commands(uint8_t op_code,
+                           uint8_t * flow_var, /* flow var */
+                           uint8_t * pkt,
+                           uint8_t * & p);
+
     inline void run(uint32_t * per_thread_random,
                     uint32_t program_size,
                     uint8_t * program,  /* program */
@@ -477,19 +618,7 @@ private:
 };
 
 
-inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
-                                              uint32_t program_size,
-                                              uint8_t * program,  /* program */
-                                              uint8_t * flow_var, /* flow var */
-                                              uint8_t * pkt
-                                              ){
-
-
-    uint8_t * p=program;
-    uint8_t * p_end=p+program_size;
-
-
-    union  ua_ {
+typedef union  ua_ {
         StreamDPOpFlowVar8  *lpv8;
         StreamDPOpFlowVar16 *lpv16;
         StreamDPOpFlowVar32 *lpv32;
@@ -503,7 +632,26 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
 
         StreamDPOpClientsLimit      *lpcl;
         StreamDPOpClientsUnLimit    *lpclu;
-    } ua ;
+
+        StreamDPOpFlowVar8Step  *lpv8s;
+        StreamDPOpFlowVar16Step *lpv16s;
+        StreamDPOpFlowVar32Step *lpv32s;
+        StreamDPOpFlowVar64Step *lpv64s;
+} ua_t ;
+
+
+
+inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
+                                              uint32_t program_size,
+                                              uint8_t * program,  /* program */
+                                              uint8_t * flow_var, /* flow var */
+                                              uint8_t * pkt
+                                              ){
+
+    uint8_t * p=program;
+    uint8_t * p_end=p+program_size;
+
+    ua_t ua;
 
     while ( p < p_end) {
         uint8_t op_code=*p;
@@ -620,9 +768,10 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
             ua.lpw_pkt_size->run(flow_var,m_new_pkt_size);
             p+=sizeof(StreamDPOpPktSizeChange);
             break;
-
+        
         default:
-            assert(0);
+            slow_commands(op_code,flow_var,pkt,p);
+            break;
         }
     };
 };
@@ -736,6 +885,11 @@ public:
         return ( StreamVmInstruction::itFLOW_MAN);
     }
 
+    virtual bool is_valid_for_split() const {
+        return (m_step==1?true:false);
+    }
+
+
     virtual uint64_t get_splitable_range() const {
         return (m_max_value - m_min_value + 1);
     }
@@ -777,13 +931,16 @@ public:
                                flow_var_op_e op,
                                uint64_t init_value,
                                uint64_t min_value,
-                               uint64_t max_value) : StreamVmInstructionVar(var_name) {
+                               uint64_t max_value,
+                               uint64_t step=1) : StreamVmInstructionVar(var_name) {
 
         m_op = op;
         m_size_bytes = size;
         m_init_value = init_value;
         m_min_value  = min_value;
         m_max_value  = max_value;
+        m_step       = step;
+
     }
 
     virtual void Dump(FILE *fd);
@@ -796,7 +953,8 @@ public:
                                               m_op,
                                               m_init_value,
                                               m_min_value,
-                                              m_max_value);
+                                              m_max_value,
+                                              m_step);
     }
 
 private:
@@ -817,6 +975,7 @@ public:
     uint64_t m_min_value;
     uint64_t m_max_value;
 
+    uint64_t m_step;
 };
 
 

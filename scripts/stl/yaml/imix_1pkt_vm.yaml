@@ -19,6 +19,7 @@
                   "name" : "l3_src",
                   "op" : "inc",
                   "size" : 4,
+                  "step" : 1,
                   "type" : "flow_var"
                },
                {

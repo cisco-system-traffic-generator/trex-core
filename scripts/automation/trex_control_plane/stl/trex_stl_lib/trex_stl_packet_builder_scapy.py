@@ -207,7 +207,7 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
     OPERATIONS =['inc', 'dec', 'random']
     VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self, fv_name, size, op, init_value, min_value, max_value):
+    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
         self.name = fv_name;
         assert type(fv_name)==str, 'type of fv_name is not str'
@@ -219,6 +219,8 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
         assert type(min_value)==int, 'type of min_value is not int'
         self.max_value=max_value
         assert type(max_value)==int, 'type of min_value is not int'
+        self.step=step
+        assert type(step)==int, 'type of step should be int'
 
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
@@ -496,7 +498,7 @@ def check_for_int (val):
 
 
 class CTRexVmDescFlowVar(CTRexVmDescBase):
-    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, op="inc"):
+    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1,op="inc"):
         super(CTRexVmDescFlowVar, self).__init__()
         self.name = name;
         assert type(name)==str, 'type of name is not str'
@@ -512,12 +514,13 @@ class CTRexVmDescFlowVar(CTRexVmDescBase):
         self.init_value = convert_val (init_value)
         self.min_value  = convert_val (min_value);
         self.max_value  = convert_val (max_value)
+        self.step       = convert_val (step)
 
         if self.min_value > self.max_value :
             raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
 
     def get_obj (self):
-        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value);
+        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step);
 
     def get_var_name(self):
         return [self.name]

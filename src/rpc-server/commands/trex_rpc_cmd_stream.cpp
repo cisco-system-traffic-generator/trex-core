@@ -249,6 +249,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
     uint64_t init_value  = parse_uint64(inst, "init_value", result);
     uint64_t min_value   = parse_uint64(inst, "min_value", result);
     uint64_t max_value   = parse_uint64(inst, "max_value", result);
+    uint64_t step        = parse_uint64(inst, "step", result);
 
     if (max_value < min_value ) {
         std::stringstream ss;
@@ -257,7 +258,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
     }
 
     if (flow_var_size == 1 ) {
-        if ( (init_value > UINT8_MAX) || (min_value > UINT8_MAX) || (max_value > UINT8_MAX))  {
+        if ( (init_value > UINT8_MAX) || (min_value > UINT8_MAX) || (max_value > UINT8_MAX) || (step >UINT8_MAX) )  {
             std::stringstream ss;
             ss << "VM: request val is bigger than " << UINT8_MAX;
             generate_parse_err(result, ss.str());
@@ -265,7 +266,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
     }
 
     if (flow_var_size == 2 ) {
-        if ( (init_value > UINT16_MAX) || (min_value > UINT16_MAX) || (max_value > UINT16_MAX))  {
+        if ( (init_value > UINT16_MAX) || (min_value > UINT16_MAX) || (max_value > UINT16_MAX) || (step > UINT16_MAX) )  {
             std::stringstream ss;
             ss << "VM: request val is bigger than " << UINT16_MAX;
             generate_parse_err(result, ss.str());
@@ -273,7 +274,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
     }
 
     if (flow_var_size == 4 ) {
-        if ( (init_value > UINT32_MAX) || (min_value > UINT32_MAX) || (max_value > UINT32_MAX))  {
+        if ( (init_value > UINT32_MAX) || (min_value > UINT32_MAX) || (max_value > UINT32_MAX) || (step > UINT32_MAX) )  {
             std::stringstream ss;
             ss << "VM: request val is bigger than " << UINT32_MAX;
             generate_parse_err(result, ss.str());
@@ -286,7 +287,9 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
                                                                 op_type,
                                                                 init_value,
                                                                 min_value,
-                                                                max_value));
+                                                                max_value,
+                                                                step)
+                                 );
 }
 
 void 
