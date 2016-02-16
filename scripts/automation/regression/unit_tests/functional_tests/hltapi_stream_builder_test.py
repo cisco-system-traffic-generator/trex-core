@@ -85,6 +85,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: ip_src
         op: inc
         size: 4
+        step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
@@ -97,6 +98,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: ip_dst
         op: random
         size: 4
+        step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
@@ -141,6 +143,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: tcp_src
         op: dec
         size: 2
+        step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
@@ -153,6 +156,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: tcp_dst
         op: random
         size: 2
+        step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
@@ -216,6 +220,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: udp_src
         op: dec
         size: 2
+        step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
@@ -228,6 +233,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: udp_dst
         op: inc
         size: 2
+        step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
@@ -280,6 +286,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: pkt_len
         op: dec
         size: 2
+        step: 1
         type: flow_var
       - name: pkt_len
         type: trim_pkt_size
@@ -332,6 +339,7 @@ class CTRexHltApi_Test(unittest.TestCase):
         name: pkt_len
         op: random
         size: 2
+        step: 1
         type: flow_var
       - name: pkt_len
         type: trim_pkt_size
