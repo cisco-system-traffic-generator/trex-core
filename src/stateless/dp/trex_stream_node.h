@@ -81,7 +81,8 @@ private:
     void *              m_cache_mbuf;
 
     double              m_next_time_offset; /* in sec */
-    uint32_t            m_pad11;
+    uint16_t            m_action_counter;
+    uint16_t            m_pad11;
     uint32_t            m_pad12;
 
     stream_state_t      m_state;

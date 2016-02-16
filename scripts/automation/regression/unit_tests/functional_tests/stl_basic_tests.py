@@ -174,12 +174,13 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["yaml/imix_3pkt_vm.yaml","-m 50kpps --limit 20 --cores 2",True],
             ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
             ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
-            ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True]
+            ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True],
+            ["burst_3st_loop_x_times.py","-m 1 -l 20 ",True]
 
           ];
 
 
-        p1  = [ ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True] ]
+        p1  = [ ["burst_3st_loop_x_times.py","-m 1 -l 20 ",True] ]
         
 
         for obj in p:

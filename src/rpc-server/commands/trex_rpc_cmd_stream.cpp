@@ -57,7 +57,15 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_enabled         = parse_bool(section, "enabled", result);
     stream->m_self_start      = parse_bool(section, "self_start", result);
     stream->m_flags           = parse_int(section, "flags", result);
-    stream->m_action_count    = (uint16_t)parse_int(section, "action_count", result);
+    int cnt  = parse_int(section, "action_count", result);
+    if (cnt<0 || cnt >= UINT16_MAX) {
+        std::stringstream ss;
+        ss << "bad action_count provided: should be between " << 0 << " and " << UINT16_MAX;
+        printf(" %s \n",ss.str().c_str());
+        delete stream;
+        generate_execute_err(result, ss.str()); 
+    }
+    stream->m_action_count    = (uint16_t)cnt;
 
     /* inter stream gap */
     stream->m_isg_usec  = parse_double(section, "isg", result);

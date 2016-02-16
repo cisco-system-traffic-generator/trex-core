@@ -348,9 +348,20 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
         assert(state != CGenNodeStateless::ss_FREE_RESUSE);
         if (state == CGenNodeStateless::ss_INACTIVE ) {
 
-            /* refill start info and scedule, no update in active streams  */
-            next_node->refresh();
-            schedule = true;
+            if (cur_node->m_action_counter > 0) {
+                cur_node->m_action_counter--;
+                if (cur_node->m_action_counter==0) {
+                    to_stop_port = lp_port->update_number_of_active_streams(1);
+                }else{
+                    /* refill start info and scedule, no update in active streams  */
+                    next_node->refresh();
+                    schedule = true;
+                }
+            }else{
+                /* refill start info and scedule, no update in active streams  */
+                next_node->refresh();
+                schedule = true;
+            }
 
         }else{
             to_stop_port = lp_port->update_number_of_active_streams(1);
@@ -553,6 +564,8 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     /* add periodic */
     node->m_cache_mbuf=0;
     node->m_type = CGenNode::STATELESS_PKT;
+
+    node->m_action_counter = stream->m_action_count;
 
     /* clone the stream from control plane memory to DP memory */
     node->m_ref_stream_info = stream->clone();
