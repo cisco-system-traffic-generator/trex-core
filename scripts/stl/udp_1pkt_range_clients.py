@@ -18,13 +18,10 @@ class STLS1(object):
 
         # create a base packet and pad it to size
         size = self.fsize - 4; # no FCS
-        base_pkt =  Ether()/IP(src="55.55.1.1",dst="58.0.0.1")/UDP(dport=12,sport=1025)
+        base_pkt =  Ether(src="00:00:dd:dd:00:01")/IP(src="55.55.1.1",dst="58.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
         vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=self.num_clients, size=2, op="inc"), # 1 byte varible, range 1-10
-                           STLVmFlowVar(name="mac_src_wa", min_value=0x0000dddd, max_value=0x0000dddd, size=4, op="inc"), # workaround hardcoded the src MAC MSB, will be solved as an option in the stream
-
-                           STLVmWrFlowVar(fv_name="mac_src_wa", pkt_offset= 6),                        # write constrant 0000.ddddd
                            STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 10),                          # write it to LSB of ethernet.src 
                            STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="IP.src",offset_fixup=2),       # it is 2 byte so there is a need to fixup in 2 bytes
                            STLVmFixIpv4(offset = "IP")
