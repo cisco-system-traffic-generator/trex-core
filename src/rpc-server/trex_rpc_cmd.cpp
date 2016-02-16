@@ -206,7 +206,7 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
         break;
 
     case FIELD_TYPE_UINT64:
-        if (!field.isInt64()) {
+        if (!field.isUInt64()) {
             rc = false;
         }
         break;
