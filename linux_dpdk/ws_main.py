@@ -842,7 +842,7 @@ files_list=[
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api','exp']
 
 
 class Env(object):
