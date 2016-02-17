@@ -150,8 +150,8 @@ class JsonRpcClient(object):
         else:
             response = self.send_raw_msg(msg)
 
-        if response == None:
-            return RC_ERR("*** [RPC] - Failed to decode response from server")
+        if not response:
+            return response
 
 
         # print after
@@ -159,8 +159,10 @@ class JsonRpcClient(object):
             self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
 
         # process response (batch and regular)
-       
-        response_json = json.loads(response)
+        try:       
+            response_json = json.loads(response)
+        except (TypeError, ValueError):
+            return RC_ERR("*** [RPC] - Failed to decode response from server")
 
         if isinstance(response_json, list):
             return self.process_batch_response(response_json)
