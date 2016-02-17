@@ -1984,6 +1984,7 @@ class STLClient(object):
                                          self.push_line.__doc__,
                                          parsing_opts.FILE_PATH,
                                          parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.COUNT,
                                          parsing_opts.DURATION,
                                          parsing_opts.IPG,
                                          parsing_opts.SPEEDUP,
@@ -2010,7 +2011,7 @@ class STLClient(object):
             profile = STLProfile.load_pcap(opts.file[0],
                                            opts.ipg_usec,
                                            opts.speedup,
-                                           loop = True if opts.duration != -1 else False)
+                                           opts.count)
 
             id_list = self.add_streams(profile.get_streams(), opts.ports)
             self.start(ports = opts.ports, duration = opts.duration, force = opts.force)

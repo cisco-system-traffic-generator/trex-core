@@ -2,7 +2,7 @@
 
 from trex_stl_exceptions import *
 from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
-from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP, RawPcapReader
+from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP, UDP, TCP, RawPcapReader
 from collections import OrderedDict, namedtuple
 
 from dpkt import pcap
@@ -194,6 +194,7 @@ class STLStream(object):
         self.fields['packet'] = packet.dump_pkt()
         self.fields['vm']     = packet.get_vm_data()
 
+        self.pkt = base64.b64decode(self.fields['packet']['binary'])
 
         # this is heavy, calculate lazy
         self.packet_desc = None
@@ -234,12 +235,15 @@ class STLStream(object):
 
     def get_pkt_type (self):
         if self.packet_desc == None:
-            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(base64.b64decode(self.fields['packet']['binary']))
+            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
 
         return self.packet_desc
 
+    def get_pkt (self):
+        return self.pkt
+
     def get_pkt_len (self, count_crc = True):
-       pkt_len = len(base64.b64decode(self.fields['packet']['binary']))
+       pkt_len = len(base64.b64decode(self.get_pkt()))
        if count_crc:
            pkt_len += 4
 
@@ -454,8 +458,10 @@ class STLProfile(object):
         finally:
             sys.path.remove(basedir)
 
+    
+    # loop_count = 0 means loop forever
     @staticmethod
-    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop = False):
+    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None):
         # check filename
         if not os.path.isfile(pcap_file):
             raise STLError("file '{0}' does not exists".format(pcap_file))
@@ -474,16 +480,19 @@ class STLProfile(object):
 
             # handle last packet
             if i == len(pkts):
-                next = 1 if loop else None
+                next = 1
+                action_count = loop_count
             else:
                 next = i + 1
+                action_count = 0
 
             
             streams.append(STLStream(name = i,
-                                     packet = CScapyTRexPktBuilder(pkt_buffer = cap),
+                                     packet = CScapyTRexPktBuilder(pkt_buffer = cap, vm = vm),
                                      mode = STLTXSingleBurst(total_pkts = 1),
                                      self_start = True if (i == 1) else False,
                                      isg = (ts_usec - last_ts_usec),  # seconds to usec
+                                     action_count = action_count,
                                      next = next))
         
             last_ts_usec = ts_usec
@@ -525,3 +534,5 @@ class STLProfile(object):
         return yaml_str
 
 
+    def __len__ (self):
+        return len(self.streams)

@@ -26,6 +26,7 @@ TOTAL = 14
 FULL_OUTPUT = 15
 IPG = 16
 SPEEDUP = 17
+COUNT = 18
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -215,6 +216,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                     'dest': "speedup",
                                     'default':  1.0,
                                     'type': float}),
+
+              COUNT: ArgumentPack(['-n', '--count'],
+                                  {'help': "How many times to perform action [default is 1, 0 means forever]",
+                                   'dest': "count",
+                                   'default':  1,
+                                   'type': int}),
 
               PORT_LIST: ArgumentPack(['--port'],
                                         {"nargs": '+',

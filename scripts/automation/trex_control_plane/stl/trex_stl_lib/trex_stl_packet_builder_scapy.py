@@ -627,8 +627,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         self.vm_low_level = None
         self.metadata=""
         self.path_relative_to_profile = path_relative_to_profile
-
-        was_set=False
+        
 
         if pkt != None and pkt_buffer != None:
             raise CTRexPacketBuildException(-15, "packet builder cannot be provided with both pkt and pkt_buffer")
@@ -636,9 +635,8 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         # process packet
         if pkt != None:
             self.set_packet(pkt)
-            was_set=True
 
-        if pkt_buffer != None:
+        elif pkt_buffer != None:
             self.set_pkt_as_str(pkt_buffer)
 
         # process VM
@@ -647,10 +645,10 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
                 raise CTRexPacketBuildException(-14, "bad value for variable vm")
 
             self.add_command(vm if isinstance(vm, CTRexScRaw) else CTRexScRaw(vm))
-            was_set=True
 
-        if was_set:
-            self.compile ()
+        # if we have packet and VM - compile now
+        if (self.pkt or self.pkt_raw) and (self.vm_scripts):
+            self.compile()
 
 
     def dump_vm_data_as_yaml(self):
@@ -782,21 +780,20 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         return True
 
     def compile (self):
-        self.vm_low_level=CTRexVmEngine()
         if self.pkt == None and self.pkt_raw == None:
             raise CTRexPacketBuildException(-14, "Packet is empty")
 
-        if self.pkt:
-            self.pkt.build();
         
+        self.vm_low_level = CTRexVmEngine()
+    
+        # before VM compile set this to false
+        self.is_pkt_built = False
+
+        # compile the VM
         for sc in self.vm_scripts:
             if isinstance(sc, CTRexScRaw):
                 self._compile_raw(sc)
 
-        #for obj in self.vm_scripts:
-        #    # tuple gen script 
-        #    if isinstance(obj, CTRexScIpv4TupleGen)
-        #        self._add_tuple_gen(tuple_gen)
 
     ####################################################
     # private 
@@ -858,13 +855,40 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             self.vm_low_level.split_by_var = obj.split_by_field
 
 
+    # lazy packet build only on demand
+    def __lazy_build_packet (self):
+        # alrady built ? bail out
+        if self.is_pkt_built:
+            return
+
+        # for buffer, promote to a scapy packet
+        if self.pkt_raw:
+            self.pkt = Ether(self.pkt_raw)
+            self.pkt.build()
+            self.pkt_raw = None
+
+        # regular scapy packet
+        elif self.pkt:
+            self.pkt.build()
+
+        else:
+            # should not reach here
+            raise CTRexPacketBuildException(-11, 'empty packet')  
+
+
+        self.is_pkt_built = True
+
     def _pkt_layer_offset (self,layer_name):
-        assert self.pkt != None, 'empty packet'
+
+        self.__lazy_build_packet()
+
         p_utl=CTRexScapyPktUtl(self.pkt);
         return p_utl.get_layer_offet_by_str(layer_name)
 
     def _name_to_offset(self,field_name):
-        assert self.pkt != None, 'empty packet'
+
+        self.__lazy_build_packet()
+
         p_utl=CTRexScapyPktUtl(self.pkt);
         return p_utl.get_field_offet_by_str(field_name)
 
