@@ -429,6 +429,37 @@ public:
 
 } __attribute__((packed));
 
+
+struct StreamDPOpPktWrMask  {
+
+    enum {
+        MASK_PKT_WR_IS_BIG = 1
+    }; /* for flags */
+
+    uint8_t  m_op;
+    uint8_t  m_flags;
+    uint8_t  m_var_offset; 
+    int8_t   m_shift;    
+    uint8_t  m_pkt_cast_size; 
+    uint8_t  m_flowv_cast_size; /* 1,2,4 */
+    uint16_t m_pkt_offset;
+    uint32_t m_mask;
+    bool is_big(){
+        return ( (m_flags &StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG) == StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG ?true:false);
+    }
+
+
+public:
+    void dump(FILE *fd,std::string opt);
+
+    void wr(uint8_t * flow_var_base,
+                   uint8_t * pkt_base) ;
+
+} __attribute__((packed));
+
+
+
+
 struct StreamDPOpIpv4Fix {
     uint8_t m_op;
     uint16_t  m_offset;
@@ -572,6 +603,7 @@ public:
         ditDEC16_STEP        ,
         ditDEC32_STEP        ,
         ditDEC64_STEP        ,
+        itPKT_WR_MASK
 
 
     };
@@ -637,6 +669,8 @@ typedef union  ua_ {
         StreamDPOpFlowVar16Step *lpv16s;
         StreamDPOpFlowVar32Step *lpv32s;
         StreamDPOpFlowVar64Step *lpv64s;
+        StreamDPOpPktWrMask     *lpwr_mask;
+
 } ua_t ;
 
 
@@ -792,7 +826,8 @@ public:
         itFLOW_MAN     = 5,
         itPKT_WR       = 6,
         itFLOW_CLIENT  = 7 ,
-        itPKT_SIZE_CHANGE = 8 
+        itPKT_SIZE_CHANGE = 8,
+        itPKT_WR_MASK     = 9
 
     };
 
@@ -980,6 +1015,69 @@ public:
 
 
 /**
+ * write flow-write-mask  to packet, hhaim
+ * 
+ *  uint32_t var_tmp=(uint32_t )(flow_var_t size )flow_var;
+ *  if (shift){
+ *     var_tmp=var_tmp<<shift
+ *  }else{
+ *      var_tmp=var_tmp>>shift
+ *  }
+ *  
+ *  pkt_data=read_pkt_size()
+ *  pkt_data =  (pkt_data & ~mask) |(var_tmp & mask)   
+ *  write_pkt(pkt_data)
+ * 
+ */
+class StreamVmInstructionWriteMaskToPkt : public StreamVmInstruction {
+public:
+
+    StreamVmInstructionWriteMaskToPkt(const std::string &flow_var_name,
+                                  uint16_t           pkt_offset,
+                                  uint8_t            pkt_cast_size, /* valid 1,2,4 */
+                                  uint32_t           mask,
+                                  int                shift,       /* positive is shift left, negetive shift right */
+                                  bool               is_big_endian = true) :
+                                                        m_flow_var_name(flow_var_name),
+                                                        m_pkt_offset(pkt_offset),
+                                                        m_pkt_cast_size(pkt_cast_size), 
+                                                        m_mask(mask),
+                                                        m_shift(shift),       
+                                                        m_is_big_endian(is_big_endian) {}
+
+    virtual instruction_type_t get_instruction_type() const {
+        return ( StreamVmInstruction::itPKT_WR_MASK);
+    }
+
+    virtual void Dump(FILE *fd);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionWriteMaskToPkt(m_flow_var_name,
+                                                     m_pkt_offset,
+                                                     m_pkt_cast_size,
+                                                     m_mask,
+                                                     m_shift,
+                                                     m_is_big_endian);
+    }
+
+public:
+
+    /* flow var name to write */
+    std::string   m_flow_var_name;
+
+    /* where to write */
+    uint16_t      m_pkt_offset;
+    uint8_t       m_pkt_cast_size; /* valid 1,2,4 */
+
+    uint32_t      m_mask;
+    int           m_shift;       
+    bool          m_is_big_endian;
+};
+
+
+
+
+/**
  * flow client instruction - save state for client range and port range 
  * 
  * @author hhaim
@@ -1081,10 +1179,10 @@ public:
 class StreamVmInstructionWriteToPkt : public StreamVmInstruction {
 public:
 
-    StreamVmInstructionWriteToPkt(const std::string &flow_var_name,
-                                  uint16_t           pkt_offset,
-                                  int32_t            add_value = 0,
-                                  bool               is_big_endian = true) :
+      StreamVmInstructionWriteToPkt(const std::string &flow_var_name,
+                                    uint16_t           pkt_offset,
+                                    int32_t            add_value = 0,
+                                    bool               is_big_endian = true) :
 
                                                         m_flow_var_name(flow_var_name),
                                                         m_pkt_offset(pkt_offset),

@@ -83,6 +83,11 @@ void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 }
 
 
+void StreamVmInstructionWriteMaskToPkt::Dump(FILE *fd){
+    fprintf(fd," flow_var:%s, offset:%lu, cast_size:%lu, mask:0x%lx, shift:%ld, is_big:%lu \n",m_flow_var_name.c_str(),(ulong)m_pkt_offset,(ulong)m_pkt_cast_size,(ulong)m_mask,(long)m_shift,(ulong)(m_is_big_endian?1:0));
+}
+
+
 void StreamVmInstructionFlowMan::Dump(FILE *fd){
     fprintf(fd," flow_var  , %s ,%lu,  ",m_var_name.c_str(),(ulong)m_size_bytes);
 
@@ -380,6 +385,7 @@ void StreamVm::build_program(){
 
     /* build the commands into a buffer */
     m_instructions.clear();
+    int var_cnt=0;
     clean_max_field_cnt();
     uint32_t ins_id=0;
 
@@ -410,6 +416,7 @@ void StreamVm::build_program(){
         if (ins_type == StreamVmInstruction::itFLOW_MAN) {
             StreamVmInstructionFlowMan *lpMan =(StreamVmInstructionFlowMan *)inst;
 
+            var_cnt++;
 
             if (lpMan->m_size_bytes == 1 ){
                 if ( (lpMan->m_step == 1) || (lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ) ){
@@ -663,8 +670,64 @@ void StreamVm::build_program(){
 
         }
 
+        if (ins_type == StreamVmInstruction::itPKT_WR_MASK) {
+            StreamVmInstructionWriteMaskToPkt *lpPkt =(StreamVmInstructionWriteMaskToPkt *)inst;
+
+            VmFlowVarRec var;
+
+            uint8_t cast_size = lpPkt->m_pkt_cast_size;
+            if (!((cast_size==4)||(cast_size==2)||(cast_size==1))){
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << " cast size should be 1,2,4 it is "<<lpPkt->m_pkt_cast_size;
+                err(ss.str());
+            }
+
+            if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
+
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' packet write with no valid flow varible name '" << lpPkt->m_flow_var_name << "'" ;
+                err(ss.str());
+            }
+
+            if (lpPkt->m_pkt_offset + lpPkt->m_pkt_cast_size > m_pkt_size ) {
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' packet write with packet_offset   " << (lpPkt->m_pkt_offset + lpPkt->m_pkt_cast_size)  << "   bigger than packet size   "<< m_pkt_size;
+                err(ss.str());
+            }
+
+
+            add_field_cnt(lpPkt->m_pkt_offset + lpPkt->m_pkt_cast_size);
+
+
+            uint8_t       op_size = var.m_size_bytes;
+            bool is_big           = lpPkt->m_is_big_endian;
+            uint8_t       flags   = (is_big?StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG:0);
+            uint8_t       flow_offset = get_var_offset(lpPkt->m_flow_var_name);
+
+            /* read LSB in case of 64bit varible */
+            if (op_size == 8) {
+                op_size = 4;
+                if ( is_big ) {
+                    flow_offset +=4;
+                }
+            }
+
+            StreamDPOpPktWrMask pmask;
+            pmask.m_op = StreamDPVmInstructions::itPKT_WR_MASK;
+            pmask.m_flags      =   flags;
+            pmask.m_var_offset =   flow_offset;
+            pmask.m_shift      =   lpPkt->m_shift;
+            pmask.m_pkt_cast_size =   cast_size;
+            pmask.m_flowv_cast_size = op_size;
+            pmask.m_pkt_offset      = lpPkt->m_pkt_offset;
+            pmask.m_mask            = lpPkt->m_mask;
+
+            m_instructions.add_command(&pmask,sizeof(pmask));
+        }
+
 
         if (ins_type == StreamVmInstruction::itFLOW_CLIENT) {
+            var_cnt++;
             StreamVmInstructionFlowClient *lpMan =(StreamVmInstructionFlowClient *)inst;
 
             if ( lpMan->is_unlimited_flows() ){
@@ -721,6 +784,13 @@ void StreamVm::build_program(){
         }
 
         ins_id++;
+    }
+
+
+    if ( var_cnt ==0 ){
+        std::stringstream ss;
+        ss << "It is not valid to have a VM program without a variable  or tuple generator ";
+        err(ss.str());
     }
 }
 
@@ -985,6 +1055,7 @@ void StreamDPVmInstructions::Dump(FILE *fd){
     StreamDPOpPktWr16    *lpw16;
     StreamDPOpPktWr32    *lpw32;
     StreamDPOpPktWr64    *lpw64;
+    StreamDPOpPktWrMask  *lpwrmask;
     StreamDPOpClientsLimit   *lp_client;
     StreamDPOpClientsUnLimit  *lp_client_unlimited;
     StreamDPOpPktSizeChange  *lp_pkt_size_change;
@@ -1148,6 +1219,12 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             p+=sizeof(StreamDPOpFlowVar64Step);
             break;
 
+        case  itPKT_WR_MASK :  
+            lpwrmask =(StreamDPOpPktWrMask *)p;
+            lpwrmask->dump(fd,"WR_MASK");
+            p+=sizeof(StreamDPOpPktWrMask);
+            break;
+
         default:
             assert(0);
         }
@@ -1204,6 +1281,10 @@ void StreamDPOpPktWr64::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, flags:%lu, pkt_of:%lu , f_of:%lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
 }
 
+void StreamDPOpPktWrMask::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s  op:%lu, flags:%lu, var_of:%lu , (%ld-%lu-%lu-%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flags,(ulong)m_var_offset,(long)m_shift,(ulong)m_pkt_offset,(ulong)m_mask,(ulong)m_pkt_cast_size,(ulong)m_flowv_cast_size);
+}
+
 
 void StreamDPOpIpv4Fix::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, offset: %lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_offset);
@@ -1221,6 +1302,86 @@ void StreamDPOpClientsUnLimit::dump(FILE *fd,std::string opt){
 void StreamDPOpPktSizeChange::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, flow_offset: %lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset);
 }
+
+
+
+
+void StreamDPOpPktWrMask::wr(uint8_t * flow_var_base,
+                             uint8_t * pkt_base) {
+        uint32_t val=0;
+        uint8_t * pv=(flow_var_base+m_var_offset);
+        /* read flow var with the right size */
+        switch (m_flowv_cast_size) {
+        case 1:
+            val= (uint32_t)(*((uint8_t*)pv));
+            break;
+        case 2:
+            val=(uint32_t)(*((uint16_t*)pv));
+            break;
+        case 4:
+            val=(*((uint32_t*)pv));
+            break;
+        default:
+          assert(0);    
+        }
+
+        /* shift the flow var val */
+        if (m_shift>0) {
+            val=val<<m_shift;
+        }else{
+            if (m_shift<0) {
+                val=val>>(-m_shift);
+            }
+        }
+
+        uint8_t * p_pkt = pkt_base+m_pkt_offset;
+        uint32_t pkt_val=0;
+
+        /* RMW */
+        if ( likely( is_big() ) ) {
+
+            switch (m_pkt_cast_size) {
+            case 1:
+                pkt_val= (uint32_t)(*((uint8_t*)p_pkt));
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xff;   
+                *p_pkt=pkt_val;
+                break;
+            case 2:
+                pkt_val= (uint32_t)PKT_NTOHS((*((uint16_t*)p_pkt)));
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xffff;   
+                *((uint16_t*)p_pkt)=PKT_NTOHS(pkt_val);
+                break;
+            case 4:
+                pkt_val= (uint32_t)PKT_NTOHL((*((uint32_t*)p_pkt)));
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) ;   
+                *((uint32_t*)p_pkt)=PKT_NTOHL(pkt_val);
+                break;
+            default:
+              assert(0);    
+            }
+        }else{
+            switch (m_flowv_cast_size) {
+            case 1:
+                pkt_val= (uint32_t)(*((uint8_t*)p_pkt));
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xff;   
+                *p_pkt=pkt_val;
+                break;
+            case 2:
+                pkt_val= (uint32_t)(*((uint16_t*)p_pkt));
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xffff;   
+                *((uint16_t*)p_pkt)=pkt_val;
+                break;
+            case 4:
+                pkt_val= (uint32_t)(*((uint32_t*)p_pkt));
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) ;   
+                *((uint32_t*)p_pkt)=pkt_val;
+                break;
+            default:
+              assert(0);    
+            }
+        }
+}
+
 
 
 
@@ -1274,8 +1435,16 @@ void   StreamDPVmInstructionsRunner::slow_commands(uint8_t op_code,
         ua.lpv64s->run_dec(flow_var);
         p+=sizeof(StreamDPOpFlowVar64Step);
         break;
+    case  StreamDPVmInstructions::itPKT_WR_MASK:
+        ua.lpwr_mask =(StreamDPOpPktWrMask *)p;
+        ua.lpwr_mask->wr(flow_var,pkt);
+        p+=sizeof(StreamDPOpPktWrMask);
+        break;
+
     default:
         assert(0);
     }
 }
+
+
 

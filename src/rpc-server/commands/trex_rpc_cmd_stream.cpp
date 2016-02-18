@@ -292,6 +292,25 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream
                                  );
 }
 
+
+void 
+TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+    std::string  flow_var_name = parse_string(inst, "name", result);
+    uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
+    uint16_t      pkt_cast_size = parse_uint16(inst, "pkt_cast_size", result);
+    uint32_t     mask          = parse_uint32(inst, "mask", result);
+    int          shift         = parse_int(inst, "shift", result);
+    bool         is_big_endian = parse_bool(inst,   "is_big_endian", result);
+
+    stream->m_vm.add_instruction(new StreamVmInstructionWriteMaskToPkt(flow_var_name,
+                                                                       pkt_offset,
+                                                                       (uint8_t)pkt_cast_size,
+                                                                       mask,
+                                                                       shift,
+                                                                       is_big_endian));
+}
+
+
 void 
 TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
@@ -314,7 +333,7 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::V
     for (int i = 0; i < instructions.size(); i++) {
         const Json::Value & inst = parse_object(instructions, i, result);
 
-        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size"};
+        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size","write_mask_flow_var"};
         std::string vm_type = parse_choice(inst, "type", vm_types, result);
 
         // checksum instruction
@@ -332,6 +351,8 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::V
 
         } else if (vm_type == "trim_pkt_size") {
             parse_vm_instr_trim_pkt_size(inst, stream, result);
+        }else if (vm_type == "write_mask_flow_var") {
+            parse_vm_instr_write_mask_flow_var(inst, stream, result);
         } else {
             /* internal error */
             throw TrexRpcException("internal error");

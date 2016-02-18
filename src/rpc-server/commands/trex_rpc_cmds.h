@@ -100,6 +100,8 @@ void parse_vm_instr_tuple_flow_var(const Json::Value &inst, TrexStream *stream, 
 void parse_vm_instr_trim_pkt_size(const Json::Value &inst, TrexStream *stream, Json::Value &result);
 
 void parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
+void parse_vm_instr_write_mask_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
+
 );
 
 
