@@ -153,6 +153,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_inc_len_9k.py","-m 1 -l 100",True],
             ["udp_1pkt_range_clients.py","-m 1 -l 100",True],
             ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True],
+            ["pcap.py", "-m 1", True],
+            ["pcap_with_vm.py", "-m 1", True],
 
             # YAML test
             ["yaml/burst_1000_pkt.yaml","-m 1 -l 100",True],

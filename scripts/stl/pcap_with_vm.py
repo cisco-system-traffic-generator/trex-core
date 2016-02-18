@@ -11,24 +11,33 @@ class STLPcap(object):
         if not ip_src_range and not ip_dst_range:
             return None
 
-        vm = [STLVmFixIpv4(offset = "IP")]
+        # until the feature of offsets will be fixed for PCAP use hard coded offsets
+
+        vm = []
 
         if ip_src_range:
             vm += [STLVmFlowVar(name="src", min_value = ip_src_range['start'], max_value = ip_src_range['end'], size = 4, op = "inc"),
-                   STLVmWrFlowVar(fv_name="src",pkt_offset= "IP.src")
+                   #STLVmWrFlowVar(fv_name="src",pkt_offset= "IP.src")
+                   STLVmWrFlowVar(fv_name="src",pkt_offset = 26)
                   ]
 
         if ip_dst_range:
             vm += [STLVmFlowVar(name="dst", min_value = ip_dst_range['start'], max_value = ip_dst_range['end'], size = 4, op = "inc"),
-                   STLVmWrFlowVar(fv_name="dst",pkt_offset= "IP.dst")
+                   
+                   #STLVmWrFlowVar(fv_name="dst",pkt_offset= "IP.dst")
+                   STLVmWrFlowVar(fv_name="dst",pkt_offset = 30)
                    ]
+
+        vm += [#STLVmFixIpv4(offset = "IP")
+              STLVmFixIpv4(offset = 14)
+              ]
 
         return vm
 
 
     def get_streams (self,
                      ipg_usec = 10.0,
-                     loop_count = 1,
+                     loop_count = 5,
                      ip_src_range = None,
                      ip_dst_range = {'start' : '10.0.0.1', 'end': '10.0.0.254'}):
 
