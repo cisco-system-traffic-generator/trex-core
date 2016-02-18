@@ -187,14 +187,15 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=True)
 
 
-    def hlt_profiles (self):
+    def test_hlt_profiles (self):
         p = (
-            ['hlt/hlt_udp_inc_dec_len_9k.py', '-m 1 -l 40', True],
+            ['hlt/hlt_udp_inc_dec_len_9k.py', '-m 1 -l 20', True],
+            ['hlt/hlt_imix_default.py', '-m 1 -l 40', True],
             )
         
 
         for obj in p:
-            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=False)
+            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True)
 
     # valgrind tests
     def test_valgrind_various_profiles (self):
