@@ -4,6 +4,7 @@ from collections import namedtuple, OrderedDict
 import trex_stl_stats
 from trex_stl_types import *
 import time
+import copy
 
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
@@ -160,8 +161,8 @@ class Port(object):
             return self.err("Please stop port before attempting to add streams")
 
         # listify
-        streams_list = streams_list if isinstance(streams_list, list) else [streams_list]
-
+        streams_list = copy.deepcopy(streams_list if isinstance(streams_list, list) else [streams_list])
+        
         lookup = {}
 
         # allocate IDs
@@ -171,10 +172,12 @@ class Port(object):
 
             lookup[stream.get_name()] = stream.get_id()
 
-        # resolve names
-        for stream in streams_list:
-            next_id = -1
+        batch = []
 
+        
+        for stream in streams_list:
+
+            next_id = -1
             next = stream.get_next()
             if next:
                 if not next in lookup:
@@ -183,10 +186,7 @@ class Port(object):
 
 
             stream.set_next_id(next_id)
-
-
-        batch = []
-        for stream in streams_list:
+        
 
             stream_json = stream.to_json()
             stream_json['next_stream_id'] = stream.get_next_id()
