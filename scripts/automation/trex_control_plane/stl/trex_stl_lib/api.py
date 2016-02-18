@@ -16,6 +16,7 @@ STLPktBuilder          = CScapyTRexPktBuilder
 # VM
 STLVmFlowVar           = CTRexVmDescFlowVar
 STLVmWrFlowVar         = CTRexVmDescWrFlowVar
+STLVmWrMaskFlowVar     = CTRexVmDescWrMaskFlowVar
 STLVmFixIpv4           = CTRexVmDescFixIpv4
 STLVmTrimPktSize       = CTRexVmDescTrimPktSize
 STLVmTupleGen          = CTRexVmDescTupleGen

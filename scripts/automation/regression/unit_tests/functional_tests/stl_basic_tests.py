@@ -139,7 +139,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def test_stl_profiles (self):
 
-        p = [ 
+        p0 = [ 
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
             ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
             ["udp_1pkt_1mac.py","-m 1 -l 50",True],
@@ -175,12 +175,17 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
             ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
             ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True],
-            ["burst_3st_loop_x_times.py","-m 1 -l 20 ",True]
+            ["burst_3st_loop_x_times.py","-m 1 -l 20 ",True],
+            ["udp_1pkt_mac_step.py","-m 1 -l 20 ",True],
+            ["udp_1pkt_mac_mask1.py","-m 1 -l 20 ",True] ,
+            ["udp_1pkt_mac_mask2.py","-m 1 -l 20 ",True],
+            ["udp_1pkt_mac_mask3.py","-m 1 -l 20 ",True]
+
 
           ];
 
 
-        p1  = [ ["udp_1pkt_mac_step.py","-m 1 -l 20 ",True] ]
+        p  = [ ["udp_1pkt_mac_mask3.py","-m 1 -l 20 ",True] ]
         
 
         for obj in p:
