@@ -20,6 +20,56 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.92  ==
+
+** Stream can set static Source/Destination MAC-Address as oppose to the default (TRex port from /etc/trex_config.yaml)
+
+[source,python]
+----
+def create_stream (self):
+ base_pkt =  Ether(src="00:00:dd:dd:00:01")/IP()/UDP() 
+ pad = max(0, size - len(base_pkt)) * 'x'
+----
+
+** Stream support action_count. Loop of streams can end after action_count number. The push command uses this new feature to import pcap to streams and stop after x iteration. 
+
+[source,python]
+----
+STLStream(  self_start = False, 
+            name   ='S2',
+            packet = STLPktBuilder(pkt = base_pkt2/pad),
+            mode = STLTXSingleBurst( pps = 10, total_pkts = 3 ),
+            action_count = 2, # loop 2 times 
+            next    = 'S0' 
+           )
+----
+
+** Support new Field-Engine instructions (variable with step and write with mask). See new sample folder and specification for more info
+
+[source,python]
+----
+def create_stream (self):
+
+    # 2 MPLS label the internal with  s=1 (last one)
+    pkt =  Ether()/MPLS(label=17,cos=1,s=0,ttl=255)/MPLS(label=0,cos=1,s=1,ttl=12)/IP()/UDP()/('x'*20)
+
+    vm = CTRexScRaw( [ STLVmFlowVar(name="mlabel", min_value=1, max_value=2000, size=2, op="inc"), 
+                       STLVmWrMaskFlowVar(fv_name="mlabel", pkt_offset= "MPLS:1.label",pkt_cast_size=4, mask=0xFFFFF000,shift=12) # write mask
+                      ]
+                   )
+----
+
+[source,python]
+----
+ vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=30, size=1, op="dec",step=7), # step 
+                STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 11) 
+               ]
+            )
+----
+
+** More profile samples (native/hlt)
+
+
 == Release 1.91  ==
 
 * Convert Stateless traffic profile to Scapy see `stl/*.py` sample folder
