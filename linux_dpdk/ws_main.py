@@ -833,6 +833,8 @@ files_list=[
             't-rex-debug-gdb',
             'stl-sim',
             'find_python.sh',
+            'run_regression',
+            'run_functional_tests',
             'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
