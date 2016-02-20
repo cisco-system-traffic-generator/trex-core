@@ -213,7 +213,7 @@ if __name__ == "__main__":
         CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
         xml_name =  'report_%s.xml' % CTRexScenario.setup_name
 
-    nose_argv = ['-s', '-v', '--exe', '--rednose', '--detailed-errors']
+    nose_argv = ['--exe', '--rednose', '--detailed-errors']
     if '--collect-only' in sys.argv: # this is a user trying simply to view the available tests. no need xunit.
         CTRexScenario.is_test_list = True
     else:
@@ -237,6 +237,7 @@ if __name__ == "__main__":
             nose_argv += ['unit_tests']
     if disableLogCapture:
         nose_argv += ['--nologcapture']
+    nose_argv += ['-s', '-v']
 
     try:
         config_plugin = CTRexTestConfiguringPlugin()
