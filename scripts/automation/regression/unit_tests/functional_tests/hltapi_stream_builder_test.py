@@ -73,7 +73,21 @@ TBD
 
     # Eth/IP/TCP, ip src and dest is changed by VM
     def test_ip_ranges(self):
-        test_stream = STLHltStream(ip_src_addr = '192.168.1.1',
+        # running on single core not implemented yet
+        with self.assertRaises(Exception):
+            test_stream = STLHltStream(split_by_cores = 'single',
+                                       ip_src_addr = '192.168.1.1',
+                                       ip_src_mode = 'increment',
+                                       ip_src_count = 5,)
+        # wrong type
+        with self.assertRaises(Exception):
+            test_stream = STLHltStream(split_by_cores = 12345,
+                                       ip_src_addr = '192.168.1.1',
+                                       ip_src_mode = 'increment',
+                                       ip_src_count = 5,)
+
+        test_stream = STLHltStream(split_by_cores = 'duplicate',
+                                   ip_src_addr = '192.168.1.1',
                                    ip_src_mode = 'increment',
                                    ip_src_count = 5,
                                    ip_dst_addr = '5.5.5.5',
@@ -112,9 +126,9 @@ TBD
         name: ip_src
         pkt_offset: 26
         type: write_flow_var
-      - init_value: 84215045
-        max_value: 84215046
-        min_value: 84215045
+      - init_value: 0
+        max_value: 4294967295
+        min_value: 0
         name: ip_dst
         op: random
         size: 4
@@ -170,9 +184,9 @@ TBD
         name: tcp_src
         pkt_offset: 34
         type: write_flow_var
-      - init_value: 1234
-        max_value: 1243
-        min_value: 1234
+      - init_value: 0
+        max_value: 65535
+        min_value: 0
         name: tcp_dst
         op: random
         size: 2
@@ -185,7 +199,7 @@ TBD
         type: write_flow_var
       - pkt_offset: 14
         type: fix_checksum_ipv4
-      split_by_var: ''
+      split_by_var: tcp_src
 '''
 
     # Eth / IP / UDP, udp ports are changed by VM
@@ -262,7 +276,7 @@ TBD
         type: write_flow_var
       - pkt_offset: 14
         type: fix_checksum_ipv4
-      split_by_var: ''
+      split_by_var: udp_src
 '''
 
     # Eth/IP/TCP, packet length is changed in VM by frame_size
@@ -311,7 +325,7 @@ TBD
         type: write_flow_var
       - pkt_offset: 14
         type: fix_checksum_ipv4
-      split_by_var: ''
+      split_by_var: pkt_len
 '''
 
     # Eth/IP/UDP, packet length is changed in VM by l3_length
@@ -488,7 +502,7 @@ TBD
     vm:
       instructions:
       - init_value: 2004322440
-        max_value: 2004322449
+        max_value: 2004322489
         min_value: 2004322440
         name: ipv6_src
         op: inc
@@ -502,7 +516,7 @@ TBD
         type: write_flow_var
       - init_value: 286331153
         max_value: 286331153
-        min_value: 286331004
+        min_value: 286328604
         name: ipv6_dst
         op: dec
         size: 4
@@ -513,7 +527,7 @@ TBD
         name: ipv6_dst
         pkt_offset: 50
         type: write_flow_var
-      split_by_var: ''
+      split_by_var: ipv6_dst
 '''
 
 
