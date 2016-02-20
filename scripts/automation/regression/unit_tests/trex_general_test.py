@@ -243,9 +243,14 @@ class CTRexGeneral_Test(unittest.TestCase):
             m_total_alloc_error = trex_res.get_last_value("trex-global.data.m_total_alloc_error")
             m_total_queue_full = trex_res.get_last_value("trex-global.data.m_total_queue_full")
             m_total_queue_drop = trex_res.get_last_value("trex-global.data.m_total_queue_drop")
-            self.assert_gt( 999, m_total_alloc_error, 'Got allocation errors. (%s), please review multiplier and templates configuration.' % m_total_alloc_error)
-            self.assert_gt( max(9999, trex_tx_pckt / 1000 ), m_total_queue_full, 'Too much queue_full (%s), please review multiplier.' % m_total_queue_full)
-            self.assert_gt( 999, m_total_queue_drop, 'Too much queue_drop (%s), please review multiplier.' % m_total_queue_drop)
+            self.assert_gt(1000, m_total_alloc_error, 'Got allocation errors. (%s), please review multiplier and templates configuration.' % m_total_alloc_error)
+            self.assert_gt(1000, m_total_queue_drop, 'Too much queue_drop (%s), please review multiplier.' % m_total_queue_drop)
+
+            if self.is_VM:
+                allowed_queue_full = 10000 + trex_tx_pckt / 100
+            else:
+                allowed_queue_full = 1000 + trex_tx_pckt / 1000
+            self.assert_gt(allowed_queue_full, m_total_queue_full, 'Too much queue_full (%s), please review multiplier.' % m_total_queue_full)
 
             # # check T-Rex expected counters
             #trex_exp_rate = trex_res.get_expected_tx_rate().get('m_tx_expected_bps')
