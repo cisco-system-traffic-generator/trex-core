@@ -855,15 +855,20 @@ def generate_packet(**user_kwargs):
                 raise STLError('ip_src_count has to be at least 1')
             if ip_src_count > 0:
                 fix_ipv4_checksum = True
-                ip_src_addr_num = ipv4_str_to_num(is_valid_ipv4(kwargs['ip_src_addr']))
+                ip_src_addr = kwargs['ip_src_addr']
+                if type(ip_src_addr) is str:
+                    ip_src_addr = ipv4_str_to_num(is_valid_ipv4(ip_src_addr))
+                ip_src_step = kwargs['ip_src_step']
+                if type(ip_src_step) is str:
+                    ip_src_step = ipv4_str_to_num(is_valid_ipv4(ip_src_step))
                 if kwargs['ip_src_mode'] == 'increment':
-                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_src', size = 4, op = 'inc', step = kwargs['ip_src_step'],
-                                                      min_value = ip_src_addr_num,
-                                                      max_value = ip_src_addr_num + ip_src_count * kwargs['ip_src_step']))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_src', size = 4, op = 'inc', step = ip_src_step,
+                                                      min_value = ip_src_addr,
+                                                      max_value = ip_src_addr + ip_src_count * ip_src_step))
                 elif kwargs['ip_src_mode'] == 'decrement':
-                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_src', size = 4, op = 'dec', step = kwargs['ip_src_step'],
-                                                       min_value = ip_src_addr_num - ip_src_count * kwargs['ip_src_step'],
-                                                       max_value = ip_src_addr_num))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_src', size = 4, op = 'dec', step = ip_src_step,
+                                                       min_value = ip_src_addr - ip_src_count * ip_src_step,
+                                                       max_value = ip_src_addr))
                 elif kwargs['ip_src_mode'] == 'random':
                     vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_src', size = 4, op = 'random', min_value = 0, max_value = 0xffffffff))
                 else:
@@ -876,15 +881,20 @@ def generate_packet(**user_kwargs):
                 raise STLError('ip_dst_count has to be at least 1')
             if ip_dst_count > 0:
                 fix_ipv4_checksum = True
-                ip_dst_addr_num = ipv4_str_to_num(is_valid_ipv4(kwargs['ip_dst_addr']))
+                ip_dst_addr = kwargs['ip_dst_addr']
+                if type(ip_dst_addr) is str:
+                    ip_dst_addr = ipv4_str_to_num(is_valid_ipv4(ip_dst_addr))
+                ip_dst_step = kwargs['ip_dst_step']
+                if type(ip_dst_step) is str:
+                    ip_dst_step = ipv4_str_to_num(is_valid_ipv4(ip_dst_step))
                 if kwargs['ip_dst_mode'] == 'increment':
-                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_dst', size = 4, op = 'inc', step = kwargs['ip_dst_step'],
-                                                       min_value = ip_dst_addr_num,
-                                                       max_value = ip_dst_addr_num + ip_dst_count * kwargs['ip_dst_step']))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_dst', size = 4, op = 'inc', step = ip_dst_step,
+                                                       min_value = ip_dst_addr,
+                                                       max_value = ip_dst_addr + ip_dst_count * ip_dst_step))
                 elif kwargs['ip_dst_mode'] == 'decrement':
-                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_dst', size = 4, op = 'dec', step = kwargs['ip_dst_step'],
-                                                       min_value = ip_dst_addr_num - ip_dst_count * kwargs['ip_dst_step'],
-                                                       max_value = ip_dst_addr_num))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_dst', size = 4, op = 'dec', step = ip_dst_step,
+                                                       min_value = ip_dst_addr - ip_dst_count * ip_dst_step,
+                                                       max_value = ip_dst_addr))
                 elif kwargs['ip_dst_mode'] == 'random':
                     vm_cmds.append(CTRexVmDescFlowVar(name = 'ip_dst', size = 4, op = 'random', min_value = 0, max_value = 0xffffffff))
                 else:
