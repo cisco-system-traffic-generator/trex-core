@@ -227,7 +227,7 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if (*p >= (m_max_val-m_step)) {
+        if (*p > (m_max_val-m_step)) {
             *p = m_min_val;
         } else {
             *p = *p + m_step;
@@ -236,7 +236,7 @@ public:
 
     inline void run_dec(uint8_t * flow_var) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if (*p <= (m_min_val+m_step)) {
+        if (*p < (m_min_val+m_step)) {
             *p = m_max_val;
         } else {
             *p = *p - m_step;
@@ -257,7 +257,7 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if (*p >= (m_max_val-m_step)) {
+        if (*p > (m_max_val-m_step)) {
             *p = m_min_val;
         } else {
             *p = *p + m_step;
@@ -266,7 +266,7 @@ public:
 
     inline void run_dec(uint8_t * flow_var) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if (*p <= (m_min_val+m_step)) {
+        if (*p < (m_min_val+m_step)) {
             *p = m_max_val;
         } else {
             *p = *p - m_step;
@@ -286,7 +286,7 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if (*p >= (m_max_val-m_step)) {
+        if (*p > (m_max_val-m_step)) {
             *p = m_min_val;
         } else {
             *p = *p + m_step;
@@ -295,7 +295,7 @@ public:
 
     inline void run_dec(uint8_t * flow_var) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if (*p <= (m_min_val+m_step)) {
+        if (*p < (m_min_val+m_step)) {
             *p = m_max_val;
         } else {
             *p = *p - m_step;
@@ -315,7 +315,7 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if (*p >= (m_max_val-m_step) ) {
+        if (*p > (m_max_val-m_step) ) {
             *p = m_min_val;
         } else {
             *p = *p + m_step;
@@ -324,7 +324,7 @@ public:
 
     inline void run_dec(uint8_t * flow_var) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if (*p <= m_min_val+m_step) {
+        if (*p < m_min_val+m_step) {
             *p = m_max_val;
         } else {
             *p = *p - m_step;

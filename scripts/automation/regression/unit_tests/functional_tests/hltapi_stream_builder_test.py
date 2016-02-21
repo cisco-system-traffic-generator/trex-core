@@ -38,11 +38,10 @@ class CTRexHltApi_Test(unittest.TestCase):
         with self.assertRaises(Exception):
             STLHltStream(l2_encap = 'ethernet_sdfgsdfg')
         # all default values
-        test_stream = STLHltStream(name = 'stream-0')
+        test_stream = STLHltStream()
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
-  stream:
+- stream:
     action_count: 0
     enabled: true
     flags: 3
@@ -61,10 +60,10 @@ class CTRexHltApi_Test(unittest.TestCase):
       split_by_var: ''
 '''
 
-    # Eth/IP/TCP, test L2 fields, wait for masking of variables for MAC
+    # Eth/IP/TCP, test MAC fields VM, wait for masking of variables for MAC
     @nottest
-    def test_l2_basic(self):
-        test_stream = STLHltStream(name = 'stream-0')
+    def test_macs_vm(self):
+        test_stream = STLHltStream(name = 'stream-0', )
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 TBD
@@ -93,10 +92,10 @@ TBD
                                    ip_dst_addr = '5.5.5.5',
                                    ip_dst_count = 2,
                                    ip_dst_mode = 'random',
-                                   name = 'stream-0')
+                                   name = 'test_ip_ranges')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_ip_ranges
   stream:
     action_count: 0
     enabled: true
@@ -151,10 +150,10 @@ TBD
                                    tcp_dst_port_mode = 'random',
                                    tcp_dst_port_count = 10,
                                    tcp_dst_port = 1234,
-                                   name = 'stream-0')
+                                   name = 'test_tcp_ranges')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_tcp_ranges
   stream:
     action_count: 0
     enabled: true
@@ -228,10 +227,10 @@ TBD
                                    udp_dst_port_mode = 'increment',
                                    udp_dst_port_count = 10,
                                    udp_dst_port = 1234,
-                                   name = 'stream-0')
+                                   name = 'test_udp_ranges')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_udp_ranges
   stream:
     action_count: 0
     enabled: true
@@ -288,10 +287,10 @@ TBD
         test_stream = STLHltStream(length_mode = 'decrement',
                                    frame_size_min = 100,
                                    frame_size_max = 3000,
-                                   name = 'stream-0')
+                                   name = 'test_pkt_len_by_framesize')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_pkt_len_by_framesize
   stream:
     action_count: 0
     enabled: true
@@ -334,10 +333,10 @@ TBD
                                    length_mode = 'random',
                                    l3_length_min = 100,
                                    l3_length_max = 400,
-                                   name = 'stream-0')
+                                   name = 'test_pkt_len_by_l3length')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_pkt_len_by_l3length
   stream:
     action_count: 0
     enabled: true
@@ -387,11 +386,11 @@ TBD
         test_stream = STLHltStream(l2_encap = 'ethernet_ii')
         assert ':802.1Q:' not in test_stream.get_pkt_type(), 'Default packet should not include dot1q'
 
-        test_stream = STLHltStream(name = 'stream-0', l2_encap = 'ethernet_ii_vlan')
+        test_stream = STLHltStream(name = 'test_vlan_basic', l2_encap = 'ethernet_ii_vlan')
         assert ':802.1Q:' in test_stream.get_pkt_type(), 'No dot1q in packet with encap ethernet_ii_vlan'
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_vlan_basic
   stream:
     action_count: 0
     enabled: true
@@ -416,12 +415,14 @@ TBD
         # default frame size should be not enough
         with self.assertRaises(Exception):
             STLHltStream(vlan_id = [1, 2, 3, 4])
-        test_stream = STLHltStream(name = 'stream-0', frame_size = 100, vlan_id = [1, 2, 3, 4], vlan_protocol_tag_id = '8100 0x8100')
+        test_stream = STLHltStream(name = 'test_vlan_multiple', frame_size = 100,
+                                   vlan_id = [1, 2, 3, 4], # can be either array or string separated by spaces
+                                   vlan_protocol_tag_id = '8100 0x8100')
         pkt_layers = test_stream.get_pkt_type()
-        assert ':802.1Q:802.1Q:802.1Q:802.1Q:' in pkt_layers, 'No four dot1q layers in packet: %s' % pkt_layers
+        assert '802.1Q:' * 4 in pkt_layers, 'No four dot1q layers in packet: %s' % pkt_layers
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_vlan_multiple
   stream:
     action_count: 0
     enabled: true
@@ -441,6 +442,84 @@ TBD
       split_by_var: ''
 '''
 
+    # Eth/IP/TCP, with 5 vlans and VMs on vlan_id
+    def test_vlan_vm(self):
+        test_stream = STLHltStream(name = 'test_vlan_vm', frame_size = 100,
+                                   vlan_id = '1 2 1000 4 5',                          # 5 vlans
+                                   vlan_id_mode = 'increment fixed decrement random', # 5th vlan will be default fixed
+                                   vlan_id_step = 2,                                  # 1st vlan step will be 2, others - default 1
+                                   vlan_id_count = [4, 1, 10],                        # 4th independent on count, 5th will be fixed
+                                   )
+        pkt_layers = test_stream.get_pkt_type()
+        self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
+        assert '802.1Q:' * 5 in pkt_layers, 'No five dot1q layers in packet: %s' % pkt_layers
+        self.golden_yaml = '''
+- name: test_vlan_vm
+  stream:
+    action_count: 0
+    enabled: true
+    flags: 3
+    isg: 0.0
+    mode:
+      pps: 1
+      type: continuous
+    packet:
+      binary: AAAAAAAAAAABAAABgQAwAYEAMAKBADPogQAwBIEAMAUIAEUAAEIAAAAAQAa6tQAAAADAAAABBAAAUAAAAAEAAAABUAAP5SzkAAAhISEhISEhISEhISEhISEhISEhISEhISEhIQ==
+      meta: ''
+    rx_stats:
+      enabled: false
+    self_start: true
+    vm:
+      instructions:
+      - init_value: 1
+        max_value: 7
+        min_value: 1
+        name: vlan_id0
+        op: inc
+        size: 2
+        step: 2
+        type: flow_var
+      - is_big_endian: true
+        mask: 4095
+        name: vlan_id0
+        pkt_cast_size: 2
+        pkt_offset: 14
+        shift: 0
+        type: write_mask_flow_var
+      - init_value: 1000
+        max_value: 1000
+        min_value: 991
+        name: vlan_id2
+        op: dec
+        size: 2
+        step: 1
+        type: flow_var
+      - is_big_endian: true
+        mask: 4095
+        name: vlan_id2
+        pkt_cast_size: 2
+        pkt_offset: 22
+        shift: 0
+        type: write_mask_flow_var
+      - init_value: 0
+        max_value: 65535
+        min_value: 0
+        name: vlan_id3
+        op: random
+        size: 2
+        step: 1
+        type: flow_var
+      - is_big_endian: true
+        mask: 4095
+        name: vlan_id3
+        pkt_cast_size: 2
+        pkt_offset: 26
+        shift: 0
+        type: write_mask_flow_var
+      split_by_var: vlan_id2
+'''
+
+
     # Eth/IPv6/TCP, no VM
     def test_ipv6_basic(self):
         # default frame size should be not enough
@@ -451,10 +530,10 @@ TBD
         # error should affect
         with self.assertRaises(Exception):
             STLHltStream(l3_protocol = 'ipv6', ipv6_src_addr = 'asdfasdfasgasdf')
-        test_stream = STLHltStream(name = 'stream-0', l3_protocol = 'ipv6', length_mode = 'fixed', l3_length = 150, )
+        test_stream = STLHltStream(name = 'test_ipv6_basic', l3_protocol = 'ipv6', length_mode = 'fixed', l3_length = 150, )
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_ipv6_basic
   stream:
     action_count: 0
     enabled: true
@@ -476,7 +555,7 @@ TBD
 
     # Eth/IPv6/UDP, VM on ipv6 fields
     def test_ipv6_src_dst_ranges(self):
-        test_stream = STLHltStream(name = 'stream-0', l3_protocol = 'ipv6', l3_length = 150, l4_protocol = 'udp',
+        test_stream = STLHltStream(name = 'test_ipv6_src_dst_ranges', l3_protocol = 'ipv6', l3_length = 150, l4_protocol = 'udp',
                                    ipv6_src_addr = '1111:2222:3333:4444:5555:6666:7777:8888',
                                    ipv6_dst_addr = '1111:1111:1111:1111:1111:1111:1111:1111',
                                    ipv6_src_mode = 'increment', ipv6_src_step = 5, ipv6_src_count = 10,
@@ -484,7 +563,7 @@ TBD
                                    )
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
-- name: stream-0
+- name: test_ipv6_src_dst_ranges
   stream:
     action_count: 0
     enabled: true
@@ -502,7 +581,7 @@ TBD
     vm:
       instructions:
       - init_value: 2004322440
-        max_value: 2004322489
+        max_value: 2004322485
         min_value: 2004322440
         name: ipv6_src
         op: inc
@@ -516,7 +595,7 @@ TBD
         type: write_flow_var
       - init_value: 286331153
         max_value: 286331153
-        min_value: 286328604
+        min_value: 286328620
         name: ipv6_dst
         op: dec
         size: 4

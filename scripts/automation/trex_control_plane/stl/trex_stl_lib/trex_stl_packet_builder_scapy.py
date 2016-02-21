@@ -222,12 +222,16 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
         self.op = op
         self.init_value = init_value
         assert type(init_value)==int, 'type of init_value is not int'
+        assert init_value >= 0, 'init_value (%s) is negative' % init_value
         self.min_value=min_value
         assert type(min_value)==int, 'type of min_value is not int'
+        assert min_value >= 0, 'min_value (%s) is negative' % min_value
         self.max_value=max_value
-        assert type(max_value)==int, 'type of min_value is not int'
+        assert type(max_value)==int, 'type of max_value is not int'
+        assert max_value >= 0, 'max_value (%s) is negative' % max_value
         self.step=step
         assert type(step)==int, 'type of step should be int'
+        assert step >= 0, 'step (%s) is negative' % step
 
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
