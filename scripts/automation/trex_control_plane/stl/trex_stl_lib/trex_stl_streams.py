@@ -14,50 +14,46 @@ import string
 import traceback
 from types import NoneType
 
-# handles TX rate for a stream
-class STLTXRate(object):
+# base class for TX mode
+class STLTXMode(object):
     def __init__ (self, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
+        args = [pps, bps_L1, bps_L2, percentage]
 
-        verify_exclusive_arg([pps, bps_L1, bps_L2, percentage])
+        # default
+        if all([x is None for x in args]):
+            pps = 1.0
+        else:
+            verify_exclusive_arg(args)
 
-        self.fields = {}
+        self.fields = {'rate': {}}
 
         if pps is not None:
             validate_type('pps', pps, [float, int])
 
-            self.fields['type']  = 'pps'
-            self.fields['value'] = pps
+            self.fields['rate']['type']  = 'pps'
+            self.fields['rate']['value'] = pps
 
         elif bps_L1 is not None:
             validate_type('bps_L1', bps_L1, [float, int])
 
-            self.fields['type']  = 'bps_L1'
-            self.fields['value'] = bps_L1
+            self.fields['rate']['type']  = 'bps_L1'
+            self.fields['rate']['value'] = bps_L1
 
         elif bps_L2 is not None:
             validate_type('bps_L2', bps_L2, [float, int])
 
-            self.fields['type']  = 'bps_L2'
-            self.fields['value'] = bps_L2
+            self.fields['rate']['type']  = 'bps_L2'
+            self.fields['rate']['value'] = bps_L2
 
         elif percentage is not None:
             validate_type('percentage', percentage, [float, int])
             if not (percentage > 0 and percentage <= 100):
                 raise STLArgumentError('percentage', percentage)
 
-            self.fields['type']  = 'percentage'
-            self.fields['value'] = percentage
+            self.fields['rate']['type']  = 'percentage'
+            self.fields['rate']['value'] = percentage
 
-    def to_json (self):
-        return self.fields
-
-
-
-# base class for TX mode
-class STLTXMode(object):
-    def __init__ (self):
-
-        self.fields = {}
+        
 
     def to_json (self):
         return self.fields
@@ -66,9 +62,9 @@ class STLTXMode(object):
 # continuous mode
 class STLTXCont(STLTXMode):
 
-    def __init__ (self):
+    def __init__ (self, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
 
-        super(STLTXCont, self).__init__()
+        super(STLTXCont, self).__init__(pps, bps_L1, bps_L2, percentage)
 
         self.fields['type'] = 'continuous'
 
@@ -78,12 +74,12 @@ class STLTXCont(STLTXMode):
 # single burst mode
 class STLTXSingleBurst(STLTXMode):
 
-    def __init__ (self, total_pkts = 1):
+    def __init__ (self, total_pkts = 1, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
 
         if not isinstance(total_pkts, int):
             raise STLArgumentError('total_pkts', total_pkts)
 
-        super(STLTXSingleBurst, self).__init__()
+        super(STLTXSingleBurst, self).__init__(pps, bps_L1, bps_L2, percentage)
 
         self.fields['type'] = 'single_burst'
         self.fields['total_pkts'] = total_pkts
@@ -97,7 +93,11 @@ class STLTXMultiBurst(STLTXMode):
     def __init__ (self,
                   pkts_per_burst = 1,
                   ibg = 0.0,   # usec not SEC
-                  count = 1):
+                  count = 1,
+                  pps = None,
+                  bps_L1 = None,
+                  bps_L2 = None,
+                  percentage = None):
 
         if not isinstance(pkts_per_burst, int):
             raise STLArgumentError('pkts_per_burst', pkts_per_burst)
@@ -108,7 +108,7 @@ class STLTXMultiBurst(STLTXMode):
         if not isinstance(count, int):
             raise STLArgumentError('count', count)
 
-        super(STLTXMultiBurst, self).__init__()
+        super(STLTXMultiBurst, self).__init__(pps, bps_L1, bps_L2, percentage)
 
         self.fields['type'] = 'multi_burst'
         self.fields['pkts_per_burst'] = pkts_per_burst
@@ -129,8 +129,7 @@ class STLStream(object):
     def __init__ (self,
                   name = None,
                   packet = None,
-                  mode = STLTXCont(),
-                  rate = STLTXRate(pps = 1),
+                  mode = STLTXCont(pps = 1),
                   enabled = True,
                   self_start = True,
                   isg = 0.0,
@@ -144,7 +143,6 @@ class STLStream(object):
 
         # type checking
         validate_type('mode', mode, STLTXMode)
-        validate_type('rate', rate, STLTXRate)
         validate_type('packet', packet, (NoneType, CTrexPktBuilderInterface))
         validate_type('enabled', enabled, bool)
         validate_type('self_start', self_start, bool)
@@ -200,8 +198,6 @@ class STLStream(object):
         self.fields['mode'] = mode.to_json()
         self.mode_desc      = str(mode)
 
-        # rate
-        self.fields['rate'] = rate.to_json()
 
         # packet
         self.fields['packet'] = {}
@@ -287,6 +283,12 @@ class STLStream(object):
             y['next'] = self.next
 
         y['stream'] = self.fields
+        
+        # some shortcuts for YAML
+        rate_type  = self.fields['mode']['rate']['type']
+        rate_value = self.fields['mode']['rate']['value']
+        y['stream']['mode'][rate_type] = rate_value
+        del y['stream']['mode']['rate']
 
         return y
   
@@ -334,20 +336,29 @@ class YAMLLoader(object):
 
     def __parse_mode (self, mode_obj):
 
+        rate_parser = set(mode_obj).intersection(['pps', 'bps_L1', 'bps_L2', 'percentage'])
+        if len(rate_parser) != 1:
+            raise STLError("'rate' must contain exactly one from 'pps', 'bps_L1', 'bps_L2', 'percentage'")
+
+        rate_type  = rate_parser.pop()
+        rate = {rate_type : mode_obj[rate_type]}
+
         mode_type = mode_obj.get('type')
 
         if mode_type == 'continuous':
-            mode = STLTXCont()
+            mode = STLTXCont(**rate)
 
         elif mode_type == 'single_burst':
             defaults = STLTXSingleBurst()
-            mode = STLTXSingleBurst(total_pkts  = mode_obj.get('total_pkts', defaults.fields['total_pkts']))
+            mode = STLTXSingleBurst(total_pkts  = mode_obj.get('total_pkts', defaults.fields['total_pkts']),
+                                    **rate)
 
         elif mode_type == 'multi_burst':
             defaults = STLTXMultiBurst()
             mode = STLTXMultiBurst(pkts_per_burst = mode_obj.get('pkts_per_burst', defaults.fields['pkts_per_burst']),
                                    ibg            = mode_obj.get('ibg', defaults.fields['ibg']),
-                                   count          = mode_obj.get('count', defaults.fields['count']))
+                                   count          = mode_obj.get('count', defaults.fields['count']),
+                                   **rate)
 
         else:
             raise STLError("mode type can be 'continuous', 'single_burst' or 'multi_burst")
@@ -356,28 +367,6 @@ class YAMLLoader(object):
         return mode
 
 
-    def __parse_rate (self, rate_obj):
-        rate_type = rate_obj.get('type')
-        if rate_type is None:
-            raise STLError("'rate' must contain 'type'")
-
-        value = rate_obj.get('value')
-        if value is None:
-            raise STLError("'rate' must contain 'value'")
-
-        if rate_type == 'pps':
-            rate = STLTXRate(pps = value)
-        elif rate_type == 'bps_L1':
-            rate = STLTXRate(bps_L1 = value)
-        elif rate_type == 'bps_L2':
-            rate = STLTXRate(bps_L2 = value)
-        elif rate_type == 'percentage':
-            rate = STLTXRate(percentage = value)
-
-        else:
-            raise STLError("rate type can be 'pps', 'bps_L1', 'bps_l2' or 'percentage'")
-
-        return rate
 
 
     def __parse_stream (self, yaml_object):
@@ -398,11 +387,6 @@ class YAMLLoader(object):
 
         mode = self.__parse_mode(mode_obj)
 
-        rate_obj = s_obj.get('rate')
-        if not rate_obj:
-            rate = STLTXRate(pps = 1)
-        else:
-            rate = self.__parse_rate(rate_obj)
         
         defaults = STLStream()
 
@@ -410,7 +394,6 @@ class YAMLLoader(object):
         stream = STLStream(name       = yaml_object.get('name'),
                            packet     = builder,
                            mode       = mode,
-                           rate       = rate,
                            enabled    = s_obj.get('enabled', defaults.fields['enabled']),
                            self_start = s_obj.get('self_start', defaults.fields['self_start']),
                            isg        = s_obj.get('isg', defaults.fields['isg']),

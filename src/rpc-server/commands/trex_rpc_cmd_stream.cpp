@@ -59,10 +59,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_self_start      = parse_bool(section, "self_start", result);
     stream->m_flags           = parse_int(section, "flags", result);
     stream->m_action_count    = parse_uint16(section, "action_count", result);
-
-    /* parse the rate of the stream */
-    const Json::Value &rate =  parse_object(section ,"rate", result);
-    parse_rate(rate, stream.get(), result);
+   
 
     /* inter stream gap */
     stream->m_isg_usec  = parse_double(section, "isg", result);
@@ -168,6 +165,10 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
     } else {
         generate_parse_err(result, "bad stream type provided: '" + type + "'");
     }
+
+     /* parse the rate of the stream */
+    const Json::Value &rate =  parse_object(mode ,"rate", result);
+    parse_rate(rate, stream, result);
 
     return (stream);
 
