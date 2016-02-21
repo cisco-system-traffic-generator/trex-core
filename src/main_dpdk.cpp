@@ -125,7 +125,7 @@ struct port_cfg_t;
 class CTRexExtendedDriverBase {
 public:
 
-    virtual TrexPlatformApi::driver_speed_e get_driver_speed() = 0;
+    virtual TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) = 0;
 
     virtual int get_min_sample_rate(void)=0;
     virtual void update_configuration(port_cfg_t * cfg)=0;
@@ -155,7 +155,7 @@ public:
     CTRexExtendedDriverBase1G(){
     }
 
-    TrexPlatformApi::driver_speed_e get_driver_speed() {
+    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
         return TrexPlatformApi::SPEED_1G;
     }
 
@@ -197,7 +197,7 @@ public:
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
     }
 
-    TrexPlatformApi::driver_speed_e get_driver_speed() {
+    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
         return TrexPlatformApi::SPEED_1G;
     }
 
@@ -240,7 +240,7 @@ public:
     CTRexExtendedDriverBase10G(){
     }
 
-    TrexPlatformApi::driver_speed_e get_driver_speed() {
+    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
         return TrexPlatformApi::SPEED_10G;
     }
 
@@ -274,8 +274,15 @@ public:
     CTRexExtendedDriverBase40G(){
     }
 
-    TrexPlatformApi::driver_speed_e get_driver_speed() {
-        return TrexPlatformApi::SPEED_40G;
+    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
+        int speed;
+
+        rte_eth_get_speed(port_id, &speed);
+        if (speed == 10) {
+            return TrexPlatformApi::SPEED_10G;
+        } else {
+            return TrexPlatformApi::SPEED_40G;
+        }
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -4277,8 +4284,8 @@ int main_test(int argc , char * argv[]){
 
     if (CGlobalInfo::m_options.m_debug_pkt_proto != 0) {
         CTrexDebug debug = CTrexDebug(g_trex.m_ports, g_trex.m_max_ports);
-	debug.test_send(CGlobalInfo::m_options.m_debug_pkt_proto);
-	exit(1);
+        debug.test_send(CGlobalInfo::m_options.m_debug_pkt_proto);
+        exit(1);
     }
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
@@ -4918,12 +4925,12 @@ TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uin
 }
 
 void
-TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id,
+TrexDpdkPlatformApi::get_interface_info(uint8_t port_id,
                                         std::string &driver_name,
                                         driver_speed_e &speed) const {
 
     driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
-    speed = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed();
+    speed = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed(port_id);
 }
 
 void
