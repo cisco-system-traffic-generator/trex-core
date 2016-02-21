@@ -60,6 +60,10 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_flags           = parse_int(section, "flags", result);
     stream->m_action_count    = parse_uint16(section, "action_count", result);
 
+    /* parse the rate of the stream */
+    const Json::Value &rate =  parse_object(section ,"rate", result);
+    parse_rate(rate, stream.get(), result);
+
     /* inter stream gap */
     stream->m_isg_usec  = parse_double(section, "isg", result);
 
@@ -138,35 +142,26 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
     const Json::Value &mode = parse_object(section, "mode", result);
     std::string type = parse_string(mode, "type", result);
 
+
     if (type == "continuous") {
 
-        double pps = parse_double(mode, "pps", result);
         stream = new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id);
-        stream->set_pps(pps);
-
-        if (stream->m_next_stream_id != -1) {
-            generate_parse_err(result, "continious stream cannot provide next stream id - only -1 is valid");
-        }
 
     } else if (type == "single_burst") {
 
         uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
-        double pps               = parse_double(mode, "pps", result);
 
-        stream = new TrexStream(TrexStream::stSINGLE_BURST,port_id, stream_id);
-        stream->set_pps(pps);
+        stream = new TrexStream(TrexStream::stSINGLE_BURST, port_id, stream_id);
         stream->set_single_burst(total_pkts);
 
 
     } else if (type == "multi_burst") {
 
-        double    pps              = parse_double(mode, "pps", result);
         double    ibg_usec         = parse_double(mode, "ibg", result);
         uint32_t  num_bursts       = parse_int(mode, "count", result);
         uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
 
         stream = new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id );
-        stream->set_pps(pps);
         stream->set_multi_burst(pkts_per_burst,num_bursts,ibg_usec);
 
 
@@ -174,12 +169,30 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         generate_parse_err(result, "bad stream type provided: '" + type + "'");
     }
 
-    /* make sure we were able to allocate the memory */
-    if (!stream) {
-        generate_internal_err(result, "unable to allocate memory");
-    }
-
     return (stream);
+
+}
+
+void 
+TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, TrexStream *stream, Json::Value &result) {
+
+    double value            = parse_double(rate, "value", result);
+
+    auto rate_types = {"pps", "bps_L1", "bps_L2", "percentage"};
+    std::string rate_type = parse_choice(rate, "type", rate_types, result);
+
+    if (rate_type == "pps") {
+        stream->set_rate(TrexStreamRate::RATE_PPS, value);
+    } else if (rate_type == "bps_L1") {
+        stream->set_rate(TrexStreamRate::RATE_BPS_L1, value);
+    } else if (rate_type == "bps_L2") {
+        stream->set_rate(TrexStreamRate::RATE_BPS_L2, value);
+    } else if (rate_type == "percentage") {
+        stream->set_rate(TrexStreamRate::RATE_PERCENTAGE, value);
+    } else {
+        /* impossible */
+        assert(0);
+    }
 
 }
 

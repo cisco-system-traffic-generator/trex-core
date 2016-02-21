@@ -111,3 +111,9 @@ def validate_type(arg_name, arg, valid_types):
         raise STLTypeError(arg_name, type(arg), valid_types)
     else:
         raise STLError('validate_type: valid_types should be type or list or tuple of types')
+
+# throws STLError if not exactly one argument is present
+def verify_exclusive_arg (args_list):
+    if not (len(filter(lambda x: x is not None, args_list)) == 1):
+        raise STLError('exactly one parameter from {0} should be provided'.format(args_list))
+        

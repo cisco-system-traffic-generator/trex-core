@@ -98,7 +98,7 @@ void parse_vm_instr_checksum(const Json::Value &inst, TrexStream *stream, Json::
 void parse_vm_instr_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
 void parse_vm_instr_tuple_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
 void parse_vm_instr_trim_pkt_size(const Json::Value &inst, TrexStream *stream, Json::Value &result);
-
+void parse_rate(const Json::Value &inst, TrexStream *stream, Json::Value &result);
 void parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
 void parse_vm_instr_write_mask_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result);
 

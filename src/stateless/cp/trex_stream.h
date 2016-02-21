@@ -103,6 +103,151 @@ public:
         }
 }; 
 
+/**
+ * describes a stream rate
+ * 
+ * @author imarom (18-Feb-16)
+ */
+class TrexStreamRate {
+
+
+public:
+
+    enum rate_type_e {
+        RATE_INVALID,
+        RATE_PPS,
+        RATE_BPS_L1,
+        RATE_BPS_L2,
+        RATE_PERCENTAGE
+    };
+
+    TrexStreamRate() {
+        m_base_rate_type  = RATE_INVALID;
+        m_is_calculated   = false;
+    }
+
+    /**
+     * set the base rate 
+     * other values will be dervied from this value 
+     * 
+     */
+    void set_base_rate(rate_type_e type, double value) {
+        m_base_rate_type = type;
+        m_value          = value;
+        m_is_calculated  = false;
+    }
+
+
+    /**
+     * calculates all the rates from the base rate
+     * 
+     */
+    void calculate(uint16_t pkt_size, uint64_t line_bps) {
+
+        switch (m_base_rate_type) {
+       
+        case RATE_PPS:
+            calculate_from_pps(m_value, pkt_size, line_bps);
+            break;
+
+        case RATE_BPS_L1:
+            calculate_from_bps_L1(m_value, pkt_size, line_bps);
+            break;
+
+        case RATE_BPS_L2:
+            calculate_from_bps_L2(m_value, pkt_size, line_bps);
+            break;
+
+        case RATE_PERCENTAGE:
+            calculate_from_percentage(m_value, pkt_size, line_bps);
+            break;
+
+        default:
+            assert(0);
+        }
+
+        m_is_calculated = true;
+    }
+
+
+    bool is_calculated() const {
+        return m_is_calculated;
+    }
+
+
+    /* update the rate by a factor */
+    void update_factor(double factor) {
+        assert(m_is_calculated);
+
+        m_pps        *= factor;
+        m_bps_L1     *= factor;
+        m_bps_L2     *= factor;
+        m_percentage *= factor;
+    }
+
+    double get_pps() {
+        assert(m_is_calculated);
+        return (m_pps);
+    }
+    
+    double get_bps_L1() {
+        assert(m_is_calculated);
+        return (m_bps_L1);
+    }
+
+    double get_bps_L2() {
+        assert(m_is_calculated);
+        return m_bps_L2;
+    }
+
+    double get_percentage() {
+        assert(m_is_calculated);
+        return m_percentage;
+    }
+
+private:
+
+    void calculate_from_pps(double pps, uint16_t pkt_size, uint64_t line_bps) {
+        m_pps        = pps;
+        m_bps_L1     = m_pps * (pkt_size + 24) * 8;
+        m_bps_L2     = m_pps * (pkt_size + 4) * 8;
+        m_percentage = (m_bps_L1 / line_bps) * 100.0;
+    }
+
+
+    void calculate_from_bps_L1(double bps_L1, uint16_t pkt_size, uint64_t line_bps) {
+        m_bps_L1     = bps_L1;
+        m_bps_L2     = m_bps_L1 * ( (pkt_size + 4.0) / (pkt_size + 24.0) );
+        m_pps        = m_bps_L2 / (8 * (pkt_size + 4));
+        m_percentage = (m_bps_L1 / line_bps) * 100.0;
+    }
+
+
+    void calculate_from_bps_L2(double bps_L2, uint16_t pkt_size, uint64_t line_bps) {
+        m_bps_L2     = bps_L2;
+        m_bps_L1     = m_bps_L2 * ( (pkt_size + 24.0) / (pkt_size + 4.0));
+        m_pps        = m_bps_L2 / (8 * (pkt_size + 4));
+        m_percentage = (m_bps_L1 / line_bps) * 100.0;
+    }
+
+    void calculate_from_percentage(double percentage, uint16_t pkt_size, uint64_t line_bps) {
+        m_percentage = percentage;
+        m_bps_L1     = (m_percentage / 100.0) * line_bps;
+        m_bps_L2     = m_bps_L1 * ( (pkt_size + 4.0) / (pkt_size + 24.0) );
+        m_pps        = m_bps_L2 / (8 * (pkt_size + 4));
+
+    }
+
+    rate_type_e  m_base_rate_type;
+    double       m_value;
+
+    bool         m_is_calculated;
+    double       m_pps;
+    double       m_bps_L1;
+    double       m_bps_L2;
+    double       m_percentage;
+
+};
 
 /**
  * Stateless Stream
@@ -151,12 +296,29 @@ public:
         m_next_stream_id = next_stream_id;
     }
 
-    double get_pps() const {
-        return m_pps;
+
+    double get_pps() {
+        return get_rate().get_pps();
     }
 
-    void set_pps(double pps){
-        m_pps = pps;
+    double get_bps_L1() {
+        return get_rate().get_bps_L1();
+    }
+
+    double get_bps_L2() {
+        return get_rate().get_bps_L2();
+    }
+
+    double get_bw_percentage() {
+        return get_rate().get_percentage();
+    }
+
+    void set_rate(TrexStreamRate::rate_type_e type, double value) {
+        m_rate.set_base_rate(type, value);
+    }
+
+    void update_rate_factor(double factor) {
+        get_rate().update_factor(factor);
     }
 
     void set_type(uint8_t type){
@@ -223,12 +385,13 @@ public:
 
         dp->m_expected_pkt_len      =   m_expected_pkt_len;
         dp->m_rx_check              =   m_rx_check;
-        dp->m_pps                   =   m_pps;
         dp->m_burst_total_pkts      =   m_burst_total_pkts;
         dp->m_num_bursts            =   m_num_bursts;
         dp->m_ibg_usec              =   m_ibg_usec;
         dp->m_flags                 =   m_flags;
         dp->m_action_count          =   m_action_count;
+
+        dp->m_rate                  =   m_rate;
 
         return(dp);
     }
@@ -241,19 +404,11 @@ public:
         }
     }
 
-    double get_burst_length_usec() const {
-        return ( (m_burst_total_pkts / m_pps) * 1000 * 1000);
+    double get_burst_length_usec()  {
+        return ( (m_burst_total_pkts / get_pps()) * 1000 * 1000);
     }
 
-    double get_bps_l2() {
-        return get_bps(false);
-    }
-
-    double get_bps_l1() {
-        return get_bps(true);
-    }
-
- 
+   
     void Dump(FILE *fd);
 
     StreamVmDp * getDpVm(){
@@ -321,8 +476,6 @@ public:
 
     } m_rx_check;
 
-    double m_pps;
-
     uint32_t   m_burst_total_pkts; /* valid in case of burst stSINGLE_BURST,stMULTI_BURST*/
 
     uint32_t   m_num_bursts; /* valid in case of stMULTI_BURST */
@@ -334,8 +487,7 @@ public:
 
 private:
 
-    double get_bps(bool layer1) {
-
+    double get_pkt_size() {
         /* lazy calculate the expected packet length */
         if (m_expected_pkt_len == 0) {
             /* if we have a VM - it might have changed the packet (even random) */
@@ -345,17 +497,16 @@ private:
                 m_expected_pkt_len = m_vm.calc_expected_pkt_size(m_pkt.len);
             }
         }
-        
 
-        /* packet length + 4 CRC bytes to bits and multiplied by PPS */
-
-        if (layer1) {
-            /* layer one includes preamble, frame delimiter and interpacket gap */
-            return (m_pps * (m_expected_pkt_len + 4 + 8 + 12) * 8);
-        } else {
-            return (m_pps * (m_expected_pkt_len + 4) * 8);
-        }
+        return m_expected_pkt_len;
     }
+
+  
+    /* get (and calculate if need) the rate of the stream */  
+    TrexStreamRate & get_rate();
+
+    /* no access to this without a lazy build method */
+    TrexStreamRate m_rate;
 };
 
 

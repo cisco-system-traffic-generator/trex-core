@@ -459,7 +459,7 @@ TrexStreamsCompiler::compile_internal(uint8_t                                por
  * 
  */
 void
-TrexStreamsCompiler::compile_stream(const TrexStream *stream,
+TrexStreamsCompiler::compile_stream(TrexStream *stream,
                                     double factor,
                                     uint8_t dp_core_count,
                                     std::vector<TrexStreamsCompiledObj *> &objs,
@@ -500,7 +500,7 @@ TrexStreamsCompiler::compile_stream(const TrexStream *stream,
  * 
  */
 void
-TrexStreamsCompiler::compile_stream_on_all_cores(const TrexStream *stream,
+TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
                                                  double factor,
                                                  uint8_t dp_core_count,
                                                  std::vector<TrexStreamsCompiledObj *> &objs,
@@ -509,7 +509,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(const TrexStream *stream,
 
     std::vector<TrexStream *> core_streams(dp_core_count);
 
-    double per_core_rate          = (stream->m_pps * (factor / dp_core_count));
+    double per_core_factor        = (factor / dp_core_count);
     int per_core_burst_total_pkts = (stream->m_burst_total_pkts / dp_core_count);
 
     /* for each core - creates its own version of the stream */
@@ -521,7 +521,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(const TrexStream *stream,
 
 
         /* adjust rate and packets count */
-        dp_stream->m_pps               = per_core_rate;
+        dp_stream->update_rate_factor(per_core_factor);
         dp_stream->m_burst_total_pkts  = per_core_burst_total_pkts;
 
         core_streams[i] = dp_stream;
@@ -547,7 +547,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(const TrexStream *stream,
  * 
  */
 void
-TrexStreamsCompiler::compile_stream_on_single_core(const TrexStream *stream,
+TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
                                                    double factor,
                                                    TrexStreamsCompiledObj *obj,
                                                    int new_id,
@@ -560,7 +560,7 @@ TrexStreamsCompiler::compile_stream_on_single_core(const TrexStream *stream,
 
     /* compile the VM if exists */
     if (!stream->m_vm.is_vm_empty()) {
-        ((TrexStream *)stream)->vm_compile();
+        stream->vm_compile();
         dp_stream->m_vm_dp = stream->m_vm_dp->clone();
     }
 
@@ -581,7 +581,7 @@ TrexStreamsCompiler::compile_stream_on_single_core(const TrexStream *stream,
  * @param stream 
  */
 void
-TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, const TrexStream *stream) {
+TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, TrexStream *stream) {
 
     switch (stream->get_type()) {
    
@@ -604,7 +604,7 @@ TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, const TrexStre
  * 
  */
 void
-TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const TrexStream *stream) {
+TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, TrexStream *stream) {
 
     TrexStreamsGraphObj::rate_event_st start_event;
 
@@ -613,8 +613,8 @@ TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const Tre
 
     start_event.time = offset_usec + stream->m_isg_usec;
     start_event.diff_pps    = stream->get_pps();
-    start_event.diff_bps_l2 = ((TrexStream *)stream)->get_bps_l2();
-    start_event.diff_bps_l1 = ((TrexStream *)stream)->get_bps_l1();
+    start_event.diff_bps_l2 = stream->get_bps_L2();
+    start_event.diff_bps_l1 = stream->get_bps_L1();
     m_graph_obj->add_rate_event(start_event);
 
     /* no more events after this stream */
@@ -629,7 +629,7 @@ TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, const Tre
  * 
  */
 void
-TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, const TrexStream *stream) {
+TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, TrexStream *stream) {
     TrexStreamsGraphObj::rate_event_st start_event;
     TrexStreamsGraphObj::rate_event_st stop_event;
 
@@ -640,9 +640,9 @@ TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, c
 
      /* start event */
     start_event.time = offset_usec + stream->m_isg_usec;
-    start_event.diff_pps = stream->get_pps();
-    start_event.diff_bps_l2 = ((TrexStream *)stream)->get_bps_l2();
-    start_event.diff_bps_l1 = ((TrexStream *)stream)->get_bps_l1();
+    start_event.diff_pps    = stream->get_pps();
+    start_event.diff_bps_l2 = stream->get_bps_L2();
+    start_event.diff_bps_l1 = stream->get_bps_L1();
     m_graph_obj->add_rate_event(start_event);
 
     /* stop event */
@@ -662,7 +662,7 @@ TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, c
  * 
  */
 void
-TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, const TrexStream *stream) {
+TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, TrexStream *stream) {
     TrexStreamsGraphObj::rate_event_st start_event;
     TrexStreamsGraphObj::rate_event_st stop_event;
 
@@ -672,8 +672,8 @@ TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, co
     /* for debug purposes */
     
     start_event.diff_pps     = stream->get_pps();
-    start_event.diff_bps_l2  = ((TrexStream *)stream)->get_bps_l2();
-    start_event.diff_bps_l1  = ((TrexStream *)stream)->get_bps_l1();
+    start_event.diff_bps_l2  = stream->get_bps_L2();
+    start_event.diff_bps_l1  = stream->get_bps_L1();
     start_event.stream_id    = stream->m_stream_id;
 
     stop_event.diff_pps      = -(start_event.diff_pps);
@@ -714,7 +714,7 @@ TrexStreamsGraph::generate_graph_for_one_root(uint32_t root_stream_id) {
     double offset = 0;
 
     while (true) {
-        const TrexStream *stream;
+        TrexStream *stream;
         
         /* fetch the stream from the hash - if it is not present, report an error */
         try {

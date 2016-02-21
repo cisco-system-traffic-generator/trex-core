@@ -123,19 +123,19 @@ private:
     void add_warning(const std::string &warning);
     void err(const std::string &err);
 
-    void compile_stream(const TrexStream *stream,
+    void compile_stream(TrexStream *stream,
                         double factor,
                         uint8_t dp_core_count,
                         std::vector<TrexStreamsCompiledObj *> &objs,
                         GraphNodeMap &nodes);
 
-    void compile_stream_on_single_core(const TrexStream *stream,
+    void compile_stream_on_single_core(TrexStream *stream,
                                        double factor,
                                        TrexStreamsCompiledObj *obj,
                                        int new_id,
                                        int new_next_id);
 
-    void compile_stream_on_all_cores(const TrexStream *stream,
+    void compile_stream_on_all_cores(TrexStream *stream,
                                      double factor,
                                      uint8_t dp_core_count,
                                      std::vector<TrexStreamsCompiledObj *> &objs,
@@ -245,13 +245,13 @@ private:
 
     void generate_graph_for_one_root(uint32_t root_stream_id);
 
-    void add_rate_events_for_stream(double &offset, const TrexStream *stream);
-    void add_rate_events_for_stream_cont(double &offset_usec, const TrexStream *stream);
-    void add_rate_events_for_stream_single_burst(double &offset_usec, const TrexStream *stream);
-    void add_rate_events_for_stream_multi_burst(double &offset_usec, const TrexStream *stream);
+    void add_rate_events_for_stream(double &offset, TrexStream *stream);
+    void add_rate_events_for_stream_cont(double &offset_usec, TrexStream *stream);
+    void add_rate_events_for_stream_single_burst(double &offset_usec, TrexStream *stream);
+    void add_rate_events_for_stream_multi_burst(double &offset_usec, TrexStream *stream);
 
     /* for fast processing of streams */
-    std::unordered_map<uint32_t, const TrexStream *> m_streams_hash;
+    std::unordered_map<uint32_t, TrexStream *> m_streams_hash;
 
     /* main object to hold the graph - returned to the user */
     TrexStreamsGraphObj *m_graph_obj;
