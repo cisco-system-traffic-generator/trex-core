@@ -49,7 +49,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     string type = parse_string(mode, "type", result);
 
     /* allocate a new stream based on the type */
-    std::unique_ptr<TrexStream> stream( allocate_new_stream(section, port_id, stream_id, result) );
+    std::unique_ptr<TrexStream> stream = allocate_new_stream(section, port_id, stream_id, result);
 
     /* save this for future queries */
     stream->store_stream_json(section);
@@ -98,7 +98,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
     /* parse VM */
     const Json::Value &vm =  parse_object(section ,"vm", result);
-    parse_vm(vm, stream.get(), result);
+    parse_vm(vm, stream, result);
 
     /* parse RX info */
     const Json::Value &rx = parse_object(section, "rx_stats", result);
@@ -113,7 +113,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     }
 
     /* make sure this is a valid stream to add */
-    validate_stream(stream.get(), result);
+    validate_stream(stream, result);
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
 
@@ -131,10 +131,10 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
 
 
-TrexStream *
+std::unique_ptr<TrexStream>
 TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result) {
 
-    TrexStream *stream = NULL;
+    std::unique_ptr<TrexStream> stream;
 
     const Json::Value &mode = parse_object(section, "mode", result);
     std::string type = parse_string(mode, "type", result);
@@ -142,13 +142,13 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
     if (type == "continuous") {
 
-        stream = new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id);
+        stream.reset(new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id));
 
     } else if (type == "single_burst") {
 
         uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
 
-        stream = new TrexStream(TrexStream::stSINGLE_BURST, port_id, stream_id);
+        stream.reset(new TrexStream(TrexStream::stSINGLE_BURST, port_id, stream_id));
         stream->set_single_burst(total_pkts);
 
 
@@ -158,7 +158,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         uint32_t  num_bursts       = parse_int(mode, "count", result);
         uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
 
-        stream = new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id );
+        stream.reset(new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id ));
         stream->set_multi_burst(pkts_per_burst,num_bursts,ibg_usec);
 
 
@@ -175,9 +175,14 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 }
 
 void 
-TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, TrexStream *stream, Json::Value &result) {
+TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
-    double value            = parse_double(rate, "value", result);
+    double value = parse_double(rate, "value", result);
+    if (value <= 0) {
+        std::stringstream ss;
+        ss << "rate value must be a positive number - got: '" << value << "'";
+        generate_parse_err(result, ss.str());
+    }
 
     auto rate_types = {"pps", "bps_L1", "bps_L2", "percentage"};
     std::string rate_type = parse_choice(rate, "type", rate_types, result);
@@ -198,7 +203,7 @@ TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, TrexStream *stream, Jso
 }
 
 void 
-TrexRpcCmdAddStream::parse_vm_instr_checksum(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+TrexRpcCmdAddStream::parse_vm_instr_checksum(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
     uint16_t pkt_offset = parse_uint16(inst, "pkt_offset", result); 
     stream->m_vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(pkt_offset));
@@ -206,7 +211,7 @@ TrexRpcCmdAddStream::parse_vm_instr_checksum(const Json::Value &inst, TrexStream
 
 
 void 
-TrexRpcCmdAddStream::parse_vm_instr_trim_pkt_size(const Json::Value &inst, TrexStream *stream, Json::Value &result){
+TrexRpcCmdAddStream::parse_vm_instr_trim_pkt_size(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result){
 
     std::string  flow_var_name = parse_string(inst, "name", result);
 
@@ -215,7 +220,7 @@ TrexRpcCmdAddStream::parse_vm_instr_trim_pkt_size(const Json::Value &inst, TrexS
 
 
 void 
-TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result){
+TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result){
 
 
     std::string  flow_var_name = parse_string(inst, "name", result);
@@ -239,7 +244,7 @@ TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, Trex
 
 
 void 
-TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
 
     auto sizes = {1, 2, 4, 8};
@@ -326,7 +331,7 @@ TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst,
 
 
 void 
-TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
     uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
     int          add_value     = parse_int(inst,    "add_value", result);
@@ -339,7 +344,7 @@ TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, Trex
 }
 
 void 
-TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::Value &result) {
+TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
     const Json::Value &instructions =  parse_array(vm ,"instructions", result);
 
@@ -386,7 +391,7 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, TrexStream *stream, Json::V
 }
 
 void
-TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &result) {
+TrexRpcCmdAddStream::validate_stream(const std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
     /* add the stream to the port's stream table */
     TrexStatelessPort * port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
@@ -395,7 +400,6 @@ TrexRpcCmdAddStream::validate_stream(const TrexStream *stream, Json::Value &resu
     if (port->get_stream_by_id(stream->m_stream_id)) {
         std::stringstream ss;
         ss << "stream " << stream->m_stream_id << " already exists";
-        delete stream;
         generate_execute_err(result, ss.str());
     }
 

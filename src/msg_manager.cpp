@@ -52,8 +52,6 @@ bool CMessagingManager::Create(uint8_t num_dp_threads,std::string a_name){
 }
 void CMessagingManager::Delete(){
 
-    assert(m_cp_to_dp);
-    assert(m_dp_to_cp);
     int i;
     for (i=0; i<m_num_dp_threads; i++) {
         CNodeRing * lp;
@@ -63,8 +61,16 @@ void CMessagingManager::Delete(){
         lp->Delete();
     }
 
-    delete []m_dp_to_cp;
-    delete []m_cp_to_dp;
+    if (m_dp_to_cp) {
+        delete [] m_dp_to_cp;
+        m_dp_to_cp = NULL;
+    }
+    
+    if (m_cp_to_dp) {
+        delete [] m_cp_to_dp;
+        m_cp_to_dp = NULL;
+    }
+    
 }
 
 CNodeRing * CMessagingManager::getRingCpToDp(uint8_t thread_id){
@@ -83,6 +89,7 @@ void CMsgIns::Free(){
     if (m_ins) {
         m_ins->Delete();
         delete m_ins;
+        m_ins = NULL;
     }
 }
 

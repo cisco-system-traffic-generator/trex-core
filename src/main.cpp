@@ -82,6 +82,8 @@ static CSimpleOpt::SOption parser_options[] =
     SO_END_OF_OPTIONS
 };
 
+static TrexStateless *m_sim_statelss_obj;
+
 static int usage(){
 
     printf(" Usage: bp_sim [OPTION] -f cfg.yaml -o outfile.erf   \n");
@@ -247,6 +249,13 @@ void set_default_mac_addr(){
     }
 }
 
+TrexStateless * get_stateless_obj() {
+    return m_sim_statelss_obj;
+}
+
+void set_stateless_obj(TrexStateless *obj) {
+    m_sim_statelss_obj = obj;
+}
 
 int main(int argc , char * argv[]){
 

@@ -316,10 +316,11 @@ public:
      * 
      * @author imarom (07-Jan-16)
      * 
-     * @param bps 
-     * @param pps 
      */
-    void get_port_effective_rate(uint64_t &bps, uint64_t &pps);
+    void get_port_effective_rate(double &pps,
+                                 double &bps_L1,
+                                 double &bps_L2,
+                                 double &percentage);
 
 private:
 

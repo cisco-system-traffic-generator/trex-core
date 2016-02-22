@@ -106,16 +106,16 @@ void TrexStream::Dump(FILE *fd){
 
     fprintf(fd," rate    :\n\n");
 
-    fprintf(fd," pps         : %f\n", get_rate().get_pps());
-    fprintf(fd," bps L1      : %f\n", get_rate().get_bps_L1());
-    fprintf(fd," bps L2      : %f\n", get_rate().get_bps_L2());
-    fprintf(fd," percentage  : %f\n", get_rate().get_percentage());
+    fprintf(fd," pps         : %f\n", m_rate.get_pps());
+    fprintf(fd," bps L1      : %f\n", m_rate.get_bps_L1());
+    fprintf(fd," bps L2      : %f\n", m_rate.get_bps_L2());
+    fprintf(fd," percentage  : %f\n", m_rate.get_percentage());
 
 }
 
  
 TrexStream::TrexStream(uint8_t type,
-                       uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) {
+                       uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) , m_rate(*this) {
 
     /* default values */
     m_type            = type;
@@ -160,18 +160,6 @@ TrexStream::get_stream_json() {
     return m_stream_json;
 }
 
-TrexStreamRate &
-TrexStream::get_rate() {
-
-    /* lazy calculation of the rate */
-    if (!m_rate.is_calculated()) {
-        TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_port_id);
-        double pkt_size = get_pkt_size();
-        m_rate.calculate(pkt_size, port->get_port_speed_bps());
-    }
-
-    return m_rate;
-}
 
 /**************************************
  * stream table
@@ -253,3 +241,16 @@ int TrexStreamTable::size() {
 }
 
 
+/**************************************
+ * TrexStreamRate
+ *************************************/
+uint64_t
+TrexStreamRate::get_line_speed_bps() {
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_stream.m_port_id);
+    return port->get_port_speed_bps();
+}
+
+double
+TrexStreamRate::get_pkt_size() {
+    return m_stream.get_pkt_size();
+}

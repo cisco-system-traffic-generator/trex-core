@@ -103,6 +103,8 @@ public:
         }
 }; 
 
+class TrexStream;
+
 /**
  * describes a stream rate
  * 
@@ -121,9 +123,21 @@ public:
         RATE_PERCENTAGE
     };
 
-    TrexStreamRate() {
-        m_base_rate_type  = RATE_INVALID;
-        m_is_calculated   = false;
+    TrexStreamRate(TrexStream &stream) : m_stream(stream) {
+        m_pps        = 0;
+        m_bps_L1     = 0;
+        m_bps_L2     = 0;
+        m_percentage = 0;
+    }
+
+
+    TrexStreamRate& operator=(const TrexStreamRate& other) {
+        m_pps        = other.m_pps;
+        m_bps_L1     = other.m_bps_L1;
+        m_bps_L2     = other.m_bps_L2;
+        m_percentage = other.m_percentage;
+
+        return (*this);
     }
 
     /**
@@ -132,121 +146,133 @@ public:
      * 
      */
     void set_base_rate(rate_type_e type, double value) {
-        m_base_rate_type = type;
-        m_value          = value;
-        m_is_calculated  = false;
-    }
+        m_pps        = 0;
+        m_bps_L1     = 0;
+        m_bps_L2     = 0;
+        m_percentage = 0;
 
+        assert(value > 0);
 
-    /**
-     * calculates all the rates from the base rate
-     * 
-     */
-    void calculate(uint16_t pkt_size, uint64_t line_bps) {
-
-        switch (m_base_rate_type) {
-       
+        switch (type) {
         case RATE_PPS:
-            calculate_from_pps(m_value, pkt_size, line_bps);
+            m_pps = value;
             break;
-
         case RATE_BPS_L1:
-            calculate_from_bps_L1(m_value, pkt_size, line_bps);
+            m_bps_L1 = value;
             break;
-
         case RATE_BPS_L2:
-            calculate_from_bps_L2(m_value, pkt_size, line_bps);
+            m_bps_L2 = value;
             break;
-
         case RATE_PERCENTAGE:
-            calculate_from_percentage(m_value, pkt_size, line_bps);
+            m_percentage = value;
             break;
 
         default:
             assert(0);
+        
         }
-
-        m_is_calculated = true;
     }
 
-
-    bool is_calculated() const {
-        return m_is_calculated;
+    double get_pps() {
+        if (m_pps == 0) {
+            calculate();
+        }
+        return (m_pps);
+    }
+    
+    double get_bps_L1() {
+        if (m_bps_L1 == 0) {
+            calculate();
+        }
+        return (m_bps_L1);
     }
 
+    double get_bps_L2() {
+        if (m_bps_L2 == 0) {
+            calculate();
+        }
+        return m_bps_L2;
+    }
+
+    double get_percentage() {
+        if (m_percentage == 0) {
+            calculate();
+        }
+        return m_percentage;
+    }
+
+  
 
     /* update the rate by a factor */
     void update_factor(double factor) {
-        assert(m_is_calculated);
-
+        /* if all are non zero - it works, if only one (base) is also works */
         m_pps        *= factor;
         m_bps_L1     *= factor;
         m_bps_L2     *= factor;
         m_percentage *= factor;
     }
 
-    double get_pps() {
-        assert(m_is_calculated);
-        return (m_pps);
-    }
-    
-    double get_bps_L1() {
-        assert(m_is_calculated);
-        return (m_bps_L1);
-    }
-
-    double get_bps_L2() {
-        assert(m_is_calculated);
-        return m_bps_L2;
-    }
-
-    double get_percentage() {
-        assert(m_is_calculated);
-        return m_percentage;
-    }
+   
 
 private:
 
-    void calculate_from_pps(double pps, uint16_t pkt_size, uint64_t line_bps) {
-        m_pps        = pps;
-        m_bps_L1     = m_pps * (pkt_size + 24) * 8;
-        m_bps_L2     = m_pps * (pkt_size + 4) * 8;
-        m_percentage = (m_bps_L1 / line_bps) * 100.0;
+    /**
+     * calculates all the rates from the base rate
+     * 
+     */
+    void calculate() {
+
+        if (m_pps != 0) {
+            calculate_from_pps();
+        } else if (m_bps_L1 != 0) {
+            calculate_from_bps_L1();
+        } else if (m_bps_L2 != 0) {
+            calculate_from_bps_L2();
+        } else if (m_percentage != 0) {
+            calculate_from_percentage();
+        } else {
+            assert(0);
+        }
     }
 
 
-    void calculate_from_bps_L1(double bps_L1, uint16_t pkt_size, uint64_t line_bps) {
-        m_bps_L1     = bps_L1;
-        m_bps_L2     = m_bps_L1 * ( (pkt_size + 4.0) / (pkt_size + 24.0) );
-        m_pps        = m_bps_L2 / (8 * (pkt_size + 4));
-        m_percentage = (m_bps_L1 / line_bps) * 100.0;
+    uint64_t get_line_speed_bps();
+    double get_pkt_size();
+
+    void calculate_from_pps() {
+        m_bps_L1     = m_pps * (get_pkt_size() + 24) * 8;
+        m_bps_L2     = m_pps * (get_pkt_size() + 4) * 8;
+        m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
 
-    void calculate_from_bps_L2(double bps_L2, uint16_t pkt_size, uint64_t line_bps) {
-        m_bps_L2     = bps_L2;
-        m_bps_L1     = m_bps_L2 * ( (pkt_size + 24.0) / (pkt_size + 4.0));
-        m_pps        = m_bps_L2 / (8 * (pkt_size + 4));
-        m_percentage = (m_bps_L1 / line_bps) * 100.0;
+    void calculate_from_bps_L1() {
+        m_bps_L2     = m_bps_L1 * ( (get_pkt_size() + 4.0) / (get_pkt_size() + 24.0) );
+        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
-    void calculate_from_percentage(double percentage, uint16_t pkt_size, uint64_t line_bps) {
-        m_percentage = percentage;
-        m_bps_L1     = (m_percentage / 100.0) * line_bps;
-        m_bps_L2     = m_bps_L1 * ( (pkt_size + 4.0) / (pkt_size + 24.0) );
-        m_pps        = m_bps_L2 / (8 * (pkt_size + 4));
+
+    void calculate_from_bps_L2() {
+        m_bps_L1     = m_bps_L2 * ( (get_pkt_size() + 24.0) / (get_pkt_size() + 4.0));
+        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
+    }
+
+    void calculate_from_percentage() {
+        m_bps_L1     = (m_percentage / 100.0) * get_line_speed_bps();
+        m_bps_L2     = m_bps_L1 * ( (get_pkt_size() + 4.0) / (get_pkt_size() + 24.0) );
+        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
 
     }
 
-    rate_type_e  m_base_rate_type;
-    double       m_value;
-
-    bool         m_is_calculated;
     double       m_pps;
     double       m_bps_L1;
     double       m_bps_L2;
     double       m_percentage;
 
+    /* reference to the owner class */
+    TrexStream  &m_stream;
 };
 
 /**
@@ -254,6 +280,7 @@ private:
  * 
  */
 class TrexStream {
+friend class TrexStreamRate;
 
 public:
     enum STREAM_TYPE {
@@ -298,19 +325,19 @@ public:
 
 
     double get_pps() {
-        return get_rate().get_pps();
+        return m_rate.get_pps();
     }
 
     double get_bps_L1() {
-        return get_rate().get_bps_L1();
+        return m_rate.get_bps_L1();
     }
 
     double get_bps_L2() {
-        return get_rate().get_bps_L2();
+        return m_rate.get_bps_L2();
     }
 
     double get_bw_percentage() {
-        return get_rate().get_percentage();
+        return m_rate.get_percentage();
     }
 
     void set_rate(TrexStreamRate::rate_type_e type, double value) {
@@ -318,7 +345,7 @@ public:
     }
 
     void update_rate_factor(double factor) {
-        get_rate().update_factor(factor);
+        m_rate.update_factor(factor);
     }
 
     void set_type(uint8_t type){
@@ -502,9 +529,6 @@ private:
     }
 
   
-    /* get (and calculate if need) the rate of the stream */  
-    TrexStreamRate & get_rate();
-
     /* no access to this without a lazy build method */
     TrexStreamRate m_rate;
 };
