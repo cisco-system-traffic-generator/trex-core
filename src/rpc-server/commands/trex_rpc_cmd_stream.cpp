@@ -313,7 +313,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
 
 
 void 
-TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst, TrexStream *stream, Json::Value &result) {
+TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
     uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
     uint16_t      pkt_cast_size = parse_uint16(inst, "pkt_cast_size", result);

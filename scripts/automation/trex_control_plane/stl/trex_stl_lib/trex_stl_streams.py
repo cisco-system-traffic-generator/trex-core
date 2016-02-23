@@ -13,6 +13,8 @@ import base64
 import string
 import traceback
 from types import NoneType
+import copy
+
 
 # base class for TX mode
 class STLTXMode(object):
@@ -282,11 +284,12 @@ class STLStream(object):
         if self.next:
             y['next'] = self.next
 
-        y['stream'] = self.fields
+        y['stream'] = copy.deepcopy(self.fields)
         
         # some shortcuts for YAML
         rate_type  = self.fields['mode']['rate']['type']
         rate_value = self.fields['mode']['rate']['value']
+
         y['stream']['mode'][rate_type] = rate_value
         del y['stream']['mode']['rate']
 
