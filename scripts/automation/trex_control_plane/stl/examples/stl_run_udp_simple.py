@@ -47,11 +47,11 @@ def create_pkt (frame_size = 9000, direction=0):
     vm = [
         # src
         STLVmFlowVar(name="src",min_value=src['start'],max_value=src['end'],size=4,op="inc"),
-        STLVmWriteFlowVar(fv_name="src",pkt_offset= "IP.src"),
+        STLVmWrFlowVar(fv_name="src",pkt_offset= "IP.src"),
 
         # dst
         STLVmFlowVar(name="dst",min_value=dst['start'],max_value=dst['end'],size=4,op="inc"),
-        STLVmWriteFlowVar(fv_name="dst",pkt_offset= "IP.dst"),
+        STLVmWrFlowVar(fv_name="dst",pkt_offset= "IP.dst"),
 
         # checksum
         STLVmFixIpv4(offset = "IP")

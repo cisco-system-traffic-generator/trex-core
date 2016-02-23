@@ -1,6 +1,6 @@
 ### Single stream UDP packet, 64B ###
 #####################################
-- name: udp_64B
+- name: udp_64B_1
   stream:
     self_start: True
     packet:
@@ -10,7 +10,7 @@
       pps: 100
     rx_stats: []
     vm: []
-- name: udp_64B
+- name: udp_64B_2
   stream:
     self_start: True
     packet:
@@ -20,7 +20,7 @@
       pps: 100
     rx_stats: []
     vm: []
-- name: udp_64B
+- name: udp_64B_3
   stream:
     self_start: True
     packet:
@@ -30,7 +30,7 @@
       pps: 100
     rx_stats: []
     vm: []
-- name: udp_64B
+- name: udp_64B_4
   stream:
     self_start: True
     packet:

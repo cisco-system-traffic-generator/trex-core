@@ -155,9 +155,7 @@ class STLStream(object):
         self.name = name
         self.next = next
 
-        # ID
-        self.set_id(stream_id)
-        self.set_next_id(None)
+        self.id = stream_id
 
 
         self.fields = {}
@@ -236,14 +234,6 @@ class STLStream(object):
     def get_id (self):
         return self.id
 
-    def set_id (self, id):
-        self.id = id
-
-    def get_next_id (self):
-        return self.next_id
-
-    def set_next_id (self, next_id):
-        self.next_id = next_id
 
     def get_name (self):
         return self.name
@@ -251,25 +241,43 @@ class STLStream(object):
     def get_next (self):
         return self.next
 
-    def get_pkt_type (self):
-        if self.packet_desc == None:
-            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
-
-        return self.packet_desc
 
     def get_pkt (self):
         return self.pkt
 
     def get_pkt_len (self, count_crc = True):
-       pkt_len = len(base64.b64decode(self.get_pkt()))
+       pkt_len = len(self.get_pkt())
        if count_crc:
            pkt_len += 4
 
        return pkt_len
 
 
+    def get_pkt_type (self):
+        if self.packet_desc == None:
+            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
+
+        return self.packet_desc
+
     def get_mode (self):
         return self.mode_desc
+
+    @staticmethod
+    def get_rate_from_field (rate_json):
+        t = rate_json['type']
+        v = rate_json['value']
+
+        if t == "pps":
+            return format_num(v, suffix = "pps")
+        elif t == "bps_L1":
+            return format_num(v, suffix = "bps (L1)")
+        elif t == "bps_L2":
+            return format_num(v, suffix = "bps (L2)")
+        elif t == "percentage":
+            return format_num(v, suffix = "%")
+
+    def get_rate (self):
+        return self.get_rate_from_field(self.fields['mode']['rate'])
 
 
     def to_yaml (self):
@@ -520,7 +528,7 @@ class STLProfile(object):
             
             streams.append(STLStream(name = i,
                                      packet = CScapyTRexPktBuilder(pkt_buffer = cap, vm = vm),
-                                     mode = STLTXSingleBurst(total_pkts = 1),
+                                     mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
                                      self_start = True if (i == 1) else False,
                                      isg = (ts_usec - last_ts_usec),  # seconds to usec
                                      action_count = action_count,
