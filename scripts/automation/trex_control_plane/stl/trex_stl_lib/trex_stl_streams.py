@@ -64,9 +64,9 @@ class STLTXMode(object):
 # continuous mode
 class STLTXCont(STLTXMode):
 
-    def __init__ (self, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
+    def __init__ (self, **kwargs):
 
-        super(STLTXCont, self).__init__(pps, bps_L1, bps_L2, percentage)
+        super(STLTXCont, self).__init__(**kwargs)
 
         self.fields['type'] = 'continuous'
 
@@ -76,12 +76,12 @@ class STLTXCont(STLTXMode):
 # single burst mode
 class STLTXSingleBurst(STLTXMode):
 
-    def __init__ (self, total_pkts = 1, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
+    def __init__ (self, total_pkts = 1, **kwargs):
 
         if not isinstance(total_pkts, int):
             raise STLArgumentError('total_pkts', total_pkts)
 
-        super(STLTXSingleBurst, self).__init__(pps, bps_L1, bps_L2, percentage)
+        super(STLTXSingleBurst, self).__init__(**kwargs)
 
         self.fields['type'] = 'single_burst'
         self.fields['total_pkts'] = total_pkts
@@ -96,10 +96,7 @@ class STLTXMultiBurst(STLTXMode):
                   pkts_per_burst = 1,
                   ibg = 0.0,   # usec not SEC
                   count = 1,
-                  pps = None,
-                  bps_L1 = None,
-                  bps_L2 = None,
-                  percentage = None):
+                  **kwargs):
 
         if not isinstance(pkts_per_burst, int):
             raise STLArgumentError('pkts_per_burst', pkts_per_burst)
@@ -110,7 +107,7 @@ class STLTXMultiBurst(STLTXMode):
         if not isinstance(count, int):
             raise STLArgumentError('count', count)
 
-        super(STLTXMultiBurst, self).__init__(pps, bps_L1, bps_L2, percentage)
+        super(STLTXMultiBurst, self).__init__(**kwargs)
 
         self.fields['type'] = 'multi_burst'
         self.fields['pkts_per_burst'] = pkts_per_burst

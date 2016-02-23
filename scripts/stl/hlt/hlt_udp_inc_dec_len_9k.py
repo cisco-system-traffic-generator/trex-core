@@ -11,6 +11,7 @@ class STLS1(object):
                              l4_protocol = 'udp',
                              udp_src_port = 1025,
                              udp_dst_port = 12,
+                             rate_pps = 1,
                              ),
                 STLHltStream(length_mode = 'decrement',
                              frame_size_max = 9*1024,
@@ -19,6 +20,7 @@ class STLS1(object):
                              l4_protocol = 'udp',
                              udp_src_port = 1025,
                              udp_dst_port = 12,
+                             rate_pps = 1,
                              )
                ]
 

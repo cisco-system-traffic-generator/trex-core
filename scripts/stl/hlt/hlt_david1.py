@@ -26,7 +26,7 @@ class STLS1(object):
                 mac_src = '00.00.c0.a8.00.03',
                 mac_src2 = '00.00.c0.a8.01.03',
                 pkts_per_burst = '200000',
-                #rate_percent = '0.4', # not supported yet
+                rate_percent = '0.4',
                 transmit_mode = 'continuous',
                 vlan_id = '1',
                 direction = direction,

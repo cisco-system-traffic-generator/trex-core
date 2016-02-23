@@ -47,7 +47,7 @@ class CTRexHltApi_Test(unittest.TestCase):
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 10.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABCABFAAAyAAAAAEAGusUAAAAAwAAAAQQAAFAAAAABAAAAAVAAD+U1/QAAISEhISEhISEhIQ==
@@ -92,7 +92,8 @@ TBD
                                    ip_dst_addr = '5.5.5.5',
                                    ip_dst_count = 2,
                                    ip_dst_mode = 'random',
-                                   name = 'test_ip_ranges')
+                                   name = 'test_ip_ranges',
+                                   rate_pps = 1)
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: test_ip_ranges
@@ -102,7 +103,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      pps: 1.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABCABFAAAyAAAAAEAGrxPAqAEBBQUFBQQAAFAAAAABAAAAAVAAD+UqSwAAISEhISEhISEhIQ==
@@ -150,7 +151,8 @@ TBD
                                    tcp_dst_port_mode = 'random',
                                    tcp_dst_port_count = 10,
                                    tcp_dst_port = 1234,
-                                   name = 'test_tcp_ranges')
+                                   name = 'test_tcp_ranges',
+                                   rate_pps = '2')
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: test_tcp_ranges
@@ -160,7 +162,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      pps: 2.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABCABFAAAyAAAAAEAGusUAAAAAwAAAAQQABNIAAAABAAAAAVAAD+UxewAAISEhISEhISEhIQ==
@@ -227,7 +229,8 @@ TBD
                                    udp_dst_port_mode = 'increment',
                                    udp_dst_port_count = 10,
                                    udp_dst_port = 1234,
-                                   name = 'test_udp_ranges')
+                                   name = 'test_udp_ranges',
+                                   rate_percent = 20,)
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: test_udp_ranges
@@ -237,7 +240,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 20.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABCABFAAAyAAAAAEARuroAAAAAwAAAAQTSBNIAHsmgISEhISEhISEhISEhISEhISEhISEhIQ==
@@ -287,7 +290,8 @@ TBD
         test_stream = STLHltStream(length_mode = 'decrement',
                                    frame_size_min = 100,
                                    frame_size_max = 3000,
-                                   name = 'test_pkt_len_by_framesize')
+                                   name = 'test_pkt_len_by_framesize',
+                                   rate_bps = 1000)
         self.test_yaml = test_stream.dump_to_yaml(self.yaml_save_location())
         self.golden_yaml = '''
 - name: test_pkt_len_by_framesize
@@ -297,7 +301,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      bps_L2: 1000.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABCABFAAuqAAAAAEAGr00AAAAAwAAAAQQAAFAAAAABAAAAAVAAD+UwiwAAISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEh
@@ -343,7 +347,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 10.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABCABFAAGQAAAAAEARuVwAAAAAwAAAAQQAAFABfCaTISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEh
@@ -397,7 +401,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 10.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABgQAwAAgARQAALgAAAABABrrJAAAAAMAAAAEEAABQAAAAAQAAAAFQAA/leEMAACEhISEhIQ==
@@ -429,7 +433,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 10.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABgQAwAYEAMAKBADADgQAwBAgARQAARgAAAABABrqxAAAAAMAAAAEEAABQAAAAAQAAAAFQAA/l6p0AACEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ==
@@ -461,7 +465,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 10.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABgQAwAYEAMAKBADPogQAwBIEAMAUIAEUAAEIAAAAAQAa6tQAAAADAAAABBAAAUAAAAAEAAAABUAAP5SzkAAAhISEhISEhISEhISEhISEhISEhISEhISEhIQ==
@@ -540,7 +544,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 10.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABht1gAAAAAG4GQP6AAAAAAAAAAAAAAAAAABL+gAAAAAAAAAAAAAAAAAAiBAAAUAAAAAEAAAABUAAP5ctLAAAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISE=
@@ -570,7 +574,7 @@ TBD
     flags: 3
     isg: 0.0
     mode:
-      pps: 1
+      percentage: 10.0
       type: continuous
     packet:
       binary: AAAAAAAAAAABAAABht1gAAAAAG4RQBERIiIzM0REVVVmZnd3iIgRERERERERERERERERERERBAAAUABucjohISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISE=
