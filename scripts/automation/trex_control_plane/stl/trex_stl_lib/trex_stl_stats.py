@@ -117,8 +117,10 @@ class CTRexInfoGenerator(object):
         per_field_stats = OrderedDict([("owner", []),
                                        ("state", []),
                                        ("--", []),
-                                       ("Tx bps", []),
+                                       ("Tx bps L2", []),
+                                       ("Tx bps L1", []),
                                        ("Tx pps", []),
+                                       ("Line Util.", []),
 
                                        ("---", []),
                                        ("Rx bps", []),
@@ -313,7 +315,15 @@ class CTRexStats(object):
         # must be implemented by designated classes (such as port/ global stats)
         raise NotImplementedError()
 
+    def generate_extended_values (self, snapshot):
+        raise NotImplementedError()
+
+
     def update(self, snapshot):
+
+        # some extended generated values (from base values)
+        self.generate_extended_values(snapshot)
+
         # update
         self.latest_stats = snapshot
 
@@ -325,6 +335,8 @@ class CTRexStats(object):
         # 3 seconds is too much - this is the new reference
         if (not self.reference_stats) or (diff_time > 3):
             self.reference_stats = self.latest_stats
+
+        
 
         self.last_update_ts = time.time()
 
@@ -439,6 +451,20 @@ class CGlobalStats(CTRexStats):
         return stats
 
 
+    def generate_extended_values (self, snapshot):
+        # L1 bps
+        bps = snapshot.get("m_tx_bps")
+        pps = snapshot.get("m_tx_pps")
+
+        if pps > 0:
+            avg_pkt_size = bps / (pps * 8.0)
+            bps_L1  = bps * ( (avg_pkt_size + 20.0) / avg_pkt_size )
+        else:
+            bps_L1 = 0.0
+
+        snapshot['m_tx_bps_L1'] = bps_L1
+
+
     def generate_stats(self):
         return OrderedDict([("connection", "{host}, Port {port}".format(host=self.connection_info.get("server"),
                                                                      port=self.connection_info.get("sync_port"))),
@@ -450,8 +476,11 @@ class CGlobalStats(CTRexStats):
 
                              (" ", ""),
 
-                             ("total_tx", u"{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
-                                                              self.get_trend_gui("m_tx_bps"))),
+                             ("total_tx_L2", u"{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
+                                                                self.get_trend_gui("m_tx_bps"))),
+
+                            ("total_tx_L1", u"{0} {1}".format( self.get("m_tx_bps_L1", format=True, suffix="b/sec"),
+                                                                self.get_trend_gui("m_tx_bps_L1"))),
 
                              ("total_rx", u"{0} {1}".format( self.get("m_rx_bps", format=True, suffix="b/sec"),
                                                               self.get_trend_gui("m_rx_bps"))),
@@ -532,6 +561,21 @@ class CPortStats(CTRexStats):
         return stats
 
 
+    def generate_extended_values (self, snapshot):
+        # L1 bps
+        bps = snapshot.get("m_total_tx_bps")
+        pps = snapshot.get("m_total_tx_pps")
+
+        if pps > 0:
+            avg_pkt_size = bps / (pps * 8.0)
+            bps_L1  = bps * ( (avg_pkt_size + 20.0) / avg_pkt_size )
+        else:
+            bps_L1 = 0.0
+
+        snapshot['m_total_tx_bps_L1'] = bps_L1
+        snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100
+
+
     def generate_stats(self):
 
         state = self._port_obj.get_port_state_name() if self._port_obj else "" 
@@ -542,6 +586,7 @@ class CPortStats(CTRexStats):
         else:
             state = format_text(state, 'bold')
 
+
         return {"owner": self._port_obj.user if self._port_obj else "",
                 "state": "{0}".format(state),
 
@@ -550,8 +595,16 @@ class CPortStats(CTRexStats):
                 "----": " ",
                 "-----": " ",
 
-                "Tx bps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
-                                            self.get("m_total_tx_bps", format = True, suffix = "bps")),
+                "Tx bps L1": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps_L1", show_value = False),
+                                               self.get("m_total_tx_bps_L1", format = True, suffix = "bps")),
+
+                "Tx bps L2": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
+                                               self.get("m_total_tx_bps", format = True, suffix = "bps")),
+
+                "Line Util.": u"{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False),
+                                                format_text(
+                                                    self.get("m_percentage", format = True, suffix = "%") if self._port_obj else "",
+                                                    'bold')),
 
                 "Rx bps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
                                             self.get("m_total_rx_bps", format = True, suffix = "bps")),

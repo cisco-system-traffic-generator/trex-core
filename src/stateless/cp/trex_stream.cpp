@@ -22,6 +22,7 @@ limitations under the License.
 #include <cstddef>
 #include <string.h>
 #include <assert.h>
+#include <trex_stateless.h>
 
 /**************************************
  * stream
@@ -93,25 +94,30 @@ void TrexStream::Dump(FILE *fd){
     fprintf(fd," type    : %s \n",get_stream_type_str(m_type).c_str());
 
     if ( m_type == TrexStream::stCONTINUOUS ) {
-        fprintf(fd," pps        : %f \n",m_pps);
     }
     if (m_type == TrexStream::stSINGLE_BURST) {
-        fprintf(fd," pps        : %f \n",m_pps);
         fprintf(fd," burst      : %lu \n",(ulong)m_burst_total_pkts);
     }
     if (m_type == TrexStream::stMULTI_BURST) {
-        fprintf(fd," pps        : %f \n",m_pps);
         fprintf(fd," burst      : %lu \n",(ulong)m_burst_total_pkts);
         fprintf(fd," mburst     : %lu \n",(ulong)m_num_bursts);
         if (m_ibg_usec>0.0) {
             fprintf(fd," m_ibg_usec : %f \n",m_ibg_usec);
         }
     }
+
+    fprintf(fd," rate    :\n\n");
+
+    fprintf(fd," pps         : %f\n", m_rate.get_pps());
+    fprintf(fd," bps L1      : %f\n", m_rate.get_bps_L1());
+    fprintf(fd," bps L2      : %f\n", m_rate.get_bps_L2());
+    fprintf(fd," percentage  : %f\n", m_rate.get_percentage());
+
 }
 
  
 TrexStream::TrexStream(uint8_t type,
-                       uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) {
+                       uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) , m_rate(*this) {
 
     /* default values */
     m_type            = type;
@@ -127,7 +133,6 @@ TrexStream::TrexStream(uint8_t type,
     m_rx_check.m_enable = false;
 
 
-    m_pps=-1.0;
     m_burst_total_pkts=0; 
     m_num_bursts=1; 
     m_ibg_usec=0.0;  
@@ -238,3 +243,16 @@ int TrexStreamTable::size() {
 }
 
 
+/**************************************
+ * TrexStreamRate
+ *************************************/
+uint64_t
+TrexStreamRate::get_line_speed_bps() {
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_stream.m_port_id);
+    return port->get_port_speed_bps();
+}
+
+double
+TrexStreamRate::get_pkt_size() {
+    return m_stream.get_pkt_size();
+}

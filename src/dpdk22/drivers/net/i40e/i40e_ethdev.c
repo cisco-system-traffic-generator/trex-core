@@ -2071,6 +2071,19 @@ i40e_read_stats_registers(struct i40e_pf *pf, struct i40e_hw *hw)
 		i40e_update_vsi_stats(pf->main_vsi);
 }
 
+// TREX_PATCH
+int
+i40e_trex_get_speed(struct rte_eth_dev *dev)
+{
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    if (i40e_is_40G_device(hw->device_id)) {
+        return 40;
+    } else {
+        return 10;
+    }
+}
+
 /* Get all statistics of a port */
 static void
 i40e_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)

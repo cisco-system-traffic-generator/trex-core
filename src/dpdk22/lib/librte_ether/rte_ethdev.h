@@ -2150,6 +2150,8 @@ extern void rte_eth_link_get(uint8_t port_id, struct rte_eth_link *link);
 extern void rte_eth_link_get_nowait(uint8_t port_id,
 				struct rte_eth_link *link);
 
+extern int rte_eth_get_speed(uint8_t port_id, int *speed);
+
 /**
  * Retrieve the general I/O statistics of an Ethernet device.
  *

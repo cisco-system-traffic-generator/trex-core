@@ -28,17 +28,24 @@ class CTRexPacketBuildException(Exception):
 
 ################################################################################################
 
-def ipv4_str_to_num (ipv4_buffer):
-
-    assert type(ipv4_buffer)==str, 'type of ipv4_buffer is not str'
-    assert len(ipv4_buffer)==4, 'size of ipv4_buffer is not 4'
+def _buffer_to_num(str_buffer):
+    assert type(str_buffer)==str, 'type of str_buffer is not str'
     res=0
-    shift=24
-    for i in ipv4_buffer:
-       res = res + (ord(i)<<shift);
-       shift =shift -8
+    for i in str_buffer:
+        res = res << 8
+        res += ord(i)
     return res
 
+
+def ipv4_str_to_num (ipv4_buffer):
+    assert type(ipv4_buffer)==str, 'type of ipv4_buffer is not str'
+    assert len(ipv4_buffer)==4, 'size of ipv4_buffer is not 4'
+    return _buffer_to_num(ipv4_buffer)
+
+def mac_str_to_num (mac_buffer):
+    assert type(mac_buffer)==str, 'type of mac_buffer is not str'
+    assert len(mac_buffer)==6, 'size of mac_buffer is not 6'
+    return _buffer_to_num(mac_buffer)
 
 
 def is_valid_ipv4(ip_addr):
@@ -215,12 +222,16 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
         self.op = op
         self.init_value = init_value
         assert type(init_value)==int, 'type of init_value is not int'
+        assert init_value >= 0, 'init_value (%s) is negative' % init_value
         self.min_value=min_value
         assert type(min_value)==int, 'type of min_value is not int'
+        assert min_value >= 0, 'min_value (%s) is negative' % min_value
         self.max_value=max_value
-        assert type(max_value)==int, 'type of min_value is not int'
+        assert type(max_value)==int, 'type of max_value is not int'
+        assert max_value >= 0, 'max_value (%s) is negative' % max_value
         self.step=step
         assert type(step)==int, 'type of step should be int'
+        assert step >= 0, 'step (%s) is negative' % step
 
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
@@ -588,7 +599,7 @@ class CTRexVmDescWrMaskFlowVar(CTRexVmDescBase):
         self.pkt_offset =pkt_offset
         self.pkt_cast_size =pkt_cast_size
         assert type(pkt_cast_size)==int,'type of pkt_cast_size is not int'
-        if not (pkt_cast_size in [1,2,4]):
+        if not (pkt_cast_size in [1,2,4,8]):
             raise CTRexPacketBuildException(-10,"not valid cast size");
 
         self.mask = mask

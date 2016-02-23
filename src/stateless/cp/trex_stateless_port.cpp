@@ -631,7 +631,10 @@ TrexStatelessPort::validate(void) {
 
 
 void
-TrexStatelessPort::get_port_effective_rate(uint64_t &bps, uint64_t &pps) {
+TrexStatelessPort::get_port_effective_rate(double &pps,
+                                           double &bps_L1,
+                                           double &bps_L2,
+                                           double &percentage) {
 
     if (get_stream_count() == 0) {
         return;
@@ -641,8 +644,11 @@ TrexStatelessPort::get_port_effective_rate(uint64_t &bps, uint64_t &pps) {
         generate_streams_graph();
     }
 
-    bps = m_graph_obj->get_max_bps_l2() * m_factor;
-    pps = m_graph_obj->get_max_pps() * m_factor;
+    pps        = m_graph_obj->get_max_pps()    * m_factor;
+    bps_L1     = m_graph_obj->get_max_bps_l1() * m_factor;
+    bps_L2     = m_graph_obj->get_max_bps_l2() * m_factor;
+    percentage = (bps_L1 / get_port_speed_bps()) * 100.0;
+    
 }
 
 /************* Trex Port Owner **************/
@@ -651,7 +657,7 @@ TrexPortOwner::TrexPortOwner() {
     m_is_free = true;
 
     /* for handlers random generation */
-    srand(time(NULL));
+    m_seed = time(NULL);
 }
 
 /**
@@ -669,7 +675,7 @@ TrexPortOwner::generate_handler() {
 
     /* generate 8 bytes of random handler */
     for (int i = 0; i < 8; ++i) {
-        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
+        ss << alphanum[rand_r(&m_seed) % (sizeof(alphanum) - 1)];
     }
 
     return (ss.str());

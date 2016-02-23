@@ -25,6 +25,7 @@ limitations under the License.
 #include <os_time.h>
 #include <bp_sim.h>
 #include <json/json.h>
+#include <trex_stateless.h>
 
 int gtest_main(int argc, char **argv);
 
@@ -32,11 +33,48 @@ class TrexStateless;
 class TrexPublisher;
 class DpToCpHandler;
 
+void set_stateless_obj(TrexStateless *obj);
 
 static inline bool 
 in_range(int x, int low, int high) {
     return ( (x >= low) && (x <= high) );
 }
+
+/*************** hook for platform API **************/
+class SimPlatformApi : public TrexPlatformApi {
+public:
+    SimPlatformApi(int dp_core_count) {
+        m_dp_core_count = dp_core_count;
+    }
+
+    virtual uint8_t get_dp_core_count() const {
+        return m_dp_core_count;
+    }
+
+    virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
+    }
+
+    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+        driver_name = "TEST";
+        speed = TrexPlatformApi::SPEED_10G;
+    }
+
+    virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
+    }
+
+    virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
+        for (int i = 0; i < m_dp_core_count; i++) {
+             cores_id_list.push_back(std::make_pair(i, 0));
+        }
+    }
+
+    virtual void publish_async_data_now(uint32_t key) const {
+
+    }
+
+private:
+    int m_dp_core_count;
+};
 
 /**
  * interface for a sim target
@@ -67,12 +105,28 @@ public:
  * 
  * @author imarom (28-Dec-15)
  */
-class SimGtest : public SimInterface {
+class SimGtest : SimInterface {
 public:
 
     int run(int argc, char **argv) {
+        TrexStatelessCfg cfg;
+    
+        cfg.m_port_count         = 2;
+        cfg.m_rpc_req_resp_cfg   = NULL;
+        cfg.m_rpc_async_cfg      = NULL;
+        cfg.m_rpc_server_verbose = false;
+        cfg.m_platform_api       = new SimPlatformApi(1);
+        cfg.m_publisher          = NULL;
+
+        set_stateless_obj(new TrexStateless(cfg));
+        
         assert( CMsgIns::Ins()->Create(4) );
-        return gtest_main(argc, argv);
+        int rc = gtest_main(argc, argv);
+
+        delete get_stateless_obj();
+        set_stateless_obj(NULL);
+
+        return rc;
     }
 };
 
@@ -112,9 +166,6 @@ public:
             int limit,
             bool is_dry_run);
 
-    TrexStateless * get_stateless_obj() {
-        return m_trex_stateless;
-    }
 
     void set_verbose(bool enable) {
         m_verbose = enable;
@@ -149,7 +200,6 @@ private:
         return m_verbose;
     }
 
-    TrexStateless   *m_trex_stateless;
     DpToCpHandler   *m_dp_to_cp_handler;
     TrexPublisher   *m_publisher;
     CFlowGenList     m_fl;

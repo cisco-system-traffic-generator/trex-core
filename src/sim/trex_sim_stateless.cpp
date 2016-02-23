@@ -54,10 +54,6 @@ static string format_num(double num, const string &suffix = "") {
     return "NaN";
 }
 
-TrexStateless * get_stateless_obj() {
-    return SimStateless::get_instance().get_stateless_obj();
-}
-
 
 class SimRunException : public std::runtime_error 
 {
@@ -69,41 +65,6 @@ public:
     }
 };
 
-/*************** hook for platform API **************/
-class SimPlatformApi : public TrexPlatformApi {
-public:
-    SimPlatformApi(int dp_core_count) {
-        m_dp_core_count = dp_core_count;
-    }
-
-    virtual uint8_t get_dp_core_count() const {
-        return m_dp_core_count;
-    }
-
-    virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
-    }
-
-    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
-        driver_name = "TEST";
-        speed = TrexPlatformApi::SPEED_10G;
-    }
-
-    virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
-    }
-
-    virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
-        for (int i = 0; i < m_dp_core_count; i++) {
-             cores_id_list.push_back(std::make_pair(i, 0));
-        }
-    }
-
-    virtual void publish_async_data_now(uint32_t key) const {
-
-    }
-
-private:
-    int m_dp_core_count;
-};
 
 /**
  * handler for DP to CP messages
@@ -146,7 +107,6 @@ public:
 ************************/
 
 SimStateless::SimStateless() {
-    m_trex_stateless    = NULL;
     m_publisher         = NULL;
     m_dp_to_cp_handler  = NULL;
     m_verbose           = false;
@@ -198,9 +158,10 @@ SimStateless::run(const string &json_filename,
 
 
 SimStateless::~SimStateless() {
-    if (m_trex_stateless) {
-        delete m_trex_stateless;
-        m_trex_stateless = NULL;
+    
+    if (get_stateless_obj()) {
+        delete get_stateless_obj();
+        set_stateless_obj(NULL);
     }
 
     if (m_publisher) {
@@ -231,11 +192,11 @@ SimStateless::prepare_control_plane() {
     cfg.m_platform_api       = new SimPlatformApi(m_dp_core_count);
     cfg.m_publisher          = m_publisher;
 
-    m_trex_stateless = new TrexStateless(cfg);
+    set_stateless_obj(new TrexStateless(cfg));
 
-    m_trex_stateless->launch_control_plane();
+    get_stateless_obj()->launch_control_plane();
 
-    for (auto &port : m_trex_stateless->get_port_list()) {
+    for (auto &port : get_stateless_obj()->get_port_list()) {
         port->acquire("test", 0, true);
     }
 
@@ -274,7 +235,7 @@ SimStateless::execute_json(const std::string &json_filename) {
     buffer << test.rdbuf();
 
     try {
-        rep = m_trex_stateless->get_rpc_server()->test_inject_request(buffer.str());
+        rep = get_stateless_obj()->get_rpc_server()->test_inject_request(buffer.str());
     } catch (TrexRpcException &e) {
         throw SimRunException(e.what());
     }
@@ -321,8 +282,10 @@ static inline bool is_debug() {
 
 void
 SimStateless::show_intro(const std::string &out_filename) {
-    uint64_t bps = 0;
-    uint64_t pps = 0;
+    double pps;
+    double bps_L1;
+    double bps_L2;
+    double percentage;
 
     std::cout << "\nGeneral info:\n";
     std::cout << "------------\n\n";
@@ -356,10 +319,12 @@ SimStateless::show_intro(const std::string &out_filename) {
 
     std::cout << "stream count:             " << port->get_stream_count() << "\n";
 
-    port->get_port_effective_rate(bps, pps);
+    port->get_port_effective_rate(pps, bps_L1, bps_L2, percentage);
 
-    std::cout << "max BPS:                  " << format_num(bps, "bps") << "\n";
-    std::cout << "max PPS:                  " << format_num(pps, "pps") << "\n";
+    std::cout << "max PPS    :              " << format_num(pps,        "pps") << "\n";
+    std::cout << "max BPS L1 :              " << format_num(bps_L1,     "bps") << "\n";
+    std::cout << "max BPS L2 :              " << format_num(bps_L2,     "bps") << "\n";
+    std::cout << "line util. :              " << format_num(percentage,  "%") << "\n";
 
     std::cout << "\n\nStarting simulation...\n";
 }

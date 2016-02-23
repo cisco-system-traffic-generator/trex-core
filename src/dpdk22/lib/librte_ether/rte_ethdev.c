@@ -1430,6 +1430,21 @@ rte_eth_link_get_nowait(uint8_t port_id, struct rte_eth_link *eth_link)
 	}
 }
 
+// TREX_PATCH
+int
+rte_eth_get_speed(uint8_t port_id, int *speed)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+
+    // Only xl710 support this
+    *speed = i40e_trex_get_speed(dev);
+    return 0;
+}
+
 int
 rte_eth_stats_get(uint8_t port_id, struct rte_eth_stats *stats)
 {

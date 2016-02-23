@@ -4137,7 +4137,10 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
 void CFlowGenList::Delete(){
     clean_p_thread_info();
     Clean();
-    delete  CPluginCallback::callback;
+    if (CPluginCallback::callback) {
+        delete  CPluginCallback::callback;
+        CPluginCallback::callback = NULL;
+    }
 }
 
 
