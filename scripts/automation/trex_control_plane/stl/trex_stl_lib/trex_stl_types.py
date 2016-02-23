@@ -54,6 +54,10 @@ class RC():
                 s += format_text("\n{0}".format(x.data), 'bold')
         return s
 
+    def __iter__(self):
+        return self.rc_list.__iter__()
+
+
     def prn_func (self, msg, newline = True):
         if newline:
             print msg

@@ -152,19 +152,29 @@ class STLSim(object):
         # load streams
         cmds_json = []
 
-        id = 1
+        id_counter = 1
 
         lookup = {}
+
         # allocate IDs
         for stream in stream_list:
-            if stream.get_id() == None:
-                stream.set_id(id)
-                id += 1
+            if stream.get_id() is not None:
+                stream_id = stream.get_id()
+            else:
+                stream_id = id_counter
+                id_counter += 1
 
-            lookup[stream.get_name()] = stream.get_id()
+            name = stream.get_name() if stream.get_name() is not None else id(stream)
+            if name in lookup:
+                raise STLError("multiple streams with name: '{0}'".format(name))
+            lookup[name] = stream_id
 
         # resolve names
         for stream in stream_list:
+
+            name = stream.get_name() if stream.get_name() is not None else id(stream)
+            stream_id = lookup[name]
+
             next_id = -1
             next = stream.get_next()
             if next:
@@ -172,19 +182,16 @@ class STLSim(object):
                     raise STLError("stream dependency error - unable to find '{0}'".format(next))
                 next_id = lookup[next]
 
-            stream.set_next_id(next_id)
-
-        for stream in stream_list:
 
             stream_json = stream.to_json()
-            stream_json['next_stream_id'] = stream.get_next_id()
+            stream_json['next_stream_id'] = next_id
 
             cmd = {"id":1,
                    "jsonrpc": "2.0",
                    "method": "add_stream",
                    "params": {"handler": self.handler,
                               "port_id": self.port_id,
-                              "stream_id": stream.get_id(),
+                              "stream_id": stream_id,
                               "stream": stream_json}
                    }
 

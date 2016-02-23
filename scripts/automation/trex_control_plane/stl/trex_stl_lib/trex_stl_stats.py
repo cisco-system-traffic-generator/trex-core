@@ -224,13 +224,12 @@ class CTRexInfoGenerator(object):
         p_type_field_len = 0
 
         for stream_id, stream_id_sum in return_streams_data['streams'].iteritems():
-            stream_id_sum['rate_pps'] = format_num(stream_id_sum['rate_pps'], suffix='pps')
             stream_id_sum['packet_type'] = self._trim_packet_headers(stream_id_sum['packet_type'], 30)
             p_type_field_len = max(p_type_field_len, len(stream_id_sum['packet_type']))
 
         info_table = text_tables.TRexTextTable()
         info_table.set_cols_align(["c"] + ["l"] + ["r"] + ["c"] + ["r"] + ["c"])
-        info_table.set_cols_width([10]   + [p_type_field_len]  + [8]   + [16]  + [10]  + [12])
+        info_table.set_cols_width([10]   + [p_type_field_len]  + [8]   + [16]  + [15]  + [12])
         info_table.set_cols_dtype(["t"] + ["t"] + ["t"] + ["t"] + ["t"] + ["t"])
 
         info_table.add_rows([v.values()

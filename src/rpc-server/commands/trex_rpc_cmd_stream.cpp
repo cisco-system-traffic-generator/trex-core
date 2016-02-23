@@ -588,8 +588,6 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    bool    get_pkt = parse_bool(params, "get_pkt", result);
-
     std::vector <TrexStream *> streams;
     port->get_object_list(streams);
 
@@ -597,11 +595,6 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
     for (auto stream : streams) {
 
         Json::Value j = stream->get_stream_json();
-
-        /* should we include the packet as well ? */
-        if (!get_pkt) {
-            j.removeMember("packet");
-        }
 
         std::stringstream ss;
         ss << stream->m_stream_id;
