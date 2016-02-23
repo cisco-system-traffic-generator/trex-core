@@ -111,14 +111,15 @@ public:
     int run(int argc, char **argv) {
         TrexStatelessCfg cfg;
     
-        cfg.m_port_count         = 1;
+        cfg.m_port_count         = 2;
         cfg.m_rpc_req_resp_cfg   = NULL;
         cfg.m_rpc_async_cfg      = NULL;
         cfg.m_rpc_server_verbose = false;
-        cfg.m_platform_api       = new SimPlatformApi(1);;
+        cfg.m_platform_api       = new SimPlatformApi(1);
         cfg.m_publisher          = NULL;
 
         set_stateless_obj(new TrexStateless(cfg));
+        
         assert( CMsgIns::Ins()->Create(4) );
         int rc = gtest_main(argc, argv);
 

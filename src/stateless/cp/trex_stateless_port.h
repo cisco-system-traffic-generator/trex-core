@@ -93,6 +93,8 @@ private:
     /* handler genereated internally */
     std::string  m_handler;
     
+    /* seed for generating random values */
+    unsigned int m_seed;
 
     /* just references defaults... */
     static const std::string g_unowned_name;
@@ -442,9 +444,9 @@ public:
     static const std::initializer_list<std::string> g_types;
     static const std::initializer_list<std::string> g_ops;
 
-    mul_type_e  m_type;
-    mul_op_e    m_op;
-    double      m_value;
+    mul_type_e   m_type;
+    mul_op_e     m_op;
+    double       m_value;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */
