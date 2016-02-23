@@ -34,6 +34,9 @@ The TRex RPC Server
 | 1.4    | Hanoch Haim (hhaim)
 |
 - add random trim instruction
+| 1.5    | Hanoch Haim (hhaim)
+|
+- add more instructions (v1.92)
 
 |=================
 
@@ -578,6 +581,8 @@ The format of that object is as follows:
 | Field           | Type    | Description 
 | enabled         | boolean | is this stream enabled
 | self_start      | boolean | is this stream triggered by starting injection or triggered by another stream
+| action_count    | uint16_t  | In case it is bigger than zero and next stream is not -1 (set) the number of goto will be limited to this number. Maximum value is 65K. default is zero. Zero means - not limit.
+| flags           | uint16_t |  bit 0 (LSB) : 1 - take the src MAC from the packet instead of config file. bit 1-2 (LSB) how to set the dest MAC ( stCFG_FILE     = 0, stPKT = 1,stARP = 2 )
 | isg             | double  | ['usec'] inter stream gap - delay time in usec until the stream is started
 | next_stream_id  | int     | next stream to start after this stream. -1 means stop after this stream
 | packet          | object  | object of type xref:packet_obj['packet']
@@ -600,20 +605,31 @@ packet contains binary and meta data
 ===== Object type 'mode' anchor:mode_obj[]
 mode object can be 'one' of the following objects:
 
+.Object type 'rate' 
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | [''pps'',''bps_L1'',''bps_L2'',''percentage''
+| value       | double      |  rate 
+|=================
+
+
 .Object type 'mode - continuous' 
 [options="header",cols="1,1,3"]
 |=================
 | Field       | Type        | Description
 | type        | string      | ''continuous''
-| pps         | double      | rate in packets per second 
+| rate        | object      |  rate object
 |=================
+
+
 
 .Object type 'mode - single_burst' 
 [options="header",cols="1,1,3"]
 |=================
 | Field         | Type        | Description
 | type          | string      | ''single_burst''
-| pps           | double      | rate in packets per second 
+| rate          | object      |  rate object
 | total pkts    | int         | total packets in the burst
 |=================
 
@@ -622,7 +638,7 @@ mode object can be 'one' of the following objects:
 |=================
 | Field          | Type        | Description
 | type           | string      | ''multi_burst''
-| pps            | int         | rate in packets per second 
+| rate           | object      |  rate object
 | pkts_per_burst | int         | packets in a single burst
 | ibg            | double      | ['usec'] inter burst gap. delay between bursts in usec
 | count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
@@ -664,6 +680,7 @@ Any element in the array can be one of the following object types:
 | init_value  | uint64_t as string          | init value for the field
 | min_value   | uint64_t as string          | minimum value for the field
 | max_value   | uint64_t as string          | maximum value for the field
+| step        | uint64_t as string          | step, how much to inc or dec. 1 is the default (in case of 'random' this field is not used) 
 |=================
 
 .Object type 'vm - write_flow_var'
@@ -730,6 +747,66 @@ an example of tuple_flow_var variable
 The variable name.port and name.ip could be written to any offset in the packet (usualy to src_ip and src_port as client) 
 
 
+.Object type 'vm - write_mask_flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type                        | Description
+| type          | string                      | ''write_mask_flow_var'''
+| name          | string                      |  flow variable name 
+| pkt_offset    | uint16_t as string          |  offset at the packet to perform the write
+| add_value     | int32_t  as string          | delta to add to the field prior to writing - can be negative
+| pkt_cast_size | uint_t as string            | size in bytes only 1,2,4 are valid 
+| mask          | uint32_t as string          | 1 means care e.g. 0xff will write to only 8 LSB bits
+| shift         | int8_t   as string          | Positive will shift left (multiply by x2) negative will shift right (divided by 2)  e.g. 1 will multiply by 2
+| is_big_endian | boolean                     | should write as big endian or little 
+|=================
+
+.Pseudocode 
+[source,bash]
+----
+        uint32_t val=(cast_to_size)rd_from_varible("name"); # read flow-var
+        val+=m_add_value;                                   # add value
+
+        if (m_shift>0) {                                    # shift 
+            val=val<<m_shift;
+        }else{
+            if (m_shift<0) {
+                val=val>>(-m_shift);
+            }
+        }
+
+        pkt_val=rd_from_pkt(pkt_offset)                     # RMW
+        pkt_val = (pkt_val & ~m_mask) | (val & m_mask)
+        wr_to_pkt(pkt_offset,pkt_val)
+----
+
+an example of tuple_flow_var variable
+
+[source,bash]
+----
+ name          = "a" (varible 2 byte start 1-10 inc )
+ pkt_cast_size = 1 ( cast to uint8_t ) 
+ add_value     = 0
+ mask          = 0xf0
+ shift         = 4
+ is_big_endian =1
+----
+
+.Results 
+[options="header",cols="1,1,3"]
+|=================
+| var "a"   | PKT- before write      | PKT post write
+| 1    | 0x03        | 0x13
+| 2    | 0x03        | 0x23
+| 3    | 0x03        | 0x33
+| 4    | 0x03        | 0x43
+| 5    | 0x03        | 0x53
+|=================
+
+The use cases of this instruction is to write to a bit field (valn/mpls)
+
+
+
 TIP: For more information and examples on VM objects please refer to:
 link:vm_doc.html[VM examples]
 
@@ -788,7 +865,11 @@ This could be stream_id different from the stream object which contains the rx_s
             "enabled": true,
             "isg": 4.3,
             "mode": {
-                "pps": 3,
+                    "rate": {
+                        "type": "pps",
+                        "value": 10
+                    },
+
                 "total_pkts": 5000,
                 "type": "single_burst"
             },
@@ -1420,7 +1501,10 @@ On the following example, there's no VM instructions, rx_stats option is disable
         "enabled" : true,
         "isg" : 0,
         "mode" : {
-           "pps" : 100,
+                "rate": {
+                        "type": "pps",
+                        "value": 100
+                    },
            "type" : "continuous"
         },
         "next_stream_id" : -1,
@@ -1497,7 +1581,10 @@ Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `s
             "enabled" : true,
             "isg" : 0,
             "mode" : {
-               "pps" : 100,
+                   "rate": {
+                        "type": "pps",
+                        "value": 100
+                    },
                "type" : "continuous"
             },
             "next_stream_id" : 1,
@@ -1536,7 +1623,10 @@ Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `s
             "enabled" : true,
             "isg" : 0,
             "mode" : {
-               "pps" : 200,
+                   "rate": {
+                        "type": "pps",
+                        "value": 100
+                    },
                "type" : "continuous"
             },
             "next_stream_id" : -1,
