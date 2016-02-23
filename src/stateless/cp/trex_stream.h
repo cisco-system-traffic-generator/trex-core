@@ -68,22 +68,26 @@ static inline uint16_t get_log2_size(uint16_t size){
  *        ==>62
  * 
  */
+
 static inline uint16_t calc_writable_mbuf_size(uint16_t max_offset_writable,
                                                uint16_t pkt_size){
 
-    if ( pkt_size<=64 ){
-        return (pkt_size);
-    }
     if (pkt_size<=128) {
         return (pkt_size);
     }
 
     //pkt_size> 128
+    // if reside is less than 64 keep it as a single packet
     uint16_t non_writable = pkt_size - (max_offset_writable +1) ;
     if ( non_writable<64 ) {
         return (pkt_size);
     }
-    return(max_offset_writable+1);
+
+    // keep the r/w at least 60 byte
+    if ((max_offset_writable+1)<=60) {
+        return 60;
+    }
+    return max_offset_writable+1;
 }
 
 

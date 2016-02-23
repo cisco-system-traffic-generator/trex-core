@@ -62,7 +62,9 @@ TrexStream::vm_compile() {
     }
 
     /* compile */
+    m_vm.set_pkt(m_pkt.binary);
     m_vm.compile(m_pkt.len);
+    m_vm.set_pkt(0);
 
     /* create DP object */
     m_vm_dp = m_vm.generate_dp_object();

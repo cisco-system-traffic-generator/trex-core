@@ -396,14 +396,32 @@ void StreamVm::build_program(){
         if (ins_type == StreamVmInstruction::itFIX_IPV4_CS) {
             StreamVmInstructionFixChecksumIpv4 *lpFix =(StreamVmInstructionFixChecksumIpv4 *)inst;
 
-            add_field_cnt(lpFix->m_pkt_offset +12);
-
             if ( (lpFix->m_pkt_offset + IPV4_HDR_LEN) > m_pkt_size  ) {
 
                 std::stringstream ss;
                 ss << "instruction id '" << ins_id << "' fix ipv4 command offset  " << lpFix->m_pkt_offset << "  is too high relative to packet size  "<< m_pkt_size;
                 err(ss.str());
             }
+
+            uint16_t offset_next_layer = IPV4_HDR_LEN;
+
+            if ( m_pkt ){
+                IPHeader * ipv4= (IPHeader *)(m_pkt+lpFix->m_pkt_offset);
+                offset_next_layer = ipv4->getSize();
+            }
+
+            if (offset_next_layer<IPV4_HDR_LEN) {
+                offset_next_layer=IPV4_HDR_LEN;
+            }
+
+            if ( (lpFix->m_pkt_offset + offset_next_layer) > m_pkt_size  ) {
+
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' fix ipv4 command offset  " << lpFix->m_pkt_offset << "plus "<<offset_next_layer<< " is too high relative to packet size  "<< m_pkt_size;
+                err(ss.str());
+            }
+            /* calculate this offset from the packet */
+            add_field_cnt(lpFix->m_pkt_offset + offset_next_layer);
 
             StreamDPOpIpv4Fix ipv_fix;
             ipv_fix.m_offset = lpFix->m_pkt_offset;

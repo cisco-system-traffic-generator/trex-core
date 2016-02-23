@@ -181,13 +181,15 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_mac_step.py","-m 1 -l 20 ",True],
             ["udp_1pkt_mac_mask1.py","-m 1 -l 20 ",True] ,
             ["udp_1pkt_mac_mask2.py","-m 1 -l 20 ",True],
-            ["udp_1pkt_mac_mask3.py","-m 1 -l 20 ",True]
+            ["udp_1pkt_mac_mask3.py","-m 1 -l 20 ",True],
+            ["udp_1pkt_simple_test2.py","-m 1 -l 10 ",True], # test split of packet with ip option
+            ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True]
 
 
           ];
 
 
-        p1  = [ ["udp_1pkt_mpls_vm.py","-m 1 ",True] ]
+        p1  = [ ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True] ]
         
 
         for obj in p:

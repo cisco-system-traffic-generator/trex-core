@@ -1408,6 +1408,7 @@ public:
 
         m_split_instr=NULL;
         m_is_compiled = false;
+        m_pkt=0;
     }
 
 
@@ -1511,6 +1512,10 @@ public:
     /* raise exception */
     void  err(const std::string &err);
 
+    void set_pkt(uint8_t *pkt){
+        m_pkt=pkt;
+    }
+
 
     /**
      * return a pointer to a flow var / client var 
@@ -1565,6 +1570,7 @@ private:
     StreamDPVmInstructions             m_instructions;
     
     StreamVmInstructionVar             *m_split_instr;
+    uint8_t                            *m_pkt;
 
     
     
