@@ -112,30 +112,30 @@ TBD
     self_start: true
     vm:
       instructions:
-      - init_value: 3232235777
-        max_value: 3232235781
-        min_value: 3232235777
-        name: ip_src
+      - init_value: 0
+        max_value: 4
+        min_value: 0
+        name: inc_4_4_1
         op: inc
         size: 4
         step: 1
         type: flow_var
-      - add_value: 0
+      - add_value: 3232235777
         is_big_endian: true
-        name: ip_src
+        name: inc_4_4_1
         pkt_offset: 26
         type: write_flow_var
       - init_value: 0
         max_value: 4294967295
         min_value: 0
-        name: ip_dst
+        name: ip_dst_random
         op: random
         size: 4
         step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
-        name: ip_dst
+        name: ip_dst_random
         pkt_offset: 30
         type: write_flow_var
       - pkt_offset: 14
@@ -170,35 +170,35 @@ TBD
     self_start: true
     vm:
       instructions:
-      - init_value: 1024
-        max_value: 1024
-        min_value: 1015
-        name: tcp_src
+      - init_value: 9
+        max_value: 9
+        min_value: 0
+        name: dec_2_9_1
         op: dec
         size: 2
         step: 1
         type: flow_var
-      - add_value: 0
+      - add_value: 1015
         is_big_endian: true
-        name: tcp_src
+        name: dec_2_9_1
         pkt_offset: 34
         type: write_flow_var
       - init_value: 0
         max_value: 65535
         min_value: 0
-        name: tcp_dst
+        name: tcp_dst_random
         op: random
         size: 2
         step: 1
         type: flow_var
       - add_value: 0
         is_big_endian: true
-        name: tcp_dst
+        name: tcp_dst_random
         pkt_offset: 36
         type: write_flow_var
       - pkt_offset: 14
         type: fix_checksum_ipv4
-      split_by_var: tcp_src
+      split_by_var: dec_2_9_1
 '''
 
     # Eth / IP / UDP, udp ports are changed by VM
@@ -247,35 +247,35 @@ TBD
     self_start: true
     vm:
       instructions:
-      - init_value: 1234
-        max_value: 1234
-        min_value: 1225
-        name: udp_src
+      - init_value: 9
+        max_value: 9
+        min_value: 0
+        name: dec_2_9_1
         op: dec
         size: 2
         step: 1
         type: flow_var
-      - add_value: 0
+      - add_value: 1225
         is_big_endian: true
-        name: udp_src
+        name: dec_2_9_1
         pkt_offset: 34
         type: write_flow_var
-      - init_value: 1234
-        max_value: 1243
-        min_value: 1234
-        name: udp_dst
+      - init_value: 0
+        max_value: 9
+        min_value: 0
+        name: inc_2_9_1
         op: inc
         size: 2
         step: 1
         type: flow_var
-      - add_value: 0
+      - add_value: 1234
         is_big_endian: true
-        name: udp_dst
+        name: inc_2_9_1
         pkt_offset: 36
         type: write_flow_var
       - pkt_offset: 14
         type: fix_checksum_ipv4
-      split_by_var: udp_src
+      split_by_var: dec_2_9_1
 '''
 
     # Eth/IP/TCP, packet length is changed in VM by frame_size
@@ -543,7 +543,7 @@ TBD
       pps: 1
       type: continuous
     packet:
-      binary: AAAAAAAAAAABAAABht1gAAAAAFIGQP6AAAAAAAAAAAAAAAAAABL+gAAAAAAAAAAAAAAAAAAiBAAAUAAAAAEAAAABUAAP5Zs3AAAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ==
+      binary: AAAAAAAAAAABAAABht1gAAAAAG4GQP6AAAAAAAAAAAAAAAAAABL+gAAAAAAAAAAAAAAAAAAiBAAAUAAAAAEAAAABUAAP5ctLAAAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISE=
       meta: ''
     rx_stats:
       enabled: false
@@ -573,40 +573,40 @@ TBD
       pps: 1
       type: continuous
     packet:
-      binary: AAAAAAAAAAABAAABht1gAAAAAFIRQBERIiIzM0REVVVmZnd3iIgRERERERERERERERERERERBAAAUABSQkIhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ==
+      binary: AAAAAAAAAAABAAABht1gAAAAAG4RQBERIiIzM0REVVVmZnd3iIgRERERERERERERERERERERBAAAUABucjohISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISE=
       meta: ''
     rx_stats:
       enabled: false
     self_start: true
     vm:
       instructions:
-      - init_value: 2004322440
-        max_value: 2004322485
-        min_value: 2004322440
-        name: ipv6_src
+      - init_value: 0
+        max_value: 45
+        min_value: 0
+        name: inc_4_9_5
         op: inc
         size: 4
         step: 5
         type: flow_var
-      - add_value: 0
+      - add_value: 2004322440
         is_big_endian: true
-        name: ipv6_src
+        name: inc_4_9_5
         pkt_offset: 34
         type: write_flow_var
-      - init_value: 286331153
-        max_value: 286331153
-        min_value: 286328620
-        name: ipv6_dst
+      - init_value: 2533
+        max_value: 2533
+        min_value: 0
+        name: dec_4_149_17
         op: dec
         size: 4
         step: 17
         type: flow_var
-      - add_value: 0
+      - add_value: 286328620
         is_big_endian: true
-        name: ipv6_dst
+        name: dec_4_149_17
         pkt_offset: 50
         type: write_flow_var
-      split_by_var: ipv6_dst
+      split_by_var: dec_4_149_17
 '''
 
 

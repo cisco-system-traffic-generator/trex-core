@@ -1,7 +1,8 @@
 #!/router/bin/python
 
 import outer_packages
-from trex_stl_lib.trex_stl_hltapi import CTRexHltApi, CStreamsPerPort
+#from trex_stl_lib.trex_stl_hltapi import CTRexHltApi, CStreamsPerPort
+from trex_stl_lib.trex_stl_hltapi import *
 import traceback
 import sys, time
 from pprint import pprint
@@ -53,13 +54,27 @@ if __name__ == "__main__":
         res = check_res(hlt_client.connect(device = args.device, port_list = [0, 1], username = 'danklei', break_locks = True, reset = True))
         port_handle = res['port_handle']
         print('Connected, got port handles %s' % port_handle)
-        ports_streams_dict = CStreamsPerPort(port_handle)
+        ports_streams_dict = CStreamsPerPort()
 
-        print('Imix should create 3 streams (forth ratio is 0)')
-        res = check_res(hlt_client.traffic_config(mode = 'create', l2_encap = 'ethernet_ii_vlan', bidirectional = True, length_mode = 'imix',
-                                                  port_handle = port_handle, save_to_yaml = '/tmp/d1.yaml'))
+        res = check_res(hlt_client.traffic_config(mode = 'create', l2_encap = 'ethernet_ii_vlan', rate_pps = 1,
+                                                  l3_protocol = 'ipv4',
+                                                  length_mode = 'imix', l3_length = 200,
+                                                  ipv6_dst_mode = 'decrement', ipv6_dst_count = 300, ipv6_dst_addr = 'fe80:0:0:0:0:0:0:000f',
+                                                  port_handle = port_handle, port_handle2 = port_handle[1], save_to_yaml = '/tmp/d1.yaml'))
+        #print res
+        #print hlt_client._streams_history
+        #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[0])
+        #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[1])
+        #ports_streams_dict.add_streams_from_res(res)
+        sys.exit(0)
+        res = check_res(hlt_client.traffic_config(mode = 'create', l2_encap = 'ethernet_ii_vlan', rate_pps = 1, 
+                                                  port_handle = port_handle[0], port_handle2 = port_handle[1], save_to_yaml = '/tmp/d1.yaml',
+                                                  l4_protocol = 'udp',
+                                                  #udp_src_port_mode = 'decrement',
+                                                  #udp_src_port_count = 10, udp_src_port = 5,
+                                                  ))
         ports_streams_dict.add_streams_from_res(res)
-
+        sys.exit(0)
         #print ports_streams_dict
         #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[0])
         res = check_res(hlt_client.traffic_config(mode = 'modify', port_handle = port_handle[0], stream_id = ports_streams_dict[0][0],
@@ -71,7 +86,8 @@ if __name__ == "__main__":
         #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[0])
         check_res(hlt_client.traffic_config(mode = 'reset', port_handle = port_handle))
 
-        res = check_res(hlt_client.traffic_config(mode = 'create', bidirectional = True, length_mode = 'fixed', port_handle = port_handle,
+        res = check_res(hlt_client.traffic_config(mode = 'create', bidirectional = True, length_mode = 'fixed',
+                                                  port_handle = port_handle[0], port_handle2 = port_handle[1],
                                                   transmit_mode = 'single_burst', pkts_per_burst = 100, rate_pps = 100,
                                                   mac_src = '1-2-3-4-5-6',
                                                   mac_dst = '6:5:4:4:5:6',
