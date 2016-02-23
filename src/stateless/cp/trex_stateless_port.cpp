@@ -657,7 +657,7 @@ TrexPortOwner::TrexPortOwner() {
     m_is_free = true;
 
     /* for handlers random generation */
-    srand(time(NULL));
+    m_seed = time(NULL);
 }
 
 /**
@@ -675,7 +675,7 @@ TrexPortOwner::generate_handler() {
 
     /* generate 8 bytes of random handler */
     for (int i = 0; i < 8; ++i) {
-        ss << alphanum[rand() % (sizeof(alphanum) - 1)];
+        ss << alphanum[rand_r(&m_seed) % (sizeof(alphanum) - 1)];
     }
 
     return (ss.str());
