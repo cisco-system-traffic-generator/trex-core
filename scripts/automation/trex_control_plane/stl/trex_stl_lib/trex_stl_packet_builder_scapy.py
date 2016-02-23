@@ -246,7 +246,7 @@ class CTRexVmInsWrFlowVar(CTRexVmInsBase):
         assert type(is_big_endian)==bool, 'type of is_big_endian is not bool'
 
 class CTRexVmInsWrMaskFlowVar(CTRexVmInsBase):
-    def __init__(self, fv_name, pkt_offset,pkt_cast_size,mask,shift, is_big_endian=True):
+    def __init__(self, fv_name, pkt_offset,pkt_cast_size,mask,shift,add_value, is_big_endian=True):
         super(CTRexVmInsWrMaskFlowVar, self).__init__("write_mask_flow_var")
         self.name = fv_name
         assert type(fv_name)==str, 'type of fv_name is not str'
@@ -258,6 +258,8 @@ class CTRexVmInsWrMaskFlowVar(CTRexVmInsBase):
         assert type(mask)==int, 'type of mask is not int'
         self.shift = shift
         assert type(shift)==int, 'type of shift is not int'
+        self.add_value =add_value
+        assert type(add_value)==int, 'type of add_value is not int'
         self.is_big_endian = is_big_endian
         assert type(is_big_endian)==bool, 'type of is_big_endian is not bool'
 
@@ -590,7 +592,7 @@ class CTRexVmDescWrFlowVar(CTRexVmDescBase):
             self.pkt_offset = t[0]
 
 class CTRexVmDescWrMaskFlowVar(CTRexVmDescBase):
-    def __init__(self, fv_name, pkt_offset, pkt_cast_size=1, mask=0xff, shift=0, offset_fixup=0, is_big=True):
+    def __init__(self, fv_name, pkt_offset, pkt_cast_size=1, mask=0xff, shift=0, add_value=0, offset_fixup=0, is_big=True):
         super(CTRexVmDescWrMaskFlowVar, self).__init__()
         self.name =fv_name
         assert type(fv_name)==str, 'type of fv_name is not str'
@@ -599,13 +601,16 @@ class CTRexVmDescWrMaskFlowVar(CTRexVmDescBase):
         self.pkt_offset =pkt_offset
         self.pkt_cast_size =pkt_cast_size
         assert type(pkt_cast_size)==int,'type of pkt_cast_size is not int'
-        if not (pkt_cast_size in [1,2,4,8]):
+        if not (pkt_cast_size in [1,2,4]):
             raise CTRexPacketBuildException(-10,"not valid cast size");
 
         self.mask = mask
         assert type(mask)==int,'type of mask is not int'
         self.shift = shift
         assert type(shift)==int,'type of shift is not int'
+        self.add_value = add_value
+        assert type(add_value)==int,'type of add_value is not int'
+
         self.is_big =is_big;
         assert type(is_big)==bool,'type of is_big_endian is not bool'
 
@@ -613,7 +618,7 @@ class CTRexVmDescWrMaskFlowVar(CTRexVmDescBase):
         return self.name
 
     def get_obj (self):
-            return  CTRexVmInsWrMaskFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.pkt_cast_size,self.mask,self.shift,self.is_big)
+            return  CTRexVmInsWrMaskFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.pkt_cast_size,self.mask,self.shift,self.add_value,self.is_big)
 
     def compile(self,parent): 
         if type(self.pkt_offset)==str:

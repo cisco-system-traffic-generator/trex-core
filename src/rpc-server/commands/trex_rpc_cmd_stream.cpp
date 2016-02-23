@@ -319,6 +319,7 @@ TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst,
     uint16_t      pkt_cast_size = parse_uint16(inst, "pkt_cast_size", result);
     uint32_t     mask          = parse_uint32(inst, "mask", result);
     int          shift         = parse_int(inst, "shift", result);
+    int          add_value     = parse_int(inst, "add_value", result);
     bool         is_big_endian = parse_bool(inst,   "is_big_endian", result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionWriteMaskToPkt(flow_var_name,
@@ -326,6 +327,7 @@ TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst,
                                                                        (uint8_t)pkt_cast_size,
                                                                        mask,
                                                                        shift,
+                                                                       add_value,
                                                                        is_big_endian));
 }
 

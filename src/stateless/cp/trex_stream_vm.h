@@ -444,6 +444,7 @@ struct StreamDPOpPktWrMask  {
     uint8_t  m_flowv_cast_size; /* 1,2,4 */
     uint16_t m_pkt_offset;
     uint32_t m_mask;
+    int32_t  m_add_value;   
     bool is_big(){
         return ( (m_flags &StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG) == StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG ?true:false);
     }
@@ -1037,12 +1038,14 @@ public:
                                   uint8_t            pkt_cast_size, /* valid 1,2,4 */
                                   uint32_t           mask,
                                   int                shift,       /* positive is shift left, negetive shift right */
+                                  int32_t            add_value = 0,
                                   bool               is_big_endian = true) :
                                                         m_flow_var_name(flow_var_name),
                                                         m_pkt_offset(pkt_offset),
                                                         m_pkt_cast_size(pkt_cast_size), 
                                                         m_mask(mask),
                                                         m_shift(shift),       
+                                                        m_add_value(add_value),
                                                         m_is_big_endian(is_big_endian) {}
 
     virtual instruction_type_t get_instruction_type() const {
@@ -1057,6 +1060,7 @@ public:
                                                      m_pkt_cast_size,
                                                      m_mask,
                                                      m_shift,
+                                                     m_add_value,
                                                      m_is_big_endian);
     }
 
@@ -1070,7 +1074,8 @@ public:
     uint8_t       m_pkt_cast_size; /* valid 1,2,4 */
 
     uint32_t      m_mask;
-    int           m_shift;       
+    int           m_shift;
+    int           m_add_value;
     bool          m_is_big_endian;
 };
 

@@ -84,7 +84,7 @@ void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 
 
 void StreamVmInstructionWriteMaskToPkt::Dump(FILE *fd){
-    fprintf(fd," flow_var:%s, offset:%lu, cast_size:%lu, mask:0x%lx, shift:%ld, is_big:%lu \n",m_flow_var_name.c_str(),(ulong)m_pkt_offset,(ulong)m_pkt_cast_size,(ulong)m_mask,(long)m_shift,(ulong)(m_is_big_endian?1:0));
+    fprintf(fd," flow_var:%s, offset:%lu, cast_size:%lu, mask:0x%lx, shift:%ld, add:%ld, is_big:%lu \n",m_flow_var_name.c_str(),(ulong)m_pkt_offset,(ulong)m_pkt_cast_size,(ulong)m_mask,(long)m_shift,(long)m_add_value,(ulong)(m_is_big_endian?1:0));
 }
 
 
@@ -735,6 +735,7 @@ void StreamVm::build_program(){
             pmask.m_flags      =   flags;
             pmask.m_var_offset =   flow_offset;
             pmask.m_shift      =   lpPkt->m_shift;
+            pmask.m_add_value  =   lpPkt->m_add_value;
             pmask.m_pkt_cast_size =   cast_size;
             pmask.m_flowv_cast_size = op_size;
             pmask.m_pkt_offset      = lpPkt->m_pkt_offset;
@@ -1342,6 +1343,8 @@ void StreamDPOpPktWrMask::wr(uint8_t * flow_var_base,
         default:
           assert(0);    
         }
+
+        val+=m_add_value;
 
         /* shift the flow var val */
         if (m_shift>0) {
