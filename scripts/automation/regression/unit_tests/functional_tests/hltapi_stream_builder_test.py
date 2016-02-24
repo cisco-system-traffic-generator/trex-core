@@ -483,7 +483,8 @@ TBD
         size: 2
         step: 2
         type: flow_var
-      - is_big_endian: true
+      - add_value: 0
+        is_big_endian: true
         mask: 4095
         name: vlan_id0
         pkt_cast_size: 2
@@ -498,7 +499,8 @@ TBD
         size: 2
         step: 1
         type: flow_var
-      - is_big_endian: true
+      - add_value: 0
+        is_big_endian: true
         mask: 4095
         name: vlan_id2
         pkt_cast_size: 2
@@ -513,7 +515,8 @@ TBD
         size: 2
         step: 1
         type: flow_var
-      - is_big_endian: true
+      - add_value: 0
+        is_big_endian: true
         mask: 4095
         name: vlan_id3
         pkt_cast_size: 2
