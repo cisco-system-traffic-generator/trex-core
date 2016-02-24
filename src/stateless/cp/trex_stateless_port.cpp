@@ -61,6 +61,9 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     /* get the platform specific data */
     api->get_interface_info(port_id, m_driver_name, m_speed, m_has_crc);
 
+    /* get RX caps */
+    api->get_interface_stat_info(port_id, m_rx_count_num, m_rx_caps);
+
     /* get the DP cores belonging to this port */
     api->port_id_to_cores(m_port_id, core_pair_list);
 
