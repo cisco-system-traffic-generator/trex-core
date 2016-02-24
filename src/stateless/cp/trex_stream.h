@@ -402,7 +402,8 @@ public:
 
         /* on full clone we copy also VM */
         if (full) {
-            m_vm.copy_instructions(dp->m_vm);
+            m_vm.clone(dp->m_vm);
+            
         }
 
         /* copy VM DP product */

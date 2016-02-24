@@ -125,10 +125,12 @@ STLStreamDstMAC_ARP     =2
 class STLRxStats(object):
     def __init__ (self, user_id):
         self.fields = {}
-        self.fields['stream_id'] = user_id
-        self.fields['enabled'] = True
-        self.fields['seq_enabled'] = False
+
+        self.fields['enabled']         = True
+        self.fields['stream_id']       = user_id
+        self.fields['seq_enabled']     = False
         self.fields['latency_enabled'] = False
+
 
     def to_json (self):
         return dict(self.fields)
@@ -356,6 +358,8 @@ class YAMLLoader(object):
 
 
     def __parse_mode (self, mode_obj):
+        if not mode_obj:
+            return None
 
         rate_parser = set(mode_obj).intersection(['pps', 'bps_L1', 'bps_L2', 'percentage'])
         if len(rate_parser) != 1:
@@ -389,6 +393,18 @@ class YAMLLoader(object):
 
 
 
+    def __parse_rx_stats (self, rx_stats_obj):
+
+        # no such object
+        if not rx_stats_obj or rx_stats_obj.get('enabled') == False:
+            return None
+
+        user_id = rx_stats_obj.get('stream_id') 
+        if user_id == None:
+            raise STLError("enabled RX stats section must contain 'stream_id' field")
+
+        return STLRxStats(user_id = user_id)
+
 
     def __parse_stream (self, yaml_object):
         s_obj = yaml_object['stream']
@@ -402,23 +418,21 @@ class YAMLLoader(object):
 
 
         # mode
-        mode_obj = s_obj.get('mode')
-        if not mode_obj:
-            raise STLError("YAML file must contain 'mode' field")
+        mode = self.__parse_mode(s_obj.get('mode'))
 
-        mode = self.__parse_mode(mode_obj)
-
+        # rx stats
+        rx_stats = self.__parse_rx_stats(s_obj.get('rx_stats'))
         
-        defaults = STLStream()
 
+        defaults = STLStream()
         # create the stream
         stream = STLStream(name       = yaml_object.get('name'),
                            packet     = builder,
                            mode       = mode,
+                           rx_stats   = rx_stats,
                            enabled    = s_obj.get('enabled', defaults.fields['enabled']),
                            self_start = s_obj.get('self_start', defaults.fields['self_start']),
                            isg        = s_obj.get('isg', defaults.fields['isg']),
-                           rx_stats   = s_obj.get('rx_stats', defaults.fields['rx_stats']),
                            next       = yaml_object.get('next'),
                            action_count = s_obj.get('action_count', defaults.fields['action_count']),
                            mac_src_override_by_pkt = s_obj.get('mac_src_override_by_pkt', 0),
