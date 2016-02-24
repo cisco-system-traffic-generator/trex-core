@@ -582,6 +582,7 @@ The format of that object is as follows:
 | enabled         | boolean | is this stream enabled
 | self_start      | boolean | is this stream triggered by starting injection or triggered by another stream
 | action_count    | uint16_t  | In case it is bigger than zero and next stream is not -1 (set) the number of goto will be limited to this number. Maximum value is 65K. default is zero. Zero means - not limit.
+| random_seed     | uint32_t  | For creating reproducible  tests with random number, each stream can get a seed. this field is optional. In case of zero the seed value won't be taken 
 | flags           | uint16_t |  bit 0 (LSB) : 1 - take the src MAC from the packet instead of config file. bit 1-2 (LSB) how to set the dest MAC ( stCFG_FILE     = 0, stPKT = 1,stARP = 2 )
 | isg             | double  | ['usec'] inter stream gap - delay time in usec until the stream is started
 | next_stream_id  | int     | next stream to start after this stream. -1 means stop after this stream
