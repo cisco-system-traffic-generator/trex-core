@@ -284,6 +284,18 @@ public:
     uint64_t get_port_speed_bps() const;
 
     /**
+     * return RX caps
+     * 
+     */
+    int get_rx_caps() const {
+        return m_rx_caps;
+    }
+
+    uint16_t get_rx_count_num() const {
+        return m_rx_count_num;
+    }
+
+    /**
      * return true if port adds CRC to a packet (not occurs for 
      * VNICs) 
      * 
@@ -376,6 +388,8 @@ private:
     port_state_e       m_port_state;
     std::string        m_driver_name;
     bool               m_has_crc;
+    uint16_t           m_rx_count_num;
+    uint16_t           m_rx_caps;
 
     TrexPlatformApi::driver_speed_e m_speed;
 

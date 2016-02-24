@@ -105,17 +105,22 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
     stream->m_rx_check.m_enabled = parse_bool(rx, "enabled", result);
 
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
+
     /* if it is enabled - we need more fields */
     if (stream->m_rx_check.m_enabled) {
-        stream->m_rx_check.m_user_id   = parse_int(rx, "stream_id", result);
-        stream->m_rx_check.m_seq_enabled = parse_bool(rx, "seq_enabled", result);
-        stream->m_rx_check.m_latency     = parse_bool(rx, "latency_enabled", result);
+
+        if (port->get_rx_caps() == 0) {
+            generate_parse_err(result, "RX stats is not supported on this interface");
+        }
+
+        stream->m_rx_check.m_user_id      = parse_int(rx, "stream_id", result);
+        stream->m_rx_check.m_seq_enabled  = parse_bool(rx, "seq_enabled", result);
+        stream->m_rx_check.m_latency      = parse_bool(rx, "latency_enabled", result);
     }
 
     /* make sure this is a valid stream to add */
     validate_stream(stream, result);
-
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
 
     try {
         port->add_stream(stream.get());
