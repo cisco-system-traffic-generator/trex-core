@@ -587,7 +587,11 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
     // read hw counters, and update
     data_section["timestamp"] = Json::Value::UInt64(os_get_hr_tick_64());
     for (uint8_t port = 0; port < m_num_ports; port++) {
-        m_api->get_rx_stats(port, stats, -1, false);
+        int rc = m_api->get_rx_stats(port, stats, -1, false);
+        if (rc == -1) {
+            continue;
+        }
+
         for (int i = 0; i < TREX_FDIR_STAT_SIZE; i++) {
             if (stats[i] != 0) {
                 m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i))->set_rx_counter(port, stats[i]);
