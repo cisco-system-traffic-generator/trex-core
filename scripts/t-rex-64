@@ -4,7 +4,9 @@ if [ $USER != 'root' ]; then
   exit -1
 fi
 
-./trex-cfg $@
+INPUT_ARGS=${@//[]/-} # replace bizarre minuses with normal one
+
+./trex-cfg $INPUT_ARGS
 RESULT=$?
 if [ $RESULT -ne 0 ]; then
   exit $RESULT
@@ -16,15 +18,15 @@ export LD_LIBRARY_PATH=$PWD
 saveterm="$(stty -g)"
 # if we have a new core run optimized trex 
 if  cat /proc/cpuinfo | grep -q avx ; then
-    ./_$(basename $0) $@
+    ./_$(basename $0) $INPUT_ARGS
     if [ $? -eq 132 ]; then
         echo " WARNING this program is optimized for the new Intel processors.  "
         echo " try the ./t-rex-64-o application that should work for any Intel processor but might be slower. "
         echo " try to run t-rex-64-o .. "
-        ./_t-rex-64-o $@
+        ./_t-rex-64-o $INPUT_ARGS
     fi
 else
-        ./_t-rex-64-o $@
+        ./_t-rex-64-o $INPUT_ARGS
 fi
 stty $saveterm  
 

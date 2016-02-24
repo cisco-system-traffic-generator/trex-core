@@ -65,7 +65,6 @@ public:
     }
 };
 
-
 /**
  * handler for DP to CP messages
  * 

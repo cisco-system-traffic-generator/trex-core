@@ -16,7 +16,7 @@ class STLS1(object):
                 ip_dst_count = 1,
                 l3_length = 474,
                 ip_dscp = 10,
-                #rate_bps = 256000000, # not supported yet
+                rate_bps = 256000000,
                 mac_src_mode = 'fixed',
                 mac_src_step = 1,
                 mac_src_count = 1,

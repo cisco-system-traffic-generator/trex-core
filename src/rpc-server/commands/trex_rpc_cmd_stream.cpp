@@ -103,11 +103,11 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     /* parse RX info */
     const Json::Value &rx = parse_object(section, "rx_stats", result);
 
-    stream->m_rx_check.m_enable = parse_bool(rx, "enabled", result);
+    stream->m_rx_check.m_enabled = parse_bool(rx, "enabled", result);
 
     /* if it is enabled - we need more fields */
-    if (stream->m_rx_check.m_enable) {
-        stream->m_rx_check.m_stream_id   = parse_int(rx, "stream_id", result);
+    if (stream->m_rx_check.m_enabled) {
+        stream->m_rx_check.m_user_id   = parse_int(rx, "stream_id", result);
         stream->m_rx_check.m_seq_enabled = parse_bool(rx, "seq_enabled", result);
         stream->m_rx_check.m_latency     = parse_bool(rx, "latency_enabled", result);
     }
@@ -590,8 +590,6 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    bool    get_pkt = parse_bool(params, "get_pkt", result);
-
     std::vector <TrexStream *> streams;
     port->get_object_list(streams);
 
@@ -599,11 +597,6 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
     for (auto stream : streams) {
 
         Json::Value j = stream->get_stream_json();
-
-        /* should we include the packet as well ? */
-        if (!get_pkt) {
-            j.removeMember("packet");
-        }
 
         std::stringstream ss;
         ss << stream->m_stream_id;

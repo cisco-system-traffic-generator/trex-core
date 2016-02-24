@@ -54,13 +54,18 @@ public:
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
     }
 
-    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+    virtual void get_interface_info(uint8_t interface_id,
+                                    std::string &driver_name,
+                                    driver_speed_e &speed,
+                                    bool &has_crc) const {
         driver_name = "TEST";
         speed = TrexPlatformApi::SPEED_10G;
+        has_crc = true;
     }
 
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
     }
+    virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const {num_counters=128; capabilities=0; }
 
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
         for (int i = 0; i < m_dp_core_count; i++) {
@@ -71,6 +76,10 @@ public:
     virtual void publish_async_data_now(uint32_t key) const {
 
     }
+    virtual int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const {return 0;}
+    virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};
+    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
+    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
 
 private:
     int m_dp_core_count;

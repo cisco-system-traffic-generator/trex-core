@@ -12,6 +12,7 @@ class STLS1(object):
                              tcp_dst_port = 1234,
                              name = 'test_tcp_ranges',
                              direction = direction,
+                             rate_pps = 1,
                              ),
                ]
 

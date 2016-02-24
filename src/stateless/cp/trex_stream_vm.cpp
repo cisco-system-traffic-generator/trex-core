@@ -887,14 +887,14 @@ StreamVm::set_split_instruction(StreamVmInstructionVar *instr) {
 }
 
 /**
- * copy instructions from this VM to 'other'
+ * clone VM from this VM to 'other'
  * 
  * @author imarom (22-Dec-15)
  * 
  * @param other 
  */
 void 
-StreamVm::copy_instructions(StreamVm &other) const {
+StreamVm::clone(StreamVm &other) const {
     /* clear previous if any exists */
     for (auto instr : other.m_inst_list) {
         delete instr;
@@ -904,6 +904,7 @@ StreamVm::copy_instructions(StreamVm &other) const {
 
     for (auto instr : m_inst_list) {
         StreamVmInstruction *new_instr = instr->clone();
+
         other.m_inst_list.push_back(new_instr);
 
         /* for the split instruction - find the right one */
@@ -914,6 +915,7 @@ StreamVm::copy_instructions(StreamVm &other) const {
         }
     }
 
+    other.m_is_random_var = m_is_random_var;
 }
 
 /**
@@ -974,7 +976,7 @@ StreamVm::calc_expected_pkt_size(uint16_t regular_pkt_size) const {
 
     StreamVm dummy;
 
-    this->copy_instructions(dummy);
+    this->clone(dummy);
     dummy.compile(regular_pkt_size);
 
     assert(dummy.m_expected_pkt_size != 0);

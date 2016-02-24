@@ -244,29 +244,29 @@ private:
     double get_pkt_size();
 
     void calculate_from_pps() {
-        m_bps_L1     = m_pps * (get_pkt_size() + 24) * 8;
-        m_bps_L2     = m_pps * (get_pkt_size() + 4) * 8;
+        m_bps_L1     = m_pps * (get_pkt_size() + 20) * 8;
+        m_bps_L2     = m_pps * get_pkt_size() * 8;
         m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
 
     void calculate_from_bps_L1() {
-        m_bps_L2     = m_bps_L1 * ( (get_pkt_size() + 4.0) / (get_pkt_size() + 24.0) );
-        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_bps_L2     = m_bps_L1 * ( get_pkt_size() / (get_pkt_size() + 20.0) );
+        m_pps        = m_bps_L2 / (8 * get_pkt_size());
         m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
 
     void calculate_from_bps_L2() {
-        m_bps_L1     = m_bps_L2 * ( (get_pkt_size() + 24.0) / (get_pkt_size() + 4.0));
-        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_bps_L1     = m_bps_L2 * ( (get_pkt_size() + 20.0) / get_pkt_size());
+        m_pps        = m_bps_L2 / (8 * get_pkt_size());
         m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
     void calculate_from_percentage() {
         m_bps_L1     = (m_percentage / 100.0) * get_line_speed_bps();
-        m_bps_L2     = m_bps_L1 * ( (get_pkt_size() + 4.0) / (get_pkt_size() + 24.0) );
-        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_bps_L2     = m_bps_L1 * ( get_pkt_size() / (get_pkt_size() + 20.0) );
+        m_pps        = m_bps_L2 / (8 * get_pkt_size());
 
     }
 
@@ -394,11 +394,19 @@ public:
     }
 
     /* create new stream */
-    TrexStream * clone() const {
+    TrexStream * clone(bool full = false) const {
 
         /* not all fields will be cloned */
 
         TrexStream *dp = new TrexStream(m_type,m_port_id,m_stream_id);
+
+        /* on full clone we copy also VM */
+        if (full) {
+            m_vm.clone(dp->m_vm);
+            
+        }
+
+        /* copy VM DP product */
         if (m_vm_dp) {
             dp->m_vm_dp = m_vm_dp->clone();
         } else {
@@ -500,10 +508,10 @@ public:
 
     /* RX check */
     struct {
-        bool      m_enable;
+        bool      m_enabled;
         bool      m_seq_enabled;
         bool      m_latency;
-        uint32_t  m_stream_id;
+        uint32_t  m_user_id;
 
     } m_rx_check;
 
@@ -559,12 +567,7 @@ public:
      */
     void remove_stream(TrexStream *stream);
 
-    /**
-     * remove all streams on the table
-     * memory will be deleted
-     */
-    void remove_and_delete_all_streams();
-
+ 
     /**
      * fetch a stream if exists 
      * o.w NULL 

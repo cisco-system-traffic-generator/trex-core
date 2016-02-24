@@ -1456,7 +1456,7 @@ public:
      * clone VM instructions
      * 
      */
-    void copy_instructions(StreamVm &other) const;
+    void clone(StreamVm &other) const;
 
     
     bool is_vm_empty() const {

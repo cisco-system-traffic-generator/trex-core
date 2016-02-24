@@ -31,6 +31,7 @@ limitations under the License.
  * 
  * @author imarom (06-Oct-15)
  */
+
 class TrexPlatformGlobalStats {
 public:
     TrexPlatformGlobalStats() {
@@ -98,7 +99,12 @@ public:
 
 class TrexPlatformApi {
 public:
-
+    enum driver_stat_capabilities_e {
+        IF_STAT_IPV4_ID = 1,
+        IF_STAT_PAYLOAD = 2,
+        IF_STAT_IPV6_FLOW_LABEL = 4,
+    };
+    
     enum driver_speed_e {
         SPEED_INVALID,
         SPEED_1G,
@@ -109,9 +115,18 @@ public:
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const = 0;
-    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const = 0;
+
+    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name,
+                                    driver_speed_e &speed,
+                                    bool &has_crc) const = 0;
+
     virtual void publish_async_data_now(uint32_t key) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
+    virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const =0;
+    virtual int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const = 0;
+    virtual void get_port_num(uint8_t &port_num) const = 0;
+    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
+    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
     
     virtual ~TrexPlatformApi() {}
 };
@@ -127,10 +142,19 @@ public:
     void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
-    void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const;
+
+    void get_interface_info(uint8_t interface_id,
+                            std::string &driver_name,
+                            driver_speed_e &speed,
+                            bool &has_crc) const;
+
     void publish_async_data_now(uint32_t key) const;
     uint8_t get_dp_core_count() const;
-    
+    void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const;
+    int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const;
+    void get_port_num(uint8_t &port_num) const;
+    int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
+    int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
 };
 
 /**
@@ -143,13 +167,24 @@ public:
     void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
-    void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+
+    void get_interface_info(uint8_t interface_id,
+                            std::string &driver_name,
+                            driver_speed_e &speed,
+                            bool &has_crc) const {
         driver_name = "MOCK";
         speed = SPEED_INVALID;
+        has_crc = false;
     }
 
     void publish_async_data_now(uint32_t key) const {}
     uint8_t get_dp_core_count() const;
+    void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const
+    {num_counters = 0; capabilities = 0;}
+    int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const {return 0;}
+    void get_port_num(uint8_t &port_num) const {port_num = 2;};
+    int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
+    int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
 };
 
 #endif /* __TREX_PLATFORM_API_H__ */

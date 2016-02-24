@@ -236,34 +236,9 @@ public:
      * 
      */
 
-    void add_stream(TrexStream *stream) {
-        verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
-
-        m_stream_table.add_stream(stream);
-        delete_streams_graph();
-
-        change_state(PORT_STATE_STREAMS);
-    }
-
-    void remove_stream(TrexStream *stream) {
-        verify_state(PORT_STATE_STREAMS);
-
-        m_stream_table.remove_stream(stream);
-        delete_streams_graph();
-
-        if (m_stream_table.size() == 0) {
-            change_state(PORT_STATE_IDLE);
-        }
-    }
-
-    void remove_and_delete_all_streams() {
-        verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
-
-        m_stream_table.remove_and_delete_all_streams();
-        delete_streams_graph();
-
-        change_state(PORT_STATE_IDLE);
-    }
+    void add_stream(TrexStream *stream);
+    void remove_stream(TrexStream *stream);
+    void remove_and_delete_all_streams();
 
     TrexStream * get_stream_by_id(uint32_t stream_id) {
         return m_stream_table.get_stream_by_id(stream_id);
@@ -307,6 +282,18 @@ public:
      * 
      */
     uint64_t get_port_speed_bps() const;
+
+    /**
+     * return true if port adds CRC to a packet (not occurs for 
+     * VNICs) 
+     * 
+     * @author imarom (24-Feb-16)
+     * 
+     * @return bool 
+     */
+    bool has_crc_added() const {
+        return m_has_crc;
+    }
 
     TrexPortOwner & get_owner() {
         return m_owner;
@@ -357,6 +344,12 @@ private:
 
 
     /**
+     * when a port stops, perform various actions
+     * 
+     */
+    void common_port_stop_actions(bool event_triggered);
+
+    /**
      * calculate effective M per core
      * 
      */
@@ -382,6 +375,7 @@ private:
     uint8_t            m_port_id;
     port_state_e       m_port_state;
     std::string        m_driver_name;
+    bool               m_has_crc;
 
     TrexPlatformApi::driver_speed_e m_speed;
 

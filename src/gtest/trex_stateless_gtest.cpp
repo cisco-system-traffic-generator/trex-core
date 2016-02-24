@@ -20,6 +20,7 @@ limitations under the License.
 */
 
 #include "bp_sim.h"
+#include "flow_stat_parser.h"
 #include <common/gtest.h>
 #include <common/basic_utils.h>
 #include <trex_stateless.h>
@@ -3570,3 +3571,18 @@ TEST_F(basic_stl, vm_split_client_var) {
 }
 
 /********************************************* Itay Tests End *************************************/
+class rx_stat_pkt_parse  : public testing::Test {
+    protected:
+     virtual void SetUp() {
+     }
+     virtual void TearDown() {
+     }
+   public:
+};
+
+
+TEST_F(rx_stat_pkt_parse, x710_parser) {
+    Cxl710Parser parser;
+
+    parser.test();
+}

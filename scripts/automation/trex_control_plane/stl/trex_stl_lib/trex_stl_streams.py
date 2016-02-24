@@ -64,9 +64,9 @@ class STLTXMode(object):
 # continuous mode
 class STLTXCont(STLTXMode):
 
-    def __init__ (self, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
+    def __init__ (self, **kwargs):
 
-        super(STLTXCont, self).__init__(pps, bps_L1, bps_L2, percentage)
+        super(STLTXCont, self).__init__(**kwargs)
 
         self.fields['type'] = 'continuous'
 
@@ -76,12 +76,12 @@ class STLTXCont(STLTXMode):
 # single burst mode
 class STLTXSingleBurst(STLTXMode):
 
-    def __init__ (self, total_pkts = 1, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
+    def __init__ (self, total_pkts = 1, **kwargs):
 
         if not isinstance(total_pkts, int):
             raise STLArgumentError('total_pkts', total_pkts)
 
-        super(STLTXSingleBurst, self).__init__(pps, bps_L1, bps_L2, percentage)
+        super(STLTXSingleBurst, self).__init__(**kwargs)
 
         self.fields['type'] = 'single_burst'
         self.fields['total_pkts'] = total_pkts
@@ -96,10 +96,7 @@ class STLTXMultiBurst(STLTXMode):
                   pkts_per_burst = 1,
                   ibg = 0.0,   # usec not SEC
                   count = 1,
-                  pps = None,
-                  bps_L1 = None,
-                  bps_L2 = None,
-                  percentage = None):
+                  **kwargs):
 
         if not isinstance(pkts_per_burst, int):
             raise STLArgumentError('pkts_per_burst', pkts_per_burst)
@@ -110,7 +107,7 @@ class STLTXMultiBurst(STLTXMode):
         if not isinstance(count, int):
             raise STLArgumentError('count', count)
 
-        super(STLTXMultiBurst, self).__init__(pps, bps_L1, bps_L2, percentage)
+        super(STLTXMultiBurst, self).__init__(**kwargs)
 
         self.fields['type'] = 'multi_burst'
         self.fields['pkts_per_burst'] = pkts_per_burst
@@ -124,7 +121,23 @@ STLStreamDstMAC_CFG_FILE=0
 STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
+# RX stats class
+class STLRxStats(object):
+    def __init__ (self, user_id):
+        self.fields = {}
 
+        self.fields['enabled']         = True
+        self.fields['stream_id']       = user_id
+        self.fields['seq_enabled']     = False
+        self.fields['latency_enabled'] = False
+
+
+    def to_json (self):
+        return dict(self.fields)
+
+    @staticmethod
+    def defaults ():
+        return {'enabled' : False}
 
 class STLStream(object):
 
@@ -158,9 +171,7 @@ class STLStream(object):
         self.name = name
         self.next = next
 
-        # ID
-        self.set_id(stream_id)
-        self.set_next_id(None)
+        self.id = stream_id
 
 
         self.fields = {}
@@ -221,10 +232,9 @@ class STLStream(object):
         self.packet_desc = None
 
         if not rx_stats:
-            self.fields['rx_stats'] = {}
-            self.fields['rx_stats']['enabled'] = False
+            self.fields['rx_stats'] = STLRxStats.defaults()
         else:
-            self.fields['rx_stats'] = rx_stats
+            self.fields['rx_stats'] = rx_stats.to_json()
 
 
     def __str__ (self):
@@ -239,14 +249,6 @@ class STLStream(object):
     def get_id (self):
         return self.id
 
-    def set_id (self, id):
-        self.id = id
-
-    def get_next_id (self):
-        return self.next_id
-
-    def set_next_id (self, next_id):
-        self.next_id = next_id
 
     def get_name (self):
         return self.name
@@ -254,25 +256,43 @@ class STLStream(object):
     def get_next (self):
         return self.next
 
-    def get_pkt_type (self):
-        if self.packet_desc == None:
-            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
-
-        return self.packet_desc
 
     def get_pkt (self):
         return self.pkt
 
     def get_pkt_len (self, count_crc = True):
-       pkt_len = len(base64.b64decode(self.get_pkt()))
+       pkt_len = len(self.get_pkt())
        if count_crc:
            pkt_len += 4
 
        return pkt_len
 
 
+    def get_pkt_type (self):
+        if self.packet_desc == None:
+            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
+
+        return self.packet_desc
+
     def get_mode (self):
         return self.mode_desc
+
+    @staticmethod
+    def get_rate_from_field (rate_json):
+        t = rate_json['type']
+        v = rate_json['value']
+
+        if t == "pps":
+            return format_num(v, suffix = "pps")
+        elif t == "bps_L1":
+            return format_num(v, suffix = "bps (L1)")
+        elif t == "bps_L2":
+            return format_num(v, suffix = "bps (L2)")
+        elif t == "percentage":
+            return format_num(v, suffix = "%")
+
+    def get_rate (self):
+        return self.get_rate_from_field(self.fields['mode']['rate'])
 
 
     def to_yaml (self):
@@ -338,6 +358,8 @@ class YAMLLoader(object):
 
 
     def __parse_mode (self, mode_obj):
+        if not mode_obj:
+            return None
 
         rate_parser = set(mode_obj).intersection(['pps', 'bps_L1', 'bps_L2', 'percentage'])
         if len(rate_parser) != 1:
@@ -371,6 +393,18 @@ class YAMLLoader(object):
 
 
 
+    def __parse_rx_stats (self, rx_stats_obj):
+
+        # no such object
+        if not rx_stats_obj or rx_stats_obj.get('enabled') == False:
+            return None
+
+        user_id = rx_stats_obj.get('stream_id') 
+        if user_id == None:
+            raise STLError("enabled RX stats section must contain 'stream_id' field")
+
+        return STLRxStats(user_id = user_id)
+
 
     def __parse_stream (self, yaml_object):
         s_obj = yaml_object['stream']
@@ -384,23 +418,21 @@ class YAMLLoader(object):
 
 
         # mode
-        mode_obj = s_obj.get('mode')
-        if not mode_obj:
-            raise STLError("YAML file must contain 'mode' field")
+        mode = self.__parse_mode(s_obj.get('mode'))
 
-        mode = self.__parse_mode(mode_obj)
-
+        # rx stats
+        rx_stats = self.__parse_rx_stats(s_obj.get('rx_stats'))
         
-        defaults = STLStream()
 
+        defaults = STLStream()
         # create the stream
         stream = STLStream(name       = yaml_object.get('name'),
                            packet     = builder,
                            mode       = mode,
+                           rx_stats   = rx_stats,
                            enabled    = s_obj.get('enabled', defaults.fields['enabled']),
                            self_start = s_obj.get('self_start', defaults.fields['self_start']),
                            isg        = s_obj.get('isg', defaults.fields['isg']),
-                           rx_stats   = s_obj.get('rx_stats', defaults.fields['rx_stats']),
                            next       = yaml_object.get('next'),
                            action_count = s_obj.get('action_count', defaults.fields['action_count']),
                            mac_src_override_by_pkt = s_obj.get('mac_src_override_by_pkt', 0),
@@ -523,7 +555,7 @@ class STLProfile(object):
             
             streams.append(STLStream(name = i,
                                      packet = CScapyTRexPktBuilder(pkt_buffer = cap, vm = vm),
-                                     mode = STLTXSingleBurst(total_pkts = 1),
+                                     mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
                                      self_start = True if (i == 1) else False,
                                      isg = (ts_usec - last_ts_usec),  # seconds to usec
                                      action_count = action_count,

@@ -130,7 +130,7 @@ TrexStream::TrexStream(uint8_t type,
     m_pkt.len          = 0;
     m_expected_pkt_len = 0;
 
-    m_rx_check.m_enable = false;
+    m_rx_check.m_enabled = false;
 
 
     m_burst_total_pkts=0; 
@@ -191,15 +191,6 @@ void TrexStreamTable::remove_stream(TrexStream *stream) {
 }
 
 
-void TrexStreamTable::remove_and_delete_all_streams() {
-
-    for (auto stream : m_stream_table) {
-        delete stream.second;
-    }
-
-    m_stream_table.clear();
-}
-
 TrexStream * TrexStreamTable::get_stream_by_id(uint32_t stream_id) {
     auto search = m_stream_table.find(stream_id);
 
@@ -254,5 +245,13 @@ TrexStreamRate::get_line_speed_bps() {
 
 double
 TrexStreamRate::get_pkt_size() {
-    return m_stream.get_pkt_size();
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_stream.m_port_id);
+
+    double pkt_size = m_stream.get_pkt_size();
+
+    if (port->has_crc_added()) {
+        pkt_size += 4;
+    }
+
+    return pkt_size;
 }

@@ -190,7 +190,7 @@ void
 TrexVmSplitter::duplicate_vm() {
     /* for each core - duplicate the instructions */
     for (TrexStream *core_stream : *m_core_streams) {
-        m_stream->m_vm.copy_instructions(core_stream->m_vm);
+        m_stream->m_vm.clone(core_stream->m_vm);
     }
 }
 

@@ -107,7 +107,7 @@ void parse_vm_instr_write_mask_flow_var(const Json::Value &inst, std::unique_ptr
 
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetAllStreams, "get_all_streams", 2, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetAllStreams, "get_all_streams", 1, false);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, false);
 

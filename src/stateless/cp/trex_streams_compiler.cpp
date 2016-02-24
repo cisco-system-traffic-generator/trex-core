@@ -475,16 +475,18 @@ TrexStreamsCompiler::compile_stream(TrexStream *stream,
         new_next_id = nodes.get(stream->m_next_stream_id)->m_compressed_stream_id;
     }
 
+    TrexStream *fixed_rx_flow_stat_stream = stream->clone(true);
+    get_stateless_obj()->m_rx_flow_stat.start_stream(fixed_rx_flow_stat_stream);
 
     /* can this stream be split to many cores ? */
     if (!stream->is_splitable(dp_core_count)) {
-        compile_stream_on_single_core(stream,
+        compile_stream_on_single_core(fixed_rx_flow_stat_stream,
                                       factor,
                                       objs[0],
                                       new_id,
                                       new_next_id);
     } else {
-        compile_stream_on_all_cores(stream,
+        compile_stream_on_all_cores(fixed_rx_flow_stat_stream,
                                     factor,
                                     dp_core_count,
                                     objs,
@@ -492,7 +494,7 @@ TrexStreamsCompiler::compile_stream(TrexStream *stream,
                                     new_next_id);
     }
 
-
+    delete fixed_rx_flow_stat_stream;
 }
 
 /**

@@ -27,9 +27,9 @@ traffic_config_kwargs = {
     'port_handle2': None,
     # stream builder parameters
     'transmit_mode': 'continuous',          # ( continuous | multi_burst | single_burst )
-    'rate_pps': 1,                          # TODO: support bps and percent once stateless API will, use rate_percent by default
+    'rate_pps': None,
     'rate_bps': None,
-    'rate_percent': 100,
+    'rate_percent': 10,
     'stream_id': None,
     'name': None,
     'bidirectional': 0,
@@ -663,55 +663,67 @@ class CTRexHltApi(object):
 
 def STLHltStream(**user_kwargs):
     kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
+    # verify rate is given by at most one arg
+    rate_args = set(['rate_pps', 'rate_bps', 'rate_percent'])
+    intersect_rate_args = list(rate_args & set(user_kwargs.keys()))
+    if len(intersect_rate_args) > 1:
+        raise STLError('More than one rate argument specified: %s' % intersect_rate_args)
+    try:
+        rate_key = intersect_rate_args[0]
+    except IndexError:
+        rate_key = 'rate_percent'
+
     if kwargs['length_mode'] == 'imix': # several streams with given length
         streams_arr = []
         user_kwargs['length_mode'] = 'fixed'
         if kwargs['l3_imix1_size'] < 32 or kwargs['l3_imix2_size'] < 32 or kwargs['l3_imix3_size'] < 32 or kwargs['l3_imix4_size'] < 32:
             raise STLError('l3_imix*_size should be at least 32')
-        total_rate = kwargs['l3_imix1_ratio'] + kwargs['l3_imix2_ratio'] + kwargs['l3_imix3_ratio'] + kwargs['l3_imix4_ratio']
-        if total_rate == 0:
+        total_ratio = kwargs['l3_imix1_ratio'] + kwargs['l3_imix2_ratio'] + kwargs['l3_imix3_ratio'] + kwargs['l3_imix4_ratio']
+        if total_ratio == 0:
             raise STLError('Used length_mode imix, but all the ratios are 0')
         save_to_yaml = kwargs.get('save_to_yaml')
-        rate_pps = float(kwargs['rate_pps'])
+        total_rate = float(kwargs[rate_key])
         if kwargs['l3_imix1_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix1.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix1_size']
-            user_kwargs['rate_pps'] = rate_pps * kwargs['l3_imix1_ratio'] / total_rate
+            user_kwargs[rate_key] = total_rate * kwargs['l3_imix1_ratio'] / total_ratio
             streams_arr.append(STLHltStream(**user_kwargs))
         if kwargs['l3_imix2_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix2.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix2_size']
-            user_kwargs['rate_pps'] = rate_pps * kwargs['l3_imix2_ratio'] / total_rate
+            user_kwargs[rate_key] = total_rate * kwargs['l3_imix2_ratio'] / total_ratio
             streams_arr.append(STLHltStream(**user_kwargs))
         if kwargs['l3_imix3_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix3.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix3_size']
-            user_kwargs['rate_pps'] = rate_pps * kwargs['l3_imix3_ratio'] / total_rate
+            user_kwargs[rate_key] = total_rate * kwargs['l3_imix3_ratio'] / total_ratio
             streams_arr.append(STLHltStream(**user_kwargs))
         if kwargs['l3_imix4_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix4.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix4_size']
-            user_kwargs['rate_pps'] = rate_pps * kwargs['l3_imix4_ratio'] / total_rate
+            user_kwargs[rate_key] = total_rate * kwargs['l3_imix4_ratio'] / total_ratio
             streams_arr.append(STLHltStream(**user_kwargs))
         return streams_arr
 
     # packet generation
     packet = generate_packet(**user_kwargs)
     try:
+        # TODO: verify if bps is L1 or L2, use L2 for now
+        rate_types_dict = {'rate_pps': 'pps', 'rate_bps': 'bps_L2', 'rate_percent': 'percentage'}
+        rate_stateless = {rate_types_dict[rate_key]: float(kwargs[rate_key])}
         transmit_mode = kwargs['transmit_mode']
-        rate_pps = kwargs['rate_pps']
         pkts_per_burst = kwargs['pkts_per_burst']
         if transmit_mode == 'continuous':
-            transmit_mode_class = STLTXCont(pps = rate_pps)
+            transmit_mode_class = STLTXCont(**rate_stateless)
         elif transmit_mode == 'single_burst':
-            transmit_mode_class = STLTXSingleBurst(pps = rate_pps, total_pkts = pkts_per_burst)
+            transmit_mode_class = STLTXSingleBurst(total_pkts = pkts_per_burst, **rate_stateless)
         elif transmit_mode == 'multi_burst':
-            transmit_mode_class = STLTXMultiBurst(pps = rate_pps, total_pkts = pkts_per_burst,
-                                                  count = int(kwargs['burst_loop_count']), ibg = kwargs['inter_burst_gap'])
+            transmit_mode_class = STLTXMultiBurst(total_pkts = pkts_per_burst, count = int(kwargs['burst_loop_count']),
+                                                  ibg = kwargs['inter_burst_gap'], **rate_stateless)
         else:
             raise STLError('transmit_mode %s not supported/implemented')
     except Exception as e:

@@ -258,6 +258,12 @@ inline void IPHeader::updateTotalLength(uint16_t newlen)
     myChecksum =   pkt_UpdateInetChecksum(myChecksum,oldLen,myLength);
 }
 
+// updating checksum after changing old val to new
+inline void IPHeader::updateCheckSum(uint16_t old_val, uint16_t new_val)
+{
+    myChecksum =   pkt_UpdateInetChecksum(myChecksum, old_val, new_val);
+}
+
 inline void IPHeader::updateCheckSum()
 {
     myChecksum = 0;
