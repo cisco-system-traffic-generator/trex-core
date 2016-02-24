@@ -2,6 +2,9 @@ from trex_stl_lib.trex_stl_hltapi import STLHltStream
 
 
 class STLS1(object):
+    '''
+    Eth/IP/TCP stream with VM to get 10 different TCP ports
+    '''
 
     def create_streams (self, direction = 0):
         return [STLHltStream(tcp_src_port_mode = 'decrement',

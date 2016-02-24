@@ -475,34 +475,34 @@ TBD
     self_start: true
     vm:
       instructions:
-      - init_value: 1
-        max_value: 7
-        min_value: 1
-        name: vlan_id0
+      - init_value: 0
+        max_value: 6
+        min_value: 0
+        name: dec_2_3_2
         op: inc
         size: 2
         step: 2
         type: flow_var
-      - add_value: 0
+      - add_value: 1
         is_big_endian: true
         mask: 4095
-        name: vlan_id0
+        name: dec_2_3_2
         pkt_cast_size: 2
         pkt_offset: 14
         shift: 0
         type: write_mask_flow_var
-      - init_value: 1000
-        max_value: 1000
-        min_value: 991
-        name: vlan_id2
+      - init_value: 9
+        max_value: 9
+        min_value: 0
+        name: dec_2_9_1
         op: dec
         size: 2
         step: 1
         type: flow_var
-      - add_value: 0
+      - add_value: 991
         is_big_endian: true
         mask: 4095
-        name: vlan_id2
+        name: dec_2_9_1
         pkt_cast_size: 2
         pkt_offset: 22
         shift: 0
@@ -510,7 +510,7 @@ TBD
       - init_value: 0
         max_value: 65535
         min_value: 0
-        name: vlan_id3
+        name: vlan_id_random
         op: random
         size: 2
         step: 1
@@ -518,12 +518,12 @@ TBD
       - add_value: 0
         is_big_endian: true
         mask: 4095
-        name: vlan_id3
+        name: vlan_id_random
         pkt_cast_size: 2
         pkt_offset: 26
         shift: 0
         type: write_mask_flow_var
-      split_by_var: vlan_id2
+      split_by_var: dec_2_9_1
 '''
 
 
@@ -621,7 +621,7 @@ TBD
 
 
     def yaml_save_location(self):
-        return os.devnull
+        #return os.devnull
         # debug/deveopment, comment line above
         return '/tmp/%s.yaml' % self._testMethodName
 

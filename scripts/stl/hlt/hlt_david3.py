@@ -2,6 +2,10 @@ from trex_stl_lib.trex_stl_hltapi import STLHltStream
 
 
 class STLS1(object):
+    '''
+    Example number 3 of using HLTAPI from David
+    Creates Eth/802.1Q/802.1Q/IP/TCP stream
+    '''
 
     def create_streams (self, direction = 0):
         return STLHltStream(

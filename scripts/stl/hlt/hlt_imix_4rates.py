@@ -2,6 +2,10 @@ from trex_stl_lib.trex_stl_hltapi import STLHltStream
 
 
 class STLS1(object):
+    '''
+    Creating 4 streams Eth/IP/UDP with different size and rate (smallest with highest rate)
+    Each stream will get rate_pps * his ratio / sum of ratios
+    '''
 
     def create_streams (self, direction = 0):
         return STLHltStream(length_mode = 'imix', rate_pps = 2,

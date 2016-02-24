@@ -2,6 +2,13 @@ from trex_stl_lib.trex_stl_hltapi import STLHltStream
 
 
 class STLS1(object):
+    '''
+    Example number 3 of using HLTAPI from David
+    Creates Eth/802.1Q/802.1Q/IP/TCP stream with complex VM:
+        The first vlan_id will be incremented, second const.
+        MAC src, IP src, IP dst will have <mac_src_count> number of incremental values
+        MAC dst will have <mac_dst_count> number of incremental values
+    '''
 
     def create_streams (self, direction = 0):
         mac_dst_count = 10
@@ -11,7 +18,7 @@ class STLS1(object):
         intf_traffic_src_ip = '16.0.0.1'
 
         return STLHltStream(
-                #enable_auto_detect_instrumentation = 1, # not supported
+                #enable_auto_detect_instrumentation = 1, # not supported yet
                 ip_dst_addr = intf_traffic_dst_ip,
                 ip_dst_count = mac_src_count,
                 ip_dst_mode = 'increment',
@@ -22,7 +29,7 @@ class STLS1(object):
                 ip_src_step = '0.0.1.0',
                 l3_protocol = 'ipv4',
                 mac_dst_count = mac_dst_count,
-                #mac_dst_mode = 'discovery', # not supported
+                #mac_dst_mode = 'discovery', # not supported yet
                 mac_dst_mode = 'increment',
                 mac_dst_step = 1,
                 mac_src_count = mac_src_count,

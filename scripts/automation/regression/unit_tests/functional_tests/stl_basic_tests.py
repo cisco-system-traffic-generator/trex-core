@@ -207,6 +207,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ['hlt/hlt_david3.py', '-m 1 -l 20', True],
             ['hlt/hlt_david4.py', '-m 1 -l 20', True],
             ['hlt/hlt_tcp_ranges.py', '-m 1 -l 20', True],
+            ['hlt/hlt_udp_ports.py', '-m 1 -l 20', True],
+            ['hlt/hlt_udp_random_ports.py', '-m 1 -l 20', True],
             )
 
         for obj in p:
