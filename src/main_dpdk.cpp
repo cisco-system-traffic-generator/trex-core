@@ -127,6 +127,11 @@ public:
 
     virtual TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) = 0;
 
+    /* by default NIC driver adds CRC */
+    virtual bool has_crc_added() {
+        return true;
+    }
+
     virtual int get_min_sample_rate(void)=0;
     virtual void update_configuration(port_cfg_t * cfg)=0;
     virtual void update_global_config_fdir(port_cfg_t * cfg)=0;
@@ -199,6 +204,10 @@ public:
 
     TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
         return TrexPlatformApi::SPEED_1G;
+    }
+
+    virtual bool has_crc_added() {
+        return false;
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -4927,10 +4936,12 @@ TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uin
 void
 TrexDpdkPlatformApi::get_interface_info(uint8_t port_id,
                                         std::string &driver_name,
-                                        driver_speed_e &speed) const {
+                                        driver_speed_e &speed,
+                                        bool &has_crc) const {
 
     driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
-    speed = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed(port_id);
+    speed       = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed(port_id);
+    has_crc     = CTRexExtendedDriverDb::Ins()->get_drv()->has_crc_added();
 }
 
 void

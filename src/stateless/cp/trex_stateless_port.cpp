@@ -59,7 +59,7 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     m_port_state = PORT_STATE_IDLE;
 
     /* get the platform specific data */
-    api->get_interface_info(port_id, m_driver_name, m_speed);
+    api->get_interface_info(port_id, m_driver_name, m_speed, m_has_crc);
 
     /* get the DP cores belonging to this port */
     api->port_id_to_cores(m_port_id, core_pair_list);

@@ -109,7 +109,11 @@ public:
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const = 0;
-    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const = 0;
+
+    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name,
+                                    driver_speed_e &speed,
+                                    bool &has_crc) const = 0;
+
     virtual void publish_async_data_now(uint32_t key) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
     
@@ -127,7 +131,12 @@ public:
     void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
-    void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const;
+
+    void get_interface_info(uint8_t interface_id,
+                            std::string &driver_name,
+                            driver_speed_e &speed,
+                            bool &has_crc) const;
+
     void publish_async_data_now(uint32_t key) const;
     uint8_t get_dp_core_count() const;
     
@@ -143,9 +152,14 @@ public:
     void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
-    void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+
+    void get_interface_info(uint8_t interface_id,
+                            std::string &driver_name,
+                            driver_speed_e &speed,
+                            bool &has_crc) const {
         driver_name = "MOCK";
         speed = SPEED_INVALID;
+        has_crc = false;
     }
 
     void publish_async_data_now(uint32_t key) const {}

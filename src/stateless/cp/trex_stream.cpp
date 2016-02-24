@@ -254,5 +254,13 @@ TrexStreamRate::get_line_speed_bps() {
 
 double
 TrexStreamRate::get_pkt_size() {
-    return m_stream.get_pkt_size();
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_stream.m_port_id);
+
+    double pkt_size = m_stream.get_pkt_size();
+
+    if (port->has_crc_added()) {
+        pkt_size += 4;
+    }
+
+    return pkt_size;
 }

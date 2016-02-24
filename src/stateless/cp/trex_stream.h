@@ -244,29 +244,29 @@ private:
     double get_pkt_size();
 
     void calculate_from_pps() {
-        m_bps_L1     = m_pps * (get_pkt_size() + 24) * 8;
-        m_bps_L2     = m_pps * (get_pkt_size() + 4) * 8;
+        m_bps_L1     = m_pps * (get_pkt_size() + 20) * 8;
+        m_bps_L2     = m_pps * get_pkt_size() * 8;
         m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
 
     void calculate_from_bps_L1() {
-        m_bps_L2     = m_bps_L1 * ( (get_pkt_size() + 4.0) / (get_pkt_size() + 24.0) );
-        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_bps_L2     = m_bps_L1 * ( get_pkt_size() / (get_pkt_size() + 20.0) );
+        m_pps        = m_bps_L2 / (8 * get_pkt_size());
         m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
 
     void calculate_from_bps_L2() {
-        m_bps_L1     = m_bps_L2 * ( (get_pkt_size() + 24.0) / (get_pkt_size() + 4.0));
-        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_bps_L1     = m_bps_L2 * ( (get_pkt_size() + 20.0) / get_pkt_size());
+        m_pps        = m_bps_L2 / (8 * get_pkt_size());
         m_percentage = (m_bps_L1 / get_line_speed_bps()) * 100.0;
     }
 
     void calculate_from_percentage() {
         m_bps_L1     = (m_percentage / 100.0) * get_line_speed_bps();
-        m_bps_L2     = m_bps_L1 * ( (get_pkt_size() + 4.0) / (get_pkt_size() + 24.0) );
-        m_pps        = m_bps_L2 / (8 * (get_pkt_size() + 4));
+        m_bps_L2     = m_bps_L1 * ( get_pkt_size() / (get_pkt_size() + 20.0) );
+        m_pps        = m_bps_L2 / (8 * get_pkt_size());
 
     }
 

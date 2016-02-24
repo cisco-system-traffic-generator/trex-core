@@ -54,9 +54,13 @@ public:
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
     }
 
-    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name, driver_speed_e &speed) const {
+    virtual void get_interface_info(uint8_t interface_id,
+                                    std::string &driver_name,
+                                    driver_speed_e &speed,
+                                    bool &has_crc) const {
         driver_name = "TEST";
         speed = TrexPlatformApi::SPEED_10G;
+        has_crc = true;
     }
 
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {

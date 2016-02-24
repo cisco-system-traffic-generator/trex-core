@@ -308,6 +308,18 @@ public:
      */
     uint64_t get_port_speed_bps() const;
 
+    /**
+     * return true if port adds CRC to a packet (not occurs for 
+     * VNICs) 
+     * 
+     * @author imarom (24-Feb-16)
+     * 
+     * @return bool 
+     */
+    bool has_crc_added() const {
+        return m_has_crc;
+    }
+
     TrexPortOwner & get_owner() {
         return m_owner;
     }
@@ -382,6 +394,7 @@ private:
     uint8_t            m_port_id;
     port_state_e       m_port_state;
     std::string        m_driver_name;
+    bool               m_has_crc;
 
     TrexPlatformApi::driver_speed_e m_speed;
 
