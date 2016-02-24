@@ -1276,7 +1276,8 @@ public:
                 uint16_t prog_size,
                 uint16_t max_pkt_offset,
                 uint16_t prefix_size,
-                bool a_is_pkt_size_var
+                bool a_is_pkt_size_var,
+                bool a_is_random_seed
                 ){
 
         if (bss) {
@@ -1303,6 +1304,7 @@ public:
         m_max_pkt_offset_change = max_pkt_offset;
         m_prefix_size = prefix_size;
         m_is_pkt_size_var=a_is_pkt_size_var;
+        m_is_random_seed=a_is_random_seed;
     }
 
     ~StreamVmDp(){
@@ -1325,7 +1327,8 @@ public:
                                          m_program_size,
                                          m_max_pkt_offset_change,
                                          m_prefix_size,
-                                         m_is_pkt_size_var
+                                         m_is_pkt_size_var,
+                                         m_is_random_seed
                                          );
         assert(lp);
         return (lp);
@@ -1373,6 +1376,9 @@ public:
     bool is_pkt_size_var(){
         return (m_is_pkt_size_var);
     }
+    bool is_random_seed(){
+        return (m_is_random_seed);
+    }
 
 
 private:
@@ -1383,6 +1389,7 @@ private:
     uint16_t   m_max_pkt_offset_change;
     uint16_t   m_prefix_size;
     bool       m_is_pkt_size_var;
+    bool       m_is_random_seed;
 
 };
 
@@ -1445,7 +1452,8 @@ public:
                                         get_dp_instruction_buffer()->get_program_size(),
                                         get_max_packet_update_offset(),
                                         get_prefix_size(),
-                                        is_var_pkt_size()
+                                        is_var_pkt_size(),
+                                        m_is_random_var
                                         );
         assert(lp);
         return (lp);

@@ -30,6 +30,7 @@ class STLS1(object):
                             vm = vm)
 
         return STLStream(packet = pkt,
+                         random_seed = 0x1234,
                          mode = STLTXCont())
 
 

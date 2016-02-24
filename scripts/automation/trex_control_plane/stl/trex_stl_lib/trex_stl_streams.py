@@ -152,6 +152,7 @@ class STLStream(object):
                   next = None,
                   stream_id = None,
                   action_count = 0,
+                  random_seed =0,
                   mac_src_override_by_pkt=None,
                   mac_dst_override_mode=None    #see  STLStreamDstMAC_xx
                   ):
@@ -163,6 +164,7 @@ class STLStream(object):
         validate_type('self_start', self_start, bool)
         validate_type('isg', isg, (int, float))
         validate_type('stream_id', stream_id, (NoneType, int))
+        validate_type('random_seed',random_seed,int);
 
         if (type(mode) == STLTXCont) and (next != None):
             raise STLError("continuous stream cannot have a next stream ID")
@@ -206,6 +208,9 @@ class STLStream(object):
         self.fields['enabled'] = enabled
         self.fields['self_start'] = self_start
         self.fields['isg'] = isg
+
+        if random_seed !=0 :
+            self.fields['random_seed'] = random_seed # optional
 
         # mode
         self.fields['mode'] = mode.to_json()

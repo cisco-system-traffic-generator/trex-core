@@ -429,6 +429,7 @@ public:
         dp->m_ibg_usec              =   m_ibg_usec;
         dp->m_flags                 =   m_flags;
         dp->m_action_count          =   m_action_count;
+        dp->m_random_seed           =   m_random_seed;
 
         dp->m_rate                  =   m_rate;
 
@@ -485,6 +486,7 @@ public:
     uint16_t      m_flags;
     uint32_t      m_stream_id;              /* id from RPC can be anything */
     uint16_t      m_action_count;       
+    uint32_t      m_random_seed;
     
 
     /* config fields */

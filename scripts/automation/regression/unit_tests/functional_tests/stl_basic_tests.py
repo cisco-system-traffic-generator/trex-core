@@ -141,12 +141,12 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         p = [ 
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
-            ["syn_attack.py","-m 1 -l 50",False],               # can't compare random now 
+            ["syn_attack.py","-m 1 -l 50",True],               # can't compare random now 
             ["udp_1pkt_1mac.py","-m 1 -l 50",True],
             ["udp_1pkt_mac.py","-m 1 -l 50",True],
             ["udp_1pkt.py","-m 1 -l 50",True],
             ["udp_1pkt_tuple_gen.py","-m 1 -l 50",True],
-            ["udp_rand_len_9k.py","-m 1 -l 50",False],           # can't do the compare 
+            ["udp_rand_len_9k.py","-m 1 -l 50",True],           # can't do the compare 
             ["udp_1pkt_mpls.py","-m 1 -l 50",True],
             ["udp_1pkt_mpls_vm.py","-m 1 ",True],
             ["imix.py","-m 1 -l 100",True],
@@ -190,7 +190,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
           ];
 
 
-        p1  = [ ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 10 ",True] ]
+        p1  = [ ["udp_rand_len_9k.py","-m 1 -l 50",True] ]
         
 
         for obj in p:

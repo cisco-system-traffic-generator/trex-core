@@ -38,6 +38,7 @@ class STLS1(object):
                             vm = vm)
 
         return STLStream(packet = pkt,
+                         random_seed = 0x1234,# can be remove. will give the same random value any run
                          mode = STLTXCont())
 
 

@@ -757,7 +757,7 @@ TEST_F(basic_vm, vm_mask1) {
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0x10000007,0x10000007,0x100000fe)  );
 
 
-    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0x00ff,0,1) );
+    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0x00ff,0,0,1) );
 
     vm.compile(128);
 
@@ -811,7 +811,7 @@ TEST_F(basic_vm, vm_mask2) {
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0x10000007,0x10000007,0x100000fe)  );
 
 
-    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0xff00,8,1) );
+    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0xff00,8,0,1) );
 
     vm.compile(128);
 
@@ -864,7 +864,7 @@ TEST_F(basic_vm, vm_mask3) {
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0x10000007,0x10000007,0x100000fe)  );
 
 
-    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,1,0x2,1,1) );
+    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,1,0x2,1,0,1) );
 
     vm.compile(128);
 
@@ -917,7 +917,7 @@ TEST_F(basic_vm, vm_mask4) {
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,1,1,10)  );
 
 
-    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0xFF00,8,1) );
+    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0xFF00,8,0,1) );
 
     vm.compile(128);
 
@@ -970,7 +970,7 @@ TEST_F(basic_vm, vm_mask5) {
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,1,1,10)  );
 
 
-    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,4,0x00FF0000,16,1) );
+    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,4,0x00FF0000,16,0,1) );
 
     vm.compile(128);
 
@@ -1024,7 +1024,7 @@ TEST_F(basic_vm, vm_mask6) {
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,1,1,20)  );
 
 
-    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0x00FF,-1,1) );
+    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0x00FF,-1,0,1) );
 
     vm.compile(128);
 
