@@ -190,7 +190,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
           ];
 
 
-        p1  = [ ["udp_1pkt_mac_mask5.py","-m 1 -l 30 ",True] ]
+        p1  = [ ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 10 ",True] ]
         
 
         for obj in p:
