@@ -116,6 +116,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--functional', action="store_true", default = False,
                             dest="functional", 
                             help="Don't connect to remote server for runnning daemon (For functional tests).")
+        parser.add_option('--copy', action="store_true", default = False,
+                            dest="copy", 
+                            help="Copy TRex server to temp directory and run from there.")
 
     def configure(self, options, conf):
         self.functional = options.functional
@@ -202,8 +205,17 @@ if __name__ == "__main__":
     xml_name                    = 'unit_test.xml'
     CTRexScenario.report_dir    = 'reports'
     CTRexScenario.scripts_path  = get_trex_path()
-    DAEMON_STOP_COMMAND         = 'cd %s; ./trex_daemon_server stop; sleep 1; ./trex_daemon_server stop;' % CTRexScenario.scripts_path
-    DAEMON_START_COMMAND        = DAEMON_STOP_COMMAND + 'sleep 1; rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
+    COMMON_RUN_COMMAND = 'rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
+    COMMON_STOP_COMMAND = './trex_daemon_server stop; sleep 1; ./trex_daemon_server stop; sleep 1'
+    if '--copy' in sys.argv:
+        new_path = '/tmp/trex_scripts'
+        DAEMON_STOP_COMMAND  = 'cd %s; %s' % (new_path, COMMON_STOP_COMMAND)
+        DAEMON_START_COMMAND = 'mkdir -p %s; cd %s; %s; rsync -L -az %s/ %s; %s' % (new_path, new_path, COMMON_STOP_COMMAND,
+                                                                   CTRexScenario.scripts_path, new_path, COMMON_RUN_COMMAND)
+    else:
+        DAEMON_STOP_COMMAND  = 'cd %s; %s' % (CTRexScenario.scripts_path, COMMON_STOP_COMMAND)
+        DAEMON_START_COMMAND = DAEMON_STOP_COMMAND + COMMON_RUN_COMMAND
+    
     setup_dir                   = os.getenv('SETUP_DIR', '').rstrip('/')
     CTRexScenario.setup_dir     = check_setup_path(setup_dir)
     if not CTRexScenario.setup_dir:
