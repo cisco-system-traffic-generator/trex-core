@@ -263,7 +263,7 @@ if __name__ == '__main__':
     if trex_last_commit_hash and trex_repo:
         try:
             print 'Getting TRex commit with hash %s' % trex_last_commit_hash
-            command = 'timeout 10 git --git-dir %s show %s --quiet' % (trex_repo, trex_last_commit_hash)
+            command = 'git --git-dir %s show %s --quiet' % (trex_repo, trex_last_commit_hash)
             print 'Executing: %s' % command
             proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             (trex_last_commit_info, stderr) = proc.communicate()
