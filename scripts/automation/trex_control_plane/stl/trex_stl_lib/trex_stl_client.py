@@ -1671,7 +1671,7 @@ class STLClient(object):
             raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
         # check arguments
-        validate_type('promiscuous', promiscuous, bool)
+        validate_type('promiscuous', promiscuous, (bool, NoneType))
 
         # build attributes
         attr_dict = {}
