@@ -15,7 +15,8 @@ def compare_yamls(yaml1, yaml2):
         i += 1
         assert line1 == line2, 'yamls are not equal starting from line %s:\n%s\n    Golden    <->    Generated\n%s' % (i, line1.strip(), line2.strip())
 
-
+# TODO: move the tests to compare pcaps, not yamls
+@nottest
 class CTRexHltApi_Test(unittest.TestCase):
     ''' Checks correct HLTAPI creation of packet/VM '''
 

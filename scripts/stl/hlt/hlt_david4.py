@@ -3,7 +3,7 @@ from trex_stl_lib.trex_stl_hltapi import STLHltStream
 
 class STLS1(object):
     '''
-    Example number 3 of using HLTAPI from David
+    Example number 4 of using HLTAPI from David
     Creates Eth/802.1Q/802.1Q/IP/TCP stream with complex VM:
         The first vlan_id will be incremented, second const.
         MAC src, IP src, IP dst will have <mac_src_count> number of incremental values
@@ -41,7 +41,7 @@ class STLS1(object):
                 vlan_id_count = '2 2',
                 vlan_id_mode = 'increment fixed',
                 vlan_id_step = '1 1',
-                vlan_protocol_tag_ids = '{8100 8100}',
+                #vlan_protocol_tag_id = '{8100 8100}',
                 direction = direction,
                 )
 

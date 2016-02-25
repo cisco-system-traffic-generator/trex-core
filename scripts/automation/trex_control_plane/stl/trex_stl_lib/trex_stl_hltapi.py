@@ -203,21 +203,25 @@ def merge_kwargs(default_kwargs, user_kwargs):
             print("Warning: provided parameter '%s' is not supported" % key)
     return kwargs
 
-# change MACs from HLT formats {a b c d e f} or a-b-c-d-e-f or a.b.c.d.e.f to Scapy format a:b:c:d:e:f
+# change MACs from formats 01-23-45-67-89-10 or 0123.4567.8910 or {01 23 45 67 89 10} to Scapy format 01:23:45:67:89:10
 def correct_macs(kwargs):
     list_of_mac_args = ['mac_src', 'mac_dst', 'mac_src2', 'mac_dst2']
     list_of_mac_steps = ['mac_src_step', 'mac_dst_step', 'mac_src2_step', 'mac_dst2_step']
     for mac_arg in list_of_mac_args + list_of_mac_steps:
         if mac_arg in kwargs:
-            if type(kwargs[mac_arg]) in (int, long) and mac_arg in list_of_mac_steps: # step can be number
+            mac_value = kwargs[mac_arg]
+            if type(mac_value) in (int, long) and mac_arg in list_of_mac_steps: # step can be number
                 continue
-            if type(kwargs[mac_arg]) is not str: raise STLError('Argument %s should be str' % mac_arg)
-            kwargs[mac_arg] = kwargs[mac_arg].replace('{', '').replace('}', '').strip().replace('-', ' ').replace(':', ' ').replace('.', ' ')
-            kwargs[mac_arg] = ':'.join(kwargs[mac_arg].split())
+            if type(mac_value) is not str: raise STLError('Argument %s should be str' % mac_arg)
+            mac_value = mac_value.replace('{', '').replace('}', '').strip().replace('-', ' ').replace(':', ' ').replace('.', ' ')
+            if mac_value[4] == ' ' and mac_value[9] == ' ':
+                mac_value = ' '.join([mac_value[0:2], mac_value[2:7], mac_value[7:12], mac_value[12:14]])
+            mac_value = ':'.join(mac_value.split())
             try:
-                mac2str(kwargs[mac_arg])                                # verify we are ok
+                mac2str(mac_value)                                # verify we are ok
+                kwargs[mac_arg] = mac_value
             except:
-                raise STLError('Incorrect MAC %s=%s, please use 01:23:45:67:89:10 or 01-23-45-67-89-10 or 01.23.45.67.89.10 or {01 23 45 67 89 10}' % (mac_arg, kwargs[mac_arg]))
+                raise STLError('Incorrect MAC %s=%s, please use 01:23:45:67:89:10 or 01-23-45-67-89-10 or 0123.4567.8910 or {01 23 45 67 89 10}' % (mac_arg, kwargs[mac_arg]))
 
 def is_true(input):
     if input in (True, 'True', 'true', 1, '1', 'enable', 'Enable', 'Yes', 'yes', 'y', 'Y', 'enabled', 'Enabled'):
@@ -774,22 +778,24 @@ def generate_packet(**user_kwargs):
                     raise STLError('mac_src_step has to be at least 1')
                 if type(step) is str:
                     step = mac_str_to_num(mac2str(step))
-                add_val = 0
                 if kwargs['mac_src_mode'] == 'increment':
-                    add_val = mac_src
+                    add_val = mac_src - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('inc', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['mac_src_mode'] == 'decrement':
-                    add_val = mac_src - count * step
+                    add_val = mac_src - count * step - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('dec', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = 'mac_src', size = 4, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['mac_src_mode'] == 'random':
+                    add_val = 0
                     var_name = 'mac_src_random'
                     vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', max_value = 0xffffffff))
                 else:
@@ -807,22 +813,24 @@ def generate_packet(**user_kwargs):
                     raise STLError('mac_dst_step has to be at least 1')
                 if type(step) is str:
                     step = mac_str_to_num(mac2str(step))
-                add_val = 0
                 if kwargs['mac_dst_mode'] == 'increment':
-                    add_val = mac_dst
+                    add_val = mac_dst - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('inc', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['mac_dst_mode'] == 'decrement':
-                    add_val = mac_dst - count * step
+                    add_val = mac_dst - count * step - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('dec', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = 'mac_dst', size = 4, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['mac_dst_mode'] == 'random':
+                    add_val = 0
                     var_name = 'mac_dst_random'
                     vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', max_value = 0xffffffff))
                 else:
@@ -853,28 +861,30 @@ def generate_packet(**user_kwargs):
                     if count < 0:
                         raise STLError('vlan_id_count has to be at least 1')
                     if count > 0 or vlan_id_mode == 'random':
-                        add_val = 0
                         var_name = 'vlan_id%s' % i
                         step = int(vlan_kwargs['vlan_id_step'])
                         if step < 1:
                             raise STLError('vlan_id_step has to be at least 1')
                         if vlan_id_mode == 'increment':
-                            add_val = vlan_id
+                            add_val = vlan_id - 0x7fff
                             var_name = '%s_%s_%s_%s' % ('dec', 2, count, step)
                             if var_name not in vm_variables_cache:
                                 vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'inc', step = step,
-                                                                  max_value = count * step))
+                                                                  min_value = 0x7fff,
+                                                                  max_value = count * step + 0x7fff))
                                 vm_variables_cache[var_name] = True
                         elif vlan_id_mode == 'decrement':
-                            add_val = vlan_id - count * step
+                            add_val = vlan_id - count * step - 0x7fff
                             var_name = '%s_%s_%s_%s' % ('dec', 2, count, step)
                             if var_name not in vm_variables_cache:
                                 vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'dec', step = step,
-                                                                  max_value = count * step))
+                                                                  min_value = 0x7fff,
+                                                                  max_value = count * step + 0x7fff))
                                 vm_variables_cache[var_name] = True
                         elif vlan_id_mode == 'random':
+                            add_val = 0
                             var_name = 'vlan_id_random'
-                            vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', min_value = 0, max_value = 0xffff))
+                            vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', max_value = 0xffff))
                         else:
                             raise STLError('vlan_id_mode %s is not supported' % vlan_id_mode)
                         vm_cmds.append(STLVmWrMaskFlowVar(fv_name = var_name, pkt_offset = '802|1Q:%s.vlan' % i,
@@ -917,7 +927,6 @@ def generate_packet(**user_kwargs):
                 raise STLError('ip_src_count has to be at least 1')
             if count > 0 or kwargs['ip_src_mode'] == 'random':
                 fix_ipv4_checksum = True
-                add_val = 0
                 ip_src_addr = kwargs['ip_src_addr']
                 if type(ip_src_addr) is str:
                     ip_src_addr = ipv4_str_to_num(is_valid_ipv4(ip_src_addr))
@@ -927,22 +936,25 @@ def generate_packet(**user_kwargs):
                 if type(step) is str:
                     step = ipv4_str_to_num(is_valid_ipv4(step))
                 if kwargs['ip_src_mode'] == 'increment':
-                    add_val = ip_src_addr
+                    add_val = ip_src_addr - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('inc', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ip_src_mode'] == 'decrement':
-                    add_val = ip_src_addr - count * step
+                    add_val = ip_src_addr - count * step - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('dec', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ip_src_mode'] == 'random':
+                    add_val = 0
                     var_name = 'ip_src_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', min_value = 0, max_value = 0xffffffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', max_value = 0xffffffff))
                 else:
                     raise STLError('ip_src_mode %s is not supported' % kwargs['ip_src_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'IP.src', add_val = add_val))
@@ -953,7 +965,6 @@ def generate_packet(**user_kwargs):
                 raise STLError('ip_dst_count has to be at least 1')
             if count > 0 or kwargs['ip_dst_mode'] == 'random':
                 fix_ipv4_checksum = True
-                add_val = 0
                 ip_dst_addr = kwargs['ip_dst_addr']
                 if type(ip_dst_addr) is str:
                     ip_dst_addr = ipv4_str_to_num(is_valid_ipv4(ip_dst_addr))
@@ -963,22 +974,25 @@ def generate_packet(**user_kwargs):
                 if type(step) is str:
                     step = ipv4_str_to_num(is_valid_ipv4(step))
                 if kwargs['ip_dst_mode'] == 'increment':
-                    add_val = ip_dst_addr
+                    add_val = ip_dst_addr - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('inc', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ip_dst_mode'] == 'decrement':
-                    add_val = ip_dst_addr - count * step
+                    add_val = ip_dst_addr - count * step - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('dec', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ip_dst_mode'] == 'random':
+                    add_val = 0
                     var_name = 'ip_dst_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', min_value = 0, max_value = 0xffffffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', max_value = 0xffffffff))
                 else:
                     raise STLError('ip_dst_mode %s is not supported' % kwargs['ip_dst_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'IP.dst', add_val = add_val))
@@ -1009,7 +1023,6 @@ def generate_packet(**user_kwargs):
             if count < 0:
                 raise STLError('ipv6_src_count has to be at least 1')
             if count > 0 or kwargs['ipv6_src_mode'] == 'random':
-                add_val = 0
                 ipv6_src_addr_num = ipv4_str_to_num(is_valid_ipv6(kwargs['ipv6_src_addr'])[-4:])
                 step = kwargs['ipv6_src_step']
                 if step < 1:
@@ -1017,22 +1030,25 @@ def generate_packet(**user_kwargs):
                 if type(step) is str: # convert ipv6 step to number
                     step = ipv4_str_to_num(is_valid_ipv6(step)[-4:])
                 if kwargs['ipv6_src_mode'] == 'increment':
-                    add_val = ipv6_src_addr_num
+                    add_val = ipv6_src_addr_num - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('inc', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ipv6_src_mode'] == 'decrement':
-                    add_val = ipv6_src_addr_num - count * step
+                    add_val = ipv6_src_addr_num - count * step - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('dec', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ipv6_src_mode'] == 'random':
+                    add_val = 0
                     var_name = 'ipv6_src_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', min_value = 0, max_value = 0xffffffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', max_value = 0xffffffff))
                 else:
                     raise STLError('ipv6_src_mode %s is not supported' % kwargs['ipv6_src_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'IPv6.src', offset_fixup = 12, add_val = add_val))
@@ -1042,7 +1058,6 @@ def generate_packet(**user_kwargs):
             if count < 0:
                 raise STLError('ipv6_dst_count has to be at least 1')
             if count > 0 or kwargs['ipv6_dst_mode'] == 'random':
-                add_val = 0
                 ipv6_dst_addr_num = ipv4_str_to_num(is_valid_ipv6(kwargs['ipv6_dst_addr'])[-4:])
                 step = kwargs['ipv6_dst_step']
                 if step < 1:
@@ -1050,22 +1065,25 @@ def generate_packet(**user_kwargs):
                 if type(step) is str: # convert ipv6 step to number
                     step = ipv4_str_to_num(is_valid_ipv6(step)[-4:])
                 if kwargs['ipv6_dst_mode'] == 'increment':
-                    add_val = ipv6_dst_addr_num
+                    add_val = ipv6_dst_addr_num - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('inc', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ipv6_dst_mode'] == 'decrement':
-                    add_val = ipv6_dst_addr_num - count * step
+                    add_val = ipv6_dst_addr_num - count * step - 0x7fffffff
                     var_name = '%s_%s_%s_%s' % ('dec', 4, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fffffff,
+                                                          max_value = count * step + 0x7fffffff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['ipv6_dst_mode'] == 'random':
+                    add_val = 0
                     var_name = 'ipv6_dst_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', min_value = 0, max_value = 0xffffffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 4, op = 'random', max_value = 0xffffffff))
                 else:
                     raise STLError('ipv6_dst_mode %s is not supported' % kwargs['ipv6_dst_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'IPv6.dst', offset_fixup = 12, add_val = add_val))
@@ -1111,27 +1129,29 @@ def generate_packet(**user_kwargs):
                 raise STLError('tcp_src_port_count has to be at least 1')
             if count > 0 or kwargs['tcp_src_port_mode'] == 'random':
                 fix_ipv4_checksum = True
-                add_val = 0
                 step = kwargs['tcp_src_port_step']
                 if step < 1:
                     raise STLError('tcp_src_port_step has to be at least 1')
                 if kwargs['tcp_src_port_mode'] == 'increment':
-                    add_val = kwargs['tcp_src_port']
+                    add_val = kwargs['tcp_src_port'] - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('inc', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['tcp_src_port_mode'] == 'decrement':
-                    add_val = kwargs['tcp_src_port'] - count * step
+                    add_val = kwargs['tcp_src_port'] - count * step - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('dec', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['tcp_src_port_mode'] == 'random':
+                    add_val = 0
                     var_name = 'tcp_src_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', min_value = 0, max_value = 0xffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', max_value = 0xffff))
                 else:
                     raise STLError('tcp_src_port_mode %s is not supported' % kwargs['tcp_src_port_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'TCP.sport', add_val = add_val))
@@ -1142,27 +1162,29 @@ def generate_packet(**user_kwargs):
                 raise STLError('tcp_dst_port_count has to be at least 1')
             if count > 0 or kwargs['tcp_dst_port_mode'] == 'random':
                 fix_ipv4_checksum = True
-                add_val = 0
                 step = kwargs['tcp_dst_port_step']
                 if step < 1:
                     raise STLError('tcp_dst_port_step has to be at least 1')
                 if kwargs['tcp_dst_port_mode'] == 'increment':
-                    add_val = kwargs['tcp_dst_port']
+                    add_val = kwargs['tcp_dst_port'] - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('inc', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['tcp_dst_port_mode'] == 'decrement':
-                    add_val = kwargs['tcp_dst_port'] - count * step
+                    add_val = kwargs['tcp_dst_port'] - count * step - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('dec', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['tcp_dst_port_mode'] == 'random':
+                    add_val = 0
                     var_name = 'tcp_dst_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', min_value = 0, max_value = 0xffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', max_value = 0xffff))
                 else:
                     raise STLError('tcp_dst_port_mode %s is not supported' % kwargs['tcp_dst_port_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'TCP.dport', add_val = add_val))
@@ -1182,27 +1204,29 @@ def generate_packet(**user_kwargs):
                 raise STLError('udp_src_port_count has to be at least 1')
             if count > 0 or kwargs['udp_src_port_mode'] == 'random':
                 fix_ipv4_checksum = True
-                add_val = 0
                 step = kwargs['udp_src_port_step']
                 if step < 1:
                     raise STLError('udp_src_port_step has to be at least 1')
                 if kwargs['udp_src_port_mode'] == 'increment':
-                    add_val = kwargs['udp_src_port']
+                    add_val = kwargs['udp_src_port'] - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('inc', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['udp_src_port_mode'] == 'decrement':
-                    add_val = kwargs['udp_src_port'] - count * step
+                    add_val = kwargs['udp_src_port'] - count * step - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('dec', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                         vm_variables_cache[var_name] = True
                 elif kwargs['udp_src_port_mode'] == 'random':
+                    add_val = 0
                     var_name = 'udp_src_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', min_value = 0, max_value = 0xffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', max_value = 0xffff))
                 else:
                     raise STLError('udp_src_port_mode %s is not supported' % kwargs['udp_src_port_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'UDP.sport', add_val = add_val))
@@ -1213,25 +1237,27 @@ def generate_packet(**user_kwargs):
                 raise STLError('udp_dst_port_count has to be at least 1')
             if count > 0 or kwargs['udp_dst_port_mode'] == 'random':
                 fix_ipv4_checksum = True
-                add_val = 0
                 step = kwargs['udp_dst_port_step']
                 if step < 1:
                     raise STLError('udp_dst_port_step has to be at least 1')
                 if kwargs['udp_dst_port_mode'] == 'increment':
-                    add_val = kwargs['udp_dst_port']
+                    add_val = kwargs['udp_dst_port'] - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('inc', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'inc', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                 elif kwargs['udp_dst_port_mode'] == 'decrement':
-                    add_val = kwargs['udp_dst_port']
+                    add_val = kwargs['udp_dst_port'] - 0x7fff
                     var_name = '%s_%s_%s_%s' % ('dec', 2, count, step)
                     if var_name not in vm_variables_cache:
                         vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'dec', step = step,
-                                                          max_value = count * step))
+                                                          min_value = 0x7fff,
+                                                          max_value = count * step + 0x7fff))
                 elif kwargs['udp_dst_port_mode'] == 'random':
+                    add_val = 0
                     var_name = 'udp_dst_random'
-                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', min_value = 0, max_value = 0xffff))
+                    vm_cmds.append(CTRexVmDescFlowVar(name = var_name, size = 2, op = 'random', max_value = 0xffff))
                 else:
                     raise STLError('udp_dst_port_mode %s is not supported' % kwargs['udp_dst_port_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'UDP.dport', add_val = add_val))
