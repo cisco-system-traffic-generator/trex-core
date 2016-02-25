@@ -20,6 +20,26 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.93  ==
+
+* Support port attribute API and Console command.  See `$portattr -a --prom`
+* Support random seed per Stream attribute - see specification for more info
+* Add more sample/profiles (stl/hlt) from real use cases
+* Enhance Field Engine with new instructions
+* TUI now shows L1 and L2 bandwidth. Console support L1 and L2 and %%
+* Stream rate can be configured with PPS/bps_L1/bps_L2/port_percentage 
+* Update Stateless JSON-RPC specification  
+* HLT fixes and support split_by variable 
+
+=== fix issues: ===
+
+* Fix some typo in Python API stl/example folder 
+* Fix Field Engine IPv4 checksum issue with big packet size  
+* Fix Field Engine issue with random variables 
+* Fix `streams -a` crash 
+* Fix X710 issue. Now return speed of 10gb instead of 40gb for Stateless port speed 
+
+
 == Release 1.92  ==
 
 ** Stream can set static Source/Destination MAC-Address as oppose to the default (TRex port from /etc/trex_config.yaml)
