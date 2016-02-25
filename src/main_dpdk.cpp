@@ -5171,3 +5171,12 @@ int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, ui
     return CTRexExtendedDriverDb::Ins()->get_drv()
         ->add_del_rx_flow_stat_rule(port_id, RTE_ETH_FILTER_DELETE, type, proto, id);
 }
+
+void TrexDpdkPlatformApi::set_promiscuous(uint8_t port_id, bool enabled) const {
+    g_trex.m_ports[port_id].set_promiscuous(enabled);
+}
+
+bool TrexDpdkPlatformApi::get_promiscuous(uint8_t port_id) const {
+    return g_trex.m_ports[port_id].get_promiscuous();
+}
+

@@ -81,7 +81,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true);
  */
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats, "get_port_stats", 1, false);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStatus, "get_port_status", 1, false);
-
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetPortAttr, "set_port_attr", 3, false);
 
 /**
  * stream cmds

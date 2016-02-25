@@ -27,6 +27,9 @@ FULL_OUTPUT = 15
 IPG = 16
 SPEEDUP = 17
 COUNT = 18
+PROMISCUOUS = 19
+NO_PROMISCUOUS = 20
+PROMISCUOUS_SWITCH = 21
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -223,6 +226,19 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'default':  1,
                                    'type': int}),
 
+              PROMISCUOUS: ArgumentPack(['--prom'],
+                                        {'help': "sets port promiscuous on",
+                                         'dest': "prom",
+                                         'default': None,
+                                         'action': "store_true"}),
+
+              NO_PROMISCUOUS: ArgumentPack(['--no_prom'],
+                                           {'help': "sets port promiscuous off",
+                                            'dest': "prom",
+                                            'default': None,
+                                            'action': "store_false"}),
+
+
               PORT_LIST: ArgumentPack(['--port'],
                                         {"nargs": '+',
                                          'dest':'ports',
@@ -304,6 +320,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           'help': "A list of stream IDs to query about. Default: analyze all streams",
                                           'default': []}),
 
+
+              # promiscuous
+              PROMISCUOUS_SWITCH: ArgumentGroup(MUTEX, [PROMISCUOUS,
+                                                        NO_PROMISCUOUS],
+                                                    {'required': False}),
 
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,

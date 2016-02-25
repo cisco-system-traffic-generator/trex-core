@@ -609,6 +609,15 @@ class STLClient(object):
         return rc
 
 
+    def __set_port_attr (self, port_id_list = None, attr_dict = None):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].set_attr(attr_dict))
+
+        return rc
 
     # connect to server
     def __connect(self):
@@ -1639,6 +1648,47 @@ class STLClient(object):
                 raise STLTimeoutError(timeout)
 
 
+    #
+    """
+        set port(s) attributes
+
+        :parameters:
+            promiscuous - set this to True or False
+
+        :raises:
+            None
+
+    """
+    @__api_check(True)
+    def set_port_attr (self, ports = None, promiscuous = None):
+        # by default use all acquired ports
+        if ports == None:
+            ports = self.get_acquired_ports()
+
+        # verify valid port id list
+        rc = self._validate_port_list(ports)
+        if not rc:
+            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+
+        # check arguments
+        validate_type('promiscuous', promiscuous, bool)
+
+        # build attributes
+        attr_dict = {}
+        if promiscuous is not None:
+            attr_dict['promiscuous'] = {'enabled': bool(promiscuous)}
+        
+        # no attributes to set
+        if not attr_dict:
+            return
+
+        self.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
+        rc = self.__set_port_attr(ports, attr_dict)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
     """
         clear all events
 
@@ -2021,4 +2071,36 @@ class STLClient(object):
             return
 
         return True
+
+
+
+    @__console
+    def set_port_attr_line (self, line):
+        '''Sets port attributes '''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.set_port_attr_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.PROMISCUOUS_SWITCH)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        try:
+            self.set_port_attr(opts.ports, opts.prom)
+        except STLError as e:
+            print e.brief()
+            return
+
+        # show
+        print ""
+        for port_id in opts.ports:
+            print format_text('Port {0}:\n'.format(port_id), 'bold', 'underline')
+            for k, v in self.get_port(port_id).get_attr().iteritems():
+                print "{0}:".format(k)
+                for pk, pv in v.iteritems():
+                    print "    {0}: {1}".format(pk, format_text(str(pv), 'bold'))
+            print ""
 

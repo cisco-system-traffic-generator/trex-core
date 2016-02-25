@@ -40,7 +40,6 @@ limitations under the License.
 // DPDK c++ issue 
 #endif
 
-#include <rte_ethdev.h>
 #include <os_time.h>
 
 void
@@ -251,9 +250,9 @@ TrexStatelessPort::common_port_stop_actions(bool event_triggered) {
     data["port_id"] = m_port_id;
 
     if (event_triggered) {
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
-    } else {
         get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FINISHED_TX, data);
+    } else {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
     }
 
     for (auto entry : m_stream_table) {
@@ -667,6 +666,20 @@ TrexStatelessPort::get_port_effective_rate(double &pps,
     percentage = (bps_L1 / get_port_speed_bps()) * 100.0;
     
 }
+
+
+void
+TrexStatelessPort::set_promiscuous(bool enabled) {
+    get_stateless_obj()->get_platform_api()->set_promiscuous(m_port_id, enabled);
+}
+
+bool
+TrexStatelessPort::get_promiscuous() {
+    return get_stateless_obj()->get_platform_api()->get_promiscuous(m_port_id);
+}
+
+
+
 
 void
 TrexStatelessPort::add_stream(TrexStream *stream) {

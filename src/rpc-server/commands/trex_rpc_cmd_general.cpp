@@ -208,6 +208,39 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 }
 
 /**
+ * set port commands
+ * 
+ * @author imarom (24-Feb-16)
+ * 
+ * @param params 
+ * @param result 
+ * 
+ * @return trex_rpc_cmd_rc_e 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    const Json::Value &attr = parse_object(params, "attr", result);
+
+    /* iterate over all attributes in the dict */
+    for (const std::string &name : attr.getMemberNames()) {
+
+        /* handle promiscuous */
+        if (name == "promiscuous") {
+            bool enabled = parse_bool(attr[name], "enabled", result);
+            port->set_promiscuous(enabled);
+        }   
+    }
+    
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+}
+
+
+/**
  * returns the current owner of the device
  * 
  * @author imarom (08-Sep-15)
@@ -317,6 +350,9 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
     result["result"]["state"]         = port->get_state_as_string();
     result["result"]["max_stream_id"] = port->get_max_stream_id();
+
+    /* attributes */
+    result["result"]["attr"]["promiscuous"]["enabled"] = port->get_promiscuous();
 
     return (TREX_RPC_CMD_OK);
 }

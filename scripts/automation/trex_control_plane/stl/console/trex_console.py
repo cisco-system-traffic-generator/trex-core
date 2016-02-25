@@ -332,6 +332,12 @@ class TRexConsole(TRexGeneralCmd):
     def help_push (self):
         return self.do_push("-h")
 
+    def do_portattr (self, line):
+        '''Change/show port(s) attributes\n'''
+        return self.stateless_client.set_port_attr_line(line)
+
+    def help_portattr (self):
+        return self.do_portattr("-h")
 
     def do_history (self, line):
         '''Manage the command history\n'''

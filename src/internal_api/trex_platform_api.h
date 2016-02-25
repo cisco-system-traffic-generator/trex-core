@@ -127,7 +127,9 @@ public:
     virtual void get_port_num(uint8_t &port_num) const = 0;
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
-    
+    virtual void set_promiscuous(uint8_t port_id, bool enabled) const = 0;
+    virtual bool get_promiscuous(uint8_t port_id) const = 0;
+
     virtual ~TrexPlatformApi() {}
 };
 
@@ -155,36 +157,66 @@ public:
     void get_port_num(uint8_t &port_num) const;
     int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
     int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
+    void set_promiscuous(uint8_t port_id, bool enabled) const;
+    bool get_promiscuous(uint8_t port_id) const;
 };
 
-/**
- * MOCK implementation of the platform API
- * 
- * @author imarom (26-Oct-15)
- */
-class TrexMockPlatformApi : public TrexPlatformApi {
-public:
-    void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
-    void get_global_stats(TrexPlatformGlobalStats &stats) const;
-    void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
 
-    void get_interface_info(uint8_t interface_id,
-                            std::string &driver_name,
-                            driver_speed_e &speed,
-                            bool &has_crc) const {
-        driver_name = "MOCK";
-        speed = SPEED_INVALID;
-        has_crc = false;
+/**
+ * for simulation
+ * 
+ * @author imarom (25-Feb-16)
+ */
+class SimPlatformApi : public TrexPlatformApi {
+public:
+
+    SimPlatformApi(int dp_core_count) {
+        m_dp_core_count = dp_core_count;
     }
 
-    void publish_async_data_now(uint32_t key) const {}
-    uint8_t get_dp_core_count() const;
-    void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const
-    {num_counters = 0; capabilities = 0;}
-    int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const {return 0;}
-    void get_port_num(uint8_t &port_num) const {port_num = 2;};
-    int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
-    int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
+    virtual uint8_t get_dp_core_count() const {
+        return m_dp_core_count;
+    }
+
+    virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
+    }
+
+    virtual void get_interface_info(uint8_t interface_id,
+                                    std::string &driver_name,
+                                    driver_speed_e &speed,
+                                    bool &has_crc) const {
+        driver_name = "TEST";
+        speed = TrexPlatformApi::SPEED_10G;
+        has_crc = true;
+    }
+
+    virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
+    }
+    virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const {num_counters=128; capabilities=0; }
+
+    virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
+        for (int i = 0; i < m_dp_core_count; i++) {
+             cores_id_list.push_back(std::make_pair(i, 0));
+        }
+    }
+
+    virtual void publish_async_data_now(uint32_t key) const {
+
+    }
+    virtual int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const {return 0;}
+    virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};
+    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
+    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
+
+    void set_promiscuous(uint8_t port_id, bool enabled) const {
+    }
+
+    bool get_promiscuous(uint8_t port_id) const {
+        return false;
+    }
+
+private:
+    int m_dp_core_count;
 };
 
 #endif /* __TREX_PLATFORM_API_H__ */

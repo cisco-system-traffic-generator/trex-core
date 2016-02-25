@@ -61,13 +61,13 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def compare_caps (self, cap1, cap2, max_diff_sec = 0.01):
-        f1 = open(cap1, 'r')
-        reader1 = pcap.Reader(f1)
-        pkts1 = reader1.readpkts()
+        with open(cap1, 'r') as f1:
+            reader1 = pcap.Reader(f1)
+            pkts1 = reader1.readpkts()
 
-        f2 = open(cap2, 'r')
-        reader2 = pcap.Reader(f2)
-        pkts2 = reader2.readpkts()
+        with open(cap2, 'r') as f2:
+            reader2 = pcap.Reader(f2)
+            pkts2 = reader2.readpkts()
 
         assert_equal(len(pkts1), len(pkts2))
         

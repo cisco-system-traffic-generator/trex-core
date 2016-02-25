@@ -178,16 +178,8 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                               'commands/trex_rpc_cmd_general.cpp',
                               'commands/trex_rpc_cmd_stream.cpp',
 
-                              # for simulation we use mock API
-                              '../mock/trex_platform_api_mock.cpp',
                           ])
 
-# RPC mock server (test)
-rpc_server_mock_src = SrcGroup(dir='src/mock/',
-                          src_list=[
-                              'trex_rpc_server_mock.cpp',
-                              '../gtest/rpc_test.cpp',
-                          ])
 
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
@@ -231,17 +223,6 @@ yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
 stubs = SrcGroup(dir='/src/stub/',
         src_list=['zmq_stub.c'])
 
-rpc_server_mock = SrcGroups([
-                             main_src,
-                             stubs,
-                             cmn_src,
-                             rpc_server_src,
-                             rpc_server_mock_src,
-                             stateless_src,
-                             json_src,
-                             yaml_src,
-                             net_src,
-                             ])
 
 bp =SrcGroups([
                 bp_sim_main,
@@ -272,7 +253,6 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 
 includes_path =''' ../src/pal/linux/
                    ../src/
-                   ../src/mock/
                    ../src/rpc-server/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
@@ -415,10 +395,6 @@ build_types = [
                             flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
                             rpath = ['.']),
 
-               # not supported any more
-               #build_option(name = "mock-rpc-server", use = [''], src = rpc_server_mock, debug_mode= DEBUG_,platform = PLATFORM_64, is_pie = False, 
-               #             flags = ['-DTREX_RPC_MOCK_SERVER', '-Wall', '-Werror', '-Wno-sign-compare'],
-               #             rpath = ['.']),
               ]
 
 

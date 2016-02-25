@@ -323,6 +323,15 @@ public:
                                  double &bps_L2,
                                  double &percentage);
 
+
+    /**
+     * set port promiscuous on/off
+     * 
+     * @param enabled 
+     */
+    void set_promiscuous(bool enabled);
+    bool get_promiscuous();
+
 private:
 
 

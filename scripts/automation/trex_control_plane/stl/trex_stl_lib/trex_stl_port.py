@@ -54,6 +54,7 @@ class Port(object):
         self.streams = {}
         self.profile = None
         self.session_id = session_id
+        self.attr = {}
 
         self.port_stats = trex_stl_stats.CPortStats(self)
 
@@ -137,6 +138,9 @@ class Port(object):
 
 
         self.next_available_id = long(rc.data()['max_stream_id']) + 1
+
+        # attributes
+        self.attr = rc.data()['attr']
 
         # sync the streams
         params = {"port_id": self.port_id}
@@ -448,10 +452,34 @@ class Port(object):
         return self.ok()
 
 
+    def set_attr (self, attr_dict):
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
+        if (self.state == self.STATE_DOWN):
+            return self.err("port is down")
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id,
+                  "attr": attr_dict}
+
+        rc = self.transmit("set_port_attr", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+
+        self.attr.update(attr_dict)
+
+        return self.ok()
+
+
+    def get_attr (self):
+        return self.attr
+
     def get_profile (self):
         return self.profile
 
-
+    
     def print_profile (self, mult, duration):
         if not self.get_profile():
             return
