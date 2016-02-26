@@ -30,6 +30,7 @@ endif::backend-docbook[]
 * Stream rate can be configured with PPS/bps_L1/bps_L2/port_percentage 
 * Update Stateless JSON-RPC specification  
 * HLT fixes and support split_by variable 
+* First phase of per stream rx/tx statistic - XL710/X710 hardware support
 
 === fix issues: ===
 

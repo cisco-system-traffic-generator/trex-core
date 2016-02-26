@@ -364,7 +364,7 @@ If successful, the output will be similar to the following:
 [source,python]
 ----
 $ sudo ./t-rex-64 -f cap2/dns.yaml -d 100 -l 1000           
-Starting  T-Rex 1.50 please wait  ... 
+Starting  TRex 1.50 please wait  ... 
 zmq publisher at: tcp://*:4500 
  number of ports founded : 4 
   port : 0 
@@ -668,7 +668,7 @@ asr1k(config)#ipv6 route 5000::/64 3001::2
 <1> enable ipv6 
 <2> add pbr 
 <3> enable ipv6 routing 
-<4> mac-addr setting should be like T-Rex
+<4> mac-addr setting should be like TRex
 <5> PBR configuraion
 
 
