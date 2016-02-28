@@ -32,7 +32,7 @@ The name of the configuration file should be /etc/trex_cfg.yaml "
 The minimum configuration file should include something like this
 - version       : 2 # version 2 of the configuration file 
   interfaces    : ["03:00.0","03:00.1","13:00.1","13:00.0"]  # list of the interfaces to bind run ./dpdk_nic_bind.py --status to see the list 
-  port_limit      : 2 # number of ports to use valid is 2,4,6,8 
+  port_limit      : 2 # number of ports to use valid is 2,4,6,8,10,12
 
 example of already bind devices 
 
@@ -85,11 +85,11 @@ Other network devices
 
 
         if not self.m_cfg_dict[0].has_key('interfaces') :
-            self.raise_error ("Configuration file %s is old, should include interfaces field with 2,4,6,8 number of elemets" % fcfg)
+            self.raise_error ("Configuration file %s is old, should include interfaces field with 2,4,6,8,10,12 number of elemets" % fcfg)
 
         if_list=self.m_cfg_dict[0]['interfaces']
-        if not (len(if_list) in [2,4,6,8]):
-            self.raise_error ("Configuration file %s should include interfaces field with 2,4,6,8 number of elemets" % fcfg)
+        if not (len(if_list) in [2,4,6,8,10,12]):
+            self.raise_error ("Configuration file %s should include interfaces field with 2,4,6,8,10,12 number of elemets" % fcfg)
 
     def do_bind_one (self,key):
         cmd='./dpdk_nic_bind.py --force --bind=igb_uio %s ' % ( key)
