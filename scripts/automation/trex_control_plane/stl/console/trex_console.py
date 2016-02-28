@@ -339,6 +339,27 @@ class TRexConsole(TRexGeneralCmd):
     def help_portattr (self):
         return self.do_portattr("-h")
 
+    @verify_connected
+    def do_map (self, line):
+        '''Maps ports topology\n'''
+        ports = self.stateless_client.get_acquired_ports()
+        if not ports:
+            print "No ports acquired\n"
+
+        with self.stateless_client.logger.supress():
+            table = stl_map_ports(self.stateless_client, ports = ports)
+
+        tmp = list(ports)
+        print format_text('\nAcquired ports topology:\n', 'bold', 'underline')
+        while tmp:
+            a = tmp.pop(0)
+            b = table[a]
+            tmp.remove(b)
+
+            print "port {0} <--> port {1}".format(a, b)
+
+        print ""
+
     def do_history (self, line):
         '''Manage the command history\n'''
 

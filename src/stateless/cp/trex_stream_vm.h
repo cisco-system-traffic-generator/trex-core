@@ -175,7 +175,7 @@ public:
 
     inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
-        *p= m_min_val + (vm_rand32(per_thread_random) % (int)(m_max_val - m_min_val + 1));
+        *p = m_min_val + (vm_rand32(per_thread_random) % ((uint64_t)(m_max_val) - m_min_val + 1));
     }
 
 } __attribute__((packed)) ;
@@ -208,7 +208,12 @@ public:
 
     inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
-        *p= m_min_val + ( vm_rand64(per_thread_random)  % (int)(m_max_val - m_min_val + 1));
+
+        if ((m_max_val - m_min_val) == UINT64_MAX) {
+            *p = vm_rand64(per_thread_random);
+        } else {
+            *p = m_min_val + ( vm_rand64(per_thread_random)  % ( (uint64_t)m_max_val - m_min_val + 1) );
+        }
     }
 
 
