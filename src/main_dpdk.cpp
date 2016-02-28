@@ -1050,11 +1050,6 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 int main_test(int argc , char * argv[]);
 
 
-//static const char * default_argv[] = {"xx","-c", "0x7", "-n","2","-b","0000:0b:01.01"};
-//static int argv_num = 7;
-                                             
-
-
 #define RX_PTHRESH 8 /**< Default values of RX prefetch threshold reg. */
 #define RX_HTHRESH 8 /**< Default values of RX host threshold reg. */
 #define RX_WTHRESH 4 /**< Default values of RX write-back threshold reg. */
@@ -3138,7 +3133,10 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 
     printf(" Number of ports found: %d \n",m_max_ports);
 
-
+    if ( m_max_ports %2 !=0 ) {
+        rte_exit(EXIT_FAILURE, " Number of ports %d should be even, mask the one port in the configuration file  \n, ",
+                 m_max_ports);
+    }
 
     if ( CGlobalInfo::m_options.get_expected_ports() >BP_MAX_PORTS ){
         rte_exit(EXIT_FAILURE, " Maximum ports supported are %d, use the configuration file to set the expected number of ports   \n",BP_MAX_PORTS);
@@ -3154,12 +3152,6 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         m_max_ports=CGlobalInfo::m_options.get_expected_ports();
     }
     assert(m_max_ports <= BP_MAX_PORTS);
-
-    if ( m_max_ports %2 !=0 ) {
-        rte_exit(EXIT_FAILURE, " Number of ports %d should be even, mask the one port in the configuration file  \n, ",
-                 m_max_ports);
-
-    }
 
     struct rte_eth_dev_info dev_info;
     rte_eth_dev_info_get((uint8_t) 0,&dev_info);
@@ -3222,17 +3214,10 @@ int  CGlobalTRex::cores_prob_init(){
 int  CGlobalTRex::queues_prob_init(){
 
     if (m_max_cores < 2) {
-          rte_exit(EXIT_FAILURE, "number of cores should be at least 3 \n");
-    }
-
-    if ( !( (m_max_ports  == 4) || (m_max_ports  == 2) || (m_max_ports  == 8) || (m_max_ports  == 6)  ) ){
-        rte_exit(EXIT_FAILURE, "supported number of ports are 2-8 you have %d \n",m_max_ports);
+        rte_exit(EXIT_FAILURE, "number of cores should be at least 2 \n");
     }
 
     assert((m_max_ports>>1) <= get_cores_tx() );
-
-
-
 
     m_cores_mul = CGlobalInfo::m_options.preview.getCores();
 
@@ -4183,7 +4168,7 @@ int  update_dpdk_args(void){
 
     if ( CGlobalInfo::m_options.preview.getVMode() == 0  ) {
         global_dpdk_args[5]=(char *)"--log-level";
-        sprintf(global_loglevel_str,"%d",1);
+        sprintf(global_loglevel_str,"%d",4);
         global_dpdk_args[6]=(char *)global_loglevel_str;
     }else{
         global_dpdk_args[5]=(char *)"--log-level";
@@ -4282,7 +4267,7 @@ int main_test(int argc , char * argv[]){
 
 
     if (update_dpdk_args() < 0) {
-	return -1;
+        return -1;
     }
 
     CParserOption * po=&CGlobalInfo::m_options;

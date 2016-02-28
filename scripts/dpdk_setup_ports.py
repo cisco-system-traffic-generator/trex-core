@@ -83,13 +83,15 @@ Other network devices
         if int(self.m_cfg_dict[0]['version'])<2 :
             self.raise_error ("Configuration file %s is old, should include version field with value greater than 2" % fcfg)
 
-
         if not self.m_cfg_dict[0].has_key('interfaces') :
-            self.raise_error ("Configuration file %s is old, should include interfaces field with 2,4,6,8 number of elemets" % fcfg)
+            self.raise_error ("Configuration file %s is old, should include interfaces field even number of elemets" % fcfg)
 
         if_list=self.m_cfg_dict[0]['interfaces']
-        if not (len(if_list) in [2,4,6,8]):
-            self.raise_error ("Configuration file %s should include interfaces field with 2,4,6,8 number of elemets" % fcfg)
+        l=len(if_list);
+        if (l>20):
+            self.raise_error ("Configuration file %s should include interfaces field with maximum of number of elemets" % (fcfg,l))
+        if ((l % 2)==1):
+            self.raise_error ("Configuration file %s should include even number of interfaces " % (fcfg,l))
 
     def do_bind_one (self,key):
         cmd='./dpdk_nic_bind.py --force --bind=igb_uio %s ' % ( key)
