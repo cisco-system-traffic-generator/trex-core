@@ -533,9 +533,15 @@ class STLProfile(object):
     # loop_count = 0 means loop forever
     @staticmethod
     def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None):
+
         # check filename
         if not os.path.isfile(pcap_file):
             raise STLError("file '{0}' does not exists".format(pcap_file))
+
+        # make sure IPG is not less than 1 usec
+        if ipg_usec < 1:
+            raise STLError("ipg_usec cannot be less than 1 usec: '{0}'".format(ipg_usec))
+
 
         streams = []
         last_ts_usec = 0

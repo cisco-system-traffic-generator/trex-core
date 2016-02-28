@@ -182,7 +182,8 @@ class CTRexInfoGenerator(object):
         return_stats_data = {}
         per_field_status = OrderedDict([("type", []),
                                         ("maximum", []),
-                                        ("status", [])
+                                        ("status", []),
+                                        ("promiscuous", []),
                                         ]
                                        )
 
@@ -198,7 +199,7 @@ class CTRexInfoGenerator(object):
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["c"]*len(relevant_ports))
-        stats_table.set_cols_width([10] + [20] * len(relevant_ports))
+        stats_table.set_cols_width([15] + [20] * len(relevant_ports))
 
         stats_table.add_rows([[k] + v
                               for k, v in per_field_status.iteritems()],
