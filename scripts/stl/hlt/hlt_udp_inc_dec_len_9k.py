@@ -12,6 +12,7 @@ class STLS1(object):
         max_size = 9*1024
         return [STLHltStream(length_mode = 'increment',
                              frame_size_max = max_size,
+                             l3_protocol = 'ipv4',
                              ip_src_addr = '16.0.0.1',
                              ip_dst_addr = '48.0.0.1',
                              l4_protocol = 'udp',
@@ -21,6 +22,7 @@ class STLS1(object):
                              ),
                 STLHltStream(length_mode = 'decrement',
                              frame_size_max = max_size,
+                             l3_protocol = 'ipv4',
                              ip_src_addr = '16.0.0.1',
                              ip_dst_addr = '48.0.0.1',
                              l4_protocol = 'udp',

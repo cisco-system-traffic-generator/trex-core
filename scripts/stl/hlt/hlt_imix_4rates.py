@@ -13,6 +13,7 @@ class STLS1(object):
                             l3_imix2_size = 400, l3_imix2_ratio = 3,
                             l3_imix3_size = 2000, l3_imix3_ratio = 2,
                             l3_imix4_size = 8000, l3_imix4_ratio = 1,
+                            l3_protocol = 'ipv4',
                             l4_protocol = 'udp', direction = direction,
                             )
 

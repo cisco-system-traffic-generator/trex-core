@@ -212,6 +212,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ['hlt/hlt_tcp_ranges.py', '-m 1 -l 20', True],
             ['hlt/hlt_udp_ports.py', '-m 1 -l 20', True],
             ['hlt/hlt_udp_random_ports.py', '-m 1 -l 20', True],
+            #['hlt/hlt_ip_ranges.py', '-m 1 -l 20', True], # can't run now, random on full range issue
+            ['hlt/hlt_framesize_vm.py', '-m 1 -l 20', True],
+            ['hlt/hlt_l3_length_vm.py', '-m 1 -l 20', True],
+            ['hlt/hlt_vlan_default.py', '-m 1 -l 20', True],
+            ['hlt/hlt_4vlans.py', '-m 1 -l 20', True],
+            ['hlt/hlt_vlans_vm.py', '-m 1 -l 20', True],
+            ['hlt/hlt_ipv6_default.py', '-m 1 -l 20', True],
+            ['hlt/hlt_ipv6_ranges.py', '-m 1 -l 20', True],
             )
 
         for obj in p:

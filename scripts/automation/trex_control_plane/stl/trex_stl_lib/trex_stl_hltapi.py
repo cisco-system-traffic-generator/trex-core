@@ -79,7 +79,7 @@ traffic_config_kwargs = {
     'vlan_cfi': 1,
     'vlan_protocol_tag_id': None,
     #L3, general
-    'l3_protocol': 'ipv4',                  # ( ipv4 | ipv6 )
+    'l3_protocol': None,                  # ( ipv4 | ipv6 )
     'l3_length_min': 110,
     'l3_length_max': 238,
     'l3_length_step': 1,
@@ -122,7 +122,7 @@ traffic_config_kwargs = {
     'ipv6_dst_step': 1,                     # we are changing only 32 lowest bits; can be ipv6 or number
     'ipv6_dst_count': 1,
     #L4, TCP
-    'l4_protocol': 'tcp',                   # ( tcp | udp )
+    'l4_protocol': None,                   # ( tcp | udp )
     'tcp_src_port': 1024,
     'tcp_dst_port': 80,
     'tcp_seq_num': 1,
@@ -673,6 +673,8 @@ def STLHltStream(**user_kwargs):
         rate_key = intersect_rate_args[0]
     except IndexError:
         rate_key = 'rate_percent'
+    if rate_key is 'rate_percent' and float(kwargs['rate_percent']) > 100:
+        raise STLError('rate_percent should not exceed 100%')
 
     if kwargs['length_mode'] == 'imix': # several streams with given length
         streams_arr = []
@@ -732,7 +734,7 @@ def STLHltStream(**user_kwargs):
     # stream generation
     try:
         stream = STLStream(packet = packet,
-                           random_seed = 1 if kwargs['consistent_random'] else 0,
+                           random_seed = 1 if is_true(kwargs['consistent_random']) else 0,
                            #enabled = True,
                            #self_start = True,
                            mode = transmit_mode_class,
@@ -894,7 +896,9 @@ def generate_packet(**user_kwargs):
     base_pkt = l2_layer
 
     ### L3 ###
-    if kwargs['l3_protocol'] == 'ipv4':
+    if kwargs['l3_protocol'] is None:
+        l3_layer = None
+    elif kwargs['l3_protocol'] == 'ipv4':
                 #fields_desc = [ BitField("version" , 4 , 4),
                 #                BitField("ihl", None, 4),
                 #                XByteField("tos", 0),
@@ -1088,12 +1092,15 @@ def generate_packet(**user_kwargs):
                     raise STLError('ipv6_dst_mode %s is not supported' % kwargs['ipv6_dst_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'IPv6.dst', offset_fixup = 12, add_val = add_val))
 
-    else:
+    elif kwargs['l3_protocol'] is not None:
         raise NotImplementedError("l3_protocol '%s' is not supported by TRex yet." % kwargs['l3_protocol'])
-    base_pkt /= l3_layer
+    if l3_layer is not None:
+        base_pkt /= l3_layer
 
     ### L4 ###
+    l4_layer = None
     if kwargs['l4_protocol'] == 'tcp':
+        assert kwargs['l3_protocol'] in ('ipv4', 'ipv6'), 'TCP must be over ipv4/ipv6'
                 #fields_desc = [ ShortEnumField("sport", 20, TCP_SERVICES),
                 #                ShortEnumField("dport", 80, TCP_SERVICES),
                 #                IntField("seq", 0),
@@ -1105,6 +1112,7 @@ def generate_packet(**user_kwargs):
                 #                XShortField("chksum", None),
                 #                ShortField("urgptr", 0),
                 #                TCPOptionsField("options", {}) ]
+
         tcp_flags = ('F' if kwargs['tcp_fin_flag'] else '' +
                      'S' if kwargs['tcp_syn_flag'] else '' +
                      'R' if kwargs['tcp_rst_flag'] else '' +
@@ -1190,6 +1198,7 @@ def generate_packet(**user_kwargs):
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'TCP.dport', add_val = add_val))
 
     elif kwargs['l4_protocol'] == 'udp':
+        assert kwargs['l3_protocol'] in ('ipv4', 'ipv6'), 'UDP must be over ipv4/ipv6'
                 #fields_desc = [ ShortEnumField("sport", 53, UDP_SERVICES),
                 #                ShortEnumField("dport", 53, UDP_SERVICES),
                 #                ShortField("len", None),
@@ -1261,9 +1270,10 @@ def generate_packet(**user_kwargs):
                 else:
                     raise STLError('udp_dst_port_mode %s is not supported' % kwargs['udp_dst_port_mode'])
                 vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = var_name, pkt_offset = 'UDP.dport', add_val = add_val))
-    else:
-        raise NotImplementedError("l4_protocol '%s' is not supported by TRex yet." % kwargs['l3_protocol'])
-    base_pkt /= l4_layer
+    elif kwargs['l4_protocol'] is not None:
+        raise NotImplementedError("l4_protocol '%s' is not supported by TRex yet." % kwargs['l4_protocol'])
+    if l4_layer is not None:
+        base_pkt /= l4_layer
 
     trim_dict = {'increment': 'inc', 'decrement': 'dec', 'random': 'random'}
     length_mode = kwargs['length_mode']
@@ -1304,11 +1314,10 @@ def generate_packet(**user_kwargs):
             payload_len = kwargs['l3_length_max'] + len(l2_layer) - len(base_pkt)
             vm_cmds.append(CTRexVmDescTrimPktSize('pkt_len'))
 
-        if l3_layer.name == 'IP' or l4_layer.name == 'UDP': # add here other things need to fix due to size change
-            if l3_layer.name == 'IP':
-                vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = 'pkt_len', pkt_offset = 'IP.len', add_val = -len(l2_layer)))
-            if l4_layer.name == 'UDP':
-                vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = 'pkt_len', pkt_offset = 'UDP.len', add_val = -len(l2_layer) - len(l3_layer)))
+        if (l3_layer and l3_layer.name == 'IP'):
+            vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = 'pkt_len', pkt_offset = 'IP.len', add_val = -len(l2_layer)))
+        if (l4_layer and l4_layer.name == 'UDP'):
+            vm_cmds.append(CTRexVmDescWrFlowVar(fv_name = 'pkt_len', pkt_offset = 'UDP.len', add_val = -len(l2_layer) - len(l3_layer)))
     else:
         raise STLError('length_mode should be one of the following: %s' % ['auto', 'fixed'] + trim_dict.keys())
 

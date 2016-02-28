@@ -8,7 +8,8 @@ class STLS1(object):
     '''
 
     def create_streams (self, direction = 0):
-        return [STLHltStream(l4_protocol = 'udp',
+        return [STLHltStream(l3_protocol = 'ipv4',
+                             l4_protocol = 'udp',
                              udp_src_port_mode = 'decrement',
                              udp_src_port_count = 45,
                              udp_src_port_step = 20,
