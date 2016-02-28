@@ -3225,8 +3225,8 @@ int  CGlobalTRex::queues_prob_init(){
           rte_exit(EXIT_FAILURE, "number of cores should be at least 3 \n");
     }
 
-    if ( !( (m_max_ports  == 4) || (m_max_ports  == 2) || (m_max_ports  == 8) || (m_max_ports  == 6)  ) ){
-        rte_exit(EXIT_FAILURE, "supported number of ports are 2-8 you have %d \n",m_max_ports);
+    if ( !( (m_max_ports  == 4) || (m_max_ports  == 2) || (m_max_ports  == 8) || (m_max_ports  == 6) || (m_max_ports  == 10) || (m_max_ports  == 12) ) ){
+        rte_exit(EXIT_FAILURE, "supported number of ports is 2-12, you have %d \n", m_max_ports);
     }
 
     assert((m_max_ports>>1) <= get_cores_tx() );
