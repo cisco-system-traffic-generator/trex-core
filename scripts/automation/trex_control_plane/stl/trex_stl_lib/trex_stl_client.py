@@ -619,6 +619,7 @@ class STLClient(object):
 
         return rc
 
+
     # connect to server
     def __connect(self):
 
@@ -744,24 +745,24 @@ class STLClient(object):
 
     ############ functions used by other classes but not users ##############
 
-    def _verify_port_id_list (self, port_id_list):
-        # check arguments
+    def _validate_port_list (self, port_id_list):
+        # listfiy single int
+        if isinstance(port_id_list, int):
+            port_id_list = [port_id_list]
+
+        # should be a list
         if not isinstance(port_id_list, list):
-            return RC_ERR("ports should be an instance of 'list' not {0}".format(type(port_id_list)))
+            raise STLTypeError('port_id_list', type(port_id_list), list)
 
-        # all ports are valid ports
-        if not port_id_list or not all([port_id in self.get_all_ports() for port_id in port_id_list]):
-            return RC_ERR("")
+        if not port_id_list:
+            raise STLError('No ports provided')
 
-        return RC_OK()
+        valid_ports = self.get_all_ports()
+        for port_id in port_id_list:
+            if not port_id in valid_ports:
+                raise STLError("Port ID '{0}' is not a valid port ID - valid values: {1}".format(port_id, valid_ports))
 
-    def _validate_port_list(self, port_id_list):
-        if not isinstance(port_id_list, list):
-            return False
-
-        # check each item of the sequence
-        return (port_id_list and all([port_id in self.get_all_ports() for port_id in port_id_list]))
-
+        return port_id_list
 
 
     # transmit request on the RPC link
@@ -931,16 +932,9 @@ class STLClient(object):
 
     # get stats
     def get_stats (self, ports = None, async_barrier = True):
-        # by default use all ports
-        if ports == None:
-            ports = self.get_acquired_ports()
-        else:
-            ports = self.__ports(ports)
-
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        # by default use all acquired ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
         # check async barrier
         if not type(async_barrier) is bool:
@@ -958,6 +952,16 @@ class STLClient(object):
     # return all async events
     def get_events (self):
         return self.event_handler.get_events()
+
+    # get port(s) info as a list of dicts
+    @__api_check(True)
+    def get_port_info (self, ports = None):
+
+        ports = ports if ports is not None else self.get_all_ports()
+        ports = self._validate_port_list(ports)
+
+        return [self.ports[port_id].get_info() for port_id in ports]
+
 
     ############################   Commands   #############################
     ############################              #############################
@@ -1046,16 +1050,11 @@ class STLClient(object):
     """
     @__api_check(True)
     def acquire (self, ports = None, force = False):
+
         # by default use all ports
-        if ports == None:
-            ports = self.get_all_ports()
+        ports = ports if ports is not None else self.get_all_ports()
+        ports = self._validate_port_list(ports)
 
-        # verify ports
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
-
-        # verify valid port id list
         if force:
             self.logger.pre_cmd("Force acquiring ports {0}:".format(ports))
         else:
@@ -1084,14 +1083,9 @@ class STLClient(object):
     """
     @__api_check(True)
     def release (self, ports = None):
-        # by default use all acquired ports
-        if ports == None:
-            ports = self.get_acquired_ports()
 
-        # verify ports
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
         self.logger.pre_cmd("Releasing ports {0}:".format(ports))
         rc = self.__release(ports)
@@ -1139,14 +1133,8 @@ class STLClient(object):
     @__api_check(True)
     def reset(self, ports = None):
 
-        # by default use all ports
-        if ports == None:
-            ports = self.get_all_ports()
-
-        # verify ports
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_all_ports()
+        ports = self._validate_port_list(ports)
 
         self.acquire(ports, force = True)
         self.stop(ports)
@@ -1169,14 +1157,8 @@ class STLClient(object):
     @__api_check(True)
     def remove_all_streams (self, ports = None):
 
-        # by default use all ports
-        if ports == None:
-            ports = self.get_acquired_ports()
-
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
         self.logger.pre_cmd("Removing all streams from port(s) {0}:".format(ports))
         rc = self.__remove_all_streams(ports)
@@ -1204,14 +1186,9 @@ class STLClient(object):
     """
     @__api_check(True)
     def add_streams (self, streams, ports = None):
-        # by default use all ports
-        if ports == None:
-            ports = self.get_acquired_ports()
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
         # transform single stream
         if not isinstance(streams, list):
@@ -1247,14 +1224,9 @@ class STLClient(object):
     """
     @__api_check(True)
     def remove_streams (self, stream_id_list, ports = None):
-        # by default use all ports
-        if ports == None:
-            ports = self.get_acquired_ports()
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
         # transform single stream
         if not isinstance(stream_id_list, list):
@@ -1311,14 +1283,9 @@ class STLClient(object):
                total = False):
 
 
-        # by default use all ports
-        if ports == None:
-            ports = self.get_acquired_ports()
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
         # verify multiplier
         mult_obj = parsing_opts.decode_multiplier(mult,
@@ -1376,16 +1343,11 @@ class STLClient(object):
     @__api_check(True)
     def stop (self, ports = None):
 
-        # by default the user means all the active ports
-        if ports == None:
-            ports = self.get_active_ports()
-            if not ports:
-                return
+        ports = ports if ports is not None else self.get_active_ports()
+        ports = self._validate_port_list(ports)
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        if not ports:
+            return
 
         self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
         rc = self.__stop(ports)
@@ -1423,14 +1385,9 @@ class STLClient(object):
     @__api_check(True)
     def update (self, ports = None, mult = "1", total = False, force = False):
 
-        # by default the user means all the active ports
-        if ports == None:
-            ports = self.get_active_ports()
+        ports = ports if ports is not None else self.get_active_ports()
+        ports = self._validate_port_list(ports)
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
         # verify multiplier
         mult_obj = parsing_opts.decode_multiplier(mult,
@@ -1468,14 +1425,8 @@ class STLClient(object):
     @__api_check(True)
     def pause (self, ports = None):
 
-        # by default the user means all the TX ports
-        if ports == None:
-            ports = self.get_transmitting_ports()
-
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_transmitting_ports()
+        ports = self._validate_port_list(ports)
 
         self.logger.pre_cmd("Pausing traffic on port(s) {0}:".format(ports))
         rc = self.__pause(ports)
@@ -1500,14 +1451,9 @@ class STLClient(object):
     @__api_check(True)
     def resume (self, ports = None):
 
-        # by default the user means all the paused ports
-        if ports == None:
-            ports = self.get_paused_ports()
+        ports = ports if ports is not None else self.get_paused_ports()
+        ports = self._validate_port_list(ports)
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
         self.logger.pre_cmd("Resume traffic on port(s) {0}:".format(ports))
         rc = self.__resume(ports)
@@ -1542,13 +1488,10 @@ class STLClient(object):
     """
     @__api_check(True)
     def validate (self, ports = None, mult = "1", duration = "-1", total = False):
-        if ports == None:
-            ports = self.get_acquired_ports()
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
 
         # verify multiplier
         mult_obj = parsing_opts.decode_multiplier(mult,
@@ -1588,16 +1531,8 @@ class STLClient(object):
     @__api_check(False)
     def clear_stats (self, ports = None, clear_global = True):
 
-        # by default use all ports
-        if ports == None:
-            ports = self.get_all_ports()
-        else:
-            ports = self.__ports(ports)
-
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_all_ports()
+        ports = self._validate_port_list(ports)
 
         # verify clear global
         if not type(clear_global) is bool:
@@ -1630,14 +1565,9 @@ class STLClient(object):
     @__api_check(True)
     def wait_on_traffic (self, ports = None, timeout = 60):
 
-        # by default use all acquired ports
-        if ports == None:
-            ports = self.get_acquired_ports()
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
 
         expr = time.time() + timeout
 
@@ -1661,14 +1591,9 @@ class STLClient(object):
     """
     @__api_check(True)
     def set_port_attr (self, ports = None, promiscuous = None):
-        # by default use all acquired ports
-        if ports == None:
-            ports = self.get_acquired_ports()
 
-        # verify valid port id list
-        rc = self._validate_port_list(ports)
-        if not rc:
-            raise STLArgumentError('ports', ports, valid_values = self.get_all_ports())
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
         # check arguments
         validate_type('promiscuous', promiscuous, (bool, NoneType))
@@ -2094,13 +2019,4 @@ class STLClient(object):
             print e.brief()
             return
 
-        # show
-        print ""
-        for port_id in opts.ports:
-            print format_text('Port {0}:\n'.format(port_id), 'bold', 'underline')
-            for k, v in self.get_port(port_id).get_attr().iteritems():
-                print "{0}:".format(k)
-                for pk, pv in v.iteritems():
-                    print "    {0}: {1}".format(pk, format_text(str(pv), 'bold'))
-            print ""
-
+    
