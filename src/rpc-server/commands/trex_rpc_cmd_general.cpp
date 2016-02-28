@@ -177,6 +177,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         section["ports"][i]["index"]   = i;
 
         section["ports"][i]["driver"]  = driver;
+        section["ports"][i]["macaddr"] = port->get_macaddr();
 
         section["ports"][i]["rx"]["caps"]      = port->get_rx_caps();
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();

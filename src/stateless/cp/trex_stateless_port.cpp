@@ -679,7 +679,28 @@ TrexStatelessPort::get_promiscuous() {
 }
 
 
+std::string
+TrexStatelessPort::get_macaddr() {
+    uint8_t macaddr[6];
+    std::string output;
 
+    get_stateless_obj()->get_platform_api()->get_macaddr(m_port_id, macaddr);
+
+    for (int i = 0; i < 6; i++) {
+        char formatted[4];
+
+        if (i == 0) {
+            snprintf(formatted, sizeof(formatted), "%02x", macaddr[i]);
+        } else {
+            snprintf(formatted, sizeof(formatted), ":%02x", macaddr[i]);
+        }
+
+        output += formatted;
+    }
+    
+    return output;
+
+}
 
 void
 TrexStatelessPort::add_stream(TrexStream *stream) {
