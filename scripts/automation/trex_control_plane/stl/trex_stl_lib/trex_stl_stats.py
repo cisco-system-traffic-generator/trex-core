@@ -180,7 +180,8 @@ class CTRexInfoGenerator(object):
         relevant_ports = self.__get_relevant_ports(port_id_list)
 
         return_stats_data = {}
-        per_field_status = OrderedDict([("type", []),
+        per_field_status = OrderedDict([("macaddr", []),
+                                        ("type", []),
                                         ("maximum", []),
                                         ("status", []),
                                         ("promiscuous", []),

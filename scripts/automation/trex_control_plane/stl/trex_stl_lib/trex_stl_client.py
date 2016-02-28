@@ -663,12 +663,14 @@ class STLClient(object):
 
         # create ports
         for port_id in xrange(self.system_info["port_count"]):
-            speed = self.system_info['ports'][port_id]['speed']
-            driver = self.system_info['ports'][port_id]['driver']
+            speed   = self.system_info['ports'][port_id]['speed']
+            driver  = self.system_info['ports'][port_id]['driver']
+            macaddr = self.system_info['ports'][port_id]['macaddr']
 
             self.ports[port_id] = Port(port_id,
                                        speed,
                                        driver,
+                                       macaddr,
                                        self.username,
                                        self.comm_link,
                                        self.session_id)

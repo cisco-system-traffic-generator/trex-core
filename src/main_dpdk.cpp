@@ -5180,3 +5180,14 @@ bool TrexDpdkPlatformApi::get_promiscuous(uint8_t port_id) const {
     return g_trex.m_ports[port_id].get_promiscuous();
 }
 
+void TrexDpdkPlatformApi::get_macaddr(uint8_t port_id, uint8_t *macaddr) const {
+    struct ether_addr rte_mac_addr;
+
+    g_trex.m_ports[port_id].macaddr_get(&rte_mac_addr);
+
+    assert(ETHER_ADDR_LEN == 6);
+    for (int i = 0; i < 6; i++) {
+        macaddr[i] = rte_mac_addr.addr_bytes[i];
+    }
+
+}

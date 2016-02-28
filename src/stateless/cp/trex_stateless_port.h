@@ -331,6 +331,7 @@ public:
      */
     void set_promiscuous(bool enabled);
     bool get_promiscuous();
+    std::string get_macaddr();
 
 private:
 

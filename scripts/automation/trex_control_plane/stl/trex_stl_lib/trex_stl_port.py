@@ -41,7 +41,7 @@ class Port(object):
                   STATE_PAUSE: "PAUSE"}
 
 
-    def __init__ (self, port_id, speed, driver, user, comm_link, session_id):
+    def __init__ (self, port_id, speed, driver, macaddr, user, comm_link, session_id):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
@@ -51,6 +51,7 @@ class Port(object):
         self.user = user
         self.driver = driver
         self.speed = speed
+        self.macaddr = macaddr
         self.streams = {}
         self.profile = None
         self.session_id = session_id
@@ -520,9 +521,10 @@ class Port(object):
     # generate port info
     def get_info (self):
         info = {}
-        info['speed']  = self.speed
-        info['driver'] = self.driver
-        info['status'] = self.get_port_state_name()
+        info['speed']   = self.speed
+        info['driver']  = self.driver
+        info['status']  = self.get_port_state_name()
+        info['macaddr'] = self.macaddr
 
         if self.attr.get('promiscuous'):
             info['prom'] = "on" if self.attr['promiscuous']['enabled'] else "off"
@@ -544,6 +546,7 @@ class Port(object):
         info = self.get_info()
 
         return {"type": info['driver'],
+                "macaddr": info['macaddr'],
                 "maximum": "{speed} Gb/s".format(speed=info['speed']),
                 "status": info['status'],
                 "promiscuous" : info['prom']
