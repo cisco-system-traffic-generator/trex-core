@@ -113,13 +113,30 @@ public:
         SPEED_40G,
     };
 
+    struct mac_cfg_st {
+        uint8_t hw_macaddr[6];
+        uint8_t src_macaddr[6];
+        uint8_t dst_macaddr[6];
+    };
+
+    /**
+     * interface static info
+     * 
+     */
+    struct intf_info_st {
+        std::string     driver_name;
+        driver_speed_e  speed;
+        mac_cfg_st      mac_info;
+        std::string     pci_addr;
+        int             numa_node;
+        bool            has_crc;
+    };
+
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const = 0;
 
-    virtual void get_interface_info(uint8_t interface_id, std::string &driver_name,
-                                    driver_speed_e &speed,
-                                    bool &has_crc) const = 0;
+    virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const = 0;
 
     virtual void publish_async_data_now(uint32_t key) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
@@ -130,7 +147,6 @@ public:
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
     virtual void set_promiscuous(uint8_t port_id, bool enabled) const = 0;
     virtual bool get_promiscuous(uint8_t port_id) const = 0;
-    virtual void get_macaddr(uint8_t port_id, uint8_t *macaddr) const = 0;
 
     virtual ~TrexPlatformApi() {}
 };
@@ -147,10 +163,7 @@ public:
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
     void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
 
-    void get_interface_info(uint8_t interface_id,
-                            std::string &driver_name,
-                            driver_speed_e &speed,
-                            bool &has_crc) const;
+    void get_interface_info(uint8_t interface_id, intf_info_st &info) const;
 
     void publish_async_data_now(uint32_t key) const;
     uint8_t get_dp_core_count() const;
@@ -161,7 +174,6 @@ public:
     int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
     void set_promiscuous(uint8_t port_id, bool enabled) const;
     bool get_promiscuous(uint8_t port_id) const;
-    void get_macaddr(uint8_t port_id, uint8_t *macaddr) const;
 };
 
 
@@ -184,13 +196,14 @@ public:
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
     }
 
-    virtual void get_interface_info(uint8_t interface_id,
-                                    std::string &driver_name,
-                                    driver_speed_e &speed,
-                                    bool &has_crc) const {
-        driver_name = "TEST";
-        speed = TrexPlatformApi::SPEED_10G;
-        has_crc = true;
+    virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const {
+
+        info.driver_name = "TEST";
+        info.speed = TrexPlatformApi::SPEED_10G;
+        info.has_crc = true;
+        info.numa_node = 0;
+
+        memset(&info.mac_info, 0, sizeof(info.mac_info));
     }
 
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
@@ -216,10 +229,6 @@ public:
 
     bool get_promiscuous(uint8_t port_id) const {
         return false;
-    }
-
-    void get_macaddr(uint8_t port_id, uint8_t *macaddr) const {
-        memset(macaddr, 0, 6);
     }
 
 private:

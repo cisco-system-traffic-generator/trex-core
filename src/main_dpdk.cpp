@@ -1517,6 +1517,7 @@ void CPhyEthIF::macaddr_get(struct ether_addr *mac_addr){
        rte_eth_macaddr_get(m_port_id , mac_addr);
 }
 
+
 void CPhyEthIF::get_stats_1g(CPhyEthIFStats *stats){ 
 
    stats->ipackets     +=  pci_reg_read(E1000_GPRC) ;
@@ -5121,14 +5122,39 @@ TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uin
 }
 
 void
-TrexDpdkPlatformApi::get_interface_info(uint8_t port_id,
-                                        std::string &driver_name,
-                                        driver_speed_e &speed,
-                                        bool &has_crc) const {
+TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id, intf_info_st &info) const {
+    struct ether_addr rte_mac_addr;
 
-    driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
-    speed       = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed(port_id);
-    has_crc     = CTRexExtendedDriverDb::Ins()->get_drv()->has_crc_added();
+    info.driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
+    info.speed       = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed(interface_id);
+    info.has_crc     = CTRexExtendedDriverDb::Ins()->get_drv()->has_crc_added();
+
+    /* mac INFO */
+
+    /* hardware */
+    g_trex.m_ports[interface_id].macaddr_get(&rte_mac_addr);
+    assert(ETHER_ADDR_LEN == 6);
+    for (int i = 0; i < 6; i++) {
+        info.mac_info.hw_macaddr[i] = rte_mac_addr.addr_bytes[i];
+    }
+
+    /* software */
+    uint8_t sw_macaddr[12];
+    memcpy(sw_macaddr, CGlobalInfo::m_options.get_dst_src_mac_addr(interface_id), 12);
+
+    for (int i = 0; i < 6; i++) {
+        info.mac_info.dst_macaddr[i] = sw_macaddr[i];
+        info.mac_info.src_macaddr[i] = sw_macaddr[6 + i];
+        
+    }
+
+    info.numa_node =  g_trex.m_ports[interface_id].m_dev_info.pci_dev->numa_node;
+    struct rte_pci_addr *loc = &g_trex.m_ports[interface_id].m_dev_info.pci_dev->addr;
+
+    char pci_addr[50];
+    snprintf(pci_addr, sizeof(pci_addr), PCI_PRI_FMT, loc->domain, loc->bus, loc->devid, loc->function);
+    info.pci_addr = pci_addr;
+
 }
 
 void
@@ -5165,14 +5191,4 @@ bool TrexDpdkPlatformApi::get_promiscuous(uint8_t port_id) const {
     return g_trex.m_ports[port_id].get_promiscuous();
 }
 
-void TrexDpdkPlatformApi::get_macaddr(uint8_t port_id, uint8_t *macaddr) const {
-    struct ether_addr rte_mac_addr;
 
-    g_trex.m_ports[port_id].macaddr_get(&rte_mac_addr);
-
-    assert(ETHER_ADDR_LEN == 6);
-    for (int i = 0; i < 6; i++) {
-        macaddr[i] = rte_mac_addr.addr_bytes[i];
-    }
-
-}

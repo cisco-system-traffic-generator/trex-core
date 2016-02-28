@@ -23,6 +23,7 @@ limitations under the License.
 #include <trex_stateless_port.h>
 #include <trex_stateless_messaging.h>
 #include <trex_streams_compiler.h>
+#include <common/basic_utils.h>
 
 #include <string>
 
@@ -58,7 +59,7 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     m_port_state = PORT_STATE_IDLE;
 
     /* get the platform specific data */
-    api->get_interface_info(port_id, m_driver_name, m_speed, m_has_crc);
+    api->get_interface_info(port_id, m_api_info);
 
     /* get RX caps */
     api->get_interface_stat_info(port_id, m_rx_count_num, m_rx_caps);
@@ -372,8 +373,8 @@ TrexStatelessPort::get_max_stream_id() const {
 void
 TrexStatelessPort::get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed) {
 
-    driver = m_driver_name;
-    speed  = m_speed;
+    driver = m_api_info.driver_name;
+    speed  = m_api_info.speed;
 }
 
 bool
@@ -460,7 +461,7 @@ TrexStatelessPort::on_dp_event_occured(TrexDpPortEvent::event_e event_type) {
 
 uint64_t
 TrexStatelessPort::get_port_speed_bps() const {
-    switch (m_speed) {
+    switch (m_api_info.speed) {
     case TrexPlatformApi::SPEED_1G:
         return (1LLU * 1000 * 1000 * 1000);
 
@@ -679,27 +680,20 @@ TrexStatelessPort::get_promiscuous() {
 }
 
 
-std::string
-TrexStatelessPort::get_macaddr() {
-    uint8_t macaddr[6];
-    std::string output;
+void
+TrexStatelessPort::get_macaddr(std::string &hw_macaddr,
+                               std::string &src_macaddr,
+                               std::string &dst_macaddr) {
 
-    get_stateless_obj()->get_platform_api()->get_macaddr(m_port_id, macaddr);
+    utl_macaddr_to_str(m_api_info.mac_info.hw_macaddr, hw_macaddr);
+    utl_macaddr_to_str(m_api_info.mac_info.src_macaddr, src_macaddr);
+    utl_macaddr_to_str(m_api_info.mac_info.dst_macaddr, dst_macaddr);
+}
 
-    for (int i = 0; i < 6; i++) {
-        char formatted[4];
-
-        if (i == 0) {
-            snprintf(formatted, sizeof(formatted), "%02x", macaddr[i]);
-        } else {
-            snprintf(formatted, sizeof(formatted), ":%02x", macaddr[i]);
-        }
-
-        output += formatted;
-    }
-    
-    return output;
-
+void
+TrexStatelessPort::get_pci_info(std::string &pci_addr, int &numa_node) {
+    pci_addr  = m_api_info.pci_addr;
+    numa_node = m_api_info.numa_node;
 }
 
 void

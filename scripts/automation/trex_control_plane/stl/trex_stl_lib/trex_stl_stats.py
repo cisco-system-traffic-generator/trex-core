@@ -180,11 +180,17 @@ class CTRexInfoGenerator(object):
         relevant_ports = self.__get_relevant_ports(port_id_list)
 
         return_stats_data = {}
-        per_field_status = OrderedDict([("macaddr", []),
-                                        ("type", []),
+        per_field_status = OrderedDict([("driver", []),
                                         ("maximum", []),
                                         ("status", []),
                                         ("promiscuous", []),
+                                        ("--", []),
+                                         ("HW src mac", []),
+                                        ("SW src mac", []),
+                                        ("SW dst mac", []),
+                                        ("---", []),
+                                        ("PCI Address", []),
+                                        ("NUMA Node", []),
                                         ]
                                        )
 

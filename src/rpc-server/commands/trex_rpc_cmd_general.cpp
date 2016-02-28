@@ -168,16 +168,29 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["ports"] = Json::arrayValue;
 
     for (int i = 0; i < main->get_port_count(); i++) {
-        string driver;
         TrexPlatformApi::driver_speed_e speed;
-
+        string driver;
+        string hw_macaddr;
+        string src_macaddr;
+        string dst_macaddr;
+        string pci_addr;
+        int numa;
+        
         TrexStatelessPort *port = main->get_port_by_id(i);
         port->get_properties(driver, speed);
+        port->get_macaddr(hw_macaddr, src_macaddr, dst_macaddr);
+
+        port->get_pci_info(pci_addr, numa);
 
         section["ports"][i]["index"]   = i;
 
-        section["ports"][i]["driver"]  = driver;
-        section["ports"][i]["macaddr"] = port->get_macaddr();
+        section["ports"][i]["driver"]       = driver;
+        section["ports"][i]["hw_macaddr"]   = hw_macaddr;
+        section["ports"][i]["src_macaddr"]  = src_macaddr;
+        section["ports"][i]["dst_macaddr"]  = dst_macaddr;
+
+        section["ports"][i]["pci_addr"]     = pci_addr;
+        section["ports"][i]["numa"]         = numa;
 
         section["ports"][i]["rx"]["caps"]      = port->get_rx_caps();
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();

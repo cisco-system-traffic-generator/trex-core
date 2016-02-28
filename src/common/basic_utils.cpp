@@ -160,4 +160,18 @@ void TestDump(void){
     utl_DumpBuffer2(stdout,buffer,31,1,4,SHOW_BUFFER_ADDR_EN |SHOW_BUFFER_CHAR);
 }
 
+void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output) {
+    
+    for (int i = 0; i < 6; i++) {
+        char formatted[4];
 
+        if (i == 0) {
+            snprintf(formatted, sizeof(formatted), "%02x", macaddr[i]);
+        } else {
+            snprintf(formatted, sizeof(formatted), ":%02x", macaddr[i]);
+        }
+
+        output += formatted;
+    }
+
+}

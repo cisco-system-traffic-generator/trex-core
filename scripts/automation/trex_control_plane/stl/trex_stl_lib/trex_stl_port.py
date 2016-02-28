@@ -41,7 +41,7 @@ class Port(object):
                   STATE_PAUSE: "PAUSE"}
 
 
-    def __init__ (self, port_id, speed, driver, macaddr, user, comm_link, session_id):
+    def __init__ (self, port_id, user, comm_link, session_id, info):
         self.port_id = port_id
         self.state = self.STATE_IDLE
         self.handler = None
@@ -49,9 +49,9 @@ class Port(object):
         self.transmit = comm_link.transmit
         self.transmit_batch = comm_link.transmit_batch
         self.user = user
-        self.driver = driver
-        self.speed = speed
-        self.macaddr = macaddr
+
+        self.info = dict(info)
+
         self.streams = {}
         self.profile = None
         self.session_id = session_id
@@ -69,7 +69,7 @@ class Port(object):
         return RC_OK(data)
 
     def get_speed_bps (self):
-        return (self.speed * 1000 * 1000 * 1000)
+        return (self.info['speed'] * 1000 * 1000 * 1000)
 
     # take the port
     def acquire(self, force = False):
@@ -520,11 +520,9 @@ class Port(object):
 
     # generate port info
     def get_info (self):
-        info = {}
-        info['speed']   = self.speed
-        info['driver']  = self.driver
-        info['status']  = self.get_port_state_name()
-        info['macaddr'] = self.macaddr
+        info = dict(self.info)
+
+        info['status']       = self.get_port_state_name()
 
         if self.attr.get('promiscuous'):
             info['prom'] = "on" if self.attr['promiscuous']['enabled'] else "off"
@@ -545,8 +543,14 @@ class Port(object):
 
         info = self.get_info()
 
-        return {"type": info['driver'],
-                "macaddr": info['macaddr'],
+        return {"driver":        info['driver'],
+                "HW src mac":  info['hw_macaddr'],
+                "SW src mac":  info['src_macaddr'],
+                "SW dst mac":  info['dst_macaddr'],
+                "PCI Address": info['pci_addr'],
+                "NUMA Node":   info['numa'],
+                "--": "",
+                "---": "",
                 "maximum": "{speed} Gb/s".format(speed=info['speed']),
                 "status": info['status'],
                 "promiscuous" : info['prom']

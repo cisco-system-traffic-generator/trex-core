@@ -304,7 +304,7 @@ public:
      * @return bool 
      */
     bool has_crc_added() const {
-        return m_has_crc;
+        return m_api_info.has_crc;
     }
 
     TrexPortOwner & get_owner() {
@@ -331,7 +331,12 @@ public:
      */
     void set_promiscuous(bool enabled);
     bool get_promiscuous();
-    std::string get_macaddr();
+
+    void get_macaddr(std::string &hw_macaddr,
+                     std::string &src_macaddr,
+                     std::string &dst_macaddr);
+
+    void get_pci_info(std::string &pci_addr, int &numa_node);
 
 private:
 
@@ -396,12 +401,11 @@ private:
     TrexStreamTable    m_stream_table;
     uint8_t            m_port_id;
     port_state_e       m_port_state;
-    std::string        m_driver_name;
-    bool               m_has_crc;
+
+    TrexPlatformApi::intf_info_st m_api_info;
+
     uint16_t           m_rx_count_num;
     uint16_t           m_rx_caps;
-
-    TrexPlatformApi::driver_speed_e m_speed;
 
     /* holds the DP cores associated with this port */
     std::vector<int>   m_cores_id_list;
