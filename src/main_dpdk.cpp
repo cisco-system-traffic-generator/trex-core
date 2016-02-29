@@ -18,13 +18,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-// DPDK c++ issue 
-#define UINT8_MAX 255
-#define UINT16_MAX 0xFFFF
-#define __STDC_FORMAT_MACROS
-// DPDK c++ issue 
-
 #include <pwd.h>
 #include <rte_common.h>
 #include <rte_log.h>

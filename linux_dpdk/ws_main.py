@@ -387,6 +387,8 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-Wno-format',
                 '-Wno-deprecated-declarations',
                 '-DRTE_DPDK',
+                '-D__STDC_LIMIT_MACROS',
+                '-D__STDC_FORMAT_MACROS',
                 '-include','../src/pal/linux_dpdk/dpdk22/rte_config.h'
                ]
 
