@@ -163,7 +163,7 @@ class AsyncEventHandler(object):
         # filter the values per port and general
         for key, value in dump_data.iteritems():
             # match a pattern of ports
-            m = re.search('(.*)\-([0-8])', key)
+            m = re.search('(.*)\-(\d+)', key)
             if m:
                 port_id = int(m.group(2))
                 field_name = m.group(1)
