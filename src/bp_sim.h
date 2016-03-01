@@ -57,6 +57,7 @@ limitations under the License.
 #include <common/cgen_map.h>
 #include <arpa/inet.h>
 #include "platform_cfg.h"
+#include "flow_stat.h"
 
 #include <trex_stateless_dp_core.h>
 
@@ -258,9 +259,6 @@ void on_node_last(uint8_t plugin_id,CGenNode *     node);
 
 rte_mbuf_t * on_node_generate_mbuf(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info);
 
-
-
-
 class CPreviewMode ;
 struct CGenNode;
 /* represent the virtual interface 
@@ -280,7 +278,7 @@ public:
     uint64_t   m_tx_drop;
     uint64_t   m_tx_queue_full;
     uint64_t   m_tx_alloc_error;
-
+    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS];    
     CPerTxthreadTemplateInfo m_template;
 
 public:

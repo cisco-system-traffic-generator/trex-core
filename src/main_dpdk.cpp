@@ -106,6 +106,8 @@ extern "C" void i40e_set_trex_mode(int mode);
 #define RTE_TEST_TX_DESC_DEFAULT 512
 #define RTE_TEST_RX_DESC_DROP    0
 
+static int max_stat_hw_id_seen = 0;
+
 static inline int get_vm_one_queue_enable(){
     return (CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ?1:0);
 }
@@ -145,7 +147,7 @@ public:
     virtual int  wait_for_stable_link()=0;
     virtual void wait_after_link_up(){};
     virtual bool flow_control_disable_supported(){return true;}
-    virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *stats, uint32_t *prev_stats, int index) {return -1;}
+    virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *stats, uint32_t *prev_stats, int min, int max) {return -1;}
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) { return -1;}
     virtual int get_stat_counters_num() {return 0;}
     virtual int get_rx_stat_capabilities() {return 0;}
@@ -318,9 +320,9 @@ public:
     }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
-    int get_rx_stats(CPhyEthIF * _if, uint32_t *stats, uint32_t *prev_stats, int index);
+    int get_rx_stats(CPhyEthIF * _if, uint32_t *stats, uint32_t *prev_stats, int min, int max);
     int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
-    int get_stat_counters_num() {return TREX_FDIR_STAT_SIZE;}
+    int get_stat_counters_num() {return MAX_FLOW_STATS;}
     int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual int wait_for_stable_link();
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
@@ -1191,7 +1193,6 @@ void CPhyEthIFStats::Clear(){
     imcasts = 0;
     rx_nombuf = 0;
     memset(m_rx_per_flow, 0, sizeof(m_rx_per_flow));
-    m_fdir_stats_first_time = true;
 }
 
 
@@ -1558,52 +1559,6 @@ void CPhyEthIF::get_stats_1g(CPhyEthIFStats *stats){
 
 int CPhyEthIF::dump_fdir_global_stats(FILE *fd) {
     return get_ex_drv()->dump_fdir_global_stats(this, fd);
-}
-
-// get/reset flow director counters
-// return 0 if OK. -1 if operation not supported.
-// stats - If not NULL, returning counter numbers in it.
-// index - If non negative, get only counter with this index
-// reset - If true, reset counter value after reading
-int CPhyEthIF::get_rx_stats(uint64_t *stats, int index, bool reset) {
-    uint32_t diff_stats[TREX_FDIR_STAT_SIZE];
-    int start, len;
-
-    if (index >= 0) {
-        start = index;
-        len = 1;
-    } else {
-        start = 0;
-        len = TREX_FDIR_STAT_SIZE;
-    }
-    
-    if (get_ex_drv()->get_rx_stats(this, diff_stats, m_stats.m_fdir_prev_stats, index) < 0) {
-        return -1;
-    }
-
-    // First time, just syncing the counters
-    if (m_stats.m_fdir_stats_first_time) {
-        m_stats.m_fdir_stats_first_time = false;
-        if (stats) {
-            memset(stats, 0, sizeof(uint64_t) * TREX_FDIR_STAT_SIZE);
-        }
-        return 0;
-    }
-
-    for (int i = start; i < (start + len); i++) {
-        if ( reset ) {
-            // return value so far, and reset
-            stats[i] = m_stats.m_rx_per_flow[i] + diff_stats[i];
-            m_stats.m_rx_per_flow[i] = 0;
-        } else {
-            m_stats.m_rx_per_flow[i] += diff_stats[i];
-            if (stats != NULL) {
-                stats[i] = m_stats.m_rx_per_flow[i];
-            }
-        }
-    }
-    
-    return 0;
 }
 
 void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
@@ -2037,7 +1992,6 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 
 int CCoreEthIFStateless::send_node(CGenNode * no){
     CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
-
     /* check that we have mbuf  */
     rte_mbuf_t *    m=node_sl->get_cache_mbuf();
     pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
@@ -2051,6 +2005,15 @@ int CCoreEthIFStateless::send_node(CGenNode * no){
         assert(m);
     }
 
+    if (unlikely(node_sl->is_stat_needed())) {
+        uint16_t hw_id = node_sl->get_stat_hw_id();
+        if (hw_id > max_stat_hw_id_seen) {
+            max_stat_hw_id_seen = hw_id;
+        }
+        tx_per_flow_t *lp_s = &lp_stats->m_tx_per_flow[hw_id];
+        lp_s->add_pkts(1);
+        lp_s->add_bytes(m->pkt_len);
+    }
     send_pkt(lp_port,m,lp_stats);
 
     return (0);
@@ -2292,7 +2255,9 @@ public:
     uint64_t ibytes;
     uint64_t ierrors;
     uint64_t oerrors;     
-
+    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS];
+    tx_per_flow_t m_prev_tx_per_flow[MAX_FLOW_STATS];
+    
     float     m_total_tx_bps;
     float     m_total_tx_pps;
 
@@ -2325,7 +2290,7 @@ public:
     uint64_t  m_total_nat_active  ;
     uint64_t  m_total_nat_open    ;
     uint64_t  m_total_nat_learn_error    ;
-
+    
     CPerTxthreadTemplateInfo m_template;
 
     float     m_socket_util;
@@ -2683,6 +2648,8 @@ public:
     void dump_template_info(std::string & json);
     bool sanity_check();
     void update_stats(void);
+    tx_per_flow_t get_flow_tx_stats(uint8_t port, uint16_t hw_id);
+    void clear_flow_tx_stats(uint8_t port, uint16_t index);
     void get_stats(CGlobalStats & stats);
     void dump_post_test_stats(FILE *fd);
     void dump_config(FILE *fd);
@@ -3334,6 +3301,13 @@ void CGlobalTRex::update_stats(){
 
 }
 
+tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
+    return m_stats.m_port[port].m_tx_per_flow[index] - m_stats.m_port[port].m_prev_tx_per_flow[index];
+}
+
+void CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index) {
+    m_stats.m_port[port].m_prev_tx_per_flow[index] = m_stats.m_port[port].m_tx_per_flow[index];
+}
 
 void CGlobalTRex::get_stats(CGlobalStats & stats){
 
@@ -3383,6 +3357,9 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_tx_pps +=_if->get_last_tx_pps_rate();
         total_rx_pps +=_if->get_last_rx_pps_rate();
 
+        for (uint16_t flow = 0; flow <= max_stat_hw_id_seen; flow++) {
+            stats.m_port[i].m_tx_per_flow[flow].clear();
+        }
     }
 
     uint64_t total_open_flows=0;
@@ -3400,10 +3377,8 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     uint64_t total_nat_open     =0;
     uint64_t total_nat_learn_error=0;
 
-
     CFlowGenListPerThread   * lpt;
     stats.m_template.Clear();
-
     for (i=0; i<get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
         total_open_flows +=   lpt->m_stats.m_total_open_flows ;
@@ -3414,7 +3389,7 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         stats.m_total_queue_full +=lpt->m_node_gen.m_v_if->m_stats[0].m_tx_queue_full+
                                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_queue_full;
 
-        stats.m_total_queue_drop =lpt->m_node_gen.m_v_if->m_stats[0].m_tx_drop+
+        stats.m_total_queue_drop +=lpt->m_node_gen.m_v_if->m_stats[0].m_tx_drop+
                                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_drop;
 
         stats.m_template.Add(&lpt->m_node_gen.m_v_if->m_stats[0].m_template);
@@ -3431,6 +3406,13 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_nat_active   +=lpt->m_stats.m_nat_lookup_add_flow_id - lpt->m_stats.m_nat_lookup_remove_flow_id;
         total_nat_open     +=lpt->m_stats.m_nat_lookup_add_flow_id;
         total_nat_learn_error   +=lpt->m_stats.m_nat_flow_learn_error;
+        uint8_t port0 = lpt->getDualPortId() *2;
+        for (uint16_t flow = 0; flow <= max_stat_hw_id_seen; flow++) {
+            stats.m_port[port0].m_tx_per_flow[flow] +=
+                lpt->m_node_gen.m_v_if->m_stats[0].m_tx_per_flow[flow];
+            stats.m_port[port0 + 1].m_tx_per_flow[flow] +=
+                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_per_flow[flow];
+        }
     }
 
     stats.m_total_nat_time_out = total_nat_time_out;
@@ -3904,6 +3886,56 @@ int CGlobalTRex::start_master_statefull() {
 ////////////////////////////////////////////
 
 static CGlobalTRex g_trex;
+
+// The HW counters start from some random values. The driver give us the diffs from previous,
+// each time we do get_rx_stats. We need to make one first call, at system startup,
+// and ignore the returned diffs
+int CPhyEthIF::reset_hw_flow_stats() {
+    uint32_t diff_stats[MAX_FLOW_STATS];
+
+    if (get_ex_drv()->get_rx_stats(this, diff_stats, m_stats.m_fdir_prev_stats, 0, MAX_FLOW_STATS) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+// get/reset flow director counters
+// return 0 if OK. -1 if operation not supported.
+// stats - If not NULL, returning counter numbers in it.
+// index - If non negative, get only counter with this index
+// reset - If true, reset counter value after reading
+int CPhyEthIF::get_flow_stats(uint64_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
+    uint32_t diff_stats[MAX_FLOW_STATS];
+    
+    if (get_ex_drv()->get_rx_stats(this, diff_stats, m_stats.m_fdir_prev_stats, min, max) < 0) {
+        return -1;
+    }
+
+    for (int i = min; i <= max; i++) {
+        if ( reset ) {
+            // return value so far, and reset
+            if (rx_stats != NULL) {
+                rx_stats[i] = m_stats.m_rx_per_flow[i] + diff_stats[i];
+            }
+            if (tx_stats != NULL) {
+                tx_stats[i] = g_trex.get_flow_tx_stats(m_port_id, i);
+            }
+            m_stats.m_rx_per_flow[i] = 0;
+            g_trex.clear_flow_tx_stats(m_port_id, i);
+        } else {
+            m_stats.m_rx_per_flow[i] += diff_stats[i];
+            if (rx_stats != NULL) {
+                rx_stats[i] = m_stats.m_rx_per_flow[i];
+            }
+            if (tx_stats != NULL) {
+                tx_stats[i] = g_trex.get_flow_tx_stats(m_port_id, i);
+            }
+        }
+    }
+    
+    return 0;
+}
 
 bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
                                 rte_mbuf_t * m){
@@ -4818,9 +4850,9 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
 
 // type - rule type. Currently we only support rules in IP ID.
 // proto - Packet protocol: UDP or TCP
-// id - Counter id in HW. We assume it is in the range 0..TREX_FDIR_STAT_SIZE
+// id - Counter id in HW. We assume it is in the range 0..MAX_FLOW_STATS
 int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint8_t type, uint16_t proto, uint16_t id) {
-    uint32_t rule_id = (port_id % m_if_per_card) * TREX_FDIR_STAT_SIZE + id;
+    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + id;
     uint16_t rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
     
     switch(proto) {
@@ -4868,20 +4900,12 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
 
 // instead of adding this to rte_ethdev.h
 extern "C" int rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len);
-int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *stats, uint32_t *prev_stats, int index) {
-    uint32_t hw_stats[TREX_FDIR_STAT_SIZE];
+int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *stats, uint32_t *prev_stats, int min, int max) {
+    uint32_t hw_stats[MAX_FLOW_STATS];
     uint32_t port_id = _if->get_port_id();
-    uint32_t len, start, loop_start;
-
-    if (index >= 0) {
-        len = 1;
-        start = (port_id % m_if_per_card) * TREX_FDIR_STAT_SIZE + index;
-        loop_start = index;
-    } else {
-        start = (port_id % m_if_per_card) * TREX_FDIR_STAT_SIZE;
-        len = TREX_FDIR_STAT_SIZE;
-        loop_start = 0;
-    }
+    uint32_t start = (port_id % m_if_per_card) * MAX_FLOW_STATS + min;
+    uint32_t len = max - min + 1;
+    uint32_t loop_start = min;
 
     rte_eth_fdir_stats_get(port_id, hw_stats, start, len);
     for (int i = loop_start; i <  loop_start + len; i++) {
@@ -5163,8 +5187,12 @@ TrexDpdkPlatformApi::get_interface_stat_info(uint8_t interface_id, uint16_t &num
     capabilities = CTRexExtendedDriverDb::Ins()->get_drv()->get_rx_stat_capabilities();
 }
 
-int TrexDpdkPlatformApi::get_rx_stats(uint8 port_id, uint64_t *stats, int index, bool reset) const {
-    return g_trex.m_ports[port_id].get_rx_stats(stats, index, reset);
+int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, uint64_t *rx_stats, void *tx_stats, int min, int max, bool reset) const {
+    return g_trex.m_ports[port_id].get_flow_stats(rx_stats, (tx_per_flow_t *)tx_stats, min, max, reset);
+}
+
+int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
+    return g_trex.m_ports[port_id].reset_hw_flow_stats();
 }
 
 int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {

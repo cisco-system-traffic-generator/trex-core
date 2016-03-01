@@ -62,7 +62,8 @@ public:
 
         SL_NODE_CONST_MBUF                 =4,
 
-        SL_NODE_VAR_PKT_SIZE               =8
+        SL_NODE_VAR_PKT_SIZE               =8,
+        SL_NODE_STATS_NEEDED               = 0x10
 
     };
 
@@ -82,7 +83,8 @@ private:
 
     double              m_next_time_offset; /* in sec */
     uint16_t            m_action_counter;
-    uint16_t            m_pad11;
+    uint8_t             m_stat_hw_id; // hw id used to count rx and tx stats
+    uint8_t             m_pad11;
     uint32_t            m_pad12;
 
     stream_state_t      m_state;
@@ -267,6 +269,22 @@ public:
 
     socket_id_t get_socket_id(){
         return ( m_socket_id );
+    }
+
+    void set_stat_hw_id(uint16_t hw_id) {
+        m_stat_hw_id = hw_id;
+    }
+
+    socket_id_t get_stat_hw_id() {
+        return ( m_stat_hw_id );
+    }
+
+    inline void set_stat_needed() {
+        m_flags |= SL_NODE_STATS_NEEDED;
+    }
+
+    inline bool is_stat_needed() {
+        return ((m_flags & SL_NODE_STATS_NEEDED) != 0);
     }
 
     inline void set_mbuf_cache_dir(pkt_dir_t  dir){

@@ -565,7 +565,6 @@ void
 TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
                                 TrexStream * stream,
                                 TrexStreamsCompiledObj *comp) {
-
     CGenNodeStateless *node = m_core->create_node_sl();
 
     /* add periodic */
@@ -580,7 +579,6 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     stream->release_dp_object();
 
     node->m_next_stream=0; /* will be fixed later */
-
 
     if ( stream->m_self_start ){
         /* if self start it is in active mode */
@@ -597,7 +595,12 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->m_src_port =0;
     node->m_original_packet_data_prefix = 0;
 
-
+    if (stream->m_rx_check.m_enabled) {
+        node->set_stat_needed();
+        uint8_t hw_id = stream->m_rx_check.m_hw_id;
+        assert (hw_id < MAX_FLOW_STATS);
+        node->set_stat_hw_id(hw_id);
+    }
 
     /* set socket id */
     node->set_socket_id(m_core->m_node_gen.m_socket_id);

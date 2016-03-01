@@ -141,7 +141,8 @@ public:
     virtual void publish_async_data_now(uint32_t key) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
     virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const =0;
-    virtual int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const = 0;
+    virtual int get_flow_stats(uint8_t port_id, uint64_t *stats, void *tx_stats, int min, int max, bool reset) const = 0;
+    virtual int reset_hw_flow_stats(uint8_t port_id) const = 0;
     virtual void get_port_num(uint8_t &port_num) const = 0;
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
@@ -168,7 +169,8 @@ public:
     void publish_async_data_now(uint32_t key) const;
     uint8_t get_dp_core_count() const;
     void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const;
-    int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const;
+    int get_flow_stats(uint8_t port_id, uint64_t *stats, void *tx_stats, int min, int max, bool reset) const;
+    int reset_hw_flow_stats(uint8_t port_id) const;
     void get_port_num(uint8_t &port_num) const;
     int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
     int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;

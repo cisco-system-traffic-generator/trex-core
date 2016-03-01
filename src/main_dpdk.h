@@ -38,10 +38,9 @@ class CPhyEthIFStats {
     uint64_t oerrors;   /**< Total number of failed transmitted packets. */
     uint64_t imcasts;   /**< Total number of multicast received packets. */
     uint64_t rx_nombuf; /**< Total number of RX mbuf allocation failures. */
-    uint64_t  m_rx_per_flow [TREX_FDIR_STAT_SIZE]; // Per flow RX statistics
+    uint64_t  m_rx_per_flow [MAX_FLOW_STATS]; // Per flow RX statistics
     // Previous fdir stats values read from HW. Since on xl710 this is 32 bit, we save old value, to handle wrap around.
-    uint32_t  m_fdir_prev_stats [TREX_FDIR_STAT_SIZE];
-    bool m_fdir_stats_first_time;
+    uint32_t  m_fdir_prev_stats [MAX_FLOW_STATS];
  public:
     void Clear();
     void Dump(FILE *fd);
@@ -53,7 +52,6 @@ class CPhyEthIF  {
     CPhyEthIF (){
         m_port_id=0;
         m_rx_queue=0;
-        m_stats.m_fdir_stats_first_time = true;
     }
     bool Create(uint8_t portid){
         m_port_id      = portid;
@@ -74,7 +72,8 @@ class CPhyEthIF  {
     void macaddr_get(struct ether_addr *mac_addr);
     void get_stats(CPhyEthIFStats *stats);
     int dump_fdir_global_stats(FILE *fd);
-    int get_rx_stats(uint64_t *stats, int index, bool reset);
+    int reset_hw_flow_stats();
+    int get_flow_stats(uint64_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
     void get_stats_1g(CPhyEthIFStats *stats);
     void rx_queue_setup(uint16_t rx_queue_id,
                         uint16_t nb_rx_desc,
@@ -116,6 +115,7 @@ class CPhyEthIF  {
     float get_last_rx_pps_rate(){
         return (m_last_rx_pps);
     }
+
     CPhyEthIFStats     & get_stats(){
         return ( m_stats );
     }

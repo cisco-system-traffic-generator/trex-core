@@ -514,7 +514,7 @@ public:
         bool      m_seq_enabled;
         bool      m_latency;
         uint32_t  m_user_id;
-
+        uint16_t  m_hw_id;
     } m_rx_check;
 
     uint32_t   m_burst_total_pkts; /* valid in case of burst stSINGLE_BURST,stMULTI_BURST*/
