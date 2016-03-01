@@ -814,6 +814,19 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         if not was_set :
             raise CTRexPacketBuildException(-14, "no buffer inside the pcap file {0}".format(f_path))
 
+    def to_pkt_dump(self):
+        p = self.pkt
+        if p and isinstance(p, Packet):
+            p.show2();
+            hexdump(p);
+            return;
+        p = self.pkt_raw;
+        if p:
+            scapy_pkt = Ether(p);
+            scapy_pkt.show2();
+            hexdump(p);
+
+
     def set_packet (self, pkt):
         """
         Scapy packet   Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/"A"*10

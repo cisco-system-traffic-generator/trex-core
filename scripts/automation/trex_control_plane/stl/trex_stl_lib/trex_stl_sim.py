@@ -123,7 +123,7 @@ class STLSim(object):
              duration = -1,
              mode = 'none'):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml']:
+        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt']:
             raise STLArgumentError('mode', mode)
 
         # listify
@@ -208,6 +208,10 @@ class STLSim(object):
         elif mode == 'yaml':
             print STLProfile(stream_list).dump_to_yaml()
             return
+        elif mode == 'pkt':
+            print STLProfile(stream_list).dump_as_pkt();
+            return
+
 
         # start simulation
         self.outfile = outfile
@@ -392,6 +396,11 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
+    group.add_argument("--pkt",
+                       help = "Parse the packet and show it as hex",
+                       action = "store_true",
+                       default = False)
+
     group.add_argument("--yaml",
                        help = "generate YAML from input file [default is False]",
                        action = "store_true",
@@ -427,6 +436,8 @@ def main ():
         mode = 'json'
     elif options.yaml:
         mode = 'yaml'
+    elif options.pkt:
+        mode = 'pkt'
     else:
         mode = 'none'
 

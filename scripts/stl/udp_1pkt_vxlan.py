@@ -30,7 +30,8 @@ class STLS1(object):
 
     def create_stream (self):
         pkt =  Ether()/IP()/UDP(sport=1337,dport=4789)/VXLAN(vni=42)/Ether()/IP()/('x'*20)
-        pkt.show2()
+        #pkt.show2()
+        #hexdump(pkt)
 
         # burst of 17 packets
         return STLStream(packet = STLPktBuilder(pkt = pkt ,vm = []),

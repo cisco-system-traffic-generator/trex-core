@@ -224,6 +224,7 @@ class STLStream(object):
         if not packet:
             packet = CScapyTRexPktBuilder(pkt = Ether()/IP())
 
+        self.scapy_pkt_builder = packet
         # packet builder
         packet.compile()
 
@@ -298,6 +299,14 @@ class STLStream(object):
 
     def get_rate (self):
         return self.get_rate_from_field(self.fields['mode']['rate'])
+
+    def to_pkt_dump (self):
+        scapy_b = self.scapy_pkt_builder;
+        if scapy_b and isinstance(scapy_b,CScapyTRexPktBuilder):
+            scapy_b.to_pkt_dump()
+        else:
+            print "Nothing to dump"
+
 
 
     def to_yaml (self):
@@ -598,6 +607,12 @@ class STLProfile(object):
 
         return profile
 
+    def dump_as_pkt (self):
+        cnt=0;
+        for stream in self.streams:
+            print "Stream %d" % cnt
+            cnt = cnt +1 
+            stream.to_pkt_dump()
 
     def dump_to_yaml (self, yaml_file = None):
         yaml_list = [stream.to_yaml() for stream in self.streams]
