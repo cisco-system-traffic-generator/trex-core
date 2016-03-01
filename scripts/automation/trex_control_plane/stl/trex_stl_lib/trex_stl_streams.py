@@ -301,6 +301,8 @@ class STLStream(object):
         return self.get_rate_from_field(self.fields['mode']['rate'])
 
     def to_pkt_dump (self):
+        if self.name:
+            print "Stream Name: ",self.name
         scapy_b = self.scapy_pkt_builder;
         if scapy_b and isinstance(scapy_b,CScapyTRexPktBuilder):
             scapy_b.to_pkt_dump()
@@ -610,7 +612,9 @@ class STLProfile(object):
     def dump_as_pkt (self):
         cnt=0;
         for stream in self.streams:
+            print "======================="
             print "Stream %d" % cnt
+            print "======================="
             cnt = cnt +1 
             stream.to_pkt_dump()
 
