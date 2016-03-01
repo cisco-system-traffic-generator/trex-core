@@ -220,6 +220,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ['hlt/hlt_vlans_vm.py', '-m 1 -l 20', True],
             ['hlt/hlt_ipv6_default.py', '-m 1 -l 20', True],
             ['hlt/hlt_ipv6_ranges.py', '-m 1 -l 20', True],
+            ['hlt/hlt_mac_ranges.py', '-m 1 -l 20', True],
             )
 
         for obj in p:
