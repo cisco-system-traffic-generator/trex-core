@@ -319,6 +319,10 @@ TrexStatelessPort::pause_traffic(void) {
 
     /* change state */
     change_state(PORT_STATE_PAUSE);
+
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_PAUSED, data);
 }
 
 
