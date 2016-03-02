@@ -145,7 +145,7 @@ public:
 
     TrexStatelessDpStop(uint8_t port_id) : m_port_id(port_id) {
         m_stop_only_for_event_id=false;
-        m_event_id=0;
+        m_event_id = 0;
         m_core = NULL;
     }
 
@@ -245,6 +245,26 @@ private:
     double   m_factor;
 };
 
+/**
+ * barrier message for DP core
+ * 
+ */
+class TrexStatelessDpBarrier : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpBarrier(uint8_t port_id, int event_id) {
+        m_port_id  = port_id;
+        m_event_id = event_id;
+    }
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
+
+private:
+    uint8_t m_port_id;
+    int     m_event_id;
+};
 
 /************************* messages from DP to CP **********************/
 
@@ -282,10 +302,9 @@ public:
 class TrexDpPortEventMsg : public TrexStatelessDpToCpMsgBase {
 public:
 
-    TrexDpPortEventMsg(int thread_id, uint8_t port_id, TrexDpPortEvent::event_e type, int event_id) {
+    TrexDpPortEventMsg(int thread_id, uint8_t port_id, int event_id) {
         m_thread_id  = thread_id;
         m_port_id    = port_id;
-        m_event_type = type;
         m_event_id   = event_id;
     }
 
@@ -299,10 +318,6 @@ public:
         return m_port_id;
     }
 
-    TrexDpPortEvent::event_e get_event_type() {
-        return m_event_type;
-    }
-
     int get_event_id() {
         return m_event_id;
     }
@@ -310,7 +325,6 @@ public:
 private:
     int                         m_thread_id;
     uint8_t                     m_port_id;
-    TrexDpPortEvent::event_e    m_event_type;
     int                         m_event_id;
     
 };

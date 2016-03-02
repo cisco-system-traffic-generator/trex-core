@@ -92,18 +92,19 @@ public:
     TrexStatelessCfg() {
         m_port_count          = 0;
         m_rpc_req_resp_cfg    = NULL;
-        m_rpc_async_cfg       = NULL;
         m_rpc_server_verbose  = false;
         m_platform_api        = NULL;
         m_publisher           = NULL;
+        m_global_lock         = NULL;
     }
 
     const TrexRpcServerConfig  *m_rpc_req_resp_cfg;
-    const TrexRpcServerConfig  *m_rpc_async_cfg;
     const TrexPlatformApi      *m_platform_api;
     bool                        m_rpc_server_verbose;
     uint8_t                     m_port_count;
     TrexPublisher              *m_publisher;
+    std::mutex                 *m_global_lock;
+
 };
 
 /**
@@ -186,7 +187,6 @@ protected:
 
     TrexPublisher                        *m_publisher;
 
-    std::mutex m_global_cp_lock;
 };
 
 /**

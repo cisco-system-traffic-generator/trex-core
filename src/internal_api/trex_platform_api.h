@@ -148,6 +148,7 @@ public:
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
     virtual void set_promiscuous(uint8_t port_id, bool enabled) const = 0;
     virtual bool get_promiscuous(uint8_t port_id) const = 0;
+    virtual void flush_dp_messages() const = 0;
 
     virtual ~TrexPlatformApi() {}
 };
@@ -176,6 +177,7 @@ public:
     int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
     void set_promiscuous(uint8_t port_id, bool enabled) const;
     bool get_promiscuous(uint8_t port_id) const;
+    void flush_dp_messages() const;
 };
 
 
@@ -232,6 +234,9 @@ public:
 
     bool get_promiscuous(uint8_t port_id) const {
         return false;
+    }
+
+    void flush_dp_messages() const {
     }
 
 private:

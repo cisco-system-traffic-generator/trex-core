@@ -33,6 +33,9 @@ limitations under the License.
 TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name, std::mutex *lock) : m_cfg(cfg), m_name(name), m_lock(lock)  {
     m_is_running = false;
     m_is_verbose = false;
+    if (m_lock == NULL) {
+        m_lock = &m_dummy_lock;
+    }
 }
 
 TrexRpcServerInterface::~TrexRpcServerInterface() {
@@ -117,7 +120,6 @@ get_current_date_time() {
 const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
 
 TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
-                             const TrexRpcServerConfig *async_cfg,
                              std::mutex *lock) {
 
     m_req_resp = NULL;
@@ -134,10 +136,6 @@ TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
         m_servers.push_back(m_req_resp);
     }
     
-    /* add async publisher */
-    if (async_cfg) {
-        m_servers.push_back(new TrexRpcServerAsync(*async_cfg, lock));
-    }
 }
 
 TrexRpcServer::~TrexRpcServer() {
@@ -186,4 +184,28 @@ TrexRpcServer::test_inject_request(const std::string &req_str) {
     } else {
         return "";
     }
+}
+
+/**
+ * MOCK req resp server
+ */
+TrexRpcServerReqResMock::TrexRpcServerReqResMock(const TrexRpcServerConfig &cfg) : TrexRpcServerReqRes(cfg) {
+}
+
+/**
+ * override start
+ * 
+ */
+void
+TrexRpcServerReqResMock::start() {
+
+}
+
+
+/**
+ * override stop
+ */
+void
+TrexRpcServerReqResMock::stop() {
+
 }

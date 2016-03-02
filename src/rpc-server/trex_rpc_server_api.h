@@ -133,6 +133,7 @@ protected:
     std::thread                          *m_thread;
     std::string                          m_name;
     std::mutex                           *m_lock;
+    std::mutex                           m_dummy_lock;
 };
 
 /**
@@ -147,7 +148,6 @@ public:
   
     /* creates the collection of servers using configurations */
     TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
-                  const TrexRpcServerConfig *async_cfg,
                   std::mutex *m_lock = NULL);
 
     ~TrexRpcServer();

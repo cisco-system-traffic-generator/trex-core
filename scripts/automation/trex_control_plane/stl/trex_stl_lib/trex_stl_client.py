@@ -227,7 +227,7 @@ class AsyncEventHandler(object):
             ev = "Port {0} job done".format(port_id)
 
             # call the handler
-            self.__async_event_port_stopped(port_id)
+            self.__async_event_port_job_done(port_id)
             show_event = True
 
         # port was stolen...
@@ -263,6 +263,9 @@ class AsyncEventHandler(object):
 
 
     # private functions
+
+    def __async_event_port_job_done (self, port_id):
+        self.client.ports[port_id].async_event_port_job_done()
 
     def __async_event_port_stopped (self, port_id):
         self.client.ports[port_id].async_event_port_stopped()
@@ -1332,7 +1335,6 @@ class STLClient(object):
         :parameters:
             ports : list
                 ports to execute the command
-                
 
         :raises:
             + :exc:`STLError`
@@ -1353,7 +1355,6 @@ class STLClient(object):
 
         if not rc:
             raise STLError(rc)
-
 
         
     """
@@ -1433,8 +1434,6 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-              
-    
     """
         resume traffic on port(s)
 

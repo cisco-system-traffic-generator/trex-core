@@ -20,6 +20,7 @@ limitations under the License.
 */
 
 #include <trex_dp_port_events.h>
+#include <trex_stateless_messaging.h>
 #include <sstream>
 #include <os_time.h>
 #include <trex_stateless.h>
@@ -27,24 +28,20 @@ limitations under the License.
 /**
  * port events
  */
-void 
-TrexDpPortEvents::create(TrexStatelessPort *port) {
+TrexDpPortEvents::TrexDpPortEvents(TrexStatelessPort *port) {
     m_port = port;
-
-    for (int i = 0; i < TrexDpPortEvent::EVENT_MAX; i++) {
-        m_events[i].create((TrexDpPortEvent::event_e) i, port);
-    }
-
     m_event_id_counter = EVENT_ID_INVALID;
 }
 
-/**
- * generate a new event ID
- * 
- */
-int
-TrexDpPortEvents::generate_event_id() {
-    return (++m_event_id_counter);
+TrexDpPortEvent *
+TrexDpPortEvents::lookup(int event_id) {
+    auto search = m_events.find(event_id);
+
+    if (search != m_events.end()) {
+        return search->second;
+    } else {
+        return NULL;
+    }
 }
 
 /**
@@ -52,21 +49,49 @@ TrexDpPortEvents::generate_event_id() {
  * all other events will be disabled 
  * 
  */
-void
-TrexDpPortEvents::wait_for_event(TrexDpPortEvent::event_e ev, int event_id, int timeout_ms) {
+int
+TrexDpPortEvents::create_event(TrexDpPortEvent *event, int timeout_ms) {
+    /* allocate ID for event */
+    int event_id = ++m_event_id_counter;
 
-    /* first disable all events */
-    for (TrexDpPortEvent & e : m_events) {
-        e.disable();
-    }
+    /* init and add */
+    event->init(m_port, event_id, timeout_ms);
+    m_events[event_id] = event;
 
-    /* mark this event as allowed */
-    m_events[ev].wait_for_event(event_id, timeout_ms);
+    return event_id;
 }
 
 void 
-TrexDpPortEvents::disable(TrexDpPortEvent::event_e ev) {
-    m_events[ev].disable();
+TrexDpPortEvents::destroy_event(int event_id) {
+    TrexDpPortEvent *event = lookup(event_id);
+    if (!event) {
+        /* cannot find event */
+        throw TrexException("internal error - cannot find event");
+    }
+
+    m_events.erase(event_id);
+    delete event;
+}
+
+class DPBarrier : public TrexDpPortEvent {
+protected:
+    virtual void on_event() {
+        /* do nothing */
+    }
+};
+
+void
+TrexDpPortEvents::barrier() {
+    int barrier_id = create_event(new DPBarrier());
+
+    TrexStatelessCpToDpMsgBase *barrier_msg = new TrexStatelessDpBarrier(m_port->m_port_id, barrier_id);
+    m_port->send_message_to_all_dp(barrier_msg);
+
+    get_stateless_obj()->get_platform_api()->flush_dp_messages();
+    while (lookup(barrier_id) != NULL) {
+        delay(1);
+        get_stateless_obj()->get_platform_api()->flush_dp_messages();
+    }
 }
 
 /**
@@ -74,39 +99,33 @@ TrexDpPortEvents::disable(TrexDpPortEvent::event_e ev) {
  * 
  */
 void 
-TrexDpPortEvents::handle_event(TrexDpPortEvent::event_e ev, int thread_id, int event_id) {
-    m_events[ev].handle_event(thread_id, event_id);
-}
-
-/*********** 
- * single event object
- * 
- */
-
-void
-TrexDpPortEvent::create(event_e type, TrexStatelessPort *port) {
-    m_event_type = type;
-    m_port = port;
-
-    /* add the core ids to the hash */
-    m_signal.clear();
-    for (int core_id : m_port->get_core_id_list()) {
-        m_signal[core_id] = false;
+TrexDpPortEvents::on_core_reporting_in(int event_id, int thread_id) {
+    TrexDpPortEvent *event = lookup(event_id);
+    /* event might have been deleted */
+    if (!event) {
+        return;
     }
 
-    /* event is disabled */
-    disable();
+    bool done = event->on_core_reporting_in(thread_id);
+
+    if (done) {
+        destroy_event(event_id);
+    }
 }
 
 
-/**
- * wait the event using event id and timeout
+/***************************
+ * event
  * 
- */
-void
-TrexDpPortEvent::wait_for_event(int event_id, int timeout_ms) {
+ **************************/
+TrexDpPortEvent::TrexDpPortEvent() {
+    m_port = NULL;
+    m_event_id = -1;
+}
 
-    /* set a new event id */
+void 
+TrexDpPortEvent::init(TrexStatelessPort *port, int event_id, int timeout_ms) {
+    m_port = port;
     m_event_id = event_id;
 
     /* do we have a timeout ? */
@@ -118,103 +137,33 @@ TrexDpPortEvent::wait_for_event(int event_id, int timeout_ms) {
 
     /* prepare the signal array */
     m_pending_cnt = 0;
-    for (auto & core_pair : m_signal) {
-        core_pair.second = false;
+    for (int core_id : m_port->get_core_id_list()) {
+        m_signal[core_id] = false;
         m_pending_cnt++;
     }
 }
 
-void
-TrexDpPortEvent::disable() {
-    m_event_id = TrexDpPortEvents::EVENT_ID_INVALID;
-}
-
-/**
- * get the event status
- * 
- */
-
-TrexDpPortEvent::event_status_e
-TrexDpPortEvent::status() {
-
-    /* is it even active ? */
-    if (m_event_id == TrexDpPortEvents::EVENT_ID_INVALID) {
-        return (EVENT_DISABLE);
-    }
-
-    /* did it occured ? */
-    if (m_pending_cnt == 0) {
-        return (EVENT_OCCURED);
-    }
-
-    /* so we are enabled and the event did not occur - maybe we timed out ? */
-    if ( (m_expire_limit_ms > 0) && (os_get_time_msec() > m_expire_limit_ms) ) {
-        return (EVENT_TIMED_OUT);
-    }
-
-    /* so we are still waiting... */
-    return (EVENT_PENDING);
-
-}
-
-void
-TrexDpPortEvent::err(int thread_id, int event_id, const std::string &err_msg)  {
-    std::stringstream err;
-    err << "DP event '" << event_name(m_event_type)  << "' on thread id '" << thread_id << "' with key '" << event_id <<"' - ";
-}
-
-/**
- * event occured
- * 
- */
-void 
-TrexDpPortEvent::handle_event(int thread_id, int event_id) {
-
-    /* if the event is disabled - we don't care */
-    if (!is_active()) {
-        return;
-    }
-
-    /* check the event id is matching the required event - if not maybe its an old signal */
-    if (event_id != m_event_id) {
-        return;
-    }
-
+bool
+TrexDpPortEvent::on_core_reporting_in(int thread_id) {
     /* mark sure no double signal */
     if (m_signal.at(thread_id)) {
-        err(thread_id, event_id, "double signal");
+        std::stringstream err;
+        err << "double signal detected on event id: " << m_event_id;
+        throw TrexException(err.str());
 
-    } else {
-        /* mark */
-        m_signal.at(thread_id) = true;
-        m_pending_cnt--;
     }
+
+    /* mark */
+    m_signal.at(thread_id) = true;
+    m_pending_cnt--;
 
     /* event occured */
     if (m_pending_cnt == 0) {
-        m_port->on_dp_event_occured(m_event_type);
-        m_event_id = TrexDpPortEvents::EVENT_ID_INVALID;
+        on_event();
+        return true;
+    } else {
+        return false;
     }
 }
 
-bool
-TrexDpPortEvent::is_active() {
-    return (status() != EVENT_DISABLE);
-}
 
-bool 
-TrexDpPortEvent::has_timeout_expired() {
-    return (status() == EVENT_TIMED_OUT);
-}
-
-const char *
-TrexDpPortEvent::event_name(event_e type) {
-    switch (type) {
-    case EVENT_STOP:
-        return "DP STOP";
-
-    default:
-        throw TrexException("unknown event type");
-    }
-
-}

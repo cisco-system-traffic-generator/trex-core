@@ -265,9 +265,9 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
 }
 
 
-bool TrexStatelessDpPerPort::stop_traffic(uint8_t port_id,
-                                          bool stop_on_id, 
-                                          int event_id){
+bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
+                                          bool     stop_on_id, 
+                                          int      event_id){
 
 
     if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
@@ -829,9 +829,9 @@ TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
 
 
 void
-TrexStatelessDpCore::stop_traffic(uint8_t port_id,
-                                  bool stop_on_id, 
-                                  int event_id) {
+TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
+                                  bool     stop_on_id, 
+                                  int      event_id) {
     /* we cannot remove nodes not from the top of the queue so
        for every active node - make sure next time
        the scheduler invokes it, it will be free */
@@ -843,20 +843,19 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id,
         //printf(" skip .. %f\n",m_core->m_cur_time_sec);
         return;
     }
-
-#if 0
-    if ( are_all_ports_idle() ) {
-        /* just a place holder if we will need to do somthing in that case */
-    }
-#endif
  
     /* inform the control plane we stopped - this might be a async stop
        (streams ended)
-     */
+    */
+    #if 0
+    if ( are_all_ports_idle() ) {
+        /* just a place holder if we will need to do somthing in that case */
+    }
+    #endif
+
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
     TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                                    port_id,
-                                                                   TrexDpPortEvent::EVENT_STOP,
                                                                    lp_port->get_event_id());
     ring->Enqueue((CGenNode *)event_msg);
 
@@ -872,3 +871,12 @@ TrexStatelessDpCore::handle_cp_msg(TrexStatelessCpToDpMsgBase *msg) {
     delete msg;
 }
 
+void
+TrexStatelessDpCore::barrier(uint8_t port_id, int event_id) {
+
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
+    TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
+                                                                   port_id,
+                                                                   event_id);
+    ring->Enqueue((CGenNode *)event_msg);
+}

@@ -102,13 +102,17 @@ private:
 };
 
 
+class AsyncStopEvent;
+
 /**
  * describes a stateless port
  * 
  * @author imarom (31-Aug-15)
  */
 class TrexStatelessPort {
-    friend class TrexDpPortEvent;
+    friend TrexDpPortEvents;
+    friend TrexDpPortEvent;
+    friend AsyncStopEvent;
 
 public:
 
@@ -363,18 +367,12 @@ private:
      */
     void send_message_to_dp(uint8_t core_id, TrexStatelessCpToDpMsgBase *msg);
 
-    /**
-     * triggered when event occurs
-     * 
-     */
-    void on_dp_event_occured(TrexDpPortEvent::event_e event_type);
-
 
     /**
      * when a port stops, perform various actions
      * 
      */
-    void common_port_stop_actions(bool event_triggered);
+    void common_port_stop_actions(bool async);
 
     /**
      * calculate effective M per core
@@ -421,6 +419,8 @@ private:
 
     /* owner information */
     TrexPortOwner       m_owner;
+
+    int m_pending_async_stop_event;
 };
 
 

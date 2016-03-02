@@ -3206,7 +3206,6 @@ public:
         /* first the message must be an event */
         TrexDpPortEventMsg *event = dynamic_cast<TrexDpPortEventMsg *>(msg);
         EXPECT_TRUE(event != NULL);
-        EXPECT_TRUE(event->get_event_type() == TrexDpPortEvent::EVENT_STOP);
 
         EXPECT_TRUE(event->get_event_id() == m_event_id);
         EXPECT_TRUE(event->get_port_id() == 0);

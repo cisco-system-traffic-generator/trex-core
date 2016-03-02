@@ -2599,9 +2599,9 @@ private:
     /* send message to all dp cores */
     int  send_message_all_dp(TrexStatelessCpToDpMsgBase *msg);
     void check_for_dp_message_from_core(int thread_id);
-    void check_for_dp_messages();
-
+    
 public:
+    void check_for_dp_messages();
     int start_master_statefull();
     int start_master_stateless();
     int run_in_core(virtual_thread_id_t virt_core_id);
@@ -2640,7 +2640,7 @@ private:
 
 public:
 
-    void publish_async_data();
+    void publish_async_data(bool sync_now);
     void publish_async_barrier(uint32_t key);
 
     void dump_stats(FILE *fd,
@@ -2686,9 +2686,11 @@ private:
     CLatencyPktInfo     m_latency_pkt;
     TrexPublisher       m_zmq_publisher;
     CGlobalStats        m_stats;
+    std::mutex          m_cp_lock;
 
 public:
     TrexStateless       *m_trex_stateless;
+     
 };
 
 int  CGlobalTRex::reset_counters(){
@@ -2738,6 +2740,7 @@ CGlobalTRex::check_for_dp_message_from_core(int thread_id) {
  */
 void 
 CGlobalTRex::check_for_dp_messages() {
+
     /* for all the cores - check for a new message */
     for (int i = 0; i < get_cores_tx(); i++) {
         check_for_dp_message_from_core(i);
@@ -3070,10 +3073,10 @@ bool CGlobalTRex::Create(){
 
        cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
        cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-       cfg.m_rpc_async_cfg      = NULL;
        cfg.m_rpc_server_verbose = false;
        cfg.m_platform_api       = new TrexDpdkPlatformApi();
        cfg.m_publisher          = &m_zmq_publisher;
+       cfg.m_global_lock        = &m_cp_lock;
 
        m_trex_stateless = new TrexStateless(cfg);
    }
@@ -3531,8 +3534,14 @@ void CGlobalTRex::dump_stats(FILE *fd, CGlobalStats::DumpFormat format){
 
 
 void 
-CGlobalTRex::publish_async_data() {
+CGlobalTRex::publish_async_data(bool sync_now) {
      std::string json;
+
+     /* refactor to update, dump, and etc. */
+     if (sync_now) {
+         update_stats();
+         get_stats(m_stats);
+     }
 
      m_stats.dump_json(json);
      m_zmq_publisher.publish_json(json);
@@ -3572,13 +3581,16 @@ CGlobalTRex::publish_async_barrier(uint32_t key) {
 }
 
 int CGlobalTRex::run_in_master() {
-
+    
    
     bool was_stopped=false;
 
     if ( get_is_stateless() ) {
         m_trex_stateless->launch_control_plane();
     }
+
+    /* exception and scope safe */
+    std::unique_lock<std::mutex> cp_lock(m_cp_lock);
 
     while ( true ) {
 
@@ -3669,17 +3681,22 @@ int CGlobalTRex::run_in_master() {
         }
 
         /* publish data */
-        publish_async_data();
+        publish_async_data(false);
 
         /* check from messages from DP */
         check_for_dp_messages();
 
+        cp_lock.unlock();
         delay(500);
+        cp_lock.lock();
 
         if ( is_all_cores_finished() ) {
             break;
         }
     }
+
+    /* on exit release the lock */
+    cp_lock.unlock();
 
     if (!is_all_cores_finished()) {
         /* probably CLTR-C */
@@ -5177,7 +5194,7 @@ TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id, intf_info_st &info
 
 void
 TrexDpdkPlatformApi::publish_async_data_now(uint32_t key) const {
-    g_trex.publish_async_data();
+    g_trex.publish_async_data(true);
     g_trex.publish_async_barrier(key);
 }
 
@@ -5213,4 +5230,6 @@ bool TrexDpdkPlatformApi::get_promiscuous(uint8_t port_id) const {
     return g_trex.m_ports[port_id].get_promiscuous();
 }
 
-
+void TrexDpdkPlatformApi::flush_dp_messages() const {
+    g_trex.check_for_dp_messages();
+}

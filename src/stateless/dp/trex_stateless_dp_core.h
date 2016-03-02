@@ -235,7 +235,8 @@ public:
         return (&m_ports[local_port_id]);
     }
         
-
+    /* simply sends a message back (acts as a barrier for previous messages) */
+    void barrier(uint8_t port_id, int event_id);
 
 private:
 
