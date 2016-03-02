@@ -349,16 +349,24 @@ class TRexConsole(TRexGeneralCmd):
         with self.stateless_client.logger.supress():
             table = stl_map_ports(self.stateless_client, ports = ports)
 
-        tmp = list(ports)
+        
         print format_text('\nAcquired ports topology:\n', 'bold', 'underline')
-        while tmp:
-            a = tmp.pop(0)
-            b = table[a]
-            tmp.remove(b)
 
-            print "port {0} <--> port {1}".format(a, b)
+        # bi-dir ports
+        print format_text('Bi-directional ports:\n','underline')
+        for port_a, port_b in table['bi']:
+            print "port {0} <--> port {1}".format(port_a, port_b)
 
         print ""
+
+        # unknown ports
+        print format_text('Mapping unknown:\n','underline')
+        for port in table['unknown']:
+            print "port {0}".format(port)
+        print ""
+
+       
+      
 
     def do_history (self, line):
         '''Manage the command history\n'''

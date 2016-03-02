@@ -30,9 +30,10 @@ def imix_test ():
         # map ports - identify the routes
         table = stl_map_ports(c)
 
-        print "Mapped ports to sides {0} <--> {1}".format(table['dir'][0], table['dir'][1])
-        dir_0 = table['dir'][0]
-        dir_1 = table['dir'][1]
+        dir_0 = [x[0] for x in table['bi']]
+        dir_1 = [x[1] for x in table['bi']]
+
+        print "Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1)
 
         # load IMIX profile
         profile = STLProfile.load_py('../../../../stl/imix.py')
