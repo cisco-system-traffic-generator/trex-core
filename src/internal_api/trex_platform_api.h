@@ -221,7 +221,8 @@ public:
     virtual void publish_async_data_now(uint32_t key) const {
 
     }
-    virtual int get_rx_stats(uint8_t port_id, uint64_t *stats, int index, bool reset) const {return 0;}
+    virtual int get_flow_stats(uint8_t port_id, uint64_t *stats, void *tx_stats, int min, int max, bool reset) const {return 0;};
+    virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
     virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
