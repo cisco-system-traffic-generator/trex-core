@@ -394,12 +394,27 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 void 
 TrexStatelessDpCore::idle_state_loop() {
 
+    const int SHORT_DELAY_MS    = 2;
+    const int LONG_DELAY_MS     = 50;
+    const int DEEP_SLEEP_LIMIT  = 2000;
+
+    int counter = 0;
+
     while (m_state == STATE_IDLE) {
         bool had_msg = periodic_check_for_cp_messages();
-        /* if no message - backoff for some time */
-        if (!had_msg) {
-            delay(200);
+        if (had_msg) {
+            counter = 0;
+            continue;
         }
+
+        /* enter deep sleep only if enough time had passed */
+        if (counter < DEEP_SLEEP_LIMIT) {
+            delay(SHORT_DELAY_MS);
+            counter++;
+        } else {
+            delay(LONG_DELAY_MS);
+        }
+        
     }
 }
 
