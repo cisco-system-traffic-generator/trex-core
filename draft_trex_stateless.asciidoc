@@ -61,7 +61,7 @@ To support interactive mode, JSON-RPC2 server added to the Control Plane
 
 The following diagram illustrates the RPC server component's 
 
-image::images/trex_2.0_stateless.png[title="RPC Server Position",align="left",width=800, link="images/trex_2.0_stateless.png"]
+image::images/trex_2_stateless.png[title="RPC Server Position",align="left",width=800, link="images/trex_2_stateless.png"]
 
 * The Control transport protocol is ZMQ working in REQ/RES mode
 * JSON-RPC2 is the RPC protocol on top of the ZMQ REQ/RES 
@@ -79,7 +79,6 @@ This Architecture provides the following advantages:
 
 
 === Objects
-
 
 image::images/stateless_objects.png[title="TRex Objects ",align="left",width=600, link="images/stateless_objects.png"]
 
