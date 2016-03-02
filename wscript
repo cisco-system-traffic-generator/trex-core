@@ -178,6 +178,9 @@ def build(bld):
 	bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
 		source='trex_book.asciidoc waf.css', target='trex_manual.html', scan=ascii_doc_scan)
 
+	bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
+		source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
+
         bld(rule=convert_to_pdf_book,
 		source='trex_book.asciidoc waf.css', target='trex_book.pdf', scan=ascii_doc_scan)
                 
