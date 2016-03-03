@@ -252,16 +252,16 @@ class TRexConsole(TRexGeneralCmd):
     def postcmd(self, stop, line):
 
         if not self.stateless_client.is_connected():
-            self.prompt = "TRex (offline) > "
+            self.prompt = "trex(offline)>"
             self.supported_rpc = None
             return stop
 
         if self.stateless_client.is_all_ports_acquired():
-            self.prompt = "TRex (read only) > "
+            self.prompt = "trex(read-only)>"
             return stop
 
 
-        self.prompt = "TRex > "
+        self.prompt = "trex>"
 
         return stop
 
@@ -614,8 +614,9 @@ class TRexConsole(TRexGeneralCmd):
                      help = "*** Undocumented Function ***\n"
              except AttributeError:
                  help = "*** Undocumented Function ***\n"
-    
-             print "{:<30} {:<30}".format(cmd + " - ", help)
+
+             l=help.splitlines()
+             print "{:<30} {:<30}".format(cmd + " - ",l[0] )
 
     # a custorm cmdloop wrapper
     def start(self):

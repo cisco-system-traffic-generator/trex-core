@@ -63,30 +63,30 @@ def simple_burst ():
         c.connect()
 
         # prepare our ports (my machine has 0 <--> 1 with static route)
-        c.reset(ports = [0, 1])
+        c.reset(ports = [2, 3])
 
         # add both streams to ports
-        c.add_streams(s1, ports = [0])
-        c.add_streams(s2, ports = [1])
+        c.add_streams(s1, ports = [2])
+        c.add_streams(s2, ports = [3])
 
         # clear the stats before injecting
         c.clear_stats()
 
         # choose rate and start traffic for 10 seconds on 5 mpps
         print "Running 5 Mpps on ports 0, 1 for 10 seconds..."
-        c.start(ports = [0, 1], mult = "5mpps", duration = 10)
+        c.start(ports = [2, 3], mult = "5mpps", duration = 10)
 
         # block until done
-        c.wait_on_traffic(ports = [0, 1])
+        c.wait_on_traffic(ports = [2, 3])
 
         # read the stats after the test
         stats = c.get_stats()
 
-        print json.dumps(stats[0], indent = 4, separators=(',', ': '), sort_keys = True)
-        print json.dumps(stats[1], indent = 4, separators=(',', ': '), sort_keys = True)
+        print json.dumps(stats[2], indent = 4, separators=(',', ': '), sort_keys = True)
+        print json.dumps(stats[3], indent = 4, separators=(',', ': '), sort_keys = True)
 
-        lost_a = stats[0]["opackets"] - stats[1]["ipackets"]
-        lost_b = stats[1]["opackets"] - stats[0]["ipackets"]
+        lost_a = stats[2]["opackets"] - stats[3]["ipackets"]
+        lost_b = stats[3]["opackets"] - stats[2]["ipackets"]
 
         print "\npackets lost from 0 --> 1:   {0} pkts".format(lost_a)
         print "packets lost from 1 --> 0:   {0} pkts".format(lost_b)
@@ -108,7 +108,7 @@ def simple_burst ():
     else:
         print "\nTest has failed :-(\n"
 
-while True:
-# run the tests
-  simple_burst()
+while True :
+    # run the tests
+    simple_burst()
 
