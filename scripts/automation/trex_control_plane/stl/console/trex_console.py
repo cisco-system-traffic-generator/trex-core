@@ -563,11 +563,15 @@ class TRexConsole(TRexGeneralCmd):
             return
 
         if opts.xterm:
+            if not os.path.exists('/usr/bin/xterm'):
+                print format_text("XTERM does not exists on this machine", 'bold')
+                return
 
             info = self.stateless_client.get_connection_info()
 
             exe = './trex-console --top -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
-            cmd = ['xterm', '-geometry', '111x47', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+            cmd = ['/usr/bin/xterm', '-geometry', '111x47', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+
             self.terminal = subprocess.Popen(cmd)
 
             return
