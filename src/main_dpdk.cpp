@@ -3897,7 +3897,7 @@ static CGlobalTRex g_trex;
 int CPhyEthIF::reset_hw_flow_stats() {
     uint32_t diff_stats[MAX_FLOW_STATS];
 
-    if (get_ex_drv()->get_rx_stats(this, diff_stats, m_stats.m_fdir_prev_stats, 0, MAX_FLOW_STATS) < 0) {
+    if (get_ex_drv()->get_rx_stats(this, diff_stats, m_stats.m_fdir_prev_stats, 0, MAX_FLOW_STATS - 1) < 0) {
         return -1;
     }
 

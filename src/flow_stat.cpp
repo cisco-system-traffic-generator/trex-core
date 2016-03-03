@@ -649,7 +649,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
         for (uint8_t port = 0; port < m_num_ports; port++) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << port) )->str();
             if (user_id_info->get_rx_counter(port) != 0) {
-                data_section[str_user_id]["rx"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
+                data_section[str_user_id]["rx-pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
                 ret = true;
             }
             if (user_id_info->get_tx_counter(port).get_pkts() != 0) {
