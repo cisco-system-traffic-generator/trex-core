@@ -1872,6 +1872,44 @@ Once a profile was defined, it is possible to give a tunable from Console and ch
 In this example, change the fsize to 1500 bytes 
 
 
+==== Tutorial: Per stream statistics 
+
+* Per stream statistic is implemented using hardware assist on the X710/XL710 Intel NIC using flow director rules
+* With I350/82599 it is implemented in software.
+
+ [TODO IDO]
+
+1. Works only for IPv4  (with or without VLAN)
+2. IPv4 Identification field is changed to a reserve values. 
+3. All users acquire interfaces is configured with a rule to count this stream id (base on IPV4.id)
+4. Client sum the counter per stream (it is sent on ZMQ async channel)
+5. Number of RX stats are 128
+
+
+[source,python]
+----
+
+class STLS1(object):
+
+    def get_streams (self, direction = 0):
+        return [STLStream(packet = 
+                          STLPktBuilder(
+                          pkt ="stl/yaml/udp_64B_no_crc.pcap"), 
+                          mode = STLTXCont(pps=10),
+                          rx_stats = STLRxStats(user_id = 7))   <1> 
+               ]
+
+----
+<1> Configure this stream to be count on all RX ports as user_id=7
+
+* TUI should show Tx/Rx stats [TODO]
+* Python API to get the info  [TODO]
+
+
+==== Tutorial: Per stream latency/Jitter [TODO]
+
+
+
 === Tutorials HLT profile 
 
 HLTAPI is a Cisco standard API for traffic generation.IXIA and Spirent support this standard.  traffic_config API has set of arguments  for specifying  the packet, how to send it and what field to change while sending it. 
@@ -1951,42 +1989,6 @@ TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a
 
 more profiles and example can be found in `stl/hlt` folder 
 
-
-==== Tutorial: Per stream statistics 
-
-* Per stream statistic is implemented using hardware assist on the X710/XL710 Intel NIC using flow director rules
-* With I350/82599 it is implemented in software.
-
- [TODO IDO]
-
-1. Works only for IPv4  (with or without VLAN)
-2. IPv4 Identification field is changed to a reserve values. 
-3. All users acquire interfaces is configured with a rule to count this stream id (base on IPV4.id)
-4. Client sum the counter per stream (it is sent on ZMQ async channel)
-5. Number of RX stats are 128
-
-
-[source,python]
-----
-
-class STLS1(object):
-
-    def get_streams (self, direction = 0):
-        return [STLStream(packet = 
-                          STLPktBuilder(
-                          pkt ="stl/yaml/udp_64B_no_crc.pcap"), 
-                          mode = STLTXCont(pps=10),
-                          rx_stats = STLRxStats(user_id = 7))   <1> 
-               ]
-
-----
-<1> Configure this stream to be count on all RX ports as user_id=7
-
-* TUI should show Tx/Rx stats [TODO]
-* Python API to get the info  [TODO]
-
-
-==== Tutorial: Per stream latency/Jitter [TODO]
 
 
 
