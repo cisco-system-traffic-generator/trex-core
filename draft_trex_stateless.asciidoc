@@ -10,7 +10,7 @@ TRex
 :toclevels: 6
 
 
-== Stateless support  
+== Stateless support (Alpha stage)
 
 === High level functionality 
 
@@ -23,7 +23,6 @@ TRex
 ** Field engine program
 *** Ability to change any field inside the packet, for example src_ip = 10.0.0.1-10.0.0.255
 *** Ability to change the packet size (e.g. Random packet size 64-9K)
-
 ** Mode -Continues/Burst/Multi burst support
 ** Rate can be specified in:
 *** Packet per second -(e.g. 14MPPS)
@@ -57,7 +56,7 @@ image::images/stl_streams_example.png[title="Streams example",align="left",width
 
 === RPC Architecture 
 
-To support interactive mode, JSON-RPC2 server added to the Control Plane 
+To support interactive mode, JSON-RPC2 thread added to the TRex Control Plane core.
 
 The following diagram illustrates the RPC server component's 
 
@@ -68,15 +67,23 @@ image::images/trex_2_stateless.png[title="RPC Server Position",align="left",widt
 * Async transport is ZMQ working SUB/PUB mode. It is for async event such as interface change mode, counters etc.
 * Python is the first Client to implement the Python automation API 
 * Console utilizes the Python API to implement a user interface to TRex
+* Number of users can control one TRex server in parallel as long as they control different Interfaces. TRex Interface can be acquired by a user. For example a TRex with four ports can be used by two users. User A can acquire Interface  0/ 1 and User B can acquire Interface 3/4
+* There could be only *one* Console/GUI control (R/W) entity for specific interfaces. So user A with two interfaces could have only one R/W Control session in specific time. By that we can cache the TRex Server interface  information in Client Core.
+* For one user there could be many read-only clients for getting statistics for same user same interfaces.
+* Client should sync with the server to get the state in connection time and cache the server information locally once the state was changed 
+* In case of crash/exit of the Client it should sync again at connection time 
+* Client in R/W mode has the ability to get a statistic in real time (with ASYNC ZMQ). It gives the option to have number of ways to look into the statistics (GUI and Console) at the same time.
+
+
+image::images/trex_stateless_multi_user.png[title="Multi user-per interface",align="left",width=800, link="images/trex_stateless_multi_user.png"]
 
 For more detailed see RPC specification link:trex_rpc_server_spec.html[here]  
 
 This Architecture provides the following advantages:
 
-* Fast interaction with TRex server. very fast load/start/stop profiles to an interface.
+* Fast interaction with TRex server. very fast load/start/stop profiles to an interface (~2000 cycles/sec  for load/start/stop profile)
 * Leveraging Python/Scapy for building a packet/Field engine 
-* HLTAPI compiler is done in Python.
-
+* HLTAPI compiler complexity is done in Python
 
 === Objects
 
@@ -97,7 +104,7 @@ image::images/stateless_objects.png[title="TRex Objects ",align="left",width=600
 
 This tutorial will walk you through basic but complete TRex Stateless use cases that will show you common concepts as well as slightly more advanced ones.
                 
-==== Tutorial 1: Simple IPv4/UDP packet - Simulator 
+==== Tutorial: Simple IPv4/UDP packet - Simulator 
 
 The following example demonstrates the most basic use case using our simulator.  
 
@@ -305,7 +312,7 @@ $./stl-sim -f stl/udp_1pkt_simple.py --pkt
 0030   78 78 78 78                                        xxxx
 ----
 
-==== Tutorial 2: Simple IPv4/UDP packet - TRex 
+==== Tutorial: Simple IPv4/UDP packet - TRex 
 
 =====  Run TRex as a server mode 
 
@@ -446,7 +453,7 @@ Port Statistics
 ----
 
 
-==== Tutorial 3: Simple IPv4/UDP packet 
+==== Tutorial: Simple IPv4/UDP packet 
 
 The following example demonstrates 
 
@@ -509,7 +516,7 @@ TRex>start -f stl/stl/burst_3pkt_600pkt.py --port 0
 ----
 
 
-==== Tutorial 4: Multi Burst mode
+==== Tutorial: Multi Burst mode
 
 file: `stl/multi_burst_2st_1000pkt.py`
 
@@ -551,7 +558,7 @@ file: `stl/multi_burst_2st_1000pkt.py`
 image::images/stl_tut_4.png[title="Streams example",align="left",width=600, link="images/stl_tut_4.png"]
 
 
-==== Tutorial 5: Loops 
+==== Tutorial: Loops of streams
 
 file: `stl/burst_3st_loop_x_times.py`
 
@@ -592,7 +599,7 @@ file: `stl/burst_3st_loop_x_times.py`
 <1> go back to S0 but limit it to 2 loops
 
 
-==== Tutorial 6: IMIX with UDP packets directional 
+==== Tutorial: IMIX with UDP packets directional 
 
 file: `stl/imix.py`
 
@@ -662,7 +669,7 @@ file: `stl/imix.py`
 <3> We didn't explain this yet. but this is a Field Engine program to change fields inside the packets
 
 
-==== Tutorial 7: Field Engine, Syn attack  
+==== Tutorial: Field Engine, Syn attack  
 
 The following example demonstrates changing packet fields. 
 The Field Engine (FE) has limited number of instructions/operation for supporting most use cases. There is a plan to add LuaJIT to get 100% flexiable in the cost of performance.
@@ -741,7 +748,7 @@ pkt,Client IPv4,Client Port
 |=================
 
 
-==== Tutorial 8: Field Engine, Tuple Generator 
+==== Tutorial: Field Engine, Tuple Generator 
 
 The following example demonstrates creating multiply flow from the same packet template.
 The TupleGenerator instructions are used to create two stream variables with IP, port
@@ -790,7 +797,7 @@ pkt,Client IPv4,Client Port
 * Number of flows is limited to 129020 (2*65535-1025)
 * The stream variable size should match the size of the FlowVarWr instruction
 
-==== Tutorial 9: Field Engine, write to a bit-field packet  
+==== Tutorial: Field Engine, write to a bit-field packet  
 
 The following example demonstrates a way to write a stream variable to a bit field packet variables.
 In this example MPLS label field will be changed.
@@ -836,7 +843,7 @@ file: `stl/udp_1pkt_mpls_vm.py`
 <3> Second MPLS header should be changed 
 
 
-==== Tutorial 10: Field Engine, Random packet size 
+==== Tutorial: Field Engine, Random packet size 
 
 The following example demonstrates a way to to change packet size to be a random size.
 The way to do it is:
@@ -888,7 +895,7 @@ file: `stl/udp_rand_len_9k.py`
 <4> fix udp.len 
 
 
-==== Tutorial 11: New Scapy header  
+==== Tutorial: New Scapy header  
 
 The following example demonstrates a way to use a header the is not supported by Scapy. 
 In this case this is VXLAN
@@ -945,7 +952,7 @@ class STLS1(object):
 For more information how to define headers see Scapy link:http://www.secdev.org/projects/scapy/doc/build_dissect.html[here]
 
 
-==== Tutorial 12: Field Engine, Many clients 
+==== Tutorial: Field Engine, Many clients 
 
 The following example demonstrates a way to generate traffic from many clients with different IP/MAC to one server.
 The following figure demonstrate what e want to achieve 
@@ -1020,7 +1027,7 @@ class STLS1(object):
 <2> Write the stream variable mac_src with `offset_fixup` of 2. beacuse we write it with offset
 
 
-==== Tutorial 12: Field Engine, Split to core 
+==== Tutorial: Field Engine, Split to core 
 
 The following example demonstrates a way to split generated traffic to a number of threads.
 Using this feature, there is a way to specify by each field to split the traffic to threads.
@@ -1144,8 +1151,165 @@ pkt, thread-0 ip_src,thread-1 ip_src
 * When the number of packets in a burst is smaller than the number of threads only one thread will do the work.
 * In case there is stream with burst of *1* packet, only the first DP thread will do the work. 
 
+==== Tutorial: Field Engine, Split to core with Burst 
 
-==== Tutorial 13: Pcap file to *one* stream 
+The following example demonstrates a way to split generated traffic to a number of threads in the case that we are using Burst stream.
+In both cases the number of packets would be split into threads. 
+Using this feature, The Field engine will be split too.
+
+===== Without Split 
+
+In this example:
+
+* Number of threads are two 
+* Split is not configured 
+
+
+[source,python]
+----              
+# no split
+class STLS1(object):
+    """ attack 48.0.0.1 at port 80
+    """
+
+    def __init__ (self):
+        self.max_pkt_size_l3  =9*1024;
+
+    def create_stream (self):
+
+        base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")
+
+        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src",                              <1>
+                                        min_value="16.0.0.0", 
+                                        max_value="18.0.0.254", 
+                                        size=4, op="inc"),
+
+                           STLVmWrFlowVar(fv_name="ip_src", pkt_offset= "IP.src" ), <2>
+
+                           STLVmFixIpv4(offset = "IP"), # fix checksum
+                          ]
+                       )
+
+        pkt = STLPktBuilder(pkt = base_pkt,
+                            vm = vm)
+
+        return STLStream(packet = pkt,
+                         mode = STLTXSingleBurst(total_pkts = 20))                  <3>
+
+----
+<1> Stream variable 
+<2> write it to IPv4.src
+<3> burst of 20 packets
+
+.Variable per thread 
+[format="csv",cols="1^,3^,3^", options="header",width="40%"]
+|=================
+pkt, thread-0 ip_src,thread-1 ip_src
+ 1  , 16.0.0.1 , 16.0.0.1
+ 2  , 16.0.0.2 , 16.0.0.2
+ 3  , 16.0.0.3 , 16.0.0.3
+ 4  , 16.0.0.4 , 16.0.0.4
+ 5  , 16.0.0.5 , 16.0.0.5
+ 6  , 16.0.0.6,  16.0.0.6
+ 7  , 16.0.0.7,  16.0.0.7
+ 8  , 16.0.0.8,  16.0.0.8
+ 9  , 16.0.0.9,  16.0.0.9
+ 10 , 16.0.0.10, 16.0.0.10
+|=================
+
+*The results:*
+
+* Total packets are 20 as expected, 10 generated by each thread 
+* Field engine is the same for both threads 
+
+
+===== With Split 
+
+[source,python]
+----              
+# no split
+class STLS1(object):
+    """ attack 48.0.0.1 at port 80
+    """
+
+    def __init__ (self):
+        self.max_pkt_size_l3  =9*1024;
+
+    def create_stream (self):
+
+        base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")
+
+        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src",                              
+                                        min_value="16.0.0.0", 
+                                        max_value="18.0.0.254", 
+                                        size=4, op="inc"),
+
+                           STLVmWrFlowVar(fv_name="ip_src", pkt_offset= "IP.src" ), 
+
+                           STLVmFixIpv4(offset = "IP"), # fix checksum
+                          ]
+                         ,split_by_field = "ip_src"                                 <1>
+                          
+                       )
+
+        pkt = STLPktBuilder(pkt = base_pkt,
+                            vm = vm)
+
+        return STLStream(packet = pkt,
+                         mode = STLTXSingleBurst(total_pkts = 20))                  <2>
+
+----
+<1> Split is added by `ip_src` stream variable
+<2> burst of 20 packets 
+
+
+.Variable per thread 
+[format="csv",cols="1^,3^,3^", options="header",width="40%"]
+|=================
+pkt, thread-0 ip_src,thread-1 ip_src
+ 1  , 16.0.0.1 , 17.0.0.128
+ 2  , 16.0.0.2 , 17.0.0.129
+ 3  , 16.0.0.3 , 17.0.0.130
+ 4  , 16.0.0.4 , 17.0.0.131
+ 5  , 16.0.0.5 , 17.0.0.132
+ 6  , 16.0.0.6,  17.0.0.133
+ 7  , 16.0.0.7,  17.0.0.134
+ 8  , 16.0.0.8,  17.0.0.135
+ 9  , 16.0.0.9,  17.0.0.136
+ 10 , 16.0.0.10, 17.0.0.137
+|=================
+
+*The results:*
+
+* Total packets are 20 as expected, 10 generated by each thread 
+* Field engine is *not* the same for both threads. 
+
+
+==== Tutorial: Field Engine, Null stream 
+
+The following example demonstrates a way create a Stream with no packets. The use cases is to use the Null stream inter stream gap (ISG) and then go to a new stream. 
+using this you can create loops like this:
+
+image::images/stl_null_stream.png[title="Null Stream",align="left",width=600, link="images/stl_null_stream.png"]
+ 
+1. S1 - send_burst of packets, go to stream NULL
+2. NULL - wait ISG time - go to S1 
+
+Null stream is with configured with 
+
+1. mode: burst 
+2. number of packets: 0
+
+
+==== Tutorial: Field Engine, Barrier stream (Split) - [TODO]
+
+image::images/stl_barrier.png[title="Barrier Stream",align="left",width=600, link="images/stl_barrier.png"]
+
+In some cases there is a need to split the streams to thread in a way that specific stream will continue only after all the threads pass the same path. 
+In the above figure we would like to that stream S3 will start on all the thread after S2 was finished by all the threads 
+
+
+==== Tutorial: Pcap file to *one* stream 
 
 There is a way to load *one* packet data into a stream. There is an assumption  that this pcap. only the first packet from this pcap is taken.
 
@@ -1177,7 +1341,7 @@ file: `stl/udp_1pkt_pcap_relative_path.py`
 ----
 <1> packet is taken from pcap file relative to *profile* file location
 
-==== Tutorial 14: Pcap file to many streams 
+==== Tutorial: Pcap file to many streams 
 
 The following example demonstrates a way to load pcap with *number* of packets and for each packet create a stream with burst of 1. 
 
@@ -1320,7 +1484,7 @@ $./stl-sim -f stl/pcap.py --yaml
 <4> self_start is disabled for all the streams except the first one
 
 
-==== Tutorial 15: Pcap file to many streams and Field Engine 
+==== Tutorial: Pcap file to many streams and Field Engine 
 
 The following example demonstrates a way to load pcap file to many stream and attach to each stream a Field Engine program.
 For example change the IP.src of all the streams to a random number
@@ -1401,7 +1565,7 @@ pkt, IPv4 , flow
 |=================
 
 
-==== Tutorial 16: Source and Destination MAC address
+==== Tutorial: Source and Destination MAC address
 
 Each TRex port has a source MAC configure and destination MAC (DUT) configured in /etc/trex_cfg.yaml
 By default those MAC (source and destination) is taken 
@@ -1432,7 +1596,7 @@ file: `stl/udp_1pkt_1mac_override.py`
 ----
 <1> Don't take TRex port src interface MAC
 
-==== Tutorial 17: Teredo tunnel (IPv6 over IPv4)
+==== Tutorial: Teredo tunnel (IPv6 over IPv4)
 
 The following example demonstrates creating IPv6 packet inside IPv4 packet and create a range of IPs
 
@@ -1467,7 +1631,7 @@ file: `stl/udp_1pkt_ipv6_in_ipv4.py`
 <3> Write stream tuple.port variable into the second UDP header 
 
 
-==== Tutorial 18: Mask instruction 
+==== Tutorial: Mask instruction 
 
 The STLVmWrMaskFlowVar is a handy command. The pseudocode is a folow 
 
@@ -1574,6 +1738,140 @@ value
 |=================
 
 
+==== Tutorial: Advance traffic profile - platform  [TODO]
+
+
+===== Direction
+
+To make the traffic profile more usable, the traffic profile support per direction/interface. 
+
+[source,python]
+----
+def create_streams (self, direction = 0,**args):
+    if direction = 0:
+        rate =100                                       <1>
+    else:    
+        rate =200
+    return [STLHltStream(tcp_src_port_mode = 'decrement',
+                         tcp_src_port_count = 10,
+                         tcp_src_port = 1234,
+                         tcp_dst_port_mode = 'increment',
+                         tcp_dst_port_count = 10,
+                         tcp_dst_port = 1234,
+                         name = 'test_tcp_ranges',
+                         direction = direction,
+                         rate_pps = rate,
+                         ),
+           ]
+----
+<1> Different rate base on direction 
+
+[source,bash]
+----
+$start -f ex1.py -a 
+----
+ 
+If you have 4 interfaces
+ 
+interfaces 0/2 is direction 0 
+interfaces 1/3 is direction 1
+ 
+So rate will be changed accordingly. 
+
+===== Per Interface
+ 
+In this case there is a different  profile base on interface ID 
+ 
+[source,python]
+----
+ 
+def create_streams (self, direction = 0, **args):
+
+    port_id = args.get('port_id')
+    if port_id==None:
+        port_id=0;
+
+    if port_id == 0:
+     return [STLHltStream(tcp_src_port_mode = 'decrement',
+                         tcp_src_port_count = 10,
+                         tcp_src_port = 1234,
+                         tcp_dst_port_mode = 'increment',
+                         tcp_dst_port_count = 10,
+                         tcp_dst_port = 1234,
+                         name = 'test_tcp_ranges',
+                         direction = direction,
+                         rate_pps = rate,
+                         ),
+           ]
+
+   if port_id == 1:
+        return STLHltStream(
+                #enable_auto_detect_instrumentation = '1', # not supported yet
+                ip_dst_addr = '192.168.1.3',
+                ip_dst_count = '1',
+                ip_dst_mode = 'increment',
+                ip_dst_step = '0.0.0.1',
+                ip_src_addr = '192.168.0.3',
+                ip_src_count = '1',
+                ip_src_mode = 'increment',
+                ip_src_step = '0.0.0.1',
+                l3_imix1_ratio = 7,
+                l3_imix1_size = 70,
+                l3_imix2_ratio = 4,
+                l3_imix2_size = 570,
+                l3_imix3_ratio = 1,
+                l3_imix3_size = 1518,
+                l3_protocol = 'ipv4',
+                length_mode = 'imix',
+                #mac_dst_mode = 'discovery', # not supported yet
+                mac_src = '00.00.c0.a8.00.03',
+                mac_src2 = '00.00.c0.a8.01.03',
+                pkts_per_burst = '200000',
+                rate_percent = '0.4',
+                transmit_mode = 'continuous',
+                vlan_id = '1',
+                direction = direction,
+                )
+   
+   if port_id = 3:
+         ..
+----
+ 
+The Console will give the port/direction and will get the right stream in each interface
+ 
+
+===== Tunable
+ 
+[source,python]
+----
+ 
+class STLS1(object):
+
+    def __init__ (self):
+        self.num_clients  =30000; # max is 16bit  <1>
+        self.fsize        =64                     
+
+    def create_stream (self):
+
+        # create a base packet and pad it to size
+        size = self.fsize - 4; # no FCS
+        base_pkt =  Ether(src="00:00:dd:dd:00:01")/IP(src="55.55.1.1",dst="58.0.0.1")/UDP(dport=12,sport=1025)
+        pad = max(0, size - len(base_pkt)) * 'x'
+ 
+----
+<1> Define object args 
+
+ 
+[source,bash]
+----
+$start -f ex1.py -t "fsize=1500,num_clients=10000" #<1>
+----
+<1> Change the Tunable using -t option
+
+Once a profile was defined, it is possible to give a tunable from Console and change the default value.
+In this example, change the fsize to 1500 bytes 
+
+
 === Tutorials HLT profile 
 
 HLTAPI is a Cisco standard API for traffic generation.IXIA and Spirent support this standard.  traffic_config API has set of arguments  for specifying  the packet, how to send it and what field to change while sending it. 
@@ -1654,9 +1952,46 @@ TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a
 more profiles and example can be found in `stl/hlt` folder 
 
 
+==== Tutorial: Per stream statistics 
+
+* Per stream statistic is implemented using hardware assist on the X710/XL710 Intel NIC using flow director rules
+* With I350/82599 it is implemented in software.
+
+ [TODO IDO]
+
+1. Works only for IPv4  (with or without VLAN)
+2. IPv4 Identification field is changed to a reserve values. 
+3. All users acquire interfaces is configured with a rule to count this stream id (base on IPV4.id)
+4. Client sum the counter per stream (it is sent on ZMQ async channel)
+5. Number of RX stats are 128
+
+
+[source,python]
+----
+
+class STLS1(object):
+
+    def get_streams (self, direction = 0):
+        return [STLStream(packet = 
+                          STLPktBuilder(
+                          pkt ="stl/yaml/udp_64B_no_crc.pcap"), 
+                          mode = STLTXCont(pps=10),
+                          rx_stats = STLRxStats(user_id = 7))   <1> 
+               ]
+
+----
+<1> Configure this stream to be count on all RX ports as user_id=7
+
+* TUI should show Tx/Rx stats [TODO]
+* Python API to get the info  [TODO]
+
+
+==== Tutorial: Per stream latency/Jitter [TODO]
+
+
+
 === Tutorials Native Python API 
 
-==== Tutorial 1: 
 
 Python API examples are located here: `automation/trex_control_plane/stl/examples`
 Python API library is located here: `automation/trex_control_plane/stl/trex_stl_lib`
@@ -1672,7 +2007,7 @@ file: `stl_bi_dir_flows.py`
 def simple_burst ():
  
     # create client
-    c = STLClient()
+    c = STLClient() # default user is $USER. Can be specified explicitly
     passed = True
 
     try:
@@ -1693,7 +2028,7 @@ def simple_burst ():
         c.connect()
 
         # prepare our ports (my machine has 0 <--> 1 with static route)
-        c.reset(ports = [0, 1]) # it will Acquire port 0,1
+        c.reset(ports = [0, 1]) #  Acquire port 0,1 for $USER
 
         # add both streams to ports
         c.add_streams(s1, ports = [0])
@@ -1746,8 +2081,6 @@ simple_burst()
 
 
 === Tutorials HLT Python API 
-
-
 
 HLT Python API is a layer on top the native layer. it support 
 
@@ -1882,10 +2215,9 @@ if __name__ == "__main__":
 <2> import HLT   TRex
 
 
-
 === Reference
 
-=== Stream 
+==== Stream 
 
 ==== Packet 
 
@@ -1895,7 +2227,378 @@ if __name__ == "__main__":
 
 === Console commands 
 
+==== Overview 
+
+The console will use TRex Client API for controling TRex 
+Some guidelines:
+
+* Console should not save it own state, it should only cache server state. It assumed there is only one console that has R/W capability so once connected as R/W console (per user/interface)  it could read the server state and then cache all the operations. 
+* There could be many read-only clients for the same user same interface. 
+* Console should sync with server to get the state in connection stage and cache the server information locally 
+* In case of crash/exit  of the Console it should sync again at startup 
+* Commands will be like bash shell - no order args, many flags  
+* Ability to show stats in real time.  Gives the option to open two Console one for statistics and one for commands ( many read-only clients)
+
+==== Ports State 
+
+[options="header",cols="^1,3a"]
+|=================
+| state   |    meaning
+| IDLE    | no streams, does not work 
+| STREAMS | with streams, does not work 
+| WORK    | with streams, works 
+| PAUSE   | with streams, pause 
+|=================
+
+
+[source,bash]
+----
+
+  IDLE -> (add streams) -> STREAMS (start) -> WORK (stop) -> STREAMS (start) 
+                                           |   WORK (pause) -> PAUSE (resume )---
+                                           |                                     | 
+                                           |                                     |
+                                        ------------------------------------                                    
+
+-----
+
+==== Common Arguments 
+
+This section includes arguments that are common to many commands 
+In the command they will be marked like this (arg name)
+
+==== Port mask 
+
+this gives the ability to choose batch of ports 
+
+[source,bash]
+----
+$command   [-a] [-port 1 2 3]  [-port 0xff]  [-port clients/servers] 
+
+  port mask : 
+    [-a]           : all ports 
+    [-port 1 2 3]  : port 1,2 3
+    [-port 0xff]   : port by mask 0x1 for port 0 0x3 for port 0 and 1 
+    [-port clients/servers] : -port clients will choose all the client side ports
+----
+
+==== Duration 
+
+duration in second or in min or hours 
+
+[source,bash]
+----
+$command[-d 100] [-d 10m] [-d 1h] 
+  
+  duration:
+   -d 100 : in sec 
+   -d 10m : in min 
+   -d 1h  : in hours
+----
+
+
+==== Multiplier 
+
+[source,bash]
+----
+$command [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+  
+  multiplier :
+  
+  -m 100    : multiply stream file by this factor
+  -m 10gb   : from graph calculate the maximum rate as this bandwidth for all streams( for each port )
+  -m 10kpps : from graph calculate the maximum rate as this pps for all streams      ( for each port )
+  -m 40%    : from graph calculate the maximum rate as this precent from total port  ( for each port )
+----
+
+
+==== Commands 
+
+===== Connect 
+
+[source,bash]
+----
+
+$trex-con   [--ip  $IP] [--server  $IP] [--rpc-port $PORT] [--async_port port]
+
+   --rpc-port   : change the default server - default 5505 for RPC
+
+   --async_port : for sub/pub ZMQ - default 4505 
+
+   --ip or --server  :default 127.0.0.1 the TRex server ip
+----
+
+This command 
+* try to connect to server 
+* send ping  command 
+* sync with  all the ports info / streams info state 
+* read all counters stats for reference
+
+===== reset 
+
+Reset the server and client to a known state - should not be used in a normal scenario 
+
+[source,bash]
+----
+$reset  
+----
+
+- force acuire all the ports
+- Stop all traffic on all the ports
+- Remove all the streams from all the ports
+
+
+===== port 
+
+Configure port state, autoneg, rate etc 
+
+[source,bash]
+----
+$port (port mask) --cfg "auto/10/" 
+
+ --cfg string with the configuration name
+
+----
+
+
+===== clear 
+
+Clear all port stats counters 
+
+[source,bash]
+----
+$clear (port mask) 
+----
+
+
+===== stats 
+
+Shows global and port statistic 
+
+[source,bash]
+----
+$stats  (port mask) [-g] [-p] [-ps]   
+
+  -g show only global stats
+  -p only ports stats
+  -ps only port status (type/driver/link-up/down/negotion type etc)
+  
+----
+
+
+===== streams
+
+Shows the configured streams on each port/ports  
+Should show from client cache 
+
+[source,bash]
+----
+$streams (port mask)  [--streams mask] [-f]  [--full]  [--graph]
+
+   --port mask,  e.g --port 1 2 3 4
+   --streams mask e.g. --streams 1 2 
+   -f /--full  print stream info in a JSON format with all the information 
+   --graph : add the graph in time of each port stream  
+----
+    
+
+example
+  
+[source,bash]
+----
+$streams 
+
+port 0 : imix/a.yaml 
+
+  stream id  , packet type        , length , mode       , rate    , next    
+ + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
+ + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
+ + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
+  
+ 
+
+port 1 : imix/a.yaml
+
+ + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
+ + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
+ + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
+
+----
+
+
+show only port 1 and 2 
+
+[source,bash]
+----
+$streams --port 1 2 
+
+ ..
+ ..
+----
+
+[source,bash]
+----
+$streams --port 0 --streams 0 -f  
+
+
+ show the full info on stream 0 and port 0, print in JSON format
+
+----
+        
+
+===== start 
+
+* work on a set of ports 
+* remove all streams
+* load new streams
+* start traffic with specific multiplier 
+* limit the traffic to a specific duration  
+* port state should be stopped, in case of --force stop the port 
+* in case one of the port is not stop don't start any port
+* all ports should be in state IDLE or STREAMS
+
+[source,bash]
+----
+$start [--force] (port mask) [-f stl/imix.yaml] [-db ab] (duration) (multiplier)  
+
+    
+  stream to load:
+  -f stl/imix.yaml : load from local disk the streams file 
+  --db stream that was loaded to db 
+   
+  force:
+    --force stop ports if they are active 
+
+----
+
+examples
+
+
+[source,bash]
+----
+$start -a -f stl/imix.yaml  -m 10gb
+----
+start this profile on all all ports maximum bandwidth is 10gb
+
+   
+[source,bash]
+----
+$start -port 1 2 -f stl/imix.yaml  -m 100
+----
+start this profile on port 1,2  multiply by 100 
+
+
+[NOTE]
+=====================================
+ in case of start command without args, try to remember the last args given and reprint them 
+=====================================
+
+===== stop
+
+* work on a set of ports 
+* change the mode of the port to stopped
+* do not remove the streams
+* in case port state is already stopped don't do anything 
+* all ports should be in state WORK
+
+
+[source,bash]
+----
+$stop (port mask)
+
+ See ports command explanation from the start 
+
+----
+
+
+===== pause 
+
+* work on a set of ports 
+* move a wokring set of ports to a state of pause
+* all ports should be in state WORK
+
+
+
+[source,bash]
+----
+$pause  (port mask)
+
+ see ports command explanation from start 
+
+----
+
+
+===== resume 
+
+* work on a set of ports 
+* move a wokring set of port to a state of resume 
+* all ports should be in state PAUSE
+
+
+
+[source,bash]
+----
+$resume  (port mask) 
+
+ see ports command explanation from start 
+
+----
+
+
+===== restart 
+
+* restart the work on the loaded streams
+* same as start without the -f /--db switch 
+* all ports should be in state STREAMS
+
+[source,bash]
+----
+$restart  (port mask) (duration) (multiplier)  
+
+ see ports command explanation from start 
+
+----
+
+===== update 
+
+* all ports should be in state WORK
+
+
+[source,bash]
+----
+>update   (port mask) (multiplier)  
+----
+Update the bandwidth multiplier for a mask of ports
+
+
+[NOTE]
+=====================================
+ Here we could add the ability to disable/enable specific stream, load new stream dynamically etc. 
+=====================================
+
+
+===== tui
+
+shows the stats in a textual window (like top)
+	
+[source,bash]
+----
+$tui
+----
+
+enter to a mode of Stats and present 3 type of windows
+* global/port stats/version/connected etc 
+* per port
+* per port streams info
+
+
+get keyboard 
+ q - quit the gui window
+ c - clear all counters
+
+
 === Appendix
+
 
 
 ==== HLT supported Arguments 
