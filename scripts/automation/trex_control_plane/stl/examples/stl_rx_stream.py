@@ -4,7 +4,9 @@ from trex_stl_lib.api import *
 import time
 import pprint
 
-def rx_example (tx_port, rx_port):
+def rx_example (tx_port, rx_port, burst_size):
+
+    print "\nGoing to inject {0} packets on port {1} - checking RX stats on port {2}\n".format(burst_size, tx_port, rx_port)
 
     # create client
     c = STLClient()
@@ -12,7 +14,8 @@ def rx_example (tx_port, rx_port):
     
     try:
         pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
-        total_pkts = 500000
+
+        total_pkts = burst_size
         s1 = STLStream(name = 'rx',
                        packet = pkt,
                        rx_stats = STLRxStats(user_id = 5),
@@ -27,16 +30,38 @@ def rx_example (tx_port, rx_port):
         # add both streams to ports
         c.add_streams([s1], ports = [tx_port])
 
-        print "injecting {0} packets on port {1}".format(total_pkts, tx_port)
+        print "injecting {0} packets on port {1}\n".format(total_pkts, tx_port)
         c.clear_stats()
         c.start(ports = [tx_port])
         c.wait_on_traffic(ports = [tx_port])
 
-        time.sleep(1)
-        stats = c.get_stats()
-        pprint.pprint(stats['rx_stats'])
-        print "port 3: ipackets {0}, ibytes {1}".format(stats[3]['ipackets'], stats[3]['ibytes'])
-        #rx_stas  = stats['rx_stats']
+        # no error check - just an example... should be 5
+        rx_stats = c.get_stats()['rx_stats'][5]
+
+        tx_pkts  = rx_stats['tx-pkts'][tx_port]
+        tx_bytes = rx_stats['tx-bytes'][tx_port]
+        rx_pkts  = rx_stats['rx-pkts'][rx_port]
+
+        if tx_pkts != total_pkts:
+            print "TX pkts mismatch - got: {0}, expected: {1}".format(tx_pkts, total_pkts)
+            passed = False
+            return
+        else:
+            print "TX pkts match   - {0}".format(tx_pkts)
+
+        if tx_bytes != (total_pkts * pkt.get_pkt_len()):
+            print "TX bytes mismatch - got: {0}, expected: {1}".format(tx_bytes, (total_pkts * len(pkt)))
+            passed = False
+            return
+        else:
+            print "TX bytes match  - {0}".format(tx_bytes)
+
+        if rx_pkts != total_pkts:
+            print "RX pkts mismatch - got: {0}, expected: {1}".format(rx_pkts, total_pkts)
+            passed = False
+            return
+        else:
+            print "RX pkts match   - {0}".format(rx_pkts)
 
 
     except STLError as e:
@@ -53,5 +78,5 @@ def rx_example (tx_port, rx_port):
 
 
 # run the tests
-rx_example(tx_port = 0, rx_port = 3)
+rx_example(tx_port = 0, rx_port = 3, burst_size = 500000)
 

@@ -870,6 +870,13 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             if isinstance(sc, CTRexScRaw):
                 self._compile_raw(sc)
 
+    def get_pkt_len (self):
+        if self.pkt:
+            return len(self.pkt)
+        elif self.pkt_raw:
+            return len(self.pkt_raw)
+        else:
+            raise CTRexPacketBuildException(-14, "Packet is empty")
 
     ####################################################
     # private 

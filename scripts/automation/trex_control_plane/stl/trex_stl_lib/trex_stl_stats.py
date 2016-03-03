@@ -643,6 +643,33 @@ class CPortStats(CTRexStats):
                 }
 
 
+class CRxStats(object):
+    def __init__(self):
+        self.rx_stats = {}
+
+
+    def update (self, snapshot):
+        self.rx_stats = snapshot
+
+
+    def get_stats (self):
+        stats = {}
+        for user_id, user_id_data in self.rx_stats.iteritems():
+            # ignore non user ID keys
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                continue
+
+            # handle user id
+            stats[user_id] = {}
+            for field, per_port_data in user_id_data.iteritems():
+                stats[user_id][field] = {}
+                for port, value in per_port_data.iteritems():
+                    stats[user_id][field][int(port)] = value
+
+        return stats
+
 
 if __name__ == "__main__":
     pass
