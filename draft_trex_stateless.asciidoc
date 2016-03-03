@@ -796,7 +796,7 @@ The following example demonstrates a way to write a stream variable to a bit fie
 In this example MPLS label field will be changed.
 
 .MPLS header 
-[cols="32", halign="center"] 
+[cols="32", halign="center",width="50%"] 
 |==== 
 20+<|Label 3+<|TC 1+<|S 8+<|TTL| 
 0|1|2|3|4|5|6|7|8|9|0|1|2|3|4|5|6|7|8|9|0|1|2|3|4|5|6|7|8|9|0|1|
@@ -1217,7 +1217,7 @@ will give this
 
 [source,python]
 ----
-csi-kiwi-02]> ./stl-sim -f stl/pcap.py --yaml
+$./stl-sim -f stl/pcap.py --yaml
 - name: 1
   next: 2                      <1> 
   stream:
@@ -1467,6 +1467,421 @@ file: `stl/udp_1pkt_ipv6_in_ipv4.py`
 <3> Write stream tuple.port variable into the second UDP header 
 
 
+==== Tutorial 18: Mask instruction 
+
+The STLVmWrMaskFlowVar is a handy command. The pseudocode is a folow 
+
+.Pseudocode 
+[source,bash]
+----
+        uint32_t val=(cast_to_size)rd_from_varible("name"); # read flow-var
+        val+=m_add_value;                                   # add value
+
+        if (m_shift>0) {                                    # shift 
+            val=val<<m_shift;
+        }else{
+            if (m_shift<0) {
+                val=val>>(-m_shift);
+            }
+        }
+
+        pkt_val=rd_from_pkt(pkt_offset)                     # RMW
+        pkt_val = (pkt_val & ~m_mask) | (val & m_mask)
+        wr_to_pkt(pkt_offset,pkt_val)
+----
+
+
+===== Example 1
+
+[source,python]
+----
+        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
+                                        min_value=1, 
+                                        max_value=30, 
+                                        size=2, op="dec",step=1), 
+                           STLVmWrMaskFlowVar(fv_name="mac_src", 
+                                              pkt_offset= 11,
+                                              pkt_cast_size=1, 
+                                              mask=0xff) # mask command ->write it as one byte
+                          ]
+                       )
+
+----
+
+This will cast stream variable with 2 byte to be 1 byte 
+
+===== Example 2
+
+[source,python]
+----
+
+        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
+                                        min_value=1, 
+                                        max_value=30, 
+                                        size=2, op="dec",step=1), 
+                           STLVmWrMaskFlowVar(fv_name="mac_src", 
+                                              pkt_offset= 10,
+                                              pkt_cast_size=2, 
+                                              mask=0xff00,
+                                              shift=8) # take the var shift it 8 (x256) write only to LSB
+                          ]
+                       )
+----
+
+The output will be shift by 8 
+
+.Output 
+[format="csv",cols="1^", options="header",width="20%"]
+|=================
+ value
+ 0x0100 
+ 0x0200 
+ 0x0300 
+|=================
+
+===== Example 3
+
+[source,python]
+----
+        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
+                                        min_value=1, 
+                                        max_value=30, 
+                                        size=2, 
+                                        op="dec",step=1), 
+                           STLVmWrMaskFlowVar(fv_name="mac_src", 
+                                              pkt_offset= 10,
+                                              pkt_cast_size=1, 
+                                              mask=0x1,
+                                              shift=-1)         <1>
+                          ]
+                       )
+
+----
+<1> take var mac_src>>1 and write the LSB every two packet there should be a change
+
+.Output 
+[format="csv",cols="1^", options="header",width="20%"]
+|=================
+value
+ 0x00 
+ 0x00 
+ 0x01 
+ 0x01 
+ 0x00 
+ 0x00 
+ 0x01 
+ 0x01 
+|=================
+
+
+=== Tutorials HLT profile 
+
+HLTAPI is a Cisco standard API for traffic generation.IXIA and Spirent support this standard.  traffic_config API has set of arguments  for specifying  the packet, how to send it and what field to change while sending it. 
+We created a Python module that you can specify the traffic profile in HLT like format and load it as native profile for smooth transition .
+Under the hood there is a compiler that converts it to native scapy/field engine instruction
+The support is limited to [TBD] this argument.
+
+
+file: `stl/hlt/hlt_udp_inc_dec_len_9k.py`
+
+[source,python]
+----
+
+class STLS1(object):
+    '''
+    Create 2 Eth/IP/UDP steams with different packet size:
+    First stream will start from 64 bytes (default) and will increase until max_size (9,216)
+    Seconds stream will decrease the packet size in reverse way
+    '''
+
+    def create_streams (self):
+        max_size = 9*1024
+        return [STLHltStream(length_mode = 'increment',
+                             frame_size_max = max_size,
+                             l3_protocol = 'ipv4',
+                             ip_src_addr = '16.0.0.1',
+                             ip_dst_addr = '48.0.0.1',
+                             l4_protocol = 'udp',
+                             udp_src_port = 1025,
+                             udp_dst_port = 12,
+                             rate_pps = 1,
+                             ),
+                STLHltStream(length_mode = 'decrement',
+                             frame_size_max = max_size,
+                             l3_protocol = 'ipv4',
+                             ip_src_addr = '16.0.0.1',
+                             ip_dst_addr = '48.0.0.1',
+                             l4_protocol = 'udp',
+                             udp_src_port = 1025,
+                             udp_dst_port = 12,
+                             rate_pps = 1,
+                             )
+               ]
+
+    def get_streams (self, direction = 0):
+        return self.create_streams()
+----
+
+This profile can be run with the simulator to generate pcap file
+
+[source,bash]
+----
+$ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py -o b.pcap -l 10 
+----
+
+It can be converted to native json or YAML
+
+[source,bash]
+----
+$ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --josn
+----
+
+or converted to native Python native Scapy/FE using this command 
+
+[source,bash]
+----
+$ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --native 
+----
+
+to run it using using the TRex Console 
+
+[source,bash]
+----
+TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a     
+----
+
+
+more profiles and example can be found in `stl/hlt` folder 
+
+
+=== Tutorials Native Python API 
+
+==== Tutorial 1: 
+
+Python API examples are located here: `automation/trex_control_plane/stl/examples`
+Python API library is located here: `automation/trex_control_plane/stl/trex_stl_lib`
+
+The Console is using the library to interact with TRex server and protocol is JSON-RPC2 over ZMQ
+
+file: `stl_bi_dir_flows.py`
+
+
+[source,python]
+----
+
+def simple_burst ():
+ 
+    # create client
+    c = STLClient()
+    passed = True
+
+    try:
+        # turn this on for some information
+        #c.set_verbose("high")
+
+        # create two streams
+        s1 = STLStream(packet = create_pkt(200, 0),
+                       mode = STLTXCont(pps = 100))
+
+        # second stream with a phase of 1ms (inter stream gap)
+        s2 = STLStream(packet = create_pkt(200, 1),
+                       isg = 1000,
+                       mode = STLTXCont(pps = 100))
+
+
+        # connect to server
+        c.connect()
+
+        # prepare our ports (my machine has 0 <--> 1 with static route)
+        c.reset(ports = [0, 1]) # it will Acquire port 0,1
+
+        # add both streams to ports
+        c.add_streams(s1, ports = [0])
+        c.add_streams(s2, ports = [1])
+
+        # clear the stats before injecting
+        c.clear_stats()
+
+        # choose rate and start traffic for 10 seconds on 5 mpps
+        print "Running 5 Mpps on ports 0, 1 for 10 seconds..."
+        c.start(ports = [0, 1], mult = "5mpps", duration = 10)      <1>
+
+        # block until done
+        c.wait_on_traffic(ports = [0, 1])
+
+        # read the stats after the test
+        stats = c.get_stats()
+
+        print json.dumps(stats[0], indent = 4, separators=(',', ': '), sort_keys = True)
+        print json.dumps(stats[1], indent = 4, separators=(',', ': '), sort_keys = True)
+
+        lost_a = stats[0]["opackets"] - stats[1]["ipackets"]
+        lost_b = stats[1]["opackets"] - stats[0]["ipackets"]
+
+        print "\npackets lost from 0 --> 1:   {0} pkts".format(lost_a)
+        print "packets lost from 1 --> 0:   {0} pkts".format(lost_b)
+
+        if (lost_a == 0) and (lost_b == 0):
+            passed = True
+        else:
+            passed = False
+
+    except STLError as e:
+        passed = False
+        print e
+
+    finally:
+        c.disconnect()
+
+    if passed:
+        print "\nTest has passed :-)\n"
+    else:
+        print "\nTest has failed :-(\n"
+
+
+# run the tests
+simple_burst()
+----
+<1> Start can work on mask of ports
+
+
+=== Tutorials HLT Python API 
+
+
+
+HLT Python API is a layer on top the native layer. it support 
+
+* Device Control
+** connect
+** cleanup_session
+** device_info
+** info
+* Interface
+** interface_config
+** interface_stats
+* Traffic
+** traffic_config - not all arguments are supported  
+** traffic_control
+** traffic_stats
+
+
+file: `hlt_udp_simple.py`
+
+
+[source,python]
+----
+
+import sys
+import argparse
+import stl_path
+from trex_stl_lib.api import *                                          <1>
+from trex_stl_lib.trex_stl_hltapi import *                              <2>
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(usage=""" 
+    Connect to TRex and send burst of packets
+
+    examples
+
+     hlt_udp_simple.py -s 9000 -d 30
+
+     hlt_udp_simple.py -s 9000 -d 30 -rate_percent 10
+
+     hlt_udp_simple.py -s 300 -d 30 -rate_pps 5000000
+
+     hlt_udp_simple.py -s 800 -d 30 -rate_bps 500000000 --debug
+
+     then run the simulator on the output 
+       ./stl-sim -f example.yaml -o a.pcap  ==> a.pcap include the packet
+
+    """,
+    description="Example for TRex HLTAPI",
+    epilog=" based on hhaim's stl_run_udp_simple example");
+
+    parser.add_argument("--ip", 
+                        dest="ip",
+                        help='Remote trex ip',
+                        default="127.0.0.1",
+                        type = str)
+
+    parser.add_argument("-s", "--frame-size", 
+                        dest="frame_size",
+                        help='L2 frame size in bytes without FCS',
+                        default=60,
+                        type = int,)
+
+    parser.add_argument('-d','--duration', 
+                        dest='duration',
+                        help='duration in second ',
+                        default=10,
+                        type = int,)
+
+    parser.add_argument('--rate-pps', 
+                        dest='rate_pps',
+                        help='speed in pps',
+                        default="100")
+
+    parser.add_argument('--src', 
+                        dest='src_mac',
+                        help='src MAC',
+                        default='00:50:56:b9:de:75')
+
+    parser.add_argument('--dst', 
+                        dest='dst_mac',
+                        help='dst MAC',
+                        default='00:50:56:b9:34:f3')
+
+    args = parser.parse_args();
+
+    hltapi = CTRexHltApi()
+    print 'Connecting to TRex'
+    res = hltapi.connect(device = args.ip, port_list = [0, 1], reset = True, break_locks = True)
+    check_res(res)
+    ports = res['port_handle']
+    if len(ports) < 2:
+        error('Should have at least 2 ports for this test')
+    print 'Connected, acquired ports: %s' % ports
+
+    print 'Creating traffic'
+
+    res = hltapi.traffic_config(mode = 'create', bidirectional = True,
+                                port_handle = ports[0], port_handle2 = ports[1],
+                                frame_size = args.frame_size,
+                                mac_src = args.src_mac, mac_dst = args.dst_mac,
+                                mac_src2 = args.dst_mac, mac_dst2 = args.src_mac,
+                                l3_protocol = 'ipv4',
+                                ip_src_addr = '10.0.0.1', ip_src_mode = 'increment', ip_src_count = 254,
+                                ip_dst_addr = '8.0.0.1', ip_dst_mode = 'increment', ip_dst_count = 254,
+                                l4_protocol = 'udp',
+                                udp_dst_port = 12, udp_src_port = 1025,
+                                stream_id = 1, # temporary workaround, add_stream does not return stream_id
+                                rate_pps = args.rate_pps,
+                                )
+    check_res(res)
+
+    print 'Starting traffic'
+    res = hltapi.traffic_control(action = 'run', port_handle = ports[:2])
+    check_res(res)
+    wait_with_progress(args.duration)
+
+    print 'Stopping traffic'
+    res = hltapi.traffic_control(action = 'stop', port_handle = ports[:2])
+    check_res(res)
+
+    res = hltapi.traffic_stats(mode = 'aggregate', port_handle = ports[:2])
+    check_res(res)
+    print_brief_stats(res)
+    
+    res = hltapi.cleanup_session(port_handle = 'all')
+    check_res(res)
+
+    print 'Done' 
+----
+<1> import Native TRex API
+<2> import HLT   TRex
+
+
 
 === Reference
 
@@ -1480,9 +1895,153 @@ file: `stl/udp_1pkt_ipv6_in_ipv4.py`
 
 === Console commands 
 
-=== Python API 
+=== Appendix
 
 
+==== HLT supported Arguments 
+
+
+[source,python]
+----
+
+traffic_config_kwargs = {
+    'mode': None,                           # ( create | modify | remove | reset )
+    'split_by_cores': 'split',              # ( split | duplicate | single ) TRex extention: split = split traffic by cores, duplicate = duplicate traffic for all cores, single = run only with sinle core (not implemented yet)
+    'consistent_random': False,             # TRex extention: False (default): random sequence will be different every run, True: random sequence will be same every run
+    'port_handle': None,
+    'port_handle2': None,
+    # stream builder parameters
+    'transmit_mode': 'continuous',          # ( continuous | multi_burst | single_burst )
+    'rate_pps': None,
+    'rate_bps': None,
+    'rate_percent': 10,
+    'stream_id': None,
+    'name': None,
+    'bidirectional': 0,
+    'direction': 0,                         # ( 0 | 1 ) TRex extention: 1 = exchange sources and destinations
+    'pkts_per_burst': 1,
+    'burst_loop_count': 1,
+    'inter_burst_gap': 12,
+    'length_mode': 'fixed',                 # ( auto | fixed | increment | decrement | random | imix )
+    'l3_imix1_size': 60,
+    'l3_imix1_ratio': 28,
+    'l3_imix2_size': 590,
+    'l3_imix2_ratio': 20,
+    'l3_imix3_size': 1514,
+    'l3_imix3_ratio': 4,
+    'l3_imix4_size': 9226,
+    'l3_imix4_ratio': 0,
+    #L2
+    'frame_size': 64,
+    'frame_size_min': 64,
+    'frame_size_max': 64,
+    'frame_size_step': 1,
+    'l2_encap': 'ethernet_ii',              # ( ethernet_ii | ethernet_ii_vlan )
+    'mac_src': '00:00:01:00:00:01',
+    'mac_dst': '00:00:00:00:00:00',
+    'mac_src2': '00:00:01:00:00:01',
+    'mac_dst2': '00:00:00:00:00:00',
+    'mac_src_mode': 'fixed',                # ( fixed | increment | decrement | random )
+    'mac_src_step': 1,
+    'mac_src_count': 1,
+    'mac_dst_mode': 'fixed',                # ( fixed | increment | decrement | random )
+    'mac_dst_step': 1,
+    'mac_dst_count': 1,
+    'mac_src2_mode': 'fixed',                # ( fixed | increment | decrement | random )
+    'mac_src2_step': 1,
+    'mac_src2_count': 1,
+    'mac_dst2_mode': 'fixed',                # ( fixed | increment | decrement | random )
+    'mac_dst2_step': 1,
+    'mac_dst2_count': 1,
+    # vlan options below can have multiple values for nested Dot1Q headers
+    'vlan_user_priority': 1,
+    'vlan_priority_mode': 'fixed',          # ( fixed | increment | decrement | random )
+    'vlan_priority_count': 1,
+    'vlan_priority_step': 1,
+    'vlan_id': 0,
+    'vlan_id_mode': 'fixed',                # ( fixed | increment | decrement | random )
+    'vlan_id_count': 1,
+    'vlan_id_step': 1,
+    'vlan_cfi': 1,
+    'vlan_protocol_tag_id': None,
+    #L3, general
+    'l3_protocol': None,                  # ( ipv4 | ipv6 )
+    'l3_length_min': 110,
+    'l3_length_max': 238,
+    'l3_length_step': 1,
+    #L3, IPv4
+    'ip_precedence': 0,
+    'ip_tos_field': 0,
+    'ip_mbz': 0,
+    'ip_delay': 0,
+    'ip_throughput': 0,
+    'ip_reliability': 0,
+    'ip_cost': 0,
+    'ip_reserved': 0,
+    'ip_dscp': 0,
+    'ip_cu': 0,
+    'l3_length': None,
+    'ip_id': 0,
+    'ip_fragment_offset': 0,
+    'ip_ttl': 64,
+    'ip_checksum': None,
+    'ip_src_addr': '0.0.0.0',
+    'ip_dst_addr': '192.0.0.1',
+    'ip_src_mode': 'fixed',                 # ( fixed | increment | decrement | random )
+    'ip_src_step': 1,                       # ip or number
+    'ip_src_count': 1,
+    'ip_dst_mode': 'fixed',                 # ( fixed | increment | decrement | random )
+    'ip_dst_step': 1,                       # ip or number
+    'ip_dst_count': 1,
+    #L3, IPv6
+    'ipv6_traffic_class': 0,
+    'ipv6_flow_label': 0,
+    'ipv6_length': None,
+    'ipv6_next_header': None,
+    'ipv6_hop_limit': 64,
+    'ipv6_src_addr': 'fe80:0:0:0:0:0:0:12',
+    'ipv6_dst_addr': 'fe80:0:0:0:0:0:0:22',
+    'ipv6_src_mode': 'fixed',               # ( fixed | increment | decrement | random )
+    'ipv6_src_step': 1,                     # we are changing only 32 lowest bits; can be ipv6 or number
+    'ipv6_src_count': 1,
+    'ipv6_dst_mode': 'fixed',               # ( fixed | increment | decrement | random )
+    'ipv6_dst_step': 1,                     # we are changing only 32 lowest bits; can be ipv6 or number
+    'ipv6_dst_count': 1,
+    #L4, TCP
+    'l4_protocol': None,                   # ( tcp | udp )
+    'tcp_src_port': 1024,
+    'tcp_dst_port': 80,
+    'tcp_seq_num': 1,
+    'tcp_ack_num': 1,
+    'tcp_data_offset': 5,
+    'tcp_fin_flag': 0,
+    'tcp_syn_flag': 0,
+    'tcp_rst_flag': 0,
+    'tcp_psh_flag': 0,
+    'tcp_ack_flag': 0,
+    'tcp_urg_flag': 0,
+    'tcp_window': 4069,
+    'tcp_checksum': None,
+    'tcp_urgent_ptr': 0,
+    'tcp_src_port_mode': 'increment',       # ( increment | decrement | random )
+    'tcp_src_port_step': 1,
+    'tcp_src_port_count': 1,
+    'tcp_dst_port_mode': 'increment',       # ( increment | decrement | random )
+    'tcp_dst_port_step': 1,
+    'tcp_dst_port_count': 1,
+    # L4, UDP
+    'udp_src_port': 1024,
+    'udp_dst_port': 80,
+    'udp_length': None,
+    'udp_dst_port_mode': 'increment',       # ( increment | decrement | random )
+    'udp_src_port_step': 1,
+    'udp_src_port_count': 1,
+    'udp_src_port_mode': 'increment',       # ( increment | decrement | random )
+    'udp_dst_port_step': 1,
+    'udp_dst_port_count': 1,
+}
+
+----
 
 
 
