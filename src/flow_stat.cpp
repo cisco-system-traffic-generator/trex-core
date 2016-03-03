@@ -576,7 +576,7 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
         // last stream associated with the entry stopped transmittig.
         // remove user_id <--> hw_id mapping
         uint8_t proto = m_user_id_map.l4_proto(stream->m_rx_check.m_user_id);
-        uint16_t hw_id = m_user_id_map.unmap(stream->m_rx_check.m_user_id);
+        uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_user_id);
         if (hw_id >= MAX_FLOW_STATS) {
             fprintf(stderr, "Error: %s got wrong hw_id %d from unmap\n", __func__, hw_id);
             return -1;
@@ -592,6 +592,7 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
                 p_user_id->set_rx_counter(port, rx_counter);
                 p_user_id->set_tx_counter(port, tx_counter);
             }
+            m_user_id_map.unmap(stream->m_rx_check.m_user_id);
             m_hw_id_map.unmap(hw_id);
         }
     }
@@ -606,7 +607,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
     Json::Value root;
     bool ret = false;
 
-    if (! m_api ) {
+    if (m_user_id_map.is_empty()) {
         return false;
     }
     root["name"] = "rx-stats";

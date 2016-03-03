@@ -138,6 +138,7 @@ class CFlowStatUserIdMap {
  public:
     CFlowStatUserIdMap();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdMap& cf);
+    bool is_empty() {return (m_map.empty() == true);};
     uint16_t get_hw_id(uint32_t user_id);
     class CFlowStatUserIdInfo * find_user_id(uint32_t user_id);
     class CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint8_t proto);
