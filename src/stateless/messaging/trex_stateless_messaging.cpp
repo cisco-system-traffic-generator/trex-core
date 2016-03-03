@@ -180,11 +180,29 @@ TrexStatelessDpUpdate::clone() {
     return new_msg;
 }
 
+/*************************
+  barrier message
+ ************************/
+
+bool
+TrexStatelessDpBarrier::handle(TrexStatelessDpCore *dp_core) {
+    dp_core->barrier(m_port_id, m_event_id);
+    return true;
+}
+
+TrexStatelessCpToDpMsgBase *
+TrexStatelessDpBarrier::clone() {
+
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpBarrier(m_port_id, m_event_id);
+
+    return new_msg;
+}
+
 /************************* messages from DP to CP **********************/
 bool
 TrexDpPortEventMsg::handle() {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_port_id);
-    port->get_dp_events().handle_event(m_event_type, m_thread_id, m_event_id);
+    port->get_dp_events().on_core_reporting_in(m_event_id, m_thread_id);
 
     return (true);
 }

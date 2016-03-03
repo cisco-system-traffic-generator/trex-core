@@ -359,10 +359,9 @@ int CTrexDebug::test_send(uint pkt_type) {
         exit(-1);
     }
 
-    // read first time to zero statistics
     for (port_id = 0; port_id < m_max_ports; port_id++) {
         CPhyEthIF * lp=&m_ports[port_id];
-        lp->get_rx_stats(NULL, -1, true);
+        lp->reset_hw_flow_stats();
     }
 
     printf("Sending packet:\n");
@@ -410,10 +409,10 @@ int CTrexDebug::test_send(uint pkt_type) {
         lp->dump_stats_extended(stdout);
     }
     for (port_id = 0; port_id < m_max_ports; port_id++) {
-        uint64_t fdir_stat[TREX_FDIR_STAT_SIZE];
+        uint64_t fdir_stat[MAX_FLOW_STATS];
         CPhyEthIF *lp = &m_ports[port_id];
-        if (lp->get_rx_stats(fdir_stat, -1, false) == 0)
-            rte_stat_dump_array(fdir_stat, "FDIR stat", TREX_FDIR_STAT_SIZE);
+        if (lp->get_flow_stats(fdir_stat, NULL, 0, MAX_FLOW_STATS, false) == 0)
+            rte_stat_dump_array(fdir_stat, "FDIR stat", MAX_FLOW_STATS);
     }
 
     return (0);

@@ -349,16 +349,24 @@ class TRexConsole(TRexGeneralCmd):
         with self.stateless_client.logger.supress():
             table = stl_map_ports(self.stateless_client, ports = ports)
 
-        tmp = list(ports)
+        
         print format_text('\nAcquired ports topology:\n', 'bold', 'underline')
-        while tmp:
-            a = tmp.pop(0)
-            b = table[a]
-            tmp.remove(b)
 
-            print "port {0} <--> port {1}".format(a, b)
+        # bi-dir ports
+        print format_text('Bi-directional ports:\n','underline')
+        for port_a, port_b in table['bi']:
+            print "port {0} <--> port {1}".format(port_a, port_b)
 
         print ""
+
+        # unknown ports
+        print format_text('Mapping unknown:\n','underline')
+        for port in table['unknown']:
+            print "port {0}".format(port)
+        print ""
+
+       
+      
 
     def do_history (self, line):
         '''Manage the command history\n'''
@@ -555,11 +563,15 @@ class TRexConsole(TRexGeneralCmd):
             return
 
         if opts.xterm:
+            if not os.path.exists('/usr/bin/xterm'):
+                print format_text("XTERM does not exists on this machine", 'bold')
+                return
 
             info = self.stateless_client.get_connection_info()
 
             exe = './trex-console --top -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
-            cmd = ['xterm', '-geometry', '111x47', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+            cmd = ['/usr/bin/xterm', '-geometry', '111x47', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+
             self.terminal = subprocess.Popen(cmd)
 
             return

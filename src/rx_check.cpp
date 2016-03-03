@@ -388,7 +388,7 @@ void RxCheckManager::handle_packet(CRx_check_header * rxh){
     m_tw.restart_timer(&lf->m_aging_timer_handle,m_cur_time+std::max(rxh->m_aging_sec,(uint16_t)5));
     /* teminate flow if needed */
     if ( lf->is_all_pkts_seen() ){
-            /* handel from termination */
+            /* handle from termination */
             m_tw.stop_timer(&lf->m_aging_timer_handle);
             lf->set_aged_correctly();
             on_flow_end(lf);

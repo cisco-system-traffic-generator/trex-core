@@ -33,8 +33,8 @@
 #define FLOW_STAT_ADD_ALL_PORTS 255
 
 static const uint16_t FREE_HW_ID = UINT16_MAX;
+static bool no_stat_supported = true;
 
-#ifdef __DEBUG_FUNC_ENTRY__
 inline std::string methodName(const std::string& prettyFunction)
 {
     size_t colons = prettyFunction.find("::");
@@ -45,6 +45,7 @@ inline std::string methodName(const std::string& prettyFunction)
 }
 
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
+#ifdef __DEBUG_FUNC_ENTRY__
 #define FUNC_ENTRY (std::cout << __METHOD_NAME__ << std::endl);
 #else
 #define FUNC_ENTRY
@@ -117,7 +118,7 @@ void CFlowStatUserIdInfo::reset_hw_id() {
         m_rx_counter_base[i] += m_rx_counter[i];
         m_rx_counter[i] = 0;
         m_tx_counter_base[i] += m_tx_counter[i];
-        m_tx_counter[i] = 0;
+        memset(&m_tx_counter[i], 0, sizeof(m_tx_counter[0]));
     }
 }
 /************** class CFlowStatUserIdMap ***************/
@@ -378,6 +379,7 @@ void CFlowStatHwIdMap::unmap(uint16_t hw_id) {
 /************** class CFlowStatRuleMgr ***************/
 CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_api = NULL;
+    m_max_hw_id = -1;
 }
 
 std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf) {
@@ -396,11 +398,11 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, Cxl710Parser &pa
     // currently we support only IP ID rule types
     // all our ports are the same type, so testing port 0 is enough
     uint16_t num_counters, capabilities;
-    m_api->get_interface_stat_info(0, num_counters, capabilities);    
+    m_api->get_interface_stat_info(0, num_counters, capabilities);
     if ((capabilities & TrexPlatformApi::IF_STAT_IPV4_ID) == 0) {
         return -2;
     }
-        
+
     if (parser.parse(stream->m_pkt.binary, stream->m_pkt.len) != 0) {
         // if we could not parse the packet, but no stat count needed, it is probably OK.
         if (stream->m_rx_check.m_enabled) {
@@ -432,10 +434,24 @@ int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
     if (! m_api ) {
         TrexStateless *tstateless = get_stateless_obj();
         m_api = tstateless->get_platform_api();
-        //    m_api = get_stateless_obj()->get_platform_api();    
+        uint16_t num_counters, capabilities;
+        m_api->get_interface_stat_info(0, num_counters, capabilities);
+        if ((capabilities & TrexPlatformApi::IF_STAT_IPV4_ID) == 0) {
+            // All our interfaces are from the same type. If statistics not supported.
+            // no operation will work
+            return -1;
+        } else {
+            no_stat_supported = false;
+        }
         m_api->get_port_num(m_num_ports);
+        for (uint8_t port = 0; port < m_num_ports; port++) {
+            assert(m_api->reset_hw_flow_stats(port) == 0);
+        }
     }
-    
+
+    if (no_stat_supported)
+        return -ENOTSUP;
+
     Cxl710Parser parser;
     int ret;
 
@@ -460,6 +476,9 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << std::endl;
 #endif
 
+    if (no_stat_supported)
+        return -ENOTSUP;
+
     if (! stream->m_rx_check.m_enabled) {
         return 0;
     }
@@ -473,7 +492,7 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
 // If stream does not need flow stat counting, make sure it does not interfere with
 // other streams that do need stat counting.
 // Might change the IP ID of the stream packet
-int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
+int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << std::endl;
 #endif
@@ -481,9 +500,8 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     Cxl710Parser parser;
     int ret;
 
-    if (! m_api ) {
-        return 0;
-    }
+    if (no_stat_supported)
+        return -ENOTSUP;
 
     if ((ret = compile_stream(stream, parser)) < 0)
         return ret;
@@ -509,6 +527,9 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         m_user_id_map.start_stream(stream->m_rx_check.m_user_id); // just increase ref count;
     } else {
         uint16_t hw_id = m_hw_id_map.find_free_hw_id();
+        if (hw_id > m_max_hw_id) {
+            m_max_hw_id = hw_id;
+        }
         if (hw_id == FREE_HW_ID) {
             printf("Error: %s failed finding free hw_id\n", __func__);
             return -1;
@@ -523,10 +544,16 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_user_id); // can't fail if we got here
     parser.set_ip_id(IP_ID_RESERVE_BASE + hw_id);
 
+    ret_hw_id = hw_id;
+
+#ifdef __DEBUG_FUNC_ENTRY__
+    std::cout << "exit:" << __METHOD_NAME__ << " hw_id:" << ret_hw_id << std::endl;
+#endif
+
     return 0;
 }
 
-int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint8_t proto) {    
+int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint8_t proto) {
     for (int port = 0; port < m_num_ports; port++) {
         m_api->add_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
     }
@@ -538,10 +565,10 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << std::endl;
 #endif
+    if (no_stat_supported)
+        return -ENOTSUP;
+
     if (! stream->m_rx_check.m_enabled) {
-        return 0;
-    }
-    if (! m_api ) {
         return 0;
     }
 
@@ -549,7 +576,7 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
         // last stream associated with the entry stopped transmittig.
         // remove user_id <--> hw_id mapping
         uint8_t proto = m_user_id_map.l4_proto(stream->m_rx_check.m_user_id);
-        uint16_t hw_id = m_user_id_map.unmap(stream->m_rx_check.m_user_id);
+        uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_user_id);
         if (hw_id >= MAX_FLOW_STATS) {
             fprintf(stderr, "Error: %s got wrong hw_id %d from unmap\n", __func__, hw_id);
             return -1;
@@ -557,13 +584,15 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
             // update counters, and reset before unmapping
             class CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
             assert(p_user_id != NULL);
-            uint64_t counter;
+            uint64_t rx_counter;
+            tx_per_flow_t tx_counter;
             for (uint8_t port = 0; port < m_num_ports; port++) {
                 m_api->del_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
-                m_api->get_rx_stats(port, &counter, hw_id, true);
-                p_user_id->set_rx_counter(port, counter);
-                p_user_id->set_tx_counter(port, counter); //??? until tx work, just set for same value
+                m_api->get_flow_stats(port, &rx_counter, (void *)&tx_counter, hw_id, hw_id, true);
+                p_user_id->set_rx_counter(port, rx_counter);
+                p_user_id->set_tx_counter(port, tx_counter);
             }
+            m_user_id_map.unmap(stream->m_rx_check.m_user_id);
             m_hw_id_map.unmap(hw_id);
         }
     }
@@ -572,12 +601,13 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
 
 // return false if no counters changed since last run. true otherwise
 bool CFlowStatRuleMgr::dump_json(std::string & json) {
-    uint64_t stats[TREX_FDIR_STAT_SIZE];
+    uint64_t rx_stats[MAX_FLOW_STATS];
+    tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     Json::FastWriter writer;
     Json::Value root;
     bool ret = false;
 
-    if (! m_api ) {
+    if (m_user_id_map.is_empty()) {
         return false;
     }
     root["name"] = "rx-stats";
@@ -587,15 +617,24 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
     // read hw counters, and update
     data_section["timestamp"] = Json::Value::UInt64(os_get_hr_tick_64());
     for (uint8_t port = 0; port < m_num_ports; port++) {
-        int rc = m_api->get_rx_stats(port, stats, -1, false);
-        if (rc == -1) {
-            continue;
-        }
-
-        for (int i = 0; i < TREX_FDIR_STAT_SIZE; i++) {
-            if (stats[i] != 0) {
-                m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i))->set_rx_counter(port, stats[i]);
-                m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i))->set_tx_counter(port, stats[i]);  //??? until tx work, just set for same value
+        m_api->get_flow_stats(port, rx_stats, (void *)tx_stats, 0, m_max_hw_id, false);
+        for (int i = 0; i <= m_max_hw_id; i++) {
+            if (rx_stats[i] != 0) {
+                class CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                if (likely(p_user_id != NULL)) {
+                    p_user_id->set_rx_counter(port, rx_stats[i]);
+                } else {
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_stats[i] << " rx packets, because no mapping was found" << std::endl;
+                }
+            }
+            if (tx_stats[i].get_pkts() != 0) {
+                tx_per_flow_t tx_pkts = tx_stats[i];
+                class CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                if (likely(p_user_id != NULL)) {
+                    p_user_id->set_tx_counter(port, tx_pkts);
+                } else {
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count tx " << tx_pkts << " because no mapping was found" << std::endl;
+                }
             }
         }
     }
@@ -608,11 +647,14 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
         std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream()
                                                                       << user_id) )->str();
         for (uint8_t port = 0; port < m_num_ports; port++) {
-            if ((user_id_info->get_tx_counter(port) != 0) || (user_id_info->get_rx_counter(port) != 0)) {
-                std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream()
-                                                                           << port) )->str();
-                data_section[str_user_id]["rx"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
-                data_section[str_user_id]["tx"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port));
+            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << port) )->str();
+            if (user_id_info->get_rx_counter(port) != 0) {
+                data_section[str_user_id]["rx-pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
+                ret = true;
+            }
+            if (user_id_info->get_tx_counter(port).get_pkts() != 0) {
+                data_section[str_user_id]["tx-pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_pkts());
+                data_section[str_user_id]["tx-bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_bytes());
                 ret = true;
             }
         }

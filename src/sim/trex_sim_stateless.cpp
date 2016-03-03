@@ -186,7 +186,6 @@ SimStateless::prepare_control_plane() {
 
     cfg.m_port_count         = m_port_count;
     cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-    cfg.m_rpc_async_cfg      = NULL;
     cfg.m_rpc_server_verbose = false;
     cfg.m_platform_api       = new SimPlatformApi(m_dp_core_count);
     cfg.m_publisher          = m_publisher;

@@ -877,11 +877,11 @@ public:
 TEST_F(basic, latency3) {
     CLatencyManager mg;
     CLatencyManagerCfg  cfg;
-    CDummyLatencyHWBase dports[MAX_LATENCY_PORTS];
+    CDummyLatencyHWBase dports[TREX_MAX_PORTS];
     cfg.m_cps =10;
     cfg.m_max_ports=4;
     int i;
-    for (i=0; i<MAX_LATENCY_PORTS; i++) {
+    for (i = 0; i < TREX_MAX_PORTS; i++) {
         dports[i].m_port_id=i;
         cfg.m_ports[i] = &dports[i];
     }
@@ -2179,7 +2179,7 @@ TEST_F(rx_check_system, rx_system1) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=2; /* sample rate */
+    po->m_rx_check_sample=2; /* sample rate */
     po->m_duration=100;
     po->cfg_file ="cap2/dns.yaml";
 
@@ -2197,7 +2197,7 @@ TEST_F(rx_check_system, rx_system1_dns) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=1; /* sample rate */
+    po->m_rx_check_sample=1; /* sample rate */
     po->m_duration=1;
     po->cfg_file ="cap2/dns.yaml";
     m_rx_check.m_store_pcfg=true;
@@ -2221,7 +2221,7 @@ TEST_F(rx_check_system, rx_system1_ipv6) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.set_ipv6_mode_enable(true);
 
-    po->m_rx_check_sampe=4; /* sample rate */
+    po->m_rx_check_sample=4; /* sample rate */
     po->m_duration=100;
     po->cfg_file ="cap2/dns.yaml";
 
@@ -2242,7 +2242,7 @@ TEST_F(rx_check_system, rx_system1_dns_ipv6) {
     CParserOption * po =&CGlobalInfo::m_options;
 
     po->preview.set_ipv6_mode_enable(true);
-    po->m_rx_check_sampe=1; /* sample rate */
+    po->m_rx_check_sample=1; /* sample rate */
     po->m_duration=1;
     po->cfg_file ="cap2/dns.yaml";
     m_rx_check.m_store_pcfg=true;
@@ -2265,7 +2265,7 @@ TEST_F(rx_check_system, rx_system2_plugin_one_dir) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=2; /* sample rate */
+    po->m_rx_check_sample=2; /* sample rate */
     po->m_duration=100;
     po->cfg_file ="cap2/rtsp_short1.yaml";
 
@@ -2283,7 +2283,7 @@ TEST_F(rx_check_system, rx_system2_plugin) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=1; /* sample rate */
+    po->m_rx_check_sample=1; /* sample rate */
     po->m_duration=1;
     po->cfg_file ="cap2/rtsp_short1.yaml";
     m_rx_check.m_store_pcfg=true;
@@ -2308,7 +2308,7 @@ TEST_F(rx_check_system, rx_system2_plugin_ipv6) {
     CParserOption * po =&CGlobalInfo::m_options;
 
     po->preview.set_ipv6_mode_enable(true);
-    po->m_rx_check_sampe=1; /* sample rate */
+    po->m_rx_check_sample=1; /* sample rate */
     po->m_duration=1;
     po->cfg_file ="cap2/rtsp_short1.yaml";
     m_rx_check.m_store_pcfg=true;
@@ -2331,7 +2331,7 @@ TEST_F(rx_check_system, rx_system2_plugin_two_dir) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=2; /* sample rate */
+    po->m_rx_check_sample=2; /* sample rate */
     po->m_duration=100;
     po->cfg_file ="cap2/rtsp_short1_slow.yaml";
     m_rx_check.m_one_dir=false;
@@ -2349,7 +2349,7 @@ TEST_F(rx_check_system, rx_system2_plugin_two_dir_2) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=2; /* sample rate */
+    po->m_rx_check_sample=2; /* sample rate */
     po->m_duration=100;
     po->cfg_file ="cap2/rtsp_short1.yaml";
     m_rx_check.m_one_dir=false;
@@ -2367,7 +2367,7 @@ TEST_F(rx_check_system, rx_system_two_dir) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=2; /* sample rate */
+    po->m_rx_check_sample=2; /* sample rate */
     po->m_duration=100;
     po->cfg_file ="cap2/dns.yaml";
     m_rx_check.m_one_dir=false;
@@ -2386,7 +2386,7 @@ TEST_F(rx_check_system, rx_json) {
     m_rxcs.lpVf=&m_rx_check;
     CParserOption * po =&CGlobalInfo::m_options;
 
-    po->m_rx_check_sampe=2; /* sample rate */
+    po->m_rx_check_sample=2; /* sample rate */
     po->m_duration=100;
     po->cfg_file ="cap2/dns.yaml";
 

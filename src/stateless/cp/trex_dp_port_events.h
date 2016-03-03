@@ -25,95 +25,43 @@ limitations under the License.
 #include <string>
 
 class TrexStatelessPort;
+class TrexDpPortEvents;
 
 /**
- * describes a single DP event related to port
+ * interface class for DP events
  * 
- * @author imarom (18-Nov-15)
+ * @author imarom (29-Feb-16)
  */
 class TrexDpPortEvent {
+    friend TrexDpPortEvents;
+
 public:
+    TrexDpPortEvent();
+    virtual ~TrexDpPortEvent() {}
 
-    enum event_e {
-        EVENT_STOP   = 1,
-        EVENT_MAX
-    };
-
+protected:
     /**
-     * status of the event for the port
-     */
-    enum event_status_e {
-        EVENT_DISABLE,
-        EVENT_PENDING,
-        EVENT_TIMED_OUT,
-        EVENT_OCCURED
-    };
-
-    /**
-     * init for the event
+     * what to do when an event has been completed (all cores 
+     * reported in 
      * 
+     * @author imarom (29-Feb-16)
      */
-    void create(event_e type, TrexStatelessPort *port);
+    virtual void on_event() = 0;
 
-    /**
-     * create a new pending event
-     * 
-     */
-    void wait_for_event(int event_id, int timeout_ms = -1);
-
-    /**
-     * mark event as not allowed to happen
-     * 
-     */
-    void disable();
-
-    /**
-     * get the event status
-     * 
-     */
-    event_status_e status();
-
-    /**
-     * event occured
-     * 
-     */
-    void handle_event(int thread_id, int event_id);
-
-    /**
-     * returns true if event is active
-     * 
-     */
-    bool is_active();
-
-    /**
-     * has timeout already expired ?
-     * 
-     */
-    bool has_timeout_expired();
-
-    /**
-     * generate error
-     * 
-     */
-    void err(int thread_id, int event_id, const std::string &err_msg);
-
-    /**
-     * event to name
-     * 
-     */
-    static const char * event_name(event_e type);
-
+    TrexStatelessPort *get_port() {
+        return m_port;
+    }
 
 private:
+    void init(TrexStatelessPort *port, int event_id, int timeout_ms);
+    bool on_core_reporting_in(int thread_id);
 
-    event_e                        m_event_type;
     std::unordered_map<int, bool>  m_signal;
     int                            m_pending_cnt;
 
     TrexStatelessPort             *m_port;
     int                            m_event_id;
     int                            m_expire_limit_ms;
-    
 };
 
 /**
@@ -124,44 +72,39 @@ class TrexDpPortEvents {
 public:
     friend class TrexDpPortEvent;
 
-    void create(TrexStatelessPort *port);
+    static const int INVALID_ID = -1;
 
-    /**
-     * generate a new event ID to be used with wait_for_event
-     * 
-     */
-    int generate_event_id();
+    TrexDpPortEvents(TrexStatelessPort *port);
 
     /**
      * wait a new DP event on the port 
      * returns a key which will be used to identify 
      * the event happened 
      * 
-     * @author imarom (18-Nov-15)
-     * 
-     * @param ev - type of event
-     * @param event_id - a unique identifier for the event
-     * @param timeout_ms - does it has a timeout ?
-     * 
      */
-    void wait_for_event(TrexDpPortEvent::event_e ev, int event_id, int timeout_ms = -1);
+    int create_event(TrexDpPortEvent *event, int timeout_ms = -1);
 
     /**
-     * disable an event (don't care)
+     * destroy an event
      * 
      */
-    void disable(TrexDpPortEvent::event_e ev);
+    void destroy_event(int event_id);
 
     /**
-     * event has occured
-     * 
+     * return when all DP cores have responsed on a barrier
      */
-    void handle_event(TrexDpPortEvent::event_e ev, int thread_id, int event_id);
+    void barrier();
+
+    /**
+     * a core has reached the event 
+     */
+    void on_core_reporting_in(int event_id, int thread_id);
 
 private:
-    static const int EVENT_ID_INVALID = -1;
+    TrexDpPortEvent *lookup(int event_id);
 
-    TrexDpPortEvent m_events[TrexDpPortEvent::EVENT_MAX];
+    static const int EVENT_ID_INVALID = -1;
+    std::unordered_map<int, TrexDpPortEvent *> m_events;
     int m_event_id_counter;
 
     TrexStatelessPort *m_port;

@@ -173,10 +173,8 @@ void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::s
 
     int index = 0;
 
-    /* if lock was provided, take it  */
-    if (m_lock) {
-        m_lock->lock();
-    }
+    /* expcetion safe */
+    std::unique_lock<std::mutex> lock(*m_lock);
 
     /* for every command parsed - launch it */
     for (auto command : commands) {
@@ -190,9 +188,7 @@ void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::s
     }
 
     /* done with the lock */
-    if (m_lock) {
-        m_lock->unlock();
-    }
+    lock.unlock();
 
     /* write the JSON to string and sever on ZMQ */
 
@@ -252,30 +248,5 @@ TrexRpcServerReqRes::test_inject_request(const std::string &req) {
     process_request(req, response);
 
     return response;
-}
-
-
-/**
- * MOCK req resp server
- */
-TrexRpcServerReqResMock::TrexRpcServerReqResMock(const TrexRpcServerConfig &cfg) : TrexRpcServerReqRes(cfg) {
-}
-
-/**
- * override start
- * 
- */
-void
-TrexRpcServerReqResMock::start() {
-
-}
-
-
-/**
- * override stop
- */
-void
-TrexRpcServerReqResMock::stop() {
-
 }
 

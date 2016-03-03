@@ -17,7 +17,8 @@ limitations under the License.
 #define __TREX_DEFS_H__
 
 #define TREX_MAX_PORTS 12
-#define TREX_FDIR_STAT_SIZE 128
+
+#define MAX_FLOW_STATS 128
 
 #ifndef UINT8_MAX
     #define UINT8_MAX 255

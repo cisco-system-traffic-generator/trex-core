@@ -334,7 +334,7 @@ class Port(object):
                   "mul":      mul,
                   "duration": duration,
                   "force":    force}
-
+        
         rc = self.transmit("start_traffic", params)
         if rc.bad():
             return self.err(rc.err())
@@ -363,7 +363,6 @@ class Port(object):
         if rc.bad():
             return self.err(rc.err())
 
-        # only valid state after stop
         self.state = self.STATE_STREAMS
 
         return self.ok()
@@ -383,7 +382,6 @@ class Port(object):
         if rc.bad():
             return self.err(rc.err())
 
-        # only valid state after stop
         self.state = self.STATE_PAUSE
 
         return self.ok()
@@ -400,11 +398,12 @@ class Port(object):
         params = {"handler": self.handler,
                   "port_id": self.port_id}
 
+        # only valid state after stop
+
         rc = self.transmit("resume_traffic", params)
         if rc.bad():
             return self.err(rc.err())
 
-        # only valid state after stop
         self.state = self.STATE_TX
 
         return self.ok()
@@ -591,21 +590,26 @@ class Port(object):
     
 
 
-    ################# events handler ######################
-    def async_event_port_stopped (self):
+  ################# events handler ######################
+    def async_event_port_job_done (self):
         self.state = self.STATE_STREAMS
 
-
-    def async_event_port_started (self):
-        self.state = self.STATE_TX
-
+    # rest of the events are used for TUI / read only sessions
+    def async_event_port_stopped (self):
+        if not self.is_acquired():
+            self.state = self.STATE_STREAMS
 
     def async_event_port_paused (self):
-        self.state = self.STATE_PAUSE
+        if not self.is_acquired():
+            self.state = self.STATE_PAUSE
 
+    def async_event_port_started (self):
+        if not self.is_acquired():
+            self.state = self.STATE_TX
 
     def async_event_port_resumed (self):
-        self.state = self.STATE_TX
+        if not self.is_acquired():
+            self.state = self.STATE_TX
 
     def async_event_forced_acquired (self):
         self.handler = None

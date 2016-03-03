@@ -25,8 +25,9 @@
 #include <string>
 #include <map>
 #include "trex_defs.h"
+#include "trex_stream.h"
+#include <internal_api/trex_platform_api.h>
 
-#define MAX_FLOW_STATS 128
 // range reserved for rx stat measurement is from IP_ID_RESERVE_BASE to 0xffff
 // Do not change this value. In i350 cards, we filter according to first byte of IP ID
 // In other places, we identify packets by if (ip_id > IP_ID_RESERVE_BASE)
@@ -34,6 +35,65 @@
 
 typedef std::map<uint32_t, uint16_t> flow_stat_map_t;
 typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;
+
+class tx_per_flow_t_ {
+ public:
+    tx_per_flow_t_() {
+        clear();
+    }
+    inline uint64_t get_bytes() {
+        return m_bytes;
+    }
+    inline uint64_t get_pkts() {
+        return m_pkts;
+    }
+    inline void set_bytes(uint64_t bytes) {
+        m_bytes = bytes;;
+    }
+    inline void get_pkts(uint64_t pkts) {
+        m_pkts = pkts;
+    }
+    inline void add_bytes(uint64_t bytes) {
+        m_bytes += bytes;;
+    }
+    inline void add_pkts(uint64_t pkts) {
+        m_pkts += pkts;
+    }
+    inline void clear() {
+        m_bytes = 0;
+        m_pkts = 0;
+    }
+    inline tx_per_flow_t_ operator+ (const tx_per_flow_t_ &t_in) {
+        tx_per_flow_t_ t_out;
+        t_out.m_bytes = this->m_bytes + t_in.m_bytes;
+        t_out.m_pkts = this->m_pkts + t_in.m_pkts;
+        return t_out;
+    }
+
+    inline tx_per_flow_t_ operator- (const tx_per_flow_t_ &t_in) {
+        tx_per_flow_t_ t_out;
+        t_out.m_bytes = this->m_bytes - t_in.m_bytes;
+        t_out.m_pkts = this->m_pkts - t_in.m_pkts;
+        return t_out;
+    }
+
+    inline tx_per_flow_t_ operator+= (const tx_per_flow_t_ &t_in) {
+        m_bytes += t_in.m_bytes;
+        m_pkts += t_in.m_pkts;
+        return *this;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const class tx_per_flow_t_ &t) {
+        os  << "p:" << t.m_pkts << " b:" << t.m_bytes;
+        return os;
+    }
+
+ private:
+    uint64_t m_bytes;
+    uint64_t m_pkts;
+};
+
+typedef class tx_per_flow_t_ tx_per_flow_t;
 
 class CPhyEthIF;
 class Cxl710Parser;
@@ -44,8 +104,8 @@ class CFlowStatUserIdInfo {
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
     void set_rx_counter(uint8_t port, uint64_t val) {m_rx_counter[port] = val;}
     uint64_t get_rx_counter(uint8_t port) {return m_rx_counter[port] + m_rx_counter_base[port];}
-    void set_tx_counter(uint8_t port, uint64_t val) {m_tx_counter[port] = val;}
-    uint64_t get_tx_counter(uint8_t port) {return m_tx_counter[port] + m_tx_counter_base[port];}
+    void set_tx_counter(uint8_t port, tx_per_flow_t val) {m_tx_counter[port] = val;}
+    tx_per_flow_t get_tx_counter(uint8_t port) {return m_tx_counter[port] + m_tx_counter_base[port];}
     void set_hw_id(uint16_t hw_id) {m_hw_id = hw_id;}
     uint64_t get_hw_id() {return m_hw_id;}
     void reset_hw_id();
@@ -62,9 +122,9 @@ class CFlowStatUserIdInfo {
     uint64_t m_rx_counter[TREX_MAX_PORTS]; // How many packets received with this user id since stream start
     // How many packets received with this user id, since stream creation, before stream start.
     uint64_t m_rx_counter_base[TREX_MAX_PORTS];
-    uint64_t m_tx_counter[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
+    tx_per_flow_t m_tx_counter[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
     // How many packets transmitted with this user id, since stream creation, before stream start.
-    uint64_t m_tx_counter_base[TREX_MAX_PORTS];
+    tx_per_flow_t m_tx_counter_base[TREX_MAX_PORTS];
     uint16_t m_hw_id;     // Associated hw id. UINT16_MAX if no associated hw id.
     uint8_t m_proto;      // protocol (UDP, TCP, other), associated with this user id.
     uint8_t m_ref_count;  // How many streams with this ref count exists
@@ -78,6 +138,7 @@ class CFlowStatUserIdMap {
  public:
     CFlowStatUserIdMap();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdMap& cf);
+    bool is_empty() {return (m_map.empty() == true);};
     uint16_t get_hw_id(uint32_t user_id);
     class CFlowStatUserIdInfo * find_user_id(uint32_t user_id);
     class CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint8_t proto);
@@ -121,7 +182,7 @@ class CFlowStatRuleMgr {
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
     int add_stream(const TrexStream * stream);
     int del_stream(const TrexStream * stream);
-    int start_stream(TrexStream * stream);
+    int start_stream(TrexStream * stream, uint16_t &ret_hw_id);
     int stop_stream(const TrexStream * stream);
     bool dump_json(std::string & json);
 
@@ -134,6 +195,7 @@ class CFlowStatRuleMgr {
     class CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
     uint8_t m_num_ports; // How many ports are being used
     const TrexPlatformApi *m_api;
+    int m_max_hw_id; // max hw id we ever used
 };
 
 #endif

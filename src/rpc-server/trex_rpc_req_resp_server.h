@@ -55,7 +55,6 @@ protected:
     void               *m_socket;
 };
 
-
 /**
  * a mock req resp server (for tests)
  * 
@@ -72,6 +71,7 @@ public:
 
 
 };
+
 
 #endif /* __TREX_RPC_REQ_RESP_API_H__ */
 

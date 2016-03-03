@@ -141,7 +141,7 @@ public:
     }
     bool             m_is_exists;
     uint32_t         m_master_thread; 
-    uint32_t         m_latency_thread;  
+    uint32_t         m_rx_thread;  
     std::vector <CPlatformDualIfYamlInfo> m_dual_if;
 public:
     void Dump(FILE *fd);

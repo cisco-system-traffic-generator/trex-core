@@ -265,9 +265,9 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
 }
 
 
-bool TrexStatelessDpPerPort::stop_traffic(uint8_t port_id,
-                                          bool stop_on_id, 
-                                          int event_id){
+bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
+                                          bool     stop_on_id, 
+                                          int      event_id){
 
 
     if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
@@ -394,12 +394,27 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 void 
 TrexStatelessDpCore::idle_state_loop() {
 
+    const int SHORT_DELAY_MS    = 2;
+    const int LONG_DELAY_MS     = 50;
+    const int DEEP_SLEEP_LIMIT  = 2000;
+
+    int counter = 0;
+
     while (m_state == STATE_IDLE) {
         bool had_msg = periodic_check_for_cp_messages();
-        /* if no message - backoff for some time */
-        if (!had_msg) {
-            delay(200);
+        if (had_msg) {
+            counter = 0;
+            continue;
         }
+
+        /* enter deep sleep only if enough time had passed */
+        if (counter < DEEP_SLEEP_LIMIT) {
+            delay(SHORT_DELAY_MS);
+            counter++;
+        } else {
+            delay(LONG_DELAY_MS);
+        }
+        
     }
 }
 
@@ -565,7 +580,6 @@ void
 TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
                                 TrexStream * stream,
                                 TrexStreamsCompiledObj *comp) {
-
     CGenNodeStateless *node = m_core->create_node_sl();
 
     /* add periodic */
@@ -580,7 +594,6 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     stream->release_dp_object();
 
     node->m_next_stream=0; /* will be fixed later */
-
 
     if ( stream->m_self_start ){
         /* if self start it is in active mode */
@@ -597,7 +610,12 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->m_src_port =0;
     node->m_original_packet_data_prefix = 0;
 
-
+    if (stream->m_rx_check.m_enabled) {
+        node->set_stat_needed();
+        uint8_t hw_id = stream->m_rx_check.m_hw_id;
+        assert (hw_id < MAX_FLOW_STATS);
+        node->set_stat_hw_id(hw_id);
+    }
 
     /* set socket id */
     node->set_socket_id(m_core->m_node_gen.m_socket_id);
@@ -826,9 +844,9 @@ TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
 
 
 void
-TrexStatelessDpCore::stop_traffic(uint8_t port_id,
-                                  bool stop_on_id, 
-                                  int event_id) {
+TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
+                                  bool     stop_on_id, 
+                                  int      event_id) {
     /* we cannot remove nodes not from the top of the queue so
        for every active node - make sure next time
        the scheduler invokes it, it will be free */
@@ -840,20 +858,19 @@ TrexStatelessDpCore::stop_traffic(uint8_t port_id,
         //printf(" skip .. %f\n",m_core->m_cur_time_sec);
         return;
     }
-
-#if 0
-    if ( are_all_ports_idle() ) {
-        /* just a place holder if we will need to do somthing in that case */
-    }
-#endif
  
     /* inform the control plane we stopped - this might be a async stop
        (streams ended)
-     */
+    */
+    #if 0
+    if ( are_all_ports_idle() ) {
+        /* just a place holder if we will need to do somthing in that case */
+    }
+    #endif
+
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
     TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                                    port_id,
-                                                                   TrexDpPortEvent::EVENT_STOP,
                                                                    lp_port->get_event_id());
     ring->Enqueue((CGenNode *)event_msg);
 
@@ -869,3 +886,12 @@ TrexStatelessDpCore::handle_cp_msg(TrexStatelessCpToDpMsgBase *msg) {
     delete msg;
 }
 
+void
+TrexStatelessDpCore::barrier(uint8_t port_id, int event_id) {
+
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
+    TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
+                                                                   port_id,
+                                                                   event_id);
+    ring->Enqueue((CGenNode *)event_msg);
+}
