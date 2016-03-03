@@ -20,6 +20,29 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.94  ==
+
+* Fix Python API stop/sync issue. Now TX counters are synced in case of stop API 
+* Improve performance of Python API, ~2000 cycles/sec of load/start/stop
+* Add per stream Tx/Rx statistics for XL710/X710 NICS work in flow-director hardware
+
+[source,python]
+----
+class STLS1(object):
+
+    def get_streams (self, direction = 0):
+        return [STLStream(packet = 
+                          STLPktBuilder(
+                          pkt ="stl/yaml/udp_64B_no_crc.pcap"), 
+                          mode = STLTXCont(pps=10),
+                          rx_stats = STLRxStats(user_id = 7))   <1> 
+               ]
+----
+<1> Configure this stream to be count on all RX ports as user_id=7
+
+* Add HTLAPI full example (examples `examples/hlt_udp_simple.py`)
+
+
 == Release 1.93  ==
 
 * Support port attribute API and Console command.  See `$portattr -a --prom`
