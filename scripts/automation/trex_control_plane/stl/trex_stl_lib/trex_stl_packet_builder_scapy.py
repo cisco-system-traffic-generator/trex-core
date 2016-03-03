@@ -668,7 +668,7 @@ class CTRexVmDescTupleGen(CTRexVmDescBase):
 class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     """
-    This class defines the TRex API of building a packet using dpkt package.
+    This class defines the TRex API of building a packet using scapy package.
     Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
     pkt could be Scapy pkt or pcap file name 
 

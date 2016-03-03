@@ -6,7 +6,6 @@ from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP, UDP, TCP, RawPcapReader
 from collections import OrderedDict, namedtuple
 
-from dpkt import pcap
 import random
 import yaml
 import base64

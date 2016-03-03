@@ -19,7 +19,6 @@ class t_global(object):
      args=None;
 
 
-import dpkt
 import time
 import json
 import string

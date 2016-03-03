@@ -155,6 +155,10 @@ class AsyncEventHandler(object):
         pass
 
 
+    def handle_async_rx_stats_event (self, data):
+        self.client.rx_stats = data
+
+
     # handles an async stats update from the subscriber
     def handle_async_stats_update(self, dump_data):
         global_stats = {}
@@ -435,7 +439,7 @@ class STLClient(object):
         self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
                                                               self.ports)
 
- 
+        self.rx_stats = {}
  
     ############# private functions - used by the class itself ###########
 
@@ -740,6 +744,8 @@ class STLClient(object):
                     total[k] += v
 
         stats['total'] = total
+
+        stats['rx_stats'] = copy.deepcopy(self.rx_stats)
 
         return stats
 
