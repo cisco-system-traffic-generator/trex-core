@@ -120,8 +120,8 @@ socket_id_t CPlatformSocketInfoNoConfig::port_to_socket(port_id_t port){
 }
 
 
-void CPlatformSocketInfoNoConfig::set_latency_thread_is_enabled(bool enable){
-    m_latency_is_enabled = enable;
+void CPlatformSocketInfoNoConfig::set_rx_thread_is_enabled(bool enable) {
+    m_rx_is_enabled = enable;
 }
 
 void CPlatformSocketInfoNoConfig::set_number_of_dual_ports(uint8_t num_dual_ports){
@@ -141,7 +141,7 @@ bool CPlatformSocketInfoNoConfig::sanity_check(){
 uint64_t CPlatformSocketInfoNoConfig::get_cores_mask(){
 
     uint32_t cores_number = m_threads_per_dual_if*m_dual_if;
-    if ( m_latency_is_enabled ) {
+    if ( m_rx_is_enabled ) {
         cores_number +=   2;
     }else{
         cores_number += 1; /* only MASTER*/
@@ -170,7 +170,7 @@ bool CPlatformSocketInfoNoConfig::thread_phy_is_master(physical_thread_id_t  phy
     return (phy_id==0);
 }
 
-bool CPlatformSocketInfoNoConfig::thread_phy_is_latency(physical_thread_id_t  phy_id){
+bool CPlatformSocketInfoNoConfig::thread_phy_is_rx(physical_thread_id_t  phy_id){
     return (phy_id==(m_threads_per_dual_if*m_dual_if+1));
 }
 
@@ -257,8 +257,8 @@ bool CPlatformSocketInfoConfig::init(){
         exit(1);
     }
 
-    if ( m_thread_phy_to_virtual[m_platform->m_latency_thread] ){
-        printf("ERROR physical latency thread %d already defined \n",m_platform->m_latency_thread);
+    if ( m_thread_phy_to_virtual[m_platform->m_rx_thread] ){
+        printf("ERROR physical latency thread %d already defined \n",m_platform->m_rx_thread);
         exit(1);
     }
 
@@ -286,7 +286,7 @@ void CPlatformSocketInfoConfig::dump(FILE *fd){
 
     fprintf(fd," ports_sockets : %d \n",max_num_active_sockets());
 
-    for (i=0; i<(MAX_LATENCY_PORTS); i++) {
+    for (i = 0; i <  TREX_MAX_PORTS; i++) {
         fprintf(fd,"%d,",port_to_socket(i));
     }
     fprintf(fd,"\n");
@@ -314,14 +314,14 @@ void CPlatformSocketInfoConfig::reset(){
     for (i=0; i<MAX_THREADS_SUPPORTED; i++) {
         m_thread_phy_to_virtual[i]=0;
     }
-    for (i=0; i<(MAX_LATENCY_PORTS>>1); i++) {
+    for (i = 0; i < TREX_MAX_PORTS >> 1; i++) {
         m_socket_per_dual_if[i]=0;
     }
 
     m_num_dual_if=0;
 
     m_threads_per_dual_if=0;
-    m_latency_is_enabled=false;
+    m_rx_is_enabled=false;
     m_max_threads_per_dual_if=0;
 }
 
@@ -343,8 +343,8 @@ socket_id_t CPlatformSocketInfoConfig::port_to_socket(port_id_t port){
     return ( m_socket_per_dual_if[(port>>1)]);
 }
 
-void CPlatformSocketInfoConfig::set_latency_thread_is_enabled(bool enable){
-    m_latency_is_enabled =enable;
+void CPlatformSocketInfoConfig::set_rx_thread_is_enabled(bool enable){
+    m_rx_is_enabled =enable;
 }
 
 void CPlatformSocketInfoConfig::set_number_of_dual_ports(uint8_t num_dual_ports){
@@ -376,9 +376,9 @@ uint64_t CPlatformSocketInfoConfig::get_cores_mask(){
 
     mask |=(1<<m_platform->m_master_thread);
     assert(m_platform->m_master_thread<64);
-    if (m_latency_is_enabled) {
-        mask |=(1<<m_platform->m_latency_thread);
-        assert(m_platform->m_latency_thread<64);
+    if (m_rx_is_enabled) {
+        mask |=(1<<m_platform->m_rx_thread);
+        assert(m_platform->m_rx_thread<64);
     }
     return (mask);
 }
@@ -395,8 +395,8 @@ bool CPlatformSocketInfoConfig::thread_phy_is_master(physical_thread_id_t  phy_i
     return (m_platform->m_master_thread==phy_id?true:false);
 }
 
-bool CPlatformSocketInfoConfig::thread_phy_is_latency(physical_thread_id_t  phy_id){
-    return (m_platform->m_latency_thread == phy_id?true:false);
+bool CPlatformSocketInfoConfig::thread_phy_is_rx(physical_thread_id_t  phy_id){
+    return (m_platform->m_rx_thread == phy_id?true:false);
 }
 
 
@@ -437,8 +437,8 @@ socket_id_t CPlatformSocketInfo::port_to_socket(port_id_t port){
 }
 
 
-void CPlatformSocketInfo::set_latency_thread_is_enabled(bool enable){
-    m_obj->set_latency_thread_is_enabled(enable);
+void CPlatformSocketInfo::set_rx_thread_is_enabled(bool enable){
+    m_obj->set_rx_thread_is_enabled(enable);
 }
 
 void CPlatformSocketInfo::set_number_of_dual_ports(uint8_t num_dual_ports){
@@ -470,8 +470,8 @@ bool CPlatformSocketInfo::thread_phy_is_master(physical_thread_id_t  phy_id){
     return ( m_obj->thread_phy_is_master(phy_id));
 }
 
-bool CPlatformSocketInfo::thread_phy_is_latency(physical_thread_id_t  phy_id){
-    return ( m_obj->thread_phy_is_latency(phy_id));
+bool CPlatformSocketInfo::thread_phy_is_rx(physical_thread_id_t  phy_id) {
+    return ( m_obj->thread_phy_is_rx(phy_id));
 }
 
 void CPlatformSocketInfo::dump(FILE *fd){
@@ -3930,9 +3930,9 @@ void CFlowGenListPerThread::terminate_nat_flows(CGenNode *p){
 }
 
 
-void CFlowGenListPerThread::handel_latecy_pkt_msg(CGenNodeLatencyPktInfo * msg){
+void CFlowGenListPerThread::handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg){
     /* send the packet */
-    #ifdef LATENCY_QUEUE_TRACE_
+    #ifdef RX_QUEUE_TRACE_
     printf(" latency  msg dir %d\n",msg->m_dir);
     struct rte_mbuf * m;
     m=msg->m_pkt;
@@ -3950,7 +3950,7 @@ void CFlowGenListPerThread::handel_latecy_pkt_msg(CGenNodeLatencyPktInfo * msg){
 }
 
 
-void CFlowGenListPerThread::handel_nat_msg(CGenNodeNatInfo * msg){
+void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
     int i;
     for (i=0; i<msg->m_cnt; i++) {
         CNatFlowInfo * nat_msg=&msg->m_data[i];
@@ -4010,11 +4010,11 @@ void CFlowGenListPerThread::check_msgs(void) {
         uint8_t   msg_type =  msg->m_msg_type;
         switch (msg_type ) {
         case CGenNodeMsgBase::NAT_FIRST:
-            handel_nat_msg((CGenNodeNatInfo * )msg);
+            handle_nat_msg((CGenNodeNatInfo * )msg);
             break;
 
         case CGenNodeMsgBase::LATENCY_PKT:
-            handel_latecy_pkt_msg((CGenNodeLatencyPktInfo *) msg);
+            handle_latency_pkt_msg((CGenNodeLatencyPktInfo *) msg);
             break;
 
         default:
@@ -4525,7 +4525,7 @@ void CParserOption::dump(FILE *fd){
 
 
     int i;
-    for (i=0; i<MAX_LATENCY_PORTS; i++) {
+    for (i = 0; i < TREX_MAX_PORTS; i++) {
         fprintf(fd," port : %d dst:",i);
         CMacAddrCfg * lp=&m_mac_addr[i];
         dump_mac_addr(fd,lp->u.m_mac.dest);

@@ -231,11 +231,9 @@ void CCPortLatency::update_packet(rte_mbuf_t * m, int port_id){
 }
 
 
-void CCPortLatency::DumpShortHeader(FILE *fd){
-    
-
-    fprintf(fd," if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window \n");
-	fprintf(fd,"   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,             \n");
+void CCPortLatency::DumpShortHeader(FILE *fd){   
+    fprintf(fd," if|   tx_ok , rx_ok  , rx check ,error,       latency (usec) ,    Jitter          max window \n");
+	fprintf(fd,"   |         ,        ,          ,     ,   average   ,   max  ,    (usec)                     \n");
     fprintf(fd," ---------------------------------------------------------------------------------------------------------------- \n");
 }
 
@@ -269,7 +267,7 @@ void CCPortLatency::dump_json(std::string & json ){
 void CCPortLatency::DumpShort(FILE *fd){
 
 //	m_hist.update(); <- moved to CLatencyManager::update()
-    fprintf(fd,"%8lu,%8lu,%10lu,%4lu,",                          
+    fprintf(fd,"%8lu,%8lu,%10lu,%5lu,",                          
                     m_tx_pkt_ok,
                     m_pkt_ok,
                     m_rx_check,
@@ -530,7 +528,7 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
     }
     
     m_max_ports=cfg->m_max_ports;
-    assert (m_max_ports<=MAX_LATENCY_PORTS);
+    assert (m_max_ports <= TREX_MAX_PORTS);
     assert ((m_max_ports%2)==0);
     m_port_mask =0xffffffff;
     m_do_stop =false;

@@ -71,8 +71,6 @@ usec_to_sec(double usec) {
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 
-#define MAX_LATENCY_PORTS TREX_MAX_PORTS
-
 /* IP address, last 32-bits of IPv6 remaps IPv4 */
 typedef struct {
     uint16_t v6[6];  /* First 96-bits of IPv6 */
@@ -738,7 +736,7 @@ public:
         m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less */
         m_vlan_port[0]=100;
         m_vlan_port[1]=100;
-		m_rx_check_sampe=0;
+		m_rx_check_sample=0;
         m_rx_check_hops = 0;
         m_io_mode=1;
         m_run_flags=0;
@@ -746,6 +744,7 @@ public:
         m_mac_splitter=0;
         m_run_mode = RUN_MODE_INVALID;
         m_l_pkt_mode = 0;
+        m_rx_thread_enabled = false;
     }
 
 
@@ -760,7 +759,7 @@ public:
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
     uint32_t        m_latency_mask;
     uint32_t        m_latency_prev;
-    uint16_t 		m_rx_check_sampe; /* the sample rate of flows */
+    uint16_t 		m_rx_check_sample; /* the sample rate of flows */
     uint16_t        m_rx_check_hops;
     uint16_t        m_zmq_port;
     uint16_t        m_telnet_port;
@@ -771,6 +770,7 @@ public:
     uint8_t         m_l_pkt_mode;
     uint8_t         m_learn_mode;
     uint16_t        m_debug_pkt_proto;
+    bool            m_rx_thread_enabled;
     trex_run_mode_e    m_run_mode;
 
 
@@ -783,7 +783,7 @@ public:
     std::string        prefix;
 
                                  
-    CMacAddrCfg     m_mac_addr[MAX_LATENCY_PORTS];
+    CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
 
     uint8_t *       get_src_mac_addr(int if_index){
         return (m_mac_addr[if_index].u.m_mac.src);
@@ -805,17 +805,19 @@ public:
     uint32_t get_number_of_dp_cores_needed() {
         return ( (m_expected_portd>>1)   * preview.getCores());
     }
-    bool is_latency_disabled(){
-        return ( m_latency_rate == 0 ?true:false);
-    }
-
     bool is_stateless(){
         return (m_run_mode == RUN_MODE_INTERACTIVE ?true:false);
     }
-
-    bool is_latency_enabled(){
-        return ( !is_latency_disabled() );
+    bool is_latency_enabled() {
+        return ( (m_latency_rate == 0) ? false : true);
     }
+    bool is_rx_enabled() {
+        return m_rx_thread_enabled;
+    }
+    void set_rx_enabled() {
+        m_rx_thread_enabled = true;
+    }
+
     inline void set_rxcheck_const_ts(){
         m_run_flags |= RUN_FLAGS_RXCHECK_CONST_TS;
     }
@@ -886,7 +888,7 @@ DEFAULT:
     v5        v6
     v7        v8       
        
-    latency is v9          
+    rx is v9          
 
   */  
 
@@ -915,7 +917,7 @@ public:
 public:
     /* this is from CLI, number of thread per dual port */
     virtual void set_number_of_threads_per_ports(uint8_t num_threads)=0;
-    virtual void set_latency_thread_is_enabled(bool enable)=0;
+    virtual void set_rx_thread_is_enabled(bool enable)=0;
     virtual void set_number_of_dual_ports(uint8_t num_dual_ports)=0;
 
 
@@ -931,7 +933,7 @@ public:
     virtual physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id)=0;
 
     virtual bool thread_phy_is_master(physical_thread_id_t  phy_id)=0;
-    virtual bool thread_phy_is_latency(physical_thread_id_t  phy_id)=0;
+    virtual bool thread_phy_is_rx(physical_thread_id_t  phy_id)=0;
 
     virtual void dump(FILE *fd)=0;
 };
@@ -942,7 +944,7 @@ public:
     CPlatformSocketInfoNoConfig(){
         m_dual_if=0;
         m_threads_per_dual_if=0;
-        m_latency_is_enabled=false;
+        m_rx_is_enabled=false;
     }
 
     /* is socket enabled */
@@ -958,7 +960,7 @@ public:
 public:
     /* this is from CLI, number of thread per dual port */
     void set_number_of_threads_per_ports(uint8_t num_threads);
-    void set_latency_thread_is_enabled(bool enable);
+    void set_rx_thread_is_enabled(bool enable);
     void set_number_of_dual_ports(uint8_t num_dual_ports);
 
     bool sanity_check();
@@ -973,14 +975,14 @@ public:
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
     bool thread_phy_is_master(physical_thread_id_t  phy_id);
-    bool thread_phy_is_latency(physical_thread_id_t  phy_id);
+    bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
     virtual void dump(FILE *fd);
 
 private:
     uint32_t                 m_dual_if;
     uint32_t                 m_threads_per_dual_if;
-    bool                     m_latency_is_enabled;
+    bool                     m_rx_is_enabled;
 };
 
 
@@ -1004,7 +1006,7 @@ public:
 public:
     /* this is from CLI, number of thread per dual port */
     void set_number_of_threads_per_ports(uint8_t num_threads);
-    void set_latency_thread_is_enabled(bool enable);
+    void set_rx_thread_is_enabled(bool enable);
     void set_number_of_dual_ports(uint8_t num_dual_ports);
 
     bool sanity_check();
@@ -1019,7 +1021,7 @@ public:
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
     bool thread_phy_is_master(physical_thread_id_t  phy_id);
-    bool thread_phy_is_latency(physical_thread_id_t  phy_id);
+    bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
 public:
     virtual void dump(FILE *fd);
@@ -1030,13 +1032,13 @@ private:
 private:
     bool                     m_sockets_enable[MAX_SOCKETS_SUPPORTED];
     uint32_t                 m_sockets_enabled;
-    socket_id_t              m_socket_per_dual_if[(MAX_LATENCY_PORTS>>1)];
+    socket_id_t              m_socket_per_dual_if[(TREX_MAX_PORTS >> 1)];
     
     uint32_t                 m_max_threads_per_dual_if;
 
     uint32_t                 m_num_dual_if;
     uint32_t                 m_threads_per_dual_if;
-    bool                     m_latency_is_enabled;
+    bool                     m_rx_is_enabled;
     uint8_t                  m_thread_virt_to_phy[MAX_THREADS_SUPPORTED];
     uint8_t                  m_thread_phy_to_virtual[MAX_THREADS_SUPPORTED];
 
@@ -1067,7 +1069,7 @@ public:
 public:
     /* this is from CLI, number of thread per dual port */
     void set_number_of_threads_per_ports(uint8_t num_threads);
-    void set_latency_thread_is_enabled(bool enable);
+    void set_rx_thread_is_enabled(bool enable);
     void set_number_of_dual_ports(uint8_t num_dual_ports);
 
 
@@ -1083,7 +1085,7 @@ public:
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
     bool thread_phy_is_master(physical_thread_id_t  phy_id);
-    bool thread_phy_is_latency(physical_thread_id_t  phy_id);
+    bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
     void dump(FILE *fd);
 
@@ -1244,7 +1246,7 @@ static inline int get_is_rx_check_mode(){
     return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);
 }
 
-static inline bool get_is_rx_filter_enable(){
+static inline bool get_is_rx_filter_enable(){//???
     uint32_t latency_rate=CGlobalInfo::m_options.m_latency_rate;
     return ( ( get_is_rx_check_mode() || CGlobalInfo::is_learn_mode() || latency_rate != 0) ?true:false );
 }
@@ -2900,7 +2902,7 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 		    }
 		}
             }
-            /* in call cases update the ip using the outside ip */
+            /* in all cases update the ip using the outside ip */
 
             if ( m_pkt_indication.m_desc.IsInitSide()  ) {
 #ifdef NAT_TRACE_
@@ -3577,8 +3579,8 @@ public:
 private:
     void check_msgs(void);
 
-    void handel_nat_msg(CGenNodeNatInfo * msg);
-    void handel_latecy_pkt_msg(CGenNodeLatencyPktInfo * msg);
+    void handle_nat_msg(CGenNodeNatInfo * msg);
+    void handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg);
 
     void terminate_nat_flows(CGenNode *node);
 
@@ -3651,8 +3653,8 @@ private:
     CGenNodeDeferPort     *          m_tcp_dpc;
     CGenNodeDeferPort     *          m_udp_dpc;
 
-    CNodeRing *                      m_ring_from_rx; /* ring latency thread -> dp */
-    CNodeRing *                      m_ring_to_rx;   /* ring dp -> latency thread */
+    CNodeRing *                      m_ring_from_rx; /* ring rx thread -> dp */
+    CNodeRing *                      m_ring_to_rx;   /* ring dp -> rx thread */
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
 
@@ -3780,8 +3782,8 @@ inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tup
     }
 
     if ( unlikely(  get_is_rx_check_mode()) ) {
-        if  ( (CGlobalInfo::m_options.m_rx_check_sampe == 1 ) ||
-            ( ( rte_rand() % CGlobalInfo::m_options.m_rx_check_sampe ) == 1 )){
+        if  ( (CGlobalInfo::m_options.m_rx_check_sample == 1 ) ||
+            ( ( rte_rand() % CGlobalInfo::m_options.m_rx_check_sample ) == 1 )){
            if (unlikely(!node->is_repeat_flow() )) {
                node->set_rx_check();
            }

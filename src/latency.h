@@ -273,7 +273,7 @@ public:
     }
     uint32_t             m_max_ports;
     double               m_cps;// CPS
-    CPortLatencyHWBase * m_ports[MAX_LATENCY_PORTS];
+    CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
     ipaddr_t             m_client_ip;
     ipaddr_t             m_server_ip;
     uint32_t             m_dual_port_mask;
@@ -387,7 +387,7 @@ private:
      pqueue_t                m_p_queue; /* priorty queue */
      bool                    m_is_active;
      CLatencyPktInfo         m_pkt_gen;
-     CLatencyManagerPerPort  m_ports[MAX_LATENCY_PORTS];
+     CLatencyManagerPerPort  m_ports[TREX_MAX_PORTS];
      uint64_t                m_d_time; // calc tick betwen sending 
      double                  m_cps;
      double                  m_delta_sec;

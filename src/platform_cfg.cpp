@@ -99,8 +99,8 @@ void CPlatformCoresYamlInfo::Dump(FILE *fd){
        fprintf(fd," no platform info \n");
        return;
     }
-    fprintf(fd," master   thread  : %d  \n",m_master_thread);
-    fprintf(fd," latency  thread  : %d  \n",m_latency_thread);
+    fprintf(fd," master   thread  : %d  \n", m_master_thread);
+    fprintf(fd," rx  thread  : %d  \n", m_rx_thread);
     int i;
     for (i=0; i<m_dual_if.size(); i++) {
         printf(" dual_if : %d \n",i);
@@ -124,7 +124,7 @@ void operator >> (const YAML::Node& node, CPlatformDualIfYamlInfo & plat_info) {
 
 void operator >> (const YAML::Node& node, CPlatformCoresYamlInfo & plat_info) {
      node["master_thread_id"] >> plat_info.m_master_thread;
-     node["latency_thread_id"] >> plat_info.m_latency_thread;    
+     node["rx_thread_id"] >> plat_info.m_rx_thread;
 
      const YAML::Node& dual_info = node["dual_if"];
      for(unsigned i=0;i<dual_info.size();i++) {
