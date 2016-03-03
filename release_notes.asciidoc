@@ -20,7 +20,7 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Release 1.94  ==
+== Release 1.94 [not released]  ==
 
 * Fix Python API stop/sync issue. Now TX counters are synced in case of stop API 
 * Improve performance of Python API, ~2000 cycles/sec of load/start/stop
