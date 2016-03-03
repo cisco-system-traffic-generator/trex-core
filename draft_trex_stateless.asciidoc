@@ -103,8 +103,190 @@ image::images/stateless_objects.png[title="TRex Objects ",align="left",width=600
 === Tutorials
 
 This tutorial will walk you through basic but complete TRex Stateless use cases that will show you common concepts as well as slightly more advanced ones.
+
+==== Tutorial: Simple IPv4/UDP packet - TRex 
+
+*Goal* : send simple UDP packet from all the ports 
+
+=====  Understand the traffic profile
+
+file: `stl/udp_1pkt_simple.py`
+
+[source,python]
+----
+from trex_stl_lib.api import *                                  
+
+class STLS1(object):
+
+    def create_stream (self):
+
+        return STLStream( 
+            packet = 
+                    STLPktBuilder(
+                        pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/
+                                UDP(dport=12,sport=1025)/(10*'x')                       <1>                
+                    ),
+             mode = STLTXCont())                                                        <2>
+
+
+    def get_streams (self, direction = 0):
+        # create 1 stream 
+        return [ self.create_stream() ]
+
+
+# dynamic load - used for trex console or simulator
+def register():                                                                         <3>        
+    return STLS1()
+----
+<1> Define the packet, in this case it IP/UDP with 10 bytes of 'x'.See more here link:http://www.secdev.org/projects/scapy/doc/[Scapy]
+<2> Mode is Continues with rate of 1 PPS (default rate is 1 PPS)
+<3> Each Traffic profile module should have a `register` function
+
+
+=====  Run TRex as a server mode 
+
+First run trex in interactive mode
+
+[source,bash]
+----
+$sudo ./t-rex-64 -i
+----
+
+=====  Connect with Console 
+
+From the same machine in a different terminal connect to trex (you can do it from remote machine with -s [ip])
+
+from console you can run this 
+
+[source,bash]
+----
+$trex-console
+
+Connecting to RPC server on localhost:4501                   [SUCCESS]
+connecting to publisher server on localhost:4500             [SUCCESS]
+Acquiring ports [0, 1, 2, 3]:                                [SUCCESS]
+
+125.69 [ms]
+
+TRex > start -f stl/udp_1pkt_simple.py -m 10mbps -a                     #<1>
+
+Removing all streams from port(s) [0, 1, 2, 3]:              [SUCCESS]
+Attaching 1 streams to port(s) [0, 1, 2, 3]:                 [SUCCESS]
+Starting traffic on port(s) [0, 1, 2, 3]:                    [SUCCESS]
+
+# pause  the traffic on all port
+>pause -a                                                               #<2>
+
+# resume  the traffic on all port
+>resume -a                                                              #<3>
+
+# stop traffic on all port      
+>stop -a                                                                #<4>
+
+# show dynamic statistic 
+>tui
+----
+<1> Start the traffic on all the ports in 10mbps. you can try with 14MPPS
+<2> Pause the traffic 
+<3> Resume
+<4> Stop on all the ports
+
+
+To look into the streams using `streams -a`
+
+.Streams
+[source,bash]
+----
+
+TRex > streams -a
+Port 0:
+
+    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
+  -----------------------------------------------------------------------------------------------
+    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
+
+Port 1:
+
+    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
+  -----------------------------------------------------------------------------------------------
+    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
+
+Port 2:
+
+    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
+  -----------------------------------------------------------------------------------------------
+    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
+
+Port 3:
+
+    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
+  -----------------------------------------------------------------------------------------------
+    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
+
+TRex > 
+----
+
+
+to get help on a command run `command --help` 
+
+to look into general statistics
+
+[source,bash]
+----
+Global Statistics
+
+Connection  : localhost, Port 4501 
+Version     : v1.93, UUID: N/A     
+Cpu Util    : 0.2%                 
+            :                      
+Total Tx L2 : 40.01 Mb/sec         
+Total Tx L1 : 52.51 Mb/sec         
+Total Rx    : 40.01 Mb/sec         
+Total Pps   : 78.14 Kpkt/sec       
+            :                      
+Drop Rate   : 0.00 b/sec           
+Queue Full  : 0 pkts               
+
+Port Statistics
+
+   port    |         0          |         1          |     
+ --------------------------------------------------------
+ owner      |             hhaim |             hhaim |    
+ state      |            ACTIVE |            ACTIVE |    
+ --         |                   |                   |    
+ Tx bps L2  |        10.00 Mbps |        10.00 Mbps |    
+ Tx bps L1  |        13.13 Mbps |        13.13 Mbps |    
+ Tx pps     |        19.54 Kpps |        19.54 Kpps |    
+ Line Util. |            0.13 % |            0.13 % |    
+ ---        |                   |                   |    
+ Rx bps     |        10.00 Mbps |        10.00 Mbps |    
+ Rx pps     |        19.54 Kpps |        19.54 Kpps |    
+ ----       |                   |                   |    
+ opackets   |           1725794 |           1725794 |    
+ ipackets   |           1725794 |           1725794 |    
+ obytes     |         110450816 |         110450816 |    
+ ibytes     |         110450816 |         110450816 |    
+ tx-bytes   |         110.45 MB |         110.45 MB |    
+ rx-bytes   |         110.45 MB |         110.45 MB |    
+ tx-pkts    |        1.73 Mpkts |        1.73 Mpkts |    
+ rx-pkts    |        1.73 Mpkts |        1.73 Mpkts |    
+ -----      |                   |                   |    
+ oerrors    |                 0 |                 0 |    
+ ierrors    |                 0 |                 0 |    
+
+ status:  /
+
+ browse:     'q' - quit, 'g' - dashboard, '0-3' - port display
+ dashboard:  'p' - pause, 'c' - clear, '-' - low 5%, '+' - up 5%, 
+----
+
+
+INFO: The SRC/DST MAC addrees are taken from /etc/trex_cfg.yaml. if you want to change them to be different just add Ether(dst="00:00:dd:dd:00:01") with your destination
+
                 
 ==== Tutorial: Simple IPv4/UDP packet - Simulator 
+
+*Goal* : Learn how to use the TRex Stateless simulator,important for more complex use cases
 
 The following example demonstrates the most basic use case using our simulator.  
 
@@ -312,148 +494,12 @@ $./stl-sim -f stl/udp_1pkt_simple.py --pkt
 0030   78 78 78 78                                        xxxx
 ----
 
-==== Tutorial: Simple IPv4/UDP packet - TRex 
-
-=====  Run TRex as a server mode 
-
-First run trex in interactive mode
-
-[source,bash]
-----
-$sudo ./t-rex-64 -i
-----
 
 
-=====  Connect with Console 
+==== Tutorial:  Multi stream support 
 
-From the same machine in a different terminal  connect to to trex (you can do it from remote machine with -s [ip]
+*Goal* : Send more than one stream 
 
-from console you can run this 
-
-[source,bash]
-----
-$trex-console
-
-Connecting to RPC server on localhost:4501                   [SUCCESS]
-connecting to publisher server on localhost:4500             [SUCCESS]
-Acquiring ports [0, 1, 2, 3]:                                [SUCCESS]
-
-125.69 [ms]
-
-TRex > start -f stl/udp_1pkt_simple.py -m 10mbps -a                     #<1>
-
-Removing all streams from port(s) [0, 1, 2, 3]:              [SUCCESS]
-Attaching 1 streams to port(s) [0, 1, 2, 3]:                 [SUCCESS]
-Starting traffic on port(s) [0, 1, 2, 3]:                    [SUCCESS]
-
-# pause  the traffic on all port
->pause -a                                                               #<2>
-
-# resume  the traffic on all port
->resume -a                                                              #<3>
-
-# stop traffic on all port      
->stop -a                                                                #<4>
-
-# show dynamic statistic 
->tui
-----
-<1> Start the traffic on all the ports in 10mbps. you can try with 14MPPS
-<2> Pause the traffic 
-<3> Resume
-<4> Stop on all the ports
-
-
-To look into the streams using `streams -a`
-
-.Streams
-[source,bash]
-----
-
-TRex > streams -a
-Port 0:
-
-    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
-  -----------------------------------------------------------------------------------------------
-    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
-
-Port 1:
-
-    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
-  -----------------------------------------------------------------------------------------------
-    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
-
-Port 2:
-
-    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
-  -----------------------------------------------------------------------------------------------
-    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
-
-Port 3:
-
-    ID     |     packet type     |  length  |       mode       |      rate       | next stream  
-  -----------------------------------------------------------------------------------------------
-    1      | Ethernet:IP:UDP:Raw |       56 |    Continuous    |        1.00 pps |      -1      
-
-TRex > 
-----
-
-
-to get help on a command run `command --help` 
-
-to look into general statistics
-
-[source,bash]
-----
-Global Statistics
-
-Connection  : localhost, Port 4501 
-Version     : v1.93, UUID: N/A     
-Cpu Util    : 0.2%                 
-            :                      
-Total Tx L2 : 40.01 Mb/sec         
-Total Tx L1 : 52.51 Mb/sec         
-Total Rx    : 40.01 Mb/sec         
-Total Pps   : 78.14 Kpkt/sec       
-            :                      
-Drop Rate   : 0.00 b/sec           
-Queue Full  : 0 pkts               
-
-Port Statistics
-
-   port    |         0          |         1          |     
- --------------------------------------------------------
- owner      |             hhaim |             hhaim |    
- state      |            ACTIVE |            ACTIVE |    
- --         |                   |                   |    
- Tx bps L2  |        10.00 Mbps |        10.00 Mbps |    
- Tx bps L1  |        13.13 Mbps |        13.13 Mbps |    
- Tx pps     |        19.54 Kpps |        19.54 Kpps |    
- Line Util. |            0.13 % |            0.13 % |    
- ---        |                   |                   |    
- Rx bps     |        10.00 Mbps |        10.00 Mbps |    
- Rx pps     |        19.54 Kpps |        19.54 Kpps |    
- ----       |                   |                   |    
- opackets   |           1725794 |           1725794 |    
- ipackets   |           1725794 |           1725794 |    
- obytes     |         110450816 |         110450816 |    
- ibytes     |         110450816 |         110450816 |    
- tx-bytes   |         110.45 MB |         110.45 MB |    
- rx-bytes   |         110.45 MB |         110.45 MB |    
- tx-pkts    |        1.73 Mpkts |        1.73 Mpkts |    
- rx-pkts    |        1.73 Mpkts |        1.73 Mpkts |    
- -----      |                   |                   |    
- oerrors    |                 0 |                 0 |    
- ierrors    |                 0 |                 0 |    
-
- status:  /
-
- browse:     'q' - quit, 'g' - dashboard, '0-3' - port display
- dashboard:  'p' - pause, 'c' - clear, '-' - low 5%, '+' - up 5%, 
-----
-
-
-==== Tutorial: Simple IPv4/UDP packet 
 
 The following example demonstrates 
 
@@ -518,8 +564,9 @@ TRex>start -f stl/stl/burst_3pkt_600pkt.py --port 0
 
 ==== Tutorial: Multi Burst mode
 
-file: `stl/multi_burst_2st_1000pkt.py`
+*Goal* : Learn Multi burst  
 
+file: `stl/multi_burst_2st_1000pkt.py`
 
 [source,python]
 ----
