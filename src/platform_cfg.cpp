@@ -124,7 +124,7 @@ void operator >> (const YAML::Node& node, CPlatformDualIfYamlInfo & plat_info) {
 
 void operator >> (const YAML::Node& node, CPlatformCoresYamlInfo & plat_info) {
      node["master_thread_id"] >> plat_info.m_master_thread;
-     node["rx_thread_id"] >> plat_info.m_rx_thread;
+     node["latency_thread_id"] >> plat_info.m_rx_thread;
 
      const YAML::Node& dual_info = node["dual_if"];
      for(unsigned i=0;i<dual_info.size();i++) {
