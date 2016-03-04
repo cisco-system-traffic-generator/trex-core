@@ -10,14 +10,13 @@ class STLS1(object):
         MAC dst will have <mac_dst_count> number of incremental values
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
         mac_dst_count = 10
         mac_src_count = 10
         pkts_per_burst = 10
         intf_traffic_dst_ip = '48.0.0.1'
         intf_traffic_src_ip = '16.0.0.1'
-
-        return STLHltStream(
+        stream = STLHltStream(
                 #enable_auto_detect_instrumentation = 1, # not supported yet
                 ip_dst_addr = intf_traffic_dst_ip,
                 ip_dst_count = mac_src_count,
@@ -44,9 +43,9 @@ class STLS1(object):
                 #vlan_protocol_tag_id = '{8100 8100}',
                 direction = direction,
                 )
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
+        #print stream.dump_to_profile()
+        #stream.dump_to_profile('stl/hlt/hlt_david4_gen.py')
+        return stream
 
 # dynamic load  used for trex console or simulator
 def register():

@@ -6,16 +6,13 @@ class STLS1(object):
     Eth/IPv6/UDP stream without VM, default values
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
         return [STLHltStream(l3_protocol = 'ipv6',
                              l3_length = 150,
                              l4_protocol = 'udp',
                              direction = direction,
                              ),
                ]
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
 
 # dynamic load - used for trex console or simulator
 def register():

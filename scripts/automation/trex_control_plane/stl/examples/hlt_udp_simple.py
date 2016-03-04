@@ -16,17 +16,13 @@ from trex_stl_lib.trex_stl_hltapi import *
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(usage=""" 
-    Connect to TRex and send burst of packets
+    Connect to TRex and send bidirectional continuous traffic
 
-    examples
+    examples:
 
-     hlt_udp_simple.py -s 9000 -d 30
+     hlt_udp_simple.py --server <hostname/ip>
 
-     hlt_udp_simple.py -s 9000 -d 30 -rate_percent 10
-
-     hlt_udp_simple.py -s 300 -d 30 -rate_pps 5000000
-
-     hlt_udp_simple.py -s 800 -d 30 -rate_bps 500000000 --debug
+     hlt_udp_simple.py -s 300 -d 30 -rate_pps 5000000 --src <MAC> --dst <MAC>
 
      then run the simulator on the output 
        ./stl-sim -f example.yaml -o a.pcap  ==> a.pcap include the packet
@@ -35,9 +31,9 @@ if __name__ == "__main__":
     description="Example for TRex HLTAPI",
     epilog=" based on hhaim's stl_run_udp_simple example");
 
-    parser.add_argument("--ip", 
-                        dest="ip",
-                        help='Remote trex ip',
+    parser.add_argument("--server", 
+                        dest="server",
+                        help='Remote trex address',
                         default="127.0.0.1",
                         type = str)
 
@@ -72,7 +68,7 @@ if __name__ == "__main__":
 
     hltapi = CTRexHltApi()
     print 'Connecting to TRex'
-    res = hltapi.connect(device = args.ip, port_list = [0, 1], reset = True, break_locks = True)
+    res = hltapi.connect(device = args.server, port_list = [0, 1], reset = True, break_locks = True)
     check_res(res)
     ports = res['port_handle']
     if len(ports) < 2:

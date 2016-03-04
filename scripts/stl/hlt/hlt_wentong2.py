@@ -7,7 +7,7 @@ class STLS1(object):
     Creates Eth/802.1Q/IPv6/UDP stream without VM (if num_of_sessions_per_spoke is 1)
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
         ipv6_tgen_rtr = '2005:0:1::1'
         num_of_sessions_per_spoke = 1 # in given example is not passed forward, taking default
         ipv6_address_step = '0:0:0:1:0:0:0:0'
@@ -35,9 +35,6 @@ class STLS1(object):
                 mac_src = '0c00.1110.3101',
                 mac_dst = tgen_dst_mac_rtr,
                 )
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
 
 # dynamic load  used for trex console or simulator
 def register():

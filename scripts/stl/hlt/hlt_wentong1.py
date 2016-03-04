@@ -7,7 +7,7 @@ class STLS1(object):
     Creates Eth/802.1Q/IP/UDP stream with  VM on src IP
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
         ipv4_address_step = '0.0.1.0'
         num_of_sessions_per_spoke = 1000
         ip_tgen_hub = '190.1.0.1'
@@ -34,9 +34,6 @@ class STLS1(object):
                 mac_src = '0c00.1110.3101',
                 mac_dst = tgen_dst_mac,
                 )
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
 
 # dynamic load  used for trex console or simulator
 def register():

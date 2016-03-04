@@ -79,9 +79,10 @@ src/GTAGS
 
 
 
-
+#generated
 *.pyc
-
+__pycache__
+*_GENERATED.py
  
 # Packages #
 ############

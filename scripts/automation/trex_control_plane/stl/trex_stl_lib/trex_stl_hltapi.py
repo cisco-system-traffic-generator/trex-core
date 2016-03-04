@@ -21,9 +21,12 @@ cleanup_session_kwargs = {
 traffic_config_kwargs = {
     'mode': None,                           # ( create | modify | remove | reset )
     'split_by_cores': 'split',              # ( split | duplicate | single ) TRex extention: split = split traffic by cores, duplicate = duplicate traffic for all cores, single = run only with sinle core (not implemented yet)
-    'consistent_random': False,             # TRex extention: False (default): random sequence will be different every run, True: random sequence will be same every run
+    'load_profile': None,                   # TRex extention: path to filename with stream profile (stream builder parameters will be ignored, limitation: modify)
+    'consistent_random': False,             # TRex extention: False (default) = random sequence will be different every run, True = random sequence will be same every run
+    'ignore_macs': False,                   # TRex extention: True = use MACs from server configuration , no MAC VM (workaround on lack of ARP)
     'port_handle': None,
     'port_handle2': None,
+    'bidirectional': False,
     # stream builder parameters
     'transmit_mode': 'continuous',          # ( continuous | multi_burst | single_burst )
     'rate_pps': None,
@@ -31,19 +34,18 @@ traffic_config_kwargs = {
     'rate_percent': 10,
     'stream_id': None,
     'name': None,
-    'bidirectional': 0,
-    'direction': 0,                         # ( 0 | 1 ) TRex extention: 1 = exchange sources and destinations
+    'direction': 0,                         # TRex extention: 1 = exchange sources and destinations, 0 = do nothing
     'pkts_per_burst': 1,
     'burst_loop_count': 1,
     'inter_burst_gap': 12,
     'length_mode': 'fixed',                 # ( auto | fixed | increment | decrement | random | imix )
-    'l3_imix1_size': 60,
-    'l3_imix1_ratio': 28,
-    'l3_imix2_size': 590,
-    'l3_imix2_ratio': 20,
-    'l3_imix3_size': 1514,
-    'l3_imix3_ratio': 4,
-    'l3_imix4_size': 9226,
+    'l3_imix1_size': 64,
+    'l3_imix1_ratio': 7,
+    'l3_imix2_size': 570,
+    'l3_imix2_ratio': 4,
+    'l3_imix3_size': 1518,
+    'l3_imix3_ratio': 1,
+    'l3_imix4_size': 9230,
     'l3_imix4_ratio': 0,
     #L2
     'frame_size': 64,
@@ -301,6 +303,7 @@ class CStreamsPerPort(defaultdict):
 
     # save HLT args to modify streams later
     def save_stream_args(self, ports_list, stream_id, stream_hlt_args):
+        if stream_hlt_args.get('load_profile'): return # can't modify profiles, don't save
         if not self.hlt_history: raise STLError('CStreamsPerPort: this object works only with HLT history, try init with hlt_history = True')
         if type(stream_id) not in (int, long): raise STLError('CStreamsPerPort: stream_id should be number')
         if not isinstance(stream_hlt_args, dict): raise STLError('CStreamsPerPort: stream_hlt_args should be dict')
@@ -351,8 +354,7 @@ class CTRexHltApi(object):
                 return HLT_ERR('Could not translate hostname "%s" to IP: %s' % (device, e))
 
         try:
-            # sync = RPC, async = ZMQ
-            self.trex_client = STLClient(kwargs['username'], device, sync_port = 4501, async_port = 4500, verbose_level = self.verbose)
+            self.trex_client = STLClient(kwargs['username'], device, verbose_level = self.verbose)
         except Exception as e:
             return HLT_ERR('Could not init stateless client %s: %s' % (device, e if isinstance(e, STLError) else traceback.format_exc()))
 
@@ -552,20 +554,26 @@ class CTRexHltApi(object):
                     return HLT_OK()
 
             try:
-                stream_obj = STLHltStream(**user_kwargs)
+                if kwargs['load_profile']:
+                    stream_obj = STLProfile.load_py(kwargs['load_profile'], direction = kwargs['direction'])
+                else:
+                    stream_obj = STLHltStream(**user_kwargs)
             except Exception as e:
                 return HLT_ERR('Could not create stream: %s' % e if isinstance(e, STLError) else traceback.format_exc())
 
             # try adding the stream per ports
             try:
-                stream_id_arr = self.trex_client.add_streams(streams=stream_obj,
-                                                             ports=port_handle)
+                stream_id_arr = self.trex_client.add_streams(streams = stream_obj,
+                                                             ports = port_handle)
                 for port in port_handle:
                     self._streams_history.save_stream_args(port_handle, stream_id_arr[0], user_kwargs)
             except Exception as e:
                 return HLT_ERR('Could not add stream to ports: %s' % e if isinstance(e, STLError) else traceback.format_exc())
             if mode == 'create':
-                return HLT_OK(stream_id = dict((port, stream_id_arr[0]) for port in port_handle))
+                if len(stream_id_arr) == 1:
+                    return HLT_OK(stream_id = dict((port, stream_id_arr[0]) for port in port_handle))
+                else:
+                    return HLT_OK(stream_id = dict((port, stream_id_arr) for port in port_handle))
             else:
                 return HLT_OK()
 
@@ -662,11 +670,11 @@ class CTRexHltApi(object):
                 self._remove_stream(each_stream_id, port_handle)                        # recurse
             return
         if type(stream_id) is str: # range or list in string
-            if stream_id.find(',') != -1:
+            if ',' in stream_id:
                 for each_stream_id_element in stream_id.split(','):
                     self._remove_stream(each_stream_id_element, port_handle)            # recurse
                 return
-            if stream_id.find('-') != -1:
+            if '-' in stream_id:
                 stream_id_min, stream_id_max = stream_id.split('-', 1)
                 stream_id_min = get_number(stream_id_min)
                 stream_id_max = get_number(stream_id_max)
@@ -715,34 +723,49 @@ def STLHltStream(**user_kwargs):
         user_kwargs['length_mode'] = 'fixed'
         if kwargs['l3_imix1_size'] < 32 or kwargs['l3_imix2_size'] < 32 or kwargs['l3_imix3_size'] < 32 or kwargs['l3_imix4_size'] < 32:
             raise STLError('l3_imix*_size should be at least 32')
-        total_ratio = kwargs['l3_imix1_ratio'] + kwargs['l3_imix2_ratio'] + kwargs['l3_imix3_ratio'] + kwargs['l3_imix4_ratio']
-        if total_ratio == 0:
-            raise STLError('Used length_mode imix, but all the ratios are 0')
         save_to_yaml = kwargs.get('save_to_yaml')
         total_rate = float(kwargs[rate_key])
+        if rate_key == 'rate_pps': # ratio in packets as is
+            imix1_weight = kwargs['l3_imix1_ratio']
+            imix2_weight = kwargs['l3_imix2_ratio']
+            imix3_weight = kwargs['l3_imix3_ratio']
+            imix4_weight = kwargs['l3_imix4_ratio']
+        if rate_key == 'rate_bps': # ratio dependent on L2 size too
+            imix1_weight = kwargs['l3_imix1_ratio'] * kwargs['l3_imix1_size']
+            imix2_weight = kwargs['l3_imix2_ratio'] * kwargs['l3_imix2_size']
+            imix3_weight = kwargs['l3_imix3_ratio'] * kwargs['l3_imix3_size']
+            imix4_weight = kwargs['l3_imix4_ratio'] * kwargs['l3_imix4_size']
+        elif rate_key == 'rate_percent': # ratio dependent on L1 size too
+            imix1_weight = kwargs['l3_imix1_ratio'] * (kwargs['l3_imix1_size'] + 20)
+            imix2_weight = kwargs['l3_imix2_ratio'] * (kwargs['l3_imix2_size'] + 20)
+            imix3_weight = kwargs['l3_imix3_ratio'] * (kwargs['l3_imix3_size'] + 20)
+            imix4_weight = kwargs['l3_imix4_ratio'] * (kwargs['l3_imix4_size'] + 20)
+        total_weight = float(imix1_weight + imix2_weight + imix3_weight + imix4_weight)
+        if total_weight == 0:
+            raise STLError('Used length_mode imix, but all the ratios are 0')
         if kwargs['l3_imix1_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix1.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix1_size']
-            user_kwargs[rate_key] = total_rate * kwargs['l3_imix1_ratio'] / total_ratio
+            user_kwargs[rate_key] = total_rate * imix1_weight / total_weight
             streams_arr.append(STLHltStream(**user_kwargs))
         if kwargs['l3_imix2_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix2.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix2_size']
-            user_kwargs[rate_key] = total_rate * kwargs['l3_imix2_ratio'] / total_ratio
+            user_kwargs[rate_key] = total_rate * imix2_weight / total_weight
             streams_arr.append(STLHltStream(**user_kwargs))
         if kwargs['l3_imix3_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix3.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix3_size']
-            user_kwargs[rate_key] = total_rate * kwargs['l3_imix3_ratio'] / total_ratio
+            user_kwargs[rate_key] = total_rate * imix3_weight / total_weight
             streams_arr.append(STLHltStream(**user_kwargs))
         if kwargs['l3_imix4_ratio'] > 0:
             if save_to_yaml and type(save_to_yaml) is str:
                 user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_imix4.yaml')
             user_kwargs['frame_size'] = kwargs['l3_imix4_size']
-            user_kwargs[rate_key] = total_rate * kwargs['l3_imix4_ratio'] / total_ratio
+            user_kwargs[rate_key] = total_rate * imix4_weight / total_weight
             streams_arr.append(STLHltStream(**user_kwargs))
         return streams_arr
 
@@ -781,13 +804,14 @@ def STLHltStream(**user_kwargs):
 
     debug_filename = kwargs.get('save_to_yaml')
     if type(debug_filename) is str:
-        print 'saving to %s' % debug_filename
+        print('saving to %s' % debug_filename)
         stream.dump_to_yaml(debug_filename)
     return stream
 
 def generate_packet(**user_kwargs):
     correct_macs(user_kwargs)
     kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
+    correct_sizes(kwargs) # we are producing the packet - 4 bytes fcs
     correct_direction(kwargs, kwargs)
 
     vm_cmds = []
@@ -797,12 +821,17 @@ def generate_packet(**user_kwargs):
     ### L2 ###
     if kwargs['l2_encap'] in ('ethernet_ii', 'ethernet_ii_vlan'):
                 #fields_desc = [ MACField("dst","00:00:00:01:00:00"),
-                #                MACField("src","00:00:00:02:00:00"), 
+                #                MACField("src","00:00:00:02:00:00"),
                 #                XShortEnumField("type", 0x9000, ETHER_TYPES) ]
+        if kwargs['ignore_macs']: # workaround for lack of ARP
+            kwargs['mac_src'] = None
+            kwargs['mac_dst'] = None
+            kwargs['mac_src_mode'] = 'fixed'
+            kwargs['mac_dst_mode'] = 'fixed'
+
         l2_layer = Ether(src = kwargs['mac_src'], dst = kwargs['mac_dst'])
 
-        # Eth VM
-        # !!!! Need 8 bytes mask and vars !!!! for now will change only 32 lsb
+        # Eth VM, change only 32 lsb
         if kwargs['mac_src_mode'] != 'fixed':
             count = int(kwargs['mac_src_count']) - 1
             if count < 0:
@@ -1055,7 +1084,7 @@ def generate_packet(**user_kwargs):
             ipv6_kwargs['nh'] = kwargs['ipv6_next_header']
         l3_layer = IPv6(**ipv6_kwargs)
 
-        # IPv6 VM
+        # IPv6 VM, change only 32 lsb
         if kwargs['ipv6_src_mode'] != 'fixed':
             count = int(kwargs['ipv6_src_count']) - 1
             if count < 0:
@@ -1452,3 +1481,9 @@ def correct_direction(user_kwargs, kwargs):
             if 'ipv6_src_' in arg:
                 dst_arg = 'ipv6_dst_' + arg[9:]
                 user_kwargs[arg], user_kwargs[dst_arg] = kwargs[dst_arg], kwargs[arg]
+
+def correct_sizes(kwargs):
+    for arg in kwargs.keys():
+        if type(arg) in (int, long):
+            if arg.endswith(('_length', '_size', '_size_min', '_size_max', '_length_min', '_length_max')):
+                kwargs[arg] -= 4

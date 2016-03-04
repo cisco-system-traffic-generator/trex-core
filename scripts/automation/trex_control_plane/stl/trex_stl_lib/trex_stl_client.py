@@ -1183,7 +1183,7 @@ class STLClient(object):
             ports : list
                 ports to execute the command
             streams: list
-                streams to attach
+                streams to attach (or profile)
 
         :returns:
             list of stream IDs in order of the stream list
@@ -1197,6 +1197,9 @@ class STLClient(object):
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
+
+        if isinstance(streams, STLProfile):
+            streams = streams.get_streams()
 
         # transform single stream
         if not isinstance(streams, list):
