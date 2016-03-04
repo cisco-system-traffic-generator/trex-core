@@ -344,8 +344,6 @@ class STLStream(object):
         imports_arr = []
         if 'MPLS(' in packet_command:
             imports_arr.append('from scapy.contrib.mpls import MPLS')
-        if 'VXLAN(' in packet_command:
-            imports_arr.append('from scapy.contrib.mpls import MPLS')
             
         imports = '\n'.join(imports_arr)
         if payload:
