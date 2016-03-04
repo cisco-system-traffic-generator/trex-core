@@ -6,7 +6,7 @@ class STLS1(object):
     Two Eth/IP/UDP streams with VM to get different size of packet by l3_length
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
         return [STLHltStream(length_mode = 'increment',
                              l3_length_min = 100,
                              l3_length_max = 3000,
@@ -24,9 +24,7 @@ class STLS1(object):
                              direction = direction,
                              )
                ]
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
+               
 
 # dynamic load - used for trex console or simulator
 def register():

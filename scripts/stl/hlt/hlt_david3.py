@@ -7,7 +7,7 @@ class STLS1(object):
     Creates Eth/802.1Q/802.1Q/IP/TCP stream
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
         return STLHltStream(
                 l3_protocol = 'ipv4',
                 ip_src_addr = '100.1.1.1',
@@ -39,9 +39,6 @@ class STLS1(object):
                 vlan_cfi = '1 1',
                 direction = direction,
                 )
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
 
 # dynamic load  used for trex console or simulator
 def register():

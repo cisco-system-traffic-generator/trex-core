@@ -7,7 +7,7 @@ class STLS1(object):
     Using "consistent_random = True" to have same random ports each test
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
         return [STLHltStream(l3_protocol = 'ipv4',
                              l4_protocol = 'udp',
                              udp_src_port_mode = 'random',
@@ -17,9 +17,6 @@ class STLS1(object):
                              consistent_random = True,
                              ),
                ]
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
 
 # dynamic load - used for trex console or simulator
 def register():

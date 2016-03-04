@@ -6,6 +6,7 @@ from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP, UDP, TCP, RawPcapReader
 from collections import OrderedDict, namedtuple
 
+from scapy.utils import ltoa
 import random
 import yaml
 import base64
@@ -13,7 +14,6 @@ import string
 import traceback
 from types import NoneType
 import copy
-
 
 # base class for TX mode
 class STLTXMode(object):
@@ -69,7 +69,8 @@ class STLTXCont(STLTXMode):
 
         self.fields['type'] = 'continuous'
 
-    def __str__ (self):
+    @staticmethod
+    def __str__ ():
         return "Continuous"
 
 # single burst mode
@@ -85,7 +86,8 @@ class STLTXSingleBurst(STLTXMode):
         self.fields['type'] = 'single_burst'
         self.fields['total_pkts'] = total_pkts
 
-    def __str__ (self):
+    @staticmethod
+    def __str__ ():
         return "Single Burst"
 
 # multi burst mode
@@ -113,7 +115,8 @@ class STLTXMultiBurst(STLTXMode):
         self.fields['ibg'] = ibg
         self.fields['count'] = count
 
-    def __str__ (self):
+    @staticmethod
+    def __str__ ():
         return "Multi Burst"
 
 STLStreamDstMAC_CFG_FILE=0
@@ -172,6 +175,8 @@ class STLStream(object):
         self.name = name
         self.next = next
 
+        self.mac_src_override_by_pkt = mac_src_override_by_pkt # save for easy construct code from stream object
+        self.mac_dst_override_mode = mac_dst_override_mode
         self.id = stream_id
 
 
@@ -329,7 +334,109 @@ class STLStream(object):
         del y['stream']['mode']['rate']
 
         return y
-  
+
+    # returns the Python code (text) to build this stream, inside the code it will be in variable "stream"
+    def to_code (self):
+        packet = Ether(self.pkt)
+        packet.hide_defaults()
+        payload = packet.getlayer('Raw')
+        packet_command = packet.command()
+        imports_arr = []
+        if 'MPLS(' in packet_command:
+            imports_arr.append('from scapy.contrib.mpls import MPLS')
+        if 'VXLAN(' in packet_command:
+            imports_arr.append('from scapy.contrib.mpls import MPLS')
+            
+        imports = '\n'.join(imports_arr)
+        if payload:
+            payload.remove_payload() # fcs etc.
+            data = payload.fields.get('load', '')
+            replchars = re.compile('(\s|/|\'|\\\|[^' + re.escape(string.printable) + '])') # convert bad chars to hex
+            new_data =  replchars.sub(self.__replchars_to_hex, data)
+            payload_start = packet_command.find("Raw(load='")
+            if payload_start != -1:
+                packet_command = packet_command[:payload_start-1]
+        layers = packet_command.split('/')
+        if payload:
+            if len(new_data) and new_data == new_data[0] * len(new_data):
+                layers.append("Raw(load='%s' * %s)" % (new_data[0], len(new_data)))
+            else:
+                layers.append("Raw(load='%s')" % new_data)
+        packet_code = 'packet = (' + (' / \n          ').join(layers) + ')'
+        vm_list = []
+        for inst in self.fields['vm']['instructions']:
+            if inst['type'] == 'flow_var':
+                vm_list.append("CTRexVmDescFlowVar(name='{name}', size={size}, op='{op}', init_value={init_value}, min_value={min_value}, max_value={max_value}, step={step})".format(**inst))
+            elif inst['type'] == 'write_flow_var':
+                vm_list.append("CTRexVmDescWrFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, add_val={add_value}, is_big={is_big_endian})".format(**inst))
+            elif inst['type'] == 'write_mask_flow_var':
+                inst = copy.copy(inst)
+                inst['mask'] = hex(inst['mask'])
+                vm_list.append("CTRexVmDescWrMaskFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, pkt_cast_size={pkt_cast_size}, mask={mask}, shift={shift}, add_value={add_value}, is_big={is_big_endian})".format(**inst))
+            elif inst['type'] == 'fix_checksum_ipv4':
+                vm_list.append("CTRexVmDescFixIpv4(offset={pkt_offset})".format(**inst))
+            elif inst['type'] == 'trim_pkt_size':
+                vm_list.append("CTRexVmDescTrimPktSize(fv_name='{name}')".format(**inst))
+            elif inst['type'] == 'tuple_flow_var':
+                inst = copy.copy(inst)
+                inst['ip_min'] = ltoa(inst['ip_min'])
+                inst['ip_max'] = ltoa(inst['ip_max'])
+                vm_list.append("CTRexVmDescTupleGen(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
+        vm_code = 'vm = CTRexScRaw([' + ',\n                 '.join(vm_list) + '], split_by_field = %s)' % STLStream.__add_quotes(self.fields['vm'].get('split_by_var'))
+        stream_params_list = []
+        stream_params_list.append('packet = CScapyTRexPktBuilder(pkt = packet, vm = vm)')
+        if default_STLStream.name != self.name:
+            stream_params_list.append('name = %s' % STLStream.__add_quotes(self.name))
+        if default_STLStream.fields['enabled'] != self.fields['enabled']:
+            stream_params_list.append('enabled = %s' % self.fields['enabled'])
+        if default_STLStream.fields['self_start'] != self.fields['self_start']:
+            stream_params_list.append('self_start = %s' % self.fields['self_start'])
+        if default_STLStream.fields['isg'] != self.fields['isg']:
+            stream_params_list.append('isg = %s' % self.fields['isg'])
+        if default_STLStream.fields['rx_stats'] != self.fields['rx_stats']:
+            stream_params_list.append('rx_stats = STLRxStats(%s)' % self.fields['rx_stats']['stream_id'])
+        if default_STLStream.next != self.next:
+            stream_params_list.append('next = %s' % STLStream.__add_quotes(self.next))
+        if default_STLStream.id != self.id:
+            stream_params_list.append('stream_id = %s' % self.id)
+        if default_STLStream.fields['action_count'] != self.fields['action_count']:
+            stream_params_list.append('action_count = %s' % self.fields['action_count'])
+        if 'random_seed' in self.fields:
+            stream_params_list.append('random_seed = %s' % self.fields.get('random_seed', 0))
+        if default_STLStream.mac_src_override_by_pkt != self.mac_src_override_by_pkt:
+            stream_params_list.append('mac_src_override_by_pkt = %s' % self.mac_src_override_by_pkt)
+        if default_STLStream.mac_dst_override_mode != self.mac_dst_override_mode:
+            stream_params_list.append('mac_dst_override_mode = %s' % self.mac_dst_override_mode)
+
+        mode_args = ''
+        for key, value in self.fields['mode'].items():
+            if key not in ('rate', 'type'):
+                mode_args += '%s = %s, ' % (key, value)
+        mode_args += '%s = %s' % (self.fields['mode']['rate']['type'], self.fields['mode']['rate']['value'])
+        if self.mode_desc == STLTXCont.__str__():
+            stream_params_list.append('mode = STLTXCont(%s)' % mode_args)
+        elif self.mode_desc == STLTXSingleBurst().__str__():
+            stream_params_list.append('mode = STLTXSingleBurst(%s)' % mode_args)
+        elif self.mode_desc == STLTXMultiBurst().__str__():
+            stream_params_list.append('mode = STLTXMultiBurst(%s)' % mode_args)
+        else:
+            raise STLError('Could not determine mode: %s' % self.mode_desc)
+
+        stream = "stream = STLStream(" + ',\n                   '.join(stream_params_list) + ')'
+        return '\n'.join([imports, packet_code, vm_code, stream])
+
+    # add quoted for string, or leave as is if other type
+    @staticmethod
+    def __add_quotes(arg):
+        if type(arg) is str:
+            return "'%s'" % arg
+        return arg
+
+    # used to replace non-printable characters with hex
+    @staticmethod
+    def __replchars_to_hex(match):
+        return r'\x{0:02x}'.format(ord(match.group()))
+
     def dump_to_yaml (self, yaml_file = None):
         yaml_dump = yaml.dump([self.to_yaml()], default_flow_style = False)
 
@@ -439,7 +546,7 @@ class YAMLLoader(object):
         rx_stats = self.__parse_rx_stats(s_obj.get('rx_stats'))
         
 
-        defaults = STLStream()
+        defaults = default_STLStream
         # create the stream
         stream = STLStream(name       = yaml_object.get('name'),
                            packet     = builder,
@@ -628,7 +735,33 @@ class STLProfile(object):
 
         return yaml_str
 
+    def dump_to_code (self, profile_file = None):
+        profile_dump = '''# !!! Auto-generated code !!!
+from trex_stl_lib.api import *
+
+class STLS1(object):
+    def get_streams(self):
+        streams = []
+'''
+        for stream in self.streams:
+            profile_dump += ' '*8 + stream.to_code().replace('\n', '\n' + ' '*8) + '\n'
+            profile_dump += ' '*8 + 'streams.append(stream)\n'
+        profile_dump += '''
+        return streams
+
+def register():
+    return STLS1()
+'''
+        # write to file if provided
+        if profile_file:
+            with open(profile_file, 'w') as f:
+                f.write(profile_dump)
+
+        return profile_dump
+
+
 
     def __len__ (self):
         return len(self.streams)
 
+default_STLStream = STLStream()

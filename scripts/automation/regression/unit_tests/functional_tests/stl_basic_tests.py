@@ -13,7 +13,6 @@ import sys
 import os
 import subprocess
 
-# should be set to run explicitly, not as part of all regression tests
 @attr('run_on_trex')
 class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp (self):
@@ -117,7 +116,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             os.unlink(output_cap)
 
 
-    def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True):
+    def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True, test_generated=True):
         output_cap = "a.pcap"
         input_file =  os.path.join('stl/', profile)
         golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');
@@ -133,8 +132,26 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             if compare:
                 self.compare_caps(output_cap, golden_file)
         finally:
-            if  not do_no_remove: 
+            if not do_no_remove: 
                 os.unlink(output_cap)
+        if test_generated:
+            try:
+                from trex_stl_lib.api import STLProfile # if test is skipped, don't load it
+                generated_filename = input_file.replace('.py', '_GENERATED.py').replace('.yaml', '_GENERATED.py')
+                if input_file.endswith('.py'):
+                    profile = STLProfile.load_py(input_file)
+                elif input_file.endswith('.yaml'):
+                    profile = STLProfile.load_yaml(input_file)
+                profile.dump_to_code(generated_filename)
+                rc = self.run_sim(generated_filename, output_cap, options, silent)
+                assert_equal(rc, True)
+    
+                if compare:
+                    self.compare_caps(output_cap, golden_file)
+            finally:
+                if not do_no_remove: 
+                    os.unlink(generated_filename)
+                    os.unlink(output_cap)
 
 
     def test_stl_profiles (self):
@@ -170,7 +187,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True],
             ["udp_1pkt_tuple_gen_split.py","-m 1 -c 2 -l 100",True],
             ["udp_1pkt_range_clients_split.py","-m 1 -c 2 -l 100",True],
-            ["udp_1pkt_vxlan.py","-m 1 -c 1 -l 17",True],
+            ["udp_1pkt_vxlan.py","-m 1 -c 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
             ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -c 1 -l 17",True],
             ["yaml/imix_3pkt.yaml","-m 50kpps --limit 20 --cores 2",True],
             ["yaml/imix_3pkt_vm.yaml","-m 50kpps --limit 20 --cores 2",True],
@@ -195,7 +212,11 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         
 
         for obj in p:
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], do_no_remove=True)
+            try:
+                test_generated = obj[3]
+            except: # check generated if not said otherwise
+                test_generated = True
+            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], test_generated = test_generated, do_no_remove=True)
 
 
     def test_hlt_profiles (self):
@@ -212,7 +233,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ['hlt/hlt_tcp_ranges.py', '-m 1 -l 20', True],
             ['hlt/hlt_udp_ports.py', '-m 1 -l 20', True],
             ['hlt/hlt_udp_random_ports.py', '-m 1 -l 20', True],
-            #['hlt/hlt_ip_ranges.py', '-m 1 -l 20', True], # can't run now, random on full range issue
+            ['hlt/hlt_ip_ranges.py', '-m 1 -l 20', True],
             ['hlt/hlt_framesize_vm.py', '-m 1 -l 20', True],
             ['hlt/hlt_l3_length_vm.py', '-m 1 -l 20', True],
             ['hlt/hlt_vlan_default.py', '-m 1 -l 20', True],

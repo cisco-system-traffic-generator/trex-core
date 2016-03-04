@@ -29,10 +29,10 @@ class STLS1(object):
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,
                             vm = vm)
-
-        return STLStream(packet = pkt,
+        stream = STLStream(packet = pkt,
                          mode = STLTXCont())
-
+        print stream.to_code()
+        return stream
 
 
     def get_streams (self, direction = 0):

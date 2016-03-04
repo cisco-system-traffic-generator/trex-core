@@ -7,8 +7,7 @@ class STLS1(object):
     Missing values will be filled with defaults
     '''
 
-    def create_streams (self, direction = 0):
-
+    def get_streams (self, direction = 0):
         return STLHltStream(frame_size = 100,
                             vlan_id = '1 2 1000 4 5',                          # 5 vlans
                             vlan_id_mode = 'increment fixed decrement random', # 5th vlan will be default fixed
@@ -18,9 +17,6 @@ class STLS1(object):
                             l4_protocol = 'udp',
                             direction = direction,
                             )
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction = direction)
 
 # dynamic load - used for trex console or simulator
 def register():

@@ -7,7 +7,8 @@ class STLS1(object):
     Creates 3 streams (imix) Eth/802.1Q/IP/TCP without VM
     '''
 
-    def create_streams (self, direction = 0):
+    def get_streams (self, direction = 0):
+        #'''
         return STLHltStream(
                 #enable_auto_detect_instrumentation = '1', # not supported yet
                 ip_dst_addr = '192.168.1.3',
@@ -35,9 +36,16 @@ class STLS1(object):
                 vlan_id = '1',
                 direction = direction,
                 )
-
-    def get_streams (self, direction = 0):
-        return self.create_streams(direction)
+        '''
+        return STLHltStream(
+                frame_size = 1000,
+                length_mode = 'fixed',
+                rate_percent = 0.001,
+                transmit_mode = 'continuous',
+                l3_protocol = 'ipv4',
+                l4_protocol = 'udp',
+                )
+        '''
 
 # dynamic load - used for trex console or simulator
 def register():

@@ -8,7 +8,7 @@ class STLS1(object):
     Seconds stream will decrease the packet size in reverse way
     '''
 
-    def create_streams (self):
+    def get_streams (self, direction = 0):
         max_size = 9*1024
         return [STLHltStream(length_mode = 'increment',
                              frame_size_max = max_size,
@@ -31,9 +31,6 @@ class STLS1(object):
                              rate_pps = 1,
                              )
                ]
-
-    def get_streams (self, direction = 0):
-        return self.create_streams()
 
 # dynamic load - used for trex console or simulator
 def register():

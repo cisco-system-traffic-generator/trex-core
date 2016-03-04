@@ -674,7 +674,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     When path_relative_to_profile is True load pcap file from path relative to the profile
     """
-    def __init__(self, pkt = None, pkt_buffer = None, vm = None, path_relative_to_profile = False):
+    def __init__(self, pkt = None, pkt_buffer = None, vm = None, path_relative_to_profile = False, build_raw = True, remove_fcs = True):
         """
         Instantiate a CTRexPktBuilder object
 
@@ -688,8 +688,10 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         self.pkt_raw = None # from raw pcap file
         self.vm_scripts = [] # list of high level instructions
         self.vm_low_level = None
+        self.is_pkt_built = False
         self.metadata=""
         self.path_relative_to_profile = path_relative_to_profile
+        self.remove_fcs = remove_fcs
         
 
         if pkt != None and pkt_buffer != None:
@@ -709,13 +711,17 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
             self.add_command(vm if isinstance(vm, CTRexScRaw) else CTRexScRaw(vm))
 
+        # raw source build to see MAC presence/ fields offset by name in VM
+        if build_raw and self.pkt_raw and not self.pkt:
+            self.__lazy_build_packet()
+
         # if we have packet and VM - compile now
         if (self.pkt or self.pkt_raw) and (self.vm_scripts):
             self.compile()
 
 
     def dump_vm_data_as_yaml(self):
-       print yaml.dump(self.get_vm_data(), default_flow_style=False)
+        print yaml.dump(self.get_vm_data(), default_flow_style=False)
 
     def get_vm_data(self):
         """
@@ -861,9 +867,6 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
         
         self.vm_low_level = CTRexVmEngine()
-    
-        # before VM compile set this to false
-        self.is_pkt_built = False
 
         # compile the VM
         for sc in self.vm_scripts:
@@ -947,6 +950,8 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         # for buffer, promote to a scapy packet
         if self.pkt_raw:
             self.pkt = Ether(self.pkt_raw)
+            if self.remove_fcs and self.pkt.lastlayer().name == 'Padding':
+                self.pkt.lastlayer().underlayer.remove_payload()
             self.pkt.build()
             self.pkt_raw = None
 
