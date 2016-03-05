@@ -89,6 +89,7 @@ class CPhyEthIF  {
     void start();
     void stop();
     void update_link_status();
+    void update_link_status_nowait();
     bool is_link_up(){
         return (m_link.link_status?true:false);
     }

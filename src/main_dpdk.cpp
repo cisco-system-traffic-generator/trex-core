@@ -1472,6 +1472,10 @@ void CPhyEthIF::update_link_status(){
     rte_eth_link_get(m_port_id, &m_link);
 }
 
+void CPhyEthIF::update_link_status_nowait(){
+    rte_eth_link_get_nowait(m_port_id, &m_link);
+}
+
 void CPhyEthIF::add_mac(char * mac){
     struct ether_addr mac_addr;
     int i=0;
@@ -2645,6 +2649,7 @@ public:
     void get_stats(CGlobalStats & stats);
     void dump_post_test_stats(FILE *fd);
     void dump_config(FILE *fd);
+    void dump_links_status(FILE *fd);
 
 public:
     port_cfg_t  m_port_cfg;
@@ -2942,10 +2947,6 @@ int  CGlobalTRex::ixgbe_start(void){
             _if->disable_flow_control();
         }
 
-        _if->update_link_status();
-
-        _if->dump_link(stdout);
-
         _if->add_mac((char *)CGlobalInfo::m_options.get_src_mac_addr(i));
 
         fflush(stdout);
@@ -2956,12 +2957,15 @@ int  CGlobalTRex::ixgbe_start(void){
         get_ex_drv()->wait_for_stable_link();
 
         if ( !is_all_links_are_up(true) ){
+            dump_links_status(stdout);
             rte_exit(EXIT_FAILURE, " "
                      " one of the link is down \n");
         }
     } else {
         get_ex_drv()->wait_after_link_up();
     }
+
+    dump_links_status(stdout);
 
     ixgbe_rx_queue_flush();
 
@@ -3208,6 +3212,14 @@ void CGlobalTRex::dump_config(FILE *fd){
     fprintf(fd," max queue per port      : %u \n",m_max_queues_per_port);
 }
 
+
+void CGlobalTRex::dump_links_status(FILE *fd){
+    for (int i=0; i<m_max_ports; i++) {
+        CPhyEthIF * _if=&m_ports[i];
+        _if->update_link_status_nowait();
+        _if->dump_link(fd);
+    }
+}
 
 
 void CGlobalTRex::dump_post_test_stats(FILE *fd){
