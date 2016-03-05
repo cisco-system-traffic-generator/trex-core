@@ -123,7 +123,7 @@ class STLSim(object):
              duration = -1,
              mode = 'none'):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt']:
+        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt','native']:
             raise STLArgumentError('mode', mode)
 
         # listify
@@ -210,6 +210,9 @@ class STLSim(object):
             return
         elif mode == 'pkt':
             print STLProfile(stream_list).dump_as_pkt();
+            return
+        elif mode == 'native':
+            print STLProfile(stream_list).dump_to_code()
             return
 
 
@@ -406,6 +409,11 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
+    group.add_argument("--native",
+                       help = "generate Python code with stateless profile from input file [default is False]",
+                       action = "store_true",
+                       default = False)
+
     return parser
 
 
@@ -436,6 +444,8 @@ def main ():
         mode = 'json'
     elif options.yaml:
         mode = 'yaml'
+    elif options.native:
+        mode = 'native'
     elif options.pkt:
         mode = 'pkt'
     else:
