@@ -12,6 +12,8 @@ from trex_stl_lib import trex_stl_sim
 import sys
 import os
 import subprocess
+import shlex
+from threading import Thread
 
 @attr('run_on_trex')
 class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
@@ -36,7 +38,9 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         for k, v in self.profiles.iteritems():
             self.verify_exists(v)
 
-        self.valgrind_profiles = [ self.profiles['imix_3pkt_vm'], self.profiles['random_size_9k'], self.profiles['imix_tuple_gen']]
+        self.valgrind_profiles = [ self.profiles['imix_3pkt_vm'],
+                                   self.profiles['random_size_9k'],
+                                   self.profiles['imix_tuple_gen'] ]
 
         self.golden_path = os.path.join(self.test_path,"stl/golden/")
 
@@ -81,31 +85,21 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
 
-    def run_sim (self, yaml, output, options = "", silent = False):
+    def run_sim (self, yaml, output, options = "", silent = False, obj = None):
         if output:
             user_cmd = "-f {0} -o {1} {2}".format(yaml, output, options)
         else:
             user_cmd = "-f {0} {1}".format(yaml, options)
 
-        rc = trex_stl_sim.main(args = user_cmd.split())
+        if silent:
+            user_cmd += " --silent"
+
+        rc = trex_stl_sim.main(args = shlex.split(user_cmd))
+        if obj:
+            obj['rc'] = (rc == 0)
 
         return (rc == 0)
 
-
-    def golden_run (self, testname,  profile, options, silent = False):
-
-        output_cap = os.path.join("/tmp/", "{0}_test.cap".format(testname))
-        golden_cap = os.path.join(self.test_path, "stl/golden/{0}_golden.cap".format(testname))
-        if os.path.exists(output_cap):
-            os.unlink(output_cap)
-        try:
-            rc = self.run_sim(self.profiles[profile], output_cap, options, silent)
-            assert_equal(rc, True)
-
-            self.compare_caps(output_cap, golden_cap)
-
-        finally:
-            os.unlink(output_cap)
 
 
     def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True, test_generated=True):
@@ -239,13 +233,26 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         for obj in p:
             self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True)
 
-    # valgrind tests
+    # valgrind tests - this runs in multi thread as it safe (no output)
     def test_valgrind_various_profiles (self):
 
         print "\n"
+        threads = []
         for profile in self.valgrind_profiles:
-            print "\n*** testing profile '{0}' ***\n".format(profile)
-            rc = self.run_sim(profile, output = None, options = "--cores 8 --limit 20 --valgrind", silent = False)
-            assert_equal(rc, True)
+            print "\n*** VALGRIND: testing profile '{0}' ***\n".format(profile)
+            obj = {'t': None, 'rc': None}
+            t = Thread(target = self.run_sim,
+                       kwargs = {'obj': obj, 'yaml': profile, 'output':None, 'options': "--cores 8 --limit 20 --valgrind", 'silent': True})
+            obj['t'] = t
+
+            threads.append(obj)
+            t.start()
+
+        for obj in threads:
+            obj['t'].join()
+
+        for obj in threads:
+            assert_equal(obj['rc'], True)
+
 
 

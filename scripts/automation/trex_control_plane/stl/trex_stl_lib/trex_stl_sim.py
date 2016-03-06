@@ -121,7 +121,8 @@ class STLSim(object):
              pkt_limit = 5000,
              mult = "1",
              duration = -1,
-             mode = 'none'):
+             mode = 'none',
+             silent = False):
 
         if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt','native']:
             raise STLArgumentError('mode', mode)
@@ -225,6 +226,7 @@ class STLSim(object):
         self.mult = mult
         self.duration = duration,
         self.mode = mode
+        self.silent = silent
 
         self.__run(cmds_json)
 
@@ -285,7 +287,13 @@ class STLSim(object):
             cmd = ['/usr/bin/gdb', '--args'] + cmd
 
         print "executing command: '{0}'".format(" ".join(cmd))
-        rc = subprocess.call(cmd)
+
+        if self.silent:
+            FNULL = open(os.devnull, 'w')
+            rc = subprocess.call(cmd, stdout=FNULL)
+        else:
+            rc = subprocess.call(cmd)
+
         if rc != 0:
             raise STLError('simulation has failed with error code {0}'.format(rc))
 
@@ -357,6 +365,11 @@ def setParserOptions():
                         action = "store_true",
                         default = False)
 
+
+    parser.add_argument("-s", "--silent",
+                        help = "runs on silent mode (no stdout) [default is False]",
+                        action = "store_true",
+                        default = False)
 
     parser.add_argument("-l", "--limit",
                         help = "limit test total packet count [default is 5000]",
@@ -462,7 +475,8 @@ def main (args = None):
               pkt_limit = options.limit,
               mult = options.mult,
               duration = options.duration,
-              mode = mode)
+              mode = mode,
+              silent = options.silent)
 
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
