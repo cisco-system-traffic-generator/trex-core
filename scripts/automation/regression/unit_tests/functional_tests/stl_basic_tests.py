@@ -8,7 +8,7 @@ from nose.tools import nottest
 from nose.plugins.attrib import attr
 from unit_tests.trex_general_test import CTRexScenario
 from dpkt import pcap
-
+from trex_stl_lib import trex_stl_sim
 import sys
 import os
 import subprocess
@@ -87,15 +87,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         else:
             user_cmd = "-f {0} {1}".format(yaml, options)
 
-        cmd = "{0} {1}".format(self.stl_sim,
-                               user_cmd)
-
-        if silent:
-            devnull = open('/dev/null', 'w')
-            rc = subprocess.call(cmd, shell = True, stdout = devnull)
-        else:
-            print cmd
-            rc = subprocess.call(cmd, shell = True)
+        rc = trex_stl_sim.main(args = user_cmd.split())
 
         return (rc == 0)
 

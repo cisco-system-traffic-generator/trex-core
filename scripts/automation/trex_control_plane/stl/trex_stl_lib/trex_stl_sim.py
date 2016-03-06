@@ -428,9 +428,9 @@ def validate_args (parser, options):
         parser.error("limit cannot be lower than number of DP cores")
 
 
-def main ():
+def main (args = None):
     parser = setParserOptions()
-    options = parser.parse_args()
+    options = parser.parse_args(args = args)
 
     validate_args(parser, options)
 
@@ -466,13 +466,14 @@ def main ():
 
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
-        exit(1)
+        return (-1)
 
     except STLError as e:
         print e
-        exit(1)
+        return (-1)
 
-    exit(0)
+    return (0)
+
 
 if __name__ == '__main__':
     main()
