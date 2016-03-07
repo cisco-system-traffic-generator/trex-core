@@ -599,6 +599,16 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
     return 0;
 }
 
+int CFlowStatRuleMgr::get_active_pgids(flow_stat_active_t &result) {
+    flow_stat_user_id_map_it_t it;
+
+    for (it = m_user_id_map.begin(); it != m_user_id_map.end(); it++) {
+        result.insert(it->first);
+    }
+
+    return 0;
+}
+
 // return false if no counters changed since last run. true otherwise
 bool CFlowStatRuleMgr::dump_json(std::string & json) {
     uint64_t rx_stats[MAX_FLOW_STATS];

@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#include <set>
+
 #ifndef __TREX_DEFS_H__
 #define __TREX_DEFS_H__
 
@@ -28,5 +30,8 @@ limitations under the License.
     #define UINT16_MAX 0xFFFF
 #endif
 
+
+typedef std::set<uint32_t> flow_stat_active_t;
+typedef std::set<uint32_t>::iterator flow_stat_active_it_t;
 
 #endif

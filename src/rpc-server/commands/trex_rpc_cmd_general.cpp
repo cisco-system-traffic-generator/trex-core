@@ -40,7 +40,7 @@ using namespace std;
 /**
  * ping command
  */
-trex_rpc_cmd_rc_e 
+trex_rpc_cmd_rc_e
 TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 
     result["result"] = Json::objectValue;
@@ -50,7 +50,7 @@ TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 /**
  * query command
  */
-trex_rpc_cmd_rc_e 
+trex_rpc_cmd_rc_e
 TrexRpcCmdGetCmds::_run(const Json::Value &params, Json::Value &result) {
     vector<string> cmds;
 
@@ -68,7 +68,7 @@ TrexRpcCmdGetCmds::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * get version
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetVersion::_run(const Json::Value &params, Json::Value &result) {
@@ -94,11 +94,30 @@ TrexRpcCmdGetVersion::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetActivePGIds::_run(const Json::Value &params, Json::Value &result) {
+    flow_stat_active_t active_flow_stat;
+    flow_stat_active_it_t it;
+    int i = 0;
+
+    Json::Value &section = result["result"];
+    section["ids"] = Json::arrayValue;
+
+    if (get_stateless_obj()->get_platform_api()->get_active_pgids(active_flow_stat) < 0)
+        return TREX_RPC_CMD_INTERNAL_ERR;
+
+    for (it = active_flow_stat.begin(); it != active_flow_stat.end(); it++) {
+        section["ids"][i++] = *it;
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
 /**
  * get the CPU model
- * 
+ *
  */
-std::string 
+std::string
 TrexRpcCmdGetSysInfo::get_cpu_model() {
 
     static const string cpu_prefix = "model name";
@@ -141,7 +160,7 @@ TrexRpcCmdGetSysInfo::get_hostname(string &hostname) {
 
 /**
  * get system info
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
@@ -161,7 +180,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["core_type"] = get_cpu_model();
 
     /* ports */
-   
+
 
     section["port_count"] = main->get_port_count();
 
@@ -175,7 +194,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         string dst_macaddr;
         string pci_addr;
         int numa;
-        
+
         TrexStatelessPort *port = main->get_port_by_id(i);
         port->get_properties(driver, speed);
         port->get_macaddr(hw_macaddr, src_macaddr, dst_macaddr);
@@ -194,7 +213,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
         section["ports"][i]["rx"]["caps"]      = port->get_rx_caps();
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();
-            
+
 
         switch (speed) {
         case TrexPlatformApi::SPEED_1G:
@@ -223,13 +242,13 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * set port commands
- * 
+ *
  * @author imarom (24-Feb-16)
- * 
- * @param params 
- * @param result 
- * 
- * @return trex_rpc_cmd_rc_e 
+ *
+ * @param params
+ * @param result
+ *
+ * @return trex_rpc_cmd_rc_e
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
@@ -246,9 +265,9 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
         if (name == "promiscuous") {
             bool enabled = parse_bool(attr[name], "enabled", result);
             port->set_promiscuous(enabled);
-        }   
+        }
     }
-    
+
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
 }
@@ -256,13 +275,13 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * returns the current owner of the device
- * 
+ *
  * @author imarom (08-Sep-15)
- * 
- * @param params 
- * @param result 
- * 
- * @return trex_rpc_cmd_rc_e 
+ *
+ * @param params
+ * @param result
+ *
+ * @return trex_rpc_cmd_rc_e
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetOwner::_run(const Json::Value &params, Json::Value &result) {
@@ -278,7 +297,7 @@ TrexRpcCmdGetOwner::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * acquire device
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
@@ -305,7 +324,7 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * release device
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
@@ -327,7 +346,7 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * get port stats
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
@@ -347,13 +366,13 @@ TrexRpcCmdGetPortStats::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * fetch the port status
- * 
+ *
  * @author imarom (09-Dec-15)
- * 
- * @param params 
- * @param result 
- * 
- * @return trex_rpc_cmd_rc_e 
+ *
+ * @param params
+ * @param result
+ *
+ * @return trex_rpc_cmd_rc_e
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
@@ -373,7 +392,7 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * publish async data now (fast flush)
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcPublishNow::_run(const Json::Value &params, Json::Value &result) {
