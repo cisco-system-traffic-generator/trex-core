@@ -513,7 +513,7 @@ public:
         bool      m_enabled;
         bool      m_seq_enabled;
         bool      m_latency;
-        uint32_t  m_user_id;
+        uint32_t  m_pg_id;
         uint16_t  m_hw_id;
     } m_rx_check;
 

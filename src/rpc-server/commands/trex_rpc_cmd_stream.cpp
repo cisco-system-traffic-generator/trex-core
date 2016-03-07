@@ -81,7 +81,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_pkt.len    = std::max(pkt_binary.size(), 60UL);
 
     /* allocate and init to zero ( with () ) */
-    stream->m_pkt.binary = new uint8_t[pkt_binary.size()]();
+    stream->m_pkt.binary = new uint8_t[stream->m_pkt.len]();
     if (!stream->m_pkt.binary) {
         generate_internal_err(result, "unable to allocate memory");
     }
@@ -101,7 +101,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     parse_vm(vm, stream, result);
 
     /* parse RX info */
-    const Json::Value &rx = parse_object(section, "rx_stats", result);
+    const Json::Value &rx = parse_object(section, "flow_stats", result);
 
     stream->m_rx_check.m_enabled = parse_bool(rx, "enabled", result);
 
@@ -114,7 +114,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
             generate_parse_err(result, "RX stats is not supported on this interface");
         }
 
-        stream->m_rx_check.m_user_id      = parse_int(rx, "stream_id", result);
+        stream->m_rx_check.m_pg_id      = parse_int(rx, "stream_id", result);
         stream->m_rx_check.m_seq_enabled  = parse_bool(rx, "seq_enabled", result);
         stream->m_rx_check.m_latency      = parse_bool(rx, "latency_enabled", result);
     }

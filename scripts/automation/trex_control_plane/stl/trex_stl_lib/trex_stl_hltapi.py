@@ -795,7 +795,6 @@ def STLHltStream(**user_kwargs):
                            #enabled = True,
                            #self_start = True,
                            mode = transmit_mode_class,
-                           #rx_stats = rx_stats,
                            stream_id = kwargs['stream_id'],
                            name = kwargs['name'],
                            )

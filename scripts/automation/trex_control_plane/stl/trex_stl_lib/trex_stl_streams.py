@@ -124,12 +124,12 @@ STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
 # RX stats class
-class STLRxStats(object):
-    def __init__ (self, user_id):
+class STLFlowStats(object):
+    def __init__ (self, pg_id):
         self.fields = {}
 
         self.fields['enabled']         = True
-        self.fields['stream_id']       = user_id
+        self.fields['stream_id']       = pg_id
         self.fields['seq_enabled']     = False
         self.fields['latency_enabled'] = False
 
@@ -150,7 +150,7 @@ class STLStream(object):
                   enabled = True,
                   self_start = True,
                   isg = 0.0,
-                  rx_stats = None,
+                  flow_stats = None,
                   next = None,
                   stream_id = None,
                   action_count = 0,
@@ -241,10 +241,10 @@ class STLStream(object):
         # this is heavy, calculate lazy
         self.packet_desc = None
 
-        if not rx_stats:
-            self.fields['rx_stats'] = STLRxStats.defaults()
+        if not flow_stats:
+            self.fields['flow_stats'] = STLFlowStats.defaults()
         else:
-            self.fields['rx_stats'] = rx_stats.to_json()
+            self.fields['flow_stats'] = flow_stats.to_json()
 
 
     def __str__ (self):
@@ -344,8 +344,6 @@ class STLStream(object):
         imports_arr = []
         if 'MPLS(' in packet_command:
             imports_arr.append('from scapy.contrib.mpls import MPLS')
-        if 'VXLAN(' in packet_command:
-            imports_arr.append('from scapy.contrib.mpls import MPLS')
             
         imports = '\n'.join(imports_arr)
         if payload:
@@ -393,8 +391,8 @@ class STLStream(object):
             stream_params_list.append('self_start = %s' % self.fields['self_start'])
         if default_STLStream.fields['isg'] != self.fields['isg']:
             stream_params_list.append('isg = %s' % self.fields['isg'])
-        if default_STLStream.fields['rx_stats'] != self.fields['rx_stats']:
-            stream_params_list.append('rx_stats = STLRxStats(%s)' % self.fields['rx_stats']['stream_id'])
+        if default_STLStream.fields['flow_stats'] != self.fields['flow_stats']:
+            stream_params_list.append('flow_stats = STLFlowStats(%s)' % self.fields['flow_stats']['stream_id'])
         if default_STLStream.next != self.next:
             stream_params_list.append('next = %s' % STLStream.__add_quotes(self.next))
         if default_STLStream.id != self.id:
@@ -515,17 +513,17 @@ class YAMLLoader(object):
 
 
 
-    def __parse_rx_stats (self, rx_stats_obj):
+    def __parse_flow_stats (self, flow_stats_obj):
 
         # no such object
-        if not rx_stats_obj or rx_stats_obj.get('enabled') == False:
+        if not flow_stats_obj or flow_stats_obj.get('enabled') == False:
             return None
 
-        user_id = rx_stats_obj.get('stream_id') 
-        if user_id == None:
+        pg_id = flow_stats_obj.get('stream_id') 
+        if pg_id == None:
             raise STLError("enabled RX stats section must contain 'stream_id' field")
 
-        return STLRxStats(user_id = user_id)
+        return STLFlowStats(pg_id = pg_id)
 
 
     def __parse_stream (self, yaml_object):
@@ -543,7 +541,7 @@ class YAMLLoader(object):
         mode = self.__parse_mode(s_obj.get('mode'))
 
         # rx stats
-        rx_stats = self.__parse_rx_stats(s_obj.get('rx_stats'))
+        flow_stats = self.__parse_flow_stats(s_obj.get('flow_stats'))
         
 
         defaults = default_STLStream
@@ -551,7 +549,7 @@ class YAMLLoader(object):
         stream = STLStream(name       = yaml_object.get('name'),
                            packet     = builder,
                            mode       = mode,
-                           rx_stats   = rx_stats,
+                           flow_stats   = flow_stats,
                            enabled    = s_obj.get('enabled', defaults.fields['enabled']),
                            self_start = s_obj.get('self_start', defaults.fields['self_start']),
                            isg        = s_obj.get('isg', defaults.fields['isg']),

@@ -8,7 +8,7 @@
     mode:
       type: continuous
       pps: 100
-    rx_stats: []
+    flow_stats: []
     vm: []
 - name: udp_64B_2
   stream:
@@ -18,7 +18,7 @@
     mode:
       type: continuous
       pps: 100
-    rx_stats: []
+    flow_stats: []
     vm: []
 - name: udp_64B_3
   stream:
@@ -28,7 +28,7 @@
     mode:
       type: continuous
       pps: 100
-    rx_stats: []
+    flow_stats: []
     vm: []
 - name: udp_64B_4
   stream:
@@ -38,5 +38,5 @@
     mode:
       type: continuous
       pps: 100
-    rx_stats: []
+    flow_stats: []
     vm: []            

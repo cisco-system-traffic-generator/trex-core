@@ -8,7 +8,7 @@
     mode:
       type: continuous
       pps: 100
-    rx_stats: []
+    flow_stats: []
 
     vm:
       instructions: [

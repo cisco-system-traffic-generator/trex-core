@@ -18,7 +18,7 @@ def rx_example (tx_port, rx_port, burst_size):
         total_pkts = burst_size
         s1 = STLStream(name = 'rx',
                        packet = pkt,
-                       rx_stats = STLRxStats(user_id = 5),
+                       flow_stats = STLFlowStats(pg_id = 5),
                        mode = STLTXSingleBurst(total_pkts = total_pkts, bps_L2 = 250000000))
 
         # connect to server
@@ -36,11 +36,11 @@ def rx_example (tx_port, rx_port, burst_size):
         c.wait_on_traffic(ports = [tx_port])
 
         # no error check - just an example... should be 5
-        rx_stats = c.get_stats()['rx_stats'][5]
+        flow_stats = c.get_stats()['flow_stats'][5]
 
-        tx_pkts  = rx_stats['tx-pkts'][tx_port]
-        tx_bytes = rx_stats['tx-bytes'][tx_port]
-        rx_pkts  = rx_stats['rx-pkts'][rx_port]
+        tx_pkts  = flow_stats['tx_pkts'][tx_port]
+        tx_bytes = flow_stats['tx_bytes'][tx_port]
+        rx_pkts  = flow_stats['rx_pkts'][rx_port]
 
         if tx_pkts != total_pkts:
             print "TX pkts mismatch - got: {0}, expected: {1}".format(tx_pkts, total_pkts)

@@ -950,20 +950,18 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         # for buffer, promote to a scapy packet
         if self.pkt_raw:
             self.pkt = Ether(self.pkt_raw)
-            if self.remove_fcs and self.pkt.lastlayer().name == 'Padding':
-                self.pkt.lastlayer().underlayer.remove_payload()
-            self.pkt.build()
             self.pkt_raw = None
 
         # regular scapy packet
-        elif self.pkt:
-            self.pkt.build()
-
-        else:
+        elif not self.pkt:
             # should not reach here
             raise CTRexPacketBuildException(-11, 'empty packet')  
 
-
+        if self.remove_fcs and self.pkt.lastlayer().name == 'Padding':
+            self.pkt.lastlayer().underlayer.remove_payload()
+        if len(self.pkt) < 60: # simulator can write padding with non-zeros, set it explicit
+            self.pkt /= Padding('\x00' * (60 - len(self.pkt)))
+        self.pkt.build()
         self.is_pkt_built = True
 
     def _pkt_layer_offset (self,layer_name):

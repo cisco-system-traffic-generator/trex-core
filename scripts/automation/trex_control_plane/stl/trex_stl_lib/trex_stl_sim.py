@@ -121,9 +121,10 @@ class STLSim(object):
              pkt_limit = 5000,
              mult = "1",
              duration = -1,
-             mode = 'none'):
+             mode = 'none',
+             silent = False):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt']:
+        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt','native']:
             raise STLArgumentError('mode', mode)
 
         # listify
@@ -211,6 +212,9 @@ class STLSim(object):
         elif mode == 'pkt':
             print STLProfile(stream_list).dump_as_pkt();
             return
+        elif mode == 'native':
+            print STLProfile(stream_list).dump_to_code()
+            return
 
 
         # start simulation
@@ -222,6 +226,7 @@ class STLSim(object):
         self.mult = mult
         self.duration = duration,
         self.mode = mode
+        self.silent = silent
 
         self.__run(cmds_json)
 
@@ -282,7 +287,13 @@ class STLSim(object):
             cmd = ['/usr/bin/gdb', '--args'] + cmd
 
         print "executing command: '{0}'".format(" ".join(cmd))
-        rc = subprocess.call(cmd)
+
+        if self.silent:
+            FNULL = open(os.devnull, 'w')
+            rc = subprocess.call(cmd, stdout=FNULL)
+        else:
+            rc = subprocess.call(cmd)
+
         if rc != 0:
             raise STLError('simulation has failed with error code {0}'.format(rc))
 
@@ -355,6 +366,11 @@ def setParserOptions():
                         default = False)
 
 
+    parser.add_argument("-s", "--silent",
+                        help = "runs on silent mode (no stdout) [default is False]",
+                        action = "store_true",
+                        default = False)
+
     parser.add_argument("-l", "--limit",
                         help = "limit test total packet count [default is 5000]",
                         default = 5000,
@@ -406,6 +422,11 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
+    group.add_argument("--native",
+                       help = "generate Python code with stateless profile from input file [default is False]",
+                       action = "store_true",
+                       default = False)
+
     return parser
 
 
@@ -420,9 +441,9 @@ def validate_args (parser, options):
         parser.error("limit cannot be lower than number of DP cores")
 
 
-def main ():
+def main (args = None):
     parser = setParserOptions()
-    options = parser.parse_args()
+    options = parser.parse_args(args = args)
 
     validate_args(parser, options)
 
@@ -436,6 +457,8 @@ def main ():
         mode = 'json'
     elif options.yaml:
         mode = 'yaml'
+    elif options.native:
+        mode = 'native'
     elif options.pkt:
         mode = 'pkt'
     else:
@@ -452,17 +475,19 @@ def main ():
               pkt_limit = options.limit,
               mult = options.mult,
               duration = options.duration,
-              mode = mode)
+              mode = mode,
+              silent = options.silent)
 
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
-        exit(1)
+        return (-1)
 
     except STLError as e:
         print e
-        exit(1)
+        return (-1)
 
-    exit(0)
+    return (0)
+
 
 if __name__ == '__main__':
     main()

@@ -7,7 +7,7 @@ class STLS1(object):
     def get_streams (self, direction = 0):
         return [STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap"), # path relative to pwd 
                           mode = STLTXCont(pps=10),
-                          rx_stats = STLRxStats(user_id = 7))
+                          flow_stats = STLFlowStats(pg_id = 7))
                ]
 
 
