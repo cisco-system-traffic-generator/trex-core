@@ -240,7 +240,7 @@ public:
 
     void flush_dp_messages() const {
     }
-    int get_active_pgids(flow_stat_active_t &result) {/*??? implement*/ return 0;};
+    int get_active_pgids(flow_stat_active_t &result) const {return 0;}
 
 private:
     int m_dp_core_count;
