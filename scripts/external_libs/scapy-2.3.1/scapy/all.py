@@ -18,8 +18,8 @@ from arch import *
 from plist import *
 from fields import *
 from packet import *
-from asn1fields import *
-from asn1packet import *
+#from asn1fields import *
+#from asn1packet import *
 
 from utils import *
 from route import *
@@ -39,11 +39,11 @@ from main import *
 
 from layers.all import *
 
-from asn1.asn1 import *
-from asn1.ber import *
-from asn1.mib import *
+#from asn1.asn1 import *
+#from asn1.ber import *
+#from asn1.mib import *
 
-from crypto import *
+#from crypto import *
 
 from pipetool import *
 from scapypipes import *
