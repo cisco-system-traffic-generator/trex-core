@@ -1,5 +1,5 @@
 from trex_stl_lib.api import *
-from scapy.layers.dns import * # import from contrib folder of scapy 
+from scapy.layers.dns import * # import from layers. in default only ipv4/ipv6 are imported for speedup 
 
 
 class STLS1(object):
