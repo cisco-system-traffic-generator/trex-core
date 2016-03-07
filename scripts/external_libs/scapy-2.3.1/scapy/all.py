@@ -22,14 +22,14 @@ from packet import *
 #from asn1packet import *
 
 from utils import *
-from route import *
+#from route import *
 #if conf.ipv6_enabled:
 #    from utils6 import *
 #    from route6 import *
 #from sendrecv import *
 #from supersocket import *
-from volatile import *
-from as_resolvers import *
+#from volatile import *
+#from as_resolvers import *
 
 #from ansmachine import *
 #from automaton import *
