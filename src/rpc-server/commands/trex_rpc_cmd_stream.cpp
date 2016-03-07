@@ -81,7 +81,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_pkt.len    = std::max(pkt_binary.size(), 60UL);
 
     /* allocate and init to zero ( with () ) */
-    stream->m_pkt.binary = new uint8_t[pkt_binary.size()]();
+    stream->m_pkt.binary = new uint8_t[stream->m_pkt.len]();
     if (!stream->m_pkt.binary) {
         generate_internal_err(result, "unable to allocate memory");
     }
