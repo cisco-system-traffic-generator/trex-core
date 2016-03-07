@@ -20,7 +20,7 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Release 1.94 [not released]  ==
+== Release 1.94  ==
 
 * Fix Python API stop/sync issue. Now TX counters are synced in case of stop API 
 * Improve performance of Python API, ~2000 cycles/sec of load/start/stop
@@ -41,6 +41,7 @@ class STLS1(object):
 <1> Configure this stream to be count on all RX ports as user_id=7
 
 * Add HTLAPI full example (examples `examples/hlt_udp_simple.py`)
+* Add user manual draft for Stateless functionality link:draft_trex_stateless.html[here]
 
 
 == Release 1.93  ==
