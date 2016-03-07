@@ -124,7 +124,7 @@ STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
 # RX stats class
-class STLRxStats(object):
+class STLFlowStats(object):
     def __init__ (self, pg_id):
         self.fields = {}
 
@@ -242,7 +242,7 @@ class STLStream(object):
         self.packet_desc = None
 
         if not flow_stats:
-            self.fields['flow_stats'] = STLRxStats.defaults()
+            self.fields['flow_stats'] = STLFlowStats.defaults()
         else:
             self.fields['flow_stats'] = flow_stats.to_json()
 
@@ -392,7 +392,7 @@ class STLStream(object):
         if default_STLStream.fields['isg'] != self.fields['isg']:
             stream_params_list.append('isg = %s' % self.fields['isg'])
         if default_STLStream.fields['flow_stats'] != self.fields['flow_stats']:
-            stream_params_list.append('flow_stats = STLRxStats(%s)' % self.fields['flow_stats']['stream_id'])
+            stream_params_list.append('flow_stats = STLFlowStats(%s)' % self.fields['flow_stats']['stream_id'])
         if default_STLStream.next != self.next:
             stream_params_list.append('next = %s' % STLStream.__add_quotes(self.next))
         if default_STLStream.id != self.id:
@@ -523,7 +523,7 @@ class YAMLLoader(object):
         if pg_id == None:
             raise STLError("enabled RX stats section must contain 'stream_id' field")
 
-        return STLRxStats(pg_id = pg_id)
+        return STLFlowStats(pg_id = pg_id)
 
 
     def __parse_stream (self, yaml_object):

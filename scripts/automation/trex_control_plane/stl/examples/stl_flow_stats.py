@@ -18,7 +18,7 @@ def rx_example (tx_port, rx_port, burst_size):
         total_pkts = burst_size
         s1 = STLStream(name = 'rx',
                        packet = pkt,
-                       flow_stats = STLRxStats(pg_id = 5),
+                       flow_stats = STLFlowStats(pg_id = 5),
                        mode = STLTXSingleBurst(total_pkts = total_pkts, bps_L2 = 250000000))
 
         # connect to server
