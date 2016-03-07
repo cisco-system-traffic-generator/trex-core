@@ -1,6 +1,5 @@
 from trex_stl_lib.api import *
 
-# 1 clients MAC override the LSB of destination
 class STLS1(object):
 
     def __init__ (self):
@@ -17,10 +16,10 @@ class STLS1(object):
         pad = max(0, size - len(base_pkt)) * 'x'
 
 
-        return STLProfile( [ STLStream( isg = 1.0, # star in delay 
+        return STLProfile( [ STLStream( isg = 1.0, # star in delay in usec 
                                         packet = STLPktBuilder(pkt = base_pkt/pad),
                                         mode = STLTXCont( pps = 10),
-                                        ), # point to next stream 
+                                        ), 
 
                              STLStream( isg = 2.0,
                                         packet  = STLPktBuilder(pkt = base_pkt1/pad),
