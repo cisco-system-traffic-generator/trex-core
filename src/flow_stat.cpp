@@ -391,7 +391,7 @@ std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf) {
 
 int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, Cxl710Parser &parser) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << " en:";
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << " en:";
     std::cout << stream->m_rx_check.m_enabled << std::endl;
 #endif
 
@@ -428,7 +428,7 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, Cxl710Parser &pa
 
 int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
 #endif
 
     if (! m_api ) {
@@ -468,12 +468,12 @@ int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
         return -1;
     }
 
-    return m_user_id_map.add_stream(stream->m_rx_check.m_user_id, l4_proto);
+    return m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
 }
 
 int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
 #endif
 
     if (no_stat_supported)
@@ -483,7 +483,7 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
         return 0;
     }
 
-    return m_user_id_map.del_stream(stream->m_rx_check.m_user_id);
+    return m_user_id_map.del_stream(stream->m_rx_check.m_pg_id);
 }
 
 // called on all streams, when stream start to transmit
@@ -494,7 +494,7 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
 // Might change the IP ID of the stream packet
 int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
 #endif
 
     Cxl710Parser parser;
@@ -523,8 +523,8 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
     }
 
     // from here, we know the stream need rx stat
-    if (m_user_id_map.is_started(stream->m_rx_check.m_user_id)) {
-        m_user_id_map.start_stream(stream->m_rx_check.m_user_id); // just increase ref count;
+    if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
+        m_user_id_map.start_stream(stream->m_rx_check.m_pg_id); // just increase ref count;
     } else {
         uint16_t hw_id = m_hw_id_map.find_free_hw_id();
         if (hw_id > m_max_hw_id) {
@@ -534,14 +534,14 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
             printf("Error: %s failed finding free hw_id\n", __func__);
             return -1;
         } else {
-            uint32_t user_id = stream->m_rx_check.m_user_id;
+            uint32_t user_id = stream->m_rx_check.m_pg_id;
             m_user_id_map.start_stream(user_id, hw_id);
             m_hw_id_map.map(hw_id, user_id);
             add_hw_rule(hw_id, m_user_id_map.l4_proto(user_id));
         }
     }
 
-    uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_user_id); // can't fail if we got here
+    uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id); // can't fail if we got here
     parser.set_ip_id(IP_ID_RESERVE_BASE + hw_id);
 
     ret_hw_id = hw_id;
@@ -563,7 +563,7 @@ int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint8_t proto) {
 
 int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_user_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
 #endif
     if (no_stat_supported)
         return -ENOTSUP;
@@ -572,11 +572,11 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
         return 0;
     }
 
-    if (m_user_id_map.stop_stream(stream->m_rx_check.m_user_id) == 0) {
+    if (m_user_id_map.stop_stream(stream->m_rx_check.m_pg_id) == 0) {
         // last stream associated with the entry stopped transmittig.
         // remove user_id <--> hw_id mapping
-        uint8_t proto = m_user_id_map.l4_proto(stream->m_rx_check.m_user_id);
-        uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_user_id);
+        uint8_t proto = m_user_id_map.l4_proto(stream->m_rx_check.m_pg_id);
+        uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id);
         if (hw_id >= MAX_FLOW_STATS) {
             fprintf(stderr, "Error: %s got wrong hw_id %d from unmap\n", __func__, hw_id);
             return -1;
@@ -592,7 +592,7 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
                 p_user_id->set_rx_counter(port, rx_counter);
                 p_user_id->set_tx_counter(port, tx_counter);
             }
-            m_user_id_map.unmap(stream->m_rx_check.m_user_id);
+            m_user_id_map.unmap(stream->m_rx_check.m_pg_id);
             m_hw_id_map.unmap(hw_id);
         }
     }
@@ -610,7 +610,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
     if (m_user_id_map.is_empty()) {
         return false;
     }
-    root["name"] = "rx-stats";
+    root["name"] = "flow_stats";
     root["type"] = 0;
     Json::Value &data_section = root["data"];
 
@@ -650,12 +650,12 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
 
             if (user_id_info->get_rx_counter(port) != 0) {
-                data_section[str_user_id]["rx-pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
+                data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
                 ret = true;
             }
             if (user_id_info->get_tx_counter(port).get_pkts() != 0) {
-                data_section[str_user_id]["tx-pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_pkts());
-                data_section[str_user_id]["tx-bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_bytes());
+                data_section[str_user_id]["tx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_pkts());
+                data_section[str_user_id]["tx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_bytes());
                 ret = true;
             }
         }

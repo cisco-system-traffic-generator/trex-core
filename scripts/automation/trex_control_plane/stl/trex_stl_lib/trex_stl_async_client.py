@@ -281,7 +281,7 @@ class CTRexAsyncClient():
         elif name == "trex-barrier":
             self.handle_async_barrier(type, data)
 
-        elif name == "rx-stats":
+        elif name == "flow_stats":
             self.event_handler.handle_async_rx_stats_event(data)
 
         else:

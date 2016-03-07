@@ -462,7 +462,7 @@ create_simple_stream(Json::Value &obj) {
     }
 
     obj["vm"] = Json::arrayValue;
-    obj["rx_stats"]["enabled"] = false;
+    obj["flow_stats"]["enabled"] = false;
 }
 
 static bool

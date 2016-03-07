@@ -131,10 +131,10 @@ class CTRexInfoGenerator(object):
                                        ("ipackets", []),
                                        ("obytes", []),
                                        ("ibytes", []),
-                                       ("tx-bytes", []),
-                                       ("rx-bytes", []),
-                                       ("tx-pkts", []),
-                                       ("rx-pkts", []),
+                                       ("tx_bytes", []),
+                                       ("rx_bytes", []),
+                                       ("tx_pkts", []),
+                                       ("rx_pkts", []),
 
                                        ("-----", []),
                                        ("oerrors", []),
@@ -627,10 +627,10 @@ class CPortStats(CTRexStats):
                  "obytes"   : self.get_rel("obytes"),
                  "ibytes"   : self.get_rel("ibytes"),
 
-                 "tx-bytes": self.get_rel("obytes", format = True, suffix = "B"),
-                 "rx-bytes": self.get_rel("ibytes", format = True, suffix = "B"),
-                 "tx-pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
-                 "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
+                 "tx_bytes": self.get_rel("obytes", format = True, suffix = "B"),
+                 "rx_bytes": self.get_rel("ibytes", format = True, suffix = "B"),
+                 "tx_pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
+                 "rx_pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
 
                  "oerrors"  : format_num(self.get_rel("oerrors"),
                                          compact = False,
@@ -645,28 +645,28 @@ class CPortStats(CTRexStats):
 
 class CRxStats(object):
     def __init__(self):
-        self.rx_stats = {}
+        self.flow_stats = {}
 
 
     def update (self, snapshot):
-        self.rx_stats = snapshot
+        self.flow_stats = snapshot
 
 
     def get_stats (self):
         stats = {}
-        for user_id, user_id_data in self.rx_stats.iteritems():
-            # ignore non user ID keys
+        for pg_id, pg_id_data in self.flow_stats.iteritems():
+            # ignore non pg ID keys
             try:
-                user_id = int(user_id)
+                pg_id = int(pg_id)
             except ValueError:
                 continue
 
-            # handle user id
-            stats[user_id] = {}
-            for field, per_port_data in user_id_data.iteritems():
-                stats[user_id][field] = {}
+            # handle pg id
+            stats[pg_id] = {}
+            for field, per_port_data in pg_id_data.iteritems():
+                stats[pg_id][field] = {}
                 for port, value in per_port_data.iteritems():
-                    stats[user_id][field][int(port)] = value
+                    stats[pg_id][field][int(port)] = value
 
         return stats
 
