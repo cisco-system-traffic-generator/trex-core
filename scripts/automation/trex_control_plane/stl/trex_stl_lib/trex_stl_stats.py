@@ -382,15 +382,13 @@ class CTRexInfoGenerator(object):
 class CTRexStats(object):
     """ This is an abstract class to represent a stats object """
 
-    def __init__(self, flowing = True):
+    def __init__(self):
         self.reference_stats = {}
         self.latest_stats = {}
         self.last_update_ts = time.time()
         self.history = deque(maxlen = 10)
         self.lock = threading.Lock()
 
-        # does the object gets a constant flow of data ? 
-        self.flowing = flowing
 
     ######## abstract methods ##########
 
@@ -428,8 +426,8 @@ class CTRexStats(object):
         # handle the reference (base)
         self.__update_ref()
 
-        # for flowing objects 3 seconds is too much
-        if self.flowing and (diff_time > 3):
+        # 3 seconds its a timeout
+        if diff_time > 3:
             self.clear_stats()
 
 
@@ -444,24 +442,24 @@ class CTRexStats(object):
         self.latest_stats = {}
 
 
-    def __get (self, src, field):
+    def _get (self, src, field, default = None):
         if isinstance(field, list):
             # deep
             value = src
             for level in field:
                 if not level in value:
-                    return None
+                    return default
                 value = value[level]
         else:
             # flat
             if not field in src:
-                return None
+                return default
             value = src[field]
 
         return value
 
     def get(self, field, format=False, suffix=""):
-        value = self.__get(self.latest_stats, field)
+        value = self._get(self.latest_stats, field)
         if value == None:
             return "N/A"
 
@@ -469,12 +467,12 @@ class CTRexStats(object):
 
 
     def get_rel(self, field, format=False, suffix=""):
-        ref_value = self.__get(self.reference_stats, field)
+        ref_value = self._get(self.reference_stats, field)
         if ref_value == None:
             return "N/A"
 
         # if the latest does not have the value - its like the ref
-        latest_value = self.__get(self.latest_stats, field)
+        latest_value = self._get(self.latest_stats, field)
         if latest_value == None:
             latest_value = ref_value
 
@@ -753,20 +751,28 @@ class CPortStats(CTRexStats):
 
 class CRxStats(CTRexStats):
     def __init__(self):
-        super(CRxStats, self).__init__(flowing = False)
+        super(CRxStats, self).__init__()
 
+    def bps_L1 (self, bps, pps):
+        if pps == 0:
+            return 0
+
+        factor = bps / (pps * 8.0)
+        return bps * ( 1 + (20 / factor) )
 
 
     def preprocess_snapshot (self, snapshot):
         # heavy pre-processing here...
         new_snapshot = {}
 
-        if not 'timestamp' in snapshot:
-            raise ValueError("INTERNAL ERROR: RX stats snapshot MUST contain 'timestamp' field")
+        if not 'ts' in snapshot:
+            raise ValueError("INTERNAL ERROR: RX stats snapshot MUST contain 'ts' field")
+
+        new_snapshot['ts'] = snapshot['ts']
 
         for key, value in snapshot.iteritems():
             # skip non int values (simply copy)
-            if key == 'timestamp':
+            if key == 'ts':
                 new_snapshot[key] = value
                 continue
 
@@ -785,10 +791,45 @@ class CRxStats(CTRexStats):
                         new_snapshot[pg_id][field][int(port)] = pv
                         new_snapshot[pg_id][field]['total'] +=  pv
 
-
+            # add B/W calcs for a PG id
+            self.calculate_bw(new_snapshot, pg_id)
 
         snapshot.clear()
         snapshot.update(new_snapshot)
+
+
+    def calculate_bw (self, snapshot, pg_id):
+        if not self.latest_stats:
+            snapshot[pg_id]['tx_pps'] = 0.0
+            snapshot[pg_id]['tx_bps'] = 0.0
+            snapshot[pg_id]['rx_pps'] = 0.0
+            snapshot[pg_id]['rx_bps'] = 0.0
+            return
+
+        # prev
+        prev_ts       = self._get(self.latest_stats, 'ts')
+        prev_tx_pkts  = self._get(self.latest_stats, [pg_id, 'tx_pkts', 'total'], default = 0.0)
+        prev_tx_bytes = self._get(self.latest_stats, [pg_id, 'tx_bytes', 'total'], default = 0.0)
+        prev_tx_pps   = self._get(self.latest_stats, [pg_id, 'tx_pps'], default = 0.0)
+        prev_tx_bps   = self._get(self.latest_stats, [pg_id, 'tx_bps'], default = 0.0)
+
+        # now
+        now_ts       = snapshot['ts']
+        now_tx_pkts  = snapshot[pg_id]['tx_pkts']['total']
+        now_tx_bytes = snapshot[pg_id]['tx_bytes']['total']
+
+        # diff seconds
+        diff_sec = (now_ts['value'] - prev_ts['value']) / float(now_ts['freq'])
+        
+        # calculate fields
+        snapshot[pg_id]['tx_pps'] = (0.5 * prev_tx_pps) + (0.5 * ( (now_tx_pkts - prev_tx_pkts) / diff_sec) )
+        snapshot[pg_id]['tx_bps'] = (0.5 * prev_tx_bps) + (0.5 * ( (now_tx_bytes - prev_tx_bytes) * 8 / diff_sec) )
+
+        snapshot[pg_id]['rx_pps'] = 0.0
+        snapshot[pg_id]['rx_bps'] = 0.0
+
+        snapshot[pg_id]['tx_bps_L1'] = self.bps_L1(snapshot[pg_id]['tx_bps'], snapshot[pg_id]['tx_pps'])
+
 
     def get_stats (self):
         stats = {}
@@ -824,11 +865,12 @@ class CRxStats(CTRexStats):
         cnt = len(pg_ids)
 
         
-        formatted_stats = OrderedDict([ ('Tx bps L2',  []),
-                                        ('Tx bps L1',   []),
-                                        ('Tx pps',      []),
+        formatted_stats = OrderedDict([ ('Tx pps',  []),
+                                        ('Tx bps L2',      []),
+                                        ('Tx bps L1',      []),
                                         ('---', [''] * cnt),
                                         ('Rx pps',      []),
+                                        ('Rx bps',      []),
                                         ('----', [''] * cnt),
                                         ('opackets',    []),
                                         ('ipackets',    []),
@@ -846,13 +888,14 @@ class CRxStats(CTRexStats):
         # maximum 4
         for pg_id in pg_ids:
 
-            #formatted_stats['TX packet count'].append(stats[key]['tx-pkts']['total'])
-            #formatted_stats['TX byte count'].append(stats[key]['tx-bytes']['total'])
-            #formatted_stats['RX packet count'].append(stats[key]['rx-pkts']['total'])
-            formatted_stats['Tx bps L2'].append(0)
-            formatted_stats['Tx bps L1'].append(0)
-            formatted_stats['Tx pps'].append(0)
-            formatted_stats['Rx pps'].append(0)
+            formatted_stats['Tx pps'].append(self.get([pg_id, 'tx_pps'], format = True, suffix = "pps"))
+            formatted_stats['Tx bps L2'].append(self.get([pg_id, 'tx_bps'], format = True, suffix = "bps"))
+
+            formatted_stats['Tx bps L1'].append(self.get([pg_id, 'tx_bps_L1'], format = True, suffix = "bps"))
+
+            formatted_stats['Rx pps'].append(self.get([pg_id, 'rx_pps'], format = True, suffix = "pps"))
+            formatted_stats['Rx bps'].append(self.get([pg_id, 'rx_bps'], format = True, suffix = "bps"))
+            
             formatted_stats['opackets'].append(self.get_rel([pg_id, 'tx_pkts', 'total']))
             formatted_stats['ipackets'].append(self.get_rel([pg_id, 'rx_pkts', 'total']))
             formatted_stats['obytes'].append(self.get_rel([pg_id, 'tx_bytes', 'total']))

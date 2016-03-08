@@ -631,7 +631,9 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
     root["name"] = "flow_stats";
     root["type"] = 0;
     Json::Value &data_section = root["data"];
-    data_section["timestamp"] = Json::Value::UInt64(os_get_hr_tick_64());
+    
+    data_section["ts"]["value"] = Json::Value::UInt64(os_get_hr_tick_64());
+    data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
 
     if (m_user_id_map.is_empty()) {
         if (force_sync) {
