@@ -522,18 +522,20 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
         return 0;
     }
 
+    uint16_t hw_id;
     // from here, we know the stream need rx stat
     if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
         m_user_id_map.start_stream(stream->m_rx_check.m_pg_id); // just increase ref count;
+        hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id); // can't fail if we got here
     } else {
-        uint16_t hw_id = m_hw_id_map.find_free_hw_id();
-        if (hw_id > m_max_hw_id) {
-            m_max_hw_id = hw_id;
-        }
+        hw_id = m_hw_id_map.find_free_hw_id();
         if (hw_id == FREE_HW_ID) {
             printf("Error: %s failed finding free hw_id\n", __func__);
             return -1;
         } else {
+            if (hw_id > m_max_hw_id) {
+                m_max_hw_id = hw_id;
+            }
             uint32_t user_id = stream->m_rx_check.m_pg_id;
             m_user_id_map.start_stream(user_id, hw_id);
             m_hw_id_map.map(hw_id, user_id);
@@ -541,7 +543,6 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
         }
     }
 
-    uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id); // can't fail if we got here
     parser.set_ip_id(IP_ID_RESERVE_BASE + hw_id);
 
     ret_hw_id = hw_id;
@@ -615,7 +616,6 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     Json::FastWriter writer;
     Json::Value root;
-    bool ret = false;
 
     if (m_user_id_map.is_empty()) {
         return false;
@@ -661,16 +661,15 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
 
             if (user_id_info->get_rx_counter(port) != 0) {
                 data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
-                ret = true;
             }
             if (user_id_info->get_tx_counter(port).get_pkts() != 0) {
                 data_section[str_user_id]["tx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_pkts());
                 data_section[str_user_id]["tx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_bytes());
-                ret = true;
             }
         }
     }
 
     json = writer.write(root);
-    return ret;
+    // We always want to publish, even only the timestamp.
+    return true;
 }

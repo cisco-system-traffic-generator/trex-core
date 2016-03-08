@@ -18,7 +18,13 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 */
+#include <assert.h>
+#include <pthread.h>
 #include <pwd.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <zmq.h>
 #include <rte_common.h>
 #include <rte_log.h>
 #include <rte_memory.h>
@@ -45,38 +51,27 @@
 #include <rte_random.h>
 #include <rte_version.h>
 #include "bp_sim.h"
-#include "latency.h"
 #include "os_time.h"
-#include <common/arg/SimpleGlob.h>
-#include <common/arg/SimpleOpt.h>
-#include <common/basic_utils.h>
-
-#include <stateless/cp/trex_stateless.h>
-#include <stateless/dp/trex_stream_node.h>
-#include <publisher/trex_publisher.h>
-#include <stateless/messaging/trex_stateless_messaging.h>
-
-#include <../linux_dpdk/version.h>
-
+#include "common/arg/SimpleGlob.h"
+#include "common/arg/SimpleOpt.h"
+#include "common/basic_utils.h"
+#include "stateless/cp/trex_stateless.h"
+#include "stateless/dp/trex_stream_node.h"
+#include "stateless/messaging/trex_stateless_messaging.h"
+#include "publisher/trex_publisher.h"
+#include "../linux_dpdk/version.h"
 extern "C" {
-#include <dpdk22/drivers/net/ixgbe/base/ixgbe_type.h>
+#include "dpdk22/drivers/net/ixgbe/base/ixgbe_type.h"
 }
-#include <dpdk22/drivers/net/e1000/base/e1000_regs.h>
-#include <zmq.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <assert.h>
-#include <pthread.h>
+#include "dpdk22/drivers/net/e1000/base/e1000_regs.h"
 #include "global_io_mode.h"
 #include "utl_term_io.h"
 #include "msg_manager.h"
 #include "platform_cfg.h"
 #include "latency.h"
-#include "main_dpdk.h"
 #include "debug.h"
-
-#include <internal_api/trex_platform_api.h>
+#include "internal_api/trex_platform_api.h"
+#include "main_dpdk.h"
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -3918,9 +3913,9 @@ int CPhyEthIF::reset_hw_flow_stats() {
 
 // get/reset flow director counters
 // return 0 if OK. -1 if operation not supported.
-// stats - If not NULL, returning counter numbers in it.
-// index - If non negative, get only counter with this index
-// reset - If true, reset counter value after reading
+// rx_stats, tx_stats - arrays of len max - min + 1. Returning rx, tx updated values.
+// min, max - minimum, maximum counters range to get
+// reset - If true, need to reset counter value after reading
 int CPhyEthIF::get_flow_stats(uint64_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
     uint32_t diff_stats[MAX_FLOW_STATS];
 
@@ -3932,20 +3927,20 @@ int CPhyEthIF::get_flow_stats(uint64_t *rx_stats, tx_per_flow_t *tx_stats, int m
         if ( reset ) {
             // return value so far, and reset
             if (rx_stats != NULL) {
-                rx_stats[i] = m_stats.m_rx_per_flow[i] + diff_stats[i];
+                rx_stats[i - min] = m_stats.m_rx_per_flow[i] + diff_stats[i];
             }
             if (tx_stats != NULL) {
-                tx_stats[i] = g_trex.get_flow_tx_stats(m_port_id, i);
+                tx_stats[i - min] = g_trex.get_flow_tx_stats(m_port_id, i);
             }
             m_stats.m_rx_per_flow[i] = 0;
             g_trex.clear_flow_tx_stats(m_port_id, i);
         } else {
             m_stats.m_rx_per_flow[i] += diff_stats[i];
             if (rx_stats != NULL) {
-                rx_stats[i] = m_stats.m_rx_per_flow[i];
+                rx_stats[i - min] = m_stats.m_rx_per_flow[i];
             }
             if (tx_stats != NULL) {
-                tx_stats[i] = g_trex.get_flow_tx_stats(m_port_id, i);
+                tx_stats[i - min] = g_trex.get_flow_tx_stats(m_port_id, i);
             }
         }
     }
