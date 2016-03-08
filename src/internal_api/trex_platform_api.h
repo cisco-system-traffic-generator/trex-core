@@ -26,6 +26,7 @@ limitations under the License.
 #include <vector>
 #include <string>
 #include <string.h>
+#include "trex_defs.h"
 
 /**
  * Global stats
@@ -149,7 +150,7 @@ public:
     virtual void set_promiscuous(uint8_t port_id, bool enabled) const = 0;
     virtual bool get_promiscuous(uint8_t port_id) const = 0;
     virtual void flush_dp_messages() const = 0;
-
+    virtual int get_active_pgids(flow_stat_active_t &result) const = 0;
     virtual ~TrexPlatformApi() {}
 };
 
@@ -178,6 +179,7 @@ public:
     void set_promiscuous(uint8_t port_id, bool enabled) const;
     bool get_promiscuous(uint8_t port_id) const;
     void flush_dp_messages() const;
+    int get_active_pgids(flow_stat_active_t &result) const;
 };
 
 
@@ -238,6 +240,7 @@ public:
 
     void flush_dp_messages() const {
     }
+    int get_active_pgids(flow_stat_active_t &result) const {return 0;}
 
 private:
     int m_dp_core_count;

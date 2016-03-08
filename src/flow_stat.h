@@ -184,6 +184,7 @@ class CFlowStatRuleMgr {
     int del_stream(const TrexStream * stream);
     int start_stream(TrexStream * stream, uint16_t &ret_hw_id);
     int stop_stream(const TrexStream * stream);
+    int get_active_pgids(flow_stat_active_t &result);
     bool dump_json(std::string & json);
 
  private:
