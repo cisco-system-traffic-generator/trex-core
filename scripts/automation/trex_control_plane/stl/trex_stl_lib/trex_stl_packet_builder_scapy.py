@@ -1,7 +1,7 @@
 import random
 import string
 import struct
-import socket       
+import socket
 import json
 import yaml
 import binascii
@@ -50,13 +50,13 @@ def mac_str_to_num (mac_buffer):
 
 def is_valid_ipv4(ip_addr):
     """
-    return buffer in network order 
+    return buffer in network order
     """
     if  type(ip_addr)==str and len(ip_addr) == 4:
         return ip_addr
 
     if  type(ip_addr)==int :
-        ip_addr = socket.inet_ntoa(struct.pack("!I", ip_addr)) 
+        ip_addr = socket.inet_ntoa(struct.pack("!I", ip_addr))
 
     try:
         return socket.inet_pton(socket.AF_INET, ip_addr)
@@ -81,7 +81,7 @@ def is_valid_ipv6(ipv6_addr):
 
 class CTRexScriptsBase(object):
     """
-    VM Script base class 
+    VM Script base class
     """
     def clone (self):
         return copy.deepcopy(self)
@@ -105,7 +105,7 @@ class CTRexScFieldRangeValue(CTRexScFieldRangeBase):
     """
     range of field value
     """
-    def __init__(self, field_name, 
+    def __init__(self, field_name,
                        field_type,
                        min_value,
                        max_value
@@ -135,7 +135,7 @@ class CTRexScIpv4SimpleRange(CTRexScFieldRangeBase):
 
 class CTRexScIpv4TupleGen(CTRexScriptsBase):
     """
-    range tuple 
+    range tuple
     """
     FLAGS_ULIMIT_FLOWS =1
 
@@ -157,7 +157,7 @@ class CTRexScIpv4TupleGen(CTRexScriptsBase):
 
 class CTRexScTrimPacketSize(CTRexScriptsBase):
     """
-    trim packet size. field type is CTRexScFieldRangeBase.FILED_TYPES = ["inc","dec","rand"]  
+    trim packet size. field type is CTRexScFieldRangeBase.FILED_TYPES = ["inc","dec","rand"]
     """
     def __init__(self,field_type="rand",min_pkt_size=None, max_pkt_size=None):
         super(CTRexScTrimPacketSize, self).__init__()
@@ -174,7 +174,7 @@ class CTRexScTrimPacketSize(CTRexScriptsBase):
 
 class CTRexScRaw(CTRexScriptsBase):
     """
-    raw instructions 
+    raw instructions
     """
     def __init__(self,list_of_commands=None,split_by_field=None):
         super(CTRexScRaw, self).__init__()
@@ -190,7 +190,7 @@ class CTRexScRaw(CTRexScriptsBase):
 
 
 ################################################################################################
-# VM raw instructions 
+# VM raw instructions
 ################################################################################################
 
 class CTRexVmInsBase(object):
@@ -283,7 +283,7 @@ class CTRexVmInsTupleGen(CTRexVmInsBase):
 
 
 ################################################################################################
-# 
+#
 class CTRexVmEngine(object):
 
        def __init__(self):
@@ -294,7 +294,7 @@ class CTRexVmEngine(object):
             self.ins=[]
             self.split_by_var = ''
 
-       # return as json 
+       # return as json
        def get_json (self):
            inst_array = [];
            # dump it as dict
@@ -352,7 +352,7 @@ class CTRexScapyPktUtl(object):
 
     def _layer_offset(self, name, cnt = 0):
         """
-        return offset of layer e.g 'IP',1 will return offfset of layer ip:1 
+        return offset of layer e.g 'IP',1 will return offfset of layer ip:1
         """
         save_cnt=cnt
         for pkt in self.pkt_iter ():
@@ -367,7 +367,7 @@ class CTRexScapyPktUtl(object):
 
     def layer_offset(self, name, cnt = 0):
         """
-        return offset of layer e.g 'IP',1 will return offfset of layer ip:1 
+        return offset of layer e.g 'IP',1 will return offfset of layer ip:1
         """
         save_cnt=cnt
         for pkt in self.pkt_iter ():
@@ -381,7 +381,7 @@ class CTRexScapyPktUtl(object):
 
     def get_field_offet(self, layer, layer_cnt, field_name):
         """
-        return offset of layer e.g 'IP',1 will return offfset of layer ip:1 
+        return offset of layer e.g 'IP',1 will return offfset of layer ip:1
         """
         t=self._layer_offset(layer,layer_cnt);
         l_offset=t[1];
@@ -397,7 +397,7 @@ class CTRexScapyPktUtl(object):
 
     def get_layer_offet_by_str(self, layer_des):
         """
-        return layer offset by string  
+        return layer offset by string
 
        :parameters:
 
@@ -423,14 +423,14 @@ class CTRexScapyPktUtl(object):
 
     def get_field_offet_by_str(self, field_des):
         """
-        return field_des (offset,size) layer:cnt.field 
-        for example 
+        return field_des (offset,size) layer:cnt.field
+        for example
         802|1Q.vlan get 802.1Q->valn replace | with .
         IP.src
         IP:0.src  (first IP.src like IP.src)
         for example IP:1.src  for internal IP
 
-        return (offset, size) as tuple 
+        return (offset, size) as tuple
 
 
         """
@@ -489,19 +489,19 @@ class CTRexVmDescBase(object):
     def get_var_ref (self):
         '''
           virtual function return a ref var name
-        ''' 
+        '''
         return None
 
     def get_var_name(self):
         '''
           virtual function return the varible name if exists
-        ''' 
+        '''
         return None
 
-    def compile(self,parent): 
+    def compile(self,parent):
         '''
           virtual function to take parent than has function name_to_offset
-        ''' 
+        '''
         pass;
 
 
@@ -558,12 +558,12 @@ class CTRexVmDescFlowVar(CTRexVmDescBase):
 class CTRexVmDescFixIpv4(CTRexVmDescBase):
     def __init__(self, offset):
         super(CTRexVmDescFixIpv4, self).__init__()
-        self.offset = offset; # could be a name of offset 
+        self.offset = offset; # could be a name of offset
 
     def get_obj (self):
         return CTRexVmInsFixIpv4(self.offset);
 
-    def compile(self,parent): 
+    def compile(self,parent):
         if type(self.offset)==str:
             self.offset = parent._pkt_layer_offset(self.offset);
 
@@ -586,7 +586,7 @@ class CTRexVmDescWrFlowVar(CTRexVmDescBase):
     def get_obj (self):
             return  CTRexVmInsWrFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.add_val,self.is_big)
 
-    def compile(self,parent): 
+    def compile(self,parent):
         if type(self.pkt_offset)==str:
             t=parent._name_to_offset(self.pkt_offset)
             self.pkt_offset = t[0]
@@ -620,7 +620,7 @@ class CTRexVmDescWrMaskFlowVar(CTRexVmDescBase):
     def get_obj (self):
             return  CTRexVmInsWrMaskFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.pkt_cast_size,self.mask,self.shift,self.add_value,self.is_big)
 
-    def compile(self,parent): 
+    def compile(self,parent):
         if type(self.pkt_offset)==str:
             t=parent._name_to_offset(self.pkt_offset)
             self.pkt_offset = t[0]
@@ -670,11 +670,11 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
     """
     This class defines the TRex API of building a packet using scapy package.
     Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
-    pkt could be Scapy pkt or pcap file name 
+    pkt could be Scapy pkt or pcap file name
 
     When path_relative_to_profile is True load pcap file from path relative to the profile
     """
-    def __init__(self, pkt = None, pkt_buffer = None, vm = None, path_relative_to_profile = False, build_raw = True, remove_fcs = True):
+    def __init__(self, pkt = None, pkt_buffer = None, vm = None, path_relative_to_profile = False, build_raw = False, remove_fcs = True):
         """
         Instantiate a CTRexPktBuilder object
 
@@ -684,7 +684,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         """
         super(CScapyTRexPktBuilder, self).__init__()
 
-        self.pkt = None     # as input 
+        self.pkt = None     # as input
         self.pkt_raw = None # from raw pcap file
         self.vm_scripts = [] # list of high level instructions
         self.vm_low_level = None
@@ -692,7 +692,8 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         self.metadata=""
         self.path_relative_to_profile = path_relative_to_profile
         self.remove_fcs = remove_fcs
-        
+        self.is_binary_source = pkt_buffer != None
+
 
         if pkt != None and pkt_buffer != None:
             raise CTRexPacketBuildException(-15, "packet builder cannot be provided with both pkt and pkt_buffer")
@@ -725,7 +726,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     def get_vm_data(self):
         """
-        Dumps the instructions 
+        Dumps the instructions
 
         :parameters:
             None
@@ -739,7 +740,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
         assert self.vm_low_level is not None, 'vm_low_level is None, please use compile()'
 
-        return self.vm_low_level.get_json() 
+        return self.vm_low_level.get_json()
 
     def dump_pkt(self, encode = True):
         """
@@ -763,7 +764,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         return {'binary': base64.b64encode(pkt_buf) if encode else pkt_buf,
                 'meta': self.metadata}
 
-    
+
     def dump_pkt_to_pcap(self, file_path):
         wrpcap(file_path, self._get_pkt_as_str())
 
@@ -799,7 +800,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     def set_pcap_file (self, pcap_file):
         """
-        load raw pcap file into a buffer. load only the first packet 
+        load raw pcap file into a buffer. load only the first packet
 
         :parameters:
             pcap_file : file_name
@@ -845,7 +846,9 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             else:
                 raise CTRexPacketBuildException(-14, "bad packet" )
 
-    def is_def_src_mac (self):
+    def is_default_src_mac (self):
+        if self.is_binary_source:
+            return True
         p = self.pkt
         if isinstance(p, Packet):
             if isinstance(p,Ether):
@@ -853,7 +856,9 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
                     return False
         return True
 
-    def is_def_dst_mac (self):
+    def is_default_dst_mac (self):
+        if self.is_binary_source:
+            return True
         p = self.pkt
         if isinstance(p, Packet):
             if isinstance(p,Ether):
@@ -865,7 +870,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         if self.pkt == None and self.pkt_raw == None:
             raise CTRexPacketBuildException(-14, "Packet is empty")
 
-        
+
         self.vm_low_level = CTRexVmEngine()
 
         # compile the VM
@@ -882,7 +887,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             raise CTRexPacketBuildException(-14, "Packet is empty")
 
     ####################################################
-    # private 
+    # private
 
 
     def _get_pcap_file_path (self,pcap_file_name):
@@ -891,7 +896,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             f_path = pcap_file_name
         else:
             if self.path_relative_to_profile:
-                p = self._get_path_relative_to_profile () # loader 
+                p = self._get_path_relative_to_profile () # loader
                 if p :
                   f_path=os.path.abspath(os.path.join(os.path.dirname(p),pcap_file_name))
 
@@ -907,7 +912,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
     def _compile_raw (self,obj):
 
-        # make sure we have varibles once 
+        # make sure we have varibles once
         vars={};
 
         # add it add var to dit
@@ -926,17 +931,17 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             var_name =  desc.get_var_ref()
             if var_name :
                 if not vars.has_key(var_name):
-                    raise CTRexPacketBuildException(-11,("variable %s does not exists  ") % (var_name) );  
+                    raise CTRexPacketBuildException(-11,("variable %s does not exists  ") % (var_name) );
             desc.compile(self);
 
         for desc in obj.commands:
             self.vm_low_level.add_ins(desc.get_obj());
 
         # set split_by_var
-        if obj.split_by_field : 
+        if obj.split_by_field :
             assert type(obj.split_by_field)==str, "type of split by var should be string"
             #if not vars.has_key(obj.split_by_field):
-            #    raise CTRexPacketBuildException(-11,("variable %s does not exists. change split_by_var args ") % (var_name) );  
+            #    raise CTRexPacketBuildException(-11,("variable %s does not exists. change split_by_var args ") % (var_name) );
 
             self.vm_low_level.split_by_var = obj.split_by_field
 
@@ -955,7 +960,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
         # regular scapy packet
         elif not self.pkt:
             # should not reach here
-            raise CTRexPacketBuildException(-11, 'empty packet')  
+            raise CTRexPacketBuildException(-11, 'empty packet')
 
         if self.remove_fcs and self.pkt.lastlayer().name == 'Padding':
             self.pkt.lastlayer().underlayer.remove_payload()
@@ -983,7 +988,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
             return str(self.pkt)
         if self.pkt_raw:
             return self.pkt_raw
-        raise CTRexPacketBuildException(-11, 'empty packet');  
+        raise CTRexPacketBuildException(-11, 'empty packet');
 
     def _add_tuple_gen(self,tuple_gen):
 

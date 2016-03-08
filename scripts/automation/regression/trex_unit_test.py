@@ -34,14 +34,16 @@ import CustomLogger
 import misc_methods
 from rednose import RedNose
 import termstyle
-from unit_tests.trex_general_test import CTRexScenario
+from trex import CTRexScenario
 from client.trex_client import *
 from common.trex_exceptions import *
+from trex_stl_lib.api import *
 import trex
 import socket
 from pprint import pprint
 import subprocess
 import re
+import time
 
 def check_trex_path(trex_path):
     if os.path.isfile('%s/trex_daemon_server' % trex_path):
@@ -60,34 +62,34 @@ def get_trex_path():
         raise Exception('Could not determine trex_under_test folder, try setting env.var. TREX_UNDER_TEST')
     return latest_build_path
 
-def _start_stop_trex_remote_server(trex_data, command):
-    # start t-rex server as daemon process
-    # subprocess.call(["/usr/bin/python", "trex_daemon_server", "restart"], cwd = trex_latest_build)
-    misc_methods.run_remote_command(trex_data['trex_name'],
-                                    trex_data['trex_password'],
-                                    command)
+STATEFUL_STOP_COMMAND = './trex_daemon_server stop; sleep 1; ./trex_daemon_server stop; sleep 1'
+STATEFUL_RUN_COMMAND = 'rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
+TREX_FILES = ('_t-rex-64', '_t-rex-64-o', '_t-rex-64-debug', '_t-rex-64-debug-o')
 
-def start_trex_remote_server(trex_data, kill_running = False):
-    if kill_running:
-        (return_code, stdout, stderr) = misc_methods.run_remote_command(trex_data['trex_name'],
-                                    trex_data['trex_password'],
-                                    'ps -u root --format comm,pid,cmd | grep t-rex-64')
-        if stdout:
-            for process in stdout.split('\n'):
-                try:
-                    proc_name, pid, full_cmd = re.split('\s+', process, maxsplit=2)
-                    if proc_name.find('t-rex-64') >= 0:
-                        print 'Killing remote process: %s' % full_cmd
-                        misc_methods.run_remote_command(trex_data['trex_name'],
-                                        trex_data['trex_password'],
-                                        'kill %s' % pid)
-                except:
-                    continue
+def trex_remote_command(trex_data, command):
+    return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command)
 
-    _start_stop_trex_remote_server(trex_data, DAEMON_START_COMMAND)
+# 1 = running, 0 - not running
+def check_trex_running(trex_data):
+    commands = []
+    for filename in TREX_FILES:
+        commands.append('ps -C %s > /dev/null' % filename)
+    (return_code, stdout, stderr) = trex_remote_command(trex_data, ' || '.join(commands))
+    return not return_code
 
-def stop_trex_remote_server(trex_data):
-    _start_stop_trex_remote_server(trex_data, DAEMON_STOP_COMMAND)
+def kill_trex_process(trex_data):
+    (return_code, stdout, stderr) = trex_remote_command(trex_data, 'ps -u root --format comm,pid,cmd | grep _t-rex-64 | grep -v grep || true')
+    assert return_code == 0, 'last remote command failed'
+    if stdout:
+        for process in stdout.split('\n'):
+            try:
+                proc_name, pid, full_cmd = re.split('\s+', process, maxsplit=2)
+                if proc_name.find('t-rex-64') >= 0:
+                    print 'Killing remote process: %s' % full_cmd
+                    trex_remote_command(trex_data, 'kill %s' % pid)
+            except:
+                continue
+    (return_code, stdout, stderr) = trex_remote_command(trex_data, STATEFUL_STOP_COMMAND)
 
 class CTRexTestConfiguringPlugin(Plugin):
     def options(self, parser, env = os.environ):
@@ -105,26 +107,36 @@ class CTRexTestConfiguringPlugin(Plugin):
                             dest='log_path',
                             help='Specify path for the tests` log to be saved at. Once applied, logs capturing by nose will be disabled.') # Default is CURRENT/WORKING/PATH/trex_log/trex_log.log')
         parser.add_option('--verbose-mode', '--verbose_mode', action="store_true", default = False,
-                            dest="verbose_mode", 
+                            dest="verbose_mode",
                             help="Print RPC command and router commands.")
         parser.add_option('--server-logs', '--server_logs', action="store_true", default = False,
-                            dest="server_logs", 
+                            dest="server_logs",
                             help="Print server side (TRex and trex_daemon) logs per test.")
-        parser.add_option('--kill-running', '--kill_running', action="store_true", default = False,
-                            dest="kill_running", 
+        parser.add_option('--kill-running', action="store_true", default = False,
+                            dest="kill_running",
                             help="Kills running TRex process on remote server (useful for regression).")
-        parser.add_option('--functional', action="store_true", default = False,
-                            dest="functional", 
-                            help="Don't connect to remote server for runnning daemon (For functional tests).")
+        parser.add_option('--func', '--functional', action="store_true", default = False,
+                            dest="functional",
+                            help="Run functional tests.")
+        parser.add_option('--stl', '--stateless', action="store_true", default = False,
+                            dest="stateless",
+                            help="Run stateless tests.")
+        parser.add_option('--stf', '--stateful', action="store_true", default = False,
+                            dest="stateful",
+                            help="Run stateful tests.")
         parser.add_option('--copy', action="store_true", default = False,
-                            dest="copy", 
+                            dest="copy",
                             help="Copy TRex server to temp directory and run from there.")
+        parser.add_option('--no-ssh', '--no_ssh', action="store_true", default = False,
+                            dest="no_ssh",
+                            help="Flag wherever not to connect via ssh to run the daemons etc.")
 
     def configure(self, options, conf):
         self.functional = options.functional
+        self.stateless = options.stateless
+        self.stateful = options.stateful
+        self.copy = options.copy
         self.collect_only = options.collect_only
-        if self.functional or self.collect_only:
-            return
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
@@ -139,40 +151,69 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.kill_running  = options.kill_running
         self.load_image    = options.load_image
         self.verbose_mode  = options.verbose_mode
+        self.no_ssh        = options.no_ssh
         self.clean_config  = False if options.skip_clean_config else True
         self.server_logs   = options.server_logs
         if options.log_path:
             self.loggerPath = options.log_path
 
     def begin (self):
-        if self.functional or self.collect_only:
-            return
         # initialize CTRexScenario global testing class, to be used by all tests
         CTRexScenario.configuration = self.configuration
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
-
+        if self.copy and not CTRexScenario.is_copied and not self.no_ssh:
+            new_path = '/tmp/trex_scripts'
+            (return_code, stdout, stderr) = trex_remote_command(CTRexScenario.configuration.trex,
+                                                                'mkdir -p %s; rsync -L -az %s/ %s' % (new_path, CTRexScenario.scripts_path, new_path))
+            if return_code:
+                print 'Failed copying'
+                sys.exit(-1)
+            CTRexScenario.scripts_path = new_path
+            CTRexScenario.is_copied = True
+        if self.functional or self.collect_only:
+            return
         # launch TRex daemon on relevant setup
-        start_trex_remote_server(self.configuration.trex, self.kill_running)
-        CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
+        if not self.no_ssh:
+            if self.kill_running:
+                kill_trex_process(CTRexScenario.configuration.trex)
+                time.sleep(1)
+            elif check_trex_running(CTRexScenario.configuration.trex):
+                print 'TRex is already running'
+                sys.exit(-1)
 
+
+        if self.stateful:
+            if not self.no_ssh:
+                trex_remote_command(CTRexScenario.configuration.trex, STATEFUL_RUN_COMMAND)
+            CTRexScenario.trex = CTRexClient(trex_host = CTRexScenario.configuration.trex['trex_name'], verbose = self.verbose_mode)
+        elif self.stateless:
+            if not self.no_ssh:
+                trex_remote_command(CTRexScenario.configuration.trex, './t-rex-64 -i&')
+            CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
+                                               server = CTRexScenario.configuration.trex['trex_name'],
+                                               sync_port = 4501,
+                                               async_port = 4500,
+                                               verbose_level = self.verbose_mode,
+                                               logger = None)
         if 'loopback' not in self.modes:
-            CTRexScenario.router_cfg    = dict( config_dict  = self.configuration.router, 
-                                                                        forceImageReload = self.load_image, 
-                                                                        silent_mode      = not self.verbose_mode,
-                                                                        forceCleanConfig = self.clean_config,
-                                                                        tftp_config_dict = self.configuration.tftp )
+            CTRexScenario.router_cfg = dict(config_dict      = self.configuration.router,
+                                            forceImageReload = self.load_image,
+                                            silent_mode      = not self.verbose_mode,
+                                            forceCleanConfig = self.clean_config,
+                                            tftp_config_dict = self.configuration.tftp)
         try:
             CustomLogger.setup_custom_logger('TRexLogger', self.loggerPath)
         except AttributeError:
             CustomLogger.setup_custom_logger('TRexLogger')
-    
+
     def finalize(self, result):
         if self.functional or self.collect_only:
             return
-        CTRexScenario.is_init       = False
-        stop_trex_remote_server(self.configuration.trex)
+        CTRexScenario.is_init = False
+        if not self.no_ssh:
+            kill_trex_process(CTRexScenario.configuration.trex)
 
 
 def save_setup_info():
@@ -195,102 +236,111 @@ def set_report_dir (report_dir):
     if not os.path.exists(report_dir):
         os.mkdir(report_dir)
 
-
 if __name__ == "__main__":
-    
+
     # setting defaults. By default we run all the test suite
     specific_tests              = False
-    disableLogCapture           = False
-    long_test                   = False
-    xml_name                    = 'unit_test.xml'
     CTRexScenario.report_dir    = 'reports'
-    CTRexScenario.scripts_path  = get_trex_path()
-    COMMON_RUN_COMMAND = 'rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
-    COMMON_STOP_COMMAND = './trex_daemon_server stop; sleep 1; ./trex_daemon_server stop; sleep 1'
-    if '--copy' in sys.argv:
-        new_path = '/tmp/trex_scripts'
-        DAEMON_STOP_COMMAND  = 'cd %s; %s' % (new_path, COMMON_STOP_COMMAND)
-        DAEMON_START_COMMAND = 'mkdir -p %s; cd %s; %s; rsync -L -az %s/ %s; %s' % (new_path, new_path, COMMON_STOP_COMMAND,
-                                                                   CTRexScenario.scripts_path, new_path, COMMON_RUN_COMMAND)
-    else:
-        DAEMON_STOP_COMMAND  = 'cd %s; %s' % (CTRexScenario.scripts_path, COMMON_STOP_COMMAND)
-        DAEMON_START_COMMAND = DAEMON_STOP_COMMAND + COMMON_RUN_COMMAND
-    
+    need_to_copy                = False
     setup_dir                   = os.getenv('SETUP_DIR', '').rstrip('/')
     CTRexScenario.setup_dir     = check_setup_path(setup_dir)
+    CTRexScenario.scripts_path  = get_trex_path()
     if not CTRexScenario.setup_dir:
         CTRexScenario.setup_dir = check_setup_path(os.path.join('setups', setup_dir))
-    
-    if CTRexScenario.setup_dir:
-        CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
-        xml_name =  'report_%s.xml' % CTRexScenario.setup_name
+
 
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--detailed-errors']
     if '--collect-only' in sys.argv: # this is a user trying simply to view the available tests. no need xunit.
-        CTRexScenario.is_test_list = True
+        CTRexScenario.is_test_list   = True
+        xml_arg                      = ''
     else:
-        nose_argv += ['--with-xunit', '--xunit-file=%s/%s' % (CTRexScenario.report_dir, xml_name)]
+        xml_name                     = 'unit_test.xml'
+        if CTRexScenario.setup_dir:
+            CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
+            xml_name = 'report_%s.xml' % CTRexScenario.setup_name
+        xml_arg= '--xunit-file=%s/%s' % (CTRexScenario.report_dir, xml_name)
         set_report_dir(CTRexScenario.report_dir)
 
+    sys_args = sys.argv[:]
     for i, arg in enumerate(sys.argv):
-        if 'unit_tests/' in arg:
-            specific_tests = True
-            sys.argv[i] = arg[arg.find('unit_tests/'):]
         if 'log-path' in arg:
-            disableLogCapture = True
+            nose_argv += ['--nologcapture']
+        else:
+            for tests_type in CTRexScenario.test_types.keys():
+                if tests_type in arg:
+                    specific_tests = True
+                    CTRexScenario.test_types[tests_type].append(arg[arg.find(tests_type):])
+                    sys_args.remove(arg)
 
-    nose_argv += sys.argv
-
-    # Run all of the unit tests or just the selected ones
     if not specific_tests:
-        if '--functional' in sys.argv:
-            nose_argv += ['unit_tests/functional_tests']
-        else:
-            nose_argv += ['unit_tests']
-    if disableLogCapture:
-        nose_argv += ['--nologcapture']
+        for key in ('--func', '--functional'):
+            if key in sys_args:
+                CTRexScenario.test_types['functional_tests'].append('functional_tests')
+                sys_args.remove(key)
+        for key in ('--stf', '--stateful'):
+            if key in sys_args:
+                CTRexScenario.test_types['stateful_tests'].append('stateful_tests')
+                sys_args.remove(key)
+        for key in ('--stl', '--stateless'):
+            if key in sys_args:
+                CTRexScenario.test_types['stateless_tests'].append('stateless_tests')
+                sys_args.remove(key)
+        # Run all of the tests or just the selected ones
+        if not sum([len(x) for x in CTRexScenario.test_types.values()]):
+            for key in CTRexScenario.test_types.keys():
+                CTRexScenario.test_types[key].append(key)
 
+    nose_argv += sys_args
+
+    config_plugin = CTRexTestConfiguringPlugin()
+    red_nose = RedNose()
+    result = True
     try:
-        config_plugin = CTRexTestConfiguringPlugin()
-        red_nose = RedNose()
-        try:
-            result = nose.run(argv = nose_argv, addplugins = [red_nose, config_plugin])
-        except socket.error:    # handle consecutive tests exception, try once again
-            print "TRex connectivity error identified. Possibly due to consecutive nightly runs.\nRetrying..."
-            result = nose.run(argv = nose_argv, addplugins = [red_nose, config_plugin])
-        finally:
-            save_setup_info()
-
-        if (result == True and not CTRexScenario.is_test_list):
-            print termstyle.green("""
-                     ..::''''::..
-                   .;''        ``;.
-                  ::    ::  ::    ::
-                 ::     ::  ::     ::
-                 ::     ::  ::     ::
-                 :: .:' ::  :: `:. ::
-                 ::  :          :  ::
-                  :: `:.      .:' ::
-                   `;..``::::''..;'
-                     ``::,,,,::''
-
-                   ___  ___   __________
-                  / _ \/ _ | / __/ __/ /
-                 / ___/ __ |_\ \_\ \/_/ 
-                /_/  /_/ |_/___/___(_)  
-
-            """)
-            sys.exit(0)
-        else:
-            sys.exit(-1)
-    
+        if len(CTRexScenario.test_types['functional_tests']):
+            additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
+            result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
+        if len(CTRexScenario.test_types['stateful_tests']):
+            additional_args = ['--stf'] + CTRexScenario.test_types['stateful_tests']
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
+            result = result and nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
+        if len(CTRexScenario.test_types['stateless_tests']):
+            additional_args = ['--stl'] + CTRexScenario.test_types['stateless_tests']
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
+            result = result and nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
     finally:
-        pass
-        
-        
-    
+        save_setup_info()
+
+    if (result == True and not CTRexScenario.is_test_list):
+        print termstyle.green("""
+                 ..::''''::..
+               .;''        ``;.
+              ::    ::  ::    ::
+             ::     ::  ::     ::
+             ::     ::  ::     ::
+             :: .:' ::  :: `:. ::
+             ::  :          :  ::
+              :: `:.      .:' ::
+               `;..``::::''..;'
+                 ``::,,,,::''
+
+               ___  ___   __________
+              / _ \/ _ | / __/ __/ /
+             / ___/ __ |_\ \_\ \/_/
+            /_/  /_/ |_/___/___(_)
+
+        """)
+        sys.exit(0)
+    sys.exit(-1)
 
 
 
-                        
+
+
+
+
+
 

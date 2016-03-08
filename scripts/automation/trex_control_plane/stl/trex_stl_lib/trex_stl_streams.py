@@ -189,7 +189,7 @@ class STLStream(object):
         if mac_src_override_by_pkt == None:
             int_mac_src_override_by_pkt=0
             if packet :
-                if packet.is_def_src_mac ()==False:
+                if packet.is_default_src_mac ()==False:
                     int_mac_src_override_by_pkt=1
 
         else:
@@ -198,7 +198,7 @@ class STLStream(object):
         if mac_dst_override_mode == None:
             int_mac_dst_override_mode   = 0;
             if packet :
-                if packet.is_def_dst_mac ()==False:
+                if packet.is_default_dst_mac ()==False:
                     int_mac_dst_override_mode=STLStreamDstMAC_PKT
         else:
             int_mac_dst_override_mode = int(mac_dst_override_mode);

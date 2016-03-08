@@ -26,23 +26,16 @@ def run_command(cmd):
     (stdout, stderr) = proc.communicate()
     if stdout:
         print 'Stdout:\n%s' % stdout
-    if stderr:
-        print 'Stderr:\n%s' % stderr
-    print 'Return code: %s' % proc.returncode
+    if proc.returncode:
+        if stderr:
+            print 'Stderr:\n%s' % stderr
+        print 'Return code: %s' % proc.returncode
     return (proc.returncode, stdout, stderr)
 
 
-def run_remote_command(host, passwd, command_string):
+def run_remote_command(host, command_string):
     cmd = 'ssh -tt %s \'sudo sh -c "%s"\'' % (host, command_string)
-    print 'Trying connection with ssh...'
-    return_code, stdout, stderr = run_command(cmd)
-    if return_code == 0:
-        return (return_code, stdout, stderr)
-    elif passwd is not None:
-        print 'Trying connection with expect + sshpass.exp...'
-        cmd = 'sshpass.exp %s %s root "%s"' % (passwd, host, command_string)
-        return_code, stdout, stderr = run_command(cmd)
-        return (return_code, stdout, stderr)
+    return run_command(cmd)
 
 
 def generate_intf_lists (interfacesList):
