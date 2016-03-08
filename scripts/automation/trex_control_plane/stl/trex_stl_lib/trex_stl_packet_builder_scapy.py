@@ -964,8 +964,7 @@ class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
 
         if self.remove_fcs and self.pkt.lastlayer().name == 'Padding':
             self.pkt.lastlayer().underlayer.remove_payload()
-        if len(self.pkt) < 60: # simulator can write padding with non-zeros, set it explicit
-            self.pkt /= Padding('\x00' * (60 - len(self.pkt)))
+        
         self.pkt.build()
         self.is_pkt_built = True
 

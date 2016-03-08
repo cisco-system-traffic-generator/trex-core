@@ -34,7 +34,8 @@ PROMISCUOUS_SWITCH = 21
 GLOBAL_STATS = 50
 PORT_STATS = 51
 PORT_STATUS = 52
-STATS_MASK = 53
+STREAMS_STATS = 53
+STATS_MASK = 54
 
 STREAMS_MASK = 60
 # ALL_STREAMS = 61
@@ -312,6 +313,10 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {'action': 'store_true',
                                          'help': "Fetch only port status data"}),
 
+              STREAMS_STATS: ArgumentPack(['-s'],
+                                          {'action': 'store_true',
+                                           'help': "Fetch only streams stats"}),
+
               STREAMS_MASK: ArgumentPack(['--streams'],
                                          {"nargs": '+',
                                           'dest':'streams',
@@ -336,7 +341,8 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                       {'required': True}),
               STATS_MASK: ArgumentGroup(MUTEX, [GLOBAL_STATS,
                                                 PORT_STATS,
-                                                PORT_STATUS],
+                                                PORT_STATUS,
+                                                STREAMS_STATS],
                                         {})
               }
 

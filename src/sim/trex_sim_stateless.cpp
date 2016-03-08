@@ -347,6 +347,10 @@ SimStateless::run_dp(const std::string &out_filename) {
         }
     }
 
+    /* cleanup */
+    cleanup();
+
+
     std::cout << "\n\nSimulation summary:\n";
     std::cout << "-------------------\n\n";
     std::cout << "simulated " << simulated_pkts_cnt << " packets\n";
@@ -360,6 +364,18 @@ SimStateless::run_dp(const std::string &out_filename) {
     std::cout << "\n";
 }
 
+void
+SimStateless::cleanup() {
+
+    for (int port_id = 0; port_id < get_stateless_obj()->get_port_count(); port_id++) {
+        get_stateless_obj()->get_port_by_id(port_id)->stop_traffic();
+        get_stateless_obj()->get_port_by_id(port_id)->remove_and_delete_all_streams();
+    }
+    for (int i = 0; i < m_dp_core_count; i++) {
+        flush_cp_to_dp_messages_core(i);
+        flush_dp_to_cp_messages_core(i);
+    }
+}
 
 uint64_t 
 SimStateless::get_limit_per_core(int core_index) {
@@ -414,6 +430,23 @@ SimStateless::flush_dp_to_cp_messages_core(int core_index) {
             m_dp_to_cp_handler->handle(msg);
         }
 
+        delete msg;
+    }
+}
+
+void
+SimStateless::flush_cp_to_dp_messages_core(int core_index) {
+
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_index);
+
+    while ( true ) {
+        CGenNode * node = NULL;
+        if (ring->Dequeue(node) != 0) {
+            break;
+        }
+        assert(node);
+
+        TrexStatelessCpToDpMsgBase * msg = (TrexStatelessCpToDpMsgBase *)node;
         delete msg;
     }
 }

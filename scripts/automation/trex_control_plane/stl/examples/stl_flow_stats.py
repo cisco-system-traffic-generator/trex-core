@@ -14,7 +14,6 @@ def rx_example (tx_port, rx_port, burst_size):
     
     try:
         pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
-
         total_pkts = burst_size
         s1 = STLStream(name = 'rx',
                        packet = pkt,

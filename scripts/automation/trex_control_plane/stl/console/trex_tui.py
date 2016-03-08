@@ -8,6 +8,7 @@ from cStringIO import StringIO
 
 from trex_stl_lib.utils.text_opts import *
 from trex_stl_lib.utils import text_tables
+from trex_stl_lib import trex_stl_stats
 
 # for STL exceptions
 from trex_stl_lib.api import *
@@ -217,6 +218,35 @@ class TrexTUIPort(TrexTUIPanel):
         self.stateless_client.clear_stats([self.port_id])
         return "port {0}: cleared stats".format(self.port_id)
 
+
+
+# streams stats
+class TrexTUIStreamsStats(TrexTUIPanel):
+    def __init__ (self, mng):
+        super(TrexTUIStreamsStats, self).__init__(mng, "sstats")
+
+        self.key_actions = OrderedDict()
+
+        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
+
+
+    def show (self):
+        stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.SS_COMPAT)
+        # print stats to screen
+        for stat_type, stat_data in stats.iteritems():
+            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+        pass
+
+
+    def get_key_actions (self):
+        return self.key_actions 
+
+    def action_clear (self):
+         self.stateless_client.flow_stats.clear_stats()
+
+         return ""
+
+
 # log
 class TrexTUILog():
     def __init__ (self):
@@ -247,10 +277,12 @@ class TrexTUIPanelManager():
 
         self.panels = {}
         self.panels['dashboard'] = TrexTUIDashBoard(self)
+        self.panels['sstats']    = TrexTUIStreamsStats(self)
 
         self.key_actions = OrderedDict()
         self.key_actions['q'] = {'action': self.action_quit, 'legend': 'quit', 'show': True}
         self.key_actions['g'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
+        self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams stats', 'show': True}
 
         for port_id in self.ports:
             self.key_actions[str(port_id)] = {'action': self.action_show_port(port_id), 'legend': 'port {0}'.format(port_id), 'show': False}
@@ -352,6 +384,10 @@ class TrexTUIPanelManager():
         return action_show_port_x
 
 
+    def action_show_sstats (self):
+        self.main_panel = self.panels['sstats']
+        self.init(self.show_log)
+        return ""
 
 # shows a textual top style window
 class TrexTUI():
@@ -427,7 +463,7 @@ class TrexTUI():
                 elif self.state == self.STATE_RECONNECT:
 
                     try:
-                        self.stateless_client.connect("RO")
+                        self.stateless_client.connect()
                         self.state = self.STATE_ACTIVE
                     except STLError:
                         self.state = self.STATE_LOST_CONT
