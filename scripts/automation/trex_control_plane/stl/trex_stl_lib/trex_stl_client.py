@@ -1124,6 +1124,16 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+    @__api_check(True)
+    def get_active_pgids(self):
+        self.logger.pre_cmd( "Getting active packet group ids")
+
+        rc = self._transmit("get_active_pgids")
+
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
 
 
     """

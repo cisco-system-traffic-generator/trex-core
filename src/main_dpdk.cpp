@@ -5235,3 +5235,7 @@ bool TrexDpdkPlatformApi::get_promiscuous(uint8_t port_id) const {
 void TrexDpdkPlatformApi::flush_dp_messages() const {
     g_trex.check_for_dp_messages();
 }
+
+int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
+    return g_trex.m_trex_stateless->m_rx_flow_stat.get_active_pgids(result);
+}
