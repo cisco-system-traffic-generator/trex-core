@@ -83,7 +83,13 @@ class tx_per_flow_t_ {
         return *this;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const class tx_per_flow_t_ &t) {
+    inline bool operator!= (const tx_per_flow_t_ &t_in) {
+        if ((m_bytes != t_in.m_bytes) || (m_pkts != t_in.m_pkts))
+            return true;
+        return false;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const tx_per_flow_t_ &t) {
         os  << "p:" << t.m_pkts << " b:" << t.m_bytes;
         return os;
     }
@@ -107,7 +113,7 @@ class CFlowStatUserIdInfo {
     void set_tx_counter(uint8_t port, tx_per_flow_t val) {m_tx_counter[port] = val;}
     tx_per_flow_t get_tx_counter(uint8_t port) {return m_tx_counter[port] + m_tx_counter_base[port];}
     void set_hw_id(uint16_t hw_id) {m_hw_id = hw_id;}
-    uint64_t get_hw_id() {return m_hw_id;}
+    uint16_t get_hw_id() {return m_hw_id;}
     void reset_hw_id();
     bool is_hw_id() {return (m_hw_id != UINT16_MAX);}
     uint64_t get_proto() {return m_proto;}
@@ -117,8 +123,18 @@ class CFlowStatUserIdInfo {
     void add_started_stream() {m_trans_ref_count++;}
     int stop_started_stream() {m_trans_ref_count--; return m_trans_ref_count;}
     bool is_started() {return (m_trans_ref_count != 0);}
+    bool need_to_send_rx(uint8_t port) {return m_rx_changed[port];}
+    bool need_to_send_tx(uint8_t port) {return m_tx_changed[port];}
+    void set_no_need_to_send_rx(uint8_t port) {m_rx_changed[port] = false;}
+    void set_no_need_to_send_tx(uint8_t port) {m_tx_changed[port] = false;}
+    void set_need_to_send_rx(uint8_t port) {m_rx_changed[port] = true;}
+    void set_need_to_send_tx(uint8_t port) {m_tx_changed[port] = true;}
+    bool was_sent() {return m_was_sent == true;}
+    void set_was_sent(bool val) {m_was_sent = val;}
 
  private:
+    bool m_rx_changed[TREX_MAX_PORTS]; // Which RX counters changed since we last published
+    bool m_tx_changed[TREX_MAX_PORTS]; // Which TX counters changed since we last published
     uint64_t m_rx_counter[TREX_MAX_PORTS]; // How many packets received with this user id since stream start
     // How many packets received with this user id, since stream creation, before stream start.
     uint64_t m_rx_counter_base[TREX_MAX_PORTS];
@@ -129,6 +145,7 @@ class CFlowStatUserIdInfo {
     uint8_t m_proto;      // protocol (UDP, TCP, other), associated with this user id.
     uint8_t m_ref_count;  // How many streams with this ref count exists
     uint8_t m_trans_ref_count;  // How many streams with this ref count currently transmit
+    bool m_was_sent; // Did we send this info to clients once?
 };
 
 typedef std::map<uint32_t, class CFlowStatUserIdInfo *> flow_stat_user_id_map_t;
@@ -140,8 +157,8 @@ class CFlowStatUserIdMap {
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdMap& cf);
     bool is_empty() {return (m_map.empty() == true);};
     uint16_t get_hw_id(uint32_t user_id);
-    class CFlowStatUserIdInfo * find_user_id(uint32_t user_id);
-    class CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint8_t proto);
+    CFlowStatUserIdInfo * find_user_id(uint32_t user_id);
+    CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint8_t proto);
     int add_stream(uint32_t user_id, uint8_t proto);
     int del_stream(uint32_t user_id);
     int start_stream(uint32_t user_id, uint16_t hw_id);
@@ -185,15 +202,15 @@ class CFlowStatRuleMgr {
     int start_stream(TrexStream * stream, uint16_t &ret_hw_id);
     int stop_stream(const TrexStream * stream);
     int get_active_pgids(flow_stat_active_t &result);
-    bool dump_json(std::string & json);
+    bool dump_json(std::string & json, bool force_sync);
 
  private:
     int compile_stream(const TrexStream * stream, Cxl710Parser &parser);
     int add_hw_rule(uint16_t hw_id, uint8_t proto);
 
  private:
-    class CFlowStatHwIdMap m_hw_id_map; // map hw ids to user ids
-    class CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
+    CFlowStatHwIdMap m_hw_id_map; // map hw ids to user ids
+    CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
     uint8_t m_num_ports; // How many ports are being used
     const TrexPlatformApi *m_api;
     int m_max_hw_id; // max hw id we ever used

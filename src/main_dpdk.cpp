@@ -2640,7 +2640,7 @@ public:
     bool sanity_check();
     void update_stats(void);
     tx_per_flow_t get_flow_tx_stats(uint8_t port, uint16_t hw_id);
-    void clear_flow_tx_stats(uint8_t port, uint16_t index);
+    tx_per_flow_t clear_flow_tx_stats(uint8_t port, uint16_t index);
     void get_stats(CGlobalStats & stats);
     void dump_post_test_stats(FILE *fd);
     void dump_config(FILE *fd);
@@ -3307,8 +3307,32 @@ tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
     return m_stats.m_port[port].m_tx_per_flow[index] - m_stats.m_port[port].m_prev_tx_per_flow[index];
 }
 
-void CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index) {
+// read stats. Return read value, and clear.
+tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index) {
+    uint8_t port0;
+    CFlowGenListPerThread * lpt;
+    tx_per_flow_t ret;
+
+    m_stats.m_port[port].m_tx_per_flow[index].clear();
+
+    for (int i=0; i < get_cores_tx(); i++) {
+        lpt = m_fl.m_threads_info[i];
+        port0 = lpt->getDualPortId() * 2;
+        if (port == port0) {
+            m_stats.m_port[port0].m_tx_per_flow[index] +=
+                lpt->m_node_gen.m_v_if->m_stats[0].m_tx_per_flow[index];
+        } else if (port == port0 + 1) {
+            m_stats.m_port[port0 + 1].m_tx_per_flow[index] +=
+                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_per_flow[index];
+        }
+    }
+
+    ret = m_stats.m_port[port].m_tx_per_flow[index] - m_stats.m_port[port].m_prev_tx_per_flow[index];
+
+    // Since we return diff from prev, following "clears" the stats.
     m_stats.m_port[port].m_prev_tx_per_flow[index] = m_stats.m_port[port].m_tx_per_flow[index];
+
+    return ret;
 }
 
 void CGlobalTRex::get_stats(CGlobalStats & stats){
@@ -3568,7 +3592,7 @@ CGlobalTRex::publish_async_data(bool sync_now) {
     m_zmq_publisher.publish_json(json);
 
     if (get_is_stateless()) {
-        if (m_trex_stateless->m_rx_flow_stat.dump_json(json))
+        if (m_trex_stateless->m_rx_flow_stat.dump_json(json, sync_now))
             m_zmq_publisher.publish_json(json);
     }
 }
@@ -3930,10 +3954,9 @@ int CPhyEthIF::get_flow_stats(uint64_t *rx_stats, tx_per_flow_t *tx_stats, int m
                 rx_stats[i - min] = m_stats.m_rx_per_flow[i] + diff_stats[i];
             }
             if (tx_stats != NULL) {
-                tx_stats[i - min] = g_trex.get_flow_tx_stats(m_port_id, i);
+                tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i);
             }
             m_stats.m_rx_per_flow[i] = 0;
-            g_trex.clear_flow_tx_stats(m_port_id, i);
         } else {
             m_stats.m_rx_per_flow[i] += diff_stats[i];
             if (rx_stats != NULL) {
@@ -4911,6 +4934,10 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
 
 // instead of adding this to rte_ethdev.h
 extern "C" int rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len);
+// get rx stats on _if, between min and max
+// prev_stats should be the previous values read from the hardware.
+//            Getting changed to be equal to current HW values.
+// stats return the diff between prev_stats and current hw values
 int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *stats, uint32_t *prev_stats, int min, int max) {
     uint32_t hw_stats[MAX_FLOW_STATS];
     uint32_t port_id = _if->get_port_id();
