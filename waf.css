@@ -37,3 +37,7 @@ body, div.sectionbody, div#toctitle {
 	font-family: 'Lucida Grande', Verdana, Arial, sans-serif;
 }
 
+.monospaced, code, pre {
+  font-family: Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+

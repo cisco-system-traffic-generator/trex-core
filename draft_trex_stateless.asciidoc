@@ -18,8 +18,8 @@ TRex Stateless support
 
 * High scale - line rate 14MPPS per core, linear scale with number of cores
 * Support 1/10/25/40/100 Gb/sec interfaces 
-* Interface can configured with multi traffic profiles 
-* Profile can support multi streams. Scale to 10K streams in parallel 
+* Interface can be configured with multi traffic profiles 
+* Traffic Profile can support multi streams. Scale to 10K streams in parallel 
 * Each Stream
 ** Packet template - ability to build any packet using Scapy (e.g. MPLS/IPv4/Ipv6/GRE/VXLAN/NSH)
 ** Field engine program
@@ -66,17 +66,17 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Feature       |  IXExplorer  |TRex | Description 
 | Line rate       | Yes |Almost ~15MPPS/core|
 | Multi stream    | 255 | [green]*Unlimited* |
-| Packet build flexibility | Limited | [green]*Scapy- Ulimited* | GRE/VXLAN/NSH is supported by TRex and can be extended to future protocols
+| Packet build flexibility | Limited | [green]*Scapy- Ulimited* | e.g GRE/VXLAN/NSH is supported. Can be extended to future protocols
 | Packet Field engine      | limited | [green]*Unlimited* |
 | Tx Mode | Continues/Burst/Multi burst | Continues/Burst/Multi burst|
 | ARP Emulation | Yes | Not yet - workaround |
 | Automation  | TCL/Python wrapper to TCL | [green]*native Python/Scapy*  |
 | Automation speed sec| 30sec | [green]*1msec* | test of load/start/stop/get counters 
-| HLTAPI | Full support 2000 page of documentation |  Limited 20 page Of documentation|
-| Per Stream statistic | 255  streams with 4 global mask | 128 rules for XL710/X710 hardware and software for 82599 I350|  in case of XL710/X710 thre are some restrictions for the packet type to be recived
+| HLTAPI | Full support. 2000 pages of documentation |  Limited 20 page of documentation|
+| Per Stream statistic | 255  streams with 4 global mask | 128 rules for XL710/X710 hardware and software impl for 82599/I350/X550| in case of XL710/X710 there are some restrictions for the packet type
 | Latency Jitter |  Yes | Yes |
 | Multi user support | Yes | Yes |
-| GUI  | very good | not ready yet, packet build is scapy based, not the same as IXIA |
+| GUI  | very good | WIP, packet build is scapy based. Not the same as IXIA |
 | Cisco pyATS support | Yes | Yes Python 2.7, Python 64bits, WIP to port it to Python 3.0|    
 | Emulation | Yes | Not yet |
 | Port Ids  | Base on IXIA numebrs  | Depends on PCI enumeration  
@@ -87,7 +87,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 
 To support interactive mode, JSON-RPC2 thread added to the TRex Control Plane core.
 
-The following diagram illustrates the RPC server component's 
+The following diagram illustrates the RPC server/client components
 
 image::images/trex_2_stateless.png[title="RPC Server Position",align="left",width=800, link="images/trex_2_stateless.png"]
 
@@ -97,12 +97,11 @@ image::images/trex_2_stateless.png[title="RPC Server Position",align="left",widt
 * Python is the first Client to implement the Python automation API 
 * Console utilizes the Python API to implement a user interface to TRex
 * Number of users can control one TRex server in parallel as long as they control different Interfaces. TRex Interface can be acquired by a user. For example a TRex with four ports can be used by two users. User A can acquire Interface  0/ 1 and User B can acquire Interface 3/4
-* There could be only *one* Console/GUI control (R/W) entity for specific interfaces. So user A with two interfaces could have only one R/W Control session in specific time. By that we can cache the TRex Server interface  information in Client Core.
-* For one user there could be many read-only clients for getting statistics for same user same interfaces.
+* There could be only *one* control Console/GUI (R/W) entity for a specific user. User A with two interfaces could have only one R/W Control session in specific time. By that we can cache the TRex Server interface  information in the Client.
+* For one user there could be many read-only clients for getting statistics.
 * Client should sync with the server to get the state in connection time and cache the server information locally once the state was changed 
-* In case of crash/exit of the Client it should sync again at connection time 
-* Client in R/W mode has the ability to get a statistic in real time (with ASYNC ZMQ). It gives the option to have number of ways to look into the statistics (GUI and Console) at the same time.
-
+* In case of crash/exit of the Client it should sync again at connection time.
+* Client has the ability to get a statistic in real time (with ASYNC ZMQ). It gives the option to have number of ways to look into the statistics (GUI and Console) at the same time.
 
 image::images/trex_stateless_multi_user.png[title="Multi user-per interface",align="left",width=800, link="images/trex_stateless_multi_user.png"]
 
@@ -114,28 +113,29 @@ This Architecture provides the following advantages:
 * Leveraging Python/Scapy for building a packet/Field engine 
 * HLTAPI compiler complexity is done in Python
 
-=== Objects
+=== TRex Entities 
 
 image::images/stateless_objects.png[title="TRex Objects ",align="left",width=600, link="images/stateless_objects.png"]
 
-* *TRex*: Each TRex instance, includes a number of interfaces   
+* *TRex*: Each TRex instance includes a number of interfaces   
 * *Interface*: For each Interface it is possible to add/remove a number of traffic profiles (TP) 
-* *Traffic profile*: Each traffic profile includes a number of streams 
+* *Traffic profile*: Each traffic profile includes a number of streams. This is the basic building block  of activation. It is possible to add/remove to an interface a profile while other profile already exists. A profile can be looked as a "program" with dependency between streams. It is not possible to change a profile while it is running except changing the rates. 
 * *Stream*: Each stream includes 
 ** *Packet*: Packet template up to 9K bytes 
 ** *Field Engine*:  which field to change, do we want to change packet size
 ** *Mode*: how to send the packet. Continues/Burst/Multi Burst 
 ** *Rx Stats* Which Statstistic to collect for each stream 
-** *Rate*: in Packet per second or bandwidth  
+** *Rate*: Specified in Packet Per Second (pps) or bandwidth (bps)
 ** *Action*:  The next stream to go after this stream is finished. Valid for Burst/Continues mode
+
 
 ==== TRex package folders 
 
-[cols="1,5", options="header"]
-|=================
+[cols="1,5", options="header",width="80%"]
+|=============================
 | Location        | Description   
 | /               | t-rex-64/dpdk_set_ports/stl-sim 
-| /stl            | Stateless py example profiles 
+| /stl            | Stateless native (py) profiles 
 | /stl/yaml       | Stateless YAML profiles 
 | /stl/htl        | Stateless HTL profiles 
 | /ko             | Kernel modules for DPDK
@@ -158,11 +158,13 @@ This tutorial will walk you through basic but complete TRex Stateless use cases 
 
 ==== Tutorial: Simple IPv4/UDP packet - TRex 
 
-Goal:: send simple UDP packet from all the ports 
+*Goal*:: send a simple UDP packet from all the ports
 
-Traffic profile::  
+*Traffic profile*::  
 
-file: link:{github_stl_path}/udp_1pkt_simple.py[stl/udp_1pkt_simple.py]
+Traffic profile (TP) is a way to define *how* to generate the traffic. It defines the traffic templates the rate the mode and which fields in the packet to change. The following example defines a profile with one stream. The stream is with IP/UDP packet template with 10 bytes of 'x'(0x78) of payload. to get more example how to define packets using scapy see here link:http://www.secdev.org/projects/scapy/doc/[Scapy]
+
+*file*:: link:{github_stl_path}/udp_1pkt_simple.py[stl/udp_1pkt_simple.py]
 
 [source,python]
 ----
@@ -190,30 +192,32 @@ class STLS1(object):
 def register():                                                                         <4>        
     return STLS1()
 ----
-<1> Define the packet, in this case it IP/UDP with 10 bytes of 'x'.See more here link:http://www.secdev.org/projects/scapy/doc/[Scapy]
-<2> Mode is Continues with rate of 1 PPS (default rate is 1 PPS)
+<1> Define the packet, in this case it IP/UDP with 10 bytes of 'x'(0x78) .See more here link:http://www.secdev.org/projects/scapy/doc/[Scapy]
+<2> Mode is Continues with a rate of 1 pps (default rate is 1 PPS)
 <3> get_streams function is mandatory 
 <4> Each Traffic profile module should have a `register` function
 
 
-Run TRex as a server mode::   
+*Start TRex as a server*::   
 
-First run trex in interactive mode
+[NOTE] 
+=====================================================================
+There is no need to install any python packages (including scapy). just download the TRex package
+=====================================================================
+
 
 [source,bash]
 ----
 $sudo ./t-rex-64 -i
 ----
 
-Connect with Console::
+*Connect with Console*::
 
-From the same machine in a different terminal connect to trex (you can do it from remote machine with -s [ip])
-
-from console you can run this 
+From the same machine in a different terminal (either open a new window using `xterm`, or `ssh` again) run the folowing command
 
 [source,bash]
 ----
-$trex-console
+$trex-console                                                           #<1>
 
 Connecting to RPC server on localhost:4501                   [SUCCESS]
 connecting to publisher server on localhost:4500             [SUCCESS]
@@ -221,28 +225,29 @@ Acquiring ports [0, 1, 2, 3]:                                [SUCCESS]
 
 125.69 [ms]
 
-trex> start -f stl/udp_1pkt_simple.py -m 10mbps -a                     #<1>
+trex>start -f stl/udp_1pkt_simple.py -m 10mbps -a                      #<2>
 
 Removing all streams from port(s) [0, 1, 2, 3]:              [SUCCESS]
 Attaching 1 streams to port(s) [0, 1, 2, 3]:                 [SUCCESS]
 Starting traffic on port(s) [0, 1, 2, 3]:                    [SUCCESS]
 
 # pause  the traffic on all port
->pause -a                                                               #<2>
+>pause -a                                                               #<3>
 
 # resume  the traffic on all port
->resume -a                                                              #<3>
+>resume -a                                                              #<4>
 
 # stop traffic on all port      
->stop -a                                                                #<4>
+>stop -a                                                                #<5>
 
 # show dynamic statistic 
 >tui
 ----
-<1> Start the traffic on all the ports in 10mbps. you can try with 14MPPS
-<2> Pause the traffic 
-<3> Resume
-<4> Stop on all the ports
+<1> Connect to TRex server assume server at local machine 
+<2> Start the traffic on all the ports in 10mbps. you can try with 14MPPS
+<3> Pause the traffic 
+<4> Resume
+<5> Stop on all the ports
 
 
 To look into the streams using `streams -a`
@@ -250,7 +255,7 @@ To look into the streams using `streams -a`
 .Streams
 [source,bash]
 ----
-trex> streams -a
+trex>streams -a
 Port 0:
 
     ID |     packet type     |  length  |       mode       |  rate     | next stream 
@@ -336,11 +341,11 @@ Port Statistics
 The SRC/DST MAC addrees are taken from /etc/trex_cfg.yaml. if you want to change them to be different just add Ether(dst="00:00:dd:dd:00:01") with your destination
 =====================================================================
 
-==== Tutorial: Connect from remote server 
+==== Tutorial: Connect from a remote server 
 
-Goal:: Client will connect from remote machine to TRex server 
+*Goal*:: Console connect from a remote machine to TRex server 
 
-TRex server is up::
+*Check that TRex server is up*::
 
 Make sure TRex server is running, if not run trex in interactive mode
 
@@ -349,14 +354,15 @@ Make sure TRex server is running, if not run trex in interactive mode
 $sudo ./t-rex-64 -i
 ----
 
-Connect with Console::
+*Connect with Console*::
 
 From remote machine you can run this with `-s` flag
 
 [source,bash]
 ----
-$trex-console -s csi-kiwi-02
+$trex-console -s csi-kiwi-02  #<1>
 ----
+<1> TRex server is csi-kiwi-02
 
 if the default python is not 64bit/2.7.x you can change the *PYTHON* environment variable using
 
@@ -374,12 +380,12 @@ extern PYTHON=/bin/mypython    #bash
 
 [NOTE]
 =====================================================================
-Client machine should run Python 2.7 and Python 64bit version. Cisco CEL/ADS is supported
+Client machine should run Python 2.7 and Python 64bit version. Cisco CEL/ADS is supported. Python 3.0 support in WIP
 =====================================================================
 
 ==== Tutorial: Source and Destination MAC address
 
-Goal:: Change source/destination MAC addrees 
+*Goal*:: Change source/destination MAC addrees 
 
 Each TRex port has a source and destination MAC (DUT) configured in /etc/trex_cfg.yaml. 
 The source MAC is not necessarily the hardware MAC address configured in eeprom.
@@ -388,18 +394,17 @@ In case a user configures a source or destination MAC explicitly this MAC will t
 
 
 .MAC addrees
-[format="csv",cols="2^,2^,2^", options="header",width="40%"]
+[format="csv",cols="2^,2^,2^", options="header",width="50%"]
 |=================
 Scapy , Source MAC,Destination MAC
-Ether() , trex_cfg,trex_cfg
-Ether(src="00:bb:12:34:56:01"),"00:bb:12:34:56:01",trex_cfg
-Ether(dst="00:bb:12:34:56:01"),trex_cfg,"00:bb:12:34:56:01"
+Ether() , trex_cfg (src),trex_cfg(dst)
+Ether(src="00:bb:12:34:56:01"),"00:bb:12:34:56:01",trex_cfg(dst)
+Ether(dst="00:bb:12:34:56:01"),trex_cfg(src),"00:bb:12:34:56:01"
 |=================
 
 For example 
 
-file: link:{github_stl_path}/udp_1pkt_1mac_override.py[stl/udp_1pkt_1mac_override.py]
-
+*file*:: link:{github_stl_path}/udp_1pkt_1mac_override.py[stl/udp_1pkt_1mac_override.py]
 
 [source,python]
 ----
@@ -413,7 +418,7 @@ file: link:{github_stl_path}/udp_1pkt_1mac_override.py[stl/udp_1pkt_1mac_overrid
 
 [IMPORTANT]
 =====================================
-TRex ports  will receive a packet only when the packet will have a destination MAC of the `/etc/trex_cfg.yaml`. To configure the port to be promiscuous  and get all the packets on the line you can configure it from API or from Console with `portattr -a --prom`  
+TRex ports  will receive a packet only when the packet will have a destination MAC of port defined in the `/etc/trex_cfg.yaml`. To configure the port to be promiscuous  and get all the packets on the line you can configure it from API or from Console with `portattr -a --prom`  
 =====================================
 
 To show the port mode 
@@ -443,24 +448,26 @@ NUMA Node       |          0           |          0           |
 
 ==== Tutorial: Python automation 
 
-Goal:: Simple automation test using Python from remote or local machine 
+*Goal*:: Simple automation test using Python from remote or local machine 
 
-Python API examples are located here: `automation/trex_control_plane/stl/examples`
+Python API examples are located here: `automation/trex_control_plane/stl/examples`.
+
 Python API library is located here: `automation/trex_control_plane/stl/trex_stl_lib`
+
 The Console is using the python API library to interact with TRex server and the protocol is JSON-RPC2 over ZMQ
 
-file: link:{github_stl_examples_path}/stl_bi_dir_flows.py[stl_bi_dir_flows.py]
+*file*:: link:{github_stl_examples_path}/stl_bi_dir_flows.py[stl_bi_dir_flows.py]
 
 
 [source,python]
 ----
-import stl_path
-from trex_stl_lib.api import *                                             <1>               
+import stl_path                                                            <1>
+from trex_stl_lib.api import *                                             <2>               
 
 import time
 import json
 
-# simple packet creation                                                   <2>
+# simple packet creation                                                   <3>
 def create_pkt (size, direction):
 
     ip_range = {'src': {'start': "10.0.0.1", 'end': "10.0.0.254"},
@@ -499,7 +506,7 @@ def create_pkt (size, direction):
     return STLPktBuilder(pkt = base/pad,
                          vm  = vm)
 
-                                                                               <3>
+                                                                               <5>
 def simple_burst ():
  
     # create client
@@ -525,10 +532,10 @@ def simple_burst ():
 
 
         # connect to server
-        c.connect()
-
+        c.connect()                                                                <5>
+                                                                                        
         # prepare our ports (my machine has 0 <--> 1 with static route)
-        c.reset(ports = [0, 1]) #  Acquire port 0,1 for $USER
+        c.reset(ports = [0, 1]) #  Acquire port 0,1 for $USER                      <6>
 
         # add both streams to ports
         c.add_streams(s1, ports = [0])
@@ -539,19 +546,19 @@ def simple_burst ():
 
         # choose rate and start traffic for 10 seconds on 5 mpps
         print "Running 5 Mpps on ports 0, 1 for 10 seconds..."
-        c.start(ports = [0, 1], mult = "5mpps", duration = 10)      <1>
+        c.start(ports = [0, 1], mult = "5mpps", duration = 10)                     <7>
 
         # block until done
-        c.wait_on_traffic(ports = [0, 1])
+        c.wait_on_traffic(ports = [0, 1])                                          <8>
 
         # read the stats after the test
-        stats = c.get_stats()
+        stats = c.get_stats()                                                      <9>
 
         print json.dumps(stats[0], indent = 4, separators=(',', ': '), sort_keys = True)
         print json.dumps(stats[1], indent = 4, separators=(',', ': '), sort_keys = True)
 
         lost_a = stats[0]["opackets"] - stats[1]["ipackets"]
-        lost_b = stats[1]["opackets"] - stats[0]["ipackets"]
+        lost_b = stats[1]["opackets"] - stats[0]["ipackets"]                       
 
         print "\npackets lost from 0 --> 1:   {0} pkts".format(lost_a)
         print "packets lost from 1 --> 0:   {0} pkts".format(lost_b)
@@ -566,7 +573,7 @@ def simple_burst ():
         print e
 
     finally:
-        c.disconnect()
+        c.disconnect()                                                             <10>    
 
     if passed:
         print "\nTest has passed :-)\n"
@@ -577,15 +584,26 @@ def simple_burst ():
 # run the tests
 simple_burst()
 ----
-<1> import trex Stateless library 
-<2> create packet per direction using Scapy
-<3> Connect/load/start to TRex
+<1> import the stl_path. you should *fix* the path to point to your stl_trex library path 
+<2> import trex Stateless library. path should be fixed 
+<3> create packet per direction using Scapy
 <4> This is something more advanced will be explained later
+<5> Connect to local TRex   username , server can be added 
+<6> Acquire the ports  
+<7> load the profile and start the traffic 
+<8> Wait for the traffic to, be finished. There is a polling function so you can test do something while waiting 
+<9> Get port statistics
+<10> Disconnect
 
 
 ==== Tutorials HLT Python API 
 
-HLT Python API is a layer on top the native layer. it support 
+HLT Python API is a layer on top the native layer. It supports the standard Cisco traffic generator API
+See more in Cisco/IXIA/Spirent documentation
+TRex supported a limited number of HLTAPI arguments and the recommendation is to use the native API due to the flexibility and simplicity. 
+IXIA for example, has a book of ~2000 pages for specifying all the HLTAPI mode of operations. One of the reasons for the 2000 pages is that in the API there is no clear separation between the definition of the template packet, and the fields that need to be changed and the mode of transmission. This creates a bloat of arguments that need to be documented.
+
+The supported classs are:
 
 * Device Control
 ** connect
@@ -601,7 +619,7 @@ HLT Python API is a layer on top the native layer. it support
 ** traffic_stats
 
 
-file: link:{github_stl_examples_path}/hlt_udp_simple.py[hlt_udp_simple.py]
+*file*:: link:{github_stl_examples_path}/hlt_udp_simple.py[hlt_udp_simple.py]
 
 
 [source,python]
@@ -721,10 +739,24 @@ if __name__ == "__main__":
                 
 ==== Tutorial: Simple IPv4/UDP packet - Simulator 
 
-Goal:: Demonstrates the most basic use case using our simulator
+*Goal*:: Demonstrates the most basic use case using TRex simulator
 
 
-file: link:{github_stl_path}/udp_1pkt_simple.py[stl/udp_1pkt_simple.py]
+The simulator is a tool called `stil-sim` that is part of the TRex package. 
+It is a python script that calls an executable. 
+The executable should run on the same machine that TRex image run (it won't run on an older Linux distributions).
+
+Using the simulator you can :
+
+* Test your traffic profiles before running it on TRex. 
+* It can generate the output pcap file 
+* Simulate number of threads 
+* Convert from one type of profile to another 
+* Convert any profile to JSON (API)
+
+let's take this profile  
+
+*file*:: link:{github_stl_path}/udp_1pkt_simple.py[stl/udp_1pkt_simple.py]
 
 [source,python]
 ----
@@ -756,8 +788,7 @@ def register():                                                                 
 <2> Mode is Continues with rate of 1 PPS (default rate is 1 PPS)
 <3> Each Traffic profile module should have a `register` function
 
-
-Now let try to run it throw TRex simulator limiting the number of packet to 10 
+Now let try to run it throw TRex simulator limiting the number of packets to 10 
 
 [source,bash]
 ----
@@ -799,8 +830,9 @@ $ ./stl-sim -f stl/udp_1pkt_simple.py -o b.pcap -l 10
 ----
 
 
-image::images/stl_tut_1.png[title="Wireshark Tutorial 1 output",align="left",width=800, link="images/stl_tut_1.png.png"]
+The following figure presents the output pcap file
 
+image::images/stl_tut_1.png[title="Wireshark Tutorial 1 output",align="left",width=800, link="images/stl_tut_1.png.png"]
 
 .To look into the JSON command to the server 
 [source,bash]
@@ -860,13 +892,11 @@ $./stl-sim -f stl/udp_1pkt_simple.py --json
         }
     }
 ]
-
 ----
 
 For more detailed on Stream definition see RPC specification link:trex_rpc_server_spec.html#_add_stream[here]  
 
-
-.To look into the YAML profile  
+.To convert the profile into YAML format
 [source,bash]
 ----
 $./stl-sim -f stl/udp_1pkt_simple.py --yaml
@@ -889,8 +919,8 @@ $./stl-sim -f stl/udp_1pkt_simple.py --yaml
       split_by_var: ''
 ----
 
+To look into the Packet detail try --pkt option (using scapy)
 
-.To look into the Packet detail try --pkt option
 [source,bash]
 ----
 $./stl-sim -f stl/udp_1pkt_simple.py --pkt
@@ -928,16 +958,80 @@ $./stl-sim -f stl/udp_1pkt_simple.py --pkt
 0030   78 78 78 78                                        xxxx
 ----
 
+To convert any profile type to native again use the `--native` option
+
+.Input YAML format
+[source,python]
+----
+$more stl/yaml/imix_1pkt.yaml
+- name: udp_64B
+  stream:
+    self_start: True
+    packet:
+      pcap: udp_64B_no_crc.pcap  # pcap should not include CRC
+    mode:
+      type: continuous
+      pps: 100
+----
+
+.Convert to Native
+[source,bash]
+----
+$./stl-sim -f stl/yaml/imix_1pkt.yaml --native
+----
+
+
+.Output Native
+[source,python]
+----
+# !!! Auto-generated code !!!
+from trex_stl_lib.api import *
+
+class STLS1(object):
+    def get_streams(self):
+        streams = []
+        
+        packet = (Ether(src='00:de:01:0a:01:00', dst='00:50:56:80:0d:28', type=2048) / 
+                  IP(src='101.0.0.1', proto=17, dst='102.0.0.1', chksum=28605, len=46, flags=2L, ihl=5L, id=0) / 
+                  UDP(dport=2001, sport=2001, len=26, chksum=1176) / 
+                  Raw(load='\xde\xad\xbe\xef\x00\x01\x06\x07\x08\x09\x0a\x0b\x00\x9b\xe7\xdb\x82M'))
+        vm = CTRexScRaw([], split_by_field = '')
+        stream = STLStream(packet = CScapyTRexPktBuilder(pkt = packet, vm = vm),
+                           name = 'udp_64B',
+                           mac_src_override_by_pkt = 0,
+                           mac_dst_override_mode = 0,
+                           mode = STLTXCont(pps = 100))
+        streams.append(stream)
+
+        return streams
+
+def register():
+    return STLS1()
+----
+
+*Discussion*::
+
+The following are the main traffic profiles formats. The native is the preferred one. There is a separation between how the traffic is defined and how to control/activate it. The API/Console/GUI can load a traffic profile and start/stop/get a statistic. Due to this separation it is possible to share traffic profiles.
+
+.Traffic profiles formats
+[cols="1^,1^,10<", options="header",width="80%"]
+|=================
+| Profile Type       | Format | Description  
+| Native             | Python | A native Python like. Have the most flexibility. any format can be converted to native using `stl-sim` using --native option
+| HLT                | Python | HLT arguments like
+| YAML               | YAML   | It is the common denominator traffic profile. We suggest not to use it by human as it is not possible to compose packet using scapy. it is used to move profile between GUI and Console or API. It can be converted to native using the stl-sim using --native switch 
+|=================
+
 
 === Traffic profile Tutorials
 
 ==== Tutorial: Simple Interleave streams
 
-Goal:: Demonstrate number of interleave streams
+*Goal*:: Demonstrate number of interleave streams
 
 The following example demonstrates 3 streams with different rates (pps=10,20,40) and different start time ISG (0,25msec,50msec)
 
-file:: link:{github_stl_path}/simple_3pkt.py[stl/simple_3pkt.py]
+*file*:: link:{github_stl_path}/simple_3pkt.py[stl/simple_3pkt.py]
 
 [source,python]
 ----
@@ -951,17 +1045,17 @@ file:: link:{github_stl_path}/simple_3pkt.py[stl/simple_3pkt.py]
         pad = max(0, size - len(base_pkt)) * 'x'
 
 
-        return STLProfile( [ STLStream( isg = 0.0, # 25msec
+        return STLProfile( [ STLStream( isg = 0.0, 
                                         packet = STLPktBuilder(pkt = base_pkt/pad),
                                         mode = STLTXCont( pps = 10),                         <2>
                                         ), 
 
-                             STLStream( isg = 25000.0,
+                             STLStream( isg = 25000.0, #defined in usec, 25 msec
                                         packet  = STLPktBuilder(pkt = base_pkt1/pad),
                                         mode    = STLTXCont( pps = 20),                      <3>
                                         ),
 
-                             STLStream(  isg = 50000.0,
+                             STLStream(  isg = 50000.0,#defined in usec, 50 msec
                                          packet = STLPktBuilder(pkt = base_pkt2/pad),
                                          mode    = STLTXCont( pps = 40)                      <4>
                                          
@@ -975,35 +1069,35 @@ file:: link:{github_stl_path}/simple_3pkt.py[stl/simple_3pkt.py]
 
 
 The output::
+The folowing figure present the output 
 
 image::images/stl_inter.png[title="Interleave streams",align="left",width=600, link="images/stl_inter.png"]
-
+              
 Discussion:: 
 
-1. stream #1 has a packet each 100msec 
-2. stream #2 has a packet each 50msec
-3. stream #3 has a packet each 25msec
+1. stream #1 schedule a packet each 100msec 
+2. stream #2 schedule a packet each 50msec
+3. stream #3 schedule a packet each 25msec
 4. Stream #2 start after 25msec relative to stream #1
 5. Stream #3 start after 50msec relative to stream #1
 
-You can use the simulator to look into the details 
+You can use the simulator to look into the details (pcap file)
 
 [source,bash]
 ----
 $./stl-sim -f stl/simple_3pkt.py -o b.pcap -l 200
 ----
 
-or run it from Console 
+or run it from Console on a TRex
 
 [source,bash]
 ----
 trex>start -f stl/simple_3pkt.py -m 10mbps -a 
 ----
 
+==== Tutorial:  Multi burst streams - action next stream   
 
-==== Tutorial:  Multi stream support 
-
-Goal:: profile with stream trigger a stream 
+*Goal*:: profile with stream that trigger a stream 
 
 The following example demonstrates 
 
@@ -1011,8 +1105,7 @@ The following example demonstrates
 2. Burst of 10 packets
 3. Stream activate a Stream (self_start=False)
 
-
-file: link:{github_stl_path}/burst_3pkt_60pkt.py[stl/burst_3pkt_60pkt.py]
+*file*:: link:{github_stl_path}/burst_3pkt_60pkt.py[stl/burst_3pkt_60pkt.py]
 
 
 [source,python]
@@ -1051,26 +1144,27 @@ file: link:{github_stl_path}/burst_3pkt_60pkt.py[stl/burst_3pkt_60pkt.py]
 <2> S1 with self_start=False. S0 activate it
 <3> S2 is activate by S1
 
+To run the simulator run this command
+
 [source,bash]
 ----
 $ ./stl-sim -f stl/stl/burst_3pkt_600pkt.py -o b.pcap 
 ----
 
-The pcap file has 60 packet. The first 10 packets has src_ip=16.0.0.1. The next 10 packets has src_ip=16.0.0.2. The next 10 packets has src_ip=16.0.0.3
+The pcap file should have 60 packets. The first 10 packets has src_ip=16.0.0.1. The next 20 packets has src_ip=16.0.0.2. The next 30 packets has src_ip=16.0.0.3
 
-This profile can be run from Console using thed command 
+This profile can be run from Console using this command 
 
 [source,bash]
 ----
 TRex>start -f stl/stl/burst_3pkt_600pkt.py --port 0
 ----
 
-
 ==== Tutorial: Multi Burst mode
 
-*Goal* : Learn Multi burst  
+*Goal* : Learn Multi burst transmit mode  
 
-file: link:{github_stl_path}/multi_burst_2st_1000pkt.py[stl/multi_burst_2st_1000pkt.py]
+*file*:: link:{github_stl_path}/multi_burst_2st_1000pkt.py[stl/multi_burst_2st_1000pkt.py]
 
 [source,python]
 ----
@@ -1103,7 +1197,7 @@ file: link:{github_stl_path}/multi_burst_2st_1000pkt.py[stl/multi_burst_2st_1000
 
 ----
 <1> Stream S0 wait 10 usec(isg) and send burst of 10 packet in 10 PPS rate
-<2> Multi burst of 5 Burst of 4 packet with inter burst gap of one second 
+<2> Multi burst of 5 bursts of 4 packets with a inter burst gap of one second 
  
 
 image::images/stl_tut_4.png[title="Streams example",align="left",width=600, link="images/stl_tut_4.png"]
@@ -1111,7 +1205,9 @@ image::images/stl_tut_4.png[title="Streams example",align="left",width=600, link
 
 ==== Tutorial: Loops of streams
 
-file: link:{github_stl_path}/burst_3st_loop_x_times.py[stl/burst_3st_loop_x_times.py]
+*Goal* : Demonstrate a limited loop of streams
+
+*file*:: link:{github_stl_path}/burst_3st_loop_x_times.py[stl/burst_3st_loop_x_times.py]
 
 [source,python]
 ----
@@ -1152,7 +1248,11 @@ file: link:{github_stl_path}/burst_3st_loop_x_times.py[stl/burst_3st_loop_x_time
 
 ==== Tutorial: IMIX with UDP packets directional 
 
-file: link:{github_stl_path}/imix.py[stl/imix.py]
+*Goal* : Demonstrate how to create IMIX 
+
+This profile has 3 streams each with different size packet. The rate is different for each stream/size see link:https://en.wikipedia.org/wiki/Internet_Mix[here]
+
+*file*:: link:{github_stl_path}/imix.py[stl/imix.py]
 
 [source,python]
 ----
@@ -1219,11 +1319,10 @@ file: link:{github_stl_path}/imix.py[stl/imix.py]
 <2> Even port id has direction==0 and odd has direction==1
 <3> We didn't explain this yet. but this is a Field Engine program to change fields inside the packets
 
-
 ==== Tutorial: Field Engine, Syn attack  
 
 The following example demonstrates changing packet fields. 
-The Field Engine (FE) has limited number of instructions/operation for supporting most use cases. There is a plan to add LuaJIT to get 100% flexiable in the cost of performance.
+The Field Engine (FE) has limited number of instructions/operation for supporting most use cases. There is a plan to add LuaJIT to be more flexiable in the cost of performance.
 The FE can allocate stream variable in Stream context. Write a stream variable to a packet offset, change packet size etc.
 
 *Some examples for what can be done:*
@@ -1237,7 +1336,7 @@ for more info see link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_o
 
 The following example demonstrates creating SYN attack from many src to one server.
 
-file: link:{github_stl_path}/syn_attack.py[stl/syn_attack.py]
+*file*:: link:{github_stl_path}/syn_attack.py[stl/syn_attack.py]
 
 [source,python]
 ----
@@ -1278,7 +1377,7 @@ file: link:{github_stl_path}/syn_attack.py[stl/syn_attack.py]
 <1> Create SYN packet using Scapy 
 <2> Define stream variable name=ip_src, 4 bytes size for IPv4. 
 <3> Define stream variable name=src_port, 2 bytes size for port. 
-<4> Write ip_src var into `IP.src` packet offset. Scapy calculate the offset. We could gave `IP:1.src" for second IP header in the packet
+<4> Write ip_src stream var into `IP.src` packet offset. Scapy calculate the offset. We could gave `IP:1.src" for second IP header in the packet
 <5> Fix IPv4 checksum. here we provide the header name `IP` we could gave `IP:1` for second IP
 <6> Update TCP src port- TCP checksum is not updated here
 
@@ -1287,7 +1386,7 @@ WARNING: Original Scapy does not have the capability to calculate offset for a h
 The output pcap file field can be seen here 
 
 .Pcap file output 
-[format="csv",cols="1^,2^,2^", options="header",width="40%"]
+[format="csv",cols="1^,2<,2<", options="header",width="40%"]
 |=================
 pkt,Client IPv4,Client Port
  1  , 17.152.71.218  , 5814
@@ -1301,10 +1400,10 @@ pkt,Client IPv4,Client Port
 
 ==== Tutorial: Field Engine, Tuple Generator 
 
-The following example demonstrates creating multiply flow from the same packet template.
-The TupleGenerator instructions are used to create two stream variables with IP, port
+The following example demonstrates creating multiply flows from the same packet template.
+The TupleGenerator instructions are used to create two stream variables with IP, port see link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
 
-file: link:{github_stl_path}/udp_1pkt_tuple_gen.py[stl/udp_1pkt_tuple_gen.py]
+*file*:: link:{github_stl_path}/udp_1pkt_tuple_gen.py[stl/udp_1pkt_tuple_gen.py]
 
 [source,python]
 ----
@@ -1344,7 +1443,7 @@ pkt,Client IPv4,Client Port
  6  , 16.0.0.2,  1027
 |=================
 
-* Number of clients are two 16.0.0.1 and 16.0.0.2
+* Number of clients are two. 16.0.0.1 and 16.0.0.2
 * Number of flows is limited to 129020 (2*65535-1025)
 * The stream variable size should match the size of the FlowVarWr instruction
 
@@ -1360,7 +1459,7 @@ In this example MPLS label field will be changed.
 0|1|2|3|4|5|6|7|8|9|0|1|2|3|4|5|6|7|8|9|0|1|2|3|4|5|6|7|8|9|0|1|
 |==== 
 
-file: link:{github_stl_path}/udp_1pkt_mpls_vm.py[stl/udp_1pkt_mpls_vm.py]
+*file*:: link:{github_stl_path}/udp_1pkt_mpls_vm.py[stl/udp_1pkt_mpls_vm.py]
 
 [source,python]
 ----
@@ -1402,7 +1501,7 @@ The way to do it is:
 2. Trim the packet to the size you want 
 3. Update the packet fields to the new size 
 
-file: link:{github_stl_path}/udp_rand_len_9k.py[stl/udp_rand_len_9k.py]
+*file*:: link:{github_stl_path}/udp_rand_len_9k.py[stl/udp_rand_len_9k.py]
 
 [source,python]
 ----
@@ -1448,12 +1547,10 @@ file: link:{github_stl_path}/udp_rand_len_9k.py[stl/udp_rand_len_9k.py]
 
 ==== Tutorial: New Scapy header  
 
-The following example demonstrates a way to use a header the is not supported by Scapy. 
-In this case this is VXLAN
+The following example demonstrates a way to use a header that is not supported by Scapy in default. 
+In this example we will show VXLAN support.
 
-
-file: link:{github_stl_path}/udp_1pkt_vxlan.py[stl/udp_1pkt_vxlan.py]
-
+*file*:: link:{github_stl_path}/udp_1pkt_vxlan.py[stl/udp_1pkt_vxlan.py]
 
 [source,python]
 ----
@@ -1506,22 +1603,22 @@ For more information how to define headers see Scapy link:http://www.secdev.org/
 ==== Tutorial: Field Engine, Many clients 
 
 The following example demonstrates a way to generate traffic from many clients with different IP/MAC to one server.
-The following figure demonstrate what e want to achieve 
+The following figure shows it. 
 
 image::images/stl_tut_12.png[title="client->server",align="left",width=600, link="images/stl_tut_12.png"]
 
-1. Send gratuitous ARP from B->D with server IP/MAC
-2. DUT learn the ARP of Server IP/MAC
+1. Send gratuitous ARP from B->D with server IP/MAC (58.55.1.1)
+2. DUT learn the ARP of Server IP/MAC (58.55.1.1)
 3. Send traffic from A->C with many Clients IP's/MAC's
 
 Let's take an example:
 
 Base source IPv4 : 55.55.1.1
-Destination IPv4:  58.0.0.1
+Destination IPv4:  58.55.1.1
 
 Increment src ipt portion starting at 55.55.1.1 for 'n' number of clients (55.55.1.1, 55.55.1.2)
 Src MAC: start with 0000.dddd.0001, increment mac in steps of 1
-Dst MAC: Fixed  - will be taken from trex_conf.yaml
+Dst MAC: Fixed  - 58.55.1.1 
 
 To send gratuitous ARP from TRex server side for this server (58.0.0.1)
 
@@ -1529,17 +1626,17 @@ To send gratuitous ARP from TRex server side for this server (58.0.0.1)
 ----
     def create_stream (self):
         # create a base packet and pad it to size
-        base_pkt =  Ether(src="00:00:dd:dd:00:01",
+        base_pkt =  Ether(src="00:00:dd:dd:01:01",
                           dst="ff:ff:ff:ff:ff:ff")/
-                    ARP(psrc="58.0.0.1",
-                        hwsrc="00:00:dd:dd:00:01", 
-                        hwdst="00:00:dd:dd:00:01", 
-                        pdst="58.0.0.1")
+                    ARP(psrc="58.55.1.1",
+                        hwsrc="00:00:dd:dd:01:01", 
+                        hwdst="00:00:dd:dd:01:01", 
+                        pdst="58.55.1.1")
 ----
 
 Then traffic can be sent from client side  A->C 
 
-file: link:{github_stl_path}/udp_1pkt_range_clients_split.py[stl/udp_1pkt_range_clients_split.py]
+*file*:: link:{github_stl_path}/udp_1pkt_range_clients_split.py[stl/udp_1pkt_range_clients_split.py]
 
 [source,python]
 ----
@@ -1554,7 +1651,7 @@ class STLS1(object):
         # create a base packet and pad it to size
         size = self.fsize - 4; # no FCS
         base_pkt =  Ether(src="00:00:dd:dd:00:01")/
-                          IP(src="55.55.1.1",dst="58.0.0.1")/UDP(dport=12,sport=1025)
+                          IP(src="55.55.1.1",dst="58.55.1.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
         vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
@@ -1581,10 +1678,10 @@ class STLS1(object):
 ==== Tutorial: Field Engine, Split to core 
 
 The following example demonstrates a way to split generated traffic to a number of threads.
-Using this feature, there is a way to specify by each field to split the traffic to threads.
+Using this feature, there is a way to specify by which field to split the traffic to threads.
 Without this feature the traffic is duplicated and all the threads transmits the same traffic.
 
-===== Without Split 
+*Without Split*::
 
 Let's assume we have two transmitters DP threads
 
@@ -1630,7 +1727,7 @@ pkt, thread-0 ip_src,thread-1 ip_src
 * In this case all the threads transmit the same packets
 
 
-===== With  Split feature  
+*With Split feature enabled*::
 
 Let's assume we have two transmitters DP threads
 
@@ -1694,13 +1791,11 @@ pkt, thread-0 ip_src,thread-1 ip_src
  6  , 55.55.0.6 , 55.55.58.158
 |=================
 
+*Some rules about Split stream varibles and burst/multi-burst*::
 
-
-===== Some rules about Split stream varibles and burst/multi-burst 
-
-* In case of burst/multi-burst the number of packets are split to number of threads in *default* there is no need an explict split 
-* When the number of packets in a burst is smaller than the number of threads only one thread will do the work.
-* In case there is stream with burst of *1* packet, only the first DP thread will do the work. 
+* In case of burst/multi-burst the number of packets are split to number of threads in *default* there is no need an explict split it.
+* When the number of packets in a burst is smaller than the number of threads only one thread will do the work. 
+* In case there is a stream with burst of *1* packet, only the first DP thread will do the work. 
 
 ==== Tutorial: Field Engine, Split to core with Burst 
 
@@ -1708,13 +1803,12 @@ The following example demonstrates a way to split generated traffic to a number 
 In both cases the number of packets would be split into threads. 
 Using this feature, The Field engine will be split too.
 
-===== Without Split 
+*Without Split*::
 
 In this example:
 
 * Number of threads are two 
 * Split is not configured 
-
 
 [source,python]
 ----              
@@ -1768,13 +1862,13 @@ pkt, thread-0 ip_src,thread-1 ip_src
  10 , 16.0.0.10, 16.0.0.10
 |=================
 
-*The results:*
+*The results*::
 
 * Total packets are 20 as expected, 10 generated by each thread 
 * Field engine is the same for both threads 
 
 
-===== With Split 
+*With Split feature enabled*::
 
 [source,python]
 ----              
@@ -1830,11 +1924,10 @@ pkt, thread-0 ip_src,thread-1 ip_src
  10 , 16.0.0.10, 17.0.0.137
 |=================
 
-*The results:*
+*The results*::
 
 * Total packets are 20 as expected, 10 generated by each thread 
 * Field engine is *not* the same for both threads. 
-
 
 ==== Tutorial: Field Engine, Null stream 
 
@@ -1864,7 +1957,7 @@ In the above figure we would like to that stream S3 will start on all the thread
 
 There is a way to load *one* packet data into a stream. There is an assumption  that this pcap. only the first packet from this pcap is taken.
 
-file: link:{github_stl_path}/udp_1pkt_pcap.py[stl/udp_1pkt_pcap.py]
+*file*:: link:{github_stl_path}/udp_1pkt_pcap.py[stl/udp_1pkt_pcap.py]
 
 [source,python]
 ----
@@ -1878,7 +1971,7 @@ file: link:{github_stl_path}/udp_1pkt_pcap.py[stl/udp_1pkt_pcap.py]
 <1> packet is taken from pcap file relative to pwd of the script you run
 
 
-file: link:{github_stl_path}/udp_1pkt_pcap_relative_path.py[udp_1pkt_pcap_relative_path.py]
+*file*:: link:{github_stl_path}/udp_1pkt_pcap_relative_path.py[udp_1pkt_pcap_relative_path.py]
 
 
 [source,python]
@@ -1896,7 +1989,7 @@ file: link:{github_stl_path}/udp_1pkt_pcap_relative_path.py[udp_1pkt_pcap_relati
 
 The following example demonstrates a way to load pcap with *number* of packets and for each packet create a stream with burst of 1. 
 
-file: link:{github_stl_path}/pcap.py[pcap.py]
+*file*:: link:{github_stl_path}/pcap.py[pcap.py]
 
 [source,python]
 ----
@@ -2040,7 +2133,7 @@ $./stl-sim -f stl/pcap.py --yaml
 The following example demonstrates a way to load pcap file to many stream and attach to each stream a Field Engine program.
 For example change the IP.src of all the streams to a random number
  
-file: link:{github_stl_path}/pcap_with_vm.py[stl/pcap_with_vm.py]
+*file*:: link:{github_stl_path}/pcap_with_vm.py[stl/pcap_with_vm.py]
 
 [source,python]
 ----
@@ -2120,7 +2213,7 @@ pkt, IPv4 , flow
 
 The following example demonstrates creating IPv6 packet inside IPv4 packet and create a range of IPs
 
-file: link:{github_stl_path}/udp_1pkt_ipv6_in_ipv4.py[stl/udp_1pkt_ipv6_in_ipv4.py]
+*file*:: link:{github_stl_path}/udp_1pkt_ipv6_in_ipv4.py[stl/udp_1pkt_ipv6_in_ipv4.py]
 
 [source,python]
 ----
@@ -2438,7 +2531,7 @@ Under the hood there is a compiler that converts it to native scapy/field engine
 The support is limited to [TBD] this argument.
 
 
-file: link:{github_stl_path}/hlt/hlt_udp_inc_dec_len_9k.py[stl/hlt/hlt_udp_inc_dec_len_9k.py]
+*file*:: link:{github_stl_path}/hlt/hlt_udp_inc_dec_len_9k.py[stl/hlt/hlt_udp_inc_dec_len_9k.py]
 
 [source,python]
 ----
@@ -2492,12 +2585,64 @@ It can be converted to native json or YAML
 $ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --josn
 ----
 
-or converted to native Python native Scapy/FE using this command 
+or converted to native Python profile you can use this command 
 
 [source,bash]
 ----
 $ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --native 
 ----
+
+.Auto generated code
+[source,python]
+----
+# !!! Auto-generated code !!!
+from trex_stl_lib.api import *
+
+class STLS1(object):
+    def get_streams(self):
+        streams = []
+        
+        packet = (Ether(src='00:00:01:00:00:01', dst='00:00:00:00:00:00', type=2048) / 
+                  IP(proto=17, chksum=5882, len=9202, ihl=5L, id=0) / 
+                  UDP(dport=12, sport=1025, len=9182, chksum=55174) / 
+                  Raw(load='!' * 9174))
+        vm = CTRexScRaw([CTRexVmDescFlowVar(name='pkt_len', size=2, op='inc', 
+                          init_value=64, min_value=64, max_value=9216, step=1),
+                         CTRexVmDescTrimPktSize(fv_name='pkt_len'),
+                         CTRexVmDescWrFlowVar(fv_name='pkt_len', 
+                         pkt_offset=16, add_val=-14, is_big=True),
+                         CTRexVmDescWrFlowVar(fv_name='pkt_len', 
+                         pkt_offset=38, add_val=-34, is_big=True),
+                         CTRexVmDescFixIpv4(offset=14)], split_by_field = 'pkt_len')
+        stream = STLStream(packet = CScapyTRexPktBuilder(pkt = packet, vm = vm),
+                           mode = STLTXCont(pps = 1.0))
+        streams.append(stream)
+        
+        packet = (Ether(src='00:00:01:00:00:01', dst='00:00:00:00:00:00', type=2048) / 
+                  IP(proto=17, chksum=5882, len=9202, ihl=5L, id=0) / 
+                  UDP(dport=12, sport=1025, len=9182, chksum=55174) / 
+                  Raw(load='!' * 9174))
+        vm = CTRexScRaw([CTRexVmDescFlowVar(name='pkt_len', size=2, op='dec', 
+                         init_value=9216, min_value=64, 
+                         max_value=9216, step=1),
+                         CTRexVmDescTrimPktSize(fv_name='pkt_len'),
+                         CTRexVmDescWrFlowVar(fv_name='pkt_len', pkt_offset=16, 
+                         add_val=-14, is_big=True),
+                         CTRexVmDescWrFlowVar(fv_name='pkt_len', 
+                         pkt_offset=38, add_val=-34, is_big=True),
+                         CTRexVmDescFixIpv4(offset=14)], split_by_field = 'pkt_len')
+        stream = STLStream(packet = CScapyTRexPktBuilder(pkt = packet, vm = vm),
+                           mode = STLTXCont(pps = 1.0))
+        streams.append(stream)
+
+        return streams
+
+def register():
+    return STLS1()
+----    
+
+
+
 
 to run it using using the TRex Console 
 
