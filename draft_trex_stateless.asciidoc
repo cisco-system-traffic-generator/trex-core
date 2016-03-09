@@ -2485,16 +2485,22 @@ In this example, change the fsize to 1500 bytes
 
 ==== Tutorial: Per stream statistics 
 
-* Per stream statistic is implemented using hardware assist on the X710/XL710 Intel NIC using flow director rules
-* With I350/82599 it is implemented in software.
+* Per stream statistics is implemented using hardware assist when possible (X710/XL710 Intel NICs flow director rules for example).
+* With other NICs (Intel I350, 82599) it is implemented in software.
+* Implementation works as follows:
+1. User chooses 32 bit packet group id (pg_id).
+1. IPv4 Identification field of the stream is changed to a value with in a reserved range (0xff00 to 0xffff). Notice that if a stream for which
+no statistics is needed has IPv4 Identification in the reserved range, it is changed (left bit becomes 0).
+1. In the software implementation, hardware rules are used to direct packets from relevant streams to rx thread, where they are counted. 
+In the hardware implementation, HW rules are inserted to count packets from relevant streams.
+1. Summed up statistics (per stream, per port) are sent using ZMQ async channel to clients.
 
- [TODO IDO]
+* Limitations:
 
-1. Works only for IPv4  (with or without VLAN)
-2. IPv4 Identification field is changed to a reserve values. 
-3. All users acquire interfaces is configured with a rule to count this stream id (base on IPV4.id)
-4. Client sum the counter per stream (it is sent on ZMQ async channel)
-5. Number of RX stats are 128
+1. Currently, the feature supports only two packet types:
+a. IPv4 over ethernet
+b. IPv4 with one vlan tag
+2. Number of concurrent streams you can get statistics for is 128.
 
 
 [source,python]
@@ -2507,11 +2513,11 @@ class STLS1(object):
                           STLPktBuilder(
                           pkt ="stl/yaml/udp_64B_no_crc.pcap"), 
                           mode = STLTXCont(pps=10),
-                          rx_stats = STLRxStats(user_id = 7))   <1> 
+                          rx_stats = STLRxStats(pg_id = 7))   <1> 
                ]
 
 ----
-<1> Configure this stream to be count on all RX ports as user_id=7
+<1> Configure this stream to be counted on all RX ports as packet group id 7
 
 * TUI should show Tx/Rx stats [TODO]
 * Python API to get the info  [TODO]

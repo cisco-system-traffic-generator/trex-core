@@ -441,7 +441,21 @@ zmq publisher at: tcp://*:4500
 
 WARNING: If you don't see rx packets, revisit your MAC address configuration.
 
-==== Running TRex for the first time with virtual NICs + vSwitch
+==== Running TRex for the first time with ESXi:
+
+* Virtual NICs can be used to bridge between TRex and non-supported NICs or get some basic impression/testing. Bandwidth is limited by vSwitch, has ipv6 issues.
+
+1. Click on the host machine, enter Configuration -> Networking.
+
+a. One of the NICs should be connected to the main vSwitch network to get "outside" connection, for the TRex client and ssh: +
+image:images/vSwitch_main.png[title="vSwitch_main"]
+
+b. Other NICs that are used for TRex traffic should be in distinguish vSwitch: +
+image:images/vSwitch_loopback.png[title="vSwitch_loopback"]
+
+2. Right click on guest machine -> Edit settings -> Ensure the NICs are set to their networks: +
+image:images/vSwitch_networks.png[title="vSwitch_networks"]
+
 
 [NOTE]
 =====================================================================
@@ -451,6 +465,14 @@ sudo ./t-rex-64 -f cap2/dns.yaml --lm 1 --lo -l 1000 -d 100
 ....
 vSwitch can't know where to "route" the packet, it supposed to be fixed once TRex supports ARP
 =====================================================================
+
+* Pass-through is the way to use directly the NICs from host machine inside the VM. Has no limitations except the NIC/hardware itself. The only difference via bare-metal OS is seldom spikes of latency (~10ms). Passthrough settings can't be saved to OVA.
+
+1. Click on the host machine, enter Configuration -> Advanced settings -> Edit. Mark the wanted NICs. Reboot the ESXi to apply. +
+image:images/passthrough_marking.png[title="passthrough_marking"]
+
+2. Right click on guest machine -> Edit settings -> Add -> *PCI device* -> Choose the NICs one by one. +
+image:images/passthrough_adding.png[title="passthrough_adding"]
 
 ==== Running TRex for the first time with router
 
