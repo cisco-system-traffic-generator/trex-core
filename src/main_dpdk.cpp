@@ -4947,13 +4947,13 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *stats, u
 
     rte_eth_fdir_stats_get(port_id, hw_stats, start, len);
     for (int i = loop_start; i <  loop_start + len; i++) {
-        if (hw_stats[i] >= prev_stats[i]) {
-            stats[i] = (uint64_t)(hw_stats[i] - prev_stats[i]);
+        if (hw_stats[i - min] >= prev_stats[i]) {
+            stats[i] = (uint64_t)(hw_stats[i - min] - prev_stats[i]);
         } else {
             // Wrap around
-            stats[i] = (uint64_t)((hw_stats[i] + ((uint64_t)1 << 32)) - prev_stats[i]);
+            stats[i] = (uint64_t)((hw_stats[i - min] + ((uint64_t)1 << 32)) - prev_stats[i]);
         }
-        prev_stats[i] = hw_stats[i];
+        prev_stats[i] = hw_stats[i - min];
     }
 
     return 0;
