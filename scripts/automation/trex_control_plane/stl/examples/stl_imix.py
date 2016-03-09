@@ -4,6 +4,7 @@ from trex_stl_lib.api import *
 import time
 import json
 from pprint import pprint
+import argparse
 
 # IMIX test
 # it maps the ports to sides
@@ -11,11 +12,11 @@ from pprint import pprint
 # and attach it to both sides and inject
 # at a certain rate for some time
 # finally it checks that all packets arrived
-def imix_test ():
+def imix_test (server):
     
 
     # create client
-    c = STLClient()
+    c = STLClient(server = server)
     passed = True
 
 
@@ -48,7 +49,7 @@ def imix_test ():
 
         # choose rate and start traffic for 10 seconds on 5 mpps
         duration = 10
-        mult = "5mpps"
+        mult = "30%"
         print "Injecting {0} <--> {1} on total rate of '{2}' for {3} seconds".format(dir_0, dir_1, mult, duration)
 
         c.start(ports = (dir_0 + dir_1), mult = mult, duration = duration, total = True)
@@ -78,9 +79,9 @@ def imix_test ():
         print "Packets injected from {0}: {1:,}".format(dir_1, dir_1_opackets)
 
         print "\npackets lost from {0} --> {1}:   {2:,} pkts".format(dir_0, dir_0, lost_0)
-        print "packets lost from {0} --> {1}:   {2:,} pkts".format(dir_0, dir_0, lost_0)
+        print "packets lost from {0} --> {1}:   {2:,} pkts".format(dir_1, dir_1, lost_1)
 
-        if (lost_0 == 0) and (lost_0 == 0):
+        if (lost_0 <= 0) and (lost_1 <= 0): # less or equal because we might have incoming arps etc.
             passed = True
         else:
             passed = False
@@ -95,10 +96,19 @@ def imix_test ():
 
     if passed:
         print "\nTest has passed :-)\n"
+        sys.exit(0)
     else:
         print "\nTest has failed :-(\n"
+        sys.exit(-1)
 
+parser = argparse.ArgumentParser(description="Example for TRex Stateless, sending IMIX traffic")
+parser.add_argument('-s', '--server',
+                    dest='server',
+                    help='Remote trex address',
+                    default='127.0.0.1',
+                    type = str)
+args = parser.parse_args()
 
 # run the tests
-imix_test()
+imix_test(args.server)
 

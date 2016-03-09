@@ -21,6 +21,8 @@ class CTRexScenario:
     configuration    = None
     trex             = None
     stl_trex         = None
+    stl_ports_map    = None
+    stl_init_error   = None
     router           = None
     router_cfg       = None
     daemon_log_lines = 0

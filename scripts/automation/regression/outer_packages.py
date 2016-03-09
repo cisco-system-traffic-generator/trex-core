@@ -11,7 +11,8 @@ PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(TREX_PATH, 'external_libs'))
 PATH_TO_CTRL_PLANE  = os.path.abspath(os.path.join(TREX_PATH, 'automation', 'trex_control_plane')) 
 PATH_STL_API        = os.path.abspath(os.path.join(PATH_TO_CTRL_PLANE, 'stl')) 
 
-NIGHTLY_MODULES = ['enum34-1.0.4',
+NIGHTLY_MODULES = ['ansi2html',
+                   'enum34-1.0.4',
                    'nose-1.3.4',
                    'rednose-0.4.1',
                    'progressbar-2.2',

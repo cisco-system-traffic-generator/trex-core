@@ -20,22 +20,28 @@ def mix_string (str):
     return str.replace(' ', '_').lower()
 
 # executes given command, returns tuple (return_code, stdout, stderr)
-def run_command(cmd):
-    print 'Running command:', cmd
-    proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (stdout, stderr) = proc.communicate()
-    if stdout:
-        print 'Stdout:\n%s' % stdout
-    if proc.returncode:
-        if stderr:
-            print 'Stderr:\n%s' % stderr
-        print 'Return code: %s' % proc.returncode
-    return (proc.returncode, stdout, stderr)
+def run_command(cmd, background = False):
+    if background:
+        print 'Running command in background:', cmd
+        with open(os.devnull, 'w') as tempf:
+            subprocess.Popen(shlex.split(cmd), stdin=tempf, stdout=tempf, stderr=tempf)
+        return (None,)*3
+    else:
+        print 'Running command:', cmd
+        proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        (stdout, stderr) = proc.communicate()
+        if stdout:
+            print 'Stdout:\n%s' % stdout
+        if proc.returncode:
+            if stderr:
+                print 'Stderr:\n%s' % stderr
+            print 'Return code: %s' % proc.returncode
+        return (proc.returncode, stdout, stderr)
 
 
-def run_remote_command(host, command_string):
+def run_remote_command(host, command_string, background = False):
     cmd = 'ssh -tt %s \'sudo sh -c "%s"\'' % (host, command_string)
-    return run_command(cmd)
+    return run_command(cmd, background)
 
 
 def generate_intf_lists (interfacesList):

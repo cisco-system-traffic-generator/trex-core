@@ -48,7 +48,6 @@ def stl_map_ports (client, ports = None):
                 tx_port = tx_pkts[pkts]
                 table['map'][port] = tx_port
 
-
     unmapped = list(ports)
     while len(unmapped) > 0:
         port_a = unmapped.pop(0)
@@ -57,7 +56,9 @@ def stl_map_ports (client, ports = None):
         # if unknown - add to the unknown list
         if port_b == None:
             table['unknown'].append(port_a)
-
+        # self-loop, due to bug?
+        elif port_a == port_b:
+            continue
         # bi-directional ports
         elif (table['map'][port_b] == port_a):
             unmapped.remove(port_b)

@@ -66,8 +66,8 @@ STATEFUL_STOP_COMMAND = './trex_daemon_server stop; sleep 1; ./trex_daemon_serve
 STATEFUL_RUN_COMMAND = 'rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
 TREX_FILES = ('_t-rex-64', '_t-rex-64-o', '_t-rex-64-debug', '_t-rex-64-debug-o')
 
-def trex_remote_command(trex_data, command):
-    return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command)
+def trex_remote_command(trex_data, command, background = False):
+    return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command, background)
 
 # 1 = running, 0 - not running
 def check_trex_running(trex_data):
@@ -89,7 +89,15 @@ def kill_trex_process(trex_data):
                     trex_remote_command(trex_data, 'kill %s' % pid)
             except:
                 continue
-    (return_code, stdout, stderr) = trex_remote_command(trex_data, STATEFUL_STOP_COMMAND)
+
+def address_to_ip(address):
+    for i in range(10):
+        try:
+            return socket.gethostbyname(address)
+        except:
+            continue
+    return socket.gethostbyname(address)
+
 
 class CTRexTestConfiguringPlugin(Plugin):
     def options(self, parser, env = os.environ):
@@ -112,7 +120,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--server-logs', '--server_logs', action="store_true", default = False,
                             dest="server_logs",
                             help="Print server side (TRex and trex_daemon) logs per test.")
-        parser.add_option('--kill-running', action="store_true", default = False,
+        parser.add_option('--kill-running', '--kill_running', action="store_true", default = False,
                             dest="kill_running",
                             help="Kills running TRex process on remote server (useful for regression).")
         parser.add_option('--func', '--functional', action="store_true", default = False,
@@ -143,6 +151,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             options.config_path = CTRexScenario.setup_dir
         if options.config_path:
             self.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
+            self.configuration.trex['trex_name'] = address_to_ip(self.configuration.trex['trex_name'])
             self.benchmark = misc_methods.load_benchmark_config_file(os.path.join(options.config_path, 'benchmark.yaml'))
             self.enabled = True
         else:
@@ -177,6 +186,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         # launch TRex daemon on relevant setup
         if not self.no_ssh:
             if self.kill_running:
+                if self.stateful:
+                    trex_remote_command(trex_data, STATEFUL_STOP_COMMAND)
                 kill_trex_process(CTRexScenario.configuration.trex)
                 time.sleep(1)
             elif check_trex_running(CTRexScenario.configuration.trex):
@@ -190,13 +201,10 @@ class CTRexTestConfiguringPlugin(Plugin):
             CTRexScenario.trex = CTRexClient(trex_host = CTRexScenario.configuration.trex['trex_name'], verbose = self.verbose_mode)
         elif self.stateless:
             if not self.no_ssh:
-                trex_remote_command(CTRexScenario.configuration.trex, './t-rex-64 -i&')
+                trex_remote_command(CTRexScenario.configuration.trex, './t-rex-64 -i', background = True)
             CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
                                                server = CTRexScenario.configuration.trex['trex_name'],
-                                               sync_port = 4501,
-                                               async_port = 4500,
-                                               verbose_level = self.verbose_mode,
-                                               logger = None)
+                                               verbose_level = self.verbose_mode)
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg = dict(config_dict      = self.configuration.router,
                                             forceImageReload = self.load_image,
@@ -213,6 +221,8 @@ class CTRexTestConfiguringPlugin(Plugin):
             return
         CTRexScenario.is_init = False
         if not self.no_ssh:
+            if self.stateful:
+                trex_remote_command(CTRexScenario.configuration.trex, STATEFUL_STOP_COMMAND)
             kill_trex_process(CTRexScenario.configuration.trex)
 
 
@@ -307,7 +317,7 @@ if __name__ == "__main__":
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
             result = result and nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
         if len(CTRexScenario.test_types['stateless_tests']):
-            additional_args = ['--stl'] + CTRexScenario.test_types['stateless_tests']
+            additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = result and nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])

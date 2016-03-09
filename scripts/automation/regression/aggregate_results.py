@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import xml.etree.ElementTree as ET
+import outer_packages
 import argparse
 import glob
 from pprint import pprint
@@ -9,6 +10,13 @@ import copy
 import datetime, time
 import cPickle as pickle
 import subprocess, shlex
+from ansi2html import Ansi2HTMLConverter
+
+converter = Ansi2HTMLConverter(inline = True)
+convert = converter.convert
+
+def ansi2html(text):
+    return convert(text, full = False)
 
 FUNCTIONAL_CATEGORY = 'Functional' # how to display those categories
 ERROR_CATEGORY = 'Error'
@@ -69,7 +77,7 @@ def add_category_of_tests(category, tests, tests_type = None, category_info_dir 
     if is_actual_category:
         html_output += '<br><table class="reference">\n'
         
-        if category_info_dir and tests_type != 'stateless':
+        if category_info_dir:
             category_info_file = '%s/report_%s.info' % (category_info_dir, category)
             if os.path.exists(category_info_file):
                 with open(category_info_file) as f:
@@ -91,7 +99,7 @@ def add_category_of_tests(category, tests, tests_type = None, category_info_dir 
         html_output += '</table>\n'
 
     if not len(tests):
-        return html_output + pad_tag('<br><font color=red>No tests!</font>', 'b') + '</div>'
+        return html_output + pad_tag('<br><font color=red>No tests!</font>', 'b')
     html_output += '<br>\n<table class="reference" width="100%">\n<tr><th align="left">'
 
     if category == ERROR_CATEGORY:
@@ -137,12 +145,15 @@ def add_category_of_tests(category, tests, tests_type = None, category_info_dir 
             start_index_errors = result_text.find('Exception: The test is failed, reasons:')
             if start_index_errors > 0:
                 result_text = result_text[start_index_errors + 10:].strip() # cut traceback
+            result_text = ansi2html(result_text)
             result_text = '<b style="color:000080;">%s:</b><br>%s<br><br>' % (result.capitalize(), result_text.replace('\n', '<br>'))
         stderr = '' if brief and result_text else test.get('stderr', '')
         if stderr:
+            stderr = ansi2html(stderr)
             stderr = '<b style="color:000080;"><text color=000080>Stderr</text>:</b><br>%s<br><br>\n' % stderr.replace('\n', '<br>')
         stdout = '' if brief and result_text else test.get('stdout', '')
         if stdout:
+            stdout = ansi2html(stdout)
             if brief: # cut off server logs
                 stdout = stdout.split('>>>>>>>>>>>>>>>', 1)[0]
             stdout = '<b style="color:000080;">Stdout:</b><br>%s<br><br>\n' % stdout.replace('\n', '<br>')
@@ -453,10 +464,10 @@ if __name__ == '__main__':
     # Setups tests
     for category, tests in setups.items():
         html_output += '<div style="display:none;" id="cat_tglr_%s">' % category
-        if tests.get('stateful'):
+        if 'stateful' in tests:
             html_output += add_category_of_tests(category, tests['stateful'], 'stateful', category_info_dir=args.input_dir)
-        if tests.get('stateless'):
-            html_output += add_category_of_tests(category, tests['stateless'], 'stateless', category_info_dir=args.input_dir)
+        if 'stateless' in tests:
+            html_output += add_category_of_tests(category, tests['stateless'], 'stateless', category_info_dir=(None if 'stateful' in tests else args.input_dir))
         html_output += '</div>'
     # Functional tests
     if len(functional_tests):
