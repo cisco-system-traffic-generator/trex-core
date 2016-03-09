@@ -155,12 +155,12 @@ class AsyncEventHandler(object):
         pass
 
 
-    def handle_async_rx_stats_event (self, data):
-        self.client.flow_stats.update(data)
+    def handle_async_rx_stats_event (self, data, sync):
+        self.client.flow_stats.update(data, sync)
 
 
     # handles an async stats update from the subscriber
-    def handle_async_stats_update(self, dump_data):
+    def handle_async_stats_update(self, dump_data, sync):
         global_stats = {}
         port_stats = {}
 
@@ -182,11 +182,11 @@ class AsyncEventHandler(object):
                 global_stats[key] = value
 
         # update the general object with the snapshot
-        self.client.global_stats.update(global_stats)
+        self.client.global_stats.update(global_stats, sync)
 
         # update all ports
         for port_id, data in port_stats.iteritems():
-            self.client.ports[port_id].port_stats.update(data)
+            self.client.ports[port_id].port_stats.update(data, sync)
 
 
     # dispatcher for server async events (port started, port stopped and etc.)
@@ -808,6 +808,7 @@ class STLClient(object):
             self.ports[port_id].invalidate_stats()
 
         self.global_stats.invalidate()
+        self.flow_stats.invalidate()
 
         return RC_OK()
 

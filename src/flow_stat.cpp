@@ -630,8 +630,12 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
 
     root["name"] = "flow_stats";
     root["type"] = 0;
-    Json::Value &data_section = root["data"];
     
+    if (force_sync) {
+        root["sync"] = true;
+    }
+
+    Json::Value &data_section = root["data"];
     data_section["ts"]["value"] = Json::Value::UInt64(os_get_hr_tick_64());
     data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
 

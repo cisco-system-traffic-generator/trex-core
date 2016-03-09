@@ -245,9 +245,11 @@ class CTRexAsyncClient():
             name = msg['name']
             data = msg['data']
             type = msg['type']
+            sync = msg.get('sync', False)
+
             self.raw_snapshot[name] = data
 
-            self.__dispatch(name, type, data)
+            self.__dispatch(name, type, data, sync)
 
         
         # closing of socket must be from the same thread
@@ -268,10 +270,10 @@ class CTRexAsyncClient():
         return self.raw_snapshot
 
     # dispatch the message to the right place
-    def __dispatch (self, name, type, data):
+    def __dispatch (self, name, type, data, sync):
         # stats
         if name == "trex-global":
-            self.event_handler.handle_async_stats_update(data)
+            self.event_handler.handle_async_stats_update(data, sync)
 
         # events
         elif name == "trex-event":
@@ -282,7 +284,7 @@ class CTRexAsyncClient():
             self.handle_async_barrier(type, data)
 
         elif name == "flow_stats":
-            self.event_handler.handle_async_rx_stats_event(data)
+            self.event_handler.handle_async_rx_stats_event(data, sync)
 
         else:
             pass

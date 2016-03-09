@@ -2307,7 +2307,7 @@ public:
 public:
     void Dump(FILE *fd,DumpFormat mode);
     void DumpAllPorts(FILE *fd);
-    void dump_json(std::string & json);
+    void dump_json(std::string & json, bool force_sync);
 private:
     std::string get_field(std::string name,float &f);
     std::string get_field(std::string name,uint64_t &f);
@@ -2341,8 +2341,15 @@ std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
 }
 
 
-void CGlobalStats::dump_json(std::string & json){
-    json="{\"name\":\"trex-global\",\"type\":0,\"data\":{";
+void CGlobalStats::dump_json(std::string & json, bool force_sync){
+    /* refactor this to JSON */
+
+    json="{\"name\":\"trex-global\",\"type\":0,";
+    if (force_sync) {
+        json += "\"sync\": true,";
+    }
+
+    json +="\"data\":{";
 
 #define GET_FIELD(f) get_field(std::string(#f),f)
 #define GET_FIELD_PORT(p,f) get_field_port(p,std::string(#f),lp->f)
@@ -3565,7 +3572,7 @@ CGlobalTRex::publish_async_data(bool sync_now) {
         get_stats(m_stats);
     }
 
-    m_stats.dump_json(json);
+    m_stats.dump_json(json, sync_now);
     m_zmq_publisher.publish_json(json);
 
     /* generator json , all cores are the same just sample the first one */
