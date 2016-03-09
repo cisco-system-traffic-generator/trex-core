@@ -41,6 +41,11 @@ The TRex RPC Server
 |=================
 
 
+== Audience of this document 
+
+* Anyone that wants to understand the low level protocol to TRex server
+* GUI developer that want to develop a GUI for TRex Server 
+
 == RPC Support On TRex
 
 TRex implements a RPC protocol in order to config, view and
@@ -95,33 +100,8 @@ and perform adjustments to the request.
 TRex also provides a Python based console that can connect to the server (mock or real) and
 send various commands to the server.
 
-==== Building The Mock Server
-Building the mock server is performed like this:
-[source,bash]
-----
-trex-core/linux>  ./b configure
-trex-core/linux>  ./b --target=mock-rpc-server-64-debug
-----
-
-==== Running The Mock Server
-Launching the mock server is performed like this:
-
-[source,bash]
-----
- 
-trex-core/scripts> ./mock-rpc-server-64-debug
-
--= Starting RPC Server Mock =-
-
-Listening on tcp://localhost:5050 [ZMQ]
-
-Setting Server To Full Verbose
-
-Server Started
-
-----
-
 ==== Using The TRex Console To Interact
+
 When the mock server is up, you can already send commands to the server.
 {zwsp} +
 {zwsp} +
@@ -132,7 +112,7 @@ Let's demonstrate the operation with the Python based TRex console:
 
 [source,bash]
 ----
-trex-core/scripts> ./trex-console
+trex-core/scripts>./trex-console
 
 Connecting To RPC Server On tcp://localhost:5050
 [SUCCESS]
@@ -188,9 +168,8 @@ On the 'server' side:
 [source,bash]
 ----
 
-trex-core/scripts> ./mock-rpc-server-64-debug
+trex-core/scripts>./t-rex-64 -i
 
--= Starting RPC Server Mock =-
 
 Listening on tcp://localhost:5050 [ZMQ]
 
