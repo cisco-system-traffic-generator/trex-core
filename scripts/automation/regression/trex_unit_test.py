@@ -222,10 +222,14 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.functional or self.collect_only:
             return
         CTRexScenario.is_init = False
+        if self.stateful:
+            CTRexScenario.trex = None
+        if self.stateless:
+            CTRexScenario.trex_stl = None
         if not self.no_ssh:
             if self.stateful:
-                trex_remote_command(CTRexScenario.configuration.trex, STATEFUL_STOP_COMMAND)
-            kill_trex_process(CTRexScenario.configuration.trex)
+                trex_remote_command(self.configuration.trex, STATEFUL_STOP_COMMAND)
+            kill_trex_process(self.configuration.trex)
 
 
 def save_setup_info():
