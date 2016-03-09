@@ -43,8 +43,7 @@ The TRex RPC Server
 
 == Audience of this document 
 
-* Anyone that wants to understand the low level protocol to TRex server
-* GUI developer that want to develop a GUI for TRex Server 
+Anyone that wants to understand the low level protocol to TRex server. for example a GUI developer that wants to develop a GUI for TRex Server.
 
 == RPC Support On TRex
 
