@@ -145,6 +145,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.stateful = options.stateful
         self.copy = options.copy
         self.collect_only = options.collect_only
+        if self.functional or self.collect_only:
+            return
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
