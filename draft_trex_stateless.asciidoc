@@ -11,6 +11,16 @@ TRex Stateless support
 :github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
 :toclevels: 6
 
+ifdef::backend-docbook[]
+:p_width: 450
+:p_width_1: 200
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+:p_width: 800
+:p_width_1: 400
+endif::backend-xhtml11[]
+
 
 == Stateless support (Alpha stage)
 
@@ -44,7 +54,7 @@ TRex Stateless support
 
 ==== Traffic profile example
 
-image::images/stl_streams_example.png[title="Streams example",align="left",width=600, link="images/stl_streams_example.png"]
+image::images/stl_streams_example.png[title="Streams example",align="left",width={p_width}, link="images/stl_streams_example.png"]
 
 ==== High level functionality - near future
 
@@ -89,7 +99,7 @@ To support interactive mode, JSON-RPC2 thread added to the TRex Control Plane co
 
 The following diagram illustrates the RPC server/client components
 
-image::images/trex_2_stateless.png[title="RPC Server Position",align="left",width=800, link="images/trex_2_stateless.png"]
+image::images/trex_2_stateless.png[title="RPC Server Position",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
 * The Control transport protocol is ZMQ working in REQ/RES mode
 * JSON-RPC2 is the RPC protocol on top of the ZMQ REQ/RES 
@@ -103,7 +113,7 @@ image::images/trex_2_stateless.png[title="RPC Server Position",align="left",widt
 * In case of crash/exit of the Client it should sync again at connection time.
 * Client has the ability to get a statistic in real time (with ASYNC ZMQ). It gives the option to have number of ways to look into the statistics (GUI and Console) at the same time.
 
-image::images/trex_stateless_multi_user.png[title="Multi user-per interface",align="left",width=800, link="images/trex_stateless_multi_user.png"]
+image::images/trex_stateless_multi_user.png[title="Multi user-per interface",align="left",width={p_width}, link="images/trex_stateless_multi_user.png"]
 
 For more detailed see RPC specification link:trex_rpc_server_spec.html[here]  
 
@@ -115,7 +125,7 @@ This Architecture provides the following advantages:
 
 === TRex Entities 
 
-image::images/stateless_objects.png[title="TRex Objects ",align="left",width=600, link="images/stateless_objects.png"]
+image::images/stateless_objects.png[title="TRex Entities",align="left",width={p_width_1}, link="images/stateless_objects.png"]
 
 * *TRex*: Each TRex instance includes a number of interfaces   
 * *Interface*: For each Interface it is possible to add/remove a number of traffic profiles (TP) 
@@ -131,7 +141,7 @@ image::images/stateless_objects.png[title="TRex Objects ",align="left",width=600
 
 ==== TRex package folders 
 
-[cols="1,5", options="header",width="80%"]
+[cols="5,5", options="header",width="100%"]
 |=============================
 | Location        | Description   
 | /               | t-rex-64/dpdk_set_ports/stl-sim 
@@ -394,7 +404,7 @@ In case a user configures a source or destination MAC explicitly this MAC will t
 
 
 .MAC addrees
-[format="csv",cols="2^,2^,2^", options="header",width="50%"]
+[format="csv",cols="2^,2^,2^", options="header",width="100%"]
 |=================
 Scapy , Source MAC,Destination MAC
 Ether() , trex_cfg (src),trex_cfg(dst)
@@ -736,6 +746,7 @@ if __name__ == "__main__":
 <2> import HLT   TRex
 
 
+
                 
 ==== Tutorial: Simple IPv4/UDP packet - Simulator 
 
@@ -832,7 +843,7 @@ $ ./stl-sim -f stl/udp_1pkt_simple.py -o b.pcap -l 10
 
 The following figure presents the output pcap file
 
-image::images/stl_tut_1.png[title="Wireshark Tutorial 1 output",align="left",width=800, link="images/stl_tut_1.png.png"]
+image::images/stl_tut_1.png[title="Wireshark Tutorial 1 output",align="left",width={p_width}, link="images/stl_tut_1.png.png"]
 
 .To look into the JSON command to the server 
 [source,bash]
@@ -1071,7 +1082,7 @@ The following example demonstrates 3 streams with different rates (pps=10,20,40)
 The output::
 The folowing figure present the output 
 
-image::images/stl_inter.png[title="Interleave streams",align="left",width=600, link="images/stl_inter.png"]
+image::images/stl_inter.png[title="Interleave streams",align="left",width={p_width}, link="images/stl_inter.png"]
               
 Discussion:: 
 
@@ -1200,7 +1211,7 @@ TRex>start -f stl/stl/burst_3pkt_600pkt.py --port 0
 <2> Multi burst of 5 bursts of 4 packets with a inter burst gap of one second 
  
 
-image::images/stl_tut_4.png[title="Streams example",align="left",width=600, link="images/stl_tut_4.png"]
+image::images/stl_tut_4.png[title="Streams example",align="left",width={p_width}, link="images/stl_tut_4.png"]
 
 
 ==== Tutorial: Loops of streams
@@ -1605,7 +1616,7 @@ For more information how to define headers see Scapy link:http://www.secdev.org/
 The following example demonstrates a way to generate traffic from many clients with different IP/MAC to one server.
 The following figure shows it. 
 
-image::images/stl_tut_12.png[title="client->server",align="left",width=600, link="images/stl_tut_12.png"]
+image::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_tut_12.png"]
 
 1. Send gratuitous ARP from B->D with server IP/MAC (58.55.1.1)
 2. DUT learn the ARP of Server IP/MAC (58.55.1.1)
@@ -1934,7 +1945,7 @@ pkt, thread-0 ip_src,thread-1 ip_src
 The following example demonstrates a way create a Stream with no packets. The use cases is to use the Null stream inter stream gap (ISG) and then go to a new stream. 
 using this you can create loops like this:
 
-image::images/stl_null_stream.png[title="Null Stream",align="left",width=600, link="images/stl_null_stream.png"]
+image::images/stl_null_stream.png[title="Null Stream",align="left",width={p_width}, link="images/stl_null_stream.png"]
  
 1. S1 - send_burst of packets, go to stream NULL
 2. NULL - wait ISG time - go to S1 
@@ -1947,7 +1958,7 @@ Null stream is with configured with
 
 ==== Tutorial: Field Engine, Barrier stream (Split) - [TODO]
 
-image::images/stl_barrier.png[title="Barrier Stream",align="left",width=600, link="images/stl_barrier.png"]
+image::images/stl_barrier.png[title="Barrier Stream",align="left",width={p_width}, link="images/stl_barrier.png"]
 
 In some cases there is a need to split the streams to thread in a way that specific stream will continue only after all the threads pass the same path. 
 In the above figure we would like to that stream S3 will start on all the thread after S2 was finished by all the threads 
@@ -2007,7 +2018,7 @@ There is an assumption that this pcap has one packet. In case it has more only t
 <2> How many times to loop
 <3> The input pcap file 
 
-image::images/stl_tut_pcap_file1.png[title="pcap file",align="left",width=300, link="images/stl_tut_pcap_file1.png"]
+image::images/stl_tut_pcap_file1.png[title="pcap file",align="left",width={p_width}, link="images/stl_tut_pcap_file1.png"]
 
 This figure illustrates how the streams look like for pcap file with 3 packets.
 * Each stream is configured to burst with one packet 
@@ -2488,20 +2499,18 @@ In this example, change the fsize to 1500 bytes
 * Per stream statistics is implemented using hardware assist when possible (X710/XL710 Intel NICs flow director rules for example).
 * With other NICs (Intel I350, 82599) it is implemented in software.
 * Implementation works as follows:
-1. User chooses 32 bit packet group id (pg_id).
-1. IPv4 Identification field of the stream is changed to a value with in a reserved range (0xff00 to 0xffff). Notice that if a stream for which
-no statistics is needed has IPv4 Identification in the reserved range, it is changed (left bit becomes 0).
-1. In the software implementation, hardware rules are used to direct packets from relevant streams to rx thread, where they are counted. 
-In the hardware implementation, HW rules are inserted to count packets from relevant streams.
-1. Summed up statistics (per stream, per port) are sent using ZMQ async channel to clients.
+** User chooses 32 bit packet group id (pg_id).
+** IPv4 Identification field of the stream is changed to a value with in a reserved range (0xff00 to 0xffff). Notice that if a stream for which no statistics is needed has IPv4 Identification in the reserved range, it is changed (left bit becomes 0).
 
-* Limitations:
+* In the software implementation, hardware rules are used to direct packets from relevant streams to rx thread, where they are counted. In the hardware implementation, HW rules are inserted to count packets from relevant streams.
+* Summed up statistics (per stream, per port) are sent using ZMQ async channel to clients.
 
-1. Currently, the feature supports only two packet types:
-a. IPv4 over ethernet
-b. IPv4 with one vlan tag
-2. Number of concurrent streams you can get statistics for is 128.
+*Limitations*::
 
+* Currently, the feature supports only two packet types:
+** IPv4 over ethernet
+** IPv4 with one vlan tag
+* Number of concurrent streams you can get statistics for is 128.
 
 [source,python]
 ----

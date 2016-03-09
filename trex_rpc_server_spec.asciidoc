@@ -91,45 +91,9 @@ http://www.jsonrpc.org/specification
 
 Later on in the document we will describe all the supported commands.
 
-=== TRex RPC Mock Server
-Before we get into the commands, it's worth mentioning that TRex has a mock RPC server
-designed to allow playing around with the server in order to understand the response
-and perform adjustments to the request.
+=== TRex Console
 
-TRex also provides a Python based console that can connect to the server (mock or real) and
-send various commands to the server.
-
-==== Using The TRex Console To Interact
-
-When the mock server is up, you can already send commands to the server.
-{zwsp} +
-{zwsp} +
-
-Let's demonstrate the operation with the Python based TRex console:
-
-{zwsp} +
-
-[source,bash]
-----
-trex-core/scripts>./trex-console
-
-Connecting To RPC Server On tcp://localhost:5050
-[SUCCESS]
-
-
--=TRex Console V1.0=-
-
-Type 'help' or '?' for supported actions
-
-TRex >
-
-----
-As we will see later on, a basic RPC command supported by the server is 'ping'.
-{zwsp} +
-Let's issue a ping command to the server and see what happens on both sides:
-
-{zwsp} +
-{zwsp} +
+To debug RPC it is possible to enable verbose command from Console see link:draft_trex_stateless.html#_console_commands[here]
 
 On the 'client' side:
 
@@ -160,39 +124,6 @@ TRex > ping
 }
 
 [SUCCESS]
-
-----
-On the 'server' side:
-
-[source,bash]
-----
-
-trex-core/scripts>./t-rex-64 -i
-
-
-Listening on tcp://localhost:5050 [ZMQ]
-
-Setting Server To Full Verbose
-
-Server Started
-
-
-[verbose][req resp] Server Received:
-
-{
-   "id" : "maa5a3g1",
-   "jsonrpc" : "2.0",
-   "method" : "ping",
-   "params" : null
-}
-
-[verbose][req resp] Server Replied:
-
-{
-   "id" : "maa5a3g1",
-   "jsonrpc" : "2.0",
-   "result" : {}
-}
 
 ----
 
