@@ -176,8 +176,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.server_logs   = self.server_logs
         if self.copy and not CTRexScenario.is_copied and not self.no_ssh:
             new_path = '/tmp/trex_scripts'
-            (return_code, stdout, stderr) = trex_remote_command(CTRexScenario.configuration.trex,
-                                                                'mkdir -p %s; rsync -L -az %s/ %s' % (new_path, CTRexScenario.scripts_path, new_path))
+            return_code, stdout, stderr = trex_remote_command(self.configuration.trex,
+                                                              'mkdir -p %s; rsync -L -az %s/ %s' % (new_path, CTRexScenario.scripts_path, new_path))
             if return_code:
                 print 'Failed copying'
                 sys.exit(-1)
@@ -189,23 +189,23 @@ class CTRexTestConfiguringPlugin(Plugin):
         if not self.no_ssh:
             if self.kill_running:
                 if self.stateful:
-                    trex_remote_command(trex_data, STATEFUL_STOP_COMMAND)
-                kill_trex_process(CTRexScenario.configuration.trex)
+                    trex_remote_command(self.configuration.trex, STATEFUL_STOP_COMMAND)
+                kill_trex_process(self.configuration.trex)
                 time.sleep(1)
-            elif check_trex_running(CTRexScenario.configuration.trex):
+            elif check_trex_running(self.configuration.trex):
                 print 'TRex is already running'
                 sys.exit(-1)
 
 
         if self.stateful:
             if not self.no_ssh:
-                trex_remote_command(CTRexScenario.configuration.trex, STATEFUL_RUN_COMMAND)
-            CTRexScenario.trex = CTRexClient(trex_host = CTRexScenario.configuration.trex['trex_name'], verbose = self.verbose_mode)
+                trex_remote_command(self.configuration.trex, STATEFUL_RUN_COMMAND)
+            CTRexScenario.trex = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
         elif self.stateless:
             if not self.no_ssh:
-                trex_remote_command(CTRexScenario.configuration.trex, './t-rex-64 -i', background = True)
+                trex_remote_command(self.configuration.trex, './t-rex-64 -i', background = True)
             CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
-                                               server = CTRexScenario.configuration.trex['trex_name'],
+                                               server = self.configuration.trex['trex_name'],
                                                verbose_level = self.verbose_mode)
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg = dict(config_dict      = self.configuration.router,
