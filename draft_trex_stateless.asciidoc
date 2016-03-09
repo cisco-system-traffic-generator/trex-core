@@ -58,7 +58,7 @@ image::images/stl_streams_example.png[title="Streams example",align="left",width
 
 ==== High level functionality - near future
 
-* ARP emulation - learn server MAC. Support unlimited of MAC addresses per port
+* ARP emulation - learn server MAC. Support unlimited MAC addresses per port.
 
 ==== High level functionality - roadmap
 
