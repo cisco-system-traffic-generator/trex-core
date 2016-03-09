@@ -7,7 +7,6 @@ class STLExamples_Test(CStlGeneral_Test):
     """This class defines the IMIX testcase of the T-Rex traffic generator"""
 
     def setUp(self):
-        print 'STLExamples_Test setUp'
         CStlGeneral_Test.setUp(self)
         # examples connect by their own
         if self.is_connected():
@@ -15,7 +14,6 @@ class STLExamples_Test(CStlGeneral_Test):
 
     @classmethod
     def tearDownClass(cls):
-        print 'STLExamples_Test tearDownClass'
         # connect back at end of tests
         if not cls.is_connected():
             CTRexScenario.stl_trex.connect()

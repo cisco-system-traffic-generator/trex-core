@@ -40,7 +40,7 @@ def run_command(cmd, background = False):
 
 
 def run_remote_command(host, command_string, background = False):
-    cmd = 'ssh -tt %s \'sudo sh -c "%s"\'' % (host, command_string)
+    cmd = 'ssh -tt %s \'sudo sh -ec "%s"\'' % (host, command_string)
     return run_command(cmd, background)
 
 

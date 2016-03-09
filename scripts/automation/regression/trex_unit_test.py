@@ -66,19 +66,21 @@ STATEFUL_STOP_COMMAND = './trex_daemon_server stop; sleep 1; ./trex_daemon_serve
 STATEFUL_RUN_COMMAND = 'rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
 TREX_FILES = ('_t-rex-64', '_t-rex-64-o', '_t-rex-64-debug', '_t-rex-64-debug-o')
 
-def trex_remote_command(trex_data, command, background = False):
-    return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command, background)
+def trex_remote_command(trex_data, command, background = False, from_scripts = True):
+    if from_scripts:
+        return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command, background)
+    return misc_methods.run_remote_command(trex_data['trex_name'], command, background)
 
 # 1 = running, 0 - not running
 def check_trex_running(trex_data):
     commands = []
     for filename in TREX_FILES:
         commands.append('ps -C %s > /dev/null' % filename)
-    (return_code, stdout, stderr) = trex_remote_command(trex_data, ' || '.join(commands))
+    return_code, _, _ = trex_remote_command(trex_data, ' || '.join(commands), from_scripts = False)
     return not return_code
 
 def kill_trex_process(trex_data):
-    (return_code, stdout, stderr) = trex_remote_command(trex_data, 'ps -u root --format comm,pid,cmd | grep _t-rex-64 | grep -v grep || true')
+    return_code, stdout, _ = trex_remote_command(trex_data, 'ps -u root --format comm,pid,cmd | grep _t-rex-64 | grep -v grep || true', from_scripts = False)
     assert return_code == 0, 'last remote command failed'
     if stdout:
         for process in stdout.split('\n'):
@@ -86,7 +88,7 @@ def kill_trex_process(trex_data):
                 proc_name, pid, full_cmd = re.split('\s+', process, maxsplit=2)
                 if proc_name.find('t-rex-64') >= 0:
                     print 'Killing remote process: %s' % full_cmd
-                    trex_remote_command(trex_data, 'kill %s' % pid)
+                    trex_remote_command(trex_data, 'kill %s' % pid, from_scripts = False)
             except:
                 continue
 
@@ -132,52 +134,55 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--stf', '--stateful', action="store_true", default = False,
                             dest="stateful",
                             help="Run stateful tests.")
-        parser.add_option('--copy', action="store_true", default = False,
-                            dest="copy",
-                            help="Copy TRex server to temp directory and run from there.")
+        parser.add_option('--pkg', action="store",
+                            dest="pkg",
+                            help="Run with given TRex package. Make sure the path available at server machine.")
         parser.add_option('--no-ssh', '--no_ssh', action="store_true", default = False,
                             dest="no_ssh",
-                            help="Flag wherever not to connect via ssh to run the daemons etc.")
+                            help="Flag to disable any ssh to server machine.")
 
     def configure(self, options, conf):
-        self.functional = options.functional
-        self.stateless = options.stateless
-        self.stateful = options.stateful
-        self.copy = options.copy
         self.collect_only = options.collect_only
-        if self.functional or self.collect_only:
+        if self.collect_only:
+            return
+        self.functional   = options.functional
+        self.stateless    = options.stateless
+        self.stateful     = options.stateful
+        self.pkg          = options.pkg
+        self.no_ssh       = options.no_ssh
+        self.verbose_mode = options.verbose_mode
+        if self.functional and (not self.pkg or self.no_ssh):
             return
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
             options.config_path = CTRexScenario.setup_dir
-        if options.config_path:
-            self.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
-            self.configuration.trex['trex_name'] = address_to_ip(self.configuration.trex['trex_name'])
-            self.benchmark = misc_methods.load_benchmark_config_file(os.path.join(options.config_path, 'benchmark.yaml'))
-            self.enabled = True
-        else:
+        if not options.config_path:
             raise Exception('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
+        self.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
+        self.configuration.trex['trex_name'] = address_to_ip(self.configuration.trex['trex_name']) # translate hostname to ip
+        self.benchmark     = misc_methods.load_benchmark_config_file(os.path.join(options.config_path, 'benchmark.yaml'))
+        self.enabled       = True
         self.modes         = self.configuration.trex.get('modes', [])
         self.kill_running  = options.kill_running
         self.load_image    = options.load_image
-        self.verbose_mode  = options.verbose_mode
-        self.no_ssh        = options.no_ssh
         self.clean_config  = False if options.skip_clean_config else True
         self.server_logs   = options.server_logs
         if options.log_path:
             self.loggerPath = options.log_path
-
-    def begin (self):
         # initialize CTRexScenario global testing class, to be used by all tests
         CTRexScenario.configuration = self.configuration
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
-        if self.copy and not CTRexScenario.is_copied and not self.no_ssh:
-            new_path = '/tmp/trex_scripts'
-            return_code, stdout, stderr = trex_remote_command(self.configuration.trex,
-                                                              'mkdir -p %s; rsync -L -az %s/ %s' % (new_path, CTRexScenario.scripts_path, new_path))
+
+
+    def begin (self):
+        if self.pkg and not CTRexScenario.is_copied and not self.no_ssh:
+            new_path = '/tmp/trex-scripts'
+            rsync_template = 'rm -rf /tmp/trex-scripts; mkdir -p %s; rsync -Lc %s /tmp; tar -xzf /tmp/%s -C %s; mv %s/v*.*/* %s'
+            rsync_command = rsync_template % (new_path, self.pkg, os.path.basename(self.pkg), new_path, new_path, new_path)
+            return_code, stdout, stderr = trex_remote_command(self.configuration.trex, rsync_command, from_scripts = False)
             if return_code:
                 print 'Failed copying'
                 sys.exit(-1)

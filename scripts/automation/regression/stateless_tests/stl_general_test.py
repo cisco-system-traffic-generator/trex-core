@@ -53,6 +53,7 @@ class STLBasic_Test(CStlGeneral_Test):
 
         CTRexScenario.stl_init_error = 'Client could not connect'
         self.connect()
+        print ''
         CTRexScenario.stl_init_error = 'Client could not map ports'
         CTRexScenario.stl_ports_map = stl_map_ports(CTRexScenario.stl_trex)
         CTRexScenario.stl_init_error = 'Could not determine bidirectional ports'
