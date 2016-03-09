@@ -653,7 +653,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
                         p_user_id->set_need_to_send_rx(port);
                     }
                 } else {
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_stats[i] << " rx packets, because no mapping was found" << std::endl;
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_stats[i] << " rx packets, on port "
+                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
             if (tx_stats[i].get_pkts() != 0) {
@@ -665,7 +666,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
                         p_user_id->set_need_to_send_tx(port);
                     }
                 } else {
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count tx " << tx_pkts << " because no mapping was found" << std::endl;
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
+                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
         }

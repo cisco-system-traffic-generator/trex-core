@@ -2101,6 +2101,8 @@ i40e_trex_get_speed(struct rte_eth_dev *dev)
 
 //TREX_PATCH
 // fill stats array with fdir rules match count statistics
+// Notice that we read statistics from start to start + len, but we fill the stats are
+//  starting from 0 with len values
 void
 i40e_trex_fdir_stats_get(struct rte_eth_dev *dev, uint32_t *stats, uint32_t start, uint32_t len)
 {

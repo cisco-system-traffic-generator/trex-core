@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,16 +19,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "platform_cfg.h"
-#include <common/basic_utils.h> 
-#include <stdlib.h>
-#include <iostream>
 #include <fstream>
-
+#include <iostream>
+#include <stdlib.h>
+#include "common/basic_utils.h"
+#include "platform_cfg.h"
 
 void CPlatformMemoryYamlInfo::reset(){
        int i;
-       i=0; 
+       i=0;
        for (i=0; i<MBUF_SIZE; i++) {
            m_mbuf[i] = CONST_NB_MBUF_2_10G;
        }
@@ -49,38 +48,34 @@ void CPlatformMemoryYamlInfo::reset(){
        m_mbuf[MBUF_DP_FLOWS]     = (1024*1024/2);
        m_mbuf[MBUF_GLOBAL_FLOWS] =(10*1024/2);
 }
+
 const std::string names []={
                    "MBUF_64",
                    "MBUF_128",
                    "MBUF_256",
-                   "MBUF_512",       
-                   "MBUF_1024",      
-                   "MBUF_2048",    
-                   "MBUF_4096",    
-                   "MBUF_9K",    
-
-
+                   "MBUF_512",
+                   "MBUF_1024",
+                   "MBUF_2048",
+                   "MBUF_4096",
+                   "MBUF_9K",
 
                    "TRAFFIC_MBUF_64",
                    "TRAFFIC_MBUF_128",
                    "TRAFFIC_MBUF_256",
-                   "TRAFFIC_MBUF_512",       
-                   "TRAFFIC_MBUF_1024",      
-                   "TRAFFIC_MBUF_2048",      
-                   "TRAFFIC_MBUF_4096",    
-                   "TRAFFIC_MBUF_9K",    
+                   "TRAFFIC_MBUF_512",
+                   "TRAFFIC_MBUF_1024",
+                   "TRAFFIC_MBUF_2048",
+                   "TRAFFIC_MBUF_4096",
+                   "TRAFFIC_MBUF_9K",
 
-
-                   "MBUF_DP_FLOWS",  
+                   "MBUF_DP_FLOWS",
                    "MBUF_GLOBAL_FLOWS"
 
-    };
+};
 
 const std::string * get_mbuf_names(void){
   return names;
 }
-
-
 
 void CPlatformDualIfYamlInfo::Dump(FILE *fd){
     fprintf(fd,"    socket  : %d  \n",m_socket);
@@ -91,8 +86,6 @@ void CPlatformDualIfYamlInfo::Dump(FILE *fd){
     }
     fprintf(fd,"   ]  \n");
 }
-
-
 
 void CPlatformCoresYamlInfo::Dump(FILE *fd){
     if ( m_is_exists == false){
@@ -121,10 +114,18 @@ void operator >> (const YAML::Node& node, CPlatformDualIfYamlInfo & plat_info) {
     }
 }
 
-
 void operator >> (const YAML::Node& node, CPlatformCoresYamlInfo & plat_info) {
      node["master_thread_id"] >> plat_info.m_master_thread;
-     node["latency_thread_id"] >> plat_info.m_rx_thread;
+     if (node.FindValue("rx_thread_id")) {
+         node["rx_thread_id"] >> plat_info.m_rx_thread;
+     } else {
+         // Obolete option.
+         if (node.FindValue("latency_thread_id")) {
+             node["latency_thread_id"] >> plat_info.m_rx_thread;
+         } else {
+             node["rx_thread_id"] >> plat_info.m_rx_thread; // do this to get the error message
+         }
+     }
 
      const YAML::Node& dual_info = node["dual_if"];
      for(unsigned i=0;i<dual_info.size();i++) {
@@ -134,19 +135,15 @@ void operator >> (const YAML::Node& node, CPlatformCoresYamlInfo & plat_info) {
      }
 }
 
-
 void CPlatformMemoryYamlInfo::Dump(FILE *fd){
-
     fprintf(fd," memory per 2x10G ports  \n");
     const std::string * names =get_mbuf_names();
 
-    int i=0; 
+    int i=0;
     for (i=0; i<MBUF_SIZE; i++) {
         fprintf(fd," %-40s  : %lu \n",names[i].c_str(), (ulong)m_mbuf[i]);
     }
 }
-             
-
 
 void CMacYamlInfo::copy_dest(char *p){
     assert(m_dest_base.size() == 6);
@@ -174,18 +171,14 @@ void CMacYamlInfo::Dump(FILE *fd){
         fprintf(fd,"ERROR in dest mac addr \n");
         return;
     }
-    fprintf (fd," src     : ");   
+    fprintf (fd," src     : ");
     dump_mac_vector( m_dest_base,fd);
-    fprintf (fd," dest    : ");   
+    fprintf (fd," dest    : ");
     dump_mac_vector( m_src_base,fd);
 
 }
 
-
-
-
 void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
-
     const YAML::Node& dmac = node["dest_mac"];
     for(unsigned i=0;i<dmac.size();i++) {
         uint32_t fi;
@@ -204,86 +197,83 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
 }
 
 void operator >> (const YAML::Node& node, CPlatformMemoryYamlInfo & plat_info) {
-
     if ( node.FindValue("mbuf_64") ){
-        node["mbuf_64"] >> plat_info.m_mbuf[MBUF_64];    
+        node["mbuf_64"] >> plat_info.m_mbuf[MBUF_64];
     }
 
     if ( node.FindValue("mbuf_128") ){
-        node["mbuf_128"] >> plat_info.m_mbuf[MBUF_128];    
+        node["mbuf_128"] >> plat_info.m_mbuf[MBUF_128];
     }
 
     if ( node.FindValue("mbuf_256") ){
-        node["mbuf_256"] >> plat_info.m_mbuf[MBUF_256];    
+        node["mbuf_256"] >> plat_info.m_mbuf[MBUF_256];
     }
 
     if ( node.FindValue("mbuf_512") ){
-        node["mbuf_512"] >> plat_info.m_mbuf[MBUF_512];        
+        node["mbuf_512"] >> plat_info.m_mbuf[MBUF_512];
     }
 
     if ( node.FindValue("mbuf_1024") ){
-        node["mbuf_1024"] >> plat_info.m_mbuf[MBUF_1024];         
+        node["mbuf_1024"] >> plat_info.m_mbuf[MBUF_1024];
     }
 
     if ( node.FindValue("mbuf_2048") ){
-        node["mbuf_2048"] >> plat_info.m_mbuf[MBUF_2048];      
+        node["mbuf_2048"] >> plat_info.m_mbuf[MBUF_2048];
     }
 
     if ( node.FindValue("mbuf_4096") ){
-        node["mbuf_4096"] >> plat_info.m_mbuf[MBUF_4096];      
+        node["mbuf_4096"] >> plat_info.m_mbuf[MBUF_4096];
     }
 
     if ( node.FindValue("mbuf_9k") ){
-        node["mbuf_9k"] >> plat_info.m_mbuf[MBUF_9k];      
+        node["mbuf_9k"] >> plat_info.m_mbuf[MBUF_9k];
     }
 
 
     if ( node.FindValue("traffic_mbuf_64") ){
-        node["traffic_mbuf_64"] >> plat_info.m_mbuf[TRAFFIC_MBUF_64];    
+        node["traffic_mbuf_64"] >> plat_info.m_mbuf[TRAFFIC_MBUF_64];
     }
 
     if ( node.FindValue("traffic_mbuf_128") ){
-        node["traffic_mbuf_128"] >> plat_info.m_mbuf[TRAFFIC_MBUF_128];    
+        node["traffic_mbuf_128"] >> plat_info.m_mbuf[TRAFFIC_MBUF_128];
     }
 
     if ( node.FindValue("traffic_mbuf_256") ){
-        node["traffic_mbuf_256"] >> plat_info.m_mbuf[TRAFFIC_MBUF_256];    
+        node["traffic_mbuf_256"] >> plat_info.m_mbuf[TRAFFIC_MBUF_256];
     }
 
     if ( node.FindValue("traffic_mbuf_512") ){
-        node["traffic_mbuf_512"] >> plat_info.m_mbuf[TRAFFIC_MBUF_512];        
+        node["traffic_mbuf_512"] >> plat_info.m_mbuf[TRAFFIC_MBUF_512];
     }
 
     if ( node.FindValue("traffic_mbuf_1024") ){
-        node["traffic_mbuf_1024"] >> plat_info.m_mbuf[TRAFFIC_MBUF_1024];         
+        node["traffic_mbuf_1024"] >> plat_info.m_mbuf[TRAFFIC_MBUF_1024];
     }
 
     if ( node.FindValue("traffic_mbuf_2048") ){
-        node["traffic_mbuf_2048"] >> plat_info.m_mbuf[TRAFFIC_MBUF_2048];      
+        node["traffic_mbuf_2048"] >> plat_info.m_mbuf[TRAFFIC_MBUF_2048];
     }
 
     if ( node.FindValue("traffic_mbuf_4096") ){
-        node["traffic_mbuf_4096"] >> plat_info.m_mbuf[TRAFFIC_MBUF_4096];      
+        node["traffic_mbuf_4096"] >> plat_info.m_mbuf[TRAFFIC_MBUF_4096];
     }
 
     if ( node.FindValue("traffic_mbuf_9k") ){
-        node["traffic_mbuf_9k"] >> plat_info.m_mbuf[TRAFFIC_MBUF_9k];      
+        node["traffic_mbuf_9k"] >> plat_info.m_mbuf[TRAFFIC_MBUF_9k];
     }
 
 
     if ( node.FindValue("dp_flows") ){
-        node["dp_flows"] >> plat_info.m_mbuf[MBUF_DP_FLOWS];      
+        node["dp_flows"] >> plat_info.m_mbuf[MBUF_DP_FLOWS];
     }
 
     if ( node.FindValue("global_flows") ){
-        node["global_flows"] >> plat_info.m_mbuf[MBUF_GLOBAL_FLOWS];      
+        node["global_flows"] >> plat_info.m_mbuf[MBUF_GLOBAL_FLOWS];
     }
 
 }
 
-
 void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
-
     if (node.FindValue("interface_mask")) {
         printf("WARNING interface_mask in not used any more !\n");
     }
@@ -299,7 +289,7 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
 
 
     if ( node.FindValue("port_limit") ){
-        node["port_limit"] >> plat_info.m_port_limit;    
+        node["port_limit"] >> plat_info.m_port_limit;
         plat_info.m_port_limit_exist=true;
     }
 
@@ -307,29 +297,29 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
     plat_info.m_enable_zmq_pub_exist = true;
 
     if ( node.FindValue("enable_zmq_pub") ){
-        node["enable_zmq_pub"] >> plat_info.m_enable_zmq_pub;    
+        node["enable_zmq_pub"] >> plat_info.m_enable_zmq_pub;
         plat_info.m_enable_zmq_pub_exist = true;
     }
 
     if ( node.FindValue("zmq_pub_port") ){
-        node["zmq_pub_port"] >> plat_info.m_zmq_pub_port;    
+        node["zmq_pub_port"] >> plat_info.m_zmq_pub_port;
         plat_info.m_enable_zmq_pub_exist = true;
     }
 
     if ( node.FindValue("prefix") ){
-        node["prefix"] >> plat_info.m_prefix;    
+        node["prefix"] >> plat_info.m_prefix;
     }
 
     if ( node.FindValue("limit_memory") ){
-        node["limit_memory"] >> plat_info.m_limit_memory;    
+        node["limit_memory"] >> plat_info.m_limit_memory;
     }
 
     if ( node.FindValue("c") ){
-        node["c"] >> plat_info.m_thread_per_dual_if;    
+        node["c"] >> plat_info.m_thread_per_dual_if;
     }
 
     if ( node.FindValue("telnet_port") ){
-        node["telnet_port"] >> plat_info.m_telnet_port;    
+        node["telnet_port"] >> plat_info.m_telnet_port;
         plat_info.m_telnet_exist=true;
     }
 
@@ -388,7 +378,6 @@ int CPlatformYamlInfo::load_from_yaml_file(std::string file_name){
     return (0);
 }
 
-
 std::string CPlatformYamlInfo::get_use_if_comma_seperated(){
     std::string s="";
     int i;
@@ -399,23 +388,21 @@ std::string CPlatformYamlInfo::get_use_if_comma_seperated(){
     return (s);
 }
 
-
 void CPlatformYamlInfo::Dump(FILE *fd){
     if ( m_info_exist ==false ){
         fprintf(fd," file info does not exist  \n");
         return;
     }
 
-
     if (m_port_limit_exist && (m_port_limit != 0xffffffff)) {
-    fprintf(fd," port limit     :  %d \n",m_port_limit);
+        fprintf(fd," port limit     :  %d \n",m_port_limit);
     }else{
-    fprintf(fd," port limit     :  not configured \n");
+        fprintf(fd," port limit     :  not configured \n");
     }
     fprintf(fd," port_bandwidth_gb    :  %lu \n", (ulong)m_port_bandwidth_gb);
-    
+
     if ( m_if_mask_exist && m_if_mask.size() ) {
-    fprintf(fd," if_mask        : ");
+        fprintf(fd," if_mask        : ");
         int i;
         for (i=0; i<(int)m_if_mask.size(); i++) {
             fprintf(fd," %s,",m_if_mask[i].c_str());
@@ -423,9 +410,9 @@ void CPlatformYamlInfo::Dump(FILE *fd){
         fprintf(fd,"\n");
 
     }else{
-    fprintf(fd," if_mask        : None \n");
+        fprintf(fd," if_mask        : None \n");
     }
-    
+
     if ( m_prefix.length() ){
         fprintf(fd," prefix              : %s \n",m_prefix.c_str());
     }
@@ -460,8 +447,3 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     m_memory.Dump(fd);
     m_platform.Dump(fd);
 }
-
-
-
-
-
