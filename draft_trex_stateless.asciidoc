@@ -184,7 +184,7 @@ If you are confused you probably need Stateless.
 | /automation/trex_control_plane/stl     | Stateless lib and Console 
 | /automation/trex_control_plane/stl/trex_stl_lib     | Stateless lib
 | /automation/trex_control_plane/stl/examples     | Stateless Examples
-|=================
+|=============================
 
 === Basic Tutorials
 
@@ -625,16 +625,16 @@ simple_burst()
 <5> Connect to local TRex. Username and server can be added.
 <6> Acquire the ports.
 <7> Load the profile and start the traffic 
-<8> Wait for the traffic to, be finished. There is a polling function so you can test do something while waiting 
+<8> Wait for the traffic to be finished. There is a polling function so you can test do something while waiting 
 <9> Get port statistics
 <10> Disconnect
 
 
-==== Tutorials HLT Python API 
+==== Tutorial: HLT Python API 
 
-HLT Python API is a layer on top the native layer. It supports the standard Cisco traffic generator API
-See more in Cisco/IXIA/Spirent documentation
-TRex supported a limited number of HLTAPI arguments and the recommendation is to use the native API due to the flexibility and simplicity. 
+HLT Python API is a layer on top of the native layer. It supports the standard Cisco traffic generator API.
+See more in Cisco/IXIA/Spirent documentation.
+TRex supported a limited number of HLTAPI arguments and the recommendation is to use the native API due to the flexibility and simplicity.
 IXIA for example, has a book of ~2000 pages for specifying all the HLTAPI mode of operations. One of the reasons for the 2000 pages is that in the API there is no clear separation between the definition of the template packet, and the fields that need to be changed and the mode of transmission. This creates a bloat of arguments that need to be documented.
 
 The supported classs are:
@@ -777,7 +777,7 @@ if __name__ == "__main__":
 *Goal*:: Demonstrates the most basic use case using TRex simulator
 
 
-The simulator is a tool called `stil-sim` that is part of the TRex package. 
+The simulator is a tool called `stl-sim` that is part of the TRex package. 
 It is a python script that calls an executable. 
 The executable should run on the same machine that TRex image run (it won't run on an older Linux distributions).
 
