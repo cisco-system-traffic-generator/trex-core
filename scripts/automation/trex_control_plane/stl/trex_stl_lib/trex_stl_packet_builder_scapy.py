@@ -527,7 +527,14 @@ def check_for_int (val):
 
 
 class CTRexVmDescFlowVar(CTRexVmDescBase):
+    """
+        flow var instruction
+    """
+
     def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1,op="inc"):
+        """
+            
+        """
         super(CTRexVmDescFlowVar, self).__init__()
         self.name = name;
         assert type(name)==str, 'type of name is not str'
@@ -666,20 +673,66 @@ class CTRexVmDescTupleGen(CTRexVmDescBase):
 ################################################################################################
 
 class CScapyTRexPktBuilder(CTrexPktBuilderInterface):
-
     """
-    This class defines the TRex API of building a packet using scapy package.
-    Using this class the user can also define how TRex will handle the packet by specifying the VM setting.
+    This class defines the TRex API of building a packet and Field engine using scapy package.
+    Using this class the user can also define how TRex will handle the packet by specifying the Field engine setting.
     pkt could be Scapy pkt or pcap file name 
-
-    When path_relative_to_profile is True load pcap file from path relative to the profile
+    When path_relative_to_profile is a True load pcap file from a path relative to the profile
     """
+
     def __init__(self, pkt = None, pkt_buffer = None, vm = None, path_relative_to_profile = False, build_raw = True, remove_fcs = True):
         """
         Instantiate a CTRexPktBuilder object
 
         :parameters:
-             None
+
+             pkt : Scapy or pcap file filename 
+                a scapy packet 
+
+             pkt_buffer : string 
+                a packet as buffer 
+
+             vm   : list 
+                a list of instructions to manipolate packet fields 
+
+             path_relative_to_profile : bool 
+                in case pkt is pcap file,  do we want to load it relative to profile file
+
+             build_raw : bool 
+                Do we want to build scapy in case buffer was given. good for cases we want offset to be taken from scapy 
+
+             remove_fcs : bool 
+                in case of buffer do we want to remove fcs 
+
+        for Example::
+
+            # packet is scapy
+            STLPktBuilder( pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/(10*'x')
+
+            # packet is taken from pcap file relative to python 
+            STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap")
+
+            # packet is taken from pcap file relative to profile file 
+            STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap",
+                                path_relative_to_profile = True)
+
+
+            vm = CTRexScRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
+                                                   port_min=1025, port_max=65535,
+                                                    name="tuple"), # define tuple gen 
+
+                             STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                             STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                             STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
+                                  ]
+                              );
+
+            base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+            pad = max(0, size - len(base_pkt)) * 'x'
+
+            STLPktBuilder(pkt = base_pkt/pad,
+                          vm= vm)
+
 
         """
         super(CScapyTRexPktBuilder, self).__init__()

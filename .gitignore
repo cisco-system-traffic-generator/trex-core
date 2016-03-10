@@ -24,6 +24,8 @@ scripts/bp-sim-*
 scripts/doc/*
 scripts/mock-*
 scripts/automation/trex_control_plane/doc/_build/*
+scripts/automation/trex_control_plane/doc_stl/_build/*
+scripts/a.pcap
 
 scripts/exp/http1_with_option_ipv6.pcap
 scripts/exp/http1_with_option.pcap

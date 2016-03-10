@@ -17,7 +17,35 @@ import copy
 
 # base class for TX mode
 class STLTXMode(object):
+    """ mode rate speed """
+
     def __init__ (self, pps = None, bps_L1 = None, bps_L2 = None, percentage = None):
+        """ 
+        Speed could be in packet per second (pps) or L2/L1 bps or port precent 
+        only one of them is valid. 
+        you can enter pps =10000 oe bps_L1=10
+
+        :parameters:
+            pps : float 
+               packet per second 
+
+            bps_L1 : float
+               bit per second L1 (with IPG) 
+
+            bps_L2 : float 
+               bit per second L2 (Ethernet-FCS) 
+
+            percentage : float 
+               link interface precent  0-100 e.g. 10 is 10%% of the port link setup 
+
+        For example::
+                mode = STLTXCont(pps = 10)
+                mode = STLTXCont(bps_L1 = 10000000) #10mbps L1
+                mode = STLTXCont(bps_L2 = 10000000) #10mbps L2
+                mode = STLTXCont(percentage = 10)   #10%
+
+        """
+
         args = [pps, bps_L1, bps_L2, percentage]
 
         # default
@@ -62,10 +90,20 @@ class STLTXMode(object):
 
 # continuous mode
 class STLTXCont(STLTXMode):
+    """ continuous mode """
 
     def __init__ (self, **kwargs):
+        """ 
+        continuous mode
+        
+         see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
 
+        For example::
+                   mode = STLTXCont(pps = 10)
+
+        """
         super(STLTXCont, self).__init__(**kwargs)
+
 
         self.fields['type'] = 'continuous'
 
@@ -75,8 +113,23 @@ class STLTXCont(STLTXMode):
 
 # single burst mode
 class STLTXSingleBurst(STLTXMode):
+    """ Single burst mode """
 
     def __init__ (self, total_pkts = 1, **kwargs):
+        """ 
+        single burst mode
+
+            :parameters:
+                 total_pkts : int
+                    how many packets for this burst 
+
+         see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
+
+        For example::
+                   mode = STLTXSingleBurst( pps = 10, total_pkts = 1)
+
+        """
+
 
         if not isinstance(total_pkts, int):
             raise STLArgumentError('total_pkts', total_pkts)
@@ -92,12 +145,34 @@ class STLTXSingleBurst(STLTXMode):
 
 # multi burst mode
 class STLTXMultiBurst(STLTXMode):
+    """ Multi burst mode """
 
     def __init__ (self,
                   pkts_per_burst = 1,
                   ibg = 0.0,   # usec not SEC
                   count = 1,
                   **kwargs):
+        """ 
+        Multi burst mode
+
+        :parameters:
+
+             pkts_per_burst: int 
+                how many packets per burst 
+
+              ibg : float 
+                inter burst gap in usec 1000,000.0 is 1 sec
+
+              count : int 
+                how many bursts 
+
+         see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
+
+        For example::
+                   mode = STLTXMultiBurst(pps = 10, pkts_per_burst = 1,count 10, ibg=10.0)
+
+        """
+
 
         if not isinstance(pkts_per_burst, int):
             raise STLArgumentError('pkts_per_burst', pkts_per_burst)
@@ -142,6 +217,19 @@ class STLFlowStats(object):
         return {'enabled' : False}
 
 class STLStream(object):
+    """ One stream object, include mode, Field Engine mode packet template and Rx stats  
+
+        For example::
+            base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+            pad = max(0, size - len(base_pkt)) * 'x'
+
+            STLStream( isg = 10.0, # star in delay 
+                       name    ='S0',
+                       packet = STLPktBuilder(pkt = base_pkt/pad),
+                       mode = STLTXSingleBurst( pps = 10, total_pkts = 1),
+                       next = 'S1'), # point to next stream 
+
+    """
 
     def __init__ (self,
                   name = None,
@@ -158,6 +246,58 @@ class STLStream(object):
                   mac_src_override_by_pkt=None,
                   mac_dst_override_mode=None    #see  STLStreamDstMAC_xx
                   ):
+        """ 
+        Stream object 
+
+        :parameters:
+
+                  name  : string 
+                       The name of the stream. Needed if this stream is dependent on another stream and another stream need to refer to this stream by its name.
+
+                  packet :  STLPktBuilder 
+                       The template packet and field engine program e.g. packet = STLPktBuilder(pkt = base_pkt/pad) 
+
+                  mode : STLTXCont or STLTXSingleBurst or STLTXMultiBurst
+
+                  enabled : bool 
+                      if the stream is enabled. 
+
+                  self_start : bool 
+                      In case it is False another stream will activate it
+
+                  isg : float 
+                     Inter stream gap in usec. time to wait until stream will send the first packet  
+
+                  flow_stats : STLFlowStats
+                      Per stream statistic object see STLFlowStats
+
+                  next : string 
+                      The name of the stream to activate 
+                    
+                  stream_id :
+                        for HLTAPI usage 
+
+                  action_count : uint16_t
+                        In case there is a next stream how many loops until stopping. Default is zero, which mean unlimited
+
+                  random_seed: uint16_t 
+                       If given the seed for this stream will be this value. Good in case you need a deterministic random value 
+                        
+                  mac_src_override_by_pkt : bool 
+                        Template packet will set src MAC 
+
+                  mac_dst_override_mode=None : STLStreamDstMAC_xx
+                        Template packet will set dst MAC 
+
+
+        :return:
+          None
+
+        :raises:
+          None
+
+        """
+
 
         # type checking
         validate_type('mode', mode, STLTXMode)
@@ -254,23 +394,31 @@ class STLStream(object):
         return s
 
     def to_json (self):
+        """ 
+        return json format
+        """
         return dict(self.fields)
 
     def get_id (self):
+        """ Get the stream id after resolution  """
         return self.id
 
 
     def get_name (self):
+        """ Get the stream name """
         return self.name
 
     def get_next (self):
+        """ Get next stream object """
         return self.next
 
 
     def get_pkt (self):
+        """ Get packet as string """
         return self.pkt
 
     def get_pkt_len (self, count_crc = True):
+       """ Get packet number of bytes  """
        pkt_len = len(self.get_pkt())
        if count_crc:
            pkt_len += 4
@@ -279,6 +427,7 @@ class STLStream(object):
 
 
     def get_pkt_type (self):
+        """ Get packet description for example IP:UDP """
         if self.packet_desc == None:
             self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
 
@@ -289,6 +438,7 @@ class STLStream(object):
 
     @staticmethod
     def get_rate_from_field (rate_json):
+        """ Get rate from json  """
         t = rate_json['type']
         v = rate_json['value']
 
@@ -305,6 +455,7 @@ class STLStream(object):
         return self.get_rate_from_field(self.fields['mode']['rate'])
 
     def to_pkt_dump (self):
+        """ print packet description from scapy  """
         if self.name:
             print "Stream Name: ",self.name
         scapy_b = self.scapy_pkt_builder;
@@ -316,6 +467,7 @@ class STLStream(object):
 
 
     def to_yaml (self):
+        """ convert to YAML  """
         y = {}
 
         if self.name:
@@ -337,6 +489,7 @@ class STLStream(object):
 
     # returns the Python code (text) to build this stream, inside the code it will be in variable "stream"
     def to_code (self):
+        """ convert to Python code as profile  """
         packet = Ether(self.pkt)
         packet.hide_defaults()
         payload = packet.getlayer('Raw')
@@ -436,6 +589,7 @@ class STLStream(object):
         return r'\x{0:02x}'.format(ord(match.group()))
 
     def dump_to_yaml (self, yaml_file = None):
+        """ print as yaml  """
         yaml_dump = yaml.dump([self.to_yaml()], default_flow_style = False)
 
         # write to file if provided
@@ -583,7 +737,45 @@ class YAMLLoader(object):
 
 # profile class
 class STLProfile(object):
+    """ Describe a list of streams   
+
+        For example::
+
+              profile =  STLProfile( [ STLStream( isg = 10.0, # star in delay 
+                                        name    ='S0',
+                                        packet = STLPktBuilder(pkt = base_pkt/pad),
+                                        mode = STLTXSingleBurst( pps = 10, total_pkts = self.burst_size),
+                                        next = 'S1'), # point to next stream 
+
+                             STLStream( self_start = False, # stream is  disabled enable trow S0
+                                        name    ='S1',
+                                        packet  = STLPktBuilder(pkt = base_pkt1/pad),
+                                        mode    = STLTXSingleBurst( pps = 10, total_pkts = self.burst_size),
+                                        next    = 'S2' ),
+
+                             STLStream(  self_start = False, # stream is  disabled enable trow S0
+                                         name   ='S2',
+                                         packet = STLPktBuilder(pkt = base_pkt2/pad),
+                                         mode = STLTXSingleBurst( pps = 10, total_pkts = self.burst_size )
+                                        )
+                            ]).get_streams()
+
+
+
+    """
+
     def __init__ (self, streams = None):
+        """
+
+            :parameters:
+
+                  streams  : list of STLStream
+                       a list of stream objects  
+
+
+        """
+
+
         if streams == None:
             streams = []
 
@@ -597,6 +789,7 @@ class STLProfile(object):
 
 
     def get_streams (self):
+        """ Get the list of stream"""
         return self.streams
 
     def __str__ (self):
@@ -605,6 +798,8 @@ class STLProfile(object):
 
     @staticmethod
     def load_yaml (yaml_file):
+        """ load from YAML file a profile with number of streams"""
+
         # check filename
         if not os.path.isfile(yaml_file):
             raise STLError("file '{0}' does not exists".format(yaml_file))
@@ -617,6 +812,8 @@ class STLProfile(object):
 
     @staticmethod
     def load_py (python_file):
+        """ load from Python profile """
+
         # check filename
         if not os.path.isfile(python_file):
             raise STLError("file '{0}' does not exists".format(python_file))
@@ -648,6 +845,30 @@ class STLProfile(object):
     # loop_count = 0 means loop forever
     @staticmethod
     def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None):
+        """ Convert a pcap file with a number of packets to a list of connected streams  
+
+        packet1->packet2->packet3 etc 
+
+                :parameters:
+
+                  pcap_file  : string 
+                       The name of the pcap file 
+
+                  ipg_usec   : float
+                       The inter packet gap in usec. in case of None IPG is taken from pcap file 
+
+                  speedup   : float 
+                       By which factor to get IPG smaller so we will send pcap file in speedup 
+
+                  loop_count : uint16_t 
+                       how many loops to repeat the pcap file 
+                    
+                  vm        :  list 
+                        A list of Field engine instructions 
+
+                 :return: STLProfile
+
+        """
 
         # check filename
         if not os.path.isfile(pcap_file):
@@ -696,6 +917,16 @@ class STLProfile(object):
 
     @staticmethod
     def load (filename):
+        """ load a profile by its type supported type are 
+           * py
+           * yaml 
+           * pcap file that converted to profile automaticly 
+
+           :parameters:
+              filename : string as filename 
+
+        """
+
         x = os.path.basename(filename).split('.')
         suffix = x[1] if (len(x) == 2) else None
 
@@ -714,6 +945,7 @@ class STLProfile(object):
         return profile
 
     def dump_as_pkt (self):
+        """ dump the profile as scapy packet. in case it is raw convert to scapy and dump it"""
         cnt=0;
         for stream in self.streams:
             print "======================="
@@ -723,6 +955,7 @@ class STLProfile(object):
             stream.to_pkt_dump()
 
     def dump_to_yaml (self, yaml_file = None):
+        """ convert it to yaml """
         yaml_list = [stream.to_yaml() for stream in self.streams]
         yaml_str = yaml.dump(yaml_list, default_flow_style = False)
 
@@ -734,6 +967,7 @@ class STLProfile(object):
         return yaml_str
 
     def dump_to_code (self, profile_file = None):
+        """ convert it to Python native profile. yeah this is cool """
         profile_dump = '''# !!! Auto-generated code !!!
 from trex_stl_lib.api import *
 
