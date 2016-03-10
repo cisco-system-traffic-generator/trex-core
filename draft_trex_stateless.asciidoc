@@ -139,7 +139,7 @@ image::images/stateless_objects.png[title="TRex Entities",align="left",width={p_
 ** *Action*:  The next stream to go after this stream is finished. Valid for Burst/Continuous mode
 
 
-=== Statful vs Stateless 
+=== Stateful vs Stateless 
 
 TRex Stateless support is basic L2/L3 tests more for Switch/Router. 
 With Stateless it is possible to define a Stream that has a *one* packet template, define a program to change any fields in the packet and run it in continues/burst/multi-burst mode.
@@ -150,7 +150,7 @@ a->b->c->d-> back to a
 And create a program for each stream to change src_ip=10. 0.0.1-10.0.0.254 this will create something similar to Stateful but the underline is totally different.  
 If you are confused you probably need Stateless.
 
-.Statful vs Stateless 
+.Stateful vs Stateless 
 [cols="1^,3^,3^", options="header"]
 |=================
 | Feature       |  Stateless  |Statful 
@@ -823,7 +823,7 @@ def register():                                                                 
 <2> Mode is Continuous with rate of 1 PPS (default rate is 1 PPS)
 <3> Each Traffic profile module should have a `register` function
 
-Now let try to run it throw TRex simulator limiting the number of packets to 10 
+Now let's try to run it through the TRex simulator while limiting the number of packets to 10 
 
 [source,bash]
 ----
@@ -1046,15 +1046,15 @@ def register():
 
 *Discussion*::
 
-The following are the main traffic profiles formats. The native is the preferred one. There is a separation between how the traffic is defined and how to control/activate it. The API/Console/GUI can load a traffic profile and start/stop/get a statistic. Due to this separation it is possible to share traffic profiles.
+The following are the main traffic profile formats. Native is the preferred format. There is a separation between how the traffic is defined and how to control/activate it. The API/Console/GUI can load a traffic profile and start/stop/get a statistic. Due to this separation it is possible to share traffic profiles.
 
 .Traffic profiles formats
 [cols="1^,1^,10<", options="header",width="80%"]
 |=================
 | Profile Type       | Format | Description  
-| Native             | Python | A native Python like. Have the most flexibility. any format can be converted to native using `stl-sim` using --native option
-| HLT                | Python | HLT arguments like
-| YAML               | YAML   | It is the common denominator traffic profile. We suggest not to use it by human as it is not possible to compose packet using scapy. it is used to move profile between GUI and Console or API. It can be converted to native using the stl-sim using --native switch 
+| Native             | Python | Has the most flexibility. Any format can be converted to native using `stl-sim` using --native option
+| HLT                | Python | Uses HLT arguments 
+| YAML               | YAML   | It is the common denominator traffic profile. We suggest not to use it by human as it is not possible to compose packet using scapy. it is used to move a profile between GUI and Console or API. It can be converted to native using the stl-sim using --native switch 
 |=================
 
 
@@ -1062,7 +1062,7 @@ The following are the main traffic profiles formats. The native is the preferred
 
 ==== Tutorial: Simple Interleave streams
 
-*Goal*:: Demonstrate number of interleave streams
+*Goal*:: Demonstrate interleaving of multiple streams
 
 The following example demonstrates 3 streams with different rates (pps=10,20,40) and different start time ISG (0,25msec,50msec)
 
@@ -1132,13 +1132,13 @@ trex>start -f stl/simple_3pkt.py -m 10mbps -a
 
 ==== Tutorial:  Multi burst streams - action next stream   
 
-*Goal*:: profile with stream that trigger a stream 
+*Goal*:: Create a profile with a stream that trigger another stream 
 
-The following example demonstrates 
+The following example demonstrates: 
 
 1. More than one stream 
 2. Burst of 10 packets
-3. Stream activate a Stream (self_start=False)
+3. One Stream activates another Stream (self_start=False)
 
 *file*:: link:{github_stl_path}/burst_3pkt_60pkt.py[stl/burst_3pkt_60pkt.py]
 
@@ -1175,24 +1175,24 @@ The following example demonstrates
                             ]).get_streams()
 
 ----
-<1> Stream S0 is with self_start=True start after 10 sec 
-<2> S1 with self_start=False. S0 activate it
-<3> S2 is activate by S1
+<1> Stream S0 is with self_start=True, start after 10 sec 
+<2> S1 with self_start=False. S0 activates it
+<3> S2 is activated by S1
 
 To run the simulator run this command
 
 [source,bash]
 ----
-$ ./stl-sim -f stl/stl/burst_3pkt_600pkt.py -o b.pcap 
+$ ./stl-sim -f stl/stl/burst_3pkt_60pkt.py -o b.pcap 
 ----
 
-The pcap file should have 60 packets. The first 10 packets has src_ip=16.0.0.1. The next 20 packets has src_ip=16.0.0.2. The next 30 packets has src_ip=16.0.0.3
+The pcap file should have 60 packets. The first 10 packets have src_ip=16.0.0.1. The next 20 packets has src_ip=16.0.0.2. The next 30 packets has src_ip=16.0.0.3
 
 This profile can be run from Console using this command 
 
 [source,bash]
 ----
-TRex>start -f stl/stl/burst_3pkt_600pkt.py --port 0
+TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
 ----
 
 ==== Tutorial: Multi Burst mode
@@ -1213,13 +1213,13 @@ TRex>start -f stl/stl/burst_3pkt_600pkt.py --port 0
         pad = max(0, size - len(base_pkt)) * 'x'
 
 
-        return STLProfile( [ STLStream( isg = 10.0, # star in delay                                        <1>
+        return STLProfile( [ STLStream( isg = 10.0, # start in delay                                       <1>
                                         name    ='S0',
                                         packet = STLPktBuilder(pkt = base_pkt/pad),
                                         mode = STLTXSingleBurst( pps = 10, total_pkts = 10),
                                         next = 'S1'), # point to next stream 
 
-                             STLStream( self_start = False, # stream is  disabled enable trow S0           <2>
+                             STLStream( self_start = False, # stream is disabled. Enabled by S0        <2>
                                         name    ='S1',
                                         packet  = STLPktBuilder(pkt = base_pkt1/pad),
                                         mode    = STLTXMultiBurst( pps = 1000,
@@ -1231,8 +1231,8 @@ TRex>start -f stl/stl/burst_3pkt_600pkt.py --port 0
                             ]).get_streams()
 
 ----
-<1> Stream S0 wait 10 usec(isg) and send burst of 10 packet in 10 PPS rate
-<2> Multi burst of 5 bursts of 4 packets with a inter burst gap of one second 
+<1> Stream S0 will wait 10 usec(isg) and then send a burst of 10 packet at 10 PPS rate
+<2> Multi burst of 5 bursts of 4 packets with an inter burst gap of one second 
  
 
 image::images/stl_tut_4.png[title="Streams example",align="left",width={p_width}, link="images/stl_tut_4.png"]
@@ -1262,13 +1262,13 @@ image::images/stl_tut_4.png[title="Streams example",align="left",width={p_width}
                                         mode = STLTXSingleBurst( pps = 10, total_pkts = 1),
                                         next = 'S1'), # point to next stream 
 
-                             STLStream( self_start = False, # stream is  disabled enable trow S0
+                             STLStream( self_start = False, # stream is disabled.  Enabled by S0
                                         name    ='S1',
                                         packet  = STLPktBuilder(pkt = base_pkt1/pad),
                                         mode    = STLTXSingleBurst( pps = 10, total_pkts = 2),
                                         next    = 'S2' ),
 
-                             STLStream(  self_start = False, # stream is  disabled enable trow S0
+                             STLStream(  self_start = False, # stream is disabled. Enabled by S1
                                          name   ='S2',
                                          packet = STLPktBuilder(pkt = base_pkt2/pad),
                                          mode = STLTXSingleBurst( pps = 10, total_pkts = 3 ),
