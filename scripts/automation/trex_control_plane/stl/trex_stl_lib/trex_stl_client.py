@@ -155,12 +155,12 @@ class AsyncEventHandler(object):
         pass
 
 
-    def handle_async_rx_stats_event (self, data):
-        self.client.flow_stats.update(data)
+    def handle_async_rx_stats_event (self, data, baseline):
+        self.client.flow_stats.update(data, baseline)
 
 
     # handles an async stats update from the subscriber
-    def handle_async_stats_update(self, dump_data):
+    def handle_async_stats_update(self, dump_data, baseline):
         global_stats = {}
         port_stats = {}
 
@@ -182,11 +182,11 @@ class AsyncEventHandler(object):
                 global_stats[key] = value
 
         # update the general object with the snapshot
-        self.client.global_stats.update(global_stats)
+        self.client.global_stats.update(global_stats, baseline)
 
         # update all ports
         for port_id, data in port_stats.iteritems():
-            self.client.ports[port_id].port_stats.update(data)
+            self.client.ports[port_id].port_stats.update(data, baseline)
 
 
     # dispatcher for server async events (port started, port stopped and etc.)
@@ -458,10 +458,12 @@ class STLClient(object):
                                                         self.server_version,
                                                         self.ports)
 
-        self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
-                                                                 self.ports)
-
         self.flow_stats = trex_stl_stats.CRxStats()
+
+        self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
+                                                                 self.ports,
+                                                                 self.flow_stats)
+
 
  
     ############# private functions - used by the class itself ###########
@@ -736,13 +738,16 @@ class STLClient(object):
 
 
     # clear stats
-    def __clear_stats(self, port_id_list, clear_global):
+    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats):
 
         for port_id in port_id_list:
             self.ports[port_id].clear_stats()
 
         if clear_global:
             self.global_stats.clear_stats()
+
+        if clear_flow_stats:
+            self.flow_stats.clear_stats()
 
         self.logger.log_cmd("clearing stats on port(s) {0}:".format(port_id_list))
 
@@ -825,6 +830,7 @@ class STLClient(object):
             self.ports[port_id].invalidate_stats()
 
         self.global_stats.invalidate()
+        self.flow_stats.invalidate()
 
         return RC_OK()
 
@@ -1697,7 +1703,7 @@ class STLClient(object):
 
 
     @__api_check(False)
-    def clear_stats (self, ports = None, clear_global = True):
+    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True):
         """
             clear stats on port(s)
 
@@ -1707,6 +1713,9 @@ class STLClient(object):
 
                 clear_global : bool
                     clear the global stats
+
+                clear_flow_stats : bool 
+                    clear the flow stats
 
             :raises:
                 + :exc:`STLError`
@@ -1721,7 +1730,7 @@ class STLClient(object):
             raise STLArgumentError('clear_global', clear_global)
 
 
-        rc = self.__clear_stats(ports, clear_global)
+        rc = self.__clear_stats(ports, clear_global, clear_flow_stats)
         if not rc:
             raise STLError(rc)
 

@@ -82,6 +82,12 @@ protected:
 
 void
 TrexDpPortEvents::barrier() {
+
+    /* simulator will be stuck here forever */
+    #ifdef TREX_SIM
+    return;
+    #endif
+     
     int barrier_id = create_event(new DPBarrier());
 
     TrexStatelessCpToDpMsgBase *barrier_msg = new TrexStatelessDpBarrier(m_port->m_port_id, barrier_id);

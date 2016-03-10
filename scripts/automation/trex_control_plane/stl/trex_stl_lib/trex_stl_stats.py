@@ -13,14 +13,44 @@ import re
 import math
 import copy
 import threading
+import pprint
 
 GLOBAL_STATS = 'g'
 PORT_STATS = 'p'
 PORT_STATUS = 'ps'
-ALL_STATS_OPTS = {GLOBAL_STATS, PORT_STATS, PORT_STATUS}
+STREAMS_STATS = 's'
+
+ALL_STATS_OPTS = {GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS}
 COMPACT = {GLOBAL_STATS, PORT_STATS}
+SS_COMPAT = {GLOBAL_STATS, STREAMS_STATS}
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
+
+# deep mrege of dicts dst = src + dst
+def deep_merge_dicts (dst, src):
+    for k, v in src.iteritems():
+        # if not exists - deep copy it
+        if not k in dst:
+            dst[k] = copy.deepcopy(v)
+        else:
+            if isinstance(v, dict):
+                deep_merge_dicts(dst[k], v)
+
+# BPS L1 from pps and BPS L2
+def calc_bps_L1 (bps, pps):
+    if (pps == 0) or (bps == 0):
+        return 0
+
+    factor = bps / (pps * 8.0)
+    return bps * ( 1 + (20 / factor) )
+#
+
+def is_intable (value):
+    try:
+        int(value)
+        return True
+    except ValueError:
+        return False
 
 # use to calculate diffs relative to the previous values
 # for example, BW
@@ -66,18 +96,23 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
+        self._rx_stats_ref = rx_stats_ref
 
     def generate_single_statistic(self, port_id_list, statistic_type):
         if statistic_type == GLOBAL_STATS:
             return self._generate_global_stats()
+
         elif statistic_type == PORT_STATS:
             return self._generate_port_stats(port_id_list)
-            pass
+
         elif statistic_type == PORT_STATUS:
             return self._generate_port_status(port_id_list)
+
+        elif statistic_type == STREAMS_STATS:
+            return self._generate_streams_stats()
         else:
             # ignore by returning empty object
             return {}
@@ -110,6 +145,90 @@ class CTRexInfoGenerator(object):
 
         return {"global_statistics": ExportableStats(stats_data, stats_table)}
 
+    def _generate_streams_stats (self):
+      
+        streams_keys, sstats_data = self._rx_stats_ref.generate_stats()
+        stream_count = len(streams_keys)
+
+        stats_table = text_tables.TRexTextTable()
+        stats_table.set_cols_align(["l"] + ["r"] * stream_count)
+        stats_table.set_cols_width([10] + [17]   * stream_count)
+        stats_table.set_cols_dtype(['t'] + ['t'] * stream_count)
+
+        stats_table.add_rows([[k] + v
+                              for k, v in sstats_data.iteritems()],
+                              header=False)
+
+        header = ["PG ID"] + [key for key in streams_keys]
+        stats_table.header(header)
+
+        return {"streams_statistics": ExportableStats(sstats_data, stats_table)}
+
+        
+
+        per_stream_stats = OrderedDict([("owner", []),
+                                       ("state", []),
+                                       ("--", []),
+                                       ("Tx bps L2", []),
+                                       ("Tx bps L1", []),
+                                       ("Tx pps", []),
+                                       ("Line Util.", []),
+
+                                       ("---", []),
+                                       ("Rx bps", []),
+                                       ("Rx pps", []),
+
+                                       ("----", []),
+                                       ("opackets", []),
+                                       ("ipackets", []),
+                                       ("obytes", []),
+                                       ("ibytes", []),
+                                       ("tx-bytes", []),
+                                       ("rx-bytes", []),
+                                       ("tx-pkts", []),
+                                       ("rx-pkts", []),
+
+                                       ("-----", []),
+                                       ("oerrors", []),
+                                       ("ierrors", []),
+
+                                      ]
+                                      )
+
+        total_stats = CPortStats(None)
+
+        for port_obj in relevant_ports:
+            # fetch port data
+            port_stats = port_obj.generate_port_stats()
+
+            total_stats += port_obj.port_stats
+
+            # populate to data structures
+            return_stats_data[port_obj.port_id] = port_stats
+            self.__update_per_field_dict(port_stats, per_field_stats)
+
+        total_cols = len(relevant_ports)
+        header = ["port"] + [port.port_id for port in relevant_ports]
+
+        if (total_cols > 1):
+            self.__update_per_field_dict(total_stats.generate_stats(), per_field_stats)
+            header += ['total']
+            total_cols += 1
+
+        stats_table = text_tables.TRexTextTable()
+        stats_table.set_cols_align(["l"] + ["r"] * total_cols)
+        stats_table.set_cols_width([10] + [17]   * total_cols)
+        stats_table.set_cols_dtype(['t'] + ['t'] * total_cols)
+
+        stats_table.add_rows([[k] + v
+                              for k, v in per_field_stats.iteritems()],
+                              header=False)
+
+        stats_table.header(header)
+
+        return {"streams_statistics": ExportableStats(return_stats_data, stats_table)}
+
+
     def _generate_port_stats(self, port_id_list):
         relevant_ports = self.__get_relevant_ports(port_id_list)
 
@@ -131,10 +250,10 @@ class CTRexInfoGenerator(object):
                                        ("ipackets", []),
                                        ("obytes", []),
                                        ("ibytes", []),
-                                       ("tx_bytes", []),
-                                       ("rx_bytes", []),
-                                       ("tx_pkts", []),
-                                       ("rx_pkts", []),
+                                       ("tx-bytes", []),
+                                       ("rx-bytes", []),
+                                       ("tx-pkts", []),
+                                       ("rx-pkts", []),
 
                                        ("-----", []),
                                        ("oerrors", []),
@@ -284,97 +403,94 @@ class CTRexStats(object):
         self.last_update_ts = time.time()
         self.history = deque(maxlen = 10)
         self.lock = threading.Lock()
+        self.has_baseline = False
 
-    def __getitem__(self, item):
-        # override this to allow quick and clean access to fields
-        if not item in self.latest_stats:
-            return "N/A"
+    ######## abstract methods ##########
 
-        # item must exist
-        m = re.search('_(([a-z])ps)$', item)
-        if m:
-            # this is a non-relative item
-            unit = m.group(2)
-            if unit == "b":
-                return self.get(item, format=True, suffix="b/sec")
-            elif unit == "p":
-                return self.get(item, format=True, suffix="pkt/sec")
-            else:
-                return self.get(item, format=True, suffix=m.group(1))
+    # get stats for user / API
+    def get_stats (self):
+        raise NotImplementedError()
 
-        m = re.search('^[i|o](a-z+)$', item)
-        if m:
-            # this is a non-relative item
-            type = m.group(1)
-            if type == "bytes":
-                return self.get_rel(item, format=True, suffix="B")
-            elif type == "packets":
-                return self.get_rel(item, format=True, suffix="pkts")
-            else:
-                # do not format with suffix
-                return self.get_rel(item, format=True)
-
-        # can't match to any known pattern, return N/A
-        return "N/A"
-
-
+    # generate format stats (for TUI)
     def generate_stats(self):
-        # must be implemented by designated classes (such as port/ global stats)
         raise NotImplementedError()
 
-    def generate_extended_values (self, snapshot):
+    # called when a snapshot arrives - add more fields
+    def _update (self, snapshot, baseline):
         raise NotImplementedError()
 
 
-    def update(self, snapshot):
+    ######## END abstract methods ##########
 
-        # some extended generated values (from base values)
-        self.generate_extended_values(snapshot)
+    def update(self, snapshot, baseline):
 
-        # update
-        self.latest_stats = snapshot
+        # no update is valid before baseline
+        if not self.has_baseline and not baseline:
+            return
 
+        # call the underlying method
+        rc = self._update(snapshot)
+        if not rc:
+            return
+
+        # sync one time
+        if not self.has_baseline and baseline:
+            self.reference_stats = copy.deepcopy(self.latest_stats)
+            self.has_baseline = True
+
+        # save history
         with self.lock:
-            self.history.append(snapshot)
-
-        diff_time = time.time() - self.last_update_ts
-
-        # 3 seconds is too much - this is the new reference
-        if (not self.reference_stats) or (diff_time > 3):
-            self.reference_stats = self.latest_stats
-
-        
-
-        self.last_update_ts = time.time()
+            self.history.append(self.latest_stats)
 
 
     def clear_stats(self):
-        self.reference_stats = self.latest_stats
+        self.reference_stats = copy.deepcopy(self.latest_stats)
 
 
     def invalidate (self):
         self.latest_stats = {}
 
-    def get(self, field, format=False, suffix=""):
-        if not field in self.latest_stats:
-            return "N/A"
-        if not format:
-            return self.latest_stats[field]
+
+    def _get (self, src, field, default = None):
+        if isinstance(field, list):
+            # deep
+            value = src
+            for level in field:
+                if not level in value:
+                    return default
+                value = value[level]
         else:
-            return format_num(self.latest_stats[field], suffix)
+            # flat
+            if not field in src:
+                return default
+            value = src[field]
+
+        return value
+
+    def get(self, field, format=False, suffix=""):
+        value = self._get(self.latest_stats, field)
+        if value == None:
+            return "N/A"
+
+        return value if not format else format_num(value, suffix)
+
 
     def get_rel(self, field, format=False, suffix=""):
-        if not field in self.latest_stats:
+        
+        ref_value = self._get(self.reference_stats, field)
+        latest_value = self._get(self.latest_stats, field)
+
+        # latest value is an aggregation - must contain the value
+        if latest_value == None:
             return "N/A"
 
-        if not format:
-            if not field in self.reference_stats:
-                print "REF: " + str(self.reference_stats)
-                print "BASE: " + str(self.latest_stats)
+        if ref_value == None:
+            ref_value = 0
 
-            return (self.latest_stats[field] - self.reference_stats[field])
-        else:
-            return format_num(self.latest_stats[field] - self.reference_stats[field], suffix)
+        value = latest_value - ref_value
+
+        return value if not format else format_num(value, suffix)
+
 
     # get trend for a field
     def get_trend (self, field, use_raw = False, percision = 10.0):
@@ -458,18 +574,19 @@ class CGlobalStats(CTRexStats):
         return stats
 
 
-    def generate_extended_values (self, snapshot):
+
+    def _update(self, snapshot):
         # L1 bps
         bps = snapshot.get("m_tx_bps")
         pps = snapshot.get("m_tx_pps")
 
-        if pps > 0:
-            avg_pkt_size = bps / (pps * 8.0)
-            bps_L1  = bps * ( (avg_pkt_size + 20.0) / avg_pkt_size )
-        else:
-            bps_L1 = 0.0
+        snapshot['m_tx_bps_L1'] = calc_bps_L1(bps, pps)
 
-        snapshot['m_tx_bps_L1'] = bps_L1
+
+        # simple...
+        self.latest_stats = snapshot
+
+        return True
 
 
     def generate_stats(self):
@@ -568,19 +685,21 @@ class CPortStats(CTRexStats):
         return stats
 
 
-    def generate_extended_values (self, snapshot):
+
+    def _update(self, snapshot):
+
         # L1 bps
         bps = snapshot.get("m_total_tx_bps")
         pps = snapshot.get("m_total_tx_pps")
 
-        if pps > 0:
-            avg_pkt_size = bps / (pps * 8.0)
-            bps_L1  = bps * ( (avg_pkt_size + 20.0) / avg_pkt_size )
-        else:
-            bps_L1 = 0.0
-
+        bps_L1 = calc_bps_L1(bps, pps)
         snapshot['m_total_tx_bps_L1'] = bps_L1
         snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100
+
+        # simple...
+        self.latest_stats = snapshot
+
+        return True
 
 
     def generate_stats(self):
@@ -627,10 +746,10 @@ class CPortStats(CTRexStats):
                  "obytes"   : self.get_rel("obytes"),
                  "ibytes"   : self.get_rel("ibytes"),
 
-                 "tx_bytes": self.get_rel("obytes", format = True, suffix = "B"),
-                 "rx_bytes": self.get_rel("ibytes", format = True, suffix = "B"),
-                 "tx_pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
-                 "rx_pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
+                 "tx-bytes": self.get_rel("obytes", format = True, suffix = "B"),
+                 "rx-bytes": self.get_rel("ibytes", format = True, suffix = "B"),
+                 "tx-pkts": self.get_rel("opackets", format = True, suffix = "pkts"),
+                 "rx-pkts": self.get_rel("ipackets", format = True, suffix = "pkts"),
 
                  "oerrors"  : format_num(self.get_rel("oerrors"),
                                          compact = False,
@@ -643,33 +762,260 @@ class CPortStats(CTRexStats):
                 }
 
 
-class CRxStats(object):
+
+
+# RX stats objects - COMPLEX :-(
+class CRxStats(CTRexStats):
     def __init__(self):
-        self.flow_stats = {}
+        super(CRxStats, self).__init__()
 
 
-    def update (self, snapshot):
-        self.flow_stats = snapshot
+    # calculates a diff between previous snapshot
+    # and current one
+    def calculate_diff_sec (self, current, prev):
+        if not 'ts' in current:
+            raise ValueError("INTERNAL ERROR: RX stats snapshot MUST contain 'ts' field")
+
+        if prev:
+            prev_ts   = prev['ts']
+            now_ts    = current['ts']
+            diff_sec  = (now_ts['value'] - prev_ts['value']) / float(now_ts['freq'])
+        else:
+            diff_sec = 0.0
+
+        return diff_sec
 
 
+    # this is the heart of the complex
+    def process_single_pg (self, current_pg, prev_pg):
+
+        # start with the previous PG
+        output = copy.deepcopy(prev_pg)
+
+        for field in ['tx_pkts', 'tx_bytes', 'rx_pkts', 'rx_bytes']:
+            # is in the first time ? (nothing in prev)
+            if not field in output:
+                output[field] = {}
+
+            # does the current snapshot has this field ?
+            if field in current_pg:
+                for port, pv in current_pg[field].iteritems():
+                    if not is_intable(port):
+                        continue
+
+                    output[field][port] = pv
+
+            # sum up
+            total = None
+            for port, pv in output[field].iteritems():
+                if not is_intable(port):
+                    continue
+                if total is None:
+                    total = 0
+                total += pv
+
+            output[field]['total'] = total
+
+
+        return output
+        
+            
+    def process_snapshot (self, current, prev):
+
+        # final output
+        output = {}
+
+        # copy timestamp field
+        output['ts'] = current['ts']
+
+        # aggregate all the PG ids (previous and current)
+        pg_ids = filter(is_intable, set(prev.keys() + current.keys()))
+
+        for pg_id in pg_ids:
+
+            current_pg = current.get(pg_id, {})
+            
+            # first time - we do not care
+            if current_pg.get('first_time'):
+                # new value - ignore history
+                output[pg_id] = self.process_single_pg(current_pg, {})
+                self.reference_stats[pg_id] = {}
+
+                # 'dry' B/W
+                self.calculate_bw_for_pg(output[pg_id])
+
+            else:
+                # aggregate the two values
+                prev_pg = prev.get(pg_id, {})
+                output[pg_id] = self.process_single_pg(current_pg, prev_pg)
+
+                # calculate B/W
+                diff_sec = self.calculate_diff_sec(current, prev)
+                self.calculate_bw_for_pg(output[pg_id], prev_pg, diff_sec)
+
+
+        return output
+
+
+
+    def calculate_bw_for_pg (self, pg_current, pg_prev = None, diff_sec = 0.0):
+
+        # if no previous values - its None
+        if (pg_prev == None) or not (diff_sec > 0):
+            pg_current['tx_pps'] = None
+            pg_current['tx_bps'] = None
+            pg_current['tx_bps_L1'] = None
+            pg_current['rx_pps'] = None
+            pg_current['rx_bps'] = None
+            return
+
+
+        # read the current values
+        now_tx_pkts   = pg_current['tx_pkts']['total']
+        now_tx_bytes  = pg_current['tx_bytes']['total']
+        now_rx_pkts   = pg_current['rx_pkts']['total']
+        now_rx_bytes  = pg_current['rx_bytes']['total']
+
+        # prev values
+        prev_tx_pkts  = pg_prev['tx_pkts']['total']
+        prev_tx_bytes = pg_prev['tx_bytes']['total']
+        prev_rx_pkts  = pg_prev['rx_pkts']['total']
+        prev_rx_bytes = pg_prev['rx_bytes']['total']
+
+        # prev B/W
+        prev_tx_pps   = pg_prev['tx_pps']
+        prev_tx_bps   = pg_prev['tx_bps']
+        prev_rx_pps   = pg_prev['rx_pps']
+        prev_rx_bps   = pg_prev['rx_bps']
+
+      
+        #assert(now_tx_pkts >= prev_tx_pkts)
+        pg_current['tx_pps'] = self.calc_pps(prev_tx_pps, now_tx_pkts, prev_tx_pkts, diff_sec)
+        pg_current['tx_bps'] = self.calc_bps(prev_tx_bps, now_tx_bytes, prev_tx_bytes, diff_sec)
+        pg_current['rx_pps'] = self.calc_pps(prev_rx_pps, now_rx_pkts, prev_rx_pkts, diff_sec)
+        pg_current['rx_bps'] = self.calc_bps(prev_rx_bps, now_rx_bytes, prev_rx_bytes, diff_sec)
+
+        if pg_current['tx_bps'] != None and pg_current['tx_pps'] != None:
+            pg_current['tx_bps_L1'] = calc_bps_L1(pg_current['tx_bps'], pg_current['tx_pps'])
+        else:
+            pg_current['tx_bps_L1'] = None
+
+
+    def calc_pps (self, prev_bw, now, prev, diff_sec):
+        return self.calc_bw(prev_bw, now, prev, diff_sec, False)
+
+
+    def calc_bps (self, prev_bw, now, prev, diff_sec):
+        return self.calc_bw(prev_bw, now, prev, diff_sec, True)
+
+
+    def calc_bw (self, prev_bw, now, prev, diff_sec, is_bps):
+        # B/W is not valid when the values are None
+        if (now is None) or (prev is None):
+            return None
+        
+        # calculate the B/W for current snapshot
+        current_bw = (now - prev) / diff_sec
+        if is_bps:
+            current_bw *= 8
+
+        # previous B/W is None ? ignore it
+        if prev_bw is None:
+            prev_bw = 0
+
+        return ( (0.5 * prev_bw) + (0.5 * current_bw) )
+
+
+
+
+    def _update (self, snapshot):
+
+        # generate a new snapshot
+        new_snapshot = self.process_snapshot(snapshot, self.latest_stats)
+
+        #print new_snapshot
+        # advance
+        self.latest_stats = new_snapshot
+
+
+        return True
+      
+
+
+    # for API
     def get_stats (self):
         stats = {}
-        for pg_id, pg_id_data in self.flow_stats.iteritems():
-            # ignore non pg ID keys
-            try:
-                pg_id = int(pg_id)
-            except ValueError:
+
+        for pg_id, value in self.latest_stats.iteritems():
+            # skip non ints
+            if not is_intable(pg_id):
                 continue
 
-            # handle pg id
-            stats[pg_id] = {}
-            for field, per_port_data in pg_id_data.iteritems():
-                stats[pg_id][field] = {}
-                for port, value in per_port_data.iteritems():
-                    stats[pg_id][field][int(port)] = value
+            stats[int(pg_id)] = {}
+            for field in ['tx_pkts', 'tx_bytes', 'rx_pkts']:
+                stats[int(pg_id)][field] = {'total': self.get_rel([pg_id, field, 'total'])}
+
+                for port, pv in value[field].iteritems():
+                    try:
+                        int(port)
+                    except ValueError:
+                        continue
+                    stats[int(pg_id)][field][int(port)] = self.get_rel([pg_id, field, port])
 
         return stats
 
 
+
+    def generate_stats (self):
+
+        # for TUI - maximum 4 
+        pg_ids = filter(is_intable, self.latest_stats.keys())[:4]
+        cnt = len(pg_ids)
+
+        formatted_stats = OrderedDict([ ('Tx pps',  []),
+                                        ('Tx bps L2',      []),
+                                        ('Tx bps L1',      []),
+                                        ('---', [''] * cnt),
+                                        ('Rx pps',      []),
+                                        ('Rx bps',      []),
+                                        ('----', [''] * cnt),
+                                        ('opackets',    []),
+                                        ('ipackets',    []),
+                                        ('obytes',      []),
+                                        ('ibytes',      []),
+                                        ('-----', [''] * cnt),
+                                        ('tx_pkts',     []),
+                                        ('rx_pkts',     []),
+                                        ('tx_bytes',    []),
+                                        ('rx_bytes',    [])
+                                      ])
+
+
+
+        # maximum 4
+        for pg_id in pg_ids:
+
+            formatted_stats['Tx pps'].append(self.get([pg_id, 'tx_pps'], format = True, suffix = "pps"))
+            formatted_stats['Tx bps L2'].append(self.get([pg_id, 'tx_bps'], format = True, suffix = "bps"))
+
+            formatted_stats['Tx bps L1'].append(self.get([pg_id, 'tx_bps_L1'], format = True, suffix = "bps"))
+
+            formatted_stats['Rx pps'].append(self.get([pg_id, 'rx_pps'], format = True, suffix = "pps"))
+            formatted_stats['Rx bps'].append(self.get([pg_id, 'rx_bps'], format = True, suffix = "bps"))
+            
+            formatted_stats['opackets'].append(self.get_rel([pg_id, 'tx_pkts', 'total']))
+            formatted_stats['ipackets'].append(self.get_rel([pg_id, 'rx_pkts', 'total']))
+            formatted_stats['obytes'].append(self.get_rel([pg_id, 'tx_bytes', 'total']))
+            formatted_stats['ibytes'].append(self.get_rel([pg_id, 'rx_bytes', 'total']))
+            formatted_stats['tx_bytes'].append(self.get_rel([pg_id, 'tx_bytes', 'total'], format = True, suffix = "B"))
+            formatted_stats['rx_bytes'].append(self.get_rel([pg_id, 'rx_bytes', 'total'], format = True, suffix = "B"))
+            formatted_stats['tx_pkts'].append(self.get_rel([pg_id, 'tx_pkts', 'total'], format = True, suffix = "pkts"))
+            formatted_stats['rx_pkts'].append(self.get_rel([pg_id, 'rx_pkts', 'total'], format = True, suffix = "pkts"))
+
+      
+
+        return pg_ids, formatted_stats
+
 if __name__ == "__main__":
     pass
+

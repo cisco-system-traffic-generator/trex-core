@@ -149,7 +149,9 @@ private:
                      uint64_t &simulated_pkts,
                      uint64_t &written_pkts);
 
+    void cleanup();
     void flush_dp_to_cp_messages_core(int core_index);
+    void flush_cp_to_dp_messages_core(int core_index);
 
     void validate_response(const Json::Value &resp);
 

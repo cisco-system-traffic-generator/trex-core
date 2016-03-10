@@ -80,22 +80,22 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
 
-        assert_equal( pkt_builder.is_def_src_mac () ,True)
-        assert_equal( pkt_builder.is_def_dst_mac () ,True)
+        assert_equal( pkt_builder.is_default_src_mac () ,True)
+        assert_equal( pkt_builder.is_default_dst_mac () ,True)
 
         pkt =  Ether(src="00:00:00:00:00:01")/IP()/UDP()
 
         pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
 
-        assert_equal( pkt_builder.is_def_src_mac (), False)
-        assert_equal( pkt_builder.is_def_dst_mac (), True)
+        assert_equal( pkt_builder.is_default_src_mac (), False)
+        assert_equal( pkt_builder.is_default_dst_mac (), True)
 
         pkt =  Ether(dst="00:00:00:00:00:01")/IP()/UDP()
 
         pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
 
-        assert_equal( pkt_builder.is_def_src_mac (),True)
-        assert_equal(  pkt_builder.is_def_dst_mac (),False)
+        assert_equal( pkt_builder.is_default_src_mac (),True)
+        assert_equal(  pkt_builder.is_default_dst_mac (),False)
 
 
 
@@ -299,7 +299,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         assert_equal(d['instructions'][4]['pkt_offset'],38)
 
     def test_simple_pkt_loader(self):
-        p=RawPcapReader("stl/golden/basic_imix_golden.cap")
+        p=RawPcapReader("functional_tests/golden/basic_imix_golden.cap")
         print ""
         for pkt in p:
             print pkt[1]
@@ -308,7 +308,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_pkt_loader1(self):
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/udp_590.cap", build_raw = False);
+        pkt_builder = CScapyTRexPktBuilder(pkt = "functional_tests/golden/udp_590.cap", build_raw = False);
         print ""
         pkt_builder.dump_as_hex()
         r = pkt_builder.pkt_raw
@@ -322,7 +322,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_pkt_loader2(self):
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/basic_imix_golden.cap");
+        pkt_builder = CScapyTRexPktBuilder(pkt = "functional_tests/golden/basic_imix_golden.cap");
         assert_equal(pkt_builder.pkt_layers_desc (), "Ethernet:IP:UDP:Raw");
 
     def test_simple_pkt_loader3(self):

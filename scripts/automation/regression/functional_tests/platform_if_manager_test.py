@@ -9,7 +9,7 @@ from nose.tools import assert_not_equal
 class CIfManager_Test(functional_general_test.CGeneralFunctional_Test):
 
     def setUp(self):
-        self.dev_cfg = CDeviceCfg('./unit_tests/functional_tests/config.yaml')
+        self.dev_cfg = CDeviceCfg('./functional_tests/config.yaml')
         self.if_mng  = CIfManager()
 
     # main testing method to check the entire class

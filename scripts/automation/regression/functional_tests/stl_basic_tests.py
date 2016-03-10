@@ -6,9 +6,10 @@ from nose.tools import assert_equal
 from nose.tools import assert_not_equal
 from nose.tools import nottest
 from nose.plugins.attrib import attr
-from unit_tests.trex_general_test import CTRexScenario
+from trex import CTRexScenario
 from dpkt import pcap
 from trex_stl_lib import trex_stl_sim
+from trex_stl_lib.trex_stl_streams import STLProfile
 import sys
 import os
 import subprocess
@@ -73,11 +74,11 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             pkts2 = reader2.readpkts()
 
         assert_equal(len(pkts1), len(pkts2))
-        
+
         for pkt1, pkt2, i in zip(pkts1, pkts2, xrange(1, len(pkts1))):
             ts1 = pkt1[0]
             ts2 = pkt2[0]
-            if abs(ts1-ts2) > 0.000005: # 5 nsec 
+            if abs(ts1-ts2) > 0.000005: # 5 nsec
                 raise AssertionError("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'".format(cap1, cap2, i, ts1, ts2))
 
             if pkt1[1] != pkt2[1]:
@@ -102,7 +103,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
 
-    def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True, test_generated=True):
+    def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True, test_generated=True, do_no_remove_generated = False):
         output_cap = "a.pcap"
         input_file =  os.path.join('stl/', profile)
         golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');
@@ -118,38 +119,42 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             if compare:
                 self.compare_caps(output_cap, golden_file)
         finally:
-            if not do_no_remove: 
+            if not do_no_remove:
                 os.unlink(output_cap)
         if test_generated:
             try:
-                from trex_stl_lib.api import STLProfile # if test is skipped, don't load it
                 generated_filename = input_file.replace('.py', '_GENERATED.py').replace('.yaml', '_GENERATED.py')
                 if input_file.endswith('.py'):
                     profile = STLProfile.load_py(input_file)
                 elif input_file.endswith('.yaml'):
                     profile = STLProfile.load_yaml(input_file)
                 profile.dump_to_code(generated_filename)
+                
                 rc = self.run_sim(generated_filename, output_cap, options, silent)
                 assert_equal(rc, True)
-    
+
                 if compare:
                     self.compare_caps(output_cap, golden_file)
+            except Exception as e:
+                print e
             finally:
-                if not do_no_remove: 
+                if not do_no_remove_generated:
                     os.unlink(generated_filename)
+                    os.unlink(generated_filename + 'c')
+                if not do_no_remove:
                     os.unlink(output_cap)
 
 
     def test_stl_profiles (self):
 
-        p = [ 
+        p = [
             ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
-            ["syn_attack.py","-m 1 -l 50",True],               # can't compare random now 
+            ["syn_attack.py","-m 1 -l 50",True],               # can't compare random now
             ["udp_1pkt_1mac.py","-m 1 -l 50",True],
             ["udp_1pkt_mac.py","-m 1 -l 50",True],
             ["udp_1pkt.py","-m 1 -l 50",True],
             ["udp_1pkt_tuple_gen.py","-m 1 -l 50",True],
-            ["udp_rand_len_9k.py","-m 1 -l 50",True],           # can't do the compare 
+            ["udp_rand_len_9k.py","-m 1 -l 50",True],           # can't do the compare
             ["udp_1pkt_mpls.py","-m 1 -l 50",True],
             ["udp_1pkt_mpls_vm.py","-m 1 ",True],
             ["imix.py","-m 1 -l 100",True],
@@ -195,14 +200,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
         p1  = [ ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 50",True] ]
-        
+
 
         for obj in p:
             try:
                 test_generated = obj[3]
             except: # check generated if not said otherwise
                 test_generated = True
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], test_generated = test_generated, do_no_remove=True)
+            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], test_generated = test_generated, do_no_remove=True, do_no_remove_generated = False)
 
 
     def test_hlt_profiles (self):
@@ -231,7 +236,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             )
 
         for obj in p:
-            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True)
+            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True, do_no_remove_generated = False)
 
     # valgrind tests - this runs in multi thread as it safe (no output)
     def test_valgrind_various_profiles (self):

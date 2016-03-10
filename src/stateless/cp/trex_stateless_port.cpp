@@ -103,14 +103,9 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
 }
 
 TrexStatelessPort::~TrexStatelessPort() {
-    if (m_graph_obj) {
-        delete m_graph_obj;
-    }
 
-    if (m_pending_async_stop_event != TrexDpPortEvents::INVALID_ID) {
-        m_dp_events.destroy_event(m_pending_async_stop_event);
-        m_pending_async_stop_event = TrexDpPortEvents::INVALID_ID;
-    }
+    stop_traffic();
+    remove_and_delete_all_streams();
 }
 
 /**

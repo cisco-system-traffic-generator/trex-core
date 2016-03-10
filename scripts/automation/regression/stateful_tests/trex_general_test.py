@@ -26,6 +26,7 @@ Description:
 from nose.plugins import Plugin
 from nose.plugins.skip import SkipTest
 import trex
+from trex import CTRexScenario
 import misc_methods
 import sys
 import os
@@ -37,50 +38,14 @@ from tests_exceptions import *
 from platform_cmd_link import *
 import unittest
 
-
-class CTRexScenario():
-    modes            = set() # list of modes of this setup: loopback, virtual etc.
-    server_logs      = False
-    is_test_list     = False
-    is_init          = False
-    trex_crashed     = False
-    configuration    = None
-    trex             = None
-    router           = None
-    router_cfg       = None
-    daemon_log_lines = 0
-    setup_name       = None
-    setup_dir        = None
-    router_image     = None
-    trex_version     = None
-    scripts_path     = None
-    benchmark        = None
-    report_dir       = 'reports'
-    # logger         = None
-
-#scenario = CTRexScenario()
-
 def setUpModule(module):
-#   print ("") # this is to get a newline after the dots
-#   print ("setup_module before anything in this file")
-#   # ff = CTRexScenario()
-#   scenario.configuration = misc_methods.load_complete_config_file('config/config.yaml')
-#   scenario.trex          = trex.CTRexRunner(scenario.configuration[0], None)
-#   scenario.router        = CPlatform(scenario.configuration[1], False, scenario.configuration[2])
-#   scenario.router.platform.preCheck()
-#   print "Done instantiating trex scenario!"
     pass
 
 def tearDownModule(module):
-#   print ("") # this is to get a newline after the dots
-#   scenario.router.platform.postCheck()
-#   print ("teardown_module after anything in this file")
     pass
 
-
-
 class CTRexGeneral_Test(unittest.TestCase):
-    """This class defines the general testcase of the T-Rex traffic generator"""
+    """This class defines the general stateful testcase of the T-Rex traffic generator"""
     def __init__ (self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         if CTRexScenario.is_test_list:
@@ -100,7 +65,8 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.is_VM                 = True if 'VM' in self.modes else False
 
         if not CTRexScenario.is_init:
-            CTRexScenario.trex_version = self.trex.get_trex_version()
+            if self.trex: # stateful
+                CTRexScenario.trex_version = self.trex.get_trex_version()
             if not self.is_loopback:
                 # initilize the scenario based on received configuration, once per entire testing session
                 CTRexScenario.router = CPlatform(CTRexScenario.router_cfg['silent_mode'])
@@ -306,12 +272,13 @@ class CTRexGeneral_Test(unittest.TestCase):
         test_setup_modes_conflict = self.modes & set(self.unsupported_modes)
         if test_setup_modes_conflict:
             self.skip("The test can't run with following modes of given setup: %s " % test_setup_modes_conflict)
-        if not self.trex.is_idle():
+        if self.trex and not self.trex.is_idle():
             print 'Warning: TRex is not idle at setUp, trying to stop it.'
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
             print ''
-            self.router.load_clean_config()
+            if self.trex: # stateful
+                self.router.load_clean_config()
             self.router.clear_counters()
             self.router.clear_packet_drop_stats()
 
@@ -324,6 +291,8 @@ class CTRexGeneral_Test(unittest.TestCase):
 #   def test_isInitialized(self):
 #       assert CTRexScenario.is_init == True
     def tearDown(self):
+        if not self.trex:
+            return
         if not self.trex.is_idle():
             print 'Warning: TRex is not idle at tearDown, trying to stop it.'
             self.trex.force_kill(confirm = False)

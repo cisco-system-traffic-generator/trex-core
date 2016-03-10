@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import xml.etree.ElementTree as ET
+import outer_packages
 import argparse
 import glob
 from pprint import pprint
@@ -9,6 +10,13 @@ import copy
 import datetime, time
 import cPickle as pickle
 import subprocess, shlex
+from ansi2html import Ansi2HTMLConverter
+
+converter = Ansi2HTMLConverter(inline = True)
+convert = converter.convert
+
+def ansi2html(text):
+    return convert(text, full = False)
 
 FUNCTIONAL_CATEGORY = 'Functional' # how to display those categories
 ERROR_CATEGORY = 'Error'
@@ -27,9 +35,9 @@ def is_functional_test_name(testname):
     #if testname.startswith(('platform_', 'misc_methods_', 'vm_', 'payload_gen_', 'pkt_builder_')):
     #    return True
     #return False
-    if testname.startswith('unit_tests.'):
-        return False
-    return True
+    if testname.startswith('functional_tests.'):
+        return True
+    return False
 
 def is_good_status(text):
     return text in ('Successful', 'Fixed', 'Passed', 'True', 'Pass')
@@ -56,15 +64,16 @@ def add_th_th(key, value):
 
 # returns <div> with table of tests under given category.
 # category - string with name of category
-# hidden - bool, true = <div> is hidden by CSS
 # tests - list of tests, derived from aggregated xml report, changed a little to get easily stdout etc.
+# tests_type - stateful or stateless
 # category_info_dir - folder to search for category info file
 # expanded - bool, false = outputs (stdout etc.) of tests are hidden by CSS
 # brief - bool, true = cut some part of tests outputs (useful for errors section with expanded flag)
-def add_category_of_tests(category, tests, hidden = False, category_info_dir = None, expanded = False, brief = False):
+def add_category_of_tests(category, tests, tests_type = None, category_info_dir = None, expanded = False, brief = False):
     is_actual_category = category not in (FUNCTIONAL_CATEGORY, ERROR_CATEGORY)
-    html_output = '<div style="display:%s;" id="cat_tglr_%s">\n' % ('none' if hidden else 'block', category)
-    
+    category_id = '_'.join([category, tests_type]) if tests_type else category
+    category_name = ' '.join([category, tests_type.capitalize()]) if tests_type else category
+    html_output = ''
     if is_actual_category:
         html_output += '<br><table class="reference">\n'
         
@@ -80,6 +89,8 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
             else:
                 html_output += add_th_td('Info:', 'No info')
                 print 'add_category_of_tests: no category info %s' % category_info_file
+        if tests_type:
+            html_output += add_th_td('Tests type:', tests_type.capitalize())
         if len(tests):
             total_duration = 0.0
             for test in tests:
@@ -88,13 +99,13 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
         html_output += '</table>\n'
 
     if not len(tests):
-        return html_output + pad_tag('<br><font color=red>No tests!</font>', 'b') + '</div>'
+        return html_output + pad_tag('<br><font color=red>No tests!</font>', 'b')
     html_output += '<br>\n<table class="reference" width="100%">\n<tr><th align="left">'
 
     if category == ERROR_CATEGORY:
         html_output += 'Setup</th><th align="left">Failed tests:'
     else:
-        html_output += '%s tests:' % category
+        html_output += '%s tests:' % category_name
     html_output += '</th><th align="center">Final Result</th>\n<th align="center">Time (s)</th>\n</tr>\n'
     for test in tests:
         functional_test = is_functional_test_name(test.attrib['name'])
@@ -103,7 +114,7 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
         if category == ERROR_CATEGORY:
             test_id = ('err_' + test.attrib['classname'] + test.attrib['name']).replace('.', '_')
         else:
-            test_id = (category + test.attrib['name']).replace('.', '_')
+            test_id = (category_id + test.attrib['name']).replace('.', '_')
         if expanded:
             html_output += '<tr>\n<th>'
         else:
@@ -128,15 +139,21 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
 
         result, result_text = test.attrib.get('result', ('', ''))
         if result_text:
+            start_index_errors_stl = result_text.find('STLError: \n******')
+            if start_index_errors_stl > 0:
+                result_text = result_text[start_index_errors_stl:].strip() # cut traceback
             start_index_errors = result_text.find('Exception: The test is failed, reasons:')
             if start_index_errors > 0:
                 result_text = result_text[start_index_errors + 10:].strip() # cut traceback
+            result_text = ansi2html(result_text)
             result_text = '<b style="color:000080;">%s:</b><br>%s<br><br>' % (result.capitalize(), result_text.replace('\n', '<br>'))
         stderr = '' if brief and result_text else test.get('stderr', '')
         if stderr:
+            stderr = ansi2html(stderr)
             stderr = '<b style="color:000080;"><text color=000080>Stderr</text>:</b><br>%s<br><br>\n' % stderr.replace('\n', '<br>')
         stdout = '' if brief and result_text else test.get('stdout', '')
         if stdout:
+            stdout = ansi2html(stdout)
             if brief: # cut off server logs
                 stdout = stdout.split('>>>>>>>>>>>>>>>', 1)[0]
             stdout = '<b style="color:000080;">Stdout:</b><br>%s<br><br>\n' % stdout.replace('\n', '<br>')
@@ -147,7 +164,7 @@ def add_category_of_tests(category, tests, hidden = False, category_info_dir = N
         else:
             html_output += '<b style="color:000080;">No output</b></td></tr>'
 
-    html_output += '\n</table>\n</div>'
+    html_output += '\n</table>'
     return html_output
 
 style_css = """
@@ -292,35 +309,40 @@ if __name__ == '__main__':
 
 ##### aggregate results to 1 single tree
     aggregated_root = ET.Element('testsuite')
+    test_types = ('functional', 'stateful', 'stateless')
     setups = {}
     for job in jobs_list:
-        xml_file = '%s/report_%s.xml' % (args.input_dir, job)
-        if not os.path.exists(xml_file):
-            message = '%s referenced in jobs_list.info does not exist!' % xml_file
+        setups[job] = {}
+        for test_type in test_types:
+            xml_file = '%s/report_%s_%s.xml' % (args.input_dir, job, test_type)
+            if not os.path.exists(xml_file):
+                continue
+            if os.path.basename(xml_file) == os.path.basename(args.output_xmlfile):
+                continue
+            setups[job][test_type] = []
+            print('Processing report: %s.%s' % (job, test_type))
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
+            for key, value in root.attrib.items():
+                if key in aggregated_root.attrib and value.isdigit(): # sum total number of failed tests etc.
+                    aggregated_root.attrib[key] = str(int(value) + int(aggregated_root.attrib[key]))
+                else:
+                    aggregated_root.attrib[key] = value
+            tests = root.getchildren()
+            if not len(tests): # there should be tests:
+                message = 'No tests in xml %s' % xml_file
+                print message
+                #err.append(message)
+            for test in tests:
+                setups[job][test_type].append(test)
+                test.attrib['name'] = test.attrib['classname'] + '.' + test.attrib['name']
+                test.attrib['classname'] = job
+                aggregated_root.append(test)
+        if not sum([len(x) for x in setups[job].values()]):
+            message = 'No reports from setup %s!' % job
             print message
             err.append(message)
             continue
-        if os.path.basename(xml_file) == os.path.basename(args.output_xmlfile):
-            continue
-        setups[job] = []
-        print('Processing setup: %s' % job)
-        tree = ET.parse(xml_file)
-        root = tree.getroot()
-        for key, value in root.attrib.items():
-            if key in aggregated_root.attrib and value.isdigit(): # sum total number of failed tests etc.
-                aggregated_root.attrib[key] = str(int(value) + int(aggregated_root.attrib[key]))
-            else:
-                aggregated_root.attrib[key] = value
-        tests = root.getchildren()
-        if not len(tests): # there should be tests:
-            message = 'No tests in xml %s' % xml_file
-            print message
-            err.append(message)
-        for test in tests:
-            setups[job].append(test)
-            test.attrib['name'] = test.attrib['classname'] + '.' + test.attrib['name']
-            test.attrib['classname'] = job
-            aggregated_root.append(test)
 
     total_tests_count   = int(aggregated_root.attrib.get('tests', 0))
     error_tests_count   = int(aggregated_root.attrib.get('errors', 0))
@@ -426,7 +448,7 @@ if __name__ == '__main__':
     if len(error_tests):
         html_output += '\n<button onclick=tgl_cat("cat_tglr_{error}")>{error}</button>'.format(error = ERROR_CATEGORY)
     # Setups buttons
-    for category, tests in setups.items():
+    for category in setups.keys():
         category_arr.append(category)
         html_output += '\n<button onclick=tgl_cat("cat_tglr_%s")>%s</button>' % (category_arr[-1], category)
     # Functional buttons
@@ -436,13 +458,22 @@ if __name__ == '__main__':
 # Adding tests
     # Error tests
     if len(error_tests):
-        html_output += add_category_of_tests(ERROR_CATEGORY, error_tests, hidden=False)
+        html_output += '<div style="display:block;" id="cat_tglr_%s">' % ERROR_CATEGORY
+        html_output += add_category_of_tests(ERROR_CATEGORY, error_tests)
+        html_output += '</div>'
     # Setups tests
     for category, tests in setups.items():
-        html_output += add_category_of_tests(category, tests, hidden=True, category_info_dir=args.input_dir)
+        html_output += '<div style="display:none;" id="cat_tglr_%s">' % category
+        if 'stateful' in tests:
+            html_output += add_category_of_tests(category, tests['stateful'], 'stateful', category_info_dir=args.input_dir)
+        if 'stateless' in tests:
+            html_output += add_category_of_tests(category, tests['stateless'], 'stateless', category_info_dir=(None if 'stateful' in tests else args.input_dir))
+        html_output += '</div>'
     # Functional tests
     if len(functional_tests):
-        html_output += add_category_of_tests(FUNCTIONAL_CATEGORY, functional_tests.values(), hidden=True)
+        html_output += '<div style="display:none;" id="cat_tglr_%s">' % FUNCTIONAL_CATEGORY
+        html_output += add_category_of_tests(FUNCTIONAL_CATEGORY, functional_tests.values())
+        html_output += '</div>'
 
     html_output += '\n\n<script type="text/javascript">\n    var category_arr = %s\n' % ['cat_tglr_%s' % x for x in category_arr]
     html_output += '''
@@ -524,7 +555,7 @@ if __name__ == '__main__':
         for test in error_tests:
             if test.attrib['classname'] == category:
                 failing_category = True
-        if failing_category or not len(setups[category]):
+        if failing_category or not len(setups[category]) or not sum([len(x) for x in setups[category]]):
             mail_output += '<table class="reference_fail" align=left style="Margin-bottom:10;Margin-right:10;">\n'
         else:
             mail_output += '<table class="reference" align=left style="Margin-bottom:10;Margin-right:10;">\n'
@@ -549,9 +580,9 @@ if __name__ == '__main__':
         if len(error_tests) > 5:
             mail_output += '\n<font color=red>More than 5 failed tests, showing brief output.<font>\n<br>'
             # show only brief version (cut some info)
-            mail_output += add_category_of_tests(ERROR_CATEGORY, error_tests, hidden=False, expanded=True, brief=True)
+            mail_output += add_category_of_tests(ERROR_CATEGORY, error_tests, expanded=True, brief=True)
         else:
-            mail_output += add_category_of_tests(ERROR_CATEGORY, error_tests, hidden=False, expanded=True)
+            mail_output += add_category_of_tests(ERROR_CATEGORY, error_tests, expanded=True)
     else:
         mail_output += '<table><tr style="font-size:120;color:green;font-family:arial"><td>☺</td><td style="font-size:20">All passed.</td></tr></table>\n'
     mail_output += '\n</body>\n</html>'

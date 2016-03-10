@@ -9,7 +9,7 @@ from nose.tools import assert_not_equal
 class CDeviceCfg_Test(functional_general_test.CGeneralFunctional_Test):
 
     def setUp(self):
-    	self.dev_cfg = CDeviceCfg('./unit_tests/functional_tests/config.yaml')
+    	self.dev_cfg = CDeviceCfg('./functional_tests/config.yaml')
 
     def test_get_interfaces_cfg(self):
         assert_equal (self.dev_cfg.get_interfaces_cfg(), 

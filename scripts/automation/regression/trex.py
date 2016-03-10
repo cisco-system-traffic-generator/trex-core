@@ -8,9 +8,34 @@ import re
 import signal
 import time
 from CProgressDisp import TimedProgressBar
-import unit_tests.trex_general_test
-from unit_tests.tests_exceptions import TRexInUseError
+from stateful_tests.tests_exceptions import TRexInUseError
 import datetime
+
+class CTRexScenario:
+    modes            = set() # list of modes of this setup: loopback, virtual etc.
+    server_logs      = False
+    is_test_list     = False
+    is_init          = False
+    is_stl_init      = False
+    trex_crashed     = False
+    configuration    = None
+    trex             = None
+    stl_trex         = None
+    stl_ports_map    = None
+    stl_init_error   = None
+    router           = None
+    router_cfg       = None
+    daemon_log_lines = 0
+    setup_name       = None
+    setup_dir        = None
+    router_image     = None
+    trex_version     = None
+    scripts_path     = None
+    benchmark        = None
+    report_dir       = 'reports'
+    # logger         = None
+    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': []}
+    is_copied        = False
 
 class CTRexRunner:
     """This is an instance for generating a CTRexRunner"""
@@ -67,7 +92,7 @@ class CTRexRunner:
 
         trex_cmd = trex_cmd_str % (cores,
             multiplier,
-            duration, 
+            duration,
             self.yaml)
             # self.trex_config['trex_latency'])
 
@@ -81,8 +106,8 @@ class CTRexRunner:
 
         print "\nT-REX COMMAND: ", trex_cmd
 
-        cmd = 'sshpass.exp %s %s root "cd %s; %s > %s"' % (self.trex_config['trex_password'], 
-            self.trex_config['trex_name'], 
+        cmd = 'sshpass.exp %s %s root "cd %s; %s > %s"' % (self.trex_config['trex_password'],
+            self.trex_config['trex_name'],
             self.trex_config['trex_version_path'],
             trex_cmd,
             export_path)
@@ -91,18 +116,18 @@ class CTRexRunner:
 
     def generate_fetch_cmd (self, result_file_full_path="/tmp/trex.txt"):
         """ generate_fetch_cmd(self, result_file_full_path) -> str
-        
+
         Generates a custom command for which will enable to fetch the resutls of the T-Rex run.
         Returns a command (string) to be issued on the trex server.
-    
+
         Example use: fetch_trex_results()                                   -   command that will fetch the content from the default log file- /tmp/trex.txt
                      fetch_trex_results("/tmp/trex_secondary_file.txt")     -   command that will fetch the content from a custom log file- /tmp/trex_secondary_file.txt
         """
         #dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
         script_running_dir = os.path.dirname(os.path.realpath(__file__))    # get the current script working directory so that the sshpass could be accessed.
-        cmd = script_running_dir + '/sshpass.exp %s %s root "cat %s"' % (self.trex_config['trex_password'], 
-            self.trex_config['trex_name'], 
-            result_file_full_path);    
+        cmd = script_running_dir + '/sshpass.exp %s %s root "cat %s"' % (self.trex_config['trex_password'],
+            self.trex_config['trex_name'],
+            result_file_full_path);
         return cmd;
 
 
@@ -153,10 +178,10 @@ class CTRexRunner:
                 interrupted = True
                 if ((end_time - start_time) < 2):
                     raise TRexInUseError ('T-Rex run failed since T-Rex is used by another process, or due to reachability issues')
-                else: 
-                    unit_tests.trex_general_test.CTRexScenario.trex_crashed = True
-            # results = subprocess.Popen(cmd, stdout = open(os.devnull, 'wb'), 
-            #            shell=True, preexec_fn=os.setsid) 
+                else:
+                    CTRexScenario.trex_crashed = True
+            # results = subprocess.Popen(cmd, stdout = open(os.devnull, 'wb'),
+            #            shell=True, preexec_fn=os.setsid)
         except KeyboardInterrupt:
             print "\nT-Rex test interrupted by user during traffic generation!!"
             results.killpg(results.pid, signal.SIGTERM)  # Send the kill signal to all the process groups
@@ -174,7 +199,7 @@ class CTRexRunner:
             sys.stderr.flush()
             return None
         else:
-            
+
             if tmp_path:
                 cmd = self.generate_fetch_cmd( tmp_path )#**kwargs)#results_file_path)
             else:
@@ -198,7 +223,7 @@ class CTRexResult():
     def __init__ (self, file, buffer = None):
         self.file = file
         self.buffer = buffer
-        self.result = {} 
+        self.result = {}
 
 
     def load_file_lines (self):
@@ -230,7 +255,7 @@ class CTRexResult():
 
         Parameters
         ----------
-        key : 
+        key :
             Key of the self.result dictionary of the TRexResult instance
         val : float
             Key of the self.result dictionary of the TRexResult instance
@@ -240,8 +265,8 @@ class CTRexResult():
         """
 
         s = _str.strip()
-        
-        if s[0]=="G":  
+
+        if s[0]=="G":
             val = val*1E9
         elif s[0]=="M":
             val = val*1E6
@@ -262,14 +287,14 @@ class CTRexResult():
     def parse (self):
         """ parse(self) -> None
 
-        Parse the content of the result file from the TRex test and upload the data into 
+        Parse the content of the result file from the TRex test and upload the data into
         """
         stop_read = False
         d = {
-            'total-tx'      : 0,  
-            'total-rx'      : 0,  
-            'total-pps'     : 0, 
-            'total-cps'     : 0, 
+            'total-tx'      : 0,
+            'total-rx'      : 0,
+            'total-pps'     : 0,
+            'total-cps'     : 0,
 
             'expected-pps'  : 0,
             'expected-cps'  : 0,
@@ -296,7 +321,7 @@ class CTRexResult():
 #               # continue to parse !! we try the second
 #               self.result[key] = val #update latest
 
-            # check if we need to stop reading 
+            # check if we need to stop reading
             match = re.match(".*latency daemon has stopped.*", line)
             if match:
                 stop_read = True
@@ -307,7 +332,7 @@ class CTRexResult():
                 key = misc_methods.mix_string(match.group(1))
                 val = float(match.group(4))
                 if d.has_key(key):
-                   if stop_read == False:  
+                   if stop_read == False:
                        self.update (key, val, match.group(5))
                 else:
                     self.result[key] = val # update latest
@@ -321,7 +346,7 @@ class CTRexResult():
                key = misc_methods.mix_string(match.group(1))
                val = float(match.group(4))
                if d.has_key(key):
-                   if stop_read == False:  
+                   if stop_read == False:
                        self.update (key, val, match.group(5))
                else:
                     self.result[key] = val # update latest
@@ -337,7 +362,7 @@ class CTRexResult():
             match = re.match("\W*(\w(\w|[-])+)\W*([:]|[=])\W*(OK)(.*)", line)
             if match:
                 key = misc_methods.mix_string(match.group(1))
-                val = 0 # valid 
+                val = 0 # valid
                 self.result[key] = val #update latest
                 continue
 
@@ -347,7 +372,7 @@ class CTRexResult():
                 val = float(match.group(3))
                 if self.result.has_key(key):
                     if (self.result[key] < val): # update only if larger than previous value
-                        self.result[key] = val 
+                        self.result[key] = val
                 else:
                     self.result[key] = val
                 continue

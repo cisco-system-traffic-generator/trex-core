@@ -23,7 +23,7 @@
 #include <iostream>
 #include <assert.h>
 #include <os_time.h>
-#include <internal_api/trex_platform_api.h>
+#include "internal_api/trex_platform_api.h"
 #include "trex_stateless.h"
 #include "trex_stream.h"
 #include "flow_stat_parser.h"
@@ -61,9 +61,14 @@ CFlowStatUserIdInfo::CFlowStatUserIdInfo(uint8_t proto) {
     m_proto = proto;
     m_ref_count = 1;
     m_trans_ref_count = 0;
+    m_was_sent = false;
+    for (int i = 0; i < TREX_MAX_PORTS; i++) {
+        m_rx_changed[i] = false;
+        m_tx_changed[i] = false;
+    }
 }
 
-std::ostream& operator<<(std::ostream& os, const class CFlowStatUserIdInfo& cf) {
+std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf) {
     os << "hw_id:" << cf.m_hw_id << " proto:" << (uint16_t) cf.m_proto << " ref("
        << (uint16_t) cf.m_ref_count << "," << (uint16_t) cf.m_trans_ref_count << ")";
     os << " rx count (";
@@ -138,7 +143,7 @@ std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdMap& cf) {
 }
 
 uint16_t CFlowStatUserIdMap::get_hw_id(uint32_t user_id) {
-    class CFlowStatUserIdInfo *cf = find_user_id(user_id);
+    CFlowStatUserIdInfo *cf = find_user_id(user_id);
 
     if (cf == NULL) {
         return FREE_HW_ID;
@@ -147,7 +152,7 @@ uint16_t CFlowStatUserIdMap::get_hw_id(uint32_t user_id) {
     }
 }
 
-class CFlowStatUserIdInfo *
+CFlowStatUserIdInfo *
 CFlowStatUserIdMap::find_user_id(uint32_t user_id) {
     flow_stat_user_id_map_it_t it = m_map.find(user_id);
 
@@ -158,17 +163,17 @@ CFlowStatUserIdMap::find_user_id(uint32_t user_id) {
     }
 }
 
-class CFlowStatUserIdInfo *
+CFlowStatUserIdInfo *
 CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint8_t proto) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << user_id << " proto:" << (uint16_t)proto
               << std::endl;
 #endif
 
-    class CFlowStatUserIdInfo *new_id = new CFlowStatUserIdInfo(proto);
+    CFlowStatUserIdInfo *new_id = new CFlowStatUserIdInfo(proto);
     if (new_id != NULL) {
         std::pair<flow_stat_user_id_map_it_t, bool> ret;
-        ret = m_map.insert(std::pair<uint32_t, class CFlowStatUserIdInfo *>(user_id, new_id));
+        ret = m_map.insert(std::pair<uint32_t, CFlowStatUserIdInfo *>(user_id, new_id));
         if (ret.second == false) {
             printf("%s Error: Trying to add user id %d which already exist\n", __func__, user_id);
             delete new_id;
@@ -186,7 +191,7 @@ int CFlowStatUserIdMap::add_stream(uint32_t user_id, uint8_t proto) {
               << std::endl;
 #endif
 
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -204,7 +209,7 @@ int CFlowStatUserIdMap::del_stream(uint32_t user_id) {
     std::cout << __METHOD_NAME__ << " user id:" << user_id << std::endl;
 #endif
 
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -225,7 +230,7 @@ int CFlowStatUserIdMap::start_stream(uint32_t user_id, uint16_t hw_id) {
     std::cout << __METHOD_NAME__ << " user id:" << user_id << " hw_id:" << hw_id << std::endl;
 #endif
 
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -235,7 +240,7 @@ int CFlowStatUserIdMap::start_stream(uint32_t user_id, uint16_t hw_id) {
     }
 
     if (c_user_id->is_hw_id()) {
-        fprintf(stderr, "%s Error: Trying to associate hw id %d to user_id %d but it is already associate to %ld\n"
+        fprintf(stderr, "%s Error: Trying to associate hw id %d to user_id %d but it is already associate to %u\n"
                 , __func__, hw_id, user_id, c_user_id->get_hw_id());
         return -1;
     }
@@ -250,7 +255,7 @@ int CFlowStatUserIdMap::start_stream(uint32_t user_id) {
     std::cout << __METHOD_NAME__ << " user id:" << user_id << std::endl;
 #endif
 
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -271,7 +276,7 @@ int CFlowStatUserIdMap::stop_stream(uint32_t user_id) {
     std::cout << __METHOD_NAME__ << " user id:" << user_id << std::endl;
 #endif
 
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -284,7 +289,7 @@ int CFlowStatUserIdMap::stop_stream(uint32_t user_id) {
 }
 
 bool CFlowStatUserIdMap::is_started(uint32_t user_id) {
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -295,7 +300,7 @@ bool CFlowStatUserIdMap::is_started(uint32_t user_id) {
 }
 
 uint8_t CFlowStatUserIdMap::l4_proto(uint32_t user_id) {
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -310,7 +315,7 @@ uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
     std::cout << __METHOD_NAME__ << " user id:" << user_id << std::endl;
 #endif
 
-    class CFlowStatUserIdInfo *c_user_id;
+    CFlowStatUserIdInfo *c_user_id;
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
@@ -583,15 +588,21 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
             return -1;
         } else {
             // update counters, and reset before unmapping
-            class CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
+            CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
             assert(p_user_id != NULL);
             uint64_t rx_counter;
             tx_per_flow_t tx_counter;
             for (uint8_t port = 0; port < m_num_ports; port++) {
                 m_api->del_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
                 m_api->get_flow_stats(port, &rx_counter, (void *)&tx_counter, hw_id, hw_id, true);
-                p_user_id->set_rx_counter(port, rx_counter);
-                p_user_id->set_tx_counter(port, tx_counter);
+                if (p_user_id->get_rx_counter(port) != rx_counter) {
+                    p_user_id->set_rx_counter(port, rx_counter);
+                    p_user_id->set_need_to_send_rx(port);
+                }
+                if (p_user_id->get_tx_counter(port) != tx_counter) {
+                    p_user_id->set_tx_counter(port, tx_counter);
+                    p_user_id->set_need_to_send_tx(port);
+                }
             }
             m_user_id_map.unmap(stream->m_rx_check.m_pg_id);
             m_hw_id_map.unmap(hw_id);
@@ -611,39 +622,58 @@ int CFlowStatRuleMgr::get_active_pgids(flow_stat_active_t &result) {
 }
 
 // return false if no counters changed since last run. true otherwise
-bool CFlowStatRuleMgr::dump_json(std::string & json) {
+bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     uint64_t rx_stats[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     Json::FastWriter writer;
     Json::Value root;
 
-    if (m_user_id_map.is_empty()) {
-        return false;
-    }
     root["name"] = "flow_stats";
     root["type"] = 0;
+    
+    if (baseline) {
+        root["baseline"] = true;
+    }
+
     Json::Value &data_section = root["data"];
+    data_section["ts"]["value"] = Json::Value::UInt64(os_get_hr_tick_64());
+    data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
+
+    if (m_user_id_map.is_empty()) {
+        if (baseline) {
+            json = writer.write(root);
+            return true;
+        } else
+            return false;
+    }
 
     // read hw counters, and update
-    data_section["timestamp"] = Json::Value::UInt64(os_get_hr_tick_64());
     for (uint8_t port = 0; port < m_num_ports; port++) {
         m_api->get_flow_stats(port, rx_stats, (void *)tx_stats, 0, m_max_hw_id, false);
         for (int i = 0; i <= m_max_hw_id; i++) {
             if (rx_stats[i] != 0) {
-                class CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
-                    p_user_id->set_rx_counter(port, rx_stats[i]);
+                    if (p_user_id->get_rx_counter(port) != rx_stats[i]) {
+                        p_user_id->set_rx_counter(port, rx_stats[i]);
+                        p_user_id->set_need_to_send_rx(port);
+                    }
                 } else {
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_stats[i] << " rx packets, because no mapping was found" << std::endl;
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_stats[i] << " rx packets, on port "
+                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
             if (tx_stats[i].get_pkts() != 0) {
                 tx_per_flow_t tx_pkts = tx_stats[i];
-                class CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
-                    p_user_id->set_tx_counter(port, tx_pkts);
+                    if (p_user_id->get_tx_counter(port) != tx_pkts) {
+                        p_user_id->set_tx_counter(port, tx_pkts);
+                        p_user_id->set_need_to_send_tx(port);
+                    }
                 } else {
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count tx " << tx_pkts << " because no mapping was found" << std::endl;
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
+                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
         }
@@ -656,13 +686,18 @@ bool CFlowStatRuleMgr::dump_json(std::string & json) {
         uint32_t user_id = it->first;
         std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream()
                                                                       << user_id) )->str();
+        if (! user_id_info->was_sent()) {
+            data_section[str_user_id]["first_time"] = true;
+            user_id_info->set_was_sent(true);
+        }
         for (uint8_t port = 0; port < m_num_ports; port++) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
-
-            if (user_id_info->get_rx_counter(port) != 0) {
+            if (user_id_info->need_to_send_rx(port) || baseline) {
+                user_id_info->set_no_need_to_send_rx(port);
                 data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
             }
-            if (user_id_info->get_tx_counter(port).get_pkts() != 0) {
+            if (user_id_info->need_to_send_tx(port) || baseline) {
+                user_id_info->set_no_need_to_send_tx(port);
                 data_section[str_user_id]["tx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_pkts());
                 data_section[str_user_id]["tx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_bytes());
             }
