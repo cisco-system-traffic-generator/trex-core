@@ -18,7 +18,10 @@ def rx_example (tx_port, rx_port, burst_size):
         s1 = STLStream(name = 'rx',
                        packet = pkt,
                        flow_stats = STLFlowStats(pg_id = 5),
-                       mode = STLTXSingleBurst(total_pkts = total_pkts, bps_L2 = 250000000))
+                       mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                               #pps = total_pkts
+                                               percentage = 80
+                                               ))
 
         # connect to server
         c.connect()
@@ -29,38 +32,14 @@ def rx_example (tx_port, rx_port, burst_size):
         # add both streams to ports
         c.add_streams([s1], ports = [tx_port])
 
-        print "injecting {0} packets on port {1}\n".format(total_pkts, tx_port)
-        c.clear_stats()
-        c.start(ports = [tx_port])
-        c.wait_on_traffic(ports = [tx_port])
+        print "\ninjecting {0} packets on port {1}\n".format(total_pkts, tx_port)
 
-        # no error check - just an example... should be 5
-        flow_stats = c.get_stats()['flow_stats'][5]
-
-        tx_pkts  = flow_stats['tx_pkts'][tx_port]
-        tx_bytes = flow_stats['tx_bytes'][tx_port]
-        rx_pkts  = flow_stats['rx_pkts'][rx_port]
-
-        if tx_pkts != total_pkts:
-            print "TX pkts mismatch - got: {0}, expected: {1}".format(tx_pkts, total_pkts)
-            passed = False
-            return
-        else:
-            print "TX pkts match   - {0}".format(tx_pkts)
-
-        if tx_bytes != (total_pkts * pkt.get_pkt_len()):
-            print "TX bytes mismatch - got: {0}, expected: {1}".format(tx_bytes, (total_pkts * len(pkt)))
-            passed = False
-            return
-        else:
-            print "TX bytes match  - {0}".format(tx_bytes)
-
-        if rx_pkts != total_pkts:
-            print "RX pkts mismatch - got: {0}, expected: {1}".format(rx_pkts, total_pkts)
-            passed = False
-            return
-        else:
-            print "RX pkts match   - {0}".format(rx_pkts)
+        for i in range(0, 10):
+            print "\nStarting iteration: {0}:".format(i)
+            rc = rx_iteration(c, tx_port, rx_port, total_pkts, pkt.get_pkt_len())
+            if not rc:
+                passed = False
+                break
 
 
     except STLError as e:
@@ -75,7 +54,46 @@ def rx_example (tx_port, rx_port, burst_size):
     else:
         print "\nTest has failed :-(\n"
 
+# RX one iteration
+def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
+    
+    c.clear_stats()
+
+    c.start(ports = [tx_port])
+    c.wait_on_traffic(ports = [tx_port])
+
+    flow_stats = c.get_stats()['flow_stats'].get(5)
+    if not flow_stats:
+        print "no flow stats available"
+        return False
+
+    tx_pkts  = flow_stats['tx_pkts'].get(tx_port, 0)
+    tx_bytes = flow_stats['tx_bytes'].get(tx_port, 0)
+    rx_pkts  = flow_stats['rx_pkts'].get(rx_port, 0)
+
+    if tx_pkts != total_pkts:
+        print "TX pkts mismatch - got: {0}, expected: {1}".format(tx_pkts, total_pkts)
+        pprint.pprint(flow_stats)
+        return False
+    else:
+        print "TX pkts match   - {0}".format(tx_pkts)
+
+    if tx_bytes != (total_pkts * pkt_len):
+        print "TX bytes mismatch - got: {0}, expected: {1}".format(tx_bytes, (total_pkts * pkt_len))
+        pprint.pprint(flow_stats)
+        return False
+    else:
+        print "TX bytes match  - {0}".format(tx_bytes)
+
+    if rx_pkts != total_pkts:
+        print "RX pkts mismatch - got: {0}, expected: {1}".format(rx_pkts, total_pkts)
+        pprint.pprint(flow_stats)
+        return False
+    else:
+        print "RX pkts match   - {0}".format(rx_pkts)
+
+    return True
 
 # run the tests
-rx_example(tx_port = 0, rx_port = 3, burst_size = 500000)
+rx_example(tx_port = 1, rx_port = 2, burst_size = 500000)
 
