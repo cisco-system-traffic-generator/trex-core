@@ -107,7 +107,7 @@ TRex curretly works on x86 architecture and can operates well on Cisco UCS hardw
 | Bandwidth | Chipset |  Example
 | 1Gb/sec  | Intel I350 | Intel 4x1GE 350-T4 NIC
 | 10Gb/sec | Intel 82599  | Intel x520-D2  Cisco Order tool 2X Intel N2XX-AIPCI01, Intel X520 Dual Port 10Gb SFP+ Adapter
-| 40Gb/sec | Intel XL710 Intel X710  | QSFP+, SFP+ 
+| 40Gb/sec | Intel XL710 Intel X710  | QSFP+ (copper/optical), SFP+
 | VMXNET / +
 VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | E1000    | paravirtualize  | vmWare/KVM/VirtualBox 
