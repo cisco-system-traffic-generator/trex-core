@@ -36,6 +36,22 @@ def deep_merge_dicts (dst, src):
             if isinstance(v, dict):
                 deep_merge_dicts(dst[k], v)
 
+# BPS L1 from pps and BPS L2
+def calc_bps_L1 (bps, pps):
+    if (pps == 0) or (bps == 0):
+        return 0
+
+    factor = bps / (pps * 8.0)
+    return bps * ( 1 + (20 / factor) )
+#
+
+def is_intable (value):
+    try:
+        int(value)
+        return True
+    except ValueError:
+        return False
+
 # use to calculate diffs relative to the previous values
 # for example, BW
 def calculate_diff (samples):
@@ -131,10 +147,8 @@ class CTRexInfoGenerator(object):
 
     def _generate_streams_stats (self):
       
-        sstats_data = self._rx_stats_ref.generate_stats()
-        streams_keys = self._rx_stats_ref.get_streams_keys()
+        streams_keys, sstats_data = self._rx_stats_ref.generate_stats()
         stream_count = len(streams_keys)
-
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["r"] * stream_count)
@@ -410,9 +424,11 @@ class CTRexStats(object):
 
     def update(self, snapshot, baseline):
 
+        # no update is valid before baseline
         if not self.has_baseline and not baseline:
             return
 
+        # call the underlying method
         rc = self._update(snapshot)
         if not rc:
             return
@@ -461,13 +477,15 @@ class CTRexStats(object):
 
     def get_rel(self, field, format=False, suffix=""):
         
-        ref_value = self._get(self.reference_stats, field, default = 0)
+        ref_value = self._get(self.reference_stats, field)
         latest_value = self._get(self.latest_stats, field)
 
         # latest value is an aggregation - must contain the value
         if latest_value == None:
             return "N/A"
 
+        if ref_value == None:
+            ref_value = 0
 
         value = latest_value - ref_value
 
@@ -556,23 +574,14 @@ class CGlobalStats(CTRexStats):
         return stats
 
 
-    def pre_update (self, snapshot):
+
+    def _update(self, snapshot):
         # L1 bps
         bps = snapshot.get("m_tx_bps")
         pps = snapshot.get("m_tx_pps")
 
-        if pps > 0:
-            avg_pkt_size = bps / (pps * 8.0)
-            bps_L1  = bps * ( (avg_pkt_size + 20.0) / avg_pkt_size )
-        else:
-            bps_L1 = 0.0
+        snapshot['m_tx_bps_L1'] = calc_bps_L1(bps, pps)
 
-        snapshot['m_tx_bps_L1'] = bps_L1
-
-
-    def _update(self, snapshot):
-
-        self.pre_update(snapshot)
 
         # simple...
         self.latest_stats = snapshot
@@ -676,24 +685,16 @@ class CPortStats(CTRexStats):
         return stats
 
 
-    def pre_update (self, snapshot):
+
+    def _update(self, snapshot):
+
         # L1 bps
         bps = snapshot.get("m_total_tx_bps")
         pps = snapshot.get("m_total_tx_pps")
 
-        if pps > 0:
-            avg_pkt_size = bps / (pps * 8.0)
-            bps_L1  = bps * ( (avg_pkt_size + 20.0) / avg_pkt_size )
-        else:
-            bps_L1 = 0.0
-
+        bps_L1 = calc_bps_L1(bps, pps)
         snapshot['m_total_tx_bps_L1'] = bps_L1
         snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100
-
-
-    def _update(self, snapshot):
-
-        self.pre_update(snapshot)
 
         # simple...
         self.latest_stats = snapshot
@@ -768,13 +769,9 @@ class CRxStats(CTRexStats):
     def __init__(self):
         super(CRxStats, self).__init__()
 
-    def bps_L1 (self, bps, pps):
-        if pps == 0:
-            return 0
 
-        factor = bps / (pps * 8.0)
-        return bps * ( 1 + (20 / factor) )
-
+    # calculates a diff between previous snapshot
+    # and current one
     def calculate_diff_sec (self, current, prev):
         if not 'ts' in current:
             raise ValueError("INTERNAL ERROR: RX stats snapshot MUST contain 'ts' field")
@@ -789,45 +786,41 @@ class CRxStats(CTRexStats):
         return diff_sec
 
 
+    # this is the heart of the complex
     def process_single_pg (self, current_pg, prev_pg):
 
         # start with the previous PG
         output = copy.deepcopy(prev_pg)
 
-        for field in ['tx_pkts', 'tx_bytes', 'rx_pkts']:
+        for field in ['tx_pkts', 'tx_bytes', 'rx_pkts', 'rx_bytes']:
+            # is in the first time ? (nothing in prev)
             if not field in output:
                 output[field] = {}
 
+            # does the current snapshot has this field ?
             if field in current_pg:
                 for port, pv in current_pg[field].iteritems():
-                    if not self.is_intable(port):
+                    if not is_intable(port):
                         continue
 
                     output[field][port] = pv
 
             # sum up
-            total = 0
+            total = None
             for port, pv in output[field].iteritems():
-                if not self.is_intable(port):
+                if not is_intable(port):
                     continue
+                if total is None:
+                    total = 0
                 total += pv
 
             output[field]['total'] = total
 
+
         return output
+        
             
-
-    def is_intable (self, value):
-        try:
-            int(value)
-            return True
-        except ValueError:
-            return False
-
     def process_snapshot (self, current, prev):
-
-        # timestamp
-        diff_sec = self.calculate_diff_sec(current, prev)
 
         # final output
         output = {}
@@ -835,24 +828,29 @@ class CRxStats(CTRexStats):
         # copy timestamp field
         output['ts'] = current['ts']
 
-        pg_ids = set(prev.keys() + current.keys())
+        # aggregate all the PG ids (previous and current)
+        pg_ids = filter(is_intable, set(prev.keys() + current.keys()))
 
         for pg_id in pg_ids:
-            if not self.is_intable(pg_id):
-                continue
 
             current_pg = current.get(pg_id, {})
-            prev_pg = prev.get(pg_id, {})
             
+            # first time - we do not care
             if current_pg.get('first_time'):
                 # new value - ignore history
                 output[pg_id] = self.process_single_pg(current_pg, {})
                 self.reference_stats[pg_id] = {}
-                self.calculate_bw_for_pg(output[pg_id], prev_pg, 0)
+
+                # 'dry' B/W
+                self.calculate_bw_for_pg(output[pg_id])
+
             else:
-                # aggregate
+                # aggregate the two values
+                prev_pg = prev.get(pg_id, {})
                 output[pg_id] = self.process_single_pg(current_pg, prev_pg)
 
+                # calculate B/W
+                diff_sec = self.calculate_diff_sec(current, prev)
                 self.calculate_bw_for_pg(output[pg_id], prev_pg, diff_sec)
 
 
@@ -860,41 +858,69 @@ class CRxStats(CTRexStats):
 
 
 
-    def calculate_bw_for_pg (self, pg_current, pg_prev, diff_sec):
+    def calculate_bw_for_pg (self, pg_current, pg_prev = None, diff_sec = 0.0):
 
-        if diff_sec == 0:
-            pg_current['tx_pps'] = 0.0
-            pg_current['tx_bps'] = 0.0
-            pg_current['tx_bps_L1'] = 0.0
-            pg_current['rx_pps'] = 0.0
-            pg_current['rx_bps'] = 0.0
+        # if no previous values - its None
+        if (pg_prev == None) or not (diff_sec > 0):
+            pg_current['tx_pps'] = None
+            pg_current['tx_bps'] = None
+            pg_current['tx_bps_L1'] = None
+            pg_current['rx_pps'] = None
+            pg_current['rx_bps'] = None
             return
 
 
-        # prev
+        # read the current values
+        now_tx_pkts   = pg_current['tx_pkts']['total']
+        now_tx_bytes  = pg_current['tx_bytes']['total']
+        now_rx_pkts   = pg_current['rx_pkts']['total']
+        now_rx_bytes  = pg_current['rx_bytes']['total']
+
+        # prev values
         prev_tx_pkts  = pg_prev['tx_pkts']['total']
         prev_tx_bytes = pg_prev['tx_bytes']['total']
+        prev_rx_pkts  = pg_prev['rx_pkts']['total']
+        prev_rx_bytes = pg_prev['rx_bytes']['total']
+
+        # prev B/W
         prev_tx_pps   = pg_prev['tx_pps']
         prev_tx_bps   = pg_prev['tx_bps']
+        prev_rx_pps   = pg_prev['rx_pps']
+        prev_rx_bps   = pg_prev['rx_bps']
 
-        # now
-        now_tx_pkts  = pg_current['tx_pkts']['total']
-        now_tx_bytes = pg_current['tx_bytes']['total']
+      
+        #assert(now_tx_pkts >= prev_tx_pkts)
+        pg_current['tx_pps'] = self.calc_pps(prev_tx_pps, now_tx_pkts, prev_tx_pkts, diff_sec)
+        pg_current['tx_bps'] = self.calc_bps(prev_tx_bps, now_tx_bytes, prev_tx_bytes, diff_sec)
+        pg_current['rx_pps'] = self.calc_pps(prev_rx_pps, now_rx_pkts, prev_rx_pkts, diff_sec)
+        pg_current['rx_bps'] = self.calc_bps(prev_rx_bps, now_rx_bytes, prev_rx_bytes, diff_sec)
 
-        if not (now_tx_pkts >= prev_tx_pkts):
-            print "CURRENT:\n"
-            pprint.pprint(pg_current)
-            print "PREV:\n"
-            pprint.pprint(pg_prev)
-            assert(now_tx_pkts > prev_tx_pkts)
+        pg_current['tx_bps_L1'] = calc_bps_L1(pg_current['tx_bps'], pg_current['tx_pps'])
 
-        pg_current['tx_pps'] = (0.5 * prev_tx_pps) + (0.5 * ( (now_tx_pkts - prev_tx_pkts) / diff_sec) )
-        pg_current['tx_bps'] = (0.5 * prev_tx_bps) + (0.5 * ( (now_tx_bytes - prev_tx_bytes) * 8 / diff_sec) )
 
-        pg_current['rx_pps'] = 0.0
-        pg_current['rx_bps'] = 0.0
+    def calc_pps (self, prev_bw, now, prev, diff_sec):
+        return self.calc_bw(prev_bw, now, prev, diff_sec, False)
 
-        pg_current['tx_bps_L1'] = self.bps_L1(pg_current['tx_bps'], pg_current['tx_pps'])
+
+    def calc_bps (self, prev_bw, now, prev, diff_sec):
+        return self.calc_bw(prev_bw, now, prev, diff_sec, True)
+
+
+    def calc_bw (self, prev_bw, now, prev, diff_sec, is_bps):
+        # B/W is not valid when the values are None
+        if (now is None) or (prev is None):
+            return None
+        
+        # calculate the B/W for current snapshot
+        current_bw = (now - prev) / diff_sec
+        if is_bps:
+            current_bw *= 8
+
+        # previous B/W is None ? ignore it
+        if prev_bw is None:
+            prev_bw = 0
+
+        return ( (0.5 * prev_bw) + (0.5 * current_bw) )
 
 
 
@@ -919,7 +945,7 @@ class CRxStats(CTRexStats):
 
         for pg_id, value in self.latest_stats.iteritems():
             # skip non ints
-            if not self.is_intable(pg_id):
+            if not is_intable(pg_id):
                 continue
 
             stats[int(pg_id)] = {}
@@ -937,22 +963,10 @@ class CRxStats(CTRexStats):
 
 
 
-    def get_streams_keys (self):
-        keys = []
-        for key in self.latest_stats.keys():
-            # ignore non user ID keys
-            try:
-                int(key)
-                keys.append(key)
-            except ValueError:
-                continue
-
-        return keys
-
-
     def generate_stats (self):
 
-        pg_ids = self.get_streams_keys()
+        # for TUI - maximum 4 
+        pg_ids = filter(is_intable, self.latest_stats.keys())[:4]
         cnt = len(pg_ids)
 
         formatted_stats = OrderedDict([ ('Tx pps',  []),
@@ -997,7 +1011,7 @@ class CRxStats(CTRexStats):
 
       
 
-        return formatted_stats
+        return pg_ids, formatted_stats
 
 if __name__ == "__main__":
     pass
