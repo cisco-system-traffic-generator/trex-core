@@ -180,7 +180,7 @@ class CTRexTestConfiguringPlugin(Plugin):
     def begin (self):
         if self.pkg and not CTRexScenario.is_copied and not self.no_ssh:
             new_path = '/tmp/trex-scripts'
-            rsync_template = 'rm -rf /tmp/trex-scripts; mkdir -p %s; rsync -Lc %s /tmp; tar -xzf /tmp/%s -C %s; mv %s/v*.*/* %s'
+            rsync_template = 'rm -rf /tmp/trex-scripts; mkdir -p %s; rsync -Lc %s /tmp; tar -mxzf /tmp/%s -C %s; mv %s/v*.*/* %s'
             rsync_command = rsync_template % (new_path, self.pkg, os.path.basename(self.pkg), new_path, new_path, new_path)
             return_code, stdout, stderr = trex_remote_command(self.configuration.trex, rsync_command, from_scripts = False)
             if return_code:
