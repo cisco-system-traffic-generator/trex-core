@@ -919,9 +919,7 @@ class CRxStats(CTRexStats):
 
         for pg_id, value in self.latest_stats.iteritems():
             # skip non ints
-            try:
-                int(pg_id)
-            except ValueError:
+            if not self.is_intable(pg_id):
                 continue
 
             stats[int(pg_id)] = {}
