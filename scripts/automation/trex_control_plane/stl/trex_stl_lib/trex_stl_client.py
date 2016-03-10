@@ -13,7 +13,7 @@ from trex_stl_async_client import CTRexAsyncClient
 
 from utils import parsing_opts, text_tables, common
 from utils.text_opts import *
-
+from functools import wraps
 
 from collections import namedtuple
 from yaml import YAMLError
@@ -380,7 +380,7 @@ class CCommLink(object):
 ############################                #############################
 
 class STLClient(object):
-    """docstring for STLClient"""
+    """TRex Stateless client object- gives operations per TRex/user"""
 
     def __init__(self,
                  username = common.get_current_user(),
@@ -390,7 +390,29 @@ class STLClient(object):
                  verbose_level = LoggerApi.VERBOSE_QUIET,
                  logger = None,
                  virtual = False):
+        """ 
+        Set the connection setting 
 
+        :parameters:
+             username : string 
+                the user name, for example imarom
+
+              server  : string 
+                the server name or ip 
+
+              sync_port : int 
+                the RPC port 
+
+              async_port : int 
+                the ASYNC port 
+
+        :return:
+          None
+
+        :raises:
+          None
+
+        """
 
         self.username   = username
          
@@ -829,6 +851,7 @@ class STLClient(object):
     def __api_check(connected = True):
 
         def wrap (f):
+            @wraps(f)
             def wrap2(*args, **kwargs):
                 client = args[0]
 
@@ -867,36 +890,141 @@ class STLClient(object):
 
     # return verbose level of the logger
     def get_verbose (self):
+        """ 
+        get the verbose mode  
+
+        :parameters:
+          none
+
+        :return:
+            get the verbose mode as Bool
+
+        :raises:
+          None
+
+        """
         return self.logger.get_verbose()
 
     # is the client on read only mode ?
     def is_all_ports_acquired (self):
+        """ 
+         is_all_ports_acquired
+
+        :parameters:
+          none
+
+        :return:
+            return  True if all ports are acquired
+
+        :raises:
+          None
+
+        """
+
         return not (self.get_all_ports() == self.get_acquired_ports())
 
     # is the client connected ?
     def is_connected (self):
+        """ 
+
+        :parameters:
+          none
+
+        :return:
+            is_connected
+
+        :raises:
+          None
+
+        """
+
         return self.connected and self.comm_link.is_connected
 
 
     # get connection info
     def get_connection_info (self):
+        """ 
+
+        :parameters:
+          none
+
+        :return:
+            connection dict 
+
+        :raises:
+          None
+
+        """
+
         return self.connection_info
 
 
     # get supported commands by the server
     def get_server_supported_cmds(self):
+        """ 
+
+        :parameters:
+          none
+
+        :return:
+            connection dict 
+
+        :raises:
+          None
+
+        """
+
         return self.supported_cmds
 
     # get server version
     def get_server_version(self):
+        """ 
+
+        :parameters:
+          none
+
+        :return:
+            connection dict 
+
+        :raises:
+          None
+
+        """
+
         return self.server_version
 
     # get server system info
     def get_server_system_info(self):
+        """ 
+
+        :parameters:
+          none
+
+        :return:
+            connection dict 
+
+        :raises:
+          None
+
+        """
+
         return self.system_info
 
     # get port count
     def get_port_count(self):
+        """ 
+
+        :parameters:
+          none
+
+        :return:
+            connection dict 
+
+        :raises:
+          None
+
+        """
+
         return len(self.ports)
 
 
@@ -911,6 +1039,19 @@ class STLClient(object):
 
     # get all ports as IDs
     def get_all_ports (self):
+        """ 
+
+        :parameters:
+          none
+
+        :return:
+            connection dict 
+
+        :raises:
+          None
+
+        """
+
         return self.ports.keys()
 
     # get all acquired ports
@@ -976,20 +1117,20 @@ class STLClient(object):
     ############################              #############################
 
 
-    """
-        Sets verbose level
-
-        :parameters:
-            level : str
-                "high"
-                "low"
-                "normal"
-
-        :raises:
-            None
-
-    """
     def set_verbose (self, level):
+        """
+            Sets verbose level
+
+            :parameters:
+                level : str
+                    "high"
+                    "low"
+                    "normal"
+
+            :raises:
+                None
+
+        """
         modes = {'low' : LoggerApi.VERBOSE_QUIET, 'normal': LoggerApi.VERBOSE_REGULAR, 'high': LoggerApi.VERBOSE_HIGH}
 
         if not level in modes.keys():
@@ -998,35 +1139,38 @@ class STLClient(object):
         self.logger.set_verbose(modes[level])
 
 
-    """
-        Connects to the TRex server
-
-        :parameters:
-            None
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(False)
     def connect (self):
+        """
+        def connect(self):
+
+            Connects to the TRex server
+
+            :parameters:
+                None
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
         rc = self.__connect()
         if not rc:
             raise STLError(rc)
         
 
-    """
-        Disconnects from the server
-
-        :parameters:
-            stop_traffic : bool
-                tries to stop traffic before disconnecting
-            release_ports : bool
-                tries to release all the acquired ports
-
-    """
     @__api_check(False)
     def disconnect (self, stop_traffic = True, release_ports = True):
+        """
+            Disconnects from the server
+
+            :parameters:
+                stop_traffic : bool
+                    tries to stop traffic before disconnecting
+                release_ports : bool
+                    tries to release all the acquired ports
+
+        """
 
         # try to stop ports but do nothing if not possible
         if stop_traffic:
@@ -1043,21 +1187,21 @@ class STLClient(object):
 
 
 
-    """
-        Acquires ports for executing commands
-
-        :parameters:
-            ports : list
-                ports to execute the command
-            force : bool
-                force acquire the ports
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def acquire (self, ports = None, force = False):
+        """
+            Acquires ports for executing commands
+
+            :parameters:
+                ports : list
+                    ports to execute the command
+                force : bool
+                    force acquire the ports
+
+            :raises:
+                + :exc:`STLError`
+
+        """
 
         # by default use all ports
         ports = ports if ports is not None else self.get_all_ports()
@@ -1078,19 +1222,19 @@ class STLClient(object):
             raise STLError(rc)
 
 
-    """
-        Release ports
-
-        :parameters:
-            ports : list
-                ports to execute the command
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def release (self, ports = None):
+        """
+            Release ports
+
+            :parameters:
+                ports : list
+                    ports to execute the command
+
+            :raises:
+                + :exc:`STLError`
+
+        """
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -1102,19 +1246,20 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-    """
-        Pings the server
-
-        :parameters:
-            None
-                
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def ping(self):
+        """
+            Pings the server
+
+            :parameters:
+                None
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
         self.logger.pre_cmd( "Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                                self.connection_info['sync_port']))
         rc = self._transmit("ping")
@@ -1126,6 +1271,18 @@ class STLClient(object):
 
     @__api_check(True)
     def get_active_pgids(self):
+        """
+            Get active group ids
+
+            :parameters:
+                None
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
         self.logger.pre_cmd( "Getting active packet group ids")
 
         rc = self._transmit("get_active_pgids")
@@ -1136,20 +1293,21 @@ class STLClient(object):
             raise STLError(rc)
 
 
-    """
-        force acquire ports, stop the traffic, remove all streams and clear stats
-
-        :parameters:
-            ports : list
-               ports to execute the command
-                
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def reset(self, ports = None):
+        """
+            force acquire ports, stop the traffic, remove all streams and clear stats
+
+            :parameters:
+                ports : list
+                   ports to execute the command
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
@@ -1160,20 +1318,21 @@ class STLClient(object):
         self.clear_stats(ports)
 
 
-    """
-        remove all streams from port(s)
-
-        :parameters:
-            ports : list
-                ports to execute the command
-                
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def remove_all_streams (self, ports = None):
+        """
+            remove all streams from port(s)
+
+            :parameters:
+                ports : list
+                    ports to execute the command
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -1186,24 +1345,25 @@ class STLClient(object):
             raise STLError(rc)
 
  
-    """
-        add a list of streams to port(s)
-
-        :parameters:
-            ports : list
-                ports to execute the command
-            streams: list
-                streams to attach (or profile)
-
-        :returns:
-            list of stream IDs in order of the stream list
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def add_streams (self, streams, ports = None):
+        """
+            add a list of streams to port(s)
+
+            :parameters:
+                ports : list
+                    ports to execute the command
+                streams: list
+                    streams to attach (or profile)
+
+            :returns:
+                list of stream IDs in order of the stream list
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -1229,22 +1389,23 @@ class STLClient(object):
         return [stream.get_id() for stream in streams]
 
 
-    """
-        remove a list of streams from ports
-
-        :parameters:
-            ports : list
-                ports to execute the command
-            stream_id_list: list
-                stream id list to remove
-
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def remove_streams (self, stream_id_list, ports = None):
+        """
+            remove a list of streams from ports
+
+            :parameters:
+                ports : list
+                    ports to execute the command
+                stream_id_list: list
+                    stream id list to remove
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -1267,34 +1428,6 @@ class STLClient(object):
 
 
    
-    """
-        start traffic on port(s)
-
-        :parameters:
-            ports : list
-                ports to execute command
-
-            mult : str
-                multiplier in a form of pps, bps, or line util in %
-                examples: "5kpps", "10gbps", "85%", "32mbps"
-
-            force : bool
-                imply stopping the port of active and also
-                forces a profile that exceeds the L1 BW
-
-            duration : int
-                limit the run for time in seconds
-                -1 means unlimited
-
-            total : bool
-                should the B/W be divided by the ports
-                or duplicated for each
-                
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def start (self,
                ports = None,
@@ -1302,6 +1435,34 @@ class STLClient(object):
                force = False,
                duration = -1,
                total = False):
+        """
+            start traffic on port(s)
+
+            :parameters:
+                ports : list
+                    ports to execute command
+
+                mult : str
+                    multiplier in a form of pps, bps, or line util in %
+                    examples: "5kpps", "10gbps", "85%", "32mbps"
+
+                force : bool
+                    imply stopping the port of active and also
+                    forces a profile that exceeds the L1 BW
+
+                duration : int
+                    limit the run for time in seconds
+                    -1 means unlimited
+
+                total : bool
+                    should the B/W be divided by the ports
+                    or duplicated for each
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
 
 
         ports = ports if ports is not None else self.get_acquired_ports()
@@ -1349,19 +1510,19 @@ class STLClient(object):
 
 
     
-    """
-        stop port(s)
-
-        :parameters:
-            ports : list
-                ports to execute the command
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def stop (self, ports = None):
+        """
+            stop port(s)
+
+            :parameters:
+                ports : list
+                    ports to execute the command
+
+            :raises:
+                + :exc:`STLError`
+
+        """
 
         ports = ports if ports is not None else self.get_active_ports()
         ports = self._validate_port_list(ports)
@@ -1377,32 +1538,33 @@ class STLClient(object):
             raise STLError(rc)
 
         
-    """
-        update traffic on port(s)
-
-        :parameters:
-            ports : list
-                ports to execute command
-
-            mult : str
-                multiplier in a form of pps, bps, or line util in %
-                and also with +/-
-                examples: "5kpps+", "10gbps-", "85%", "32mbps", "20%+"
-
-            force : bool
-                forces a profile that exceeds the L1 BW
-
-            total : bool
-                should the B/W be divided by the ports
-                or duplicated for each
-                
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def update (self, ports = None, mult = "1", total = False, force = False):
+        """
+            update traffic on port(s)
+
+            :parameters:
+                ports : list
+                    ports to execute command
+
+                mult : str
+                    multiplier in a form of pps, bps, or line util in %
+                    and also with +/-
+                    examples: "5kpps+", "10gbps-", "85%", "32mbps", "20%+"
+
+                force : bool
+                    forces a profile that exceeds the L1 BW
+
+                total : bool
+                    should the B/W be divided by the ports
+                    or duplicated for each
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_active_ports()
         ports = self._validate_port_list(ports)
@@ -1430,19 +1592,20 @@ class STLClient(object):
 
 
 
-    """
-        pause traffic on port(s)
-
-        :parameters:
-            ports : list
-                ports to execute command
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def pause (self, ports = None):
+        """
+            pause traffic on port(s). works only for ports that are active and all streams are in cont mode 
+
+            :parameters:
+                ports : list
+                    ports to execute command
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_transmitting_ports()
         ports = self._validate_port_list(ports)
@@ -1454,19 +1617,20 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-    """
-        resume traffic on port(s)
-
-        :parameters:
-            ports : list
-                ports to execute command
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def resume (self, ports = None):
+        """
+            resume traffic on port(s)
+
+            :parameters:
+                ports : list
+                    ports to execute command
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_paused_ports()
         ports = self._validate_port_list(ports)
@@ -1480,31 +1644,32 @@ class STLClient(object):
             raise STLError(rc)
 
 
-    """
-        validate port(s) configuration
-
-        :parameters:
-            ports : list
-                ports to execute command
-
-         mult : str
-                multiplier in a form of pps, bps, or line util in %
-                examples: "5kpps", "10gbps", "85%", "32mbps"
-
-        duration : int
-                limit the run for time in seconds
-                -1 means unlimited
-
-        total : bool
-                should the B/W be divided by the ports
-                or duplicated for each
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(True)
     def validate (self, ports = None, mult = "1", duration = "-1", total = False):
+        """
+            validate port(s) configuration
+
+            :parameters:
+                ports : list
+                    ports to execute command
+
+             mult : str
+                    multiplier in a form of pps, bps, or line util in %
+                    examples: "5kpps", "10gbps", "85%", "32mbps"
+
+            duration : int
+                    limit the run for time in seconds
+                    -1 means unlimited
+
+            total : bool
+                    should the B/W be divided by the ports
+                    or duplicated for each
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -1531,22 +1696,22 @@ class STLClient(object):
             self.ports[port].print_profile(mult_obj, duration)
 
 
-    """
-        clear stats on port(s)
-
-        :parameters:
-            ports : list
-                ports to execute command
-            
-            clear_global : bool
-                clear the global stats
-
-        :raises:
-            + :exc:`STLError`
-
-    """
     @__api_check(False)
     def clear_stats (self, ports = None, clear_global = True):
+        """
+            clear stats on port(s)
+
+            :parameters:
+                ports : list
+                    ports to execute command
+
+                clear_global : bool
+                    clear the global stats
+
+            :raises:
+                + :exc:`STLError`
+
+        """
 
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
@@ -1562,25 +1727,49 @@ class STLClient(object):
 
 
   
+    @__api_check(True)
+    def is_traffic_active (self, ports = None):
+        """
+            retrun if  specify port(s) has traffic 
+
+            :parameters:
+                ports : list
+                    ports to execute command
 
 
-    """
-        block until specify port(s) traffic has ended
+            :raises:
+                + :exc:`STLTimeoutError` - in case timeout has expired
+                + :exe:'STLError'
 
-        :parameters:
-            ports : list
-                ports to execute command
-            
-            timeout : int
-                timeout in seconds
+        """
 
-        :raises:
-            + :exc:`STLTimeoutError` - in case timeout has expired
-            + :exe:'STLError'
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
 
-    """
+
+        expr = time.time() + timeout
+
+        return set(self.get_active_ports()).intersection(ports)
+
+
+
     @__api_check(True)
     def wait_on_traffic (self, ports = None, timeout = 60):
+        """
+            block until specify port(s) traffic has ended
+
+            :parameters:
+                ports : list
+                    ports to execute command
+
+                timeout : int
+                    timeout in seconds
+
+            :raises:
+                + :exc:`STLTimeoutError` - in case timeout has expired
+                + :exe:'STLError'
+
+        """
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -1595,19 +1784,18 @@ class STLClient(object):
                 raise STLTimeoutError(timeout)
 
 
-    #
-    """
-        set port(s) attributes
-
-        :parameters:
-            promiscuous - set this to True or False
-
-        :raises:
-            None
-
-    """
     @__api_check(True)
     def set_port_attr (self, ports = None, promiscuous = None):
+        """
+            set port(s) attributes
+
+            :parameters:
+                promiscuous - set this to True or False
+
+            :raises:
+                None
+
+        """
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -1631,17 +1819,17 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-    """
-        clear all events
-
-        :parameters:
-            None
-
-        :raises:
-            None
-
-    """
     def clear_events (self):
+        """
+            clear all events
+
+            :parameters:
+                None
+
+            :raises:
+                None
+
+        """
         self.event_handler.clear_events()
 
 
@@ -1651,6 +1839,7 @@ class STLClient(object):
 
     # console decorator
     def __console(f):
+        @wraps(f)
         def wrap(*args):
             client = args[0]
 
