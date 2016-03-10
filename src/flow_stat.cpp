@@ -622,7 +622,7 @@ int CFlowStatRuleMgr::get_active_pgids(flow_stat_active_t &result) {
 }
 
 // return false if no counters changed since last run. true otherwise
-bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
+bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     uint64_t rx_stats[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     Json::FastWriter writer;
@@ -631,8 +631,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
     root["name"] = "flow_stats";
     root["type"] = 0;
     
-    if (force_sync) {
-        root["sync"] = true;
+    if (baseline) {
+        root["baseline"] = true;
     }
 
     Json::Value &data_section = root["data"];
@@ -640,7 +640,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
     data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
 
     if (m_user_id_map.is_empty()) {
-        if (force_sync) {
+        if (baseline) {
             json = writer.write(root);
             return true;
         } else
@@ -692,11 +692,11 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool force_sync) {
         }
         for (uint8_t port = 0; port < m_num_ports; port++) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
-            if (user_id_info->need_to_send_rx(port) || force_sync) {
+            if (user_id_info->need_to_send_rx(port) || baseline) {
                 user_id_info->set_no_need_to_send_rx(port);
                 data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
             }
-            if (user_id_info->need_to_send_tx(port) || force_sync) {
+            if (user_id_info->need_to_send_tx(port) || baseline) {
                 user_id_info->set_no_need_to_send_tx(port);
                 data_section[str_user_id]["tx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_pkts());
                 data_section[str_user_id]["tx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_bytes());

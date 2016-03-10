@@ -2307,7 +2307,7 @@ public:
 public:
     void Dump(FILE *fd,DumpFormat mode);
     void DumpAllPorts(FILE *fd);
-    void dump_json(std::string & json, bool force_sync);
+    void dump_json(std::string & json, bool baseline);
 private:
     std::string get_field(std::string name,float &f);
     std::string get_field(std::string name,uint64_t &f);
@@ -2341,12 +2341,12 @@ std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
 }
 
 
-void CGlobalStats::dump_json(std::string & json, bool force_sync){
+void CGlobalStats::dump_json(std::string & json, bool baseline){
     /* refactor this to JSON */
 
     json="{\"name\":\"trex-global\",\"type\":0,";
-    if (force_sync) {
-        json += "\"sync\": true,";
+    if (baseline) {
+        json += "\"baseline\": true,";
     }
 
     json +="\"data\":{";
@@ -2638,7 +2638,7 @@ private:
 
 public:
 
-    void publish_async_data(bool sync_now);
+    void publish_async_data(bool sync_now, bool baseline = false);
     void publish_async_barrier(uint32_t key);
 
     void dump_stats(FILE *fd,
@@ -3563,7 +3563,7 @@ void CGlobalTRex::dump_stats(FILE *fd, CGlobalStats::DumpFormat format){
 }
 
 void
-CGlobalTRex::publish_async_data(bool sync_now) {
+CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     std::string json;
 
     /* refactor to update, dump, and etc. */
@@ -3572,7 +3572,7 @@ CGlobalTRex::publish_async_data(bool sync_now) {
         get_stats(m_stats);
     }
 
-    m_stats.dump_json(json, sync_now);
+    m_stats.dump_json(json, baseline);
     m_zmq_publisher.publish_json(json);
 
     /* generator json , all cores are the same just sample the first one */
@@ -3599,7 +3599,7 @@ CGlobalTRex::publish_async_data(bool sync_now) {
     m_zmq_publisher.publish_json(json);
 
     if (get_is_stateless()) {
-        if (m_trex_stateless->m_rx_flow_stat.dump_json(json, sync_now))
+        if (m_trex_stateless->m_rx_flow_stat.dump_json(json, baseline))
             m_zmq_publisher.publish_json(json);
     }
 }
@@ -5224,8 +5224,8 @@ TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id, intf_info_st &info
 }
 
 void
-TrexDpdkPlatformApi::publish_async_data_now(uint32_t key) const {
-    g_trex.publish_async_data(true);
+TrexDpdkPlatformApi::publish_async_data_now(uint32_t key, bool baseline) const {
+    g_trex.publish_async_data(true, baseline);
     g_trex.publish_async_barrier(key);
 }
 

@@ -155,12 +155,12 @@ class AsyncEventHandler(object):
         pass
 
 
-    def handle_async_rx_stats_event (self, data, sync):
-        self.client.flow_stats.update(data, sync)
+    def handle_async_rx_stats_event (self, data, baseline):
+        self.client.flow_stats.update(data, baseline)
 
 
     # handles an async stats update from the subscriber
-    def handle_async_stats_update(self, dump_data, sync):
+    def handle_async_stats_update(self, dump_data, baseline):
         global_stats = {}
         port_stats = {}
 
@@ -182,11 +182,11 @@ class AsyncEventHandler(object):
                 global_stats[key] = value
 
         # update the general object with the snapshot
-        self.client.global_stats.update(global_stats, sync)
+        self.client.global_stats.update(global_stats, baseline)
 
         # update all ports
         for port_id, data in port_stats.iteritems():
-            self.client.ports[port_id].port_stats.update(data, sync)
+            self.client.ports[port_id].port_stats.update(data, baseline)
 
 
     # dispatcher for server async events (port started, port stopped and etc.)

@@ -398,9 +398,10 @@ trex_rpc_cmd_rc_e
 TrexRpcPublishNow::_run(const Json::Value &params, Json::Value &result) {
     TrexStateless *main = get_stateless_obj();
 
-    uint32_t key = parse_uint32(params, "key", result);
+    uint32_t key  = parse_uint32(params, "key", result);
+    bool baseline = parse_bool(params, "baseline", result);
 
-    main->get_platform_api()->publish_async_data_now(key);
+    main->get_platform_api()->publish_async_data_now(key, baseline);
 
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);

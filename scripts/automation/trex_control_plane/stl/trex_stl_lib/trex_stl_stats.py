@@ -389,7 +389,7 @@ class CTRexStats(object):
         self.last_update_ts = time.time()
         self.history = deque(maxlen = 10)
         self.lock = threading.Lock()
-        self.is_synced = False
+        self.has_baseline = False
 
     ######## abstract methods ##########
 
@@ -402,15 +402,15 @@ class CTRexStats(object):
         raise NotImplementedError()
 
     # called when a snapshot arrives - add more fields
-    def _update (self, snapshot, sync):
+    def _update (self, snapshot, baseline):
         raise NotImplementedError()
 
 
     ######## END abstract methods ##########
 
-    def update(self, snapshot, sync):
+    def update(self, snapshot, baseline):
 
-        if not self.is_synced and not sync:
+        if not self.has_baseline and not baseline:
             return
 
         rc = self._update(snapshot)
@@ -418,9 +418,9 @@ class CTRexStats(object):
             return
 
         # sync one time
-        if not self.is_synced and sync:
+        if not self.has_baseline and baseline:
             self.reference_stats = copy.deepcopy(self.latest_stats)
-            self.is_synced = True
+            self.has_baseline = True
 
         # save history
         with self.lock:

@@ -178,7 +178,8 @@ class CTRexAsyncClient():
 
         self.connected = True
 
-        rc = self.barrier()
+        # sync all stats data as a baseline from the server
+        rc = self.barrier(baseline = True)
         if not rc:
             self.disconnect()
             return rc
@@ -245,11 +246,11 @@ class CTRexAsyncClient():
             name = msg['name']
             data = msg['data']
             type = msg['type']
-            sync = msg.get('sync', False)
+            baseline = msg.get('baseline', False)
 
             self.raw_snapshot[name] = data
 
-            self.__dispatch(name, type, data, sync)
+            self.__dispatch(name, type, data, baseline)
 
         
         # closing of socket must be from the same thread
@@ -270,10 +271,11 @@ class CTRexAsyncClient():
         return self.raw_snapshot
 
     # dispatch the message to the right place
-    def __dispatch (self, name, type, data, sync):
+    def __dispatch (self, name, type, data, baseline):
+
         # stats
         if name == "trex-global":
-            self.event_handler.handle_async_stats_update(data, sync)
+            self.event_handler.handle_async_stats_update(data, baseline)
 
         # events
         elif name == "trex-event":
@@ -284,7 +286,7 @@ class CTRexAsyncClient():
             self.handle_async_barrier(type, data)
 
         elif name == "flow_stats":
-            self.event_handler.handle_async_rx_stats_event(data, sync)
+            self.event_handler.handle_async_rx_stats_event(data, baseline)
 
         else:
             pass
@@ -297,7 +299,7 @@ class CTRexAsyncClient():
 
 
     # block on barrier for async channel
-    def barrier(self, timeout = 5):
+    def barrier(self, timeout = 5, baseline = False):
         
         # set a random key
         key = random.getrandbits(32)
@@ -309,7 +311,7 @@ class CTRexAsyncClient():
         while not self.async_barrier['ack']:
 
             # inject
-            rc = self.stateless_client._transmit("publish_now", params = {'key' : key})
+            rc = self.stateless_client._transmit("publish_now", params = {'key' : key, 'baseline': baseline})
             if not rc:
                 return rc
 
