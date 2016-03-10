@@ -35,7 +35,7 @@ endif::backend-xhtml11[]
 ** Field engine program
 *** Ability to change any field inside the packet, for example src_ip = 10.0.0.1-10.0.0.255
 *** Ability to change the packet size (e.g. Random packet size 64-9K)
-** Mode -Continues/Burst/Multi burst support
+** Mode - Continuous/Burst/Multi burst support
 ** Rate can be specified in:
 *** Packet per second -(e.g. 14MPPS)
 *** L1 bandwidth (e.g. 500Mb/sec)
@@ -78,7 +78,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Multi stream    | 255 | [green]*Unlimited* |
 | Packet build flexibility | Limited | [green]*Scapy- Unlimited* | e.g GRE/VXLAN/NSH is supported. Can be extended to future protocols
 | Packet Field engine      | limited | [green]*Unlimited* |
-| Tx Mode | Continues/Burst/Multi burst | Continues/Burst/Multi burst|
+| Tx Mode | Continuous/Burst/Multi burst | Continuous/Burst/Multi burst|
 | ARP Emulation | Yes | Not yet - workaround |
 | Automation  | TCL/Python wrapper to TCL | [green]*native Python/Scapy*  |
 | Automation speed sec| 30sec | [green]*1msec* | test of load/start/stop/get counters 
@@ -136,10 +136,34 @@ image::images/stateless_objects.png[title="TRex Entities",align="left",width={p_
 ** *Mode*: How to send the packet. Continuous/Burst/Multi Burst
 ** *Rx Stats*: Which Statstistic to collect for each stream 
 ** *Rate*: Specified in Packet Per Second (pps) or bandwidth (bps)
-** *Action*:  The next stream to go after this stream is finished. Valid for Burst/Continues mode
+** *Action*:  The next stream to go after this stream is finished. Valid for Burst/Continuous mode
 
 
-==== TRex package folders 
+=== Statful vs Stateless 
+
+TRex Stateless support is basic L2/L3 tests more for Switch/Router. 
+With Stateless it is possible to define a Stream that has a *one* packet template, define a program to change any fields in the packet and run it in continues/burst/multi-burst mode.
+With Statless you *can't* learn NAT translation because there is no context of flow/client/server. In Stateful the basic building block is a flow/application (That compose from many packets).
+However, Using Stateless mode, it is much more flexible as you can define any type of packets and build simple program and in a way you can mimic Stateful but not everything.
+For example, you can load a pcap with the number of packets as a link of streams 
+a->b->c->d-> back to a
+And create a program for each stream to change src_ip=10. 0.0.1-10.0.0.254 this will create something similar to Stateful but the underline is totally different.  
+If you are confused you probably need Stateless.
+
+.Statful vs Stateless 
+[cols="1^,3^,3^", options="header"]
+|=================
+| Feature       |  Stateless  |Statful 
+| Flow base       | No | Yes
+| NAT             | No | Yes
+| Tunnel          | Yes | Only specific 
+| L7 App emulation | No | Yes
+| Any type of packet | Yes | No 
+| Latency Jitter | Per Stream | Global/Per flow
+|=================
+
+
+=== TRex package folders 
 
 [cols="5,5", options="header",width="100%"]
 |=============================
@@ -203,7 +227,7 @@ def register():                                                                 
     return STLS1()
 ----
 <1> Define the packet, in this case it IP/UDP with 10 bytes of 'x'(0x78) .See more here link:http://www.secdev.org/projects/scapy/doc/[Scapy]
-<2> Mode is Continues with a rate of 1 pps (default rate is 1 PPS)
+<2> Mode is Continuous with a rate of 1 pps (default rate is 1 PPS)
 <3> get_streams function is mandatory 
 <4> Each Traffic profile module should have a `register` function
 
@@ -796,7 +820,7 @@ def register():                                                                 
     return STLS1()
 ----
 <1> Define the packet, in this case it IP/UDP with 10 bytes of 'x'
-<2> Mode is Continues with rate of 1 PPS (default rate is 1 PPS)
+<2> Mode is Continuous with rate of 1 PPS (default rate is 1 PPS)
 <3> Each Traffic profile module should have a `register` function
 
 Now let try to run it throw TRex simulator limiting the number of packets to 10 
@@ -3047,6 +3071,36 @@ get keyboard
 
 
 === Appendix
+
+==== Scapy packet examples
+
+[source,python]
+----
+
+# udp header 
+Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+# UDP over one valn
+Ether()/Dot1Q(vlan=12)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+# UDP QinQ
+Ether()/Dot1Q(vlan=12)/Dot1Q(vlan=12)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+#TCP over IP ove VALN
+Ether()/Dot1Q(vlan=12)/IP(src="16.0.0.1",dst="48.0.0.1")/TCP(dport=12,sport=1025)
+
+# IPv6 over valn 
+Ether()/Dot1Q(vlan=12)/IPv6(src="::5")/TCP(dport=12,sport=1025)
+
+#Ipv6 over UDP over IP 
+Ether()/IP()/UDP()/IPv6(src="::5")/TCP(dport=12,sport=1025)
+
+#DNS packet
+Ether()/IP()/UDP()/DNS()
+
+#HTTP packet 
+Ether()/IP()/TCP()/"GET / HTTP/1.1\r\nHost: www.google.com\r\n\r\n"
+----
 
 
 ==== HLT supported Arguments anchor:altapi-support[]
