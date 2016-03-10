@@ -895,7 +895,10 @@ class CRxStats(CTRexStats):
         pg_current['rx_pps'] = self.calc_pps(prev_rx_pps, now_rx_pkts, prev_rx_pkts, diff_sec)
         pg_current['rx_bps'] = self.calc_bps(prev_rx_bps, now_rx_bytes, prev_rx_bytes, diff_sec)
 
-        pg_current['tx_bps_L1'] = calc_bps_L1(pg_current['tx_bps'], pg_current['tx_pps'])
+        if pg_current['tx_bps'] != None and pg_current['tx_pps'] != None:
+            pg_current['tx_bps_L1'] = calc_bps_L1(pg_current['tx_bps'], pg_current['tx_pps'])
+        else:
+            pg_current['tx_bps_L1'] = None
 
 
     def calc_pps (self, prev_bw, now, prev, diff_sec):
