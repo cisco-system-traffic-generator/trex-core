@@ -20,6 +20,18 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 1.95  ==
+
+* TUI support per stream stats (press s to get to this window)
+* per stream statistic API examples 
+* Add Python API automatic documentation scripts 
+* Fix issue with a packet smaller than 64 bytes
+
+=== Known issue 
+
+* High speed of start/stop of per stream stats give zero in statistics
+ 
+
 == Release 1.94  ==
 
 * Fix Python API stop/sync issue. Now TX counters are synced in case of stop API 
