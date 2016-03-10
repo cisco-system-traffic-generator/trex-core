@@ -13,21 +13,30 @@ def stl_map_ports (client, ports = None):
 
     # generate streams
     base_pkt = CScapyTRexPktBuilder(pkt = Ether()/IP())
-    
+
+    # send something initial to calm down switches with arps etc.
+    stream = STLStream(packet = base_pkt,
+                       mode = STLTXSingleBurst(pps = 100000, total_pkts = 1))
+    client.add_streams(stream, ports)
+
+    client.start(ports, mult = "50%")
+    client.wait_on_traffic(ports)
+    client.reset(ports)
+
     tx_pkts = {}
     pkts = 1
     for port in ports:
         tx_pkts[pkts] = port
         stream = STLStream(packet = base_pkt,
-                           mode = STLTXSingleBurst(pps = 100000, total_pkts = pkts))
+                           mode = STLTXSingleBurst(pps = 100000, total_pkts = pkts * 3))
 
         client.add_streams(stream, [port])
         
-        pkts = pkts * 2
+        pkts *= 2
 
     # inject
     client.clear_stats()
-    client.start(ports, mult = "1mpps")
+    client.start(ports, mult = "50%")
     client.wait_on_traffic(ports)
     
     stats = client.get_stats()
@@ -40,7 +49,7 @@ def stl_map_ports (client, ports = None):
     # actual mapping
     for port in ports:
 
-        ipackets = stats[port]["ipackets"]
+        ipackets = int(round(stats[port]["ipackets"] / 3.0)) # majority out of 3 to clean random noises
         table['map'][port] = None
 
         for pkts in tx_pkts.keys():
