@@ -76,7 +76,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Feature       |  IXExplorer  |TRex | Description 
 | Line rate       | Yes |Almost ~15MPPS/core|
 | Multi stream    | 255 | [green]*Unlimited* |
-| Packet build flexibility | Limited | [green]*Scapy- Ulimited* | e.g GRE/VXLAN/NSH is supported. Can be extended to future protocols
+| Packet build flexibility | Limited | [green]*Scapy- Unlimited* | e.g GRE/VXLAN/NSH is supported. Can be extended to future protocols
 | Packet Field engine      | limited | [green]*Unlimited* |
 | Tx Mode | Continues/Burst/Multi burst | Continues/Burst/Multi burst|
 | ARP Emulation | Yes | Not yet - workaround |
@@ -95,7 +95,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 
 === RPC Architecture 
 
-To support interactive mode, JSON-RPC2 thread added to the TRex Control Plane core.
+To support interactive mode, a JSON-RPC2 thread is added to the TRex Control Plane core.
 
 The following diagram illustrates the RPC server/client components
 
@@ -103,15 +103,15 @@ image::images/trex_2_stateless.png[title="RPC Server Position",align="left",widt
 
 * The Control transport protocol is ZMQ working in REQ/RES mode
 * JSON-RPC2 is the RPC protocol on top of the ZMQ REQ/RES 
-* Async transport is ZMQ working SUB/PUB mode. It is for async event such as interface change mode, counters etc.
+* Async transport is ZMQ working SUB/PUB mode. It is for async events such as interface change mode, counters etc.
 * Python is the first Client to implement the Python automation API 
 * Console utilizes the Python API to implement a user interface to TRex
-* Number of users can control one TRex server in parallel as long as they control different Interfaces. TRex Interface can be acquired by a user. For example a TRex with four ports can be used by two users. User A can acquire Interface  0/ 1 and User B can acquire Interface 3/4
-* There could be only *one* control Console/GUI (R/W) entity for a specific user. User A with two interfaces could have only one R/W Control session in specific time. By that we can cache the TRex Server interface  information in the Client.
-* For one user there could be many read-only clients for getting statistics.
-* Client should sync with the server to get the state in connection time and cache the server information locally once the state was changed 
+* Multiple users can control one TRex server in parallel as long as they control different Interfaces. Individuqal TRex Interfaces can be acquired by a user. For example, a TRex with four ports can be used by two users. User A can acquire Interfaces  0 & 1 and User B can acquire Interfaces 2 & 3.
+* There can be only *one* control Console/GUI (R/W) entity for a specific user. User A with two interfaces can have only one R/W Control session active at a specific time. By that we can cache the TRex Server interface  information in the Client.
+* For one user there can be many read-only clients for getting statistics.
+* Client should sync with the server to get the state at connection time and cache the server information locally once the state was changed 
 * In case of crash/exit of the Client it should sync again at connection time.
-* Client has the ability to get a statistic in real time (with ASYNC ZMQ). It gives the option to have number of ways to look into the statistics (GUI and Console) at the same time.
+* The Client has the ability to get a statistic in real time (with ASYNC ZMQ). This provides the option to have multiple ways to look into the statistics (GUI and Console) at the same time.
 
 image::images/trex_stateless_multi_user.png[title="Multi user-per interface",align="left",width={p_width}, link="images/trex_stateless_multi_user.png"]
 
@@ -119,7 +119,7 @@ For more detailed see RPC specification link:trex_rpc_server_spec.html[here]
 
 This Architecture provides the following advantages:
 
-* Fast interaction with TRex server. very fast load/start/stop profiles to an interface (~2000 cycles/sec  for load/start/stop profile)
+* Fast interaction with TRex server. For example, very fast load/start/stop profiles to an interface (~2000 cycles/sec for load/start/stop profile)
 * Leveraging Python/Scapy for building a packet/Field engine 
 * HLTAPI compiler complexity is done in Python
 
@@ -127,14 +127,14 @@ This Architecture provides the following advantages:
 
 image::images/stateless_objects.png[title="TRex Entities",align="left",width={p_width_1}, link="images/stateless_objects.png"]
 
-* *TRex*: Each TRex instance includes a number of interfaces   
-* *Interface*: For each Interface it is possible to add/remove a number of traffic profiles (TP) 
-* *Traffic profile*: Each traffic profile includes a number of streams. This is the basic building block  of activation. It is possible to add/remove to an interface a profile while other profile already exists. A profile can be looked as a "program" with dependency between streams. It is not possible to change a profile while it is running except changing the rates. 
-* *Stream*: Each stream includes 
+* *TRex*: Each TRex instance includes a number of interfaces
+* *Interface*: For each Interface it is possible to add/remove a number of traffic profiles (TP)
+* *Traffic profile*: Each traffic profile includes a number of streams. This is the basic building block of activation. It is possible to add/remove traffic profiles on an interface while other traffic profiles are active on the interface. A profile can be looked as a "program" with dependency between it's streams. It is not possible to change a profile while it is running except for changing the rates 
+* *Stream*: Each stream includes:
 ** *Packet*: Packet template up to 9K bytes 
-** *Field Engine*:  which field to change, do we want to change packet size
-** *Mode*: how to send the packet. Continues/Burst/Multi Burst 
-** *Rx Stats* Which Statstistic to collect for each stream 
+** *Field Engine*:  which field to change, do we want to change the packet size
+** *Mode*: How to send the packet. Continuous/Burst/Multi Burst
+** *Rx Stats*: Which Statstistic to collect for each stream 
 ** *Rate*: Specified in Packet Per Second (pps) or bandwidth (bps)
 ** *Action*:  The next stream to go after this stream is finished. Valid for Burst/Continues mode
 
@@ -147,7 +147,7 @@ image::images/stateless_objects.png[title="TRex Entities",align="left",width={p_
 | /               | t-rex-64/dpdk_set_ports/stl-sim 
 | /stl            | Stateless native (py) profiles 
 | /stl/yaml       | Stateless YAML profiles 
-| /stl/htl        | Stateless HTL profiles 
+| /stl/hlt        | Stateless HLT profiles 
 | /ko             | Kernel modules for DPDK
 | /external_libs  | Python external libs used by server/clients
 | /exp            | Golden pcap file for unit-tests
@@ -168,11 +168,11 @@ This tutorial will walk you through basic but complete TRex Stateless use cases 
 
 ==== Tutorial: Simple IPv4/UDP packet - TRex 
 
-*Goal*:: send a simple UDP packet from all the ports
+*Goal*:: Send a simple UDP packet from all the ports
 
 *Traffic profile*::  
 
-Traffic profile (TP) is a way to define *how* to generate the traffic. It defines the traffic templates the rate the mode and which fields in the packet to change. The following example defines a profile with one stream. The stream is with IP/UDP packet template with 10 bytes of 'x'(0x78) of payload. to get more example how to define packets using scapy see here link:http://www.secdev.org/projects/scapy/doc/[Scapy]
+Traffic profile (TP) is a way to define *how* to generate the traffic. It defines the traffic templates for the rate, the mode and which fields in the packet to change. The following example defines a profile with one stream. The stream is with IP/UDP packet template with 10 bytes of 'x'(0x78) of payload. to get more example how to define packets using scapy see here link:http://www.secdev.org/projects/scapy/doc/[Scapy]
 
 *file*:: link:{github_stl_path}/udp_1pkt_simple.py[stl/udp_1pkt_simple.py]
 
@@ -198,7 +198,7 @@ class STLS1(object):
         return [ self.create_stream() ]
 
 
-# dynamic load - used for trex console or simulator
+# dynamic load - used for TRex console or simulator
 def register():                                                                         <4>        
     return STLS1()
 ----
@@ -207,12 +207,17 @@ def register():                                                                 
 <3> get_streams function is mandatory 
 <4> Each Traffic profile module should have a `register` function
 
+[NOTE] 
+=====================================================================
+The SRC/DST MAC addrees are taken from /etc/trex_cfg.yaml. if you want to change them to be different just add Ether(dst="00:00:dd:dd:00:01") with your destination
+=====================================================================
+
 
 *Start TRex as a server*::   
 
 [NOTE] 
 =====================================================================
-There is no need to install any python packages (including scapy). just download the TRex package
+There is no need to install any python packages (including scapy). The TRex package includes all the packages it requires 
 =====================================================================
 
 
@@ -346,18 +351,13 @@ Port Statistics
  dashboard:  'p' - pause, 'c' - clear, '-' - low 5%, '+' - up 5%, 
 ----
 
-[NOTE] 
-=====================================================================
-The SRC/DST MAC addrees are taken from /etc/trex_cfg.yaml. if you want to change them to be different just add Ether(dst="00:00:dd:dd:00:01") with your destination
-=====================================================================
-
 ==== Tutorial: Connect from a remote server 
 
 *Goal*:: Console connect from a remote machine to TRex server 
 
 *Check that TRex server is up*::
 
-Make sure TRex server is running, if not run trex in interactive mode
+Make sure TRex server is running, if not run TRex in interactive mode
 
 [source,bash]
 ----
@@ -395,12 +395,12 @@ Client machine should run Python 2.7 and Python 64bit version. Cisco CEL/ADS is 
 
 ==== Tutorial: Source and Destination MAC address
 
-*Goal*:: Change source/destination MAC addrees 
+*Goal*:: Change source/destination MAC address
 
-Each TRex port has a source and destination MAC (DUT) configured in /etc/trex_cfg.yaml. 
+Each TRex port has a source and destination MAC (DUT) configured in /etc/trex_cfg.yaml.
 The source MAC is not necessarily the hardware MAC address configured in eeprom.
 By default those MAC (source and destination) is taken.
-In case a user configures a source or destination MAC explicitly this MAC will take precedence  
+In case a user configures a source or destination MAC explicitly this MAC will take precedence.
 
 
 .MAC addrees
@@ -424,11 +424,11 @@ For example
                     IP(src="16.0.0.1",dst="48.0.0.1")/
                     UDP(dport=12,sport=1025)  
 ----
-<1> Don't take TRex port src interface MAC instead replace it with 00:bb:12:34:56:01
+<1> Don't use TRex port src interface MAC. Instead replace it with 00:bb:12:34:56:01
 
 [IMPORTANT]
 =====================================
-TRex ports  will receive a packet only when the packet will have a destination MAC of port defined in the `/etc/trex_cfg.yaml`. To configure the port to be promiscuous  and get all the packets on the line you can configure it from API or from Console with `portattr -a --prom`  
+A TRex port will receive a packet only if the packet has a destination MAC matching the HW Src mac defined for that port in the `/etc/trex_cfg.yaml`. A port can be put into promiscuous mode, allowing receipt of all the packets on the line, by configure it through the API or at the Console with `portattr -a --prom`.
 =====================================
 
 To show the port mode 
@@ -462,9 +462,9 @@ NUMA Node       |          0           |          0           |
 
 Python API examples are located here: `automation/trex_control_plane/stl/examples`.
 
-Python API library is located here: `automation/trex_control_plane/stl/trex_stl_lib`
+The Python API library is located here: `automation/trex_control_plane/stl/trex_stl_lib`.
 
-The Console is using the python API library to interact with TRex server and the protocol is JSON-RPC2 over ZMQ
+The TRex Console uses the python API library to interact with the TRex server using the JSON-RPC2 protocol over ZMQ.
 
 *file*:: link:{github_stl_examples_path}/stl_bi_dir_flows.py[stl_bi_dir_flows.py]
 
@@ -594,13 +594,13 @@ def simple_burst ():
 # run the tests
 simple_burst()
 ----
-<1> import the stl_path. you should *fix* the path to point to your stl_trex library path 
-<2> import trex Stateless library. path should be fixed 
-<3> create packet per direction using Scapy
-<4> This is something more advanced will be explained later
-<5> Connect to local TRex   username , server can be added 
-<6> Acquire the ports  
-<7> load the profile and start the traffic 
+<1> Import the stl_path. You should *fix* the path to point to your stl_trex library path.
+<2> Import TRex Stateless library. The path should be fixed.
+<3> Create packet per direction using Scapy.
+<4> This is something more advanced will be explained later.
+<5> Connect to local TRex. Username and server can be added.
+<6> Acquire the ports.
+<7> Load the profile and start the traffic 
 <8> Wait for the traffic to, be finished. There is a polling function so you can test do something while waiting 
 <9> Get port statistics
 <10> Disconnect
@@ -791,7 +791,7 @@ class STLS1(object):
         return [ self.create_stream() ]
 
 
-# dynamic load - used for trex console or simulator
+# dynamic load - used for TRex console or simulator
 def register():                                                                         <3>        
     return STLS1()
 ----
