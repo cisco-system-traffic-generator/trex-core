@@ -1,10 +1,6 @@
 - port_limit      : 2         # this option can limit the number of port of the platform
   version       : 2
   interfaces    : ["03:00.0","03:00.1","13:00.1","13:00.0"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status 
-  interface_mask  : [ "0000:22:00.00", "0000:22:00.01" ]  # deprecated
-  enable_zmq_pub  : false  # enable publisher for stats data 
-  zmq_pub_port    : 4500
-  telnet_port     : 4501 # the telnet port in case it is enable ( with intercative mode )
   port_info       :  # set eh mac addr 
           - dest_mac        :   [0x0,0x0,0x0,0x1,0x0,0x00]  # port 0
             src_mac         :   [0x0,0x0,0x0,0x2,0x0,0x00]
