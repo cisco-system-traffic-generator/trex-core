@@ -685,7 +685,7 @@ if __name__ == "__main__":
 
     """,
     description="Example for TRex HLTAPI",
-    epilog=" based on hhaim's stl_run_udp_simple example");
+    epilog=" based on hhaim's stl_run_udp_simple example")
 
     parser.add_argument("--ip", 
                         dest="ip",
@@ -720,7 +720,7 @@ if __name__ == "__main__":
                         help='dst MAC',
                         default='00:50:56:b9:34:f3')
 
-    args = parser.parse_args();
+    args = parser.parse_args()
 
     hltapi = CTRexHltApi()
     print 'Connecting to TRex'
@@ -1073,7 +1073,7 @@ The following example demonstrates 3 streams with different rates (pps=10,20,40)
     def create_stream (self):
 
         # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        size = self.fsize - 4 # no FCS
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)       <1>
         base_pkt1 =  Ether()/IP(src="16.0.0.2",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         base_pkt2 =  Ether()/IP(src="16.0.0.3",dst="48.0.0.1")/UDP(dport=12,sport=1025)
@@ -1148,7 +1148,7 @@ The following example demonstrates:
     def create_stream (self):
 
         # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        size = self.fsize - 4 # no FCS
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         base_pkt1 =  Ether()/IP(src="16.0.0.2",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         base_pkt2 =  Ether()/IP(src="16.0.0.3",dst="48.0.0.1")/UDP(dport=12,sport=1025)
@@ -1207,7 +1207,7 @@ TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
     def create_stream (self):
 
         # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        size = self.fsize - 4 # no FCS
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         base_pkt1 =  Ether()/IP(src="16.0.0.2",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
@@ -1249,20 +1249,20 @@ image::images/stl_tut_4.png[title="Streams example",align="left",width={p_width}
     def create_stream (self):
 
         # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        size = self.fsize - 4 # no FCS
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         base_pkt1 =  Ether()/IP(src="16.0.0.2",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         base_pkt2 =  Ether()/IP(src="16.0.0.3",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
 
-        return STLProfile( [ STLStream( isg = 10.0, # star in delay 
+        return STLProfile( [ STLStream( isg = 10.0, # start in delay 
                                         name    ='S0',
                                         packet = STLPktBuilder(pkt = base_pkt/pad),
                                         mode = STLTXSingleBurst( pps = 10, total_pkts = 1),
                                         next = 'S1'), # point to next stream 
 
-                             STLStream( self_start = False, # stream is disabled.  Enabled by S0
+                             STLStream( self_start = False, # stream is disabled. Enabled by S0
                                         name    ='S1',
                                         packet  = STLPktBuilder(pkt = base_pkt1/pad),
                                         mode    = STLTXSingleBurst( pps = 10, total_pkts = 2),
@@ -1273,7 +1273,7 @@ image::images/stl_tut_4.png[title="Streams example",align="left",width={p_width}
                                          packet = STLPktBuilder(pkt = base_pkt2/pad),
                                          mode = STLTXSingleBurst( pps = 10, total_pkts = 3 ),
                                          action_count = 2, # loop 2 times                       <1>
-                                         next    = 'S0' # back to S0 loop
+                                         next    = 'S0' # loop back to S0
                                         )
                             ]).get_streams()
 
@@ -1281,11 +1281,11 @@ image::images/stl_tut_4.png[title="Streams example",align="left",width={p_width}
 <1> go back to S0 but limit it to 2 loops
 
 
-==== Tutorial: IMIX with UDP packets directional 
+==== Tutorial: IMIX with UDP packets, bi-directional 
 
-*Goal* : Demonstrate how to create IMIX 
+*Goal* : Demonstrate how to create an IMIX traffic profile.
 
-This profile has 3 streams each with different size packet. The rate is different for each stream/size see link:https://en.wikipedia.org/wiki/Internet_Mix[here]
+This profile has 3 streams, each with different size packet. The rate is different for each stream/size. See link:https://en.wikipedia.org/wiki/Internet_Mix[here]
 
 *file*:: link:{github_stl_path}/imix.py[stl/imix.py]
 
@@ -1298,7 +1298,7 @@ This profile has 3 streams each with different size packet. The rate is differen
 
         # default IMIX properties
         self.imix_table = [ {'size': 60,   'pps': 28,  'isg':0 },
-                            {'size': 590,  'pps': 20,  'isg':0.1 },
+                            {'size': 590,  'pps': 16,  'isg':0.1 },
                             {'size': 1514, 'pps': 4,   'isg':0.2 } ]
 
 
@@ -1352,19 +1352,19 @@ This profile has 3 streams each with different size packet. The rate is differen
 ----
 <1> Base on the direction, we will construct a diffrent stream (replace src and dest)
 <2> Even port id has direction==0 and odd has direction==1
-<3> We didn't explain this yet. but this is a Field Engine program to change fields inside the packets
+<3> We didn't explain this yet. This is a Field Engine program to change fields inside the packets
 
 ==== Tutorial: Field Engine, Syn attack  
 
 The following example demonstrates changing packet fields. 
-The Field Engine (FE) has limited number of instructions/operation for supporting most use cases. There is a plan to add LuaJIT to be more flexiable in the cost of performance.
-The FE can allocate stream variable in Stream context. Write a stream variable to a packet offset, change packet size etc.
+The Field Engine (FE) has limited number of instructions/operation for supporting most use cases. There is a plan to add LuaJIT to be more flexible at the cost of performance.
+The FE can allocate stream variables in a Stream context, write a stream variable to a packet offset, change packet size,  etc.
 
 *Some examples for what can be done:*
 
 * Change ipv4.tos 1-10
-* Change packet size to be random in range 64-9K
-* Create range of flows (change src_ip,dest_ip,src_port,dest_port) 
+* Change packet size to be random in the range 64-9K
+* Create range of flows (change src_ip, dest_ip, src_port, dest_port) 
 * Update IPv4 checksum 
 
 for more info see link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
@@ -1397,7 +1397,7 @@ The following example demonstrates creating SYN attack from many src to one serv
                            STLVmFixIpv4(offset = "IP"), # fix checksum              <5>
 
                            STLVmWrFlowVar(fv_name="src_port",                       <6>
-                                                pkt_offset= "TCP.sport") # fix udp len  
+                                                pkt_offset= "TCP.sport") # U 
 
                           ]
                        )
@@ -1412,9 +1412,9 @@ The following example demonstrates creating SYN attack from many src to one serv
 <1> Create SYN packet using Scapy 
 <2> Define stream variable name=ip_src, 4 bytes size for IPv4. 
 <3> Define stream variable name=src_port, 2 bytes size for port. 
-<4> Write ip_src stream var into `IP.src` packet offset. Scapy calculate the offset. We could gave `IP:1.src" for second IP header in the packet
+<4> Write ip_src stream var into `IP.src` packet offset. Scapy calculates the offset. We could gave `IP:1.src" for second IP header in the packet
 <5> Fix IPv4 checksum. here we provide the header name `IP` we could gave `IP:1` for second IP
-<6> Update TCP src port- TCP checksum is not updated here
+<6> Write src_port stream var into `TCP.sport` packet offset. TCP checksum is not updated here
 
 WARNING: Original Scapy does not have the capability to calculate offset for a header/field by name. This offset capability won't work for all the cases because there could be complex cases that Scapy rebuild the header. In such cases put offset as a number
 
@@ -1436,7 +1436,7 @@ pkt,Client IPv4,Client Port
 ==== Tutorial: Field Engine, Tuple Generator 
 
 The following example demonstrates creating multiply flows from the same packet template.
-The TupleGenerator instructions are used to create two stream variables with IP, port see link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
+The Tuple Generator instructions are used to create two stream variables for IP, port. See link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
 
 *file*:: link:{github_stl_path}/udp_1pkt_tuple_gen.py[stl/udp_1pkt_tuple_gen.py]
 
@@ -1456,14 +1456,14 @@ The TupleGenerator instructions are used to create two stream variables with IP,
                              STLVmFixIpv4(offset = "IP"),                                
                              STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" ) <3>
                                   ]
-                              );
+                              )
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,
                             vm = vm)
 ----
-<1> Define struct with two dependent varibles tuple.ip tuple.port 
-<2> Write tuple.ip to IPv4 src field offset
-<3> Write tuple.port to UDP header. You should set UDP.checksum to zero  
+<1> Define struct with two dependent variables: tuple.ip, tuple.port 
+<2> Write tuple.ip variable to `IPv4.src` field offset
+<3> Write tuple.port variable to `UDP.sport` field offset. You should set UDP.checksum to zero  
 
 
 .Pcap file output 
@@ -1479,7 +1479,7 @@ pkt,Client IPv4,Client Port
 |=================
 
 * Number of clients are two. 16.0.0.1 and 16.0.0.2
-* Number of flows is limited to 129020 (2*65535-1025)
+* Number of flows is limited to 129020 (2 * (65535-1025))
 * The stream variable size should match the size of the FlowVarWr instruction
 
 ==== Tutorial: Field Engine, write to a bit-field packet  
@@ -1543,14 +1543,14 @@ The way to do it is:
 
     def create_stream (self):
         # pkt 
-        p_l2  = Ether();
+        p_l2  = Ether()
         p_l3  = IP(src="16.0.0.1",dst="48.0.0.1")
         p_l4  = UDP(dport=12,sport=1025)
-        pyld_size = max(0, self.max_pkt_size_l3 - len(p_l3/p_l4));
+        pyld_size = max(0, self.max_pkt_size_l3 - len(p_l3/p_l4))
         base_pkt = p_l2/p_l3/p_l4/('\x55'*(pyld_size))
 
-        l3_len_fix =-(len(p_l2));
-        l4_len_fix =-(len(p_l2/p_l3));
+        l3_len_fix =-(len(p_l2))
+        l4_len_fix =-(len(p_l2/p_l3))
 
 
         # vm
@@ -1616,7 +1616,7 @@ bind_layers(VXLAN, Ether)
 class STLS1(object):
 
     def __init__ (self):
-        pass;
+        pass
 
     def create_stream (self):
         pkt =  Ether()/IP()/UDP(sport=1337,dport=4789)/VXLAN(vni=42)/Ether()/IP()/('x'*20)    <2>
@@ -1678,13 +1678,13 @@ Then traffic can be sent from client side  A->C
 class STLS1(object):
 
     def __init__ (self):
-        self.num_clients  =30000; # max is 16bit
+        self.num_clients  =30000 # max is 16bit
         self.fsize        =64
 
     def create_stream (self):
 
         # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        size = self.fsize - 4 # no FCS
         base_pkt =  Ether(src="00:00:dd:dd:00:01")/
                           IP(src="55.55.1.1",dst="58.55.1.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
@@ -1853,7 +1853,7 @@ class STLS1(object):
     """
 
     def __init__ (self):
-        self.max_pkt_size_l3  =9*1024;
+        self.max_pkt_size_l3  =9*1024
 
     def create_stream (self):
 
@@ -1913,7 +1913,7 @@ class STLS1(object):
     """
 
     def __init__ (self):
-        self.max_pkt_size_l3  =9*1024;
+        self.max_pkt_size_l3  =9*1024
 
     def create_stream (self):
 
@@ -2286,14 +2286,14 @@ The STLVmWrMaskFlowVar is a handy instruction. The pseudocode is as follows:
 .Pseudocode 
 [source,bash]
 ----
-        uint32_t val=(cast_to_size)rd_from_varible("name"); # read flow-var
-        val+=m_add_value;                                   # add value
+        uint32_t val=(cast_to_size)rd_from_varible("name") # read flow-var
+        val+=m_add_value                                   # add value
 
         if (m_shift>0) {                                    # shift 
-            val=val<<m_shift;
+            val=val<<m_shift
         }else{
             if (m_shift<0) {
-                val=val>>(-m_shift);
+                val=val>>(-m_shift)
             }
         }
 
@@ -2435,7 +2435,7 @@ def create_streams (self, direction = 0, **args):
 
     port_id = args.get('port_id')
     if port_id==None:
-        port_id=0;
+        port_id=0
 
     if port_id == 0:
      return [STLHltStream(tcp_src_port_mode = 'decrement',
@@ -2494,13 +2494,13 @@ The Console will give the port/direction and will get the right stream in each i
 class STLS1(object):
 
     def __init__ (self):
-        self.num_clients  =30000; # max is 16bit  <1>
+        self.num_clients  =30000 # max is 16bit  <1>
         self.fsize        =64                     
 
     def create_stream (self):
 
         # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        size = self.fsize - 4 # no FCS
         base_pkt =  Ether(src="00:00:dd:dd:00:01")/IP(src="55.55.1.1",dst="58.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
  
