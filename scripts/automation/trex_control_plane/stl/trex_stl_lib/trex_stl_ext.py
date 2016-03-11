@@ -36,7 +36,7 @@ def import_module_list(modules_list):
         sys.path.insert(1, full_path)
 
 
-
+# TODO; REFACTOR THIS....it looks horrible
 def import_platform_dirs ():
     # handle platform dirs
 
@@ -56,6 +56,18 @@ def import_platform_dirs ():
         pass
 
     full_path = os.path.join(TREX_STL_EXT_PATH, 'platform/cel59')
+    fix_path = os.path.normcase(full_path)
+    sys.path.insert(0, full_path)
+    try:
+        # try to import and delete it from the namespace
+        import zmq
+        del zmq
+        return
+    except:
+        sys.path.pop(0)
+        pass
+
+    full_path = os.path.join(TREX_STL_EXT_PATH, 'platform/cel59/32bit')
     fix_path = os.path.normcase(full_path)
     sys.path.insert(0, full_path)
     try:
