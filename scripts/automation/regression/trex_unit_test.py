@@ -332,6 +332,8 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = result and nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
+    except Exception as e:
+        print e
     finally:
         save_setup_info()
 
