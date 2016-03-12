@@ -97,7 +97,7 @@ Other network devices
 
 
     def do_bind_one (self,key):
-        cmd='./dpdk_nic_bind.py --force --bind=igb_uio %s ' % ( key)
+        cmd='./dpdk_nic_bind.py --bind=igb_uio %s ' % ( key)
         print cmd
         res=os.system(cmd);
         if res!=0:

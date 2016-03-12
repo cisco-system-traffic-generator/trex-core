@@ -34,7 +34,7 @@
 
 import sys, os, getopt, subprocess
 from os.path import exists, abspath, dirname, basename
-
+from distutils.util import strtobool
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
@@ -89,7 +89,7 @@ Options:
 
     --force:
         By default, devices which are used by Linux - as indicated by having
-        routes in the routing table - cannot be modified. Using the --force
+        established connections - cannot be modified. Using the --force
         flag overrides this behavior, allowing active links to be forcibly
         unbound.
         WARNING: This can lead to loss of network connection and should be used
@@ -207,8 +207,7 @@ def get_pci_device_details(dev_id):
         device["Interface"] = ",".join(os.listdir(sys_path))
     else:
         device["Interface"] = ""
-    # check if a port is used for ssh connection
-    device["Ssh_if"] = False
+    # check if a port is used for connections (ssh etc)
     device["Active"] = ""
 
     return device
@@ -237,17 +236,19 @@ def get_nic_details():
             name, value = dev_line.split("\t", 1)
             dev[name.rstrip(":")] = value
 
-    # check what is the interface if any for an ssh connection if
-    # any to this host, so we can mark it later.
-    ssh_if = []
-    route = check_output(["ip", "-o", "route"])
-    # filter out all lines for 169.254 routes
-    route = "\n".join(filter(lambda ln: not ln.startswith("169.254"),
-                             route.splitlines()))
-    rt_info = route.split()
-    for i in xrange(len(rt_info) - 1):
-        if rt_info[i] == "dev":
-            ssh_if.append(rt_info[i+1])
+    # check active interfaces with established connections
+    established_ip = set()
+    for line in check_output(['netstat', '-tn']).splitlines(): # tcp        0      0 10.56.216.133:22        10.56.46.20:45079       ESTABLISHED
+        line_arr = line.split()
+        if len(line_arr) == 6 and line_arr[0] == 'tcp' and line_arr[5] == 'ESTABLISHED':
+            established_ip.add(line_arr[3].rsplit(':', 1)[0])
+
+    active_if = []
+    for line in check_output(["ip", "-o", "addr"]).splitlines(): # 6: eth4    inet 10.56.216.133/24 brd 10.56.216.255 scope global eth4\       valid_lft forever preferred_lft forever
+        line_arr = line.split()
+        if len(line_arr) > 6 and line_arr[2] == 'inet':
+            if line_arr[3].rsplit('/', 1)[0] in established_ip:
+                active_if.append(line_arr[1])
 
     # based on the basic info, get extended text details
     for d in devices.keys():
@@ -255,9 +256,8 @@ def get_nic_details():
         devices[d] = dict(devices[d].items() +
                           get_pci_device_details(d).items())
 
-        for _if in ssh_if:
+        for _if in active_if:
             if _if in devices[d]["Interface"].split(","):
-                devices[d]["Ssh_if"] = True
                 devices[d]["Active"] = "*Active*"
                 break;
 
@@ -306,10 +306,15 @@ def unbind_one(dev_id, force):
         return
 
     # prevent us disconnecting ourselves
-    if dev["Ssh_if"] and not force:
-        print "Routing table indicates that interface %s is active" \
-            ". Skipping unbind" % (dev_id)
-        return
+    if dev["Active"] and not force:
+        print "netstat indicates that interface %s is active." % dev_id
+        result = None
+        try:
+            result = strtobool(raw_input("Confirm unbind (y/N)"))
+        finally:
+            if not result:
+                print 'Not unbinding.'
+                return
 
     # write to /sys to unbind
     filename = "/sys/bus/pci/drivers/%s/unbind" % dev["Driver_str"]
@@ -317,7 +322,7 @@ def unbind_one(dev_id, force):
         f = open(filename, "a")
     except:
         print "Error: unbind failed for %s - Cannot open %s" % (dev_id, filename)
-        sys/exit(1)
+        sys.exit(1)
     f.write(dev_id)
     f.close()
 
@@ -328,10 +333,15 @@ def bind_one(dev_id, driver, force):
     saved_driver = None # used to rollback any unbind in case of failure
 
     # prevent disconnection of our ssh session
-    if dev["Ssh_if"] and not force:
-        print "Routing table indicates that interface %s is active" \
-            ". Not modifying" % (dev_id)
-        return
+    if dev["Active"] and not force:
+        print "netstat indicates that interface %s is active" % dev_id
+        result = None
+        try:
+            result = strtobool(raw_input("Confirm bind (y/N)"))
+        finally:
+            if not result:
+                print 'Not binding.'
+                return
 
     # unbind any existing drivers we don't want
     if has_driver(dev_id):
