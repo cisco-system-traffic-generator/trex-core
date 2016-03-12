@@ -1484,8 +1484,8 @@ pkt,Client IPv4,Client Port
 
 ==== Tutorial: Field Engine, write to a bit-field packet  
 
-The following example demonstrates a way to write a stream variable to a bit field packet variables.
-In this example MPLS label field will be changed.
+The following example demonstrates a way to write a stream variable to a bit field packet variable.
+In this example an MPLS label field will be changed.
 
 .MPLS header 
 [cols="32", halign="center",width="50%"] 
@@ -1531,7 +1531,7 @@ In this example MPLS label field will be changed.
 ==== Tutorial: Field Engine, Random packet size 
 
 The following example demonstrates a way to to change packet size to be a random size.
-The way to do it is:
+The way to do it is:  
 1. Define template packet with maximum size 
 2. Trim the packet to the size you want 
 3. Update the packet fields to the new size 
