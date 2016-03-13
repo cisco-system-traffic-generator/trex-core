@@ -229,7 +229,7 @@ class Port(object):
 
         ret = RC()
         for i, single_rc in enumerate(rc):
-            if single_rc:
+            if single_rc.rc:
                 stream_id = batch[i].params['stream_id']
                 next_id   = batch[i].params['stream']['next_stream_id']
                 self.streams[stream_id] = {'next_id' : next_id,
@@ -238,11 +238,12 @@ class Port(object):
                                            'rate' : streams_list[i].get_rate()}
 
                 ret.add(RC_OK(data = stream_id))
-
+            else:
+                ret.add(RC(*single_rc))
 
         self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
 
-        return ret if rc else self.err(str(rc))
+        return ret if ret else self.err(str(ret))
 
 
 

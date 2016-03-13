@@ -5,7 +5,7 @@ from trex_stl_exceptions import *
 import types
 
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
-TupleRC    = namedtuple('RC', ['rc', 'data', 'is_warn'])
+TupleRC    = namedtuple('RCT', ['rc', 'data', 'is_warn'])
 
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):
         __slots__ = ()
