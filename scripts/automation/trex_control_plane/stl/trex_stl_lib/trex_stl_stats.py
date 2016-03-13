@@ -828,8 +828,8 @@ class CRxStats(CTRexStats):
         # copy timestamp field
         output['ts'] = current['ts']
 
-        # aggregate all the PG ids (previous and current)
-        pg_ids = filter(is_intable, set(prev.keys() + current.keys()))
+        # we care only about the current active keys
+        pg_ids = filter(is_intable, current.keys())
 
         for pg_id in pg_ids:
 
@@ -853,6 +853,13 @@ class CRxStats(CTRexStats):
                 diff_sec = self.calculate_diff_sec(current, prev)
                 self.calculate_bw_for_pg(output[pg_id], prev_pg, diff_sec)
 
+
+        # cleanp old reference values - they are dead
+        ref_pg_ids = filter(is_intable, self.reference_stats.keys())
+
+        deleted_pg_ids = set(ref_pg_ids).difference(pg_ids)
+        for d_pg_id in deleted_pg_ids:
+            del self.reference_stats[d_pg_id]
 
         return output
 
