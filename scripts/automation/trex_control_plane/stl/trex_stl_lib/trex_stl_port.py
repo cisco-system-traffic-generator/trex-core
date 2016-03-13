@@ -227,6 +227,7 @@ class Port(object):
 
         rc = self.transmit_batch(batch)
 
+        ret = RC()
         for i, single_rc in enumerate(rc):
             if single_rc:
                 stream_id = batch[i].params['stream_id']
@@ -236,10 +237,12 @@ class Port(object):
                                            'mode' : streams_list[i].get_mode(),
                                            'rate' : streams_list[i].get_rate()}
 
+                ret.add(RC_OK(data = stream_id))
+
 
         self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
 
-        return self.ok() if rc else self.err(str(rc))
+        return ret if rc else self.err(str(rc))
 
 
 

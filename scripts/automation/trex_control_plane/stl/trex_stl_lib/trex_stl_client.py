@@ -1392,7 +1392,8 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-        return [stream.get_id() for stream in streams]
+        # return the stream IDs
+        return rc.data()
 
 
     @__api_check(True)
