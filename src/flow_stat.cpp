@@ -640,11 +640,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
 
     if (m_user_id_map.is_empty()) {
-        if (baseline) {
-            json = writer.write(root);
-            return true;
-        } else
-            return false;
+        json = writer.write(root);
+        return true;
     }
 
     // read hw counters, and update
