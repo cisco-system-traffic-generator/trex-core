@@ -303,6 +303,7 @@ class CStreamsPerPort(defaultdict):
 
     # save HLT args to modify streams later
     def save_stream_args(self, ports_list, stream_id, stream_hlt_args):
+        if stream_id is None: return # no stream_id, can't save TODO: remove this check ASAP
         if stream_hlt_args.get('load_profile'): return # can't modify profiles, don't save
         if not self.hlt_history: raise STLError('CStreamsPerPort: this object works only with HLT history, try init with hlt_history = True')
         if type(stream_id) not in (int, long): raise STLError('CStreamsPerPort: stream_id should be number')
@@ -401,9 +402,17 @@ class CTRexHltApi(object):
             except Exception as e:
                 return HLT_ERR('Unable to determine which ports to release: %s' % e if isinstance(e, STLError) else traceback.format_exc())
             try:
+                self.trex_client.stop(port_list)
+            except Exception as e:
+                return HLT_ERR('Unable to stop traffic %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
+            try:
+                self.trex_client.remove_all_streams(port_list)
+            except Exception as e:
+                return HLT_ERR('Unable to remove all streams %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
+            try:
                 self.trex_client.release(port_list)
             except Exception as e:
-                return HLT_ERR('Unable to release ports %s: %s' % (port_list, e))
+                return HLT_ERR('Unable to release ports %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
         try:
             self.trex_client.disconnect(stop_traffic = False, release_ports = False)
         except Exception as e:
@@ -585,30 +594,53 @@ class CTRexHltApi(object):
         kwargs = merge_kwargs(traffic_control_kwargs, user_kwargs)
         action = kwargs['action']
         port_handle = kwargs['port_handle']
-        ALLOWED_ACTIONS = ['clear_stats', 'run', 'stop', 'sync_run']
+        ALLOWED_ACTIONS = ['clear_stats', 'run', 'stop', 'sync_run', 'poll', 'reset']
         if action not in ALLOWED_ACTIONS:
             return HLT_ERR('Action must be one of the following values: {actions}'.format(actions=ALLOWED_ACTIONS))
-        if type(port_handle) is not list:
-            port_handle = [port_handle]
 
         if action == 'run':
             try:
                 self.trex_client.start(ports = port_handle)
             except Exception as e:
                 return HLT_ERR('Could not start traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
-            return HLT_OK(stopped = 0)
+
+        elif action == 'sync_run': # (clear_stats + run)
+            try:
+                self.trex_client.clear_stats(ports = port_handle)
+                self.trex_client.start(ports = port_handle)
+            except Exception as e:
+                return HLT_ERR('Unable to do sync_run: %s' % e if isinstance(e, STLError) else traceback.format_exc())
 
         elif action == 'stop':
             try:
                 self.trex_client.stop(ports = port_handle)
             except Exception as e:
-                return HLT_ERR('Could not start traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
-            return HLT_OK(stopped = 1)
-        else:
-            return HLT_ERR("Action '{0}' is not supported yet on TRex".format(action))
+                return HLT_ERR('Could not stop traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
 
-        # if we arrived here, this means that operation FAILED!
-        return HLT_ERR("Probably action '%s' is not implemented" % action)
+        elif action == 'reset':
+            try:
+                self.trex_client.reset(ports = port_handle)
+                for port in port_handle:
+                    if port in self._streams_history:
+                        del self._streams_history[port]
+            except Exception as e:
+                return HLT_ERR('Could not reset traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+
+        elif action == 'clear_stats':
+            try:
+                self.trex_client.clear_stats(ports = port_handle)
+            except Exception as e:
+                return HLT_ERR('Could not clear stats: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+
+        elif action != 'poll': # at poll just return 'stopped' status
+            return HLT_ERR("Action '%s' is not supported yet on TRex" % action)
+
+        try:
+            is_traffic_active = self.trex_client.is_traffic_active(ports = port_handle)
+        except Exception as e:
+            return HLT_ERR('Unable to determine ports status: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+
+        return HLT_OK(stopped = not is_traffic_active)
 
     def traffic_stats(self, **user_kwargs):
         if not self.trex_client:
@@ -653,6 +685,16 @@ class CTRexHltApi(object):
                         }
             return HLT_OK(hlt_stats_dict)
 
+    # timeout = maximal time to wait
+    def wait_on_traffic(self, port_handle = None, timeout = 60):
+        try:
+            self.trex_client.wait_on_traffic(port_handle, timeout)
+        except Exception as e:
+            return HLT_ERR('Unable to run wait_on_traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+
+###########################
+#    Private functions    #
+###########################
 
     # remove streams from given port(s).
     # stream_id can be:
@@ -688,11 +730,6 @@ class CTRexHltApi(object):
                     self._remove_stream(each_stream_id, port_handle)                    # recurse
                 return
         raise STLError('_remove_stream: wrong param %s' % stream_id)
-
-
-###########################
-#    Private functions    #
-###########################
 
     @staticmethod
     def _parse_port_list(port_list):
@@ -1481,6 +1518,7 @@ def correct_direction(user_kwargs, kwargs):
                 dst_arg = 'ipv6_dst_' + arg[9:]
                 user_kwargs[arg], user_kwargs[dst_arg] = kwargs[dst_arg], kwargs[arg]
 
+# we produce packets without fcs, so need to reduce produced sizes
 def correct_sizes(kwargs):
     for arg in kwargs.keys():
         if type(arg) in (int, long):

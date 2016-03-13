@@ -1755,9 +1755,6 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 
-
-        expr = time.time() + timeout
-
         return set(self.get_active_ports()).intersection(ports)
 
 
