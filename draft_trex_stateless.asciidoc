@@ -299,6 +299,12 @@ Starting traffic on port(s) [0, 1, 2, 3]:                    [SUCCESS]
 <5> Stop on all the ports
 
 
+[NOTE] 
+=====================================================================
+In case you have a connection *error* look into /etc/trex_cfg.yaml
+you should *remove* keywords like `enable_zmq_pub : true` and `zmq_pub_port   : 4501`  from the file. 
+=====================================================================
+
 To look into the streams using `streams -a`
 
 .Streams
