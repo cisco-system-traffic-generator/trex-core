@@ -52,6 +52,12 @@ endif::backend-xhtml11[]
 ** Python HLTAPI  Client API
 * Multi user support - multiple users can interact with the same TRex simultaneously
 
+==== Prerequisite 
+
+This document assumes that you know what is TRex and you already installed and configured it. To read more about it see here link:trex_manual.html[manual]
+
+You should read up to this link:trex_manual.html#_basic_usage[basic usage]
+
 ==== Traffic profile example
 
 image::images/stl_streams_example.png[title="Streams example",align="left",width={p_width}, link="images/stl_streams_example.png"]
@@ -244,11 +250,15 @@ The SRC/DST MAC addrees are taken from /etc/trex_cfg.yaml. if you want to change
 There is no need to install any python packages (including scapy). The TRex package includes all the packages it requires 
 =====================================================================
 
-
 [source,bash]
 ----
 $sudo ./t-rex-64 -i
 ----
+
+* You should wait until the server is up and running. 
+* You can add `-c` for adding more cores 
+* You can add `--cfg` for different configuration file
+
 
 *Connect with Console*::
 
@@ -375,6 +385,65 @@ Port Statistics
  dashboard:  'p' - pause, 'c' - clear, '-' - low 5%, '+' - up 5%, 
 ----
 
+
+*Discussion*::
+
+In this example TRex sends the *same* packet from all the ports. If your setup is connected with loopback you will see Tx packets from port 0 in Rx port 1 and vice versa.  If however you are having DUT with static route you might see all the packets going to a specific port.
+
+.Static route
+[source,bash]
+----
+interface TenGigabitEthernet0/0/0       
+ mtu 9000 
+ ip address 1.1.9.1 255.255.255.0
+!         
+interface TenGigabitEthernet0/1/0       
+ mtu 9000 
+ ip address 1.1.10.1 255.255.255.0
+!         
+
+ip route 16.0.0.0 255.0.0.0 1.1.9.2     
+ip route 48.0.0.0 255.0.0.0 1.1.10.2    
+----
+
+In this example all the packets will be routed to port `TenGigabitEthernet0/1/0` 
+
+To solve this there is a way to use direction flag in the script 
+
+*file*:: link:{github_stl_path}/udp_1pkt_simple_bdir.py[stl/udp_1pkt_simple_bdir.py]
+
+[source,python]
+----
+
+ class STLS1(object):
+
+    def create_stream (self):
+        return STLStream( 
+            packet = 
+                    STLPktBuilder(
+                        pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/
+                                UDP(dport=12,sport=1025)/(10*'x')
+                    ),
+             mode = STLTXCont())
+
+    def get_streams (self, direction = 0):
+        # create 1 stream 
+        if direction==0:                                                        <1>
+            src_ip="16.0.0.1"
+            dst_ip="48.0.0.1"
+        else:
+            src_ip="48.0.0.1"
+            dst_ip="16.0.0.1"
+
+        pkt   = STLPktBuilder(
+                              pkt = Ether()/IP(src=src_ip,dst=dst_ip)/
+                              UDP(dport=12,sport=1025)/(10*'x') )
+
+        return [ STLStream( packet = pkt,mode = STLTXCont()) ]
+----
+<1> Usage of direction. The packet will be different for each direction
+
+
 ==== Tutorial: Connect from a remote server 
 
 *Goal*:: Console connect from a remote machine to TRex server 
@@ -415,6 +484,7 @@ extern PYTHON=/bin/mypython    #bash
 [NOTE]
 =====================================================================
 Client machine should run Python 2.7 and Python 64bit version. Cisco CEL/ADS is supported. Python 3.0 support in WIP
+You should have the same tree of source code in the client side. We are working on a zip file that include only the client python/so files 
 =====================================================================
 
 ==== Tutorial: Source and Destination MAC address
@@ -1108,7 +1178,7 @@ The folowing figure present the output
 
 image::images/stl_inter.png[title="Interleave streams",align="left",width={p_width}, link="images/stl_inter.png"]
               
-Discussion:: 
+*Discussion*:: 
 
 1. stream #1 schedule a packet each 100msec 
 2. stream #2 schedule a packet each 50msec
@@ -2286,8 +2356,8 @@ The STLVmWrMaskFlowVar is a handy instruction. The pseudocode is as follows:
 .Pseudocode 
 [source,bash]
 ----
-        uint32_t val=(cast_to_size)rd_from_varible("name") # read flow-var
-        val+=m_add_value                                   # add value
+        uint32_t val=(cast_to_size)rd_from_variable("name") # read flow-var
+        val+=m_add_value                                    # add value
 
         if (m_shift>0) {                                    # shift 
             val=val<<m_shift

@@ -1436,6 +1436,10 @@ $sudo ./nvmupdate64e
 
 You might need a power cycle and to run this command a few times to get the latest firmware  
 
+====  QSFP+ support for XL710
+
+see link:https://www.google.co.il/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&cad=rja&uact=8&ved=0ahUKEwjJhPSH3b3LAhUp7nIKHSkACUYQFggaMAA&url=http%3A%2F%2Fwww.intel.co.id%2Fcontent%2Fdam%2Fwww%2Fpublic%2Fus%2Fen%2Fdocuments%2Frelease-notes%2Fxl710-ethernet-controller-feature-matrix.pdf&usg=AFQjCNFhwozfz-XuKGMOy9_MJDbetw15Og&sig2=ce7YU9F9Et6xf6KvqSFBxg&bvm=bv.116636494,d.bGs[QSFP+ support] for QSFP+ support and Firmware requirement for XL710
+
 
 === TRex with ASA 5585
 
