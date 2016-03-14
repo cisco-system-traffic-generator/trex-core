@@ -424,7 +424,7 @@ class CTRexScapyPktUtl(object):
     def get_field_offet_by_str(self, field_des):
         """
         return field_des (offset,size) layer:cnt.field
-        for example
+        for example  
         802|1Q.vlan get 802.1Q->valn replace | with .
         IP.src
         IP:0.src  (first IP.src like IP.src)
@@ -556,7 +556,9 @@ class STLVmFlowVar(CTRexVmDescBase):
              op    : string 
                 could be "inc", "dec", "random"
 
-        For example::
+        .. code-block:: python
+            :caption: Example1
+
 
             # input 
             STLVmFlowVar(min_value=0, max_value=3, size=1,op="inc")
@@ -618,7 +620,8 @@ class STLVmFixIpv4(CTRexVmDescBase):
                 **IPv4 header** offset from packet start. It is **not** the offset of the checksum field itself.
                 in could be string in case of scapy packet. format IP[:[id]]
 
-        For example::
+        .. code-block:: python
+            :caption: Example2
 
             pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
@@ -668,7 +671,8 @@ class STLVmWrFlowVar(CTRexVmDescBase):
              is_big      : bool 
                 how to write the variable to the the packet. is it big-edian or little edian 
 
-        For example::
+        .. code-block:: python
+            :caption: Example3
 
             pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
@@ -708,6 +712,108 @@ class STLVmWrFlowVar(CTRexVmDescBase):
 
 class STLVmWrMaskFlowVar(CTRexVmDescBase):
     def __init__(self, fv_name, pkt_offset, pkt_cast_size=1, mask=0xff, shift=0, add_value=0, offset_fixup=0, is_big=True):
+
+        """
+        Write a stream variable into a packet field with some operations. 
+        Using this instruction the variable size and the field could be with different size. 
+
+        Pseudocode of this code::
+
+                uint32_t val=(cast_to_size)rd_from_variable("name") # read flow-var
+                val+=m_add_value                                    # add value
+        
+                if (m_shift>0) {                                    # shift 
+                    val=val<<m_shift
+                }else{
+                    if (m_shift<0) {
+                        val=val>>(-m_shift)
+                    }
+                }
+        
+                pkt_val=rd_from_pkt(pkt_offset)                     # RMW to the packet
+                pkt_val = (pkt_val & ~m_mask) | (val & m_mask)
+                wr_to_pkt(pkt_offset,pkt_val)
+
+
+        :parameters:
+            fv_name : string 
+                The stream variable name to write to a packet field
+
+            pkt_cast_size : uint8_t 
+                The size in bytes of the packet field
+
+
+            mask          : uint32_t 
+                The mask of the field. 1 means to write. 0 don't care
+
+            shift          : uint8_t 
+                How many bits to shift 
+
+            pkt_offset : string or in
+                the name of the field or offset in byte from packet start.
+
+            offset_fixup : int 
+                how many bytes to go forward. In case of a negative value go backward 
+
+             add_val     : int
+                value to add to stream variable before writing it to packet field. can be used as a constant offset 
+
+             is_big      : bool 
+                how to write the variable to the the packet. is it big-edian or little edian 
+
+        Example 1- casting from uint16_t (var) to uint8_t (pkt)::
+
+
+            base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+            vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
+                                            min_value=1, 
+                                            max_value=30, 
+                                            size=2, 
+                                            op="dec",step=1), 
+                               STLVmWrMaskFlowVar(fv_name="mac_src", 
+                                                  pkt_offset= 11,
+                                                  pkt_cast_size=1, 
+                                                  mask=0xff) # mask command ->write it as one byte
+                          ]
+                       )
+
+            pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+        Example 2- change MSB of uint16_t variable::
+
+
+            vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
+                                            min_value=1, 
+                                            max_value=30, 
+                                            size=2, op="dec",step=1), 
+                               STLVmWrMaskFlowVar(fv_name="mac_src", 
+                                                  pkt_offset= 10,
+                                                  pkt_cast_size=2, 
+                                                  mask=0xff00,
+                                                  shift=8) # take the var shift it 8 (x256) write only to LSB
+                              ]
+                            )
+
+
+
+        Example 3- Every 2 packet change the MAC (shift right)::
+
+                vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
+                                                min_value=1, 
+                                                max_value=30, 
+                                                size=2, op="dec",step=1), 
+                                   STLVmWrMaskFlowVar(fv_name="mac_src", 
+                                                      pkt_offset= 10,
+                                                      pkt_cast_size=1, 
+                                                      mask=0x1,
+                                                      shift=-1) # take var mac_src>>1 and write the LSB every two packet there should be a change
+                                 ]
+                                )
+
+
+        """
+
         super(STLVmWrMaskFlowVar, self).__init__()
         self.name =fv_name
         assert type(fv_name)==str, 'type of fv_name is not str'
@@ -751,8 +857,7 @@ class STLVmTrimPktSize(CTRexVmDescBase):
             the stream variable name. the value from this variable would be the new total packet size.  
 
 
-
-    For example::
+    For Example::
 
         def create_stream (self):
             # pkt 
@@ -873,8 +978,8 @@ class STLVmTupleGen(CTRexVmDescBase):
 
             ="0.0.0.10", port_min=1025, port_max=65535, limit_flows=100000, flags=0
 
-
-        For example::
+        .. code-block:: python
+            :caption: Example5
 
             def create_stream (self):
                 # pkt 
@@ -949,7 +1054,38 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         pkt could be Scapy pkt or pcap file name 
         When path_relative_to_profile is a True load pcap file from a path relative to the profile
 
-        Instantiate a CTRexPktBuilder object
+        
+        .. code-block:: python
+            :caption: Example6
+        
+
+                # packet is scapy
+                STLPktBuilder( pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/(10*'x') )
+
+    
+                # packet is taken from pcap file relative to python 
+                STLPktBuilder( pkt ="stl/yaml/udp_64B_no_crc.pcap")
+    
+                # packet is taken from pcap file relative to profile file 
+                STLPktBuilder( pkt ="stl/yaml/udp_64B_no_crc.pcap",
+                                    path_relative_to_profile = True )
+    
+    
+                vm = STLScVmRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
+                                                       port_min=1025, port_max=65535,
+                                                        name="tuple"), # define tuple gen 
+    
+                                 STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                                 STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                                 STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
+                                 ]
+                               )
+    
+                base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+                pad = max(0, size - len(base_pkt)) * 'x'
+    
+                STLPktBuilder(pkt = base_pkt/pad, vm= vm)
+
 
         :parameters:
 
@@ -959,7 +1095,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
              pkt_buffer : string 
                 a packet as buffer 
 
-             vm   : list 
+             vm   : list or base on :class:`trex_stl_lib.trex_stl_packet_builder_scapy.STLScVmRaw`
                 a list of instructions to manipolate packet fields 
 
              path_relative_to_profile : bool 
@@ -971,34 +1107,6 @@ class STLPktBuilder(CTrexPktBuilderInterface):
              remove_fcs : bool 
                 in case of buffer do we want to remove fcs 
 
-        for Example::
-
-            # packet is scapy
-            STLPktBuilder( pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/(10*'x')
-
-            # packet is taken from pcap file relative to python 
-            STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap")
-
-            # packet is taken from pcap file relative to profile file 
-            STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap",
-                                path_relative_to_profile = True)
-
-
-            vm = STLScVmRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
-                                                   port_min=1025, port_max=65535,
-                                                    name="tuple"), # define tuple gen 
-
-                             STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
-                             STLVmFixIpv4(offset = "IP"),                                # fix checksum
-                             STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
-                                  ]
-                              );
-
-            base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
-            pad = max(0, size - len(base_pkt)) * 'x'
-
-            STLPktBuilder(pkt = base_pkt/pad,
-                          vm= vm)
 
 
         """
@@ -1156,7 +1264,12 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
     def set_packet (self, pkt):
         """
-        Scapy packet   Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/"A"*10
+        Scapy packet 
+
+        For Example::
+
+           pkt =Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/('x'*10)
+
         """
         if  isinstance(pkt, Packet):
             self.pkt = pkt;

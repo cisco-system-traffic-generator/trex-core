@@ -406,7 +406,9 @@ class STLClient(object):
               async_port : int 
                 the ASYNC port 
 
-        For example::
+        .. code-block:: python
+            :caption: Example
+
 
             # connect to local TRex server 
             c = STLClient()

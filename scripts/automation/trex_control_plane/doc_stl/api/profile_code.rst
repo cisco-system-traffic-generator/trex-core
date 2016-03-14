@@ -81,7 +81,9 @@ STLProfile snippet
 ------------------
 
 
-Example1::
+.. code-block:: python
+    :caption: Example1
+
 
         size = self.fsize - 4; # no FCS
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
@@ -110,7 +112,9 @@ Example1::
                             ]).get_streams()
 
 
-Example2:: 
+.. code-block:: python
+    :caption: Example2
+
 
         class STLS1(object):
         

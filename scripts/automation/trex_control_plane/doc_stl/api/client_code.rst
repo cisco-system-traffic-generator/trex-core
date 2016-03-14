@@ -13,7 +13,7 @@ The API has two type of API
 
 Example1::
 
-    c = STLClient()
+    c = STLClient(username = "itay",server = "10.0.0.10", verbose_level = LoggerApi.VERBOSE_HIGH)
 
     try:
         # connect to server

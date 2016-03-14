@@ -14,7 +14,7 @@ The FE can allocate stream variables in a Stream context, write a stream variabl
 * Update IPv4 checksum 
 
 
-for example this snippet will create SYN Attack::
+Snippet will create SYN Attack::
 
     # create attack from random src_ip from 16.0.0.0-18.0.0.254 and random src_port 1025-65000    
     # attack 48.0.0.1 server 
@@ -108,7 +108,8 @@ STLVmTupleGen
 Field Engine snippet
 --------------------
 
-Example1:: 
+.. code-block:: python
+    :caption: Example1
 
 
         base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
@@ -130,9 +131,10 @@ Example1::
         pkt = STLPktBuilder(pkt = base_pkt/pad,
                             vm = vm)
 
-        
 
-Example2::
+.. code-block:: python
+    :caption: Example2
+        
 
         #range of source mac-addr
 

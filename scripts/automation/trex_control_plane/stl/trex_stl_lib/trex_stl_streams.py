@@ -38,10 +38,15 @@ class STLTXMode(object):
             percentage : float 
                link interface precent  0-100 e.g. 10 is 10%% of the port link setup 
 
-        For example::
+        .. code-block:: python
+            :caption: STLTXMode Example
+
                 mode = STLTXCont(pps = 10)
+
                 mode = STLTXCont(bps_L1 = 10000000) #10mbps L1
+
                 mode = STLTXCont(bps_L2 = 10000000) #10mbps L2
+
                 mode = STLTXCont(percentage = 10)   #10%
 
         """
@@ -98,7 +103,9 @@ class STLTXCont(STLTXMode):
         
          see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
 
-        For example::
+        .. code-block:: python
+            :caption: STLTXCont Example
+
                    mode = STLTXCont(pps = 10)
 
         """
@@ -125,7 +132,9 @@ class STLTXSingleBurst(STLTXMode):
 
          see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
 
-        For example::
+        .. code-block:: python
+            :caption: STLTXSingleBurst Example
+
                    mode = STLTXSingleBurst( pps = 10, total_pkts = 1)
 
         """
@@ -168,7 +177,9 @@ class STLTXMultiBurst(STLTXMode):
 
          see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
 
-        For example::
+        .. code-block:: python
+            :caption: STLTXMultiBurst Example
+
                    mode = STLTXMultiBurst(pps = 10, pkts_per_burst = 1,count 10, ibg=10.0)
 
         """
@@ -202,7 +213,8 @@ STLStreamDstMAC_ARP     =2
 class STLFlowStats(object):
     """ Define per stream stats  
 
-        For example::
+        .. code-block:: python
+            :caption: STLFlowStats Example
 
             flow_stats = STLFlowStats(pg_id = 7)
 
@@ -228,7 +240,9 @@ class STLFlowStats(object):
 class STLStream(object):
     """ One stream object, include mode, Field Engine mode packet template and Rx stats  
 
-        For example::
+        .. code-block:: python
+            :caption: STLStream Example
+
 
             base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
             pad = max(0, size - len(base_pkt)) * 'x'
@@ -265,7 +279,7 @@ class STLStream(object):
                   name  : string 
                        The name of the stream. Needed if this stream is dependent on another stream and another stream need to refer to this stream by its name.
 
-                  packet :  STLPktBuilder 
+                  packet :  STLPktBuilder see :class:`trex_stl_lib.trex_stl_packet_builder_scapy.STLPktBuilder`
                        The template packet and field engine program e.g. packet = STLPktBuilder(pkt = base_pkt/pad) 
 
                   mode :  :class:`trex_stl_lib.trex_stl_streams.STLTXCont` or :class:`trex_stl_lib.trex_stl_streams.STLTXSingleBurst`  or  :class:`trex_stl_lib.trex_stl_streams.STLTXMultiBurst` 
@@ -742,7 +756,8 @@ class YAMLLoader(object):
 class STLProfile(object):
     """ Describe a list of streams   
 
-        For example::
+        .. code-block:: python
+            :caption: STLProfile Example
 
               profile =  STLProfile( [ STLStream( isg = 10.0, # star in delay 
                                         name    ='S0',
