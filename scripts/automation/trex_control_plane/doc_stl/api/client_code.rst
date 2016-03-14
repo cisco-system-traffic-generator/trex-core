@@ -1,5 +1,5 @@
 
-TRex Client Module 
+Client Module 
 ==================
 
 TRex Client is an object to access TRex server. It is per user. Each user can own number of interfaces. 

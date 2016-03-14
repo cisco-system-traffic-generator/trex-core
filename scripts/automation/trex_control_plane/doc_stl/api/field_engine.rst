@@ -109,7 +109,7 @@ Field Engine snippet
 --------------------
 
 .. code-block:: python
-    :caption: Example1
+    :caption: FE Example1
 
 
         base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
@@ -133,7 +133,7 @@ Field Engine snippet
 
 
 .. code-block:: python
-    :caption: Example2
+    :caption: FE Example2
         
 
         #range of source mac-addr

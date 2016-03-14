@@ -82,7 +82,7 @@ STLProfile snippet
 
 
 .. code-block:: python
-    :caption: Example1
+    :caption: STLProfile Example1
 
 
         size = self.fsize - 4; # no FCS
@@ -113,7 +113,7 @@ STLProfile snippet
 
 
 .. code-block:: python
-    :caption: Example2
+    :caption: STLProfile Example2
 
 
         class STLS1(object):

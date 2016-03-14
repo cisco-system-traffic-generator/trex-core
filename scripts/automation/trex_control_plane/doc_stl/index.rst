@@ -12,15 +12,15 @@ To understand the entirely how the API works and how to set up the server side, 
 **Use the table of contents below or the menu to your left to navigate through the site**
 
 How to Install 
-=============
+===============
 .. toctree::
     :maxdepth: 2
 
-* **TODO**
-        
+* **TODO**  Yaroslav Client zip as self-contain
+
 
 API Reference
-=============
+==============
 .. toctree::
     :maxdepth: 2
 
