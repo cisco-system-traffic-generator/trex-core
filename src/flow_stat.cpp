@@ -595,14 +595,11 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
             for (uint8_t port = 0; port < m_num_ports; port++) {
                 m_api->del_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
                 m_api->get_flow_stats(port, &rx_counter, (void *)&tx_counter, hw_id, hw_id, true);
-                if (p_user_id->get_rx_counter(port) != rx_counter) {
-                    p_user_id->set_rx_counter(port, rx_counter);
-                    p_user_id->set_need_to_send_rx(port);
-                }
-                if (p_user_id->get_tx_counter(port) != tx_counter) {
-                    p_user_id->set_tx_counter(port, tx_counter);
-                    p_user_id->set_need_to_send_tx(port);
-                }
+                // when stopping, always send counters for stopped stream one last time
+                p_user_id->set_rx_counter(port, rx_counter);
+                p_user_id->set_need_to_send_rx(port);
+                p_user_id->set_tx_counter(port, tx_counter);
+                p_user_id->set_need_to_send_tx(port);
             }
             m_user_id_map.unmap(stream->m_rx_check.m_pg_id);
             m_hw_id_map.unmap(hw_id);
