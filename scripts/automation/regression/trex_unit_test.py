@@ -326,13 +326,14 @@ if __name__ == "__main__":
             additional_args = ['--stf'] + CTRexScenario.test_types['stateful_tests']
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
-            result = result and nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
+            result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin]) and result
         if len(CTRexScenario.test_types['stateless_tests']):
             additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
-            result = result and nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
+            result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin]) and result
     except Exception as e:
+        result = False
         print e
     finally:
         save_setup_info()

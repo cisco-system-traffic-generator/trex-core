@@ -5,26 +5,15 @@ from trex_stl_packet_builder_scapy import *
 # will destroy all streams/data on the ports
 def stl_map_ports (client, ports = None):
     # by default use all ports
-    if ports == None:
+    if ports is None:
         ports = client.get_all_ports()
 
-    # reset the ports
-    client.reset(ports)
-
-    # generate streams
-    base_pkt = STLPktBuilder(pkt = Ether()/IP())
-
-    # send something initial to calm down switches with arps etc.
-    stream = STLStream(packet = base_pkt,
-                       mode = STLTXSingleBurst(pps = 100000, total_pkts = 1))
-    client.add_streams(stream, ports)
-
-    client.start(ports, mult = "50%")
-    client.wait_on_traffic(ports)
-    client.reset(ports)
+    stl_send_3_pkts(client, ports)
 
     tx_pkts = {}
     pkts = 1
+    base_pkt = STLPktBuilder(pkt = Ether()/IP())
+
     for port in ports:
         tx_pkts[pkts] = port
         stream = STLStream(packet = base_pkt,
@@ -75,3 +64,15 @@ def stl_map_ports (client, ports = None):
 
     return table
 
+# reset ports and send 3 packets from each acquired port
+def stl_send_3_pkts(client, ports = None):
+
+    base_pkt = STLPktBuilder(pkt = Ether()/IP())
+    stream = STLStream(packet = base_pkt,
+                       mode = STLTXSingleBurst(pps = 100000, total_pkts = 3))
+
+    client.reset(ports)
+    client.add_streams(stream, ports)
+    client.start(ports, mult = "50%")
+    client.wait_on_traffic(ports)
+    client.reset(ports)

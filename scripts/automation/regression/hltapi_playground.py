@@ -55,12 +55,34 @@ if __name__ == "__main__":
         port_handle = res['port_handle']
         print('Connected, got port handles %s' % port_handle)
         ports_streams_dict = CStreamsPerPort()
+        print hlt_client.traffic_control(action = 'poll')
 
-        res = check_res(hlt_client.traffic_config(mode = 'create', l2_encap = 'ethernet_ii_vlan', rate_pps = 1,
-                                                  l3_protocol = 'ipv4',
-                                                  length_mode = 'imix', l3_length = 200,
-                                                  ipv6_dst_mode = 'decrement', ipv6_dst_count = 300, ipv6_dst_addr = 'fe80:0:0:0:0:0:0:000f',
-                                                  port_handle = port_handle, port_handle2 = port_handle[1], save_to_yaml = '/tmp/d1.yaml'))
+        print hlt_client.traffic_config(mode = 'create', l2_encap = 'ethernet_ii_vlan', rate_pps = 1,
+                                        l3_protocol = 'ipv4',
+                                        #length_mode = 'imix', l3_length = 200,
+                                        ipv6_dst_mode = 'decrement', ipv6_dst_count = 300, ipv6_dst_addr = 'fe80:0:0:0:0:0:0:000f',
+                                        port_handle = port_handle, port_handle2 = port_handle[1],
+                                        #save_to_yaml = '/tmp/d1.yaml',
+                                        #stream_id = 1,
+                                        )
+        print hlt_client.traffic_control(action = 'poll')
+        print hlt_client.traffic_control(action = 'run')
+        print hlt_client.traffic_control(action = 'poll')
+        wait_with_progress(2)
+        print hlt_client.traffic_control(action = 'poll')
+        print hlt_client.traffic_control(action = 'stop')
+        print hlt_client.traffic_control(action = 'poll')
+        print hlt_client.traffic_stats(mode = 'aggregate')
+        print hlt_client.traffic_control(action = 'clear_stats')
+        wait_with_progress(1)
+        print hlt_client.traffic_stats(mode = 'aggregate')
+        
+        wait_with_progress(1)
+        print hlt_client.traffic_stats(mode = 'aggregate')
+        wait_with_progress(1)
+        print hlt_client.traffic_stats(mode = 'aggregate')
+        wait_with_progress(1)
+        print hlt_client.traffic_stats(mode = 'aggregate')
         #print res
         #print hlt_client._streams_history
         #print hlt_client.trex_client._STLClient__get_all_streams(port_id = port_handle[0])

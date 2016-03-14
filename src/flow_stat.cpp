@@ -640,11 +640,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
 
     if (m_user_id_map.is_empty()) {
-        if (baseline) {
-            json = writer.write(root);
-            return true;
-        } else
-            return false;
+        json = writer.write(root);
+        return true;
     }
 
     // read hw counters, and update
@@ -682,6 +679,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     // build json report
     flow_stat_user_id_map_it_t it;
     for (it = m_user_id_map.begin(); it != m_user_id_map.end(); it++) {
+        bool send_empty = true;
         CFlowStatUserIdInfo *user_id_info = it->second;
         uint32_t user_id = it->first;
         std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream()
@@ -689,18 +687,24 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
         if (! user_id_info->was_sent()) {
             data_section[str_user_id]["first_time"] = true;
             user_id_info->set_was_sent(true);
+            send_empty = false;
         }
         for (uint8_t port = 0; port < m_num_ports; port++) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
             if (user_id_info->need_to_send_rx(port) || baseline) {
                 user_id_info->set_no_need_to_send_rx(port);
                 data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
+                send_empty = false;
             }
             if (user_id_info->need_to_send_tx(port) || baseline) {
                 user_id_info->set_no_need_to_send_tx(port);
                 data_section[str_user_id]["tx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_pkts());
                 data_section[str_user_id]["tx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_counter(port).get_bytes());
+                send_empty = false;
             }
+        }
+        if (send_empty) {
+            data_section[str_user_id] = Json::objectValue;
         }
     }
 

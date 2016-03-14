@@ -1406,7 +1406,8 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-        return [stream.get_id() for stream in streams]
+        # return the stream IDs
+        return rc.data()
 
 
     @__api_check(True)
@@ -1769,9 +1770,6 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 
-
-        expr = time.time() + timeout
-
         return set(self.get_active_ports()).intersection(ports)
 
 
@@ -1958,8 +1956,8 @@ class STLClient(object):
         try:
             profile = STLProfile.load(opts.file[0])
         except STLError as e:
-            print format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold')
-            print e.brief() + "\n"
+            self.logger.log(format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold'))
+            self.logger.log(e.brief() + "\n")
             return
 
 
@@ -2221,7 +2219,7 @@ class STLClient(object):
             self.start(ports = opts.ports, duration = opts.duration, force = opts.force)
 
         except STLError as e:
-            print e.brief()
+            stl.logger.log(e.brief())
             return
 
         return True
@@ -2245,7 +2243,7 @@ class STLClient(object):
         try:
             self.set_port_attr(opts.ports, opts.prom)
         except STLError as e:
-            print e.brief()
+            stl.logger.log(brief())
             return
 
     
