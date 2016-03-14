@@ -80,7 +80,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 [cols="1^,3^,3^,5^", options="header"]
 |=================
 | Feature       |  IXExplorer  |TRex | Description 
-| Line rate       | Yes |Almost ~15MPPS/core|
+| Line rate       | Yes |Almost ~14MPPS/core|
 | Multi stream    | 255 | [green]*Unlimited* |
 | Packet build flexibility | Limited | [green]*Scapy- Unlimited* | e.g GRE/VXLAN/NSH is supported. Can be extended to future protocols
 | Packet Field engine      | limited | [green]*Unlimited* |
@@ -555,6 +555,36 @@ NUMA Node       |          0           |          0           |
 ----
 <1> Configure all the ports to be promiscuous
 <2> Check port promiscuous mode
+
+To change the mode via Python API do this:
+
+.Python API to change to promiscuous mode
+[source,python]
+----
+        c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR)
+
+        c.connect()
+
+        my_ports=[0,1]
+
+        # prepare our ports
+        c.reset(ports = my_ports)
+
+        # port info, mac-addr info, speed
+        print c.get_port_info(my_ports)                         <1>
+        
+        c.set_port_attr(my_ports, promiscuous = True)           <2>
+----
+<1> Get port info for all the ports
+<2> Change port attribute
+
+See here for more info link:cp_stl_docs/api/client_code.html[Python Client API]
+
+
+[NOTE] 
+=====================================================================
+Interface is not promiscuous mode by default. If you change it to be True, it is better to change it back after your test.
+=====================================================================
 
 ==== Tutorial: Python automation 
 
@@ -2763,16 +2793,9 @@ TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a
 
 more profiles and example can be found in `stl/hlt` folder 
 
-
 === Reference
 
-==== Stream 
-
-==== Packet 
-
-==== Field Engine commands
-
-==== Modes
+Have a look link:cp_stl_docs/index.html[Python Client API]
 
 === Console commands 
 
