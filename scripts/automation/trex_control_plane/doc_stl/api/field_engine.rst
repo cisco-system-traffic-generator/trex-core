@@ -27,7 +27,7 @@ for example this snippet will create SYN Attack::
 
 
         # vm
-        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
                                               min_value="16.0.0.0", 
                                               max_value="18.0.0.254", 
                                               size=4, op="random"),
@@ -57,12 +57,12 @@ for example this snippet will create SYN Attack::
 
 
 
-CTRexScRaw class
+STLScVmRaw class
 ----------------
 
 Aggregate a raw instructions objects 
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.CTRexScRaw
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLScVmRaw
     :members: 
     :member-order: bysource
 
@@ -70,27 +70,21 @@ Aggregate a raw instructions objects
 STLVmFlowVar 
 ------------
 
-It is alias for CTRexVmDescFlowVar
-
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.CTRexVmDescFlowVar
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFlowVar
     :members: 
     :member-order: bysource
 
 STLVmWrMaskFlowVar
 ------------------
 
-It is alias for CTRexVmDescWrMaskFlowVar
-
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.CTRexVmDescWrMaskFlowVar
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmWrMaskFlowVar
     :members: 
     :member-order: bysource
 
 STLVmFixIpv4
 ------------------
 
-It is alias for CTRexVmDescFixIpv4
-
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.CTRexVmDescFixIpv4
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFixIpv4
     :members: 
     :member-order: bysource
  
@@ -98,27 +92,14 @@ It is alias for CTRexVmDescFixIpv4
 STLVmTrimPktSize
 ------------------
 
-It is alias for CTRexVmDescTrimPktSize
-
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.CTRexVmDescTrimPktSize
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmTrimPktSize
     :members: 
     :member-order: bysource
 
 STLVmTupleGen
 ------------------
 
-It is alias for CTRexVmDescTupleGen
-
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.CTRexVmDescTupleGen
-    :members: 
-    :member-order: bysource
-
-STLVmTupleGen
-------------------
-
-It is alias for STLVmTupleGen
-
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.CTRexVmDescTupleGen
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmTupleGen
     :members: 
     :member-order: bysource
 
@@ -134,12 +115,14 @@ Example1::
 
         pad = max(0, size - len(base_pkt)) * 'x'
                              
-        vm = CTRexScRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
-                                                   port_min=1025, port_max=65535,
-                                                    name="tuple"), # define tuple gen 
+        vm = STLScVmRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
+                                             port_min=1025, port_max=65535,
+                                             name="tuple"), # define tuple gen 
 
-                             STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
-                             STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                             # write ip to packet IP.src
+                             STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), 
+                             
+                             STLVmFixIpv4(offset = "IP"),  # fix checksum
                              STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
                                   ]
                               );
@@ -156,9 +139,15 @@ Example2::
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=30, size=2, op="dec",step=1), 
-                           STLVmWrMaskFlowVar(fv_name="mac_src", pkt_offset= 11,pkt_cast_size=1, mask=0xff) 
-                          ]
-                       )
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
+                                        min_value=1, 
+                                        max_value=30, 
+                                        size=2, op="dec",step=1), 
+                           STLVmWrMaskFlowVar(fv_name="mac_src", 
+                                              pkt_offset= 11, 
+                                              pkt_cast_size=1, 
+                                              mask=0xff) 
+                         ]
+                        )
 
 

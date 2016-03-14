@@ -9,7 +9,7 @@ TRex Stateless API Reference
     
     client_code
 
-**TRex Traffic profile: STLProfile,STLStream **
+**TRex Traffic profile STLProfile,STLStream**
 
 .. toctree::
     :maxdepth: 4
@@ -17,7 +17,15 @@ TRex Stateless API Reference
     profile_code
 
 
-**TRex Field Engine: **
+**Packet builder**
+
+.. toctree::
+    :maxdepth: 4
+    
+    scapy_builder
+
+
+**TRex Field Engine**
 
 .. toctree::
     :maxdepth: 4
