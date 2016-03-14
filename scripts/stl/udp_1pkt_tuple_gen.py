@@ -13,7 +13,7 @@ class STLS1(object):
 
         pad = max(0, size - len(base_pkt)) * 'x'
                              
-        vm = CTRexScRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
+        vm = STLScVmRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
                                                    port_min=1025, port_max=65535,
                                                     name="tuple"), # define tuple gen 
 

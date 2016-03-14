@@ -406,11 +406,25 @@ class STLClient(object):
               async_port : int 
                 the ASYNC port 
 
-        :return:
-          None
+        For example::
 
-        :raises:
-          None
+            # connect to local TRex server 
+            c = STLClient()
+
+            # connect to remote server trex-remote-server
+            c = STLClient(server = "trex-remote-server" )
+
+            c = STLClient(server = "10.0.0.10" )
+
+            # verbose mode 
+            c = STLClient(server = "10.0.0.10", verbose_level = LoggerApi.VERBOSE_HIGH )
+            
+            # change user name 
+            c = STLClient(username = "root",server = "10.0.0.10", verbose_level = LoggerApi.VERBOSE_HIGH )
+
+            c.connect()
+
+            c.disconnect()
 
         """
 

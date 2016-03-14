@@ -16,7 +16,7 @@ How to Install
 .. toctree::
     :maxdepth: 2
 
-* TODO[]
+* **TODO**
         
 
 API Reference

@@ -1,6 +1,6 @@
 
-Module documentation
-================================
+TRex Client Module 
+==================
 
 TRex Client is an object to access TRex server. It is per user. Each user can own number of interfaces. 
 Multi user can interact with one TRex server each user should own a different set of interfaces.
@@ -10,6 +10,31 @@ The API has two type of API
 
 1. Normal API 
 2. xx_line:  this api get a line like the Console and parse it and call the low level api 
+
+Example1::
+
+    c = STLClient()
+
+    try:
+        # connect to server
+        c.connect()
+
+        # prepare our ports (my machine has 0 <--> 1 with static route)
+        c.reset(ports = [0, 1])
+
+        # add both streams to ports
+        c.add_streams(s1, ports = [0])
+
+        # clear the stats before injecting
+        c.clear_stats()
+
+        c.start(ports = [0, 1], mult = "5mpps", duration = 10)
+
+        # block until done
+        c.wait_on_traffic(ports = [0, 1])
+
+    finally:
+        c.disconnect()
 
 
 STLClient class
@@ -125,7 +150,7 @@ Example3: Console like::
 
 Example4: Load profile from a file::
 
-def simple ():
+  def simple ():
 
     # create client
     #verbose_level = LoggerApi.VERBOSE_HIGH

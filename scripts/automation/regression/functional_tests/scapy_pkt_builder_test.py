@@ -26,12 +26,12 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         pass
 
     def test_simple_vm1(self):
-        raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="a",min_value="16.0.0.1",max_value="16.0.0.10",init_value="16.0.0.1",size=4,op="inc"),
-                              CTRexVmDescWrFlowVar (fv_name="a",pkt_offset= "IP.src"),
-                              CTRexVmDescFixIpv4(offset = "IP")]
+        raw1 = STLScVmRaw( [ STLVmFlowVar(name="a",min_value="16.0.0.1",max_value="16.0.0.10",init_value="16.0.0.1",size=4,op="inc"),
+                             STLVmWrFlowVar(fv_name="a",pkt_offset= "IP.src"),
+                             STLVmFixIpv4(offset = "IP")]
                           );
 
-        pkt_builder = CScapyTRexPktBuilder();
+        pkt_builder = STLPktBuilder();
 
         py='5'*128
         pkt=Ether()/ \
@@ -53,7 +53,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_no_vm1(self):
 
-        pkt_builder = CScapyTRexPktBuilder();
+        pkt_builder = STLPktBuilder();
 
         py='5'*128
         pkt=Ether()/ \
@@ -78,21 +78,21 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         pkt =  Ether()/IP()/UDP()
 
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
+        pkt_builder = STLPktBuilder(pkt = pkt);
 
         assert_equal( pkt_builder.is_default_src_mac () ,True)
         assert_equal( pkt_builder.is_default_dst_mac () ,True)
 
         pkt =  Ether(src="00:00:00:00:00:01")/IP()/UDP()
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
+        pkt_builder = STLPktBuilder(pkt = pkt);
 
         assert_equal( pkt_builder.is_default_src_mac (), False)
         assert_equal( pkt_builder.is_default_dst_mac (), True)
 
         pkt =  Ether(dst="00:00:00:00:00:01")/IP()/UDP()
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = pkt);
+        pkt_builder = STLPktBuilder(pkt = pkt);
 
         assert_equal( pkt_builder.is_default_src_mac (),True)
         assert_equal(  pkt_builder.is_default_dst_mac (),False)
@@ -193,12 +193,12 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
 
     def test_simple_vm2(self):
-        raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="my_valn",min_value=0,max_value=10,init_value=2,size=1,op="inc"),
-                             CTRexVmDescWrFlowVar (fv_name="my_valn",pkt_offset= "802|1Q.vlan" ,offset_fixup=3) # fix the offset as valn is bitfield and not supported right now 
+        raw1 = STLScVmRaw( [ STLVmFlowVar(name="my_valn",min_value=0,max_value=10,init_value=2,size=1,op="inc"),
+                             STLVmWrFlowVar (fv_name="my_valn",pkt_offset= "802|1Q.vlan" ,offset_fixup=3) # fix the offset as valn is bitfield and not supported right now 
                               ]
                           );
 
-        pkt_builder = CScapyTRexPktBuilder();
+        pkt_builder = STLPktBuilder();
 
         py='5'*128
         pkt=Ether()/ \
@@ -217,12 +217,12 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_vm3(self):
         try:
-            raw1 = CTRexScRaw( [ CTRexVmDescFlowVar(name="my_valn",min_value=0,max_value=10,init_value=2,size=1,op="inc"),
-                                 CTRexVmDescWrFlowVar (fv_name="my_valn_err",pkt_offset= "802|1Q.vlan" ,offset_fixup=3) # fix the offset as valn is bitfield and not supported right now 
+            raw1 = STLScVmRaw( [ STLVmFlowVar(name="my_valn",min_value=0,max_value=10,init_value=2,size=1,op="inc"),
+                                 STLVmWrFlowVar(fv_name="my_valn_err",pkt_offset= "802|1Q.vlan" ,offset_fixup=3) # fix the offset as valn is bitfield and not supported right now 
                                   ]
                               );
     
-            pkt_builder = CScapyTRexPktBuilder();
+            pkt_builder = STLPktBuilder();
     
             py='5'*128
             pkt=Ether()/ \
@@ -241,13 +241,13 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             assert_equal(str(e), "[errcode:-11] 'variable my_valn_err does not exists  '")
 
     def test_simple_tuple_gen(self):
-        vm = CTRexScRaw( [ CTRexVmDescTupleGen (name="tuple"), # define tuple gen 
-                             CTRexVmDescWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
-                             CTRexVmDescFixIpv4(offset = "IP"),                                # fix checksum
-                             CTRexVmDescWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
-                                  ]
-                              );
-        pkt_builder = CScapyTRexPktBuilder();
+        vm = STLScVmRaw( [ STLVmTupleGen(name="tuple"), # define tuple gen 
+                           STLVmWrFlowVar(fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                           STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                           STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
+                          ]
+                        );
+        pkt_builder = STLPktBuilder();
 
         py='5'*128
         pkt=Ether()/ \
@@ -278,14 +278,14 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         l3_len_fix =-(len(p_l2));
         l4_len_fix =-(len(p_l2/p_l3));
 
-        vm = CTRexScRaw( [ CTRexVmDescFlowVar(name="fv_rand", min_value=64, max_value=len(pkt), size=2, op="random"),
-                           CTRexVmDescTrimPktSize("fv_rand"), # total packet size
-                           CTRexVmDescWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), 
-                           CTRexVmDescFixIpv4(offset = "IP"),                                # fix checksum
-                           CTRexVmDescWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix)  
+        vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, max_value=len(pkt), size=2, op="random"),
+                           STLVmTrimPktSize("fv_rand"), # total packet size
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), 
+                           STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix)  
                           ]
                        )
-        pkt_builder = CScapyTRexPktBuilder();
+        pkt_builder = STLPktBuilder();
 
         # set packet 
         pkt_builder.set_packet(pkt);
@@ -308,7 +308,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_pkt_loader1(self):
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = "functional_tests/golden/udp_590.cap", build_raw = False);
+        pkt_builder = STLPktBuilder(pkt = "functional_tests/golden/udp_590.cap", build_raw = False);
         print ""
         pkt_builder.dump_as_hex()
         r = pkt_builder.pkt_raw
@@ -322,12 +322,12 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_pkt_loader2(self):
 
-        pkt_builder = CScapyTRexPktBuilder(pkt = "functional_tests/golden/basic_imix_golden.cap");
+        pkt_builder = STLPktBuilder(pkt = "functional_tests/golden/basic_imix_golden.cap");
         assert_equal(pkt_builder.pkt_layers_desc (), "Ethernet:IP:UDP:Raw");
 
     def test_simple_pkt_loader3(self):
 
-        #pkt_builder = CScapyTRexPktBuilder(pkt = "stl/golden/basic_imix_golden.cap");
+        #pkt_builder = STLPktBuilder(pkt = "stl/golden/basic_imix_golden.cap");
         #r = pkt_builder.pkt_raw
         #print ""
         #hexdump(str(r))

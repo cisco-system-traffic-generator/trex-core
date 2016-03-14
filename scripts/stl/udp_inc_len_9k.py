@@ -18,7 +18,7 @@ class STLS1(object):
 
 
         # vm
-        vm = CTRexScRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, max_value=len(base_pkt), size=2, op="inc"),
+        vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, max_value=len(base_pkt), size=2, op="inc"),
                            STLVmTrimPktSize("fv_rand"), # total packet size
                            STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), # fix ip len 
                            STLVmFixIpv4(offset = "IP"),                                # fix checksum

@@ -12,7 +12,7 @@ class STLS1(object):
 
         base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
                                         min_value="16.0.0.0", 
                                         max_value="18.0.0.254", 
                                         size=4, op="inc"),

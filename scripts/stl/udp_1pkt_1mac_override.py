@@ -17,7 +17,7 @@ class STLS1(object):
         base_pkt =  Ether(src="00:bb:12:34:56:01")/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)  
         pad = max(0, size - len(base_pkt)) * 'x'
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="dyn_mac_src", min_value=1, max_value=10, size=1, op="inc"), # 1 byte varible, range 1-1 ( workaround)
+        vm = STLScVmRaw( [ STLVmFlowVar(name="dyn_mac_src", min_value=1, max_value=10, size=1, op="inc"), # 1 byte varible, range 1-1 ( workaround)
                            STLVmWrFlowVar(fv_name="dyn_mac_src", pkt_offset= 11)                           
                           ]
                        )

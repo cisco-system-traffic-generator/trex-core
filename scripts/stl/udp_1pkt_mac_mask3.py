@@ -14,7 +14,7 @@ class STLS1(object):
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=30, size=2, op="dec",step=1), 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=30, size=2, op="dec",step=1), 
                            STLVmWrMaskFlowVar(fv_name="mac_src", pkt_offset= 10,pkt_cast_size=1, mask=0x1,shift=-1) # take var mac_src>>1 and write the LSB every two packet there should be a change
                           ]
                        )

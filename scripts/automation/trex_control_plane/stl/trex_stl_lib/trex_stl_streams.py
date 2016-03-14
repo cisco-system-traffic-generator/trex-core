@@ -3,7 +3,7 @@
 from trex_stl_exceptions import *
 from trex_stl_types import verify_exclusive_arg, validate_type
 from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
-from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder, Ether, IP, UDP, TCP, RawPcapReader
+from trex_stl_packet_builder_scapy import STLPktBuilder, Ether, IP, UDP, TCP, RawPcapReader
 from collections import OrderedDict, namedtuple
 
 from scapy.utils import ltoa
@@ -200,6 +200,14 @@ STLStreamDstMAC_ARP     =2
 
 # RX stats class
 class STLFlowStats(object):
+    """ Define per stream stats  
+
+        For example::
+
+            flow_stats = STLFlowStats(pg_id = 7)
+
+    """
+
     def __init__ (self, pg_id):
         self.fields = {}
 
@@ -210,6 +218,7 @@ class STLFlowStats(object):
 
 
     def to_json (self):
+        """ dump as json"""
         return dict(self.fields)
 
     @staticmethod
@@ -220,6 +229,7 @@ class STLStream(object):
     """ One stream object, include mode, Field Engine mode packet template and Rx stats  
 
         For example::
+
             base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
             pad = max(0, size - len(base_pkt)) * 'x'
 
@@ -228,6 +238,7 @@ class STLStream(object):
                        packet = STLPktBuilder(pkt = base_pkt/pad),
                        mode = STLTXSingleBurst( pps = 10, total_pkts = 1),
                        next = 'S1'), # point to next stream 
+
 
     """
 
@@ -257,7 +268,7 @@ class STLStream(object):
                   packet :  STLPktBuilder 
                        The template packet and field engine program e.g. packet = STLPktBuilder(pkt = base_pkt/pad) 
 
-                  mode : STLTXCont or STLTXSingleBurst or STLTXMultiBurst
+                  mode :  :class:`trex_stl_lib.trex_stl_streams.STLTXCont` or :class:`trex_stl_lib.trex_stl_streams.STLTXSingleBurst`  or  :class:`trex_stl_lib.trex_stl_streams.STLTXMultiBurst` 
 
                   enabled : bool 
                       if the stream is enabled. 
@@ -268,7 +279,7 @@ class STLStream(object):
                   isg : float 
                      Inter stream gap in usec. time to wait until stream will send the first packet  
 
-                  flow_stats : STLFlowStats
+                  flow_stats : :class:`trex_stl_lib.trex_stl_streams.STLFlowStats` 
                       Per stream statistic object see STLFlowStats
 
                   next : string 
@@ -288,14 +299,6 @@ class STLStream(object):
 
                   mac_dst_override_mode=None : STLStreamDstMAC_xx
                         Template packet will set dst MAC 
-
-
-        :return:
-          None
-
-        :raises:
-          None
-
         """
 
 
@@ -366,7 +369,7 @@ class STLStream(object):
         self.fields['vm'] = {}
 
         if not packet:
-            packet = CScapyTRexPktBuilder(pkt = Ether()/IP())
+            packet = STLPktBuilder(pkt = Ether()/IP())
 
         self.scapy_pkt_builder = packet
         # packet builder
@@ -429,7 +432,7 @@ class STLStream(object):
     def get_pkt_type (self):
         """ Get packet description for example IP:UDP """
         if self.packet_desc == None:
-            self.packet_desc = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
+            self.packet_desc = STLPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
 
         return self.packet_desc
 
@@ -459,7 +462,7 @@ class STLStream(object):
         if self.name:
             print "Stream Name: ",self.name
         scapy_b = self.scapy_pkt_builder;
-        if scapy_b and isinstance(scapy_b,CScapyTRexPktBuilder):
+        if scapy_b and isinstance(scapy_b,STLPktBuilder):
             scapy_b.to_pkt_dump()
         else:
             print "Nothing to dump"
@@ -517,25 +520,25 @@ class STLStream(object):
         vm_list = []
         for inst in self.fields['vm']['instructions']:
             if inst['type'] == 'flow_var':
-                vm_list.append("CTRexVmDescFlowVar(name='{name}', size={size}, op='{op}', init_value={init_value}, min_value={min_value}, max_value={max_value}, step={step})".format(**inst))
+                vm_list.append("STLVmFlowVar(name='{name}', size={size}, op='{op}', init_value={init_value}, min_value={min_value}, max_value={max_value}, step={step})".format(**inst))
             elif inst['type'] == 'write_flow_var':
-                vm_list.append("CTRexVmDescWrFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, add_val={add_value}, is_big={is_big_endian})".format(**inst))
+                vm_list.append("STLVmWrFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, add_val={add_value}, is_big={is_big_endian})".format(**inst))
             elif inst['type'] == 'write_mask_flow_var':
                 inst = copy.copy(inst)
                 inst['mask'] = hex(inst['mask'])
-                vm_list.append("CTRexVmDescWrMaskFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, pkt_cast_size={pkt_cast_size}, mask={mask}, shift={shift}, add_value={add_value}, is_big={is_big_endian})".format(**inst))
+                vm_list.append("STLVmWrMaskFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, pkt_cast_size={pkt_cast_size}, mask={mask}, shift={shift}, add_value={add_value}, is_big={is_big_endian})".format(**inst))
             elif inst['type'] == 'fix_checksum_ipv4':
-                vm_list.append("CTRexVmDescFixIpv4(offset={pkt_offset})".format(**inst))
+                vm_list.append("STLVmFixIpv4(offset={pkt_offset})".format(**inst))
             elif inst['type'] == 'trim_pkt_size':
-                vm_list.append("CTRexVmDescTrimPktSize(fv_name='{name}')".format(**inst))
+                vm_list.append("STLVmTrimPktSize(fv_name='{name}')".format(**inst))
             elif inst['type'] == 'tuple_flow_var':
                 inst = copy.copy(inst)
                 inst['ip_min'] = ltoa(inst['ip_min'])
                 inst['ip_max'] = ltoa(inst['ip_max'])
-                vm_list.append("CTRexVmDescTupleGen(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
-        vm_code = 'vm = CTRexScRaw([' + ',\n                 '.join(vm_list) + '], split_by_field = %s)' % STLStream.__add_quotes(self.fields['vm'].get('split_by_var'))
+                vm_list.append("STLVmTupleGen(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
+        vm_code = 'vm = STLScVmRaw([' + ',\n                 '.join(vm_list) + '], split_by_field = %s)' % STLStream.__add_quotes(self.fields['vm'].get('split_by_var'))
         stream_params_list = []
-        stream_params_list.append('packet = CScapyTRexPktBuilder(pkt = packet, vm = vm)')
+        stream_params_list.append('packet = STLPktBuilder(pkt = packet, vm = vm)')
         if default_STLStream.name != self.name:
             stream_params_list.append('name = %s' % STLStream.__add_quotes(self.name))
         if default_STLStream.fields['enabled'] != self.fields['enabled']:
@@ -618,7 +621,7 @@ class YAMLLoader(object):
             except TypeError:
                 raise STLError("'binary' field is not a valid packet format")
 
-            builder = CScapyTRexPktBuilder(pkt_buffer = pkt_str)
+            builder = STLPktBuilder(pkt_buffer = pkt_str)
 
         elif 'pcap' in packet_type:
             pcap = os.path.join(self.yaml_path, packet_dict['pcap'])
@@ -626,7 +629,7 @@ class YAMLLoader(object):
             if not os.path.exists(pcap):
                 raise STLError("'pcap' - cannot find '{0}'".format(pcap))
 
-            builder = CScapyTRexPktBuilder(pkt = pcap)
+            builder = STLPktBuilder(pkt = pcap)
 
         return builder
 
@@ -769,7 +772,7 @@ class STLProfile(object):
 
             :parameters:
 
-                  streams  : list of STLStream
+                  streams  : list of :class:`trex_stl_lib.trex_stl_streams.STLStream` 
                        a list of stream objects  
 
 
@@ -901,7 +904,7 @@ class STLProfile(object):
 
             
             streams.append(STLStream(name = i,
-                                     packet = CScapyTRexPktBuilder(pkt_buffer = cap, vm = vm),
+                                     packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
                                      mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
                                      self_start = True if (i == 1) else False,
                                      isg = (ts_usec - last_ts_usec),  # seconds to usec

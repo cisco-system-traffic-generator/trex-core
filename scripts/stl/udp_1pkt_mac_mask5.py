@@ -14,7 +14,7 @@ class STLS1(object):
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", min_value=0, max_value=10, size=2, op="inc",step=1), 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", min_value=0, max_value=10, size=2, op="inc",step=1), 
                            STLVmWrMaskFlowVar(fv_name="mac_src", pkt_offset= 10,pkt_cast_size=1, mask=0xff,add_value=5,shift=0) # range is 5-15
                           ]
                        )

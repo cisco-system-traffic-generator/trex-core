@@ -1,7 +1,7 @@
 
 from collections import namedtuple, OrderedDict
 
-from trex_stl_packet_builder_scapy import CScapyTRexPktBuilder
+from trex_stl_packet_builder_scapy import STLPktBuilder
 from trex_stl_streams import STLStream
 import base64
 import trex_stl_stats
@@ -576,7 +576,7 @@ class Port(object):
 
             # lazy build scapy repr.
             if not 'pkt_type' in obj:
-                obj['pkt_type'] = CScapyTRexPktBuilder.pkt_layers_desc_from_buffer(obj['pkt'])
+                obj['pkt_type'] = STLPktBuilder.pkt_layers_desc_from_buffer(obj['pkt'])
             
             data[id] = OrderedDict([ ('id',  id),
                                      ('packet_type',  obj['pkt_type']),

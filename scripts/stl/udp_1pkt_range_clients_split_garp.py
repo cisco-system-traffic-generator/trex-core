@@ -13,7 +13,7 @@ class STLS1(object):
         # create a base packet and pad it to size
         base_pkt =  Ether(src="00:00:dd:dd:00:01",dst="ff:ff:ff:ff:ff:ff")/ARP(psrc="55.55.1.1",hwsrc="00:00:dd:dd:00:01", hwdst="00:00:dd:dd:00:01", pdst="55.55.1.1")
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=self.num_clients, size=2, op="inc"),
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=self.num_clients, size=2, op="inc"),
                            STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 10),                                        
                            STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="ARP.psrc",offset_fixup=2),                
                            STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="ARP.hwsrc",offset_fixup=4),

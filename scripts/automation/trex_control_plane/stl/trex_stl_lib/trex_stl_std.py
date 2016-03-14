@@ -12,7 +12,7 @@ def stl_map_ports (client, ports = None):
     client.reset(ports)
 
     # generate streams
-    base_pkt = CScapyTRexPktBuilder(pkt = Ether()/IP())
+    base_pkt = STLPktBuilder(pkt = Ether()/IP())
 
     # send something initial to calm down switches with arps etc.
     stream = STLStream(packet = base_pkt,
