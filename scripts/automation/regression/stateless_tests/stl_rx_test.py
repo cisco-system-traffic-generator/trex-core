@@ -10,9 +10,14 @@ class STLRX_Test(CStlGeneral_Test):
         CStlGeneral_Test.setUp(self)
         assert 'bi' in CTRexScenario.stl_ports_map
 
-        self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
-        
         self.c = CTRexScenario.stl_trex
+
+        self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
+
+        cap = self.c.get_port_info(ports = self.rx_port)[0]['rx']['caps']
+        if cap != 1:
+            self.skip('port {0} does not support RX'.format(self.rx_port))
+        
 
         self.c.reset(ports = [self.tx_port, self.rx_port])
 
@@ -95,14 +100,15 @@ class STLRX_Test(CStlGeneral_Test):
             streams = []
             exp = []
             # 10 identical streams
-            for pg_id in range(20, 30):
+            for pg_id in range(1, 10):
 
                 streams.append(STLStream(name = 'rx {0}'.format(pg_id),
                                          packet = self.pkt,
                                          flow_stats = STLFlowStats(pg_id = pg_id),
-                                         mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                                                 pps = total_pkts * 5)))
-                exp.append(['pg_id': pg_id, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()])
+                                         mode = STLTXSingleBurst(total_pkts = total_pkts * pg_id,
+                                                                 pps = total_pkts * pg_id)))
+
+                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts * pg_id, 'pkt_len': self.pkt.get_pkt_len()})
 
             # add both streams to ports
             self.c.add_streams(streams, ports = [self.tx_port])
@@ -113,3 +119,29 @@ class STLRX_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
+    def test_1_stream_many_iterations (self):
+        total_pkts = 50000
+
+        try:
+            s1 = STLStream(name = 'rx',
+                           packet = self.pkt,
+                           flow_stats = STLFlowStats(pg_id = 5),
+                           mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                                   percentage = 80
+                                                   ))
+
+            # add both streams to ports
+            self.c.add_streams([s1], ports = [self.tx_port])
+
+            #print "\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port)
+
+            exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
+
+            for i in range(0, 10):
+                print "starting iteration {0}".format(i)
+                self.__rx_iteration( [exp] )
+
+
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
