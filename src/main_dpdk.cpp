@@ -1190,7 +1190,8 @@ void CPhyEthIFStats::Clear(){
     oerrors = 0;
     imcasts = 0;
     rx_nombuf = 0;
-    memset(m_rx_per_flow, 0, sizeof(m_rx_per_flow));
+    memset(m_rx_per_flow_pkts, 0, sizeof(m_rx_per_flow_pkts));
+    memset(m_rx_per_flow_bytes, 0, sizeof(m_rx_per_flow_bytes));
 }
 
 
@@ -3990,7 +3991,7 @@ int CPhyEthIF::reset_hw_flow_stats() {
 // rx_stats, tx_stats - arrays of len max - min + 1. Returning rx, tx updated absolute values.
 // min, max - minimum, maximum counters range to get
 // reset - If true, need to reset counter value after reading
-int CPhyEthIF::get_flow_stats(uint64_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
+int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
     uint32_t diff_pkts[MAX_FLOW_STATS];
     uint32_t diff_bytes[MAX_FLOW_STATS];
 
@@ -4003,16 +4004,20 @@ int CPhyEthIF::get_flow_stats(uint64_t *rx_stats, tx_per_flow_t *tx_stats, int m
         if ( reset ) {
             // return value so far, and reset
             if (rx_stats != NULL) {
-                rx_stats[i - min] = m_stats.m_rx_per_flow[i] + diff_pkts[i];
+                rx_stats[i - min].set_pkts(m_stats.m_rx_per_flow_pkts[i] + diff_pkts[i]);
+                rx_stats[i - min].set_bytes(m_stats.m_rx_per_flow_bytes[i] + diff_bytes[i]);
             }
             if (tx_stats != NULL) {
                 tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i);
             }
-            m_stats.m_rx_per_flow[i] = 0;
+            m_stats.m_rx_per_flow_pkts[i] = 0;
+            m_stats.m_rx_per_flow_bytes[i] = 0;
         } else {
-            m_stats.m_rx_per_flow[i] += diff_pkts[i];
+            m_stats.m_rx_per_flow_pkts[i] += diff_pkts[i];
+            m_stats.m_rx_per_flow_bytes[i] += diff_bytes[i];
             if (rx_stats != NULL) {
-                rx_stats[i - min] = m_stats.m_rx_per_flow[i];
+                rx_stats[i - min].set_pkts(m_stats.m_rx_per_flow_pkts[i]);
+                rx_stats[i - min].set_bytes(m_stats.m_rx_per_flow_bytes[i]);
             }
             if (tx_stats != NULL) {
                 tx_stats[i - min] = g_trex.get_flow_tx_stats(m_port_id, i);
@@ -5288,8 +5293,8 @@ TrexDpdkPlatformApi::get_interface_stat_info(uint8_t interface_id, uint16_t &num
     capabilities = CTRexExtendedDriverDb::Ins()->get_drv()->get_rx_stat_capabilities();
 }
 
-int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, uint64_t *rx_stats, void *tx_stats, int min, int max, bool reset) const {
-    return g_trex.m_ports[port_id].get_flow_stats(rx_stats, (tx_per_flow_t *)tx_stats, min, max, reset);
+int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset) const {
+    return g_trex.m_ports[port_id].get_flow_stats((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats, min, max, reset);
 }
 
 int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {

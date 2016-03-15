@@ -50,7 +50,7 @@ class tx_per_flow_t_ {
     inline void set_bytes(uint64_t bytes) {
         m_bytes = bytes;;
     }
-    inline void get_pkts(uint64_t pkts) {
+    inline void set_pkts(uint64_t pkts) {
         m_pkts = pkts;
     }
     inline void add_bytes(uint64_t bytes) {
@@ -100,6 +100,7 @@ class tx_per_flow_t_ {
 };
 
 typedef class tx_per_flow_t_ tx_per_flow_t;
+typedef class tx_per_flow_t_ rx_per_flow_t;
 
 class CPhyEthIF;
 class Cxl710Parser;
@@ -108,8 +109,8 @@ class CFlowStatUserIdInfo {
  public:
     CFlowStatUserIdInfo(uint8_t proto);
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
-    void set_rx_counter(uint8_t port, uint64_t val) {m_rx_counter[port] = val;}
-    uint64_t get_rx_counter(uint8_t port) {return m_rx_counter[port] + m_rx_counter_base[port];}
+    void set_rx_counter(uint8_t port, rx_per_flow_t val) {m_rx_counter[port] = val;}
+    rx_per_flow_t get_rx_counter(uint8_t port) {return m_rx_counter[port] + m_rx_counter_base[port];}
     void set_tx_counter(uint8_t port, tx_per_flow_t val) {m_tx_counter[port] = val;}
     tx_per_flow_t get_tx_counter(uint8_t port) {return m_tx_counter[port] + m_tx_counter_base[port];}
     void set_hw_id(uint16_t hw_id) {m_hw_id = hw_id;}
@@ -135,9 +136,9 @@ class CFlowStatUserIdInfo {
  private:
     bool m_rx_changed[TREX_MAX_PORTS]; // Which RX counters changed since we last published
     bool m_tx_changed[TREX_MAX_PORTS]; // Which TX counters changed since we last published
-    uint64_t m_rx_counter[TREX_MAX_PORTS]; // How many packets received with this user id since stream start
+    rx_per_flow_t m_rx_counter[TREX_MAX_PORTS]; // How many packets received with this user id since stream start
     // How many packets received with this user id, since stream creation, before stream start.
-    uint64_t m_rx_counter_base[TREX_MAX_PORTS];
+    rx_per_flow_t m_rx_counter_base[TREX_MAX_PORTS];
     tx_per_flow_t m_tx_counter[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
     // How many packets transmitted with this user id, since stream creation, before stream start.
     tx_per_flow_t m_tx_counter_base[TREX_MAX_PORTS];

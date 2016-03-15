@@ -121,7 +121,7 @@ void CFlowStatUserIdInfo::reset_hw_id() {
     // Next session will start counting from 0.
     for (int i = 0; i < TREX_MAX_PORTS; i++) {
         m_rx_counter_base[i] += m_rx_counter[i];
-        m_rx_counter[i] = 0;
+        memset(&m_rx_counter[i], 0, sizeof(m_rx_counter[0]));
         m_tx_counter_base[i] += m_tx_counter[i];
         memset(&m_tx_counter[i], 0, sizeof(m_tx_counter[0]));
     }
@@ -590,7 +590,7 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
             // update counters, and reset before unmapping
             CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
             assert(p_user_id != NULL);
-            uint64_t rx_counter;
+            rx_per_flow_t rx_counter;
             tx_per_flow_t tx_counter;
             for (uint8_t port = 0; port < m_num_ports; port++) {
                 m_api->del_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
@@ -620,7 +620,7 @@ int CFlowStatRuleMgr::get_active_pgids(flow_stat_active_t &result) {
 
 // return false if no counters changed since last run. true otherwise
 bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
-    uint64_t rx_stats[MAX_FLOW_STATS];
+    rx_per_flow_t rx_stats[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     Json::FastWriter writer;
     Json::Value root;
@@ -645,15 +645,16 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     for (uint8_t port = 0; port < m_num_ports; port++) {
         m_api->get_flow_stats(port, rx_stats, (void *)tx_stats, 0, m_max_hw_id, false);
         for (int i = 0; i <= m_max_hw_id; i++) {
-            if (rx_stats[i] != 0) {
+            if (rx_stats[i].get_pkts() != 0) {
+                rx_per_flow_t rx_pkts = rx_stats[i];
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
-                    if (p_user_id->get_rx_counter(port) != rx_stats[i]) {
-                        p_user_id->set_rx_counter(port, rx_stats[i]);
+                    if (p_user_id->get_rx_counter(port) != rx_pkts) {
+                        p_user_id->set_rx_counter(port, rx_pkts);
                         p_user_id->set_need_to_send_rx(port);
                     }
                 } else {
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_stats[i] << " rx packets, on port "
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx packets, on port "
                               << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
@@ -690,7 +691,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
             if (user_id_info->need_to_send_rx(port) || baseline) {
                 user_id_info->set_no_need_to_send_rx(port);
-                data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port));
+                data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port).get_pkts());
+                data_section[str_user_id]["rx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port).get_bytes());
                 send_empty = false;
             }
             if (user_id_info->need_to_send_tx(port) || baseline) {

@@ -415,11 +415,17 @@ int CTrexDebug::test_send(uint pkt_type) {
         lp->dump_stats_extended(stdout);
     }
     for (port_id = 0; port_id < m_max_ports; port_id++) {
-        uint64_t fdir_stat[MAX_FLOW_STATS];
+        rx_per_flow_t fdir_stat[MAX_FLOW_STATS];
+        uint64_t fdir_stat_64[MAX_FLOW_STATS];
         CPhyEthIF *lp = &m_ports[port_id];
-        if (lp->get_flow_stats(fdir_stat, NULL, 0, MAX_FLOW_STATS, false) == 0)
-            rte_stat_dump_array(fdir_stat, "FDIR stat", MAX_FLOW_STATS);
+        if (lp->get_flow_stats(fdir_stat, NULL, 0, MAX_FLOW_STATS, false) == 0) {
+            for (int i = 0; i < MAX_FLOW_STATS; i++) {
+                fdir_stat_64[i] = fdir_stat[i].get_pkts();
+            }
+            rte_stat_dump_array(fdir_stat_64, "FDIR stat", MAX_FLOW_STATS);
+        }
     }
+
 
     return (0);
 }
