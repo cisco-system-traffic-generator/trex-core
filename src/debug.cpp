@@ -109,6 +109,9 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int pkt_type, uint8_t ttl, uint16_t ip_i
 #ifdef VLAN
     uint16_t l2_proto = 0x0081;
     uint8_t vlan_header[4] = {0x0a, 0xbc, 0x08, 0x00};
+#ifdef QINQ
+    uint8_t vlan_header2[4] = {0x0a, 0xbc, 0x88, 0xa8};
+#endif
 #else
     uint16_t l2_proto = 0x0008;
 #endif
@@ -187,6 +190,9 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int pkt_type, uint8_t ttl, uint16_t ip_i
     memcpy(p, src_mac, sizeof(src_mac)); p += sizeof(src_mac);
     memcpy(p, &l2_proto, sizeof(l2_proto)); p += sizeof(l2_proto);
 #ifdef VLAN
+#ifdef QINQ
+    memcpy(p, &vlan_header2, sizeof(vlan_header2)); p += sizeof(vlan_header2);
+#endif
     memcpy(p, &vlan_header, sizeof(vlan_header)); p += sizeof(vlan_header);
 #endif
     struct IPHeader *ip = (IPHeader *)p;
