@@ -3031,11 +3031,11 @@ $streams --port 0 --streams 0 -f
 
 [source,bash]
 ----
-$start [--force] (port mask) [-f stl/imix.yaml] [-db ab] (duration) (multiplier)  
+$start [--force] (port mask) [-f stl/imix.py] [-db ab] (duration) (multiplier)  
 
     
   stream to load:
-  -f stl/imix.yaml : load from local disk the streams file 
+  -f stl/imix.py : load from local disk the streams file 
   --db stream that was loaded to db 
    
   force:
@@ -3048,14 +3048,14 @@ examples
 
 [source,bash]
 ----
-$start -a -f stl/imix.yaml  -m 10gb
+$start -a -f stl/imix.py  -m 10gb
 ----
 start this profile on all all ports maximum bandwidth is 10gb
 
    
 [source,bash]
 ----
-$start -port 1 2 -f stl/imix.yaml  -m 100
+$start -port 1 2 -f stl/imix.py  -m 100
 ----
 start this profile on port 1,2  multiply by 100 
 
