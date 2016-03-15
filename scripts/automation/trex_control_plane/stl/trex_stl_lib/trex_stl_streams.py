@@ -508,7 +508,13 @@ class STLStream(object):
     def to_code (self):
         """ convert to Python code as profile  """
         packet = Ether(self.pkt)
-        packet.hide_defaults()
+        layer = packet
+        while layer:                    # remove checksums
+            for chksum_name in ('cksum', 'chksum'):
+                if chksum_name in layer.fields:
+                    del layer.fields[chksum_name]
+            layer = layer.payload
+        packet.hide_defaults()          # remove fields with default values
         payload = packet.getlayer('Raw')
         packet_command = packet.command()
         imports_arr = []
