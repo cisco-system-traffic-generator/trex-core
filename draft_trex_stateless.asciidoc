@@ -31,7 +31,8 @@ endif::backend-xhtml11[]
 * Interface can be configured with multi traffic profiles 
 * Traffic Profile can support multi streams. Scale to 10K streams in parallel 
 * Each Stream
-** Packet template - ability to build any packet using Scapy (e.g. MPLS/IPv4/Ipv6/GRE/VXLAN/NSH)
+** Packet template - ability to build any packet using Scapy (e.g. MPLS/IPv4/Ipv6/GRE/VXLAN/NSH) 
+*** It is possible to build malformed packets
 ** Field engine program
 *** Ability to change any field inside the packet, for example src_ip = 10.0.0.1-10.0.0.255
 *** Ability to change the packet size (e.g. Random packet size 64-9K)
