@@ -177,6 +177,10 @@ void CCPortLatency::reset(){
     m_seq_error=0;
     m_length_error=0;
     m_no_ipv4_option=0;
+    for (int i = 0; i < MAX_FLOW_STATS; i++) {
+        m_rx_pg_pkts[i] = 0;
+        m_rx_pg_bytes[i] = 0;
+    }
     m_hist.Reset();
 }
 
@@ -679,7 +683,6 @@ void  CLatencyManager::try_rx_queues(){
     }
 }
 
-
 void  CLatencyManager::try_rx(){
     rte_mbuf_t * rx_pkts[64];
     int i;
@@ -712,7 +715,7 @@ void  CLatencyManager::reset(){
 
 }
 
-void  CLatencyManager::start(int iter){
+void  CLatencyManager::start(int iter) {
     m_do_stop =false;
     m_is_active =false;
     int cnt=0;

@@ -243,9 +243,10 @@ public:
      uint64_t m_seq_error;
      uint64_t m_rx_check;
      uint64_t m_no_ipv4_option;
-
-
      uint64_t m_length_error;
+     uint32_t m_rx_pg_pkts[MAX_FLOW_STATS];
+     uint32_t m_rx_pg_bytes[MAX_FLOW_STATS];
+
      CTimeHistogram  m_hist; /* all window */
      CJitter         m_jitter; 
 };

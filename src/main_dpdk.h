@@ -39,8 +39,9 @@ class CPhyEthIFStats {
     uint64_t imcasts;   /**< Total number of multicast received packets. */
     uint64_t rx_nombuf; /**< Total number of RX mbuf allocation failures. */
     uint64_t  m_rx_per_flow [MAX_FLOW_STATS]; // Per flow RX statistics
-    // Previous fdir stats values read from HW. Since on xl710 this is 32 bit, we save old value, to handle wrap around.
-    uint32_t  m_fdir_prev_stats [MAX_FLOW_STATS];
+    // Previous fdir stats values read from driver. Since on xl710 this is 32 bit, we save old value, to handle wrap around.
+    uint32_t  m_fdir_prev_pkts [MAX_FLOW_STATS];
+    uint32_t  m_fdir_prev_bytes [MAX_FLOW_STATS];
  public:
     void Clear();
     void Dump(FILE *fd);
