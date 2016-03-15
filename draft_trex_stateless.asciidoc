@@ -3347,8 +3347,9 @@ traffic_config_kwargs = {
 ----
 
 
+==== FD.IO open source project using TRex 
 
-
+link:https://gerrit.fd.io/r/gitweb?p=csit.git;a=tree;f=resources/tools/t-rex[here]
 
 
 
