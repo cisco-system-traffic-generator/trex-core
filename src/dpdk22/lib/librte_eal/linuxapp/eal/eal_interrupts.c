@@ -75,6 +75,9 @@
 
 static RTE_DEFINE_PER_LCORE(int, _epfd) = -1; /**< epoll fd per thread */
 
+// TREX_PATCH
+int eal_err_read_from_file_is_error = 1;
+
 /**
  * union for pipe fds.
  */
@@ -711,10 +714,19 @@ eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 				if (errno == EINTR || errno == EWOULDBLOCK)
 					continue;
 
-				RTE_LOG(ERR, EAL, "Error reading from file "
-					"descriptor %d: %s\n",
-					events[n].data.fd,
-					strerror(errno));
+                // TREX_PATCH. Because of issues with e1000, we want this message to
+                // have lower priority only if running on e1000 card
+                if (eal_err_read_from_file_is_error) {
+                    RTE_LOG(ERR, EAL, "Error reading from file "
+                            "descriptor %d: %s\n",
+                            events[n].data.fd,
+                            strerror(errno));
+                } else {
+                    RTE_LOG(INFO, EAL, "Error reading from file "
+                            "descriptor %d: %s\n",
+                            events[n].data.fd,
+                            strerror(errno));
+                }
 			} else if (bytes_read == 0)
 				RTE_LOG(ERR, EAL, "Read nothing from file "
 					"descriptor %d\n", events[n].data.fd);

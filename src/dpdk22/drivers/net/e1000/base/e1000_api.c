@@ -632,6 +632,8 @@ s32 e1000_reset_hw(struct e1000_hw *hw)
 	return -E1000_ERR_CONFIG;
 }
 
+//TREX_PATCH
+extern int eal_err_read_from_file_is_error;
 /**
  *  e1000_init_hw - Initialize hardware
  *  @hw: pointer to the HW structure
@@ -641,6 +643,9 @@ s32 e1000_reset_hw(struct e1000_hw *hw)
  **/
 s32 e1000_init_hw(struct e1000_hw *hw)
 {
+    //TREX_PATCH
+    eal_err_read_from_file_is_error = 0;
+
 	if (hw->mac.ops.init_hw)
 		return hw->mac.ops.init_hw(hw);
 
