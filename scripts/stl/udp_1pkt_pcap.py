@@ -4,7 +4,7 @@ from trex_stl_lib.api import *
 
 class STLS1(object):
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return [STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap"), # path relative to pwd 
                          mode = STLTXCont(pps=10)) ] #rate continues, could be STLTXSingleBurst,STLTXMultiBurst
 

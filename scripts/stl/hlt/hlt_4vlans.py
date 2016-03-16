@@ -7,7 +7,7 @@ class STLS1(object):
     Missing values will be filled with defaults
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return STLHltStream(frame_size = 100,
                             vlan_id = [1, 2, 3, 4], # can be either array or string separated by spaces
                             vlan_protocol_tag_id = '8100 0x8100', # hex with optional prefix '0x'

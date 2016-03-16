@@ -6,7 +6,7 @@ class STLS1(object):
     Eth/IP/TCP stream with VM to get 10 different TCP ports
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return STLHltStream(l3_protocol = 'ipv4',
                             l4_protocol = 'tcp',
                             tcp_src_port_mode = 'decrement',

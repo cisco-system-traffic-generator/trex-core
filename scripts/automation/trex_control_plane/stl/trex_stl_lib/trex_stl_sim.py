@@ -141,7 +141,7 @@ class STLSim(object):
         # handle YAMLs
         for input_file in input_files:
             try:
-                profile = STLProfile.load(input_file)
+                profile = STLProfile.load(input_file, direction = (self.port_id % 2), port = self.port_id)
             except STLError as e:
                 s = format_text("\nError while loading profile '{0}'\n".format(input_file), 'bold')
                 s += "\n" + e.brief()
@@ -360,6 +360,13 @@ def setParserOptions():
                         default = None,
                         type = int)
 
+    parser.add_argument("-i", "--port",
+                        help = "Simulate a specific port ID [default is 0]",
+                        dest = "port_id",
+                        default = 0,
+                        type = int)
+
+
     parser.add_argument("-r", "--release",
                         help = "runs on release image instead of debug [default is False]",
                         action = "store_true",
@@ -465,7 +472,7 @@ def main (args = None):
         mode = 'none'
 
     try:
-        r = STLSim(bp_sim_path = options.bp_sim_path)
+        r = STLSim(bp_sim_path = options.bp_sim_path, port_id = options.port_id)
 
         r.run(input_list = options.input_file,
               outfile = options.output_file,

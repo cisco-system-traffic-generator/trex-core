@@ -7,7 +7,7 @@ class STLS1(object):
     Creates Eth/802.1Q/802.1Q/IP/TCP stream
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return STLHltStream(
                 l3_protocol = 'ipv4',
                 ip_src_addr = '100.1.1.1',

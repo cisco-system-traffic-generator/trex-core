@@ -6,7 +6,7 @@ class STLS1(object):
     Two Eth/IP/UDP streams with VM to get different size of packet by l3_length
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return [STLHltStream(length_mode = 'increment',
                              l3_length_min = 100,
                              l3_length_max = 3000,

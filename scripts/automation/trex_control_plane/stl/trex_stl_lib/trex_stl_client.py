@@ -1956,14 +1956,15 @@ class STLClient(object):
 
         # pack the profile
         try:
-            profile = STLProfile.load(opts.file[0])
+            for port in opts.ports:
+                profile = STLProfile.load(opts.file[0], direction = (port % 2), port = port)
+                self.add_streams(profile.get_streams(), ports = port)
+
         except STLError as e:
             self.logger.log(format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold'))
             self.logger.log(e.brief() + "\n")
             return
 
-
-        self.add_streams(profile.get_streams(), ports = opts.ports)
 
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)

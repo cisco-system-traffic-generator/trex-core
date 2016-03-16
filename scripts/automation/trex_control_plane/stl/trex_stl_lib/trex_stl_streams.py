@@ -835,7 +835,7 @@ class STLProfile(object):
 
 
     @staticmethod
-    def load_py (python_file):
+    def load_py (python_file, direction = 0, **kwargs):
         """ load from Python profile """
 
         # check filename
@@ -850,13 +850,13 @@ class STLProfile(object):
             module = __import__(file, globals(), locals(), [], -1)
             reload(module) # reload the update 
 
-            streams = module.register().get_streams()
+            streams = module.register().get_streams(direction = direction, **kwargs)
 
             return STLProfile(streams)
 
         except Exception as e:
             a, b, tb = sys.exc_info()
-            x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
+            x =''.join(traceback.format_list(traceback.extract_tb(tb)[0:])) + a.__name__ + ": " + str(b) + "\n"
 
             summary = "\nPython Traceback follows:\n\n" + x
             raise STLError(summary)
@@ -940,14 +940,16 @@ class STLProfile(object):
       
 
     @staticmethod
-    def load (filename):
+    def load (filename, direction = 0, **kwargs):
         """ load a profile by its type supported type are 
            * py
            * yaml 
            * pcap file that converted to profile automaticly 
 
            :parameters:
-              filename : string as filename 
+              filename  : string as filename 
+              direction : profile's direction (if supported by the profile)
+              kwargs    : forward those key-value pairs to the profile
 
         """
 
@@ -955,7 +957,7 @@ class STLProfile(object):
         suffix = x[1] if (len(x) == 2) else None
 
         if suffix == 'py':
-            profile = STLProfile.load_py(filename)
+            profile = STLProfile.load_py(filename, direction, **kwargs)
 
         elif suffix == 'yaml':
             profile = STLProfile.load_yaml(filename)
@@ -996,7 +998,7 @@ class STLProfile(object):
 from trex_stl_lib.api import *
 
 class STLS1(object):
-    def get_streams(self):
+    def get_streams(self, direction = 0, **kwargs):
         streams = []
 '''
         for stream in self.streams:

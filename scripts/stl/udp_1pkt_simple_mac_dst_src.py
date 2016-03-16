@@ -9,7 +9,7 @@ class STLS1(object):
                           #mac_dst_override_mode=STLStreamDstMAC_PKT # another way to explictly take it
                           )
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         # create 1 stream 
         return [ self.create_stream() ]
 

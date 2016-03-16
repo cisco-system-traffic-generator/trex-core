@@ -38,7 +38,7 @@ class STLS1(object):
                          mode = STLTXSingleBurst( pps = 1, total_pkts = 17) )
 
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         # create 1 stream 
         return [ self.create_stream() ]
 
