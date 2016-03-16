@@ -1137,7 +1137,7 @@ class STLS1(object):
                   IP(src='101.0.0.1', proto=17, dst='102.0.0.1', chksum=28605, len=46, flags=2L, ihl=5L, id=0) / 
                   UDP(dport=2001, sport=2001, len=26, chksum=1176) / 
                   Raw(load='\xde\xad\xbe\xef\x00\x01\x06\x07\x08\x09\x0a\x0b\x00\x9b\xe7\xdb\x82M'))
-        vm = CTRexScRaw([], split_by_field = '')
+        vm = STLScVmRaw([], split_by_field = '')
         stream = STLStream(packet = CScapyTRexPktBuilder(pkt = packet, vm = vm),
                            name = 'udp_64B',
                            mac_src_override_by_pkt = 0,
@@ -1489,12 +1489,12 @@ The following example demonstrates creating SYN attack from many src to one serv
 
 
         # vm
-        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
                                               min_value="16.0.0.0", 
                                               max_value="18.0.0.254", 
                                               size=4, op="random"),         <2>
 
-                            STLVmFlowVar(name="src_port", 
+                           STLVmFlowVar(name="src_port", 
                                               min_value=1025, 
                                               max_value=65000, 
                                               size=2, op="random"),         <3>
@@ -1553,7 +1553,7 @@ The Tuple Generator instructions are used to create two stream variables for IP,
 
         pad = max(0, size - len(base_pkt)) * 'x'
                              
-        vm = CTRexScRaw( [   STLVmTupleGen ( ip_min="16.0.0.1",                              <1>
+        vm = STLScVmRaw( [   STLVmTupleGen ( ip_min="16.0.0.1",                              <1>
                                              ip_max="16.0.0.2", 
                                              port_min=1025, 
                                              port_max=65535,
@@ -1614,7 +1614,7 @@ In this example an MPLS label field will be changed.
                IP(src="16.0.0.1",dst="48.0.0.1")/
                UDP(dport=12,sport=1025)/('x'*20)
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mlabel",                                 <1>
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mlabel",                                 <1>
                                         min_value=1, 
                                         max_value=2000, 
                                         size=2, op="inc"), # 2 bytes var               <2>
@@ -1661,7 +1661,7 @@ The way to do it is:
 
 
         # vm
-        vm = CTRexScRaw( [ STLVmFlowVar(name="fv_rand",                            <1>
+        vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand",                            <1>
                                         min_value=64, 
                                         max_value=len(base_pkt), 
                                         size=2, 
@@ -1796,7 +1796,7 @@ class STLS1(object):
                           IP(src="55.55.1.1",dst="58.55.1.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
                                         min_value=1, 
                                         max_value=self.num_clients, 
                                         size=2, op="inc"), # 1 byte varible, range 1-10
@@ -1836,7 +1836,7 @@ Let's assume we have two transmitters DP threads
 
 
         # vm
-        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
                                               min_value="16.0.0.0", 
                                               max_value="16.0.0.254", 
                                               size=4, op="inc"),                     <1>
@@ -1882,7 +1882,7 @@ Let's assume we have two transmitters DP threads
 
 
         # vm
-        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
                                               min_value="16.0.0.0", 
                                               max_value="16.0.0.254", 
                                               size=4, op="inc"),                     
@@ -1966,7 +1966,7 @@ class STLS1(object):
 
         base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src",                              <1>
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src",                              <1>
                                         min_value="16.0.0.0", 
                                         max_value="18.0.0.254", 
                                         size=4, op="inc"),
@@ -2026,7 +2026,7 @@ class STLS1(object):
 
         base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="ip_src",                              
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src",                              
                                         min_value="16.0.0.0", 
                                         max_value="18.0.0.254", 
                                         size=4, op="inc"),
@@ -2367,7 +2367,7 @@ The following example demonstrates creating IPv6 packet inside IPv4 packet and c
                    src="2001:4860:0:2001::68")/
               UDP(dport=12,sport=1025)/ICMPv6Unknown()
 
-        vm = CTRexScRaw( [ 
+        vm = STLScVmRaw( [ 
                             # tuple gen for inner Ipv6 
                             STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
                                             port_min=1025, port_max=65535,
@@ -2414,7 +2414,7 @@ The STLVmWrMaskFlowVar is a handy instruction. The pseudocode is as follows:
 
 [source,python]
 ----
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
                                         min_value=1, 
                                         max_value=30, 
                                         size=2, op="dec",step=1), 
@@ -2434,7 +2434,7 @@ This will cast stream variable with 2 byte to be 1 byte
 [source,python]
 ----
 
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
                                         min_value=1, 
                                         max_value=30, 
                                         size=2, op="dec",step=1), 
@@ -2462,7 +2462,7 @@ The output will be shift by 8
 
 [source,python]
 ----
-        vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", 
+        vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", 
                                         min_value=1, 
                                         max_value=30, 
                                         size=2, 
@@ -2749,7 +2749,7 @@ class STLS1(object):
                   IP(proto=17, chksum=5882, len=9202, ihl=5L, id=0) / 
                   UDP(dport=12, sport=1025, len=9182, chksum=55174) / 
                   Raw(load='!' * 9174))
-        vm = CTRexScRaw([CTRexVmDescFlowVar(name='pkt_len', size=2, op='inc', 
+        vm = STLScVmRaw([CTRexVmDescFlowVar(name='pkt_len', size=2, op='inc', 
                           init_value=64, min_value=64, max_value=9216, step=1),
                          CTRexVmDescTrimPktSize(fv_name='pkt_len'),
                          CTRexVmDescWrFlowVar(fv_name='pkt_len', 
@@ -2765,7 +2765,7 @@ class STLS1(object):
                   IP(proto=17, chksum=5882, len=9202, ihl=5L, id=0) / 
                   UDP(dport=12, sport=1025, len=9182, chksum=55174) / 
                   Raw(load='!' * 9174))
-        vm = CTRexScRaw([CTRexVmDescFlowVar(name='pkt_len', size=2, op='dec', 
+        vm = STLScVmRaw([CTRexVmDescFlowVar(name='pkt_len', size=2, op='dec', 
                          init_value=9216, min_value=64, 
                          max_value=9216, step=1),
                          CTRexVmDescTrimPktSize(fv_name='pkt_len'),
