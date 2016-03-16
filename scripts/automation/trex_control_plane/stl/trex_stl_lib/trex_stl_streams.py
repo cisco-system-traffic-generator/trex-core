@@ -508,7 +508,13 @@ class STLStream(object):
     def to_code (self):
         """ convert to Python code as profile  """
         packet = Ether(self.pkt)
-        packet.hide_defaults()
+        layer = packet
+        while layer:                    # remove checksums
+            for chksum_name in ('cksum', 'chksum'):
+                if chksum_name in layer.fields:
+                    del layer.fields[chksum_name]
+            layer = layer.payload
+        packet.hide_defaults()          # remove fields with default values
         payload = packet.getlayer('Raw')
         packet_command = packet.command()
         imports_arr = []
@@ -790,7 +796,6 @@ class STLProfile(object):
                   streams  : list of :class:`trex_stl_lib.trex_stl_streams.STLStream` 
                        a list of stream objects  
 
-
         """
 
 
@@ -804,6 +809,7 @@ class STLProfile(object):
             raise STLArgumentError('streams', streams, valid_values = STLStream)
 
         self.streams = streams
+        self.meta = None
 
 
     def get_streams (self):
@@ -825,11 +831,32 @@ class STLProfile(object):
         yaml_loader = YAMLLoader(yaml_file)
         streams = yaml_loader.parse()
 
-        return STLProfile(streams)
+        profile = STLProfile(streams)
+        profile.meta = {'type': 'yaml'}
+
+        return profile
+
+    @staticmethod
+    def get_module_tunables(module):
+        # remove self and variables
+        func = module.register().get_streams
+        argc = func.__code__.co_argcount
+        tunables = func.__code__.co_varnames[1:argc]
+
+        # fetch defaults
+        defaults = func.func_defaults
+        if len(defaults) != (argc - 1):
+            raise STLError("Module should provide default values for all arguments on get_streams()")
+
+        output = {}
+        for t, d in zip(tunables, defaults):
+            output[t] = d
+
+        return output
 
 
     @staticmethod
-    def load_py (python_file):
+    def load_py (python_file, direction = 0, **kwargs):
         """ load from Python profile """
 
         # check filename
@@ -844,9 +871,18 @@ class STLProfile(object):
             module = __import__(file, globals(), locals(), [], -1)
             reload(module) # reload the update 
 
-            streams = module.register().get_streams()
+            t = STLProfile.get_module_tunables(module)
+            for arg in kwargs:
+                if not arg in t:
+                    raise STLError("profile {0} does not support tunable '{1}' - supported tunables are: '{2}'".format(python_file, arg, t))
 
-            return STLProfile(streams)
+            streams = module.register().get_streams(direction = direction, **kwargs)
+            profile = STLProfile(streams)
+
+            profile.meta = {'type': 'python',
+                            'tunables': t}
+
+            return profile
 
         except Exception as e:
             a, b, tb = sys.exc_info()
@@ -896,6 +932,8 @@ class STLProfile(object):
         if ipg_usec < 1:
             raise STLError("ipg_usec cannot be less than 1 usec: '{0}'".format(ipg_usec))
 
+        if loop_count < 0:
+            raise STLError("'loop_count' cannot be negative")
 
         streams = []
         last_ts_usec = 0
@@ -928,20 +966,25 @@ class STLProfile(object):
         
             last_ts_usec = ts_usec
 
+        
+        profile = STLProfile(streams)
+        profile.meta = {'type': 'pcap'}
 
-        return STLProfile(streams)
+        return profile
 
       
 
     @staticmethod
-    def load (filename):
+    def load (filename, direction = 0, **kwargs):
         """ load a profile by its type supported type are 
            * py
            * yaml 
            * pcap file that converted to profile automaticly 
 
            :parameters:
-              filename : string as filename 
+              filename  : string as filename 
+              direction : profile's direction (if supported by the profile)
+              kwargs    : forward those key-value pairs to the profile
 
         """
 
@@ -949,7 +992,7 @@ class STLProfile(object):
         suffix = x[1] if (len(x) == 2) else None
 
         if suffix == 'py':
-            profile = STLProfile.load_py(filename)
+            profile = STLProfile.load_py(filename, direction, **kwargs)
 
         elif suffix == 'yaml':
             profile = STLProfile.load_yaml(filename)
@@ -960,7 +1003,13 @@ class STLProfile(object):
         else:
             raise STLError("unknown profile file type: '{0}'".format(suffix))
 
+        profile.meta['stream_count'] = len(profile.get_streams()) if isinstance(profile.get_streams(), list) else 1
         return profile
+
+    @staticmethod
+    def get_info (filename):
+        profile = STLProfile.load(filename)
+        return profile.meta
 
     def dump_as_pkt (self):
         """ dump the profile as scapy packet. in case it is raw convert to scapy and dump it"""
@@ -990,7 +1039,7 @@ class STLProfile(object):
 from trex_stl_lib.api import *
 
 class STLS1(object):
-    def get_streams(self):
+    def get_streams(self, direction = 0, **kwargs):
         streams = []
 '''
         for stream in self.streams:

@@ -30,6 +30,7 @@ COUNT = 18
 PROMISCUOUS = 19
 NO_PROMISCUOUS = 20
 PROMISCUOUS_SWITCH = 21
+TUNABLES = 22
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -190,6 +191,19 @@ def is_valid_file(filename):
     return filename
 
 
+def decode_tunables_to_dict (**kwargs):
+    return kwargs
+
+def decode_tunables (tunable_str):
+    try:
+        tunables = [eval('decode_tunables_to_dict({0})'.format(t)) for t in tunable_str.split('#')]
+
+    except (SyntaxError, NameError):
+        raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(tunable_str))
+
+    return tunables
+
+
 OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                  {'help': match_multiplier_help,
                                   'dest': "mult",
@@ -232,6 +246,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'dest': "prom",
                                          'default': None,
                                          'action': "store_true"}),
+
+
+              TUNABLES: ArgumentPack(['-t'],
+                                     {'help': "sets tunable for a profile",
+                                      'dest': "tunables",
+                                      'default': None,
+                                      'type': decode_tunables}),
+
 
               NO_PROMISCUOUS: ArgumentPack(['--no_prom'],
                                            {'help': "sets port promiscuous off",

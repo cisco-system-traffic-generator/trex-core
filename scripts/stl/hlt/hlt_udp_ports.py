@@ -7,7 +7,7 @@ class STLS1(object):
     The ports overlap the max and min at very first packets
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return STLHltStream(l3_protocol = 'ipv4',
                             l4_protocol = 'udp',
                             udp_src_port_mode = 'decrement',

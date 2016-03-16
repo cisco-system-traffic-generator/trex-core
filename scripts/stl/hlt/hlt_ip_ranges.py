@@ -6,7 +6,7 @@ class STLS1(object):
     Eth/IP/TCP stream with VM to get different ip addresses
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return STLHltStream(split_by_cores = 'duplicate',
                             l3_protocol = 'ipv4',
                             ip_src_addr = '192.168.1.1',

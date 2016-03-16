@@ -6,7 +6,7 @@ class STLS1(object):
     Eth/IP/UDP stream with VM, to change the MAC addr (only 32 lsb)
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return STLHltStream(l3_protocol = 'ipv4', l4_protocol = 'udp',
                             mac_src = '10:00:00:00:00:01', mac_dst = '10:00:00:00:01:00',
                             mac_src2 = '11:11:00:00:00:01', mac_dst2 = '11:11:00:00:01:00',

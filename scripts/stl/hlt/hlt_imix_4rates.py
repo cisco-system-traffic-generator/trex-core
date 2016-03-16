@@ -7,7 +7,7 @@ class STLS1(object):
     Each stream will get rate_pps * his ratio / sum of ratios
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         return STLHltStream(length_mode = 'imix', rate_pps = 2,
                             l3_imix1_size = 60, l3_imix1_ratio = 4,
                             l3_imix2_size = 400, l3_imix2_ratio = 3,

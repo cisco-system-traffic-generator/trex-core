@@ -548,6 +548,13 @@ class TRexConsole(TRexGeneralCmd):
             print format_text("\n\nEvent log was cleared\n\n")
 
 
+    def complete_profile(self, text, line, begidx, endidx):
+        return self.complete_start(text,line, begidx, endidx)
+
+    def do_profile (self, line):
+        '''shows information about a profile'''
+        self.stateless_client.show_profile_line(line)
+
     # tui
     @verify_connected
     def do_tui (self, line):

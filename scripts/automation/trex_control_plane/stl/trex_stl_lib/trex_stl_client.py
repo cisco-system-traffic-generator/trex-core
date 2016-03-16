@@ -1930,6 +1930,7 @@ class STLClient(object):
                                          parsing_opts.FORCE,
                                          parsing_opts.FILE_PATH,
                                          parsing_opts.DURATION,
+                                         parsing_opts.TUNABLES,
                                          parsing_opts.MULTIPLIER_STRICT,
                                          parsing_opts.DRY_RUN)
 
@@ -1950,20 +1951,46 @@ class STLClient(object):
             else:
                 self.stop(active_ports)
 
+        
+        # default value for tunables (empty)
+        tunables = [{}] * len(opts.ports)
+
+        # process tunables
+        if opts.tunables:
+
+            # for one tunable - duplicate for all ports
+            if len(opts.tunables) == 1:
+                tunables = opts.tunables * len(opts.ports)
+
+            else:
+                # must be exact
+                if len(opts.ports) != len(opts.tunables):
+                    self.logger.log('tunables section count must be 1 or exactly as the number of ports: got {0}'.format(len(opts.tunables)))
+                    return
+                tunables = opts.tunables
+            
+
 
         # remove all streams
         self.remove_all_streams(opts.ports)
 
         # pack the profile
         try:
-            profile = STLProfile.load(opts.file[0])
+            for port, t in zip(opts.ports, tunables):
+
+                # give priority to the user configuration over default direction
+                if not 'direction' in t:
+                    t['direction'] = (port % 2)
+
+                profile = STLProfile.load(opts.file[0], **t)
+
+                self.add_streams(profile.get_streams(), ports = port)
+
         except STLError as e:
             self.logger.log(format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold'))
             self.logger.log(e.brief() + "\n")
             return
 
-
-        self.add_streams(profile.get_streams(), ports = opts.ports)
 
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)
@@ -2249,3 +2276,42 @@ class STLClient(object):
             return
 
     
+
+    @__console
+    def show_profile_line (self, line):
+        '''Shows profile information'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.show_profile_line.__doc__,
+                                         parsing_opts.FILE_PATH)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        info = STLProfile.get_info(opts.file[0])
+
+        self.logger.log(format_text('\nProfile Information:\n', 'bold'))
+
+        # general info
+        self.logger.log(format_text('\nGeneral Information:', 'underline'))
+        self.logger.log('Filename:         {:^12}'.format(opts.file[0]))
+        self.logger.log('Stream count:     {:^12}'.format(info['stream_count']))
+
+        # specific info
+        profile_type = info['type']
+        self.logger.log(format_text('\nSpecific Information:', 'underline'))
+
+        if profile_type == 'python':
+            self.logger.log('Type:             {:^12}'.format('Python Module'))
+            self.logger.log('Tunables:         {:^12}'.format(['{0} = {1}'.format(k ,v) for k, v in info['tunables'].iteritems()]))
+
+        elif profile_type == 'yaml':
+            self.logger.log('Type:             {:^12}'.format('YAML'))
+
+        elif profile_type == 'pcap':
+            self.logger.log('Type:             {:^12}'.format('PCAP file'))
+
+        self.logger.log("")
+

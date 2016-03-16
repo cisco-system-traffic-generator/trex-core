@@ -7,7 +7,7 @@ class STLS1(object):
     Creates Eth/802.1Q/IP/UDP stream with  VM on src IP
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         ipv4_address_step = '0.0.1.0'
         num_of_sessions_per_spoke = 1000
         ip_tgen_hub = '190.1.0.1'

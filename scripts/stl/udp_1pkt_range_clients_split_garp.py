@@ -26,7 +26,7 @@ class STLS1(object):
         return STLStream(packet = STLPktBuilder(pkt = base_pkt,vm = vm),
                          mode = STLTXSingleBurst( pps=10, total_pkts = self.num_clients  )) # single burst of G-ARP
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         # create 1 stream 
         return [ self.create_stream() ]
 

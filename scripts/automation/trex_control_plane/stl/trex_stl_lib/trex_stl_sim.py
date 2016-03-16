@@ -122,7 +122,8 @@ class STLSim(object):
              mult = "1",
              duration = -1,
              mode = 'none',
-             silent = False):
+             silent = False,
+             tunables = None):
 
         if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt','native']:
             raise STLArgumentError('mode', mode)
@@ -139,9 +140,18 @@ class STLSim(object):
         stream_list = [x for x in input_list if isinstance(x, STLStream)]
 
         # handle YAMLs
+        if tunables == None:
+            tunables = {}
+        else:
+            tunables = tunables[0]
+
         for input_file in input_files:
             try:
-                profile = STLProfile.load(input_file)
+                if not 'direction' in tunables:
+                    tunables['direction'] = self.port_id % 2
+
+                profile = STLProfile.load(input_file, **tunables)
+
             except STLError as e:
                 s = format_text("\nError while loading profile '{0}'\n".format(input_file), 'bold')
                 s += "\n" + e.brief()
@@ -360,6 +370,13 @@ def setParserOptions():
                         default = None,
                         type = int)
 
+    parser.add_argument("-i", "--port",
+                        help = "Simulate a specific port ID [default is 0]",
+                        dest = "port_id",
+                        default = 0,
+                        type = int)
+
+
     parser.add_argument("-r", "--release",
                         help = "runs on release image instead of debug [default is False]",
                         action = "store_true",
@@ -387,6 +404,13 @@ def setParserOptions():
                         dest = 'duration',
                         default = -1,
                         type = float)
+
+
+    parser.add_argument('-t',
+                        help = 'sets tunable for a profile',
+                        dest = 'tunables',
+                        default = None,
+                        type = parsing_opts.decode_tunables)
 
     parser.add_argument('-p', '--path',
                         help = "BP sim path",
@@ -465,7 +489,7 @@ def main (args = None):
         mode = 'none'
 
     try:
-        r = STLSim(bp_sim_path = options.bp_sim_path)
+        r = STLSim(bp_sim_path = options.bp_sim_path, port_id = options.port_id)
 
         r.run(input_list = options.input_file,
               outfile = options.output_file,
@@ -476,7 +500,8 @@ def main (args = None):
               mult = options.mult,
               duration = options.duration,
               mode = mode,
-              silent = options.silent)
+              silent = options.silent,
+              tunables = options.tunables)
 
     except KeyboardInterrupt as e:
         print "\n\n*** Caught Ctrl + C... Exiting...\n\n"

@@ -10,7 +10,7 @@ class STLS1(object):
         MAC dst will have <mac_dst_count> number of incremental values
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         mac_dst_count = 10
         mac_src_count = 10
         pkts_per_burst = 10

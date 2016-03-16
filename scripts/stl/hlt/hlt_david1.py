@@ -7,7 +7,7 @@ class STLS1(object):
     Creates 3 streams (imix) Eth/802.1Q/IP/TCP without VM
     '''
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         #'''
         return STLHltStream(
                 #enable_auto_detect_instrumentation = '1', # not supported yet

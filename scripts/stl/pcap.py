@@ -7,9 +7,7 @@ class STLPcap(object):
     def __init__ (self, pcap_file):
         self.pcap_file = pcap_file
 
-    def get_streams (self,
-                     ipg_usec = 10.0,
-                     loop_count = 1):
+    def get_streams (self, direction = 0, ipg_usec = 10.0, loop_count = 1, **kwargs):
 
         profile = STLProfile.load_pcap(self.pcap_file, ipg_usec = ipg_usec, loop_count = loop_count)
 

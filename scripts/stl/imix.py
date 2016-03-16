@@ -30,7 +30,7 @@ class STLImix(object):
                          mode = STLTXCont(pps = pps))
 
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
 
         if direction == 0:
             src = self.ip_range['src']

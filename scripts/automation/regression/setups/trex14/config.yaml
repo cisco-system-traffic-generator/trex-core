@@ -41,7 +41,7 @@ router:
   model          : ASR1001x
   hostname       : csi-asr-01
   ip_address     : 10.56.216.103
-  image          : asr1001x-universalk9_npe.BLD_V155_2_S_XE315_THROTTLE_LATEST_20151121_110441-std_2.SSA.bin
+  image          : asr1001x-universalk9.03.17.00.S.156-1.S-std.SPA.bin
   line_password  : cisco
   en_password    : cisco
   mgmt_interface : GigabitEthernet0
@@ -61,6 +61,6 @@ router:
 
 tftp:
   hostname       : ats-asr-srv-1
-  ip_address     : 10.56.128.23
-  root_dir       : /auto/avc-devtest/
-  images_path    : /images/RP2/
+  ip_address     : 10.56.217.7
+  root_dir       : /scratch/tftp/
+  images_path    : /asr1001x/

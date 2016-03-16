@@ -33,7 +33,7 @@ class STLS1(object):
 
 
 
-    def get_streams (self, direction = 0):
+    def get_streams (self, direction = 0, **kwargs):
         # create 1 stream 
         return [ self.create_stream() ]
 
