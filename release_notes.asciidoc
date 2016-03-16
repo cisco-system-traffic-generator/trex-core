@@ -21,6 +21,15 @@ ifdef::backend-docbook[]
 endif::backend-docbook[]
 
 
+== Release 1.96 [not yet] ==
+
+* Support pyATS/32bit/Python2.x for TCL 
+* Per stream statistic - Fix High speed of start/stop of  giving zero in statistics
+* Traffic profile direction/port directive works now see 
+* Add Python API documentation 
+* Update per stream statistic documentation
+
+
 == Release 1.95  ==
 
 * TUI support per stream stats (press s to get to this window)

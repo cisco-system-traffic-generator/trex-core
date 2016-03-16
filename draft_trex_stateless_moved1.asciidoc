@@ -1,0 +1,28 @@
+TRex Stateless support
+======================
+:author: TRex team
+:email: trex.tgen@gmail.com 
+:revnumber: 2.0
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
+:toclevels: 6
+
+ifdef::backend-docbook[]
+:p_width: 450
+:p_width_1: 200
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+:p_width: 800
+:p_width_1: 400
+endif::backend-xhtml11[]
+
+
+moved to link:draft_trex_stateless.html[here]
+
+
+
