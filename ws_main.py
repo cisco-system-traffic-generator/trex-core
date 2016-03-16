@@ -120,50 +120,92 @@ def do_visio(bld):
     for x in bld.path.ant_glob('visio\\*.vsd'):
         tg = bld(rule='${VIS} -i ${SRC} -o ${TGT} ', source=x, target=x.change_ext('.png'))
 
-def build_cp_docs (task):
-    out_dir = task.outputs[0].abspath()
-    export_path = os.path.join(os.getcwd(), 'build', 'cp_docs')
+def get_trex_core_git():
     trex_core_git_path = os.path.join(os.getcwd(), os.pardir, "trex-core")
     if not os.path.isdir(trex_core_git_path):
         trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
-    if trex_core_git_path: # there exists a default directory or the desired ENV variable.
-        trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc'))
-        build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -W -b {bld} {src} {dst}".format(
-            bld= "html", 
-            src= ".", 
-            dst= out_dir)
-        )
-        return subprocess.call(build_doc_cmd, cwd = trex_core_docs_path)
-    return (1)
+    return trex_core_git_path
+
+def parse_hlt_args(task):
+    trex_core_git_path = get_trex_core_git()
+    if not trex_core_git_path:
+        return 1
+    hltapi_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'stl', 'trex_stl_lib', 'trex_stl_hltapi.py'))
+    header = ['[options="header",cols="<.^1,^.^1,9<.^e"]', '|=================', '^| Argument | Default ^| Comment']
+    footer = ['|=================\n']
+    hlt_asciidoc = []
+    category_regexp = '^(\S+)_kwargs = {$'
+    comment_line_regexp = '^\s*#\s*(.+)$'
+    arg_line_regexp = "^\s*'([^']+)':\s*'?([^,']+)'?,\s*#?\s*(.+)?$"
+    if not os.path.exists(hltapi_path):
+        raise Exception('Could not find hltapi file: %s' % hltapi_path)
+    with open(hltapi_path) as f:
+        in_args = False
+        for line in f.read().splitlines():
+            if not in_args:
+                if line.startswith('import'):
+                    break
+                category_line = re.match(category_regexp, line)
+                if category_line:
+                    hlt_asciidoc.append('\n===== %s\n' % category_line.group(1))
+                    hlt_asciidoc += header
+                    in_args = True
+                continue
+            comment_line = re.match(comment_line_regexp, line)
+            if comment_line:
+                hlt_asciidoc.append('3+^.^s| %s' % comment_line.group(1).replace('|', '\|'))
+                continue
+            arg_line = re.match(arg_line_regexp, line)
+            if arg_line:
+                arg, default, comment = arg_line.groups()
+                hlt_asciidoc.append('| %s | %s | %s' % (arg, default, comment.replace('|', '\|') if comment else ''))
+                continue
+            if line == '}':
+                hlt_asciidoc += footer
+                in_args = False
+    if not len(hlt_asciidoc):
+        raise Exception('Parsing of hltapi args failed')
+    with open('build/hlt_args.asciidoc', 'w') as f:
+        f.write('\n'.join(hlt_asciidoc))
+    return 0
+
+def build_cp_docs (task):
+    out_dir = task.outputs[0].abspath()
+    export_path = os.path.join(os.getcwd(), 'build', 'cp_docs')
+    trex_core_git_path = get_trex_core_git()
+    if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
+        return 1
+    trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc'))
+    build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -W -b {bld} {src} {dst}".format(
+        bld= "html", 
+        src= ".", 
+        dst= out_dir)
+    )
+    return subprocess.call(build_doc_cmd, cwd = trex_core_docs_path)
 
 def build_stl_cp_docs (task):
     out_dir = task.outputs[0].abspath()
     export_path = os.path.join(os.getcwd(), 'build', 'cp_stl_docs')
-    trex_core_git_path = os.path.join(os.getcwd(), os.pardir, "trex-core")
-    if not os.path.isdir(trex_core_git_path):
-        trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
-    if trex_core_git_path: # there exists a default directory or the desired ENV variable.
-        trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_stl'))
-        build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -W -b {bld} {src} {dst}".format(
-            bld= "html", 
-            src= ".", 
-            dst= out_dir)
-        )
-        return subprocess.call(build_doc_cmd, cwd = trex_core_docs_path)
-    return (1)
+    trex_core_git_path = get_trex_core_git()
+    if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
+        return 1
+    trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_stl'))
+    build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -W -b {bld} {src} {dst}".format(
+        bld= "html", 
+        src= ".", 
+        dst= out_dir)
+    )
+    return subprocess.call(build_doc_cmd, cwd = trex_core_docs_path)
 
 
 
 def build_cp(bld,dir,root,callback):
     export_path = os.path.join(os.getcwd(), 'build', dir)
-    trex_core_git_path = os.path.join(os.getcwd(), os.pardir, "trex-core")
-    if not os.path.isdir(trex_core_git_path):
-        trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
-    if trex_core_git_path: # there exists a default directory or the desired ENV variable.
-        trex_core_docs_path = os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', root, 'index.rst')
-        bld(rule=callback,target = dir)
-    else:
+    trex_core_git_path = get_trex_core_git()
+    if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         raise NameError("Environment variable 'TREX_CORE_GIT' is not defined.")
+    trex_core_docs_path = os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', root, 'index.rst')
+    bld(rule=callback,target = dir)
 
 
 
@@ -191,7 +233,14 @@ def build(bld):
 
     bld(rule=my_copy, target='my_chart.js')
 
+    build_cp(bld,'hlt_args.asciidoc','stl/trex_stl_lib', parse_hlt_args)
+
     bld.add_group() # separator, the documents may require any of the pictures from above
+
+    if os.path.exists('build/hlt_args.asciidoc'):
+        bld.add_manual_dependency(
+            bld.path.find_node('draft_trex_stateless.asciidoc'),
+            'build/hlt_args.asciidoc')
 
     bld(rule='${ASCIIDOC}  -b deckjs -o ${TGT} ${SRC[0].abspath()}',
         source='trex_config.asciidoc ', target='trex_config_guide.html', scan=ascii_doc_scan)
