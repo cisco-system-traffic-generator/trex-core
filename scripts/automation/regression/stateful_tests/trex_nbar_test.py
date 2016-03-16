@@ -26,19 +26,10 @@ class CTRexNbar_Test(CTRexGeneral_Test):
         missmatchFlag = False
         missmatchMsg = "NBAR classification contians a missmatch on the following protocols:"
         fmt = '\n\t{0:15} | Expected: {1:>3.2f}%, Got: {2:>3.2f}%'
-        noise_level = 0.045 # percents
+        noise_level = 0.045
 
         for cl_intf in self.router.get_if_manager().get_if_list(if_type = IFType.Client):
             client_intf = cl_intf.get_name()
-
-            # removing noise classifications
-            for key, value in test_classification[client_intf]['percentage'].items():
-                if value <= noise_level:
-                    print 'Removing noise classification: %s' % key
-                    del test_classification[client_intf]['percentage'][key]
-
-            if len(test_classification[client_intf]['percentage']) != (len(nbar_benchmark) + 1):    # adding 'total' key to nbar_benchmark
-                raise ClassificationMissmatchError ('The total size of classification result does not match the provided benchmark.')
 
             for protocol, bench in nbar_benchmark.iteritems():
                 if protocol != 'total':

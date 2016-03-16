@@ -12,20 +12,18 @@ test_nbar_simple :
   exp_max_latency   : 1000
 
   nbar_classification:
-    http            : 30.44
-    rtp-audio       : 21.19
-    rtp             : 11.31
-    oracle_sqlnet   : 11.17
-    exchange        : 10.86
+    rtp             : 35.24
+    http            : 30.41
+    oracle_sqlnet   : 11.3
+    ssl             : 6.03
     citrix          : 5.65
-    rtsp            : 2.86
+    exchange        : 4.99
     dns             : 1.96
     smtp            : 0.57
     pop3            : 0.37
-    ssl             : 0.17
     sctp            : 0.13
     sip             : 0.09
-    unknown         : 3.21
+    unknown         : 3.22
 
 test_rx_check :
   multiplier        : 13
