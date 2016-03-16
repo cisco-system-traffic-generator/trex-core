@@ -856,7 +856,7 @@ class STLProfile(object):
 
         except Exception as e:
             a, b, tb = sys.exc_info()
-            x =''.join(traceback.format_list(traceback.extract_tb(tb)[0:])) + a.__name__ + ": " + str(b) + "\n"
+            x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
 
             summary = "\nPython Traceback follows:\n\n" + x
             raise STLError(summary)
