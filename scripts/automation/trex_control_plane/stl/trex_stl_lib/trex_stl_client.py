@@ -1977,7 +1977,13 @@ class STLClient(object):
         # pack the profile
         try:
             for port, t in zip(opts.ports, tunables):
-                profile = STLProfile.load(opts.file[0], direction = (port % 2), port = port, **t)
+
+                # give priority to the user configuration over default direction
+                if not 'direction' in t:
+                    t['direction'] = (port % 2)
+
+                profile = STLProfile.load(opts.file[0], **t)
+
                 self.add_streams(profile.get_streams(), ports = port)
 
         except STLError as e:
@@ -2270,3 +2276,42 @@ class STLClient(object):
             return
 
     
+
+    @__console
+    def show_profile_line (self, line):
+        '''Shows profile information'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.show_profile_line.__doc__,
+                                         parsing_opts.FILE_PATH)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        info = STLProfile.get_info(opts.file[0])
+
+        self.logger.log(format_text('\nProfile Information:\n', 'bold'))
+
+        # general info
+        self.logger.log(format_text('\nGeneral Information:', 'underline'))
+        self.logger.log('Filename:         {:^12}'.format(opts.file[0]))
+        self.logger.log('Stream count:     {:^12}'.format(info['stream_count']))
+
+        # specific info
+        profile_type = info['type']
+        self.logger.log(format_text('\nSpecific Information:', 'underline'))
+
+        if profile_type == 'python':
+            self.logger.log('Type:             {:^12}'.format('Python Module'))
+            self.logger.log('Tunables:         {:^12}'.format(['{0} = {1}'.format(k ,v) for k, v in info['tunables'].iteritems()]))
+
+        elif profile_type == 'yaml':
+            self.logger.log('Type:             {:^12}'.format('YAML'))
+
+        elif profile_type == 'pcap':
+            self.logger.log('Type:             {:^12}'.format('PCAP file'))
+
+        self.logger.log("")
+

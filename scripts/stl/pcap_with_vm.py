@@ -29,16 +29,19 @@ class STLPcap(object):
         return vm
 
 
-    def get_streams (self, direction = 0, **kwargs):
-
-        ip_src_range = kwargs.get('ip_src_range', None)
-        ip_dst_range = kwargs.get('up_dst_range', {'start' : '10.0.0.1', 'end': '10.0.0.254'})
+    def get_streams (self,
+                     direction = 0,
+                     ipg_usec = 10.0,
+                     loop_count = 5,
+                     ip_src_range = None,
+                     ip_dst_range = {'start' : '10.0.0.1', 'end': '10.0.0.254'},
+                     **kwargs):
 
         vm = self.create_vm(ip_src_range, ip_dst_range)
 
         profile = STLProfile.load_pcap(self.pcap_file,
-                                       ipg_usec = kwargs.get('ipg_usec', 10.0),
-                                       loop_count = kwargs.get('loop_count', 5),
+                                       ipg_usec = ipg_usec,
+                                       loop_count = loop_count,
                                        vm = vm)
 
         return profile.get_streams()
