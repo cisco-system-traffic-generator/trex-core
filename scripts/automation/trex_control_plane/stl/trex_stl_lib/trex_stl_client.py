@@ -1930,6 +1930,7 @@ class STLClient(object):
                                          parsing_opts.FORCE,
                                          parsing_opts.FILE_PATH,
                                          parsing_opts.DURATION,
+                                         parsing_opts.TUNABLES,
                                          parsing_opts.MULTIPLIER_STRICT,
                                          parsing_opts.DRY_RUN)
 
@@ -1950,14 +1951,33 @@ class STLClient(object):
             else:
                 self.stop(active_ports)
 
+        
+        # default value for tunables (empty)
+        tunables = [{}] * len(opts.ports)
+
+        # process tunables
+        if opts.tunables:
+
+            # for one tunable - duplicate for all ports
+            if len(opts.tunables) == 1:
+                tunables = opts.tunables * len(opts.ports)
+
+            else:
+                # must be exact
+                if len(opts.ports) != len(opts.tunables):
+                    self.logger.log('tunables section count must be 1 or exactly as the number of ports: got {0}'.format(len(opts.tunables)))
+                    return
+                tunables = opts.tunables
+            
+
 
         # remove all streams
         self.remove_all_streams(opts.ports)
 
         # pack the profile
         try:
-            for port in opts.ports:
-                profile = STLProfile.load(opts.file[0], direction = (port % 2), port = port)
+            for port, t in zip(opts.ports, tunables):
+                profile = STLProfile.load(opts.file[0], direction = (port % 2), port = port, **t)
                 self.add_streams(profile.get_streams(), ports = port)
 
         except STLError as e:

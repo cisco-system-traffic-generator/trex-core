@@ -902,6 +902,8 @@ class STLProfile(object):
         if ipg_usec < 1:
             raise STLError("ipg_usec cannot be less than 1 usec: '{0}'".format(ipg_usec))
 
+        if loop_count < 0:
+            raise STLError("'loop_count' cannot be negative")
 
         streams = []
         last_ts_usec = 0
