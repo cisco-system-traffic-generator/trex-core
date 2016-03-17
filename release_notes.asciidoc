@@ -26,9 +26,10 @@ endif::backend-docbook[]
 * Support pyATS/32bit/Python2.x for TCL 
 * Per stream statistic - Fix High speed of start/stop of  giving zero in statistics
 * Traffic profile direction/port directive works now see 
-* Add Python API documentation 
-* Update per stream statistic documentation
-
+* Add Python API documentation and pyATS2.0 support 
+* Update per stream statistic documentation see link:draft_trex_stateless.html#_tutorial_per_stream_statistics[per stream statistic] 
+* Update HLTAPI arguments link:draft_trex_stateless.html#_hlt_supported_arguments_a_id_altapi_support_a[HLTAPI] 
+* Fix E1000 DPDK driver prints with ESXi
 
 == Release 1.95  ==
 
