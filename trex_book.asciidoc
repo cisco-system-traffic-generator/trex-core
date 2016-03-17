@@ -126,7 +126,7 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | Active QSFP+ Copper Cables |  Cisco QSFP-4SFP10G-CU link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
 |=================
 
- For Intel XL710 NICS, Cisco QSFP+ won't work 
+ For Intel XL710 NICS, Cisco SR4/LR QSFP+ won't work 
 
 
 [IMPORTANT]
@@ -290,7 +290,7 @@ image:images/loopback_right.png[title="rigt"]
 .Wrong loopback
 image:images/loopback_wrong.png[title="rigt"] 
 
-In case you have 1Gb/Sec Intel NIC (I350) you can do anything you like from the loopback perspective *but* you must filter the management port before see xref:trex_config[here].
+In case you have 1Gb/Sec Intel NIC (I350) or XL710/X710 NIC you can do anything you like from the loopback perspective *but* you must filter the management port before see xref:trex_config[here].
 
 ==== Identify the ports 
 
