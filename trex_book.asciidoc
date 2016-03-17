@@ -126,10 +126,7 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | Active QSFP+ Copper Cables |  Cisco QSFP-4SFP10G-CU link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
 |=================
 
-[NOTE]
-==============================================
  For Intel XL710 NICS, Cisco QSFP+ won't work 
-==============================================
 
 
 [IMPORTANT]
