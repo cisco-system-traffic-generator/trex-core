@@ -1978,11 +1978,10 @@ class STLClient(object):
         try:
             for port, t in zip(opts.ports, tunables):
 
-                # give priority to the user configuration over default direction
-                if not 'direction' in t:
-                    t['direction'] = (port % 2)
-
-                profile = STLProfile.load(opts.file[0], **t)
+                profile = STLProfile.load(opts.file[0],
+                                          direction = t.get('direction', port % 2),
+                                          port_id = port,
+                                          **t)
 
                 self.add_streams(profile.get_streams(), ports = port)
 

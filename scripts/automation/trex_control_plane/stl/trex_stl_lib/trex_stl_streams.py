@@ -856,7 +856,7 @@ class STLProfile(object):
 
 
     @staticmethod
-    def load_py (python_file, direction = 0, **kwargs):
+    def load_py (python_file, direction = 0, port_id = 0, **kwargs):
         """ load from Python profile """
 
         # check filename
@@ -876,7 +876,9 @@ class STLProfile(object):
                 if not arg in t:
                     raise STLError("profile {0} does not support tunable '{1}' - supported tunables are: '{2}'".format(python_file, arg, t))
 
-            streams = module.register().get_streams(direction = direction, **kwargs)
+            streams = module.register().get_streams(direction = direction,
+                                                    port_id = port_id,
+                                                    **kwargs)
             profile = STLProfile(streams)
 
             profile.meta = {'type': 'python',
@@ -975,7 +977,7 @@ class STLProfile(object):
       
 
     @staticmethod
-    def load (filename, direction = 0, **kwargs):
+    def load (filename, direction = 0, port_id = 0, **kwargs):
         """ load a profile by its type supported type are 
            * py
            * yaml 
@@ -984,6 +986,7 @@ class STLProfile(object):
            :parameters:
               filename  : string as filename 
               direction : profile's direction (if supported by the profile)
+              port_id   : which port ID this profile is being loaded to
               kwargs    : forward those key-value pairs to the profile
 
         """
@@ -992,7 +995,7 @@ class STLProfile(object):
         suffix = x[1] if (len(x) == 2) else None
 
         if suffix == 'py':
-            profile = STLProfile.load_py(filename, direction, **kwargs)
+            profile = STLProfile.load_py(filename, direction, port_id, **kwargs)
 
         elif suffix == 'yaml':
             profile = STLProfile.load_yaml(filename)
