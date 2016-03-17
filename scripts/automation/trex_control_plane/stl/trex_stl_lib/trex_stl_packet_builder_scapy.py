@@ -177,6 +177,43 @@ class STLScVmRaw(CTRexScriptsBase):
     raw instructions
     """
     def __init__(self,list_of_commands=None,split_by_field=None):
+        """
+        include a list of a basic instructions objects 
+
+        :parameters:
+             list_of_commands : list
+                list of instructions 
+
+             split_by_field : string 
+                by which field to split to threads
+
+
+        The following example will split the generated traffic by "ip_src" variable
+
+        .. code-block:: python
+            :caption: Split by 
+
+
+            # TCP SYN
+            base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")     
+    
+    
+            # vm
+            vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
+                                                  min_value="16.0.0.0", 
+                                                  max_value="16.0.0.254", 
+                                                  size=4, op="inc"),                     
+    
+    
+                               STLVmWrFlowVar(fv_name="ip_src", pkt_offset= "IP.src" ),  
+    
+                               STLVmFixIpv4(offset = "IP"), # fix checksum              
+                              ]
+                             ,split_by_field = "ip_src"                                
+                           )
+
+        """
+
         super(STLScVmRaw, self).__init__()
         self.split_by_field = split_by_field
         if list_of_commands==None:
