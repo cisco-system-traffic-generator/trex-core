@@ -9,7 +9,7 @@ import base64
 import inspect
 
 from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
-
+from trex_stl_types import *
 from scapy.all import *
 
 class CTRexPacketBuildException(Exception):
@@ -29,7 +29,7 @@ class CTRexPacketBuildException(Exception):
 ################################################################################################
 
 def _buffer_to_num(str_buffer):
-    assert type(str_buffer)==str, 'type of str_buffer is not str'
+    validate_type('str_buffer', str_buffer, str)
     res=0
     for i in str_buffer:
         res = res << 8
@@ -38,12 +38,12 @@ def _buffer_to_num(str_buffer):
 
 
 def ipv4_str_to_num (ipv4_buffer):
-    assert type(ipv4_buffer)==str, 'type of ipv4_buffer is not str'
+    validate_type('ipv4_buffer', ipv4_buffer, str)
     assert len(ipv4_buffer)==4, 'size of ipv4_buffer is not 4'
     return _buffer_to_num(ipv4_buffer)
 
 def mac_str_to_num (mac_buffer):
-    assert type(mac_buffer)==str, 'type of mac_buffer is not str'
+    validate_type('mac_buffer', mac_buffer, str)
     assert len(mac_buffer)==6, 'size of mac_buffer is not 6'
     return _buffer_to_num(mac_buffer)
 
@@ -236,13 +236,13 @@ class CTRexVmInsBase(object):
     """
     def __init__(self, ins_type):
         self.type = ins_type
-        assert type(ins_type)==str, 'type of ins_type is not str'
+        validate_type('ins_type', ins_type, str)
 
 class CTRexVmInsFixIpv4(CTRexVmInsBase):
     def __init__(self, offset):
         super(CTRexVmInsFixIpv4, self).__init__("fix_checksum_ipv4")
         self.pkt_offset = offset
-        assert type(offset)==int, 'type of offset is not int'
+        validate_type('offset', offset, int)
 
 
 class CTRexVmInsFlowVar(CTRexVmInsBase):
@@ -254,63 +254,63 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, size, op, init_value, min_value, max_value,step):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
         self.name = fv_name;
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
         self.size = size
         self.op = op
         self.init_value = init_value
-        assert type(init_value)==int, 'type of init_value is not int'
+        validate_type('init_value', init_value, int)
         assert init_value >= 0, 'init_value (%s) is negative' % init_value
         self.min_value=min_value
-        assert type(min_value)==int, 'type of min_value is not int'
+        validate_type('min_value', min_value, int)
         assert min_value >= 0, 'min_value (%s) is negative' % min_value
         self.max_value=max_value
-        assert type(max_value)==int, 'type of max_value is not int'
+        validate_type('max_value', max_value, int)
         assert max_value >= 0, 'max_value (%s) is negative' % max_value
         self.step=step
-        assert type(step)==int, 'type of step should be int'
+        validate_type('step', step, int)
         assert step >= 0, 'step (%s) is negative' % step
 
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
         super(CTRexVmInsWrFlowVar, self).__init__("write_flow_var")
         self.name = fv_name
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
         self.pkt_offset = pkt_offset
-        assert type(pkt_offset)==int, 'type of pkt_offset is not int'
+        validate_type('pkt_offset', pkt_offset, int)
         self.add_value = add_value
-        assert type(add_value)==int, 'type of add_value is not int'
+        validate_type('add_value', add_value, int)
         self.is_big_endian = is_big_endian
-        assert type(is_big_endian)==bool, 'type of is_big_endian is not bool'
+        validate_type('is_big_endian', is_big_endian, bool)
 
 class CTRexVmInsWrMaskFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset,pkt_cast_size,mask,shift,add_value, is_big_endian=True):
         super(CTRexVmInsWrMaskFlowVar, self).__init__("write_mask_flow_var")
         self.name = fv_name
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
         self.pkt_offset = pkt_offset
-        assert type(pkt_offset)==int, 'type of pkt_offset is not int'
+        validate_type('pkt_offset', pkt_offset, int)
         self.pkt_cast_size = pkt_cast_size
-        assert type(pkt_cast_size)==int, 'type of pkt_cast_size is not int'
+        validate_type('pkt_cast_size', pkt_cast_size, int)
         self.mask = mask
-        assert type(mask)==int, 'type of mask is not int'
+        validate_type('mask', mask, int)
         self.shift = shift
-        assert type(shift)==int, 'type of shift is not int'
+        validate_type('shift', shift, int)
         self.add_value =add_value
-        assert type(add_value)==int, 'type of add_value is not int'
+        validate_type('add_value', add_value, int)
         self.is_big_endian = is_big_endian
-        assert type(is_big_endian)==bool, 'type of is_big_endian is not bool'
+        validate_type('is_big_endian', is_big_endian, bool)
 
 class CTRexVmInsTrimPktSize(CTRexVmInsBase):
     def __init__(self,fv_name):
         super(CTRexVmInsTrimPktSize, self).__init__("trim_pkt_size")
         self.name = fv_name
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
 
 class CTRexVmInsTupleGen(CTRexVmInsBase):
     def __init__(self, fv_name, ip_min, ip_max, port_min, port_max, limit_flows, flags=0):
         super(CTRexVmInsTupleGen, self).__init__("tuple_flow_var")
         self.name =fv_name
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
         self.ip_min = ip_min;
         self.ip_max = ip_max;
         self.port_min = port_min;
@@ -551,16 +551,14 @@ def valid_fv_ops (op):
         raise CTRexPacketBuildException(-11,("flow var does not have a valid op %s ") % op  );
 
 def convert_val (val):
-    if type(val) == int:
+    if is_integer(val):
         return val
-    else:
-        if type(val) == str:
-          return ipv4_str_to_num (is_valid_ipv4(val))
-        else:
-            raise CTRexPacketBuildException(-11,("init val not valid %s ") % val  );
+    if type(val) == str:
+        return ipv4_str_to_num (is_valid_ipv4(val))
+    raise CTRexPacketBuildException(-11,("init val not valid %s ") % val  );
 
 def check_for_int (val):
-    assert type(val)==int, 'type of vcal is not int'
+    validate_type('val', val, int)
 
 
 class STLVmFlowVar(CTRexVmDescBase):
@@ -622,7 +620,7 @@ class STLVmFlowVar(CTRexVmDescBase):
         """
         super(STLVmFlowVar, self).__init__()
         self.name = name;
-        assert type(name)==str, 'type of name is not str'
+        validate_type('name', name, str)
         self.size =size
         valid_fv_size(size)
         self.op =op
@@ -727,14 +725,14 @@ class STLVmWrFlowVar(CTRexVmDescBase):
 
         super(STLVmWrFlowVar, self).__init__()
         self.name =fv_name
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
         self.offset_fixup =offset_fixup
-        assert type(offset_fixup)==int, 'type of offset_fixup is not int'
+        validate_type('offset_fixup', offset_fixup, int)
         self.pkt_offset =pkt_offset
         self.add_val =add_val
-        assert type(add_val)==int,'type of add_val is not int'
+        validate_type('add_val', add_val, int)
         self.is_big =is_big;
-        assert type(is_big)==bool,'type of is_big_endian is not bool'
+        validate_type('is_big', is_big, bool)
 
     def get_var_ref (self):
         return self.name
@@ -853,24 +851,24 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
 
         super(STLVmWrMaskFlowVar, self).__init__()
         self.name =fv_name
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
         self.offset_fixup =offset_fixup
-        assert type(offset_fixup)==int, 'type of offset_fixup is not int'
+        validate_type('offset_fixup', offset_fixup, int)
         self.pkt_offset =pkt_offset
         self.pkt_cast_size =pkt_cast_size
-        assert type(pkt_cast_size)==int,'type of pkt_cast_size is not int'
+        validate_type('pkt_cast_size', pkt_cast_size, int)
         if not (pkt_cast_size in [1,2,4]):
             raise CTRexPacketBuildException(-10,"not valid cast size");
 
         self.mask = mask
-        assert type(mask)==int,'type of mask is not int'
+        validate_type('mask', mask, int)
         self.shift = shift
-        assert type(shift)==int,'type of shift is not int'
+        validate_type('shift', shift, int)
         self.add_value = add_value
-        assert type(add_value)==int,'type of add_value is not int'
+        validate_type('add_value', add_value, int)
 
         self.is_big =is_big;
-        assert type(is_big)==bool,'type of is_big_endian is not bool'
+        validate_type('is_big', is_big, bool)
 
     def get_var_ref (self):
         return self.name
@@ -939,7 +937,7 @@ class STLVmTrimPktSize(CTRexVmDescBase):
     def __init__(self,fv_name):
         super(STLVmTrimPktSize, self).__init__()
         self.name = fv_name
-        assert type(fv_name)==str, 'type of fv_name is not str'
+        validate_type('fv_name', fv_name, str)
 
     def get_var_ref (self):
         return self.name
@@ -1060,7 +1058,7 @@ class STLVmTupleGen(CTRexVmDescBase):
 
         super(STLVmTupleGen, self).__init__()
         self.name = name
-        assert type(name)==str, 'type of fv_name is not str'
+        validate_type('name', name, str)
         self.ip_min = convert_val(ip_min);
         self.ip_max = convert_val(ip_max);
         self.port_min = port_min;
@@ -1259,7 +1257,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
 
     def set_pkt_as_str (self, pkt_buffer):
-        assert type(pkt_buffer)==str, "pkt_buffer should be string"
+        validate_type('pkt_buffer', pkt_buffer, str)
         self.pkt_raw = pkt_buffer
 
 
@@ -1409,7 +1407,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
         # set split_by_var
         if obj.split_by_field :
-            assert type(obj.split_by_field)==str, "type of split by var should be string"
+            validate_type('obj.split_by_field', obj.split_by_field, str)
             #if not vars.has_key(obj.split_by_field):
             #    raise CTRexPacketBuildException(-11,("variable %s does not exists. change split_by_var args ") % (var_name) );
 

@@ -158,13 +158,13 @@ traffic_config_kwargs = {
 }
 
 traffic_control_kwargs = {
-    'action': None,                         # ( run | stop )
-    'port_handle': None
+    'action': None,                         # ( clear_stats | run | stop | sync_run | poll | reset )
+    'port_handle': None,
 }
 
 traffic_stats_kwargs = {
     'mode': 'aggregate',                    # ( aggregate )
-    'port_handle': None
+    'port_handle': None,
 }
 
 
@@ -173,6 +173,7 @@ import os
 import socket
 import copy
 from trex_stl_lib.api import *
+from trex_stl_types import *
 from utils.common import get_number
 from collections import defaultdict
 
@@ -212,7 +213,7 @@ def correct_macs(kwargs):
     for mac_arg in list_of_mac_args + list_of_mac_steps:
         if mac_arg in kwargs:
             mac_value = kwargs[mac_arg]
-            if type(mac_value) in (int, long) and mac_arg in list_of_mac_steps: # step can be number
+            if is_integer(mac_value) and mac_arg in list_of_mac_steps: # step can be number
                 continue
             if type(mac_value) is not str: raise STLError('Argument %s should be str' % mac_arg)
             mac_value = mac_value.replace('{', '').replace('}', '').strip().replace('-', ' ').replace(':', ' ').replace('.', ' ')
@@ -306,7 +307,7 @@ class CStreamsPerPort(defaultdict):
         if stream_id is None: return # no stream_id, can't save TODO: remove this check ASAP
         if stream_hlt_args.get('load_profile'): return # can't modify profiles, don't save
         if not self.hlt_history: raise STLError('CStreamsPerPort: this object works only with HLT history, try init with hlt_history = True')
-        if type(stream_id) not in (int, long): raise STLError('CStreamsPerPort: stream_id should be number')
+        if not is_integer(stream_id): raise STLError('CStreamsPerPort: stream_id should be number')
         if not isinstance(stream_hlt_args, dict): raise STLError('CStreamsPerPort: stream_hlt_args should be dict')
         if not isinstance(ports_list, list):
             ports_list = [ports_list]
@@ -574,6 +575,8 @@ class CTRexHltApi(object):
             try:
                 stream_id_arr = self.trex_client.add_streams(streams = stream_obj,
                                                              ports = port_handle)
+                if type(stream_id_arr) is not list:
+                    stream_id_arr = [stream_id_arr]
                 for port in port_handle:
                     self._streams_history.save_stream_args(port_handle, stream_id_arr[0], user_kwargs)
             except Exception as e:
@@ -660,7 +663,7 @@ class CTRexHltApi(object):
             except Exception as e:
                 return HLT_ERR('Could not retrieve stats: %s' % e if isinstance(e, STLError) else traceback.format_exc())
             for port_id, stat_dict in stats.iteritems():
-                if type(port_id) in (int, long):
+                if is_integer(port_id):
                     hlt_stats_dict[port_id] = {
                         'aggregate': {
                             'tx': {
@@ -737,7 +740,7 @@ class CTRexHltApi(object):
             return [int(port) for port in port_list.strip().split()]
         elif type(port_list) is list:
             return [int(port) for port in port_list]
-        elif type(port_list) in (int, long):
+        elif is_integer(port_list):
             return [int(port_list)]
         raise STLError('port_list should be string with ports, list, or single number')
 
@@ -1481,7 +1484,7 @@ def vlan_in_args(user_kwargs):
 def split_vlan_arg(vlan_arg):
     if type(vlan_arg) is list:
         return vlan_arg
-    if type(vlan_arg) in (int, long, type(None)):
+    if is_integer(vlan_arg) or vlan_arg is None:
         return [vlan_arg]
     if type(vlan_arg) is str:
         return vlan_arg.replace('{', '').replace('}', '').strip().split()
@@ -1521,6 +1524,6 @@ def correct_direction(user_kwargs, kwargs):
 # we produce packets without fcs, so need to reduce produced sizes
 def correct_sizes(kwargs):
     for arg in kwargs.keys():
-        if type(arg) in (int, long):
+        if is_integer(arg):
             if arg.endswith(('_length', '_size', '_size_min', '_size_max', '_length_min', '_length_max')):
                 kwargs[arg] -= 4

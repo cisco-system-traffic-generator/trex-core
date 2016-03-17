@@ -87,7 +87,6 @@ if __name__ == "__main__":
                                 ip_dst_addr = '8.0.0.1', ip_dst_mode = 'increment', ip_dst_count = 254,
                                 l4_protocol = 'udp',
                                 udp_dst_port = 12, udp_src_port = 1025,
-                                stream_id = 1, # temporary workaround, add_stream does not return stream_id
                                 rate_pps = args.rate_pps,
                                 )
     check_res(res)
