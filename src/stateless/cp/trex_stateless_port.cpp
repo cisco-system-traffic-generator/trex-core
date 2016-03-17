@@ -473,6 +473,13 @@ TrexStatelessPort::send_message_to_dp(uint8_t core_id, TrexStatelessCpToDpMsgBas
     ring->Enqueue((CGenNode *)msg);
 }
 
+void
+TrexStatelessPort::send_message_to_rx(TrexStatelessCpToRxMsgBase *msg) {
+
+    /* send the message to the core */
+    CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->Enqueue((CGenNode *)msg);
+}
 
 uint64_t
 TrexStatelessPort::get_port_speed_bps() const {

@@ -1,48 +1,110 @@
 #include <stdio.h>
-#include "latency.h"
+#include "bp_sim.h"
 #include "flow_stat_parser.h"
-#include "stateless/rx/trex_stateless_rx_core.h"
-
+#include "latency.h"
+#include "trex_stateless_messaging.h"
+#include "trex_stateless_rx_core.h"
 
 void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_max_ports = cfg.m_max_ports;
 
+    CMessagingManager * cp_rx = CMsgIns::Ins()->getCpRx();
+
+    m_ring_from_cp = cp_rx->getRingCpToDp(0);
+    m_ring_to_cp   = cp_rx->getRingDpToCp(0);
+    m_state = STATE_IDLE;
+
     for (int i = 0; i < m_max_ports; i++) {
         CLatencyManagerPerPort * lp = &m_ports[i];
-        //        CCPortLatency * lpo = &m_ports[swap_port(i)].m_port;
-        
         lp->m_io = cfg.m_ports[i];
-        /*        lp->m_port.Create(this,
-                          i,
-                          m_pkt_gen.get_payload_offset(),
-                          m_pkt_gen.get_l4_offset(),
-                          m_pkt_gen.get_pkt_size(),lpo );???*/
     }
+}
+
+void CRxCoreStateless::handle_cp_msg(TrexStatelessCpToRxMsgBase *msg) {
+    msg->handle(this);
+    delete msg;
+}
+
+bool CRxCoreStateless::periodic_check_for_cp_messages() {
+    /* fast path */
+    if ( likely ( m_ring_from_cp->isEmpty() ) ) {
+        return false;
+    }
+
+    while ( true ) {
+        CGenNode * node = NULL;
+
+        if (m_ring_from_cp->Dequeue(node) != 0) {
+            break;
+        }
+        assert(node);
+        TrexStatelessCpToRxMsgBase * msg = (TrexStatelessCpToRxMsgBase *)node;
+        handle_cp_msg(msg);
+    }
+
+    return true;
 
 }
 
-void CRxCoreStateless::start() {
-    static int count = 0;
-    static int i = 0;
-    while (1) {
-        count += try_rx();
-        i++;
-        if (i == 100000000) {
-            i = 0;
-            //??? remove
-            printf("counter:%d port0:[%u], port1:[%u]\n", count, m_ports[0].m_port.m_rx_pg_pkts[0], m_ports[1].m_port.m_rx_pg_pkts[1]);
+void CRxCoreStateless::idle_state_loop() {
+    const int SHORT_DELAY_MS    = 2;
+    const int LONG_DELAY_MS     = 50;
+    const int DEEP_SLEEP_LIMIT  = 2000;
+
+    int counter = 0;
+
+    while (m_state == STATE_IDLE) {
+        bool had_msg = periodic_check_for_cp_messages();
+        if (had_msg) {
+            counter = 0;
+            continue;
+        }
+
+        /* enter deep sleep only if enough time had passed */
+        if (counter < DEEP_SLEEP_LIMIT) {
+            delay(SHORT_DELAY_MS);
+            counter++;
+        } else {
+            delay(LONG_DELAY_MS);
         }
     }
 }
 
-// ??? temp try
+void CRxCoreStateless::start() {
+      static int count = 0;
+      static int i = 0;
+
+      while (true) {
+          if (m_state == STATE_WORKING) {
+              count += try_rx();
+              i++;
+              if (i == 100) {
+                  i = 0;
+                  // if no packets in 100 cycles, sleep for a while to spare the cpu
+                  if (count == 0) {
+                      delay(1);
+                  }
+                  count = 0;
+                  periodic_check_for_cp_messages();
+              }
+          } else {
+              idle_state_loop();
+          }
+#if 0
+          ??? do we need this?
+          if ( m_core->is_terminated_by_master() ) {
+              break;
+          }
+#endif
+      }
+}
+
 int CRxCoreStateless::try_rx() {
     rte_mbuf_t * rx_pkts[64];
     int i, total_pkts = 0;
     for (i = 0; i < m_max_ports; i++) {
         CLatencyManagerPerPort * lp = &m_ports[i];
         rte_mbuf_t * m;
-        //m_cpu_dp_u.start_work();
         /* try to read 64 packets clean up the queue */
         uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
         total_pkts += cnt_p;
@@ -63,10 +125,8 @@ int CRxCoreStateless::try_rx() {
                 }
                 rte_pktmbuf_free(m);
             }
-            /* commit only if there was work to do ! */
-            //m_cpu_dp_u.commit(); //??? what's this?
-          }/* if work */
-      }// all ports
+        }/* if work */
+    }// all ports
     return total_pkts;
 }
 

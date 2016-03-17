@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,20 +21,21 @@ limitations under the License.
 #ifndef __TREX_STATELESS_PORT_H__
 #define __TREX_STATELESS_PORT_H__
 
-#include <trex_stream.h>
-#include <trex_dp_port_events.h>
-#include <internal_api/trex_platform_api.h>
+#include "internal_api/trex_platform_api.h"
+#include "trex_dp_port_events.h"
+#include "trex_stream.h"
 
 class TrexStatelessCpToDpMsgBase;
+class TrexStatelessCpToRxMsgBase;
 class TrexStreamsGraphObj;
 class TrexPortMultiplier;
 
-/** 
+/**
  * TRex port owner can perform
  * write commands
  * while port is owned - others can
  * do read only commands
- * 
+ *
  */
 class TrexPortOwner {
 public:
@@ -92,7 +93,7 @@ private:
 
     /* handler genereated internally */
     std::string  m_handler;
-    
+
     /* seed for generating random values */
     unsigned int m_seed;
 
@@ -106,7 +107,7 @@ class AsyncStopEvent;
 
 /**
  * describes a stateless port
- * 
+ *
  * @author imarom (31-Aug-15)
  */
 class TrexStatelessPort {
@@ -137,9 +138,9 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
-  
+
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
-    
+
     ~TrexStatelessPort();
 
     /**
@@ -155,11 +156,11 @@ public:
     void release(void);
 
     /**
-     * validate the state of the port before start 
-     * it will return a stream graph 
-     * containing information about the streams 
-     * configured on this port 
-     *  
+     * validate the state of the port before start
+     * it will return a stream graph
+     * containing information about the streams
+     * configured on this port
+     *
      * on error it throws TrexException
      */
     const TrexStreamsGraphObj *validate(void);
@@ -190,13 +191,13 @@ public:
 
     /**
      * update current traffic on port
-     * 
+     *
      */
     void update_traffic(const TrexPortMultiplier &mul, bool force);
 
     /**
      * get the port state
-     * 
+     *
      */
     port_state_e get_state() const {
         return m_port_state;
@@ -204,23 +205,23 @@ public:
 
     /**
      * port state as string
-     * 
+     *
      */
     std::string get_state_as_string() const;
 
     /**
      * the the max stream id currently assigned
-     * 
+     *
      */
     int get_max_stream_id() const;
 
     /**
      * fill up properties of the port
-     * 
+     *
      * @author imarom (16-Sep-15)
-     * 
-     * @param driver 
-     * @param speed 
+     *
+     * @param driver
+     * @param speed
      */
     void get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed);
 
@@ -237,7 +238,7 @@ public:
 
     /**
      * delegators
-     * 
+     *
      */
 
     void add_stream(TrexStream *stream);
@@ -267,7 +268,7 @@ public:
 
     /**
      * returns the number of DP cores linked to this port
-     * 
+     *
      */
     uint8_t get_dp_core_count() {
         return m_cores_id_list.size();
@@ -275,7 +276,7 @@ public:
 
     /**
      * returns the traffic multiplier currently being used by the DP
-     * 
+     *
      */
     double get_multiplier() {
         return (m_factor);
@@ -283,13 +284,13 @@ public:
 
     /**
      * get port speed in bits per second
-     * 
+     *
      */
     uint64_t get_port_speed_bps() const;
 
     /**
      * return RX caps
-     * 
+     *
      */
     int get_rx_caps() const {
         return m_rx_caps;
@@ -300,12 +301,12 @@ public:
     }
 
     /**
-     * return true if port adds CRC to a packet (not occurs for 
-     * VNICs) 
-     * 
+     * return true if port adds CRC to a packet (not occurs for
+     * VNICs)
+     *
      * @author imarom (24-Feb-16)
-     * 
-     * @return bool 
+     *
+     * @return bool
      */
     bool has_crc_added() const {
         return m_api_info.has_crc;
@@ -318,9 +319,9 @@ public:
 
     /**
      * get the port effective rate (on a started / paused port)
-     * 
+     *
      * @author imarom (07-Jan-16)
-     * 
+     *
      */
     void get_port_effective_rate(double &pps,
                                  double &bps_L1,
@@ -330,8 +331,8 @@ public:
 
     /**
      * set port promiscuous on/off
-     * 
-     * @param enabled 
+     *
+     * @param enabled
      */
     void set_promiscuous(bool enabled);
     bool get_promiscuous();
@@ -357,40 +358,45 @@ private:
 
     /**
      * send message to all cores using duplicate
-     * 
+     *
      */
     void send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg);
 
     /**
      * send message to specific DP core
-     * 
+     *
      */
     void send_message_to_dp(uint8_t core_id, TrexStatelessCpToDpMsgBase *msg);
 
+    /**
+     * send message to specific RX core
+     *
+     */
+    void send_message_to_rx(TrexStatelessCpToRxMsgBase *msg);
 
     /**
      * when a port stops, perform various actions
-     * 
+     *
      */
     void common_port_stop_actions(bool async);
 
     /**
      * calculate effective M per core
-     * 
+     *
      */
     double calculate_effective_factor(const TrexPortMultiplier &mul, bool force = false);
     double calculate_effective_factor_internal(const TrexPortMultiplier &mul);
-  
+
 
     /**
      * generates a graph of streams graph
-     * 
+     *
      */
     void generate_streams_graph();
 
     /**
      * dispose of it
-     * 
+     *
      * @author imarom (26-Nov-15)
      */
     void delete_streams_graph();
@@ -426,7 +432,7 @@ private:
 
 /**
  * port multiplier object
- * 
+ *
  */
 class TrexPortMultiplier {
 public:
@@ -443,8 +449,8 @@ public:
     };
 
     /**
-     * multiplier can be absolute value 
-     * increment value or subtract value 
+     * multiplier can be absolute value
+     * increment value or subtract value
      */
     enum mul_op_e {
         OP_ABS,

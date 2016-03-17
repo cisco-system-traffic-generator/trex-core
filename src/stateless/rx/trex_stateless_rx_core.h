@@ -23,6 +23,8 @@ limitations under the License.
 #include <stdint.h>
 #include "latency.h"
 
+class TrexStatelessCpToRxMsgBase;
+
 class CRxSlCfg {
  public:
     CRxSlCfg (){
@@ -37,19 +39,33 @@ class CRxSlCfg {
 };
 
 class CRxCoreStateless {
+    enum state_e {
+        STATE_IDLE,
+        STATE_WORKING,
+    };
+
  public:
     void start();
     void create(const CRxSlCfg &cfg);
     void reset_rx_stats(uint8_t port_id);
     int get_rx_stats(uint8_t port_id, uint32_t *pkts, uint32_t *prev_pkts
                      , uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
+    void work() {m_state = STATE_WORKING;}
+    void idle() {m_state = STATE_IDLE;}
  private:
+    void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
+    bool periodic_check_for_cp_messages();
+    void idle_state_loop();
     int try_rx();
     bool is_flow_stat_id(uint16_t id);
     uint16_t get_hw_id(uint16_t id);
-    
+
  private:
     uint32_t m_max_ports;
+    bool m_has_streams;
     CLatencyManagerPerPort m_ports[TREX_MAX_PORTS];
+    state_e             m_state; /* state of all ports */
+    CNodeRing           *m_ring_from_cp;
+    CNodeRing           *m_ring_to_cp;
 };
 #endif

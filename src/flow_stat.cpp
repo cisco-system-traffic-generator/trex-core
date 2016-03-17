@@ -25,6 +25,7 @@
 #include <os_time.h>
 #include "internal_api/trex_platform_api.h"
 #include "trex_stateless.h"
+#include "trex_stateless_messaging.h"
 #include "trex_stream.h"
 #include "flow_stat_parser.h"
 #include "flow_stat.h"
@@ -385,6 +386,8 @@ void CFlowStatHwIdMap::unmap(uint16_t hw_id) {
 CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_api = NULL;
     m_max_hw_id = -1;
+    m_num_started_streams = 0;
+    m_ring_to_rx = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
 }
 
 std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf) {
@@ -488,6 +491,12 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
         return 0;
     }
 
+    if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
+        std::cerr << "Error: Trying to delete flow statistics stream " << stream->m_rx_check.m_pg_id
+                  << " which is not stopped." << std::endl;
+        return -1;
+    }
+
     return m_user_id_map.del_stream(stream->m_rx_check.m_pg_id);
 }
 
@@ -556,6 +565,10 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
     std::cout << "exit:" << __METHOD_NAME__ << " hw_id:" << ret_hw_id << std::endl;
 #endif
 
+    if (m_num_started_streams == 0) {
+        send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+    }
+    m_num_started_streams++;
     return 0;
 }
 
@@ -605,6 +618,11 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
             m_hw_id_map.unmap(hw_id);
         }
     }
+    m_num_started_streams--;
+    assert (m_num_started_streams >= 0);
+    if (m_num_started_streams == 0) {
+        send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core shoulde get into idle loop.
+    }
     return 0;
 }
 
@@ -618,6 +636,18 @@ int CFlowStatRuleMgr::get_active_pgids(flow_stat_active_t &result) {
     return 0;
 }
 
+extern bool rx_should_stop;
+void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
+    TrexStatelessCpToRxMsgBase *msg;
+
+    if (is_start) {
+        msg = new TrexRxStartMsg();
+    } else {
+        msg = new TrexRxStopMsg();
+    }
+    m_ring_to_rx->Enqueue((CGenNode *)msg);
+}
+
 // return false if no counters changed since last run. true otherwise
 bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     rx_per_flow_t rx_stats[MAX_FLOW_STATS];
@@ -627,7 +657,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
 
     root["name"] = "flow_stats";
     root["type"] = 0;
-    
+
     if (baseline) {
         root["baseline"] = true;
     }

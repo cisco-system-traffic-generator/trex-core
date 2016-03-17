@@ -6,7 +6,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,37 +40,37 @@ public:
 
 /*
 
-e.g DP with 4 threads 
-will look like this 
+e.g DP with 4 threads
+will look like this
 
-      cp_to_dp  
+      cp_to_dp
 
       master :push
       dpx    : pop
-                 
+
       -       --> dp0
 cp    -       --> dp1
       -       --> dp2
       -       --> dp3
 
-      dp_to_cp 
+      dp_to_cp
 
       cp     : pop
       dpx    : push
 
-      
+
        <-      -- dp0
 cp     <-      -- dp1
        <-      -- dp2
        <-      -- dp3
 
 
-*/  
+*/
 
 class CGenNode ;
 typedef CTRingSp<CGenNode>  CNodeRing;
 
-/* CP == latency thread 
+/* CP == latency thread
    DP == traffic pkt generator */
 class CMessagingManager {
 public:
@@ -83,6 +83,7 @@ public:
     void Delete();
     CNodeRing * getRingCpToDp(uint8_t thread_id);
     CNodeRing * getRingDpToCp(uint8_t thread_id);
+    CNodeRing * getRingCpToRx();
     uint8_t get_num_threads(){
         return (m_num_dp_threads);
     }
@@ -106,6 +107,9 @@ public:
     CMessagingManager * getCpDp(){
         return (&m_cp_dp);
     }
+    CMessagingManager * getCpRx(){
+        return (&m_cp_rx);
+    }
 
     uint8_t get_num_threads(){
         return (m_rx_dp.get_num_threads());
@@ -114,11 +118,11 @@ public:
 private:
     CMessagingManager m_rx_dp;
     CMessagingManager m_cp_dp;
-
+    CMessagingManager m_cp_rx;
 
 private:
     /* one instance */
-    static  CMsgIns  * m_ins; 
+    static  CMsgIns  * m_ins;
 };
 
 #endif

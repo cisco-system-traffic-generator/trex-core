@@ -5,7 +5,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,16 +22,17 @@ limitations under the License.
 #ifndef __TREX_STATELESS_MESSAGING_H__
 #define __TREX_STATELESS_MESSAGING_H__
 
-#include <msg_manager.h>
-#include <trex_dp_port_events.h>
+#include "msg_manager.h"
+#include "trex_dp_port_events.h"
 
 class TrexStatelessDpCore;
+class CRxCoreStateless;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
 
 /**
  * defines the base class for CP to DP messages
- * 
+ *
  * @author imarom (27-Oct-15)
  */
 class TrexStatelessCpToDpMsgBase {
@@ -49,7 +50,7 @@ public:
 
     /**
      * clone the current message
-     * 
+     *
      */
     virtual TrexStatelessCpToDpMsgBase * clone() = 0;
 
@@ -76,7 +77,7 @@ protected:
 
 /**
  * a message to start traffic
- * 
+ *
  * @author imarom (27-Oct-15)
  */
 class TrexStatelessDpStart : public TrexStatelessCpToDpMsgBase {
@@ -137,7 +138,7 @@ private:
 
 /**
  * a message to stop traffic
- * 
+ *
  * @author imarom (27-Oct-15)
  */
 class TrexStatelessDpStop : public TrexStatelessCpToDpMsgBase {
@@ -191,9 +192,9 @@ private:
 };
 
 /**
- * a message to Quit the datapath traffic. support only stateless for now 
- * 
- * @author hhaim 
+ * a message to Quit the datapath traffic. support only stateless for now
+ *
+ * @author hhaim
  */
 class TrexStatelessDpQuit : public TrexStatelessCpToDpMsgBase {
 public:
@@ -209,9 +210,9 @@ public:
 };
 
 /**
- * a message to check if both port are idel and exit 
- * 
- * @author hhaim 
+ * a message to check if both port are idel and exit
+ *
+ * @author hhaim
  */
 class TrexStatelessDpCanQuit : public TrexStatelessCpToDpMsgBase {
 public:
@@ -247,7 +248,7 @@ private:
 
 /**
  * barrier message for DP core
- * 
+ *
  */
 class TrexStatelessDpBarrier : public TrexStatelessCpToDpMsgBase {
 public:
@@ -270,7 +271,7 @@ private:
 
 /**
  * defines the base class for CP to DP messages
- * 
+ *
  * @author imarom (27-Oct-15)
  */
 class TrexStatelessDpToCpMsgBase {
@@ -284,7 +285,7 @@ public:
 
     /**
      * virtual function to handle a message
-     * 
+     *
      */
     virtual bool handle() = 0;
 
@@ -295,9 +296,9 @@ public:
 
 
 /**
- * a message indicating an event has happened on a port at the 
- * DP 
- * 
+ * a message indicating an event has happened on a port at the
+ * DP
+ *
  */
 class TrexDpPortEventMsg : public TrexStatelessDpToCpMsgBase {
 public:
@@ -326,8 +327,41 @@ private:
     int                         m_thread_id;
     uint8_t                     m_port_id;
     int                         m_event_id;
-    
+
+};
+
+/************************* messages from CP to RX **********************/
+
+/**
+ * defines the base class for CP to RX messages
+ *
+ */
+class TrexStatelessCpToRxMsgBase {
+public:
+
+    TrexStatelessCpToRxMsgBase() {
+    }
+
+    virtual ~TrexStatelessCpToRxMsgBase() {
+    }
+
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle (CRxCoreStateless *rx_core) = 0;
+
+    /* no copy constructor */
+    TrexStatelessCpToRxMsgBase(TrexStatelessCpToRxMsgBase &) = delete;
+
+};
+
+class TrexRxStartMsg : public TrexStatelessCpToRxMsgBase {
+    bool handle (CRxCoreStateless *rx_core);
+};
+
+class TrexRxStopMsg : public TrexStatelessCpToRxMsgBase {
+    bool handle (CRxCoreStateless *rx_core);
 };
 
 #endif /* __TREX_STATELESS_MESSAGING_H__ */
-

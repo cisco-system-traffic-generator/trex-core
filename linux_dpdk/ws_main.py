@@ -424,6 +424,7 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../src/rpc-server/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
+                   ../src/stateless/rx/
                    ../src/stateless/messaging/
 
                    ../external_libs/yaml-cpp/include/

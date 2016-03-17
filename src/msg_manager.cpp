@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,12 +65,12 @@ void CMessagingManager::Delete(){
         delete [] m_dp_to_cp;
         m_dp_to_cp = NULL;
     }
-    
+
     if (m_cp_to_dp) {
         delete [] m_cp_to_dp;
         m_cp_to_dp = NULL;
     }
-    
+
 }
 
 CNodeRing * CMessagingManager::getRingCpToDp(uint8_t thread_id){
@@ -83,7 +83,6 @@ CNodeRing * CMessagingManager::getRingDpToCp(uint8_t thread_id){
     return (&m_dp_to_cp[thread_id]);
 
 }
-
 
 void CMsgIns::Free(){
     if (m_ins) {
@@ -107,6 +106,11 @@ bool CMsgIns::Create(uint8_t num_threads){
     if (!res) {
         return (res);
     }
+    res = m_cp_rx.Create(1, "cp_rx");
+    if (!res) {
+        return (res);
+    }
+
     return (m_rx_dp.Create(num_threads,"rx_dp"));
 }
 
@@ -114,9 +118,8 @@ bool CMsgIns::Create(uint8_t num_threads){
 void CMsgIns::Delete(){
     m_cp_dp.Delete();
     m_rx_dp.Delete();
+    m_cp_rx.Delete();
 }
 
 
-CMsgIns  * CMsgIns::m_ins=0; 
-
-
+CMsgIns  * CMsgIns::m_ins=0;

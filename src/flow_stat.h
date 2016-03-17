@@ -26,6 +26,7 @@
 #include <map>
 #include "trex_defs.h"
 #include "trex_stream.h"
+#include "msg_manager.h"
 #include <internal_api/trex_platform_api.h>
 
 // range reserved for rx stat measurement is from IP_ID_RESERVE_BASE to 0xffff
@@ -144,8 +145,8 @@ class CFlowStatUserIdInfo {
     tx_per_flow_t m_tx_counter_base[TREX_MAX_PORTS];
     uint16_t m_hw_id;     // Associated hw id. UINT16_MAX if no associated hw id.
     uint8_t m_proto;      // protocol (UDP, TCP, other), associated with this user id.
-    uint8_t m_ref_count;  // How many streams with this ref count exists
-    uint8_t m_trans_ref_count;  // How many streams with this ref count currently transmit
+    uint8_t m_ref_count;  // How many streams with this user id exists
+    uint8_t m_trans_ref_count;  // How many streams with this user id currently transmit
     bool m_was_sent; // Did we send this info to clients once?
 };
 
@@ -208,6 +209,7 @@ class CFlowStatRuleMgr {
  private:
     int compile_stream(const TrexStream * stream, Cxl710Parser &parser);
     int add_hw_rule(uint16_t hw_id, uint8_t proto);
+    void send_start_stop_msg_to_rx(bool is_start);
 
  private:
     CFlowStatHwIdMap m_hw_id_map; // map hw ids to user ids
@@ -215,6 +217,8 @@ class CFlowStatRuleMgr {
     uint8_t m_num_ports; // How many ports are being used
     const TrexPlatformApi *m_api;
     int m_max_hw_id; // max hw id we ever used
+    uint32_t m_num_started_streams; // How many started (transmitting) streams we have
+    CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
 };
 
 #endif

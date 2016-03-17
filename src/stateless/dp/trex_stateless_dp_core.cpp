@@ -5,7 +5,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,14 +19,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <trex_stateless_dp_core.h>
-#include <trex_stateless_messaging.h>
-#include <trex_streams_compiler.h>
-#include <trex_stream_node.h>
-#include <trex_stream.h>
-
-#include <bp_sim.h>
-
+#include "bp_sim.h"
+#include "trex_stateless_dp_core.h"
+#include "trex_stateless_messaging.h"
+#include "trex_stream.h"
+#include "trex_stream_node.h"
+#include "trex_streams_compiler.h"
 
 void CDpOneStream::Delete(CFlowGenListPerThread   * core){
     assert(m_node->get_state() == CGenNodeStateless::ss_INACTIVE);

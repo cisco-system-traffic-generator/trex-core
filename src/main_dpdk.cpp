@@ -2873,14 +2873,14 @@ void CGlobalTRex::rx_sl_configure(void) {
 
     if ( get_vm_one_queue_enable() ) {
 #if 0
-        ???
+        /// what to do here ???
         /* vm mode, indirect queues  */
         for (i=0; i < m_max_ports; i++) {
             CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
             uint8_t thread_id = (i >> 1);
-            CNodeRing * r = rx_dp->getRingCpToDp(thread_id); ///??? should be rx to dp?
-            m_latency_vm_vports[i].Create((uint8_t)i,r,&m_mg);
-            rx_sl_cfg.m_ports[i] =&m_latency_vm_vports[i];
+            CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
+            m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg);
+            rx_sl_cfg.m_ports[i] = &m_latency_vm_vports[i];
         }
 #endif
     } else {

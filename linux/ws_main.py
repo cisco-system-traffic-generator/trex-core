@@ -258,6 +258,7 @@ includes_path =''' ../src/pal/linux/
                    ../src/rpc-server/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
+                   ../src/stateless/rx/
                    ../src/stateless/messaging/
                    ../external_libs/json/
                    ../external_libs/zmq/include/
