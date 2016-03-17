@@ -2738,22 +2738,154 @@ trex>
 ** IPv4 with one vlan tag
 * Number of concurrent streams you can get statistics for is 128.
 
+We'll demonstrate this with two examples, one that uses the console and one that uses the Python API.
+
+*Console*::
+
+In order to use the console, we'll take a simple profile which defines
+two streams and configure them with two different PG IDs.
+
+*file*:: link:{github_stl_path}/flow_stats.py[stl/flow_stats.py]
+
 [source,python]
 ----
 
 class STLS1(object):
 
-    def get_streams (self, direction = 0, **kwargs):
-        return [STLStream(packet = 
-                          STLPktBuilder(
-                          pkt ="stl/yaml/udp_64B_no_crc.pcap"), 
-                          mode = STLTXCont(pps=10),
-                          rx_stats = STLRxStats(pg_id = 7))   <1> 
+    def get_streams (self, direction = 0):
+        return [STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap"),
+                          mode = STLTXCont(pps = 1000),
+                          flow_stats = STLFlowStats(pg_id = 7)), <1>
+
+                STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_594B_no_crc.pcap"),
+                          mode = STLTXCont(pps = 5000),
+                          flow_stats = STLFlowStats(pg_id = 12)) <2>
                ]
 
-----
-<1> Configure this stream to be counted on all RX ports as packet group id 7
 
+----
+<1> assigned to PG ID 7
+<2> assigned to PG ID 12
+
+Now we will inject this to the console and use the TUI to see what's going on:
+
+[source,python]
+----
+trex>start -f stl/flow_stats.py --port 0
+
+Removing all streams from port(s) [0]:                       [SUCCESS]
+
+
+Attaching 2 streams to port(s) [0]:                          [SUCCESS]
+
+
+Starting traffic on port(s) [0]:                             [SUCCESS]
+
+155.81 [ms]
+
+trex>tui
+
+Streams Statistics
+
+   PG ID    |        12         |         7
+ --------------------------------------------------
+ Tx pps     |         5.00 Kpps |        999.29 pps   <1>
+ Tx bps L2  |        23.60 Mbps |       479.66 Kbps
+ Tx bps L1  |        24.40 Mbps |       639.55 Kbps
+ ---        |                   |
+ Rx pps     |         5.00 Kpps |        999.29 pps   <2>
+ Rx bps     |               N/A |               N/A   <3>
+ ----       |                   |
+ opackets   |            222496 |             44500
+ ipackets   |            222496 |             44500
+ obytes     |         131272640 |           2670000
+ ibytes     |               N/A |               N/A   <3>
+ -----      |                   |
+ tx_pkts    |      222.50 Kpkts |       44.50 Kpkts
+ rx_pkts    |      222.50 Kpkts |       44.50 Kpkts
+ tx_bytes   |         131.27 MB |           2.67 MB
+ rx_bytes   |               N/A |               N/A   <3>
+
+----
+<1> TX bandwidth of the streams matches the configured values
+<2> RX bandwidth means that no drops were seen
+<3> RX BPS is not supported on this platform (no hardware support for BPS) hence the N/A.
+
+
+*Flow Stats Using The Python API*::
+
+We'll use the following example:
+
+[source,python]
+----
+def rx_example (tx_port, rx_port, burst_size):
+
+    # create client
+    c = STLClient()
+    
+    try:
+        pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/
+	                          UDP(dport=12,sport=1025)/IP()/'a_payload_example')
+
+        s1 = STLStream(name = 'rx',
+                       packet = pkt,
+                       flow_stats = STLFlowStats(pg_id = 5),    <1>
+                       mode = STLTXSingleBurst(total_pkts = 5000,
+                                               percentage = 80  
+                                               ))
+
+        # connect to server
+        c.connect()
+
+        # prepare our ports - TX/RX
+        c.reset(ports = [tx_port, rx_port])
+
+        # add the stream to the TX port
+        c.add_streams([s1], ports = [tx_port])
+
+	# start and wait for completion
+        c.start(ports = [tx_port])
+        c.wait_on_traffic(ports = [tx_port])
+
+	# fetch stats for PG ID 5
+        flow_stats = c.get_stats()['flow_stats'].get(5)    <2>
+
+        tx_pkts  = flow_stats['tx_pkts'].get(tx_port, 0)   <2>
+        tx_bytes = flow_stats['tx_bytes'].get(tx_port, 0)  <2>
+        rx_pkts  = flow_stats['rx_pkts'].get(rx_port, 0)   <2>
+
+----
+<1> define the stream to use PG ID 5
+<2> the structure of the object ''flow_stats'' is described below
+
+==== flow_stats object structure
+A dictionary which keys are the configured PG IDs.
+
+The next level is a dictionary which contains 'tx_pkts', 'tx_bytes' and 'rx_pkts'.
+
+Each one of those keys contain a dictionary of per port values.
+
+
+Here is a printout of flow_stats object for 3 PG IDs after a specific run:
+
+[source,bash]
+----
+{
+ 5: {'rx_pkts'  : {0: 0, 1: 0, 2: 500000, 3: 0, 'total': 500000},
+     'tx_bytes' : {0: 0, 1: 39500000, 2: 0, 3: 0, 'total': 39500000},
+     'tx_pkts'  : {0: 0, 1: 500000, 2: 0, 3: 0, 'total': 500000}},
+
+ 7: {'rx_pkts'  : {0: 0, 1: 0, 2: 0, 3: 288, 'total': 288},
+     'tx_bytes' : {0: 17280, 1: 0, 2: 0, 3: 0, 'total': 17280},
+     'tx_pkts'  : {0: 288, 1: 0, 2: 0, 3: 0, 'total': 288}},
+
+ 12: {'rx_pkts' : {0: 0, 1: 0, 2: 0, 3: 1439, 'total': 1439},
+      'tx_bytes': {0: 849600, 1: 0, 2: 0, 3: 0, 'total': 849600},
+      'tx_pkts' : {0: 1440, 1: 0, 2: 0, 3: 0, 'total': 1440}}
+}
+----
+
+==== TODO
 * TUI should show Tx/Rx stats [TODO]
 * Python API to get the info  [TODO]
 
