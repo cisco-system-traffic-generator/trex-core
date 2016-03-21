@@ -1692,6 +1692,10 @@ SELINUX=disabled
 * Run: +
 systemctl disable firewalld 
 
+* Edit file /etc/yum.repos.d/fedora-updates.repo +
+set everywhere: +
+enabled=0
+
 * Reboot
 
 ===  Troubleshoot common problems, FAQ
