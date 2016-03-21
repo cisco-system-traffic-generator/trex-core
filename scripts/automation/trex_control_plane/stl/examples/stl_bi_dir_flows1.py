@@ -73,7 +73,7 @@ def simple_burst ():
         c.clear_stats()
 
         # choose rate and start traffic for 10 seconds on 5 mpps
-        print "Running 5 Mpps on ports 0, 1 for 10 seconds..."
+        print("Running 5 Mpps on ports 0, 1 for 10 seconds...")
         c.start(ports = [2, 3], mult = "5mpps", duration = 10)
 
         # block until done
@@ -82,14 +82,14 @@ def simple_burst ():
         # read the stats after the test
         stats = c.get_stats()
 
-        print json.dumps(stats[2], indent = 4, separators=(',', ': '), sort_keys = True)
-        print json.dumps(stats[3], indent = 4, separators=(',', ': '), sort_keys = True)
+        print(json.dumps(stats[2], indent = 4, separators=(',', ': '), sort_keys = True))
+        print(json.dumps(stats[3], indent = 4, separators=(',', ': '), sort_keys = True))
 
         lost_a = stats[2]["opackets"] - stats[3]["ipackets"]
         lost_b = stats[3]["opackets"] - stats[2]["ipackets"]
 
-        print "\npackets lost from 0 --> 1:   {0} pkts".format(lost_a)
-        print "packets lost from 1 --> 0:   {0} pkts".format(lost_b)
+        print("\npackets lost from 0 --> 1:   {0} pkts".format(lost_a))
+        print("packets lost from 1 --> 0:   {0} pkts".format(lost_b))
 
         if (lost_a == 0) and (lost_b == 0):
             passed = True
@@ -98,15 +98,15 @@ def simple_burst ():
 
     except STLError as e:
         passed = False
-        print e
+        print(e)
 
     finally:
         c.disconnect()
 
     if passed:
-        print "\nTest has passed :-)\n"
+        print("\nTest has passed :-)\n")
     else:
-        print "\nTest has failed :-(\n"
+        print("\nTest has failed :-(\n")
 
 while True :
     # run the tests

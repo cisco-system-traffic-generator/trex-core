@@ -31,8 +31,13 @@ import argparse
 import tempfile
 import subprocess
 import os
-from dpkt import pcap
 from operator import itemgetter
+
+# HACK
+import sys
+if sys.version_info < (3, 0):
+    from dpkt import pcap
+# HACK END
 
 class BpSimException(Exception):
     pass

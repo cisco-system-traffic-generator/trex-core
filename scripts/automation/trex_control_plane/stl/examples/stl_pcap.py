@@ -31,7 +31,7 @@ def inject_pcap (pcap_file, port, loop_count, ipg_usec, use_vm):
 
         profile = STLProfile.load_pcap(pcap_file, ipg_usec = ipg_usec, loop_count = loop_count, vm = vm)
 
-        print "Loaded pcap {0} with {1} packets...\n".format(pcap_file, len(profile))
+        print("Loaded pcap {0} with {1} packets...\n".format(pcap_file, len(profile)))
 
         # uncomment this for simulator run
         #STLSim().run(profile.get_streams(), outfile = 'out.cap')
@@ -47,10 +47,10 @@ def inject_pcap (pcap_file, port, loop_count, ipg_usec, use_vm):
 
         stats = c.get_stats()
         opackets = stats[port]['opackets']
-        print "{0} packets were Tx on port {1}\n".format(opackets, port)
+        print("{0} packets were Tx on port {1}\n".format(opackets, port))
 
     except STLError as e:
-        print e
+        print(e)
 
     finally:
         c.disconnect()

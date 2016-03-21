@@ -19,14 +19,14 @@ def simple ():
         # prepare our ports
         c.reset(ports = my_ports)
 
-        print (" is connected {0}".format(c.is_connected()))
+        print((" is connected {0}".format(c.is_connected())))
 
-        print (" number of ports {0}".format(c.get_port_count()))
-        print (" acquired_ports {0}".format(c.get_acquired_ports()))
+        print((" number of ports {0}".format(c.get_port_count())))
+        print((" acquired_ports {0}".format(c.get_acquired_ports())))
         # port stats
-        print c.get_stats(my_ports)
+        print(c.get_stats(my_ports))
         # port info
-        print c.get_port_info(my_ports)
+        print(c.get_port_info(my_ports))
 
         c.ping()
 
@@ -43,15 +43,15 @@ def simple ():
 
     except STLError as e:
         passed = False
-        print e
+        print(e)
 
     finally:
         c.disconnect()
 
     if passed:
-        print "\nTest has passed :-)\n"
+        print("\nTest has passed :-)\n")
     else:
-        print "\nTest has failed :-(\n"
+        print("\nTest has failed :-(\n")
 
 
 # run the tests

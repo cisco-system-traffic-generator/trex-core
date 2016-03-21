@@ -108,7 +108,7 @@ def simple_burst (duration = 10, frame_size = 9000, speed = '1gbps'):
         c.clear_stats()
 
         # choose rate and start traffic for 10 seconds on 5 mpps
-        print "Running {0} on ports 0, 1 for 10 seconds, UDP {1}...".format(speed,frame_size+4)
+        print("Running {0} on ports 0, 1 for 10 seconds, UDP {1}...".format(speed,frame_size+4))
         c.start(ports = [0, 1], mult = speed, duration = duration)
 
         # block until done
@@ -118,14 +118,14 @@ def simple_burst (duration = 10, frame_size = 9000, speed = '1gbps'):
         stats = c.get_stats()
 
         #print stats
-        print json.dumps(stats[0], indent = 4, separators=(',', ': '), sort_keys = True)
-        print json.dumps(stats[1], indent = 4, separators=(',', ': '), sort_keys = True)
+        print(json.dumps(stats[0], indent = 4, separators=(',', ': '), sort_keys = True))
+        print(json.dumps(stats[1], indent = 4, separators=(',', ': '), sort_keys = True))
 
         lost_a = stats[0]["opackets"] - stats[1]["ipackets"]
         lost_b = stats[1]["opackets"] - stats[0]["ipackets"]
 
-        print "\npackets lost from 0 --> 1:   {0} pkts".format(lost_a)
-        print "packets lost from 1 --> 0:   {0} pkts".format(lost_b)
+        print("\npackets lost from 0 --> 1:   {0} pkts".format(lost_a))
+        print("packets lost from 1 --> 0:   {0} pkts".format(lost_b))
 
         if (lost_a == 0) and (lost_b == 0):
             passed = True
@@ -134,15 +134,15 @@ def simple_burst (duration = 10, frame_size = 9000, speed = '1gbps'):
 
     except STLError as e:
         passed = False
-        print e
+        print(e)
 
     finally:
         c.disconnect()
 
     if passed:
-        print "\nPASSED\n"
+        print("\nPASSED\n")
     else:
-        print "\nFAILED\n"
+        print("\nFAILED\n")
 
 def process_options ():
     parser = argparse.ArgumentParser(usage=""" 
@@ -202,7 +202,7 @@ def process_options ():
                         version=H_VER )
 
     t_global.args = parser.parse_args();
-    print t_global.args
+    print(t_global.args)
 
 
 

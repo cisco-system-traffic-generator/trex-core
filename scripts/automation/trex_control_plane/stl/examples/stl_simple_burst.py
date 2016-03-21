@@ -33,7 +33,7 @@ def simple_burst ():
         stream_ids = c.add_streams([s1, s2], ports = [0, 3])
 
         # run 5 times
-        for i in xrange(1, 6):
+        for i in range(1, 6):
             c.clear_stats()
             c.start(ports = [0, 3], mult = "1gbps")
             c.wait_on_traffic(ports = [0, 3])
@@ -41,22 +41,22 @@ def simple_burst ():
             stats = c.get_stats()
             ipackets  = stats['total']['ipackets']
 
-            print "Test iteration {0} - Packets Received: {1} ".format(i, ipackets)
+            print("Test iteration {0} - Packets Received: {1} ".format(i, ipackets))
             # (5000 + 3000) * 2 ports = 16,000
             if (ipackets != (16000)):
                 passed = False
 
     except STLError as e:
         passed = False
-        print e
+        print(e)
 
     finally:
         c.disconnect()
 
     if passed:
-        print "\nTest has passed :-)\n"
+        print("\nTest has passed :-)\n")
     else:
-        print "\nTest has failed :-(\n"
+        print("\nTest has failed :-(\n")
 
 
 # run the tests
