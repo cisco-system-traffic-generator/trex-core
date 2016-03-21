@@ -205,10 +205,15 @@ The ISO images of the described Linux OS can be downloaded from the following li
     | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/19/Fedora/x86_64/iso/Fedora-19-x86_64-CHECKSUM[Fedora 19 CHECKSUM] 
 | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]
     | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-CHECKSUM[Fedora 20 CHECKSUM] 
+| link:http://fedora-mirror01.rbc.ru/pub/fedora/linux/releases/21/Server/x86_64/iso/Fedora-Server-DVD-x86_64-21.iso[Fedora 21]
+    | link:http://fedora-mirror01.rbc.ru/pub/fedora/linux/releases/21/Server/x86_64/iso/Fedora-Server-21-x86_64-CHECKSUM[Fedora 21 CHECKSUM] 
 | link:http://old-releases.ubuntu.com/releases/14.04.1/ubuntu-14.04-desktop-amd64.iso[Ubuntu 14.04.1]
     | http://old-releases.ubuntu.com/releases/14.04.1/SHA256SUMS[Ubuntu 14.04 CHECKSUM]
 |======================================
 
+For Fedora, you can get link close to your location at: +
+https://admin.fedoraproject.org/mirrormanager/mirrors/Fedora +
+Choose: "Fedora Linux http" -> releases -> <version number> -> Server -> x86_64 -> iso -> Fedora-Server-DVD-x86_64-<version number>.iso
 
 Then, verify the checksum of the downloaded file matches the linked checksum values with the `sha256sum` command. For example:
 
@@ -223,6 +228,8 @@ $sha256sum Fedora-18-x86_64-DVD.iso
 ==== Install Linux 
 
 Ask your lab admin to install the Linux using CIMC, assign an IP, and set the DNS. Request the sudo or super user password to enable you to ping and SSH.
+
+xref:fedora21_example[Example of installing Fedora 21 Server]
 
 IMPORTANT: To use TRex, you should have sudo on this machine or root password.
 WARNING: Upgrading the linux Kernel using `yum upgrade` require to build the TRex drivers. 
@@ -1659,6 +1666,33 @@ The TRex output
 ----
 <1>  this counter should be zero 
 
+anchor:fedora21_example[]
+
+=== Fedora 21 *Server* installation
+
+Download the .iso file from link above, boot with it using Hypervisor or CIMC console. +
+Troubleshooting -> install in basic graphics mode
+
+* In packages selection, choose:
+
+** C Development Tools and Libraries
+
+** Development Tools
+
+** System Tools
+
+* Set Ethernet configuration if needed
+
+* Use default hard-drive partitions, reclaim space if needed
+
+* After installation, edit file /etc/selinux/config +
+set: +
+SELINUX=disabled
+
+* Run: +
+systemctl disable firewalld 
+
+* Reboot
 
 ===  Troubleshoot common problems, FAQ
 
