@@ -143,16 +143,21 @@ class JsonRpcClient(object):
         if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
             self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
 
-        if len(msg) > self.MSG_COMPRESS_THRESHOLD:
-            response = self.send_raw_msg(self.compress_msg(msg))
+        # encode string to buffer
+        buffer = msg.encode()
+
+        if len(buffer) > self.MSG_COMPRESS_THRESHOLD:
+            response = self.send_raw_msg(self.compress_msg(buffer))
             if response:
                 response = self.decompress_msg(response)
         else:
-            response = self.send_raw_msg(msg)
+            response = self.send_raw_msg(buffer)
 
         if not response:
             return response
 
+        # return to string
+        response = response.decode()
 
         # print after
         if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
@@ -177,7 +182,7 @@ class JsonRpcClient(object):
         tries = 0
         while True:
             try:
-                self.socket.send_string(msg)
+                self.socket.send(msg)
                 break
             except zmq.Again:
                 tries += 1
@@ -189,7 +194,7 @@ class JsonRpcClient(object):
         tries = 0
         while True:
             try:
-                response = self.socket.recv_string()
+                response = self.socket.recv()
                 break
             except zmq.Again:
                 tries += 1

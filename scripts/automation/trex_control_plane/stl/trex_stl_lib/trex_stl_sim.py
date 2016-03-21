@@ -31,7 +31,7 @@ import argparse
 import tempfile
 import subprocess
 import os
-#from dpkt import pcap
+from dpkt import pcap
 from operator import itemgetter
 
 class BpSimException(Exception):

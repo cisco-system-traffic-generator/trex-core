@@ -8,7 +8,7 @@ from .trex_stl_streams import *
 
 # packet builder
 from .trex_stl_packet_builder_scapy import *
-#from scapy.all import *
+from scapy.all import *
 
 
 # simulator

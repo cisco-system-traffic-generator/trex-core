@@ -17,9 +17,9 @@ if not TREX_STL_EXT_PATH:
 # py-dep requires python2/python3 directories
 # arch-dep requires cel59/fedora and 32bit/64bit directories
 CLIENT_UTILS_MODULES = [ {'name': 'dpkt-1.8.6'},
-                         {'name': 'pyyaml-3.11', 'py-dep': True},
                          {'name': 'texttable-0.8.4'},
-                         {'name': 'scapy-2.3.1'},
+                         {'name': 'pyyaml-3.11', 'py-dep': True},
+                         {'name': 'scapy-2.3.1', 'py-dep': True},
                          {'name': 'pyzmq-14.5.0', 'py-dep': True, 'arch-dep': True}
                         ]
 
@@ -52,12 +52,13 @@ def import_module_list(modules_list):
         full_path = generate_module_path(p, is_python3, is_64bit, is_cel)
 
         if not os.path.exists(full_path):
-            print("Unable to find required module library: '{0}'".format(p))
+            print("Unable to find required module library: '{0}'".format(p['name']))
             print("Please provide the correct path using TREX_STL_EXT_PATH variable")
             print("current path used: '{0}'".format(full_path))
             exit(0)
 
         sys.path.insert(1, full_path)
+
 
 
 

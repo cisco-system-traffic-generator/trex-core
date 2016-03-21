@@ -7,9 +7,10 @@ import yaml
 import binascii
 import base64
 import inspect
+import copy
 
-from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
-from trex_stl_types import *
+from .trex_stl_packet_builder_interface import CTrexPktBuilderInterface
+from .trex_stl_types import *
 from scapy.all import *
 
 class CTRexPacketBuildException(Exception):
@@ -28,22 +29,30 @@ class CTRexPacketBuildException(Exception):
 
 ################################################################################################
 
+def safe_ord (c):
+    if type(c) is str:
+        return ord(c)
+    elif type(c) is int:
+        return c
+    else:
+        raise TypeError("cannot convert: {0} of type: {1}".format(c, type(c)))
+
 def _buffer_to_num(str_buffer):
-    validate_type('str_buffer', str_buffer, str)
+    validate_type('str_buffer', str_buffer, bytes)
     res=0
     for i in str_buffer:
         res = res << 8
-        res += ord(i)
+        res += safe_ord(i)
     return res
 
 
 def ipv4_str_to_num (ipv4_buffer):
-    validate_type('ipv4_buffer', ipv4_buffer, str)
+    validate_type('ipv4_buffer', ipv4_buffer, bytes)
     assert len(ipv4_buffer)==4, 'size of ipv4_buffer is not 4'
     return _buffer_to_num(ipv4_buffer)
 
 def mac_str_to_num (mac_buffer):
-    validate_type('mac_buffer', mac_buffer, str)
+    validate_type('mac_buffer', mac_buffer, bytes)
     assert len(mac_buffer)==6, 'size of mac_buffer is not 6'
     return _buffer_to_num(mac_buffer)
 
@@ -52,10 +61,10 @@ def is_valid_ipv4(ip_addr):
     """
     return buffer in network order
     """
-    if  type(ip_addr)==str and len(ip_addr) == 4:
+    if  type(ip_addr) == bytes and len(ip_addr) == 4:
         return ip_addr
 
-    if  type(ip_addr)==int :
+    if  type(ip_addr)== int:
         ip_addr = socket.inet_ntoa(struct.pack("!I", ip_addr))
 
     try:
@@ -70,7 +79,7 @@ def is_valid_ipv6(ipv6_addr):
     """
     return buffer in network order
     """
-    if type(ipv6_addr)==str and len(ipv6_addr) == 16:
+    if type(ipv6_addr) == bytes and len(ipv6_addr) == 16:
         return ipv6_addr
     try:
         return socket.inet_pton(socket.AF_INET6, ipv6_addr)
@@ -347,15 +356,15 @@ class CTRexVmEngine(object):
        def dump (self):
            cnt=0;
            for obj in self.ins:
-               print "ins",cnt
+               print("ins",cnt)
                cnt = cnt +1
-               print obj.__dict__
+               print(obj.__dict__)
 
        def dump_bjson (self):
-          print json.dumps(self.get_json(), sort_keys=True, indent=4)
+          print(json.dumps(self.get_json(), sort_keys=True, indent=4))
 
        def dump_as_yaml (self):
-          print yaml.dump(self.get_json(), default_flow_style=False)
+          print(yaml.dump(self.get_json(), default_flow_style=False))
 
 
 
@@ -517,10 +526,10 @@ class CTRexVmDescBase(object):
         return self.get_obj().__dict__
 
     def dump_bjson(self):
-       print json.dumps(self.get_json(), sort_keys=True, indent=4)
+       print(json.dumps(self.get_json(), sort_keys=True, indent=4))
 
     def dump_as_yaml(self):
-       print yaml.dump(self.get_json(), default_flow_style=False)
+       print(yaml.dump(self.get_json(), default_flow_style=False))
 
 
     def get_var_ref (self):
@@ -1185,7 +1194,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
 
     def dump_vm_data_as_yaml(self):
-        print yaml.dump(self.get_vm_data(), default_flow_style=False)
+        print(yaml.dump(self.get_vm_data(), default_flow_style=False))
 
     def get_vm_data(self):
         """
@@ -1224,7 +1233,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         """
         pkt_buf = self._get_pkt_as_str()
 
-        return {'binary': base64.b64encode(pkt_buf) if encode else pkt_buf,
+        return {'binary': base64.b64encode(pkt_buf).decode() if encode else pkt_buf,
                 'meta': self.metadata}
 
 
@@ -1239,7 +1248,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
     def dump_as_hex (self):
         pkt_buf = self._get_pkt_as_str()
-        print hexdump(pkt_buf)
+        print(hexdump(pkt_buf))
 
     def pkt_layers_desc (self):
         """
@@ -1389,7 +1398,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
             if var_names :
                 for var_name in var_names:
-                    if vars.has_key(var_name):
+                    if var_name in vars:
                         raise CTRexPacketBuildException(-11,("variable %s define twice ") % (var_name)  );
                     else:
                         vars[var_name]=1
@@ -1398,7 +1407,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         for desc in obj.commands:
             var_name =  desc.get_var_ref()
             if var_name :
-                if not vars.has_key(var_name):
+                if not var_name in vars:
                     raise CTRexPacketBuildException(-11,("variable %s does not exists  ") % (var_name) );
             desc.compile(self);
 
@@ -1451,10 +1460,13 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         return p_utl.get_field_offet_by_str(field_name)
 
     def _get_pkt_as_str(self):
+
         if self.pkt:
-            return str(self.pkt)
+            return bytes(self.pkt)
+
         if self.pkt_raw:
             return self.pkt_raw
+
         raise CTRexPacketBuildException(-11, 'empty packet');
 
     def _add_tuple_gen(self,tuple_gen):

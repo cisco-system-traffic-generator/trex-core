@@ -34,7 +34,7 @@ def imix_test (server):
         dir_0 = [x[0] for x in table['bi']]
         dir_1 = [x[1] for x in table['bi']]
 
-        print "Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1)
+        print("Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1))
 
         # load IMIX profile
         profile = STLProfile.load_py('../../../../stl/imix.py')
@@ -50,7 +50,7 @@ def imix_test (server):
         # choose rate and start traffic for 10 seconds on 5 mpps
         duration = 10
         mult = "30%"
-        print "Injecting {0} <--> {1} on total rate of '{2}' for {3} seconds".format(dir_0, dir_1, mult, duration)
+        print("Injecting {0} <--> {1} on total rate of '{2}' for {3} seconds".format(dir_0, dir_1, mult, duration))
 
         c.start(ports = (dir_0 + dir_1), mult = mult, duration = duration, total = True)
         
@@ -75,11 +75,11 @@ def imix_test (server):
         lost_0 = dir_0_opackets - dir_1_ipackets
         lost_1 = dir_1_opackets - dir_0_ipackets
 
-        print "\nPackets injected from {0}: {1:,}".format(dir_0, dir_0_opackets)
-        print "Packets injected from {0}: {1:,}".format(dir_1, dir_1_opackets)
+        print("\nPackets injected from {0}: {1:,}".format(dir_0, dir_0_opackets))
+        print("Packets injected from {0}: {1:,}".format(dir_1, dir_1_opackets))
 
-        print "\npackets lost from {0} --> {1}:   {2:,} pkts".format(dir_0, dir_0, lost_0)
-        print "packets lost from {0} --> {1}:   {2:,} pkts".format(dir_1, dir_1, lost_1)
+        print("\npackets lost from {0} --> {1}:   {2:,} pkts".format(dir_0, dir_0, lost_0))
+        print("packets lost from {0} --> {1}:   {2:,} pkts".format(dir_1, dir_1, lost_1))
 
         if (lost_0 <= 0) and (lost_1 <= 0): # less or equal because we might have incoming arps etc.
             passed = True
@@ -89,16 +89,16 @@ def imix_test (server):
 
     except STLError as e:
         passed = False
-        print e
+        print(e)
 
     finally:
         c.disconnect()
 
     if passed:
-        print "\nTest has passed :-)\n"
+        print("\nTest has passed :-)\n")
         sys.exit(0)
     else:
-        print "\nTest has failed :-(\n"
+        print("\nTest has failed :-(\n")
         sys.exit(-1)
 
 parser = argparse.ArgumentParser(description="Example for TRex Stateless, sending IMIX traffic")
