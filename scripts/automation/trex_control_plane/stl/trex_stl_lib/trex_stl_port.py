@@ -1,11 +1,12 @@
 
 from collections import namedtuple, OrderedDict
 
-from trex_stl_packet_builder_scapy import STLPktBuilder
-from trex_stl_streams import STLStream
+from .trex_stl_packet_builder_scapy import STLPktBuilder
+from .trex_stl_streams import STLStream
+from .trex_stl_types import *
+from . import trex_stl_stats
+
 import base64
-import trex_stl_stats
-from trex_stl_types import *
 import time
 import copy
 
@@ -59,7 +60,7 @@ class Port(object):
 
         self.port_stats = trex_stl_stats.CPortStats(self)
 
-        self.next_available_id = long(1)
+        self.next_available_id = 1
 
 
     def err(self, msg):
@@ -138,7 +139,7 @@ class Port(object):
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
 
-        self.next_available_id = long(rc.data()['max_stream_id']) + 1
+        self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
         # attributes
         self.attr = rc.data()['attr']
@@ -151,7 +152,7 @@ class Port(object):
         if rc.bad():
             return self.err(rc.err())
 
-        for k, v in rc.data()['streams'].iteritems():
+        for k, v in rc.data()['streams'].items():
             self.streams[k] = {'next_id': v['next_stream_id'],
                                'pkt'    : base64.b64decode(v['packet']['binary']),
                                'mode'   : v['mode']['type'],
@@ -488,21 +489,21 @@ class Port(object):
         rate = self.get_profile()['rate']
         graph = self.get_profile()['graph']
 
-        print format_text("Profile Map Per Port\n", 'underline', 'bold')
+        print(format_text("Profile Map Per Port\n", 'underline', 'bold'))
 
         factor = mult_to_factor(mult, rate['max_bps_l2'], rate['max_pps'], rate['max_line_util'])
 
-        print "Profile max BPS L2    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps_l2'], suffix = "bps"),
-                                                                             format_num(rate['max_bps_l2'] * factor, suffix = "bps"))
+        print("Profile max BPS L2    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps_l2'], suffix = "bps"),
+                                                                             format_num(rate['max_bps_l2'] * factor, suffix = "bps")))
 
-        print "Profile max BPS L1    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps_l1'], suffix = "bps"),
-                                                                             format_num(rate['max_bps_l1'] * factor, suffix = "bps"))
+        print("Profile max BPS L1    (base / req):   {:^12} / {:^12}".format(format_num(rate['max_bps_l1'], suffix = "bps"),
+                                                                             format_num(rate['max_bps_l1'] * factor, suffix = "bps")))
 
-        print "Profile max PPS       (base / req):   {:^12} / {:^12}".format(format_num(rate['max_pps'], suffix = "pps"),
-                                                                             format_num(rate['max_pps'] * factor, suffix = "pps"),)
+        print("Profile max PPS       (base / req):   {:^12} / {:^12}".format(format_num(rate['max_pps'], suffix = "pps"),
+                                                                             format_num(rate['max_pps'] * factor, suffix = "pps"),))
 
-        print "Profile line util.    (base / req):   {:^12} / {:^12}".format(format_percentage(rate['max_line_util']),
-                                                                             format_percentage(rate['max_line_util'] * factor))
+        print("Profile line util.    (base / req):   {:^12} / {:^12}".format(format_percentage(rate['max_line_util']),
+                                                                             format_percentage(rate['max_line_util'] * factor)))
 
 
         # duration
@@ -517,9 +518,9 @@ class Port(object):
                 exp_time_factor_sec = duration
 
 
-        print "Duration              (base / req):   {:^12} / {:^12}".format(format_time(exp_time_base_sec),
-                                                                             format_time(exp_time_factor_sec))
-        print "\n"
+        print("Duration              (base / req):   {:^12} / {:^12}".format(format_time(exp_time_base_sec),
+                                                                             format_time(exp_time_factor_sec)))
+        print("\n")
 
     # generate port info
     def get_info (self):
@@ -576,7 +577,7 @@ class Port(object):
             return {}
 
         data = {}
-        for id, obj in self.streams.iteritems():
+        for id, obj in self.streams.items():
 
             # lazy build scapy repr.
             if not 'pkt_type' in obj:

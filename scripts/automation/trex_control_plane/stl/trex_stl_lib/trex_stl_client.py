@@ -1,18 +1,18 @@
 #!/router/bin/python
 
 # for API usage the path name must be full
-from trex_stl_lib.trex_stl_exceptions import *
-from trex_stl_lib.trex_stl_streams import *
+from .trex_stl_exceptions import *
+from .trex_stl_streams import *
 
-from trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
-import trex_stl_stats
+from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
+from . import trex_stl_stats
 
-from trex_stl_port import Port
-from trex_stl_types import *
-from trex_stl_async_client import CTRexAsyncClient
+from .trex_stl_port import Port
+from .trex_stl_types import *
+from .trex_stl_async_client import CTRexAsyncClient
 
-from utils import parsing_opts, text_tables, common
-from utils.text_opts import *
+from .utils import parsing_opts, text_tables, common
+from .utils.text_opts import *
 from functools import wraps
 
 from collections import namedtuple
@@ -47,7 +47,7 @@ class LoggerApi(object):
         raise Exception("implement this")
 
     def set_verbose (self, level):
-        if not level in xrange(self.VERBOSE_QUIET, self.VERBOSE_HIGH + 1):
+        if not level in range(self.VERBOSE_QUIET, self.VERBOSE_HIGH + 1):
             raise ValueError("bad value provided for logger")
 
         self.level = level
@@ -113,9 +113,9 @@ class DefaultLogger(LoggerApi):
 
     def write (self, msg, newline = True):
         if newline:
-            print msg
+            print(msg)
         else:
-            print msg,
+            print (msg),
 
     def flush (self):
         sys.stdout.flush()
@@ -165,13 +165,13 @@ class AsyncEventHandler(object):
         port_stats = {}
 
         # filter the values per port and general
-        for key, value in dump_data.iteritems():
+        for key, value in dump_data.items():
             # match a pattern of ports
             m = re.search('(.*)\-(\d+)', key)
             if m:
                 port_id = int(m.group(2))
                 field_name = m.group(1)
-                if self.client.ports.has_key(port_id):
+                if port_id in self.client.ports:
                     if not port_id in port_stats:
                         port_stats[port_id] = {}
                     port_stats[port_id][field_name] = value
@@ -185,7 +185,7 @@ class AsyncEventHandler(object):
         self.client.global_stats.update(global_stats, baseline)
 
         # update all ports
-        for port_id, data in port_stats.iteritems():
+        for port_id, data in port_stats.items():
             self.client.ports[port_id].port_stats.update(data, baseline)
 
 
@@ -351,7 +351,7 @@ class CCommLink(object):
         if self.virtual:
             self._prompt_virtual_tx_msg()
             _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params)
-            print msg
+            print(msg)
             return
         else:
             return self.rpc_link.invoke_rpc_method(method_name, params)
@@ -359,9 +359,9 @@ class CCommLink(object):
     def transmit_batch(self, batch_list):
         if self.virtual:
             self._prompt_virtual_tx_msg()
-            print [msg
+            print([msg
                    for _, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params)
-                                  for command in batch_list]]
+                                  for command in batch_list]])
         else:
             batch = self.rpc_link.create_batch()
             for command in batch_list:
@@ -370,8 +370,8 @@ class CCommLink(object):
             return batch.invoke()
 
     def _prompt_virtual_tx_msg(self):
-        print "Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
-                                                                         port=self.port)
+        print("Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
+                                                                         port=self.port))
 
 
 
@@ -710,7 +710,7 @@ class STLClient(object):
         self.supported_cmds = rc.data()
 
         # create ports
-        for port_id in xrange(self.system_info["port_count"]):
+        for port_id in range(self.system_info["port_count"]):
             info = self.system_info['ports'][port_id]
 
             self.ports[port_id] = Port(port_id,
@@ -781,7 +781,7 @@ class STLClient(object):
             port_stats = self.ports[port_id].get_stats()
             stats[port_id] = port_stats
 
-            for k, v in port_stats.iteritems():
+            for k, v in port_stats.items():
                 if not k in total:
                     total[k] = v
                 else:
@@ -859,7 +859,7 @@ class STLClient(object):
     @staticmethod
     def __get_mask_keys(ok_values={True}, **kwargs):
         masked_keys = set()
-        for key, val in kwargs.iteritems():
+        for key, val in kwargs.items():
             if val in ok_values:
                 masked_keys.add(key)
         return masked_keys
@@ -1074,30 +1074,30 @@ class STLClient(object):
 
         """
 
-        return self.ports.keys()
+        return list(self.ports)
 
     # get all acquired ports
     def get_acquired_ports(self):
         return [port_id
-                for port_id, port_obj in self.ports.iteritems()
+                for port_id, port_obj in self.ports.items()
                 if port_obj.is_acquired()]
 
     # get all active ports (TX or pause)
     def get_active_ports(self):
         return [port_id
-                for port_id, port_obj in self.ports.iteritems()
+                for port_id, port_obj in self.ports.items()
                 if port_obj.is_active()]
 
     # get paused ports
     def get_paused_ports (self):
         return [port_id
-                for port_id, port_obj in self.ports.iteritems()
+                for port_id, port_obj in self.ports.items()
                 if port_obj.is_paused()]
 
     # get all TX ports
     def get_transmitting_ports (self):
         return [port_id
-                for port_id, port_obj in self.ports.iteritems()
+                for port_id, port_obj in self.ports.items()
                 if port_obj.is_transmitting()]
 
 
@@ -2154,7 +2154,7 @@ class STLClient(object):
 
 
         # print stats to screen
-        for stat_type, stat_data in stats.iteritems():
+        for stat_type, stat_data in stats.items():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
 
 
@@ -2179,7 +2179,7 @@ class STLClient(object):
 
         else:
             # print stats to screen
-            for stream_hdr, port_streams_data in streams.iteritems():
+            for stream_hdr, port_streams_data in streams.items():
                 text_tables.print_table_with_header(port_streams_data.text_table,
                                                     header= stream_hdr.split(":")[0] + ":",
                                                     untouched_header= stream_hdr.split(":")[1])
@@ -2304,7 +2304,7 @@ class STLClient(object):
 
         if profile_type == 'python':
             self.logger.log('Type:             {:^12}'.format('Python Module'))
-            self.logger.log('Tunables:         {:^12}'.format(['{0} = {1}'.format(k ,v) for k, v in info['tunables'].iteritems()]))
+            self.logger.log('Tunables:         {:^12}'.format(['{0} = {1}'.format(k ,v) for k, v in info['tunables'].items()]))
 
         elif profile_type == 'yaml':
             self.logger.log('Type:             {:^12}'.format('YAML'))

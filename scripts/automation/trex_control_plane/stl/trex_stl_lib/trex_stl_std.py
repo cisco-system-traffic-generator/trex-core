@@ -1,5 +1,5 @@
-from trex_stl_streams import *
-from trex_stl_packet_builder_scapy import *
+from .trex_stl_streams import *
+from .trex_stl_packet_builder_scapy import *
 
 # map ports
 # will destroy all streams/data on the ports

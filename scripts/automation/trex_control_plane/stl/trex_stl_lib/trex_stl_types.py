@@ -1,7 +1,7 @@
 
 from collections import namedtuple
-from utils.text_opts import *
-from trex_stl_exceptions import *
+from .utils.text_opts import *
+from .trex_stl_exceptions import *
 import types
 
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
@@ -60,9 +60,9 @@ class RC():
 
     def prn_func (self, msg, newline = True):
         if newline:
-            print msg
+            print(msg)
         else:
-            print msg,
+            print(msg),
 
     def annotate (self, log_func = None, desc = None, show_status = True):
 
@@ -76,12 +76,12 @@ class RC():
 
         if self.bad():
             # print all the errors
-            print ""
+            print("")
             for x in self.rc_list:
                 if not x.rc:
                     log_func(format_text("\n{0}".format(x.data), 'bold'))
 
-            print ""
+            print("")
             if show_status:
                 log_func(format_text("[FAILED]\n", 'red', 'bold'))
 
@@ -135,6 +135,6 @@ def validate_type(arg_name, arg, valid_types):
 
 # throws STLError if not exactly one argument is present
 def verify_exclusive_arg (args_list):
-    if not (len(filter(lambda x: x is not None, args_list)) == 1):
+    if not (len(list(filter(lambda x: x is not None, args_list))) == 1):
         raise STLError('exactly one parameter from {0} should be provided'.format(args_list))
         

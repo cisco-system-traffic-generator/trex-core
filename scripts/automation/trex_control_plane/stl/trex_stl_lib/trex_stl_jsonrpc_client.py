@@ -4,11 +4,11 @@ import zmq
 import json
 import re
 from collections import namedtuple
-from trex_stl_types import *
-from utils.common import random_id_gen
 import zlib
 import struct
 
+from .trex_stl_types import *
+from .utils.common import random_id_gen
 
 class bcolors:
     BLUE = '\033[94m'
@@ -100,7 +100,7 @@ class JsonRpcClient(object):
 
         msg["params"] = params
 
-        msg["id"] = self.id_gen.next()
+        msg["id"] = next(self.id_gen)
 
         if encode:
             return id, json.dumps(msg)
@@ -177,7 +177,7 @@ class JsonRpcClient(object):
         tries = 0
         while True:
             try:
-                self.socket.send(msg)
+                self.socket.send_string(msg)
                 break
             except zmq.Again:
                 tries += 1
@@ -189,7 +189,7 @@ class JsonRpcClient(object):
         tries = 0
         while True:
             try:
-                response = self.socket.recv()
+                response = self.socket.recv_string()
                 break
             except zmq.Again:
                 tries += 1

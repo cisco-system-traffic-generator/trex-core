@@ -52,9 +52,9 @@ def import_module_list(modules_list):
         full_path = generate_module_path(p, is_python3, is_64bit, is_cel)
 
         if not os.path.exists(full_path):
-            print "Unable to find required module library: '{0}'".format(p)
-            print "Please provide the correct path using TREX_STL_EXT_PATH variable"
-            print "current path used: '{0}'".format(full_path)
+            print("Unable to find required module library: '{0}'".format(p))
+            print("Please provide the correct path using TREX_STL_EXT_PATH variable")
+            print("current path used: '{0}'".format(full_path))
             exit(0)
 
         sys.path.insert(1, full_path)

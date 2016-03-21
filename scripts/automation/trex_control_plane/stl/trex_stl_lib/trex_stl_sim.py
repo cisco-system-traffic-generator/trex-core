@@ -17,23 +17,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 # simulator can be run as a standalone
-import trex_stl_ext
+from . import trex_stl_ext
+from .trex_stl_exceptions import *
+from .trex_stl_streams import *
+from .utils import parsing_opts
+from .trex_stl_client import STLClient
 
-from trex_stl_exceptions import *
 from yaml import YAMLError
-from trex_stl_streams import *
-from utils import parsing_opts
-from trex_stl_client import STLClient
 
 import re
 import json
-
-
 import argparse
 import tempfile
 import subprocess
 import os
-from dpkt import pcap
+#from dpkt import pcap
 from operator import itemgetter
 
 class BpSimException(Exception):
@@ -43,7 +41,7 @@ def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
 
     out_pkts = []
     if not all([os.path.exists(f) for f in pcap_file_list]):
-        print "failed to merge cap file list...\nnot all files exist\n"
+        print("failed to merge cap file list...\nnot all files exist\n")
         return
 
     # read all packets to a list
@@ -214,16 +212,16 @@ class STLSim(object):
                                                  duration = duration))
 
         if mode == 'json':
-            print json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True)
+            print(json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True))
             return
         elif mode == 'yaml':
-            print STLProfile(stream_list).dump_to_yaml()
+            print(STLProfile(stream_list).dump_to_yaml())
             return
         elif mode == 'pkt':
-            print STLProfile(stream_list).dump_as_pkt();
+            print(STLProfile(stream_list).dump_as_pkt())
             return
         elif mode == 'native':
-            print STLProfile(stream_list).dump_to_code()
+            print(STLProfile(stream_list).dump_to_code())
             return
 
 
@@ -296,7 +294,7 @@ class STLSim(object):
         elif self.mode == 'gdb':
             cmd = ['/usr/bin/gdb', '--args'] + cmd
 
-        print "executing command: '{0}'".format(" ".join(cmd))
+        print("executing command: '{0}'".format(" ".join(cmd)))
 
         if self.silent:
             FNULL = open(os.devnull, 'w')
@@ -321,7 +319,7 @@ class STLSim(object):
             return
 
 
-        print "Mering cores output to a single pcap file...\n"
+        print("Mering cores output to a single pcap file...\n")
         inputs = ["{0}-{1}".format(self.outfile, index) for index in xrange(0, self.dp_core_count)]
         merge_cap_files(inputs, self.outfile, delete_src = True)
 
@@ -504,11 +502,11 @@ def main (args = None):
               tunables = options.tunables)
 
     except KeyboardInterrupt as e:
-        print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
+        print("\n\n*** Caught Ctrl + C... Exiting...\n\n")
         return (-1)
 
     except STLError as e:
-        print e
+        print(e)
         return (-1)
 
     return (0)

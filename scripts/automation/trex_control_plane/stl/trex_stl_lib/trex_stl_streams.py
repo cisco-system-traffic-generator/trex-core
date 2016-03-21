@@ -1,19 +1,19 @@
 #!/router/bin/python
 
-from trex_stl_exceptions import *
-from trex_stl_types import verify_exclusive_arg, validate_type
-from trex_stl_packet_builder_interface import CTrexPktBuilderInterface
-from trex_stl_packet_builder_scapy import STLPktBuilder, Ether, IP, UDP, TCP, RawPcapReader
+from .trex_stl_exceptions import *
+from .trex_stl_types import verify_exclusive_arg, validate_type
+from .trex_stl_packet_builder_interface import CTrexPktBuilderInterface
+from .trex_stl_packet_builder_scapy import STLPktBuilder, Ether, IP, UDP, TCP, RawPcapReader
 from collections import OrderedDict, namedtuple
 
-from scapy.utils import ltoa
+#from scapy.utils import ltoa
 import random
 import yaml
 import base64
 import string
 import traceback
-from types import NoneType
 import copy
+import imp
 
 # base class for TX mode
 class STLTXMode(object):
@@ -318,11 +318,11 @@ class STLStream(object):
 
         # type checking
         validate_type('mode', mode, STLTXMode)
-        validate_type('packet', packet, (NoneType, CTrexPktBuilderInterface))
+        validate_type('packet', packet, (type(None), CTrexPktBuilderInterface))
         validate_type('enabled', enabled, bool)
         validate_type('self_start', self_start, bool)
         validate_type('isg', isg, (int, float))
-        validate_type('stream_id', stream_id, (NoneType, int))
+        validate_type('stream_id', stream_id, (type(None), int))
         validate_type('random_seed',random_seed,int);
 
         if (type(mode) == STLTXCont) and (next != None):
@@ -474,12 +474,12 @@ class STLStream(object):
     def to_pkt_dump (self):
         """ print packet description from scapy  """
         if self.name:
-            print "Stream Name: ",self.name
+            print("Stream Name: ",self.name)
         scapy_b = self.scapy_pkt_builder;
         if scapy_b and isinstance(scapy_b,STLPktBuilder):
             scapy_b.to_pkt_dump()
         else:
-            print "Nothing to dump"
+            print("Nothing to dump")
 
 
 
@@ -844,7 +844,7 @@ class STLProfile(object):
         tunables = func.__code__.co_varnames[1:argc]
 
         # fetch defaults
-        defaults = func.func_defaults
+        defaults = func.__defaults__
         if len(defaults) != (argc - 1):
             raise STLError("Module should provide default values for all arguments on get_streams()")
 
@@ -868,8 +868,8 @@ class STLProfile(object):
 
         try:
             file    = os.path.basename(python_file).split('.')[0]
-            module = __import__(file, globals(), locals(), [], -1)
-            reload(module) # reload the update 
+            module = __import__(file, globals(), locals(), [], 0)
+            imp.reload(module) # reload the update 
 
             t = STLProfile.get_module_tunables(module)
             for arg in kwargs:
@@ -1018,9 +1018,9 @@ class STLProfile(object):
         """ dump the profile as scapy packet. in case it is raw convert to scapy and dump it"""
         cnt=0;
         for stream in self.streams:
-            print "======================="
-            print "Stream %d" % cnt
-            print "======================="
+            print("=======================")
+            print("Stream %d" % cnt)
+            print("=======================")
             cnt = cnt +1 
             stream.to_pkt_dump()
 

@@ -19,8 +19,8 @@ TEXT_CODES = {'bold': {'start': '\x1b[1m',
                             'end': '\x1b[24m'}}
 
 class TextCodesStripper:
-    keys = [re.escape(v['start']) for k,v in TEXT_CODES.iteritems()]
-    keys += [re.escape(v['end']) for k,v in TEXT_CODES.iteritems()]
+    keys = [re.escape(v['start']) for k,v in TEXT_CODES.items()]
+    keys += [re.escape(v['end']) for k,v in TEXT_CODES.items()]
     pattern = re.compile("|".join(keys))
 
     @staticmethod

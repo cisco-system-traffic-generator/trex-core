@@ -1,5 +1,5 @@
 from texttable import Texttable
-from text_opts import format_text
+from .text_opts import format_text
 
 class TRexTextTable(Texttable):
 
@@ -22,9 +22,9 @@ def generate_trex_stats_table():
 
 def print_table_with_header(texttable_obj, header="", untouched_header=""):
     header = header.replace("_", " ").title() + untouched_header
-    print format_text(header, 'cyan', 'underline') + "\n"
+    print(format_text(header, 'cyan', 'underline') + "\n")
 
-    print (texttable_obj.draw() + "\n").encode('utf-8')
+    print((texttable_obj.draw() + "\n").encode('utf-8'))
 
 if __name__ == "__main__":
     pass
