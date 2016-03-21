@@ -1734,7 +1734,7 @@ We are planning to add MACs to `./dpdk_setup_ports.py -s`
 =====================================
 
 
-Q: TRex traffic doesn't show up on Wireshark, So I can't capture the traffic from the TRex port
+Q: TRex traffic doesn't show up on Wireshark, So I can't capture the traffic from the TRex port +
 A: TRex uses DPDK that take ownership on the ports. We are using a Switch with port mirroring to capture the traffic
 
 
