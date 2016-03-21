@@ -1,0 +1,13 @@
+{
+  "zmq_prefix": "/tmp/zmq/zmq-bin",
+  "build_ext": {
+    "library_dirs": "/tmp/zmq/zmq-bin/lib"
+  },
+  "skip_check_zmq": false,
+  "no_libzmq_extension": true,
+  "have_sys_un_h": false,
+  "bdist_egg": {
+    "plat-name": "linux-i686"
+  },
+  "libzmq_extension": false
+}

@@ -1,0 +1,13 @@
+{
+  "skip_check_zmq": false,
+  "zmq_prefix": "/tmp/zmq/zmq-bin",
+  "libzmq_extension": false,
+  "bdist_egg": {},
+  "have_sys_un_h": false,
+  "no_libzmq_extension": true,
+  "build_ext": {
+    "libraries": "python2.7 util dl",
+    "include_dirs": "/tmp/zmq/zmq-bin/include:/sw/packages/python/2.7.6/include",
+    "library_dirs": "/tmp/zmq/zmq-bin/lib:/sw/packages/python/2.7.6/lib"
+  }
+}
