@@ -2234,21 +2234,16 @@ class STLClient(object):
             else:
                 self.stop(active_ports)
 
-        try:
-            # pcap injection removes all previous streams from the ports
-            self.remove_all_streams(ports = opts.ports)
+        # pcap injection removes all previous streams from the ports
+        self.remove_all_streams(ports = opts.ports)
             
-            profile = STLProfile.load_pcap(opts.file[0],
-                                           opts.ipg_usec,
-                                           opts.speedup,
-                                           opts.count)
+        profile = STLProfile.load_pcap(opts.file[0],
+                                       opts.ipg_usec,
+                                       opts.speedup,
+                                       opts.count)
 
-            id_list = self.add_streams(profile.get_streams(), opts.ports)
-            self.start(ports = opts.ports, duration = opts.duration, force = opts.force)
-
-        except STLError as e:
-            stl.logger.log(e.brief())
-            return
+        id_list = self.add_streams(profile.get_streams(), opts.ports)
+        self.start(ports = opts.ports, duration = opts.duration, force = opts.force)
 
         return True
 
@@ -2268,11 +2263,7 @@ class STLClient(object):
         if opts is None:
             return
 
-        try:
-            self.set_port_attr(opts.ports, opts.prom)
-        except STLError as e:
-            stl.logger.log(brief())
-            return
+        self.set_port_attr(opts.ports, opts.prom)
 
     
 
