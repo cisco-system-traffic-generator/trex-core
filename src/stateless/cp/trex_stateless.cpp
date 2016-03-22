@@ -132,6 +132,7 @@ TrexStateless::encode_stats(Json::Value &global) {
     api->get_global_stats(stats);
 
     global["cpu_util"] = stats.m_stats.m_cpu_util;
+    global["rx_cpu_util"] = stats.m_stats.m_rx_cpu_util;
 
     global["tx_bps"]   = stats.m_stats.m_tx_bps;
     global["rx_bps"]   = stats.m_stats.m_rx_bps;

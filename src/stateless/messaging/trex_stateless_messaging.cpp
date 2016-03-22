@@ -209,13 +209,17 @@ TrexDpPortEventMsg::handle() {
 }
 
 /************************* messages from CP to RX **********************/
-bool TrexRxStartMsg::handle (CRxCoreStateless *rx_core) {
+bool TrexStatelessRxStartMsg::handle (CRxCoreStateless *rx_core) {
     rx_core->work();
     return true;
 }
 
-/************************* messages from CP to RX **********************/
-bool TrexRxStopMsg::handle (CRxCoreStateless *rx_core) {
+bool TrexStatelessRxStopMsg::handle (CRxCoreStateless *rx_core) {
     rx_core->idle();
+    return true;
+}
+
+bool TrexStatelessRxQuit::handle (CRxCoreStateless *rx_core) {
+    rx_core->quit();
     return true;
 }

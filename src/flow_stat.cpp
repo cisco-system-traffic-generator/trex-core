@@ -387,7 +387,7 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_api = NULL;
     m_max_hw_id = -1;
     m_num_started_streams = 0;
-    m_ring_to_rx = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    m_ring_to_rx = NULL;
 }
 
 std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf) {
@@ -439,6 +439,8 @@ int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
 #endif
 
+    // Init everything here, and not in the constructor, since we relay on other objects
+    // By the time a stream is added everything else is initialized.
     if (! m_api ) {
         TrexStateless *tstateless = get_stateless_obj();
         m_api = tstateless->get_platform_api();
@@ -455,6 +457,7 @@ int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
         for (uint8_t port = 0; port < m_num_ports; port++) {
             assert(m_api->reset_hw_flow_stats(port) == 0);
         }
+        m_ring_to_rx = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     }
 
     if (no_stat_supported)
@@ -641,9 +644,9 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
     TrexStatelessCpToRxMsgBase *msg;
 
     if (is_start) {
-        msg = new TrexRxStartMsg();
+        msg = new TrexStatelessRxStartMsg();
     } else {
-        msg = new TrexRxStopMsg();
+        msg = new TrexStatelessRxStopMsg();
     }
     m_ring_to_rx->Enqueue((CGenNode *)msg);
 }

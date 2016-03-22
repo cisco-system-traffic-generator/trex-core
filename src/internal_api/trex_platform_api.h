@@ -42,7 +42,7 @@ public:
 
     struct {
         double m_cpu_util;
-
+        double m_rx_cpu_util;
         double m_tx_bps;
         double m_rx_bps;
        

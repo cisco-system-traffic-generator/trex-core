@@ -188,11 +188,9 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
     virtual void clear_extended_stats(CPhyEthIF * _if);
-    int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes
-                     , int min, int max);
     int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
     int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}    
+    int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual int wait_for_stable_link();
     void wait_after_link_up();
 };
@@ -244,6 +242,8 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
 
     virtual int wait_for_stable_link();
+    int get_stat_counters_num() {return MAX_FLOW_STATS;}
+    int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
 };
 
 
@@ -270,15 +270,17 @@ public:
     virtual bool is_hardware_filter_is_supported(){
         return (true);
     }
-
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-
+    virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
+    virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
     virtual bool is_hardware_support_drop_queue(){
         return(true);
     }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
+    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
 };
 
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
@@ -1106,15 +1108,19 @@ public:
         m_port_conf.fdir_conf.status=RTE_FDIR_NO_REPORT_STATUS;
         /* Offset of flexbytes field in RX packets (in 16-bit word units). */
         /* Note: divide by 2 to convert byte offset to word offset */
-        if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
-            m_port_conf.fdir_conf.flexbytes_offset=(14+6)/2;
-        }else{
-            m_port_conf.fdir_conf.flexbytes_offset=(14+8)/2;
-        }
+        if (get_is_stateless()) {
+            m_port_conf.fdir_conf.flexbytes_offset = (14+4)/2;
+        } else {
+            if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ) {
+                m_port_conf.fdir_conf.flexbytes_offset = (14+6)/2;
+            } else {
+                m_port_conf.fdir_conf.flexbytes_offset = (14+8)/2;
+            }
 
-        /* Increment offset 4 bytes for the case where we add VLAN */
-        if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ){
-            m_port_conf.fdir_conf.flexbytes_offset+=(4/2);
+            /* Increment offset 4 bytes for the case where we add VLAN */
+            if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) {
+                m_port_conf.fdir_conf.flexbytes_offset += (4/2);
+            }
         }
         m_port_conf.fdir_conf.drop_queue=1;
     }
@@ -1225,6 +1231,7 @@ void CPhyEthIFStats::Dump(FILE *fd){
     DP_A(rx_nombuf);
 }
 
+// Clear the RX queue of an interface, dropping all packets
 void CPhyEthIF::flush_rx_queue(void){
 
     rte_mbuf_t * rx_pkts[32];
@@ -1797,6 +1804,9 @@ bool CCoreEthIF::Create(uint8_t             core_id,
     return (true);
 }
 
+// This function is only relevant if we are in VM. In this case, we only have one rx queue. Can't have
+// rules to drop queue 0, and pass queue 1 to RX core, like in other cases.
+// We receive all packets in the same core that transmitted, and handle them to RX core.
 void CCoreEthIF::flush_rx_queue(void){
     pkt_dir_t   dir ;
     bool is_rx = get_is_rx_thread_enabled();
@@ -2311,6 +2321,7 @@ public:
     float m_active_flows;
     float m_open_flows;
     float m_cpu_util;
+    float m_rx_cpu_util;
     uint8_t m_threads;
 
     uint32_t      m_num_of_ports;
@@ -2605,10 +2616,11 @@ public:
     int  reset_counters();
 
 private:
-    /* try to stop all datapath cores */
-    void try_stop_all_dp();
+    /* try to stop all datapath cores and RX core */
+    void try_stop_all_cores();
     /* send message to all dp cores */
     int  send_message_all_dp(TrexStatelessCpToDpMsgBase *msg);
+    int  send_message_to_rx(TrexStatelessCpToRxMsgBase *msg);
     void check_for_dp_message_from_core(int thread_id);
 
 public:
@@ -2616,7 +2628,6 @@ public:
     int start_master_statefull();
     int start_master_stateless();
     int run_in_core(virtual_thread_id_t virt_core_id);
-    int stop_core(virtual_thread_id_t virt_core_id);
     int core_for_rx(){
         if ( (! get_is_rx_thread_enabled()) ) {
             return -1;
@@ -2687,7 +2698,8 @@ public:
     CParserOption m_po ;
     CFlowGenList  m_fl;
     bool          m_fl_was_init;
-    volatile uint8_t       m_signal[BP_MAX_CORES] __rte_cache_aligned ;
+    volatile uint8_t       m_signal[BP_MAX_CORES] __rte_cache_aligned ; // Signal to main core when DP thread finished
+    volatile bool m_rx_running; // Signal main core when RX thread finished
     CLatencyManager     m_mg; // statefull RX core
     CRxCoreStateless    m_rx_sl; // stateless RX core
     CTrexGlobalIoMode   m_io_modes;
@@ -2776,12 +2788,14 @@ bool CGlobalTRex::is_all_links_are_up(bool dump){
     return (all_link_are);
 }
 
+void CGlobalTRex::try_stop_all_cores(){
 
-void CGlobalTRex::try_stop_all_dp(){
-
-    TrexStatelessDpQuit * msg= new TrexStatelessDpQuit();
-    send_message_all_dp(msg);
-    delete msg;
+    TrexStatelessDpQuit * dp_msg= new TrexStatelessDpQuit();
+    TrexStatelessRxQuit * rx_msg= new TrexStatelessRxQuit();
+    send_message_all_dp(dp_msg);
+    send_message_to_rx(rx_msg);
+    delete dp_msg;
+    // no need to delete rx_msg. Deleted by receiver
     bool all_core_finished = false;
     int i;
     for (i=0; i<20; i++) {
@@ -2809,6 +2823,13 @@ int  CGlobalTRex::send_message_all_dp(TrexStatelessCpToDpMsgBase *msg){
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp((uint8_t)i);
         ring->Enqueue((CGenNode*)msg->clone());
     }
+    return (0);
+}
+
+int CGlobalTRex::send_message_to_rx(TrexStatelessCpToRxMsgBase *msg) {
+    CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->Enqueue((CGenNode *) msg);
+
     return (0);
 }
 
@@ -2868,12 +2889,11 @@ void CGlobalTRex::ixgbe_configure_mg(void) {
 // init m_rx_sl object for stateless rx core
 void CGlobalTRex::rx_sl_configure(void) {
     CRxSlCfg rx_sl_cfg;
+    int i;
 
     rx_sl_cfg.m_max_ports = m_max_ports;
 
     if ( get_vm_one_queue_enable() ) {
-#if 0
-        /// what to do here ???
         /* vm mode, indirect queues  */
         for (i=0; i < m_max_ports; i++) {
             CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
@@ -2882,9 +2902,8 @@ void CGlobalTRex::rx_sl_configure(void) {
             m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg);
             rx_sl_cfg.m_ports[i] = &m_latency_vm_vports[i];
         }
-#endif
     } else {
-        for (int i = 0; i < m_max_ports; i++) {
+        for (i = 0; i < m_max_ports; i++) {
             CPhyEthIF * _if = &m_ports[i];
             m_latency_vports[i].Create(_if, m_latency_tx_queue_id, 1);
             rx_sl_cfg.m_ports[i] = &m_latency_vports[i];
@@ -3403,6 +3422,9 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     stats.m_num_of_ports = m_max_ports;
     stats.m_cpu_util = m_fl.GetCpuUtil();
+    if (get_is_stateless()) {
+        stats.m_rx_cpu_util = m_rx_sl.get_cpu_util();
+    }
     stats.m_threads      = m_fl.m_threads_info.size();
 
     for (i=0; i<m_max_ports; i++) {
@@ -3766,7 +3788,7 @@ int CGlobalTRex::run_in_master() {
 
     if (!is_all_cores_finished()) {
         /* probably CLTR-C */
-        try_stop_all_dp();
+        try_stop_all_cores();
     }
 
     m_mg.stop();
@@ -3782,19 +3804,16 @@ int CGlobalTRex::run_in_master() {
 
 int CGlobalTRex::run_in_rx_core(void){
     if (get_is_stateless()) {
+        m_rx_running = true;
         m_rx_sl.start();
     } else {
         if ( CGlobalInfo::m_options.is_rx_enabled() ){
+            m_rx_running = true;
             m_mg.start(0);
         }
     }
 
-    return (0);
-}
-
-
-int CGlobalTRex::stop_core(virtual_thread_id_t virt_core_id){
-    m_signal[virt_core_id]=1;
+    m_rx_running = false;
     return (0);
 }
 
@@ -3879,14 +3898,17 @@ int CGlobalTRex::stop_master(){
     return (0);
 }
 
-bool CGlobalTRex::is_all_cores_finished(){
+bool CGlobalTRex::is_all_cores_finished() {
     int i;
     for (i=0; i<get_cores_tx(); i++) {
         if ( m_signal[i+1]==0){
-            return (false);
+            return false;
         }
     }
-    return (true);
+    if (m_rx_running)
+        return false;
+
+    return true;
 }
 
 
@@ -3972,7 +3994,6 @@ int CGlobalTRex::start_master_statefull() {
 
 
 ////////////////////////////////////////////
-
 static CGlobalTRex g_trex;
 
 int CPhyEthIF::reset_hw_flow_stats() {
@@ -3994,30 +4015,39 @@ int CPhyEthIF::reset_hw_flow_stats() {
 int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
     uint32_t diff_pkts[MAX_FLOW_STATS];
     uint32_t diff_bytes[MAX_FLOW_STATS];
+    bool hw_rx_stat_supported = get_ex_drv()->hw_rx_stat_supported();
 
-    if (get_ex_drv()->get_rx_stats(this, diff_pkts, m_stats.m_fdir_prev_pkts
-                                   , diff_bytes, m_stats.m_fdir_prev_bytes, min, max) < 0) {
-        return -1;
+    if (hw_rx_stat_supported) {
+        if (get_ex_drv()->get_rx_stats(this, diff_pkts, m_stats.m_fdir_prev_pkts
+                                       , diff_bytes, m_stats.m_fdir_prev_bytes, min, max) < 0) {
+            return -1;
+        }
+    } else {
+        g_trex.m_rx_sl.get_rx_stats(get_port_id(), rx_stats, min, max, reset);
     }
 
     for (int i = min; i <= max; i++) {
         if ( reset ) {
             // return value so far, and reset
-            if (rx_stats != NULL) {
-                rx_stats[i - min].set_pkts(m_stats.m_rx_per_flow_pkts[i] + diff_pkts[i]);
-                rx_stats[i - min].set_bytes(m_stats.m_rx_per_flow_bytes[i] + diff_bytes[i]);
+            if (hw_rx_stat_supported) {
+                if (rx_stats != NULL) {
+                    rx_stats[i - min].set_pkts(m_stats.m_rx_per_flow_pkts[i] + diff_pkts[i]);
+                    rx_stats[i - min].set_bytes(m_stats.m_rx_per_flow_bytes[i] + diff_bytes[i]);
+                }
+                m_stats.m_rx_per_flow_pkts[i] = 0;
+                m_stats.m_rx_per_flow_bytes[i] = 0;
             }
             if (tx_stats != NULL) {
                 tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i);
             }
-            m_stats.m_rx_per_flow_pkts[i] = 0;
-            m_stats.m_rx_per_flow_bytes[i] = 0;
         } else {
-            m_stats.m_rx_per_flow_pkts[i] += diff_pkts[i];
-            m_stats.m_rx_per_flow_bytes[i] += diff_bytes[i];
-            if (rx_stats != NULL) {
-                rx_stats[i - min].set_pkts(m_stats.m_rx_per_flow_pkts[i]);
-                rx_stats[i - min].set_bytes(m_stats.m_rx_per_flow_bytes[i]);
+            if (hw_rx_stat_supported) {
+                m_stats.m_rx_per_flow_pkts[i] += diff_pkts[i];
+                m_stats.m_rx_per_flow_bytes[i] += diff_bytes[i];
+                if (rx_stats != NULL) {
+                    rx_stats[i - min].set_pkts(m_stats.m_rx_per_flow_pkts[i]);
+                    rx_stats[i - min].set_bytes(m_stats.m_rx_per_flow_bytes[i]);
+                }
             }
             if (tx_stats != NULL) {
                 tx_stats[i - min] = g_trex.get_flow_tx_stats(m_port_id, i);
@@ -4028,6 +4058,8 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
     return 0;
 }
 
+// If needed, send packets to rx core for processing.
+// This is relevant only in VM case, where we receive packets to the working DP core (only 1 DP core in this case)
 bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
                                 rte_mbuf_t * m){
 
@@ -4036,17 +4068,25 @@ bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
         return false;
     }
     bool send=false;
-    CLatencyPktMode *c_l_pkt_mode = g_trex.m_mg.c_l_pkt_mode;
-    bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & parser.IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len());
 
-    if (is_lateancy_pkt){
-        send=true;
-    }else{
-        if ( get_is_rx_filter_enable() ){
-            uint8_t max_ttl = 0xff - get_rx_check_hops();
-            uint8_t pkt_ttl = parser.getTTl();
-            if ( (pkt_ttl==max_ttl) || (pkt_ttl==(max_ttl-1) ) ) {
-                send=true;
+    if ( get_is_stateless() ) {
+        // In stateless RX, we only care about flow stat packets
+        if ((parser.getIpId() & 0xff00) == IP_ID_RESERVE_BASE) {
+            send = true;
+        }
+    } else {
+        CLatencyPktMode *c_l_pkt_mode = g_trex.m_mg.c_l_pkt_mode;
+        bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & parser.IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len());
+
+        if (is_lateancy_pkt) {
+            send = true;
+        } else {
+            if ( get_is_rx_filter_enable() ) {
+                uint8_t max_ttl = 0xff - get_rx_check_hops();
+                uint8_t pkt_ttl = parser.getTTl();
+                if ( (pkt_ttl==max_ttl) || (pkt_ttl==(max_ttl-1) ) ) {
+                    send=true;
+                }
             }
         }
     }
@@ -4085,7 +4125,6 @@ static int latency_one_lcore(__attribute__((unused)) void *dummy)
 {
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     physical_thread_id_t  phy_id =rte_lcore_id();
-
 
     if ( lpsock->thread_phy_is_rx(phy_id) ) {
         g_trex.run_in_rx_core();
@@ -4444,6 +4483,7 @@ int main_test(int argc , char * argv[]){
         g_trex.reset_counters();
     }
 
+    g_trex.m_rx_running = false;
     if ( get_is_stateless() ) {
         g_trex.start_master_stateless();
 
@@ -4731,11 +4771,13 @@ void CTRexExtendedDriverBase1G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStat
 void CTRexExtendedDriverBase1G::clear_extended_stats(CPhyEthIF * _if){
 }
 
+#if 0
 int CTRexExtendedDriverBase1G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts
                                             ,uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
     uint32_t port_id = _if->get_port_id();
     return g_trex.m_rx_sl.get_rx_stats(port_id, pkts, prev_pkts, bytes, prev_bytes, min, max);
 }
+#endif
 
 void CTRexExtendedDriverBase10G::clear_extended_stats(CPhyEthIF * _if){
     _if->pci_reg_read(IXGBE_RXNFGPC);
@@ -4751,7 +4793,43 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 }
 
-int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if){
+int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if) {
+    if ( get_is_stateless() ) {
+        return configure_rx_filter_rules_stateless(_if);
+    } else {
+        return configure_rx_filter_rules_statefull(_if);
+    }
+
+    return 0;
+}
+
+int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * _if) {
+    uint8_t port_id = _if->get_rte_port_id();
+    int  ip_id_lsb;
+
+    for (ip_id_lsb = 0; ip_id_lsb < MAX_FLOW_STATS; ip_id_lsb++ ) {
+        struct rte_eth_fdir_filter fdir_filter;
+        int res = 0;
+
+        memset(&fdir_filter,0,sizeof(fdir_filter));
+        fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
+        fdir_filter.soft_id = ip_id_lsb; // We can use the ip_id_lsb also as filter soft_id
+        fdir_filter.input.flow_ext.flexbytes[0] = 0xff;
+        fdir_filter.input.flow_ext.flexbytes[1] = ip_id_lsb;
+        fdir_filter.action.rx_queue = 1;
+        fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
+        fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
+        res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
+
+        if (res != 0) {
+            rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
+        }
+    }
+
+    return 0;
+}
+
+int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * _if) {
     uint8_t port_id=_if->get_rte_port_id();
     uint16_t hops = get_rx_check_hops();
     uint16_t v4_hops = (hops << 8)&0xff00;
@@ -5208,6 +5286,9 @@ TrexDpdkPlatformApi::get_global_stats(TrexPlatformGlobalStats &stats) const {
     g_trex.get_stats(trex_stats);
 
     stats.m_stats.m_cpu_util = trex_stats.m_cpu_util;
+    if (get_is_stateless()) {
+        stats.m_stats.m_rx_cpu_util = trex_stats.m_rx_cpu_util;
+    }
 
     stats.m_stats.m_tx_bps             = trex_stats.m_tx_bps;
     stats.m_stats.m_tx_pps             = trex_stats.m_tx_pps;

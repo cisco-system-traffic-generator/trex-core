@@ -356,11 +356,15 @@ public:
 
 };
 
-class TrexRxStartMsg : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxStartMsg : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
 };
 
-class TrexRxStopMsg : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxStopMsg : public TrexStatelessCpToRxMsgBase {
+    bool handle (CRxCoreStateless *rx_core);
+};
+
+class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
 };
 

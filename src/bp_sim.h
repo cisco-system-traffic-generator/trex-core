@@ -1246,7 +1246,7 @@ static inline int get_is_rx_check_mode(){
     return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);
 }
 
-static inline bool get_is_rx_filter_enable(){//???
+static inline bool get_is_rx_filter_enable(){
     uint32_t latency_rate=CGlobalInfo::m_options.m_latency_rate;
     return ( ( get_is_rx_check_mode() || CGlobalInfo::is_learn_mode() || latency_rate != 0
                || get_is_stateless()) ?true:false );

@@ -178,8 +178,7 @@ void CCPortLatency::reset(){
     m_length_error=0;
     m_no_ipv4_option=0;
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
-        m_rx_pg_pkts[i] = 0;
-        m_rx_pg_bytes[i] = 0;
+        m_rx_pg_stat[i].clear();
     }
     m_hist.Reset();
 }
@@ -632,8 +631,8 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
     rte_pktmbuf_free(m);
 }
 
-void CLatencyManager::handle_latency_pkt_msg(uint8_t thread_id,
-                                            CGenNodeLatencyPktInfo * msg){
+// In VM, we receive the RX packets in DP core, and send message to RX core with the packet
+void CLatencyManager::handle_latency_pkt_msg(uint8_t thread_id, CGenNodeLatencyPktInfo * msg) {
 
     assert(msg->m_latency_offset==0xdead);
 
@@ -670,6 +669,7 @@ void  CLatencyManager::run_rx_queue_msgs(uint8_t thread_id,
     }
 }
 
+// VM mode function. Handle messages from DP
 void  CLatencyManager::try_rx_queues(){
 
     CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();

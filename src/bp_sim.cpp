@@ -6039,8 +6039,13 @@ uint16_t CSimplePacketParser::getPktSize(){
     return ( ip_len +m_vlan_offset+14);
 }
 
+uint16_t CSimplePacketParser::getIpId() {
+    if (m_ipv4) {
+        return ( m_ipv4->getId() );
+    }
 
-
+    return (0);
+}
 
 uint8_t CSimplePacketParser::getTTl(){
     if (m_ipv4) {
