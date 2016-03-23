@@ -23,8 +23,7 @@ def generate_trex_stats_table():
 def print_table_with_header(texttable_obj, header="", untouched_header=""):
     header = header.replace("_", " ").title() + untouched_header
     print(format_text(header, 'cyan', 'underline') + "\n")
-
-    print((texttable_obj.draw() + "\n").encode('utf-8'))
+    print((texttable_obj.draw() + "\n"))
 
 if __name__ == "__main__":
     pass

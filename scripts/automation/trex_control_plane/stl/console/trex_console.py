@@ -16,6 +16,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from __future__ import print_function
 import subprocess
 import cmd
 import json
@@ -35,7 +36,7 @@ from trex_stl_lib.utils.common import user_input, get_current_user
 from trex_stl_lib.utils import parsing_opts
 
 
-import trex_tui
+from . import trex_tui
 
 from functools import wraps
 
@@ -48,9 +49,9 @@ class ConsoleLogger(LoggerApi):
 
     def write (self, msg, newline = True):
         if newline:
-            print msg
+            print(msg)
         else:
-            print msg,
+            print(msg, end=' ')
 
     def flush (self):
         sys.stdout.flush()
@@ -111,7 +112,7 @@ class TRexGeneralCmd(cmd.Cmd):
             # make the directory available for every user
             try:
                 original_umask = os.umask(0)
-                os.makedirs(self._history_file_dir, mode = 0777)
+                os.makedirs(self._history_file_dir, mode = 0o777)
             finally:
                 os.umask(original_umask)
 
@@ -124,14 +125,14 @@ class TRexGeneralCmd(cmd.Cmd):
         
         length = readline.get_current_history_length()
 
-        for i in xrange(1, length + 1):
+        for i in range(1, length + 1):
             cmd = readline.get_history_item(i)
-            print "{:<5}   {:}".format(i, cmd)
+            print("{:<5}   {:}".format(i, cmd))
 
     def get_history_item (self, index):
         length = readline.get_current_history_length()
         if index > length:
-            print format_text("please select an index between {0} and {1}".format(0, length))
+            print(format_text("please select an index between {0} and {1}".format(0, length)))
             return None
 
         return readline.get_history_item(index)
@@ -191,7 +192,7 @@ class TRexConsole(TRexGeneralCmd):
                 func_name = func_name[3:]
 
             if not inst.stateless_client.is_connected():
-                print format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold')
+                print(format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold'))
                 return
 
             ret = f(*args)
@@ -209,11 +210,11 @@ class TRexConsole(TRexGeneralCmd):
                 func_name = func_name[3:]
 
             if not inst.stateless_client.is_connected():
-                print format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold')
+                print(format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold'))
                 return
 
             if inst.stateless_client.is_all_ports_acquired():
-                print format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold')
+                print(format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold'))
                 return
 
             rc = f(*args)
@@ -266,7 +267,7 @@ class TRexConsole(TRexGeneralCmd):
         return stop
 
     def default(self, line):
-        print "'{0}' is an unrecognized command. type 'help' or '?' for a list\n".format(line)
+        print("'{0}' is an unrecognized command. type 'help' or '?' for a list\n".format(line))
 
     @staticmethod
     def tree_autocomplete(text):
@@ -303,20 +304,20 @@ class TRexConsole(TRexGeneralCmd):
     def do_verbose(self, line):
         '''Shows or set verbose mode\n'''
         if line == "":
-            print "\nverbose is " + ("on\n" if self.verbose else "off\n")
+            print("\nverbose is " + ("on\n" if self.verbose else "off\n"))
 
         elif line == "on":
             self.verbose = True
             self.stateless_client.set_verbose("high")
-            print format_text("\nverbose set to on\n", 'green', 'bold')
+            print(format_text("\nverbose set to on\n", 'green', 'bold'))
 
         elif line == "off":
             self.verbose = False
             self.stateless_client.set_verbose("normal")
-            print format_text("\nverbose set to off\n", 'green', 'bold')
+            print(format_text("\nverbose set to off\n", 'green', 'bold'))
 
         else:
-            print format_text("\nplease specify 'on' or 'off'\n", 'bold')
+            print(format_text("\nplease specify 'on' or 'off'\n", 'bold'))
 
     # show history
     def help_history (self):
@@ -344,26 +345,26 @@ class TRexConsole(TRexGeneralCmd):
         '''Maps ports topology\n'''
         ports = self.stateless_client.get_acquired_ports()
         if not ports:
-            print "No ports acquired\n"
+            print("No ports acquired\n")
 
         with self.stateless_client.logger.supress():
             table = stl_map_ports(self.stateless_client, ports = ports)
 
         
-        print format_text('\nAcquired ports topology:\n', 'bold', 'underline')
+        print(format_text('\nAcquired ports topology:\n', 'bold', 'underline'))
 
         # bi-dir ports
-        print format_text('Bi-directional ports:\n','underline')
+        print(format_text('Bi-directional ports:\n','underline'))
         for port_a, port_b in table['bi']:
-            print "port {0} <--> port {1}".format(port_a, port_b)
+            print("port {0} <--> port {1}".format(port_a, port_b))
 
-        print ""
+        print("")
 
         # unknown ports
-        print format_text('Mapping unknown:\n','underline')
+        print(format_text('Mapping unknown:\n','underline'))
         for port in table['unknown']:
-            print "port {0}".format(port)
-        print ""
+            print("port {0}".format(port))
+        print("")
 
        
       
@@ -394,7 +395,7 @@ class TRexConsole(TRexGeneralCmd):
             if cmd == None:
                 return
 
-            print "Executing '{0}'".format(cmd)
+            print("Executing '{0}'".format(cmd))
 
             return self.onecmd(cmd)
 
@@ -541,11 +542,11 @@ class TRexConsole(TRexGeneralCmd):
 
         events = self.stateless_client.get_events()
         for ev in events:
-            print ev
+            print(ev)
 
         if opts.clear:
             self.stateless_client.clear_events()
-            print format_text("\n\nEvent log was cleared\n\n")
+            print(format_text("\n\nEvent log was cleared\n\n"))
 
 
     def complete_profile(self, text, line, begidx, endidx):
@@ -571,7 +572,7 @@ class TRexConsole(TRexGeneralCmd):
 
         if opts.xterm:
             if not os.path.exists('/usr/bin/xterm'):
-                print format_text("XTERM does not exists on this machine", 'bold')
+                print(format_text("XTERM does not exists on this machine", 'bold'))
                 return
 
             info = self.stateless_client.get_connection_info()
@@ -616,8 +617,8 @@ class TRexConsole(TRexGeneralCmd):
              func()
              return
     
-         print "\nSupported Console Commands:"
-         print "----------------------------\n"
+         print("\nSupported Console Commands:")
+         print("----------------------------\n")
     
          cmds =  [x[3:] for x in self.get_names() if x.startswith("do_")]
          hidden = ['EOF', 'q', 'exit', 'h', 'shell']
@@ -635,7 +636,7 @@ class TRexConsole(TRexGeneralCmd):
                  help = "*** Undocumented Function ***\n"
 
              l=help.splitlines()
-             print "{:<30} {:<30}".format(cmd + " - ",l[0] )
+             print("{:<30} {:<30}".format(cmd + " - ",l[0] ))
 
     # a custorm cmdloop wrapper
     def start(self):
@@ -647,7 +648,7 @@ class TRexConsole(TRexGeneralCmd):
                 if not readline.get_line_buffer():
                     raise KeyboardInterrupt
                 else:
-                    print ""
+                    print("")
                     self.intro = None
                     continue
 
@@ -691,7 +692,7 @@ def run_script_file (self, filename, stateless_client):
         stateless_client.logger.log(format_text("Executing line {0} : '{1}'\n".format(index, line)))
 
         if not cmd in cmd_table:
-            print "\n*** Error at line {0} : '{1}'\n".format(index, line)
+            print("\n*** Error at line {0} : '{1}'\n".format(index, line))
             stateless_client.logger.log(format_text("unknown command '{0}'\n".format(cmd), 'bold'))
             return False
 
@@ -828,7 +829,7 @@ def main():
             console.start()
             
     except KeyboardInterrupt as e:
-        print "\n\n*** Caught Ctrl + C... Exiting...\n\n"
+        print("\n\n*** Caught Ctrl + C... Exiting...\n\n")
 
     finally:
         with stateless_client.logger.supress():

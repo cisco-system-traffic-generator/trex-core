@@ -26,6 +26,8 @@ class RC():
     def __nonzero__ (self):
         return self.good()
 
+    def __bool__ (self):
+        return self.good()
 
     def add (self, rc):
         self.rc_list += rc.rc_list

@@ -976,7 +976,7 @@ class CRxStats(CTRexStats):
     def generate_stats (self):
 
         # for TUI - maximum 4 
-        pg_ids = filter(is_intable, self.latest_stats.keys())[:4]
+        pg_ids = list(filter(is_intable, self.latest_stats.keys()))[:4]
         cnt = len(pg_ids)
 
         formatted_stats = OrderedDict([ ('Tx pps',  []),

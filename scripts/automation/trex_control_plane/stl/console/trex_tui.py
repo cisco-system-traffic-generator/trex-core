@@ -4,7 +4,11 @@ import os
 import time
 from collections import OrderedDict
 import datetime
-from cStringIO import StringIO
+
+if sys.version_info > (3,0):
+    from io import StringIO
+else:
+    from cStringIO import StringIO
 
 from trex_stl_lib.utils.text_opts import *
 from trex_stl_lib.utils import text_tables
@@ -22,9 +26,9 @@ class SimpleBar(object):
 
     def show (self):
         if self.desc:
-            print format_text("{0} {1}".format(self.desc, self.pattern[self.index]), 'bold')
+            print(format_text("{0} {1}".format(self.desc, self.pattern[self.index]), 'bold'))
         else:
-            print format_text("{0}".format(self.pattern[self.index]), 'bold')
+            print(format_text("{0}".format(self.pattern[self.index]), 'bold'))
 
         self.index = (self.index + 1) % self.pattern_len
 
@@ -66,7 +70,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
     def show (self):
         stats = self.stateless_client._get_formatted_stats(self.ports)
         # print stats to screen
-        for stat_type, stat_data in stats.iteritems():
+        for stat_type, stat_data in stats.items():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
 
 
@@ -153,7 +157,7 @@ class TrexTUIPort(TrexTUIPanel):
     def show (self):
         stats = self.stateless_client._get_formatted_stats([self.port_id])
         # print stats to screen
-        for stat_type, stat_data in stats.iteritems():
+        for stat_type, stat_data in stats.items():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
 
     def get_key_actions (self):
@@ -233,7 +237,7 @@ class TrexTUIStreamsStats(TrexTUIPanel):
     def show (self):
         stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.SS_COMPAT)
         # print stats to screen
-        for stat_type, stat_data in stats.iteritems():
+        for stat_type, stat_data in stats.items():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
         pass
 
@@ -261,10 +265,10 @@ class TrexTUILog():
         if cut < 0:
             cut = 0
 
-        print format_text("\nLog:", 'bold', 'underline')
+        print(format_text("\nLog:", 'bold', 'underline'))
 
         for msg in self.log[cut:]:
-            print msg
+            print(msg)
 
 
 # Panels manager (contains server panels)
@@ -304,7 +308,7 @@ class TrexTUIPanelManager():
     def generate_legend (self):
         self.legend = "\n{:<12}".format("browse:")
 
-        for k, v in self.key_actions.iteritems():
+        for k, v in self.key_actions.items():
             if v['show']:
                 x = "'{0}' - {1}, ".format(k, v['legend'])
                 self.legend += "{:}".format(x)
@@ -313,7 +317,7 @@ class TrexTUIPanelManager():
 
 
         self.legend += "\n{:<12}".format(self.main_panel.get_name() + ":")
-        for k, v in self.main_panel.get_key_actions().iteritems():
+        for k, v in self.main_panel.get_key_actions().items():
             if v['show']:
                 x = "'{0}' - {1}, ".format(k, v['legend'])
                 self.legend += "{:}".format(x)
@@ -326,7 +330,7 @@ class TrexTUIPanelManager():
             self.dis_bar.show()
 
     def print_legend (self):
-        print format_text(self.legend, 'bold')
+        print(format_text(self.legend, 'bold'))
 
 
     # on window switch or turn on / off of the TUI we call this
@@ -473,7 +477,7 @@ class TrexTUI():
             # restore
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
-        print ""
+        print("")
 
 
     # draw once
@@ -488,7 +492,7 @@ class TrexTUI():
             sys.stdout = old_stdout
 
             self.clear_screen()
-            print mystdout.getvalue()
+            print(mystdout.getvalue())
             sys.stdout.flush()
 
             self.draw_policer = 0
