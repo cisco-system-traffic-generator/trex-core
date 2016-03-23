@@ -42,10 +42,7 @@ def import_module_list(modules_list):
     is_64bit   = platform.architecture()[0] == '64bit'
     is_python3 = (sys.version_info >= (3, 0))
     is_cel     = os.path.exists('/etc/system-profile')
-
-
     
-
     # regular modules
     for p in modules_list:
         full_path = generate_module_path(p, is_python3, is_64bit, is_cel)

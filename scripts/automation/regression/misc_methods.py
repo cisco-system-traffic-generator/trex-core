@@ -1,9 +1,12 @@
 #!/router/bin/python
+import sys
+if sys.version_info >= (3, 0):
+    import configparser
+else:
+    import ConfigParser
 
-import ConfigParser
 import outer_packages
 import yaml
-import sys
 from collections import namedtuple
 import subprocess, shlex
 import os
@@ -13,7 +16,7 @@ TRexConfig = namedtuple('TRexConfig', 'trex, router, tftp')
 # debug/development purpose, lists object's attributes and their values
 def print_r(obj):
     for attr in dir(obj):
-        print 'obj.%s %s' % (attr, getattr(obj, attr))
+        print('obj.%s %s' % (attr, getattr(obj, attr)))
 
 def mix_string (str):
     """Convert all string to lowercase letters, and replaces spaces with '_' char"""
@@ -22,20 +25,20 @@ def mix_string (str):
 # executes given command, returns tuple (return_code, stdout, stderr)
 def run_command(cmd, background = False):
     if background:
-        print 'Running command in background:', cmd
+        print('Running command in background:', cmd)
         with open(os.devnull, 'w') as tempf:
             subprocess.Popen(shlex.split(cmd), stdin=tempf, stdout=tempf, stderr=tempf)
         return (None,)*3
     else:
-        print 'Running command:', cmd
+        print('Running command:', cmd)
         proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         (stdout, stderr) = proc.communicate()
         if stdout:
-            print 'Stdout:\n%s' % stdout
+            print('Stdout:\n%s' % stdout)
         if proc.returncode:
             if stderr:
-                print 'Stderr:\n%s' % stderr
-            print 'Return code: %s' % proc.returncode
+                print('Stderr:\n%s' % stderr)
+            print('Return code: %s' % proc.returncode)
         return (proc.returncode, stdout, stderr)
 
 
@@ -81,7 +84,7 @@ def get_single_net_client_addr (ip_addr, octetListDict = {'3' : 1}, ip_type = 'i
     if ip_type == 'ipv4':
         ip_lst = ip_addr.split('.')
 
-        for octet,increment in octetListDict.iteritems():
+        for octet,increment in octetListDict.items():
             int_octet = int(octet)
             if ((int_octet < 0) or (int_octet > 3)):
                 raise ValueError('the provided octet is not legal in {0} format'.format(ip_type) )
@@ -96,7 +99,7 @@ def get_single_net_client_addr (ip_addr, octetListDict = {'3' : 1}, ip_type = 'i
     else: # this is a ipv6 address, handle accordingly
         ip_lst = ip_addr.split(':')
 
-        for octet,increment in octetListDict.iteritems():
+        for octet,increment in octetListDict.items():
             int_octet = int(octet)
             if ((int_octet < 0) or (int_octet > 7)):
                 raise ValueError('the provided octet is not legal in {0} format'.format(ip_type) )
@@ -159,11 +162,11 @@ def load_complete_config_file (filepath):
                     raise ValueError('A clean router configuration wasn`t provided.')
 
     except ValueError:
-	print '!!!!!'
+        print("")
         raise
 
     except Exception as inst:
-        print "\nBad configuration file provided: '{0}'\n".format(filepath)
+        print("\nBad configuration file provided: '{0}'\n".format(filepath))
         raise inst
 
     return TRexConfig(trex_config, rtr_config, tftp_config)
@@ -174,8 +177,8 @@ def load_object_config_file (filepath):
             config = yaml.load(f)
             return config
     except Exception as inst:
-        print "\nBad configuration file provided: '{0}'\n".format(filepath)
-        print inst
+        print("\nBad configuration file provided: '{0}'\n".format(filepath))
+        print(inst)
         exit(-1)
 
             
@@ -202,7 +205,7 @@ def query_yes_no(question, default="yes"):
 
     while True:
         sys.stdout.write(question + prompt)
-        choice = raw_input().lower()
+        choice = input().lower()
         if default is not None and choice == '':
             return valid[default]
         elif choice in valid:
@@ -227,8 +230,8 @@ def load_benchmark_config_file (filepath):
             benchmark_config = yaml.load(f)
 
     except Exception as inst:
-        print "\nBad configuration file provided: '{0}'\n".format(filepath)
-        print inst
+        print("\nBad configuration file provided: '{0}'\n".format(filepath))
+        print(inst)
         exit(-1)
 
     return benchmark_config

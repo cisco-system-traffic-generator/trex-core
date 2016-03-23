@@ -36,31 +36,31 @@ class CCommandCache(object):
 
     def dump_config (self):
         # dump IF config:
-        print "configure terminal"
-        for intf, intf_cmd_list in self.cache['IF'].iteritems():
-            print "interface {if_name}".format( if_name = intf )
-            print '\n'.join(intf_cmd_list)
+        print("configure terminal")
+        for intf, intf_cmd_list in self.cache['IF'].items():
+            print("interface {if_name}".format( if_name = intf ))
+            print('\n'.join(intf_cmd_list))
 
         if self.cache['IF']:
             # add 'exit' note only if if config actually took place
-            print 'exit'    # exit to global config mode
+            print('exit')    # exit to global config mode
 
         # dump global config
         if self.cache['CONF']:
-            print '\n'.join(self.cache['CONF'])
+            print('\n'.join(self.cache['CONF']))
 
         # exit back to en mode
-        print "exit"
+        print("exit")
 
         # dump exec config
         if self.cache['EXEC']:
-            print '\n'.join(self.cache['EXEC'])
+            print('\n'.join(self.cache['EXEC']))
 
     def get_config_list (self):
         conf_list = []
 
         conf_list.append("configure terminal")
-        for intf, intf_cmd_list in self.cache['IF'].iteritems():
+        for intf, intf_cmd_list in self.cache['IF'].items():
             conf_list.append( "interface {if_name}".format( if_name = intf ) )
             conf_list.extend( intf_cmd_list )
         if len(conf_list)>1:
@@ -94,7 +94,7 @@ class CCommandLink(object):
     def __transmit (self, cmd_list, **kwargs):
         self.history.extend(cmd_list)
         if not self.silent_mode:
-            print '\n'.join(cmd_list)   # prompting the pushed platform commands
+            print('\n'.join(cmd_list))   # prompting the pushed platform commands
         if not self.virtual_mode:
             # transmit the command to platform. 
             return self.telnet_con.write_ios_cmd(cmd_list, **kwargs)
@@ -181,7 +181,7 @@ class CDeviceCfg(object):
 
     def dump_config (self):
         import yaml
-        print yaml.dump(self.interfaces_cfg, default_flow_style=False)
+        print(yaml.dump(self.interfaces_cfg, default_flow_style=False))
 
 class CIfObj(object):
     _obj_id = 0
@@ -339,7 +339,7 @@ class CIfManager(object):
 
     def get_if_list (self, if_type = IFType.All, is_duplicated = None):
         result = []
-        for if_name,if_obj in self.interfarces.iteritems():
+        for if_name,if_obj in self.interfarces.items():
             if (if_type == IFType.All) or ( if_obj.get_if_type() == if_type) :
                 if (is_duplicated is None) or (if_obj.get_pair_parent().is_duplicated() == is_duplicated):
                     # append this if_obj only if matches both IFType and is_duplicated conditions
@@ -362,7 +362,7 @@ class CIfManager(object):
 
     def dump_if_config (self):
         if self.full_device_cfg is None:
-            print "Device configuration isn't loaded.\nPlease load config and try again."
+            print("Device configuration isn't loaded.\nPlease load config and try again.")
         else:
             self.full_device_cfg.dump_config()
 

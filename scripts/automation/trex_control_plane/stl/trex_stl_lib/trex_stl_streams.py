@@ -530,9 +530,9 @@ class STLStream(object):
             good_printable.remove("'")
 
             if type(data) is str:
-                new_data = ''.join([c if c in good_printable else r'\x{0:02x}'.format(ord(c)) for c in x])
+                new_data = ''.join([c if c in good_printable else r'\x{0:02x}'.format(ord(c)) for c in data])
             else:
-                new_data = ''.join([chr(c) if chr(c) in good_printable else r'\x{0:02x}'.format(c) for c in x])
+                new_data = ''.join([chr(c) if chr(c) in good_printable else r'\x{0:02x}'.format(c) for c in data])
 
             payload_start = packet_command.find("Raw(load='")
             if payload_start != -1:

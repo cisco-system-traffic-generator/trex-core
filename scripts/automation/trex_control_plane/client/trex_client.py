@@ -3,12 +3,7 @@
 import sys
 import os
 
-try:
-    # support import for Python 2
-    import outer_packages
-except ImportError:
-    # support import for Python 3
-    import client.outer_packages
+import client.outer_packages
 import jsonrpclib
 from jsonrpclib import ProtocolError, AppError
 from common.trex_status_e import TRexStatus

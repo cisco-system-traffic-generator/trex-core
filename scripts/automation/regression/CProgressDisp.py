@@ -1,5 +1,5 @@
 #!/router/bin/python
-
+from __future__ import print_function
 import threading
 import sys
 import time
@@ -16,16 +16,16 @@ class ProgressThread(threading.Thread):
 
     def run(self):
         if self.notifyMessage is not None:
-            print(self.notifyMessage),
+            print(self.notifyMessage, end=' ')
 
         while not self.stoprequest.is_set():
-            print "\b.",
+            print("\b.", end=' ')
             sys.stdout.flush()
             time.sleep(5)
 
     def join(self, timeout=None):
         if self.notifyMessage is not None:
-            print termstyle.green("Done!\n"),
+            print(termstyle.green("Done!\n"), end=' ')
         self.stoprequest.set()
         super(ProgressThread, self).join(timeout)
 
@@ -44,7 +44,7 @@ class TimedProgressBar(threading.Thread):
 
     def run (self):
         # global g_stop
-        print
+        print()
         self.pbar.start()
 
         try:
@@ -57,10 +57,10 @@ class TimedProgressBar(threading.Thread):
 
         except KeyboardInterrupt:
             # self.pbar.finish()
-            print "\nInterrupted by user!!"
+            print("\nInterrupted by user!!")
             self.join()
         finally:
-            print
+            print()
 
     def join(self, isPlannedStop = True, timeout=None):
         if isPlannedStop:
@@ -82,6 +82,6 @@ def timedProgressBar(time_in_secs):
         time.sleep(0.5)
         pbar.update(i)
     pbar.finish()
-    print
+    print()
         
         

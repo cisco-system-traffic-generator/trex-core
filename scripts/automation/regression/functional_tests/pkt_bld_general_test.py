@@ -14,7 +14,7 @@ class CGeneralPktBld_Test(object):
 
     @staticmethod
     def print_packet(pkt_obj):
-        print "\nGenerated packet:\n{}".format(repr(pkt_obj))
+        print("\nGenerated packet:\n{}".format(repr(pkt_obj)))
 
 
     def setUp(self):

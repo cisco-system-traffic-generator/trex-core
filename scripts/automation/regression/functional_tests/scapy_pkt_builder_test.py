@@ -45,7 +45,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         pkt_builder.dump_scripts ()
 
-        print pkt_builder.get_vm_data()
+        print(pkt_builder.get_vm_data())
 
         assert_equal( pkt_builder.get_vm_data(), {'split_by_var': '', 'instructions': [{'name': 'a', 'max_value': 268435466, 'min_value': 268435457, 'init_value': 268435457, 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc'}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
                                                  
@@ -178,7 +178,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         build ipv6 packet 
         """
 
-        print "start "
+        print("start ")
         py='\x55'*(64)
 
         p=Ether()/IPv6()/UDP(dport=12,sport=1025)/py
@@ -300,25 +300,25 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def test_simple_pkt_loader(self):
         p=RawPcapReader("functional_tests/golden/basic_imix_golden.cap")
-        print ""
+        print("")
         for pkt in p:
-            print pkt[1]
-            print hexdump(str(pkt[0]))
+            print(pkt[1])
+            print(hexdump(str(pkt[0])))
             break;
 
     def test_simple_pkt_loader1(self):
 
         pkt_builder = STLPktBuilder(pkt = "functional_tests/golden/udp_590.cap", build_raw = False);
-        print ""
+        print("")
         pkt_builder.dump_as_hex()
         r = pkt_builder.pkt_raw
-        assert_equal(ord(r[1]),0x50)
-        assert_equal(ord(r[0]),0x00)
-        assert_equal(ord(r[0x240]),0x16)
-        assert_equal(ord(r[0x24d]),0x79)
+        assert_equal(safe_ord(r[1]),0x50)
+        assert_equal(safe_ord(r[0]),0x00)
+        assert_equal(safe_ord(r[0x240]),0x16)
+        assert_equal(safe_ord(r[0x24d]),0x79)
         assert_equal(len(r),590)
 
-        print len(r)
+        print(len(r))
 
     def test_simple_pkt_loader2(self):
 
@@ -341,8 +341,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         py='\x55'*(64)
 
         p=Ether()/IP()/UDP(dport=12,sport=1025)/py
-        pkt_str = str(p);
-        print ""
+        pkt_str = bytes(p);
+        print("")
         hexdump(pkt_str);
         scapy_pkt = Ether(pkt_str);
         scapy_pkt.show2();

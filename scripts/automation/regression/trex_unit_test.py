@@ -27,6 +27,7 @@ Description:
 import os
 import sys
 import outer_packages
+
 import nose
 from nose.plugins import Plugin
 import logging
@@ -87,7 +88,7 @@ def kill_trex_process(trex_data):
             try:
                 proc_name, pid, full_cmd = re.split('\s+', process, maxsplit=2)
                 if proc_name.find('t-rex-64') >= 0:
-                    print 'Killing remote process: %s' % full_cmd
+                    print('Killing remote process: %s' % full_cmd)
                     trex_remote_command(trex_data, 'kill %s' % pid, from_scripts = False)
             except:
                 continue
@@ -184,7 +185,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             rsync_command = rsync_template % (new_path, self.pkg, os.path.basename(self.pkg), new_path, new_path, new_path)
             return_code, stdout, stderr = trex_remote_command(self.configuration.trex, rsync_command, from_scripts = False)
             if return_code:
-                print 'Failed copying'
+                print('Failed copying')
                 sys.exit(-1)
             CTRexScenario.scripts_path = new_path
             CTRexScenario.is_copied = True
@@ -198,7 +199,7 @@ class CTRexTestConfiguringPlugin(Plugin):
                 kill_trex_process(self.configuration.trex)
                 time.sleep(1)
             elif check_trex_running(self.configuration.trex):
-                print 'TRex is already running'
+                print('TRex is already running')
                 sys.exit(-1)
 
 
@@ -250,7 +251,7 @@ def save_setup_info():
             with open('%s/report_%s.info' % (CTRexScenario.report_dir, CTRexScenario.setup_name), 'w') as f:
                 f.write(setup_info)
     except Exception as err:
-        print 'Error saving setup info: %s ' % err
+        print('Error saving setup info: %s ' % err)
 
 
 def set_report_dir (report_dir):
@@ -334,12 +335,12 @@ if __name__ == "__main__":
             result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin]) and result
     except Exception as e:
         result = False
-        print e
+        print(e)
     finally:
         save_setup_info()
 
     if (result == True and not CTRexScenario.is_test_list):
-        print termstyle.green("""
+        print(termstyle.green("""
                  ..::''''::..
                .;''        ``;.
               ::    ::  ::    ::
@@ -356,7 +357,7 @@ if __name__ == "__main__":
              / ___/ __ |_\ \_\ \/_/
             /_/  /_/ |_/___/___(_)
 
-        """)
+        """))
         sys.exit(0)
     sys.exit(-1)
 

@@ -9,7 +9,7 @@ from nose.tools import assert_not_equal
 class CCommandCache_Test(functional_general_test.CGeneralFunctional_Test):
 
     def setUp(self):
-    	self.cache = CCommandCache()
+        self.cache = CCommandCache()
         self.cache.add('IF', "ip nbar protocol-discovery", 'GigabitEthernet0/0/1')
         self.cache.add('IF', "ip nbar protocol-discovery", 'GigabitEthernet0/0/2')
         self.cache.add('conf', "arp 1.1.1.1 0000.0001.0000 arpa")
@@ -30,10 +30,10 @@ class CCommandCache_Test(functional_general_test.CGeneralFunctional_Test):
 
     def test_dump_config (self):
         import sys
-        from StringIO import StringIO
+        from io import BytesIO
         saved_stdout = sys.stdout
         try:
-            out = StringIO()
+            out = BytesIO()
             sys.stdout = out
             self.cache.dump_config()
             output = out.getvalue().strip()

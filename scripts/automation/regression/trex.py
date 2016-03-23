@@ -96,7 +96,7 @@ class CTRexRunner:
             self.yaml)
             # self.trex_config['trex_latency'])
 
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             tmp_key = key.replace('_','-')
             dash = ' -' if (len(key)==1) else ' --'
             if value == True:
@@ -104,7 +104,7 @@ class CTRexRunner:
             else:
                 trex_cmd += (dash + '{k} {val}'.format( k = tmp_key, val =  value ))
 
-        print "\nT-REX COMMAND: ", trex_cmd
+        print("\nT-REX COMMAND: ", trex_cmd)
 
         cmd = 'sshpass.exp %s %s root "cd %s; %s > %s"' % (self.trex_config['trex_password'],
             self.trex_config['trex_name'],
@@ -172,7 +172,7 @@ class CTRexRunner:
             fin = datetime.datetime.now()
             # print "Time difference : ", fin-start
             runtime_deviation =  abs(( (end_time - start_time)/ (duration+15) ) - 1)
-            print "runtime_deviation: %2.0f %%" % ( runtime_deviation*100.0)
+            print("runtime_deviation: %2.0f %%" % ( runtime_deviation*100.0))
             if (   runtime_deviation  > 0.6 )  :
                 # If the run stopped immediately - classify as Trex in use or reachability issue
                 interrupted = True
@@ -183,7 +183,7 @@ class CTRexRunner:
             # results = subprocess.Popen(cmd, stdout = open(os.devnull, 'wb'),
             #            shell=True, preexec_fn=os.setsid)
         except KeyboardInterrupt:
-            print "\nT-Rex test interrupted by user during traffic generation!!"
+            print("\nT-Rex test interrupted by user during traffic generation!!")
             results.killpg(results.pid, signal.SIGTERM)  # Send the kill signal to all the process groups
             interrupted = True
             raise RuntimeError
@@ -245,7 +245,7 @@ class CTRexResult():
         Prints nicely the content of self.result dictionary into the screen
         """
         for key, value in self.result.items():
-            print "{0:20} : \t{1}".format(key, float(value))
+            print("{0:20} : \t{1}".format(key, float(value)))
 
     def update (self, key, val, _str):
         """ update (self, key, val, _str) -> None
@@ -273,7 +273,7 @@ class CTRexResult():
         elif s[0]=="K":
             val = val*1E3
 
-        if self.result.has_key(key):
+        if key in self.result:
             if self.result[key] > 0:
                 if (val/self.result[key] > 0.97 ):
                     self.result[key]= val
@@ -331,7 +331,7 @@ class CTRexResult():
             if match:
                 key = misc_methods.mix_string(match.group(1))
                 val = float(match.group(4))
-                if d.has_key(key):
+                if key in d:
                    if stop_read == False:
                        self.update (key, val, match.group(5))
                 else:
@@ -345,7 +345,7 @@ class CTRexResult():
             if match:
                key = misc_methods.mix_string(match.group(1))
                val = float(match.group(4))
-               if d.has_key(key):
+               if key in d:
                    if stop_read == False:
                        self.update (key, val, match.group(5))
                else:
@@ -370,7 +370,7 @@ class CTRexResult():
             if match:
                 key = misc_methods.mix_string(match.group(1))
                 val = float(match.group(3))
-                if self.result.has_key(key):
+                if key in self.result:
                     if (self.result[key] < val): # update only if larger than previous value
                         self.result[key] = val
                 else:
@@ -391,7 +391,7 @@ class CTRexResult():
 
     def get_status (self, drop_expected = False):
         if (self.error != ""):
-            print self.error
+            print(self.error)
             return (self.STATUS_ERR_FATAL)
 
         d = self.result
@@ -417,9 +417,9 @@ class CTRexResult():
         # expected measurement
         expect_vs_measued=d['total-tx']/d['expected-bps']
         if ( (expect_vs_measued >1.1) or (expect_vs_measued < 0.9) ) :
-            print expect_vs_measued
-            print d['total-tx']
-            print d['expected-bps']
+            print(expect_vs_measued)
+            print(d['total-tx'])
+            print(d['expected-bps'])
             self.reason="measure is not as expected"
             return self.STATUS_ERR_BAD_EXPECTED_MEASUREMENT
 
@@ -442,7 +442,7 @@ def test_TRex_result_parser():
     t=CTRexResult('trex.txt');
     t.load_file_lines()
     t.parse()
-    print t.result
+    print(t.result)
 
 
 
