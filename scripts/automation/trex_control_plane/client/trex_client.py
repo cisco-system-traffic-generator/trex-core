@@ -3,7 +3,11 @@
 import sys
 import os
 
-import client.outer_packages
+if __package__:
+    from . import outer_packages
+else:
+    import outer_packages
+
 import jsonrpclib
 from jsonrpclib import ProtocolError, AppError
 from common.trex_status_e import TRexStatus
