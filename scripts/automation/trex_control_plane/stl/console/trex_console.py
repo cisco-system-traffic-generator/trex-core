@@ -17,6 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from __future__ import print_function
+
 import subprocess
 import cmd
 import json
@@ -67,20 +68,25 @@ class ConsoleLogger(LoggerApi):
 def set_window_always_on_top (title):
     # we need the GDK module, if not available - ignroe this command
     try:
-        import gtk.gdk
+        if sys.version_info < (3,0):
+            from gtk import gdk
+        else:
+            #from gi.repository import Gdk as gdk
+            return
+
     except ImportError:
         return
 
     # search the window and set it as above
-    root = gtk.gdk.get_default_root_window()
+    root = gdk.get_default_root_window()
 
     for id in root.property_get('_NET_CLIENT_LIST')[2]:
-        w = gtk.gdk.window_foreign_new(id)
+        w = gdk.window_foreign_new(id)
         if w:
             name = w.property_get('WM_NAME')[2]
             if name == title:
                 w.set_keep_above(True)
-                gtk.gdk.window_process_all_updates()
+                gdk.window_process_all_updates()
                 break
 
 

@@ -826,9 +826,10 @@ class STLClient(object):
 
     # stats
     def _get_formatted_stats(self, port_id_list, stats_mask = trex_stl_stats.COMPACT):
-        stats_opts = trex_stl_stats.ALL_STATS_OPTS.intersection(stats_mask)
 
-        stats_obj = {}
+        stats_opts = common.list_intersect(trex_stl_stats.ALL_STATS_OPTS, stats_mask)
+
+        stats_obj = OrderedDict()
         for stats_type in stats_opts:
             stats_obj.update(self.stats_generator.generate_single_statistic(port_id_list, stats_type))
 
@@ -2148,7 +2149,7 @@ class STLClient(object):
             # set to show all stats if no filter was given
             mask = trex_stl_stats.ALL_STATS_OPTS
 
-        stats_opts = trex_stl_stats.ALL_STATS_OPTS.intersection(mask)
+        stats_opts = common.list_intersect(trex_stl_stats.ALL_STATS_OPTS, mask)
 
         stats = self._get_formatted_stats(opts.ports, mask)
 

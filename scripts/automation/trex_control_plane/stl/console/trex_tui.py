@@ -409,7 +409,7 @@ class TrexTUI():
 
     def handle_key_input (self):
         # try to read a single key
-        ch = os.read(sys.stdin.fileno(), 1)
+        ch = os.read(sys.stdin.fileno(), 1).decode()
         if ch != None and len(ch) > 0:
             return (self.pm.handle_key(ch), True)
 

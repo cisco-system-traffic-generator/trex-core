@@ -54,3 +54,7 @@ def get_number(input):
         return int(input)
     except:
         return None
+
+def list_intersect(l1, l2):
+    return list(filter(lambda x: x in l2, l1))
+

@@ -3,4 +3,7 @@
 source find_python.sh
 
 export PYTHONPATH=automation/trex_control_plane/stl
+
+printf "\nUsing '$PYTHON' as Python interpeter\n\n"
+
 $PYTHON -m console.trex_console $@
