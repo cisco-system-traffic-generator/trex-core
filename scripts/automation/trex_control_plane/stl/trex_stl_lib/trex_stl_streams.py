@@ -525,8 +525,15 @@ class STLStream(object):
         if payload:
             payload.remove_payload() # fcs etc.
             data = payload.fields.get('load', '')
-            replchars = re.compile('(\s|/|\'|\\\|[^' + re.escape(string.printable) + '])') # convert bad chars to hex
-            new_data =  replchars.sub(self.__replchars_to_hex, data)
+
+            good_printable = [c for c in string.printable if ord(c) not in range(32)]
+            good_printable.remove("'")
+
+            if type(data) is str:
+                new_data = ''.join([c if c in good_printable else r'\x{0:02x}'.format(ord(c)) for c in x])
+            else:
+                new_data = ''.join([chr(c) if chr(c) in good_printable else r'\x{0:02x}'.format(c) for c in x])
+
             payload_start = packet_command.find("Raw(load='")
             if payload_start != -1:
                 packet_command = packet_command[:payload_start-1]
@@ -931,7 +938,7 @@ class STLProfile(object):
             raise STLError("file '{0}' does not exists".format(pcap_file))
 
         # make sure IPG is not less than 1 usec
-        if ipg_usec < 1:
+        if ipg_usec is not None and ipg_usec < 1:
             raise STLError("ipg_usec cannot be less than 1 usec: '{0}'".format(ipg_usec))
 
         if loop_count < 0:

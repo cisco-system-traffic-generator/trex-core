@@ -1136,7 +1136,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
              pkt : string, 
                 Scapy or pcap file filename a scapy packet 
 
-             pkt_buffer : string 
+             pkt_buffer : bytes 
                 a packet as buffer 
 
              vm   : list or base on :class:`trex_stl_lib.trex_stl_packet_builder_scapy.STLScVmRaw`
@@ -1155,6 +1155,9 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
         """
         super(STLPktBuilder, self).__init__()
+
+        validate_type('pkt', pkt, (type(None), str, Packet))
+        validate_type('pkt_buffer', pkt_buffer, (type(None), bytes))
 
         self.pkt = None     # as input
         self.pkt_raw = None # from raw pcap file
@@ -1232,7 +1235,6 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
         """
         pkt_buf = self._get_pkt_as_str()
-
         return {'binary': base64.b64encode(pkt_buf).decode() if encode else pkt_buf,
                 'meta': self.metadata}
 
@@ -1266,7 +1268,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
 
     def set_pkt_as_str (self, pkt_buffer):
-        validate_type('pkt_buffer', pkt_buffer, str)
+        validate_type('pkt_buffer', pkt_buffer, bytes)
         self.pkt_raw = pkt_buffer
 
 
@@ -1288,7 +1290,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
         for pkt in p:
             was_set=True;
-            self.pkt_raw = str(pkt[0])
+            self.pkt_raw = pkt[0]
             break
         if not was_set :
             raise CTRexPacketBuildException(-14, "no buffer inside the pcap file {0}".format(f_path))

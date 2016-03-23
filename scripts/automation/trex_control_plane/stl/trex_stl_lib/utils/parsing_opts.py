@@ -225,7 +225,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               IPG: ArgumentPack(['-i', '--ipg'],
                                 {'help': "IPG value in usec between packets. default will be from the pcap",
                                  'dest': "ipg_usec",
-                                 'default':  100.0,
+                                 'default':  None,
                                  'type': float}),
 
 

@@ -16,8 +16,7 @@ if not TREX_STL_EXT_PATH:
 # the modules required
 # py-dep requires python2/python3 directories
 # arch-dep requires cel59/fedora and 32bit/64bit directories
-CLIENT_UTILS_MODULES = [ {'name': 'dpkt-1.8.6'},
-                         {'name': 'texttable-0.8.4'},
+CLIENT_UTILS_MODULES = [ {'name': 'texttable-0.8.4'},
                          {'name': 'pyyaml-3.11', 'py-dep': True},
                          {'name': 'scapy-2.3.1', 'py-dep': True},
                          {'name': 'pyzmq-14.5.0', 'py-dep': True, 'arch-dep': True}

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """
@@ -22,6 +21,7 @@ from .trex_stl_exceptions import *
 from .trex_stl_streams import *
 from .utils import parsing_opts
 from .trex_stl_client import STLClient
+from .utils import pcap
 
 from yaml import YAMLError
 
@@ -33,44 +33,8 @@ import subprocess
 import os
 from operator import itemgetter
 
-# HACK
-import sys
-if sys.version_info < (3, 0):
-    from dpkt import pcap
-# HACK END
-
 class BpSimException(Exception):
     pass
-
-def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
-
-    out_pkts = []
-    if not all([os.path.exists(f) for f in pcap_file_list]):
-        print("failed to merge cap file list...\nnot all files exist\n")
-        return
-
-    # read all packets to a list
-    for src in pcap_file_list:
-        f = open(src, 'r')
-        reader = pcap.Reader(f)
-        pkts = reader.readpkts()
-        out_pkts += pkts
-        f.close()
-        if delete_src:
-            os.unlink(src)
-
-    # sort by the timestamp
-    out_pkts = sorted(out_pkts, key=itemgetter(0))
-
-
-    out = open(out_filename, 'w')
-    out_writer = pcap.Writer(out)
-
-    for ts, pkt in out_pkts:
-        out_writer.writepkt(pkt, ts)
-
-    out.close()
-
 
 
 # stateless simulation
@@ -250,7 +214,7 @@ class STLSim(object):
         # write to temp file
         f = tempfile.NamedTemporaryFile(delete = False)
 
-        msg = json.dumps(cmds_json)
+        msg = json.dumps(cmds_json).encode()
 
         f.write(msg)
         f.close()
@@ -302,7 +266,7 @@ class STLSim(object):
         print("executing command: '{0}'".format(" ".join(cmd)))
 
         if self.silent:
-            FNULL = open(os.devnull, 'w')
+            FNULL = open(os.devnull, 'wb')
             rc = subprocess.call(cmd, stdout=FNULL)
         else:
             rc = subprocess.call(cmd)
@@ -325,8 +289,8 @@ class STLSim(object):
 
 
         print("Mering cores output to a single pcap file...\n")
-        inputs = ["{0}-{1}".format(self.outfile, index) for index in xrange(0, self.dp_core_count)]
-        merge_cap_files(inputs, self.outfile, delete_src = True)
+        inputs = ["{0}-{1}".format(self.outfile, index) for index in range(0, self.dp_core_count)]
+        pcap.merge_cap_files(inputs, self.outfile, delete_src = True)
 
 
 
@@ -365,7 +329,7 @@ def setParserOptions():
                         dest = "dp_core_count",
                         default = 1,
                         type = int,
-                        choices = xrange(1, 9))
+                        choices = list(range(1, 9)))
 
     parser.add_argument("-n", "--core_index",
                         help = "Record only a specific core",
@@ -460,7 +424,7 @@ def setParserOptions():
 def validate_args (parser, options):
 
     if options.dp_core_index:
-        if not options.dp_core_index in xrange(0, options.dp_core_count):
+        if not options.dp_core_index in range(0, options.dp_core_count):
             parser.error("DP core index valid range is 0 to {0}".format(options.dp_core_count - 1))
 
     # zero is ok - no limit, but other values must be at least as the number of cores

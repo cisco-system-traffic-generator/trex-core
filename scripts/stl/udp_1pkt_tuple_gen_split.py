@@ -31,7 +31,7 @@ class STLS1(object):
                             vm = vm)
         stream = STLStream(packet = pkt,
                          mode = STLTXCont())
-        print stream.to_code()
+        #print(stream.to_code())
         return stream
 
 
