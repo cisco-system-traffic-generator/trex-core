@@ -141,7 +141,7 @@ public:
     virtual int  wait_for_stable_link()=0;
     virtual void wait_after_link_up(){};
     virtual bool flow_control_disable_supported(){return true;}
-    bool hw_rx_stat_supported(){return false;}
+    virtual bool hw_rx_stat_supported(){return false;}
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes
                              , int min, int max) {return -1;}
     virtual int reset_rx_stats(CPhyEthIF * _if, uint32_t *stats) {return 0;}
@@ -178,8 +178,8 @@ public:
 
     virtual int configure_drop_queue(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-    int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
-    int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
+    virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
+    virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
 
     virtual bool is_hardware_support_drop_queue(){
         return(true);
@@ -188,11 +188,11 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
     virtual void clear_extended_stats(CPhyEthIF * _if);
-    int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
-    int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
+    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual int wait_for_stable_link();
-    void wait_after_link_up();
+    virtual void wait_after_link_up();
 };
 
 class CTRexExtendedDriverBase1GVm : public CTRexExtendedDriverBase {
@@ -242,8 +242,8 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
 
     virtual int wait_for_stable_link();
-    int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
 };
 
 
@@ -323,17 +323,17 @@ public:
     }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
-    int reset_rx_stats(CPhyEthIF * _if, uint32_t *stats);
-    int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
-    int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
-    int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int reset_rx_stats(CPhyEthIF * _if, uint32_t *stats);
+    virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
+    virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
+    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual int wait_for_stable_link();
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
-    bool flow_control_disable_supported(){return false;}
-    bool hw_rx_stat_supported(){return true;}
+    virtual bool flow_control_disable_supported(){return false;}
+    virtual bool hw_rx_stat_supported(){return true;}
 private:
-    void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl, uint16_t ip_id, int queue, uint16_t stat_idx);
+    virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl, uint16_t ip_id, int queue, uint16_t stat_idx);
     virtual int configure_rx_filter_rules_statfull(CPhyEthIF * _if);
 private:
     uint8_t m_if_per_card;
