@@ -5,13 +5,14 @@ import CustomLogger
 import misc_methods
 import telnetlib
 import socket
+from collections import OrderedDict
 
 class CCommandCache(object):
     def __init__(self):
         self.__gen_clean_data_structure()
 
     def __gen_clean_data_structure (self):
-        self.cache =  {"IF"   : {},
+        self.cache =  {"IF"   : OrderedDict(),
                        "CONF" : [],
                        "EXEC" : []}
 
@@ -274,7 +275,7 @@ class CIfManager(object):
     _ipv6_gen = misc_methods.get_network_addr(ip_type = 'ipv6')
 
     def __init__(self):
-        self.interfarces     = {}
+        self.interfarces     = OrderedDict()
         self.dual_intf       = []
         self.full_device_cfg = None
 

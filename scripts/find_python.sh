@@ -24,7 +24,21 @@ function find_python {
     exit -1
 }
 
+function find_python3 {
+    MACHINE_PYTHON=python3
+    PYTHON3=$MACHINE_PYTHON
+    PCHECK=`$PYTHON3 -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)"`
+    if [ $? -eq 0 ]; then
+        return
+    fi
+    PYTHON3=
+
+}
+
 if [ -z "$PYTHON" ]; then
     find_python
 fi
 
+if [ -z "$PYTHON3" ]; then
+    find_python3
+fi

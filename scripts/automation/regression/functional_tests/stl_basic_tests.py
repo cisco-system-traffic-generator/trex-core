@@ -133,14 +133,16 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
                 if compare:
                     self.compare_caps(output_cap, golden_file)
-            
+
             except Exception as e:
                 print(e)
 
             finally:
                 if not do_no_remove_generated:
                     os.unlink(generated_filename)
-                    os.unlink(generated_filename + 'c')
+                    # python 3 does not generate PYC under the same dir
+                    if os.path.exists(generated_filename + 'c'):
+                        os.unlink(generated_filename + 'c')
                 if not do_no_remove:
                     os.unlink(output_cap)
 

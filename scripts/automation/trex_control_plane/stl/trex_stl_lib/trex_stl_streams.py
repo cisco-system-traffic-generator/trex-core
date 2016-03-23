@@ -534,15 +534,17 @@ class STLStream(object):
             else:
                 new_data = ''.join([chr(c) if chr(c) in good_printable else r'\x{0:02x}'.format(c) for c in data])
 
-            payload_start = packet_command.find("Raw(load='")
+            payload_start = packet_command.find("Raw(load=")
             if payload_start != -1:
                 packet_command = packet_command[:payload_start-1]
         layers = packet_command.split('/')
+
         if payload:
             if len(new_data) and new_data == new_data[0] * len(new_data):
                 layers.append("Raw(load='%s' * %s)" % (new_data[0], len(new_data)))
             else:
                 layers.append("Raw(load='%s')" % new_data)
+
         packet_code = 'packet = (' + (' / \n          ').join(layers) + ')'
         vm_list = []
         for inst in self.fields['vm']['instructions']:

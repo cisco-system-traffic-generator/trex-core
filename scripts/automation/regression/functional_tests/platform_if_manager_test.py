@@ -28,13 +28,13 @@ class CIfManager_Test(functional_general_test.CGeneralFunctional_Test):
         assert_equal( len(self.if_mng.get_dual_if_list()), 2 )
 
         # check the classification with intf name
-        assert_equal( map(CIfObj.get_name, self.if_mng.get_if_list() ), ['GigabitEthernet0/0/1','GigabitEthernet0/0/2','GigabitEthernet0/0/3','GigabitEthernet0/0/4'] )
-        assert_equal( map(CIfObj.get_name, self.if_mng.get_if_list(is_duplicated = True) ), ['GigabitEthernet0/0/3','GigabitEthernet0/0/4'] )
-        assert_equal( map(CIfObj.get_name, self.if_mng.get_if_list(is_duplicated = False) ), ['GigabitEthernet0/0/1','GigabitEthernet0/0/2'] )
-        assert_equal( map(CIfObj.get_name, self.if_mng.get_duplicated_if() ), ['GigabitEthernet0/0/3', 'GigabitEthernet0/0/4'] )
+        assert_equal( list(map(CIfObj.get_name, self.if_mng.get_if_list()) ), ['GigabitEthernet0/0/1','GigabitEthernet0/0/2','GigabitEthernet0/0/3','GigabitEthernet0/0/4'] )
+        assert_equal( list(map(CIfObj.get_name, self.if_mng.get_if_list(is_duplicated = True)) ), ['GigabitEthernet0/0/3','GigabitEthernet0/0/4'] )
+        assert_equal( list(map(CIfObj.get_name, self.if_mng.get_if_list(is_duplicated = False)) ), ['GigabitEthernet0/0/1','GigabitEthernet0/0/2'] )
+        assert_equal( list(map(CIfObj.get_name, self.if_mng.get_duplicated_if()) ), ['GigabitEthernet0/0/3', 'GigabitEthernet0/0/4'] )
 
         # check the classification with vrf name
-        assert_equal( map(CDualIfObj.get_vrf_name, self.if_mng.get_dual_if_list() ), [None, 'dup'] )
+        assert_equal( list(map(CDualIfObj.get_vrf_name, self.if_mng.get_dual_if_list()) ), [None, 'dup'] )
 
     def tearDown(self):
         pass

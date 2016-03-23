@@ -30,10 +30,10 @@ class CCommandCache_Test(functional_general_test.CGeneralFunctional_Test):
 
     def test_dump_config (self):
         import sys
-        from io import BytesIO
+        from io import StringIO, BytesIO
         saved_stdout = sys.stdout
         try:
-            out = BytesIO()
+            out = BytesIO() if sys.version_info < (3,0) else StringIO()
             sys.stdout = out
             self.cache.dump_config()
             output = out.getvalue().strip()
