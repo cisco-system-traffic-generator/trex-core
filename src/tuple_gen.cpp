@@ -77,9 +77,8 @@ void CClientPool::Create(IP_DIST_t  dist_value,
     if (avail_ip!=0) {
         m_ip_info.resize(avail_ip);
     } else {
-        printf("\n Error, empty mac file is configured.\n"
-               "Will ignore the mac file configuration.\n");
-        m_ip_info.resize(total_ip);
+        printf("\n Error, invalid mac file is configured.\n");
+        assert(0);
     }
 
     int skip_cnt=0;
