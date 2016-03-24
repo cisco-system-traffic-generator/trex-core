@@ -15,7 +15,6 @@ class STLS1(object):
                             mac_src2_step = 2, mac_src2_mode = 'decrement', mac_src2_count = 19,
                             mac_dst2_step = 2, mac_dst2_mode = 'increment', mac_dst2_count = 19,
                             direction = direction,
-                            save_to_yaml = '/tmp/foo.yaml',
                             )
 
 # dynamic load - used for trex console or simulator
