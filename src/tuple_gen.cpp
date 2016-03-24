@@ -84,13 +84,16 @@ void CClientPool::Create(IP_DIST_t  dist_value,
 
     if (total_ip > ((l_flow*t_cps/MAX_PORT))) {
         if (has_mac_map) {
+            int skip_cnt=0;
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
                 mac_adr = mac_info->get_mac_addr_by_ip( min_ip+idx);
                 if (mac_adr != NULL) {
-                    m_ip_info[idx] = new CClientInfoL(has_mac_map);
-                    m_ip_info[idx]->set_ip(min_ip+idx);
-                    m_ip_info[idx]->set_mac(mac_adr);
+                    m_ip_info[idx-skip_cnt] = new CClientInfoL(has_mac_map);
+                    m_ip_info[idx-skip_cnt]->set_ip(min_ip+idx);
+                    m_ip_info[idx-skip_cnt]->set_mac(mac_adr);
+                } else {
+                    skip_cnt++;
                 }
             }
         } else {
@@ -101,13 +104,16 @@ void CClientPool::Create(IP_DIST_t  dist_value,
         } 
     } else {
         if (has_mac_map) {
+            int skip_cnt=0;
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
                 mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
                 if (mac_adr != NULL) {
-                    m_ip_info[idx] = new CClientInfo(has_mac_map);
-                    m_ip_info[idx]->set_ip(min_ip+idx);
-                    m_ip_info[idx]->set_mac(mac_adr);
+                    m_ip_info[idx-skip_cnt] = new CClientInfo(has_mac_map);
+                    m_ip_info[idx-skip_cnt]->set_ip(min_ip+idx);
+                    m_ip_info[idx-skip_cnt]->set_mac(mac_adr);
+                } else {
+                    skip_cnt++;
                 }
             }
         } else {
