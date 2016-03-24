@@ -174,7 +174,7 @@ import socket
 import copy
 from collections import defaultdict
 
-from trex_stl_lib.api import *
+from .api import *
 from .trex_stl_types import *
 from .utils.common import get_number
 
@@ -249,7 +249,7 @@ def print_brief_stats(res):
     title_str = ' '*3
     tx_str = 'TX:'
     rx_str = 'RX:'
-    for port_id, stat in res.iteritems():
+    for port_id, stat in res.items():
         if type(port_id) is not int:
             continue
         title_str += ' '*10 + 'Port%s' % port_id
@@ -663,7 +663,7 @@ class CTRexHltApi(object):
                 stats = self.trex_client.get_stats(port_handle)
             except Exception as e:
                 return HLT_ERR('Could not retrieve stats: %s' % e if isinstance(e, STLError) else traceback.format_exc())
-            for port_id, stat_dict in stats.iteritems():
+            for port_id, stat_dict in stats.items():
                 if is_integer(port_id):
                     hlt_stats_dict[port_id] = {
                         'aggregate': {

@@ -36,8 +36,8 @@ import misc_methods
 from rednose import RedNose
 import termstyle
 from trex import CTRexScenario
-from client.trex_client import *
-from common.trex_exceptions import *
+from stf.trex_client import *
+from stf.trex_exceptions import *
 from trex_stl_lib.api import *
 import trex
 import socket

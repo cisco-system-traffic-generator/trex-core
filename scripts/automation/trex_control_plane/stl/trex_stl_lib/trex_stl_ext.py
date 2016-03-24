@@ -7,11 +7,14 @@ import platform
 TREX_STL_EXT_PATH = os.environ.get('TREX_STL_EXT_PATH')
 
 # take default
-if not TREX_STL_EXT_PATH:
+if not TREX_STL_EXT_PATH or not os.path.exists(TREX_STL_EXT_PATH):
     CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
+    TREX_STL_EXT_PATH  = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, 'external_libs'))
+if not os.path.exists(TREX_STL_EXT_PATH):
     # ../../../../external_libs
-    TREX_STL_EXT_PATH   = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
-
+    TREX_STL_EXT_PATH   = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
+if not os.path.exists(TREX_STL_EXT_PATH):
+    raise Exception('Could not determine path of external_libs, try setting TREX_STL_EXT_PATH variable')
 
 # the modules required
 # py-dep requires python2/python3 directories

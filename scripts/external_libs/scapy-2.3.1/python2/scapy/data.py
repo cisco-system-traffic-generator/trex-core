@@ -105,6 +105,7 @@ def load_services(filename):
     spaces = re.compile("[ \t]+|\n")
     tdct=DADict(_name="%s-tcp"%filename)
     udct=DADict(_name="%s-udp"%filename)
+    return tdct,udct
     try:
         f=open(filename)
         for l in f:

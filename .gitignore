@@ -82,6 +82,7 @@ src/GTAGS
 
 
 #generated
+*.bak
 *.pyc
 __pycache__
 *_GENERATED.py

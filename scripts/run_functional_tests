@@ -1,12 +1,10 @@
 #!/bin/bash
 
-#source find_python.sh
+source find_python.sh
 cd automation/regression
 
-PYTHON=/usr/bin/python2
-PYTHON3=/auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3
-
 # Python 2
+echo Python2 test
 $PYTHON trex_unit_test.py --functional $@
 if [ $? -eq 0 ]; then
     printf "\n$PYTHON test succeeded\n\n"
@@ -16,6 +14,7 @@ else
 fi
 
 # Python 3
+echo Python3 test
 $PYTHON3 trex_unit_test.py --functional $@
 if [ $? -eq 0 ]; then
     printf "\n$PYTHON3 test succeeded\n\n"

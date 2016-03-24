@@ -650,7 +650,7 @@ class CPlatform(object):
             command = "dir {drive}: | include {image}".format(drive = search_drive, image = img_name)
             response = self.cmd_link.run_single_command(command, timeout = 10)
             if CShowParser.parse_image_existence(response, img_name):
-                self.needed_image_path = '%s:%s' % (search_drive, img_name)
+                self.needed_image_path = '%s:/%s' % (search_drive, img_name)
                 print('Found image in platform:', self.needed_image_path)
                 return True
         return False
@@ -734,8 +734,10 @@ class CPlatform(object):
 
         boot_img_cmd = "boot system flash %s" % self.needed_image_path
         config_register_cmd = "config-register 0x2021"
-        cache.add('CONF', ["no boot system", boot_img_cmd, config_register_cmd])
-        self.cmd_link.run_single_command( cache )
+        cache.add('CONF', ["no boot system", boot_img_cmd, config_register_cmd, '\r'])
+        response = self.cmd_link.run_single_command( cache )
+        print("RESPONSE:")
+        print(response)
         self.save_config_to_startup_config()
 
     def is_image_matches(self, needed_image):
@@ -777,7 +779,9 @@ class CPlatform(object):
 
         Copies running-config into startup-config.
         """
-        self.cmd_link.run_single_command('wr')
+        cache = CCommandCache()
+        cache.add('EXEC', ['wr', '\r'] )
+        self.cmd_link.run_single_command(cache)
 
     def reload_platform(self, device_cfg_obj):
         """ reload_platform(self) -> None
@@ -814,8 +818,9 @@ class CPlatform(object):
                     
             time.sleep(30)
             self.reload_connection(device_cfg_obj)
-        finally:
             progress_thread.join()
+        except Exception as e:
+            print e
 
     def get_if_manager(self):
         return self.if_mngr

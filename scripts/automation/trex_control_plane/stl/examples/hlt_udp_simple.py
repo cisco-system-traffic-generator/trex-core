@@ -67,15 +67,15 @@ if __name__ == "__main__":
     args = parser.parse_args();
 
     hltapi = CTRexHltApi()
-    print 'Connecting to TRex'
+    print('Connecting to TRex')
     res = hltapi.connect(device = args.server, port_list = [0, 1], reset = True, break_locks = True)
     check_res(res)
     ports = res['port_handle']
     if len(ports) < 2:
         error('Should have at least 2 ports for this test')
-    print 'Connected, acquired ports: %s' % ports
+    print('Connected, acquired ports: %s' % ports)
 
-    print 'Creating traffic'
+    print('Creating traffic')
 
     res = hltapi.traffic_config(mode = 'create', bidirectional = True,
                                 port_handle = ports[0], port_handle2 = ports[1],
@@ -91,12 +91,12 @@ if __name__ == "__main__":
                                 )
     check_res(res)
 
-    print 'Starting traffic'
+    print('Starting traffic')
     res = hltapi.traffic_control(action = 'run', port_handle = ports[:2])
     check_res(res)
     wait_with_progress(args.duration)
 
-    print 'Stopping traffic'
+    print('Stopping traffic')
     res = hltapi.traffic_control(action = 'stop', port_handle = ports[:2])
     check_res(res)
 
@@ -107,4 +107,4 @@ if __name__ == "__main__":
     res = hltapi.cleanup_session(port_handle = 'all')
     check_res(res)
 
-    print 'Done'
+    print('Done')

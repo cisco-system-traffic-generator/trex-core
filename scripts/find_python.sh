@@ -24,12 +24,27 @@ function find_python {
     exit -1
 }
 
-if [ -z "$PYTHON" ]; then
-    # for development here - move us to python 3 for now
-    if [ "$USER" == "imarom" ] || [ "$USER" == "hhaim" ] || [ "$USER" == "ybrustin" ] || [ "$USER" == "ibarnea" ]; then
-        PYTHON=/auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3
-    else
-        find_python
+function find_python3 {
+    MACHINE_PYTHON=python3
+    ITAY_PYTHON=/auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3
+    PYTHON3=$MACHINE_PYTHON
+    PCHECK=`$PYTHON3 -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)"`
+    if [ $? -eq 0 ]; then
+        return
     fi
+    PYTHON3=$ITAY_PYTHON
+    PCHECK=`$PYTHON3 -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)"`
+    if [ $? -eq 0 ]; then
+        return
+    fi
+    echo "*** $PYTHON3 - python version does not match, 3.4 is required"
+    exit -1
+}
+
+if [ -z "$PYTHON" ]; then
+    find_python
 fi
 
+if [ -z "$PYTHON3" ]; then
+    find_python3
+fi
