@@ -82,9 +82,10 @@ void CClientPool::Create(IP_DIST_t  dist_value,
         m_ip_info.resize(total_ip);
     }
 
+    int skip_cnt=0;
     if (total_ip > ((l_flow*t_cps/MAX_PORT))) {
         if (has_mac_map) {
-            int skip_cnt=0;
+            skip_cnt=0;
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
                 mac_adr = mac_info->get_mac_addr_by_ip( min_ip+idx);
@@ -104,7 +105,7 @@ void CClientPool::Create(IP_DIST_t  dist_value,
         } 
     } else {
         if (has_mac_map) {
-            int skip_cnt=0;
+            skip_cnt=0;
             for(int idx=0;idx<total_ip;idx++){
                 mac_addr_align_t *mac_adr = NULL;
                 mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
