@@ -19,19 +19,33 @@
   limitations under the License.
 */
 
-class Cxl710Parser {
- public:
-    Cxl710Parser();
-    void reset();
-    int parse(uint8_t *pkt, uint16_t len);
-    bool is_fdir_supported() {return m_fdir_supported == true;};
-    int get_ip_id(uint16_t &ip_id);
-    int set_ip_id(uint16_t ip_id);
-    int get_l4_proto(uint8_t &proto);
-    int test();
+#ifndef __FLOW_STAT_PARSER_H__
+#define __FLOW_STAT_PARSER_H__
 
- private:
+// Basic flow stat parser. Relevant for xl710/x710/x350 cards
+#include "common/Network/Packet/IPHeader.h"
+
+class CFlowStatParser {
+ public:
+    virtual ~CFlowStatParser() {};
+    virtual void reset();
+    virtual int parse(uint8_t *pkt, uint16_t len);
+    virtual bool is_stat_supported() {return m_stat_supported == true;};
+    virtual int get_ip_id(uint16_t &ip_id);
+    virtual int set_ip_id(uint16_t ip_id);
+    virtual int get_l4_proto(uint8_t &proto);
+    virtual int test();
+
+ protected:
     IPHeader *m_ipv4;
-    bool m_fdir_supported;
+    bool m_stat_supported;
     uint8_t m_l4_proto;
 };
+
+class C82599Parser : public CFlowStatParser {
+ public:
+    ~C82599Parser() {};
+    int parse(uint8_t *pkt, uint16_t len);
+};
+
+#endif

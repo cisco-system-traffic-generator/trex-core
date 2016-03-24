@@ -101,7 +101,7 @@ void CRxCoreStateless::start() {
 }
 
 void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPort *lp, rte_mbuf_t *m) {
-    Cxl710Parser parser;
+    CFlowStatParser parser;
 
     if (parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len) == 0) {
         uint16_t ip_id;

@@ -26,6 +26,7 @@ limitations under the License.
 #include <vector>
 #include <string>
 #include <string.h>
+#include "flow_stat_parser.h"
 #include "trex_defs.h"
 
 /**
@@ -33,6 +34,7 @@ limitations under the License.
  * 
  * @author imarom (06-Oct-15)
  */
+
 
 class TrexPlatformGlobalStats {
 public:
@@ -151,6 +153,7 @@ public:
     virtual bool get_promiscuous(uint8_t port_id) const = 0;
     virtual void flush_dp_messages() const = 0;
     virtual int get_active_pgids(flow_stat_active_t &result) const = 0;
+    virtual CFlowStatParser *get_flow_stat_parser() const = 0;
     virtual ~TrexPlatformApi() {}
 };
 
@@ -180,6 +183,7 @@ public:
     bool get_promiscuous(uint8_t port_id) const;
     void flush_dp_messages() const;
     int get_active_pgids(flow_stat_active_t &result) const;
+    CFlowStatParser *get_flow_stat_parser() const;
 };
 
 
@@ -241,6 +245,7 @@ public:
     void flush_dp_messages() const {
     }
     int get_active_pgids(flow_stat_active_t &result) const {return 0;}
+    CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
 
 private:
     int m_dp_core_count;
