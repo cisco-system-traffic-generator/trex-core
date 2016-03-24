@@ -16,7 +16,11 @@ How to Install
 .. toctree::
     :maxdepth: 2
 
-* **TODO**  Yaroslav Client zip as self-contain
+| TRex package contains trex_client.tar.gz
+| Put it at any place you like, preferably same place as your scripts.
+| (If it's not at same place as your scripts, you will need to ensure trex_client directory is in sys.path)
+
+Un-pack it using command: tar -xzf trex_client.tar.gz
 
 How to pyATS/v2.0
 ==================
@@ -42,6 +46,10 @@ Trex only supports python2 for now, so it only works for **Python2** pyats.
           from trex_stl_lib.api import *
           from scapy.contrib.mpls import *
           from trex_stl_lib.trex_stl_hltapi import *
+
+If using trex_client package, import syntax is::
+
+    from trex_client.stl.api import *
 
 
 API Reference
