@@ -3581,7 +3581,7 @@ class rx_stat_pkt_parse  : public testing::Test {
 
 
 TEST_F(rx_stat_pkt_parse, x710_parser) {
-    Cxl710Parser parser;
+    CFlowStatParser parser;
 
     parser.test();
 }

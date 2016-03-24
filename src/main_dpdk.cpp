@@ -148,6 +148,7 @@ public:
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) { return -1;}
     virtual int get_stat_counters_num() {return 0;}
     virtual int get_rx_stat_capabilities() {return 0;}
+    virtual CFlowStatParser *get_flow_stat_parser();
 };
 
 
@@ -190,7 +191,7 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return 0;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
 };
@@ -243,7 +244,7 @@ public:
 
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return 0;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
 };
 
 
@@ -280,7 +281,8 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return 0;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual CFlowStatParser *get_flow_stat_parser();
 };
 
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
@@ -332,9 +334,12 @@ public:
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
     virtual bool flow_control_disable_supported(){return false;}
     virtual bool hw_rx_stat_supported(){return true;}
+    virtual CFlowStatParser *get_flow_stat_parser();
+
 private:
     virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl, uint16_t ip_id, int queue, uint16_t stat_idx);
     virtual int configure_rx_filter_rules_statfull(CPhyEthIF * _if);
+
 private:
     uint8_t m_if_per_card;
 };
@@ -4537,6 +4542,12 @@ int CTRexExtendedDriverBase::configure_drop_queue(CPhyEthIF * _if) {
     return (rte_eth_dev_rx_queue_stop(port_id, 0));
 }
 
+CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
+    CFlowStatParser *parser = new CFlowStatParser();
+    assert (parser);
+    return parser;
+}
+
 void wait_x_sec(int sec) {
     int i;
     printf(" wait %d sec ", sec);
@@ -4940,6 +4951,12 @@ int CTRexExtendedDriverBase10G::wait_for_stable_link(){
     return (0);
 }
 
+CFlowStatParser *CTRexExtendedDriverBase10G::get_flow_stat_parser() {
+    CFlowStatParser *parser = new C82599Parser();
+    assert (parser);
+    return parser;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 void CTRexExtendedDriverBase40G::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(_if->get_port_id());
@@ -5165,6 +5182,12 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
     delay(2000);
     return (0);
+}
+
+CFlowStatParser *CTRexExtendedDriverBase40G::get_flow_stat_parser() {
+    CFlowStatParser *parser = new CFlowStatParser();
+    assert (parser);
+    return parser;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -5406,4 +5429,9 @@ void TrexDpdkPlatformApi::flush_dp_messages() const {
 
 int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
     return g_trex.m_trex_stateless->m_rx_flow_stat.get_active_pgids(result);
+}
+
+CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
+    return CTRexExtendedDriverDb::Ins()->get_drv()
+        ->get_flow_stat_parser();
 }
