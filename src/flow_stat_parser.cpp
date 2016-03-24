@@ -25,36 +25,38 @@
 #include <common/Network/Packet/EthernetHeader.h>
 #include <flow_stat_parser.h>
 
-void CFlowStatParser::reset() {
-    m_ipv4 = 0;
-    m_l4_proto = 0;
-    m_stat_supported = false;
+Cxl710Parser::Cxl710Parser() {
+    reset();
 }
 
-int CFlowStatParser::parse(uint8_t *p, uint16_t len) {
-    EthernetHeader *ether = (EthernetHeader *)p;
+void Cxl710Parser::reset() {
+    m_ipv4 = 0;
+    m_l4_proto = 0;
+    m_fdir_supported = false;
+}
 
-    reset();
+int Cxl710Parser::parse(uint8_t *p, uint16_t len) {
+    EthernetHeader *ether = (EthernetHeader *)p;
 
     switch( ether->getNextProtocol() ) {
     case EthernetHeader::Protocol::IP :
         m_ipv4 = (IPHeader *)(p + 14);
-        m_stat_supported = true;
+        m_fdir_supported = true;
         break;
     case EthernetHeader::Protocol::VLAN :
         switch ( ether->getVlanProtocol() ){
         case EthernetHeader::Protocol::IP:
             m_ipv4 = (IPHeader *)(p + 18);
-            m_stat_supported = true;
+            m_fdir_supported = true;
             break;
         default:
-            m_stat_supported = false;
+            m_fdir_supported = false;
             return -1;
         }
 
         break;
     default:
-        m_stat_supported = false;
+        m_fdir_supported = false;
         return -1;
         break;
     }
@@ -62,7 +64,7 @@ int CFlowStatParser::parse(uint8_t *p, uint16_t len) {
     return 0;
 }
 
-int CFlowStatParser::get_ip_id(uint16_t &ip_id) {
+int Cxl710Parser::get_ip_id(uint16_t &ip_id) {
     if (! m_ipv4)
         return -1;
 
@@ -71,7 +73,7 @@ int CFlowStatParser::get_ip_id(uint16_t &ip_id) {
     return 0;
 }
 
-int CFlowStatParser::set_ip_id(uint16_t new_id) {
+int Cxl710Parser::set_ip_id(uint16_t new_id) {
     if (! m_ipv4)
         return -1;
 
@@ -82,7 +84,7 @@ int CFlowStatParser::set_ip_id(uint16_t new_id) {
     return 0;
 }
 
-int CFlowStatParser::get_l4_proto(uint8_t &proto) {
+int Cxl710Parser::get_l4_proto(uint8_t &proto) {
     if (! m_ipv4)
         return -1;
 
@@ -94,7 +96,7 @@ int CFlowStatParser::get_l4_proto(uint8_t &proto) {
 static const uint16_t TEST_IP_ID = 0xabcd;
 static const uint8_t TEST_L4_PROTO = 0x11;
 
-int CFlowStatParser::test() {
+int Cxl710Parser::test() {
     uint16_t ip_id = 0;
     uint8_t l4_proto;
     uint8_t test_pkt[] = {
@@ -122,34 +124,14 @@ int CFlowStatParser::test() {
     assert(m_ipv4->isChecksumOK() == true);
     assert(get_l4_proto(l4_proto) == 0);
     assert(l4_proto == TEST_L4_PROTO);
-    assert(m_stat_supported == true);
+    assert(m_fdir_supported == true);
 
     reset();
 
     // bad packet
     test_pkt[16] = 0xaa;
     assert (parse(test_pkt, sizeof(test_pkt)) == -1);
-    assert(m_stat_supported == false);
-
-    return 0;
-}
-
-// In 82599 10G card we do not support VLANs
-int C82599Parser::parse(uint8_t *p, uint16_t len) {
-    EthernetHeader *ether = (EthernetHeader *)p;
-
-    reset();
-
-    switch( ether->getNextProtocol() ) {
-    case EthernetHeader::Protocol::IP :
-        m_ipv4 = (IPHeader *)(p + 14);
-        m_stat_supported = true;
-        break;
-    default:
-        m_stat_supported = false;
-        return -1;
-        break;
-    }
+    assert(m_fdir_supported == false);
 
     return 0;
 }

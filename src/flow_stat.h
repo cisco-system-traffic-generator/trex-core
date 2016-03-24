@@ -104,7 +104,7 @@ typedef class tx_per_flow_t_ tx_per_flow_t;
 typedef class tx_per_flow_t_ rx_per_flow_t;
 
 class CPhyEthIF;
-class CFlowStatParser;
+class Cxl710Parser;
 
 class CFlowStatUserIdInfo {
  public:
@@ -198,7 +198,6 @@ class CFlowStatRuleMgr {
     };
 
     CFlowStatRuleMgr();
-    ~CFlowStatRuleMgr();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
     int add_stream(const TrexStream * stream);
     int del_stream(const TrexStream * stream);
@@ -208,8 +207,7 @@ class CFlowStatRuleMgr {
     bool dump_json(std::string & json, bool baseline);
 
  private:
-    void create();
-    int compile_stream(const TrexStream * stream, CFlowStatParser *parser);
+    int compile_stream(const TrexStream * stream, Cxl710Parser &parser);
     int add_hw_rule(uint16_t hw_id, uint8_t proto);
     void send_start_stop_msg_to_rx(bool is_start);
 
@@ -221,8 +219,6 @@ class CFlowStatRuleMgr {
     int m_max_hw_id; // max hw id we ever used
     uint32_t m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
-    CFlowStatParser *m_parser;
-    uint16_t m_capabilities;
 };
 
 #endif
