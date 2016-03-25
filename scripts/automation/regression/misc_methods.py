@@ -42,8 +42,8 @@ def run_command(cmd, background = False):
         return (proc.returncode, stdout, stderr)
 
 
-def run_remote_command(host, command_string, background = False):
-    cmd = 'ssh -tt %s \'sudo sh -ec "%s"\'' % (host, command_string)
+def run_remote_command(host, command_string, background = False, timeout = 20):
+    cmd = 'ssh -tt %s \'sudo%s sh -ec "%s"\'' % (host, (' timeout %s' % timeout) if (timeout and not background) else '', command_string)
     return run_command(cmd, background)
 
 
