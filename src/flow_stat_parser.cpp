@@ -33,15 +33,21 @@ void CFlowStatParser::reset() {
 
 int CFlowStatParser::parse(uint8_t *p, uint16_t len) {
     EthernetHeader *ether = (EthernetHeader *)p;
+    int min_len = 14 + IPV4_HDR_LEN;
 
     reset();
 
     switch( ether->getNextProtocol() ) {
     case EthernetHeader::Protocol::IP :
+        if (len < min_len)
+            return -1;
         m_ipv4 = (IPHeader *)(p + 14);
         m_stat_supported = true;
         break;
     case EthernetHeader::Protocol::VLAN :
+        min_len += 4;
+        if (len < min_len)
+            return -1;
         switch ( ether->getVlanProtocol() ){
         case EthernetHeader::Protocol::IP:
             m_ipv4 = (IPHeader *)(p + 18);
@@ -137,11 +143,14 @@ int CFlowStatParser::test() {
 // In 82599 10G card we do not support VLANs
 int C82599Parser::parse(uint8_t *p, uint16_t len) {
     EthernetHeader *ether = (EthernetHeader *)p;
+    int min_len = 14 + IPV4_HDR_LEN;
 
     reset();
 
     switch( ether->getNextProtocol() ) {
     case EthernetHeader::Protocol::IP :
+        if (len < min_len)
+            return -1;
         m_ipv4 = (IPHeader *)(p + 14);
         m_stat_supported = true;
         break;
