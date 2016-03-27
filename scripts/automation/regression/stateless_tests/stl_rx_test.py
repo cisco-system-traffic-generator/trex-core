@@ -14,11 +14,17 @@ class STLRX_Test(CStlGeneral_Test):
 
         self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
 
-        cap = self.c.get_port_info(ports = self.rx_port)[0]['rx']['caps']
+        port_info = self.c.get_port_info(ports = self.rx_port)[0]
+        cap = port_info['rx']['caps']
         if cap != 1:
             self.skip('port {0} does not support RX'.format(self.rx_port))
-        
 
+        if port_info['speed'] == 40:
+            self.rate_percent = 80
+            self.total_pkts = 50000
+        else:
+            self.rate_percent = 1
+            self.total_pkts = 10
         self.c.reset(ports = [self.tx_port, self.rx_port])
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
@@ -68,14 +74,14 @@ class STLRX_Test(CStlGeneral_Test):
 
     # one simple stream on TX --> RX
     def test_one_stream(self):
-        total_pkts = 500000
+        total_pkts = self.total_pkts * 10
 
         try:
             s1 = STLStream(name = 'rx',
                            packet = self.pkt,
                            flow_stats = STLFlowStats(pg_id = 5),
                            mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                                   percentage = 80
+                                                   percentage = self.rate_percent
                                                    ))
 
             # add both streams to ports
@@ -94,7 +100,7 @@ class STLRX_Test(CStlGeneral_Test):
 
     # one simple stream on TX --> RX
     def test_multiple_streams(self):
-        total_pkts = 500000
+        total_pkts = self.total_pkts * 10
 
         try:
             streams = []
@@ -120,14 +126,14 @@ class STLRX_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
     def test_1_stream_many_iterations (self):
-        total_pkts = 50000
+        total_pkts = self.total_pkts
 
         try:
             s1 = STLStream(name = 'rx',
                            packet = self.pkt,
                            flow_stats = STLFlowStats(pg_id = 5),
                            mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                                   percentage = 80
+                                                   percentage = self.rate_percent
                                                    ))
 
             # add both streams to ports
