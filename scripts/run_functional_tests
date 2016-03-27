@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source find_python.sh
+source find_python.sh --python2
 cd automation/regression
 
 # Python 2
@@ -13,13 +13,17 @@ else
     exit -1
 fi
 
+cd -
+source find_python.sh --python3
+cd -
+
 # Python 3
 echo Python3 test
-$PYTHON3 trex_unit_test.py --functional $@
+$PYTHON trex_unit_test.py --functional $@
 if [ $? -eq 0 ]; then
-    printf "\n$PYTHON3 test succeeded\n\n"
+    printf "\n$PYTHON test succeeded\n\n"
 else
-    printf "\n*** $PYTHON3 test failed\n\n"
+    printf "\n*** $PYTHON test failed\n\n"
     exit -1
 fi
 

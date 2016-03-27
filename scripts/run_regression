@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source find_python.sh
+source find_python.sh --python2
 cd automation/regression
 $PYTHON trex_unit_test.py --exclude functional $@
 
