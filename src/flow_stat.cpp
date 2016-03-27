@@ -493,12 +493,12 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
 #endif
 
-    if (! m_api)
-        throw TrexException("Called del_stream, but no stream was added");
-
     if (! stream->m_rx_check.m_enabled) {
         return 0;
     }
+
+    if (! m_api)
+        throw TrexException("Called del_stream, but no stream was added");
 
     if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
         std::cerr << "Error: Trying to delete flow statistics stream " << stream->m_rx_check.m_pg_id
