@@ -25,12 +25,12 @@ def mix_string (str):
 # executes given command, returns tuple (return_code, stdout, stderr)
 def run_command(cmd, background = False):
     if background:
-        print('Running command in background:', cmd)
+        print('Running command in background: %s' % cmd)
         with open(os.devnull, 'w') as tempf:
             subprocess.Popen(shlex.split(cmd), stdin=tempf, stdout=tempf, stderr=tempf)
         return (None,)*3
     else:
-        print('Running command:', cmd)
+        print('Running command: %s' % cmd)
         proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         (stdout, stderr) = proc.communicate()
         if stdout:

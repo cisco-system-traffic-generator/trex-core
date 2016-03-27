@@ -50,20 +50,18 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
     # the name intentionally not matches nose default pattern, including the test should be specified explicitly
     def dummy(self):
-        self.assertEqual(1, 2, 'boo')
-        self.assertEqual(2, 2, 'boo')
-        self.assertEqual(2, 3, 'boo')
-        #print ''
-        #print dir(self)
-        #print locals()
-        #print ''
-        #print_r(unittest.TestCase)
-        #print ''
-        #print_r(self)
-        print ''
-        #print unittest.TestCase.shortDescription(self)
-        #self.skip("I'm just a dummy test")
+        ret = self.trex.start_trex(
+            c = 1,
+            m = 1,
+            p  = True,
+            nc = True,
+            d = 5,
+            f = 'cap2/imix_fast_1g.yaml',
+            l = 1000,
+            trex_development = True)
 
+        trex_res = self.trex.sample_to_run_finish()
+        print trex_res
 
     def test_routing_imix (self):
         # test initializtion

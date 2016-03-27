@@ -51,8 +51,8 @@ class AsynchronousTRexSession(threading.Thread):
                     self.trexObj.set_verbose_status("TRex run failed due to wrong input parameters, or due to readability issues.\n\nTRex command: {cmd}\n\nRun output:\n{output}".format(
                         cmd = self.cmd, output = self.load_trex_output(self.export_path)))
                     self.trexObj.errcode = -11
-                elif (self.session.returncode is not None and self.session.returncode < 0) or ( (self.time_stamps['run_time'] < self.duration) and (not self.stoprequest.is_set()) ):
-                    if (self.session.returncode is not None and self.session.returncode < 0):
+                elif (self.session.returncode is not None and self.session.returncode != 0) or ( (self.time_stamps['run_time'] < self.duration) and (not self.stoprequest.is_set()) ):
+                    if (self.session.returncode is not None and self.session.returncode != 0):
                         logger.debug("Failed TRex run due to session return code ({ret_code})".format( ret_code = self.session.returncode ) )
                     elif ( (self.time_stamps['run_time'] < self.duration) and not self.stoprequest.is_set()):
                         logger.debug("Failed TRex run due to running time ({runtime}) combined with no-stopping request.".format( runtime = self.time_stamps['run_time'] ) )
