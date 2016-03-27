@@ -2704,7 +2704,7 @@ public:
     CFlowGenList  m_fl;
     bool          m_fl_was_init;
     volatile uint8_t       m_signal[BP_MAX_CORES] __rte_cache_aligned ; // Signal to main core when DP thread finished
-    volatile bool m_rx_running; // Signal main core when RX thread finished
+    volatile bool m_sl_rx_running; // Signal main core when RX thread finished
     CLatencyManager     m_mg; // statefull RX core
     CRxCoreStateless    m_rx_sl; // stateless RX core
     CTrexGlobalIoMode   m_io_modes;
@@ -2798,7 +2798,9 @@ void CGlobalTRex::try_stop_all_cores(){
     TrexStatelessDpQuit * dp_msg= new TrexStatelessDpQuit();
     TrexStatelessRxQuit * rx_msg= new TrexStatelessRxQuit();
     send_message_all_dp(dp_msg);
-    send_message_to_rx(rx_msg);
+    if (get_is_stateless()) {
+        send_message_to_rx(rx_msg);
+    }
     delete dp_msg;
     // no need to delete rx_msg. Deleted by receiver
     bool all_core_finished = false;
@@ -3809,16 +3811,16 @@ int CGlobalTRex::run_in_master() {
 
 int CGlobalTRex::run_in_rx_core(void){
     if (get_is_stateless()) {
-        m_rx_running = true;
+        m_sl_rx_running = true;
         m_rx_sl.start();
+        m_sl_rx_running = false;
     } else {
         if ( CGlobalInfo::m_options.is_rx_enabled() ){
-            m_rx_running = true;
+            m_sl_rx_running = false;
             m_mg.start(0);
         }
     }
 
-    m_rx_running = false;
     return (0);
 }
 
@@ -3910,7 +3912,7 @@ bool CGlobalTRex::is_all_cores_finished() {
             return false;
         }
     }
-    if (m_rx_running)
+    if (m_sl_rx_running)
         return false;
 
     return true;
@@ -4488,7 +4490,7 @@ int main_test(int argc , char * argv[]){
         g_trex.reset_counters();
     }
 
-    g_trex.m_rx_running = false;
+    g_trex.m_sl_rx_running = false;
     if ( get_is_stateless() ) {
         g_trex.start_master_stateless();
 
