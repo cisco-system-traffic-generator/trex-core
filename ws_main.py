@@ -239,7 +239,7 @@ def build(bld):
 
     if os.path.exists('build/hlt_args.asciidoc'):
         bld.add_manual_dependency(
-            bld.path.find_node('draft_trex_stateless.asciidoc'),
+            bld.path.find_node('trex_stateless.asciidoc'),
             'build/hlt_args.asciidoc')
 
     bld(rule='${ASCIIDOC}  -b deckjs -o ${TGT} ${SRC[0].abspath()}',
@@ -257,6 +257,9 @@ def build(bld):
         source='trex_book.asciidoc waf.css', target='trex_manual.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
+        source='trex_stateless.asciidoc waf.css', target='trex_stateless.html', scan=ascii_doc_scan)
+
+    bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
@@ -264,8 +267,9 @@ def build(bld):
 
     bld(rule=convert_to_pdf_book,source='trex_book.asciidoc waf.css', target='trex_book.pdf', scan=ascii_doc_scan)
 
-    bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
+    bld(rule=convert_to_pdf_book,source='trex_stateless.asciidoc waf.css', target='trex_stateless.pdf', scan=ascii_doc_scan)
                 
+    bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_pdf_book,source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.pdf', scan=ascii_doc_scan)
 
