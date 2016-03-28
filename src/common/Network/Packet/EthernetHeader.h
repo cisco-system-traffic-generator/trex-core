@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ limitations under the License.
 #include "PacketHeaderBase.h"
 #include "MacAddress.h"
 
+#define ETH_HDR_LEN 14
 
 /**
  * This class encapsulates an ethernet header.
