@@ -23,7 +23,6 @@ endif::backend-xhtml11[]
 
 include::trex_ga.asciidoc[]
 
-
 moved to link:draft_trex_stateless.html[here]
 
 
