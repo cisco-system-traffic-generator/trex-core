@@ -6,6 +6,7 @@ from .utils.text_opts import format_text, format_threshold, format_num
 from .trex_stl_async_client import CTRexAsyncStats
 
 from collections import namedtuple, OrderedDict, deque
+import sys
 import copy
 import datetime
 import time
@@ -520,6 +521,10 @@ class CTRexStats(object):
 
         value = abs(v)
         arrow = u'\u25b2' if v > 0 else u'\u25bc'
+
+        if sys.version_info < (3,0):
+            arrow = arrow.encode('utf-8')
+
         color = up_color if v > 0 else down_color
 
         # change in 1% is not meaningful
@@ -529,22 +534,22 @@ class CTRexStats(object):
         elif value > 5:
 
             if show_value:
-                return format_text(u"{0}{0}{0} {1:.2f}%".format(arrow,v), color)
+                return format_text("{0}{0}{0} {1:.2f}%".format(arrow,v), color)
             else:
-                return format_text(u"{0}{0}{0}".format(arrow), color)
+                return format_text("{0}{0}{0}".format(arrow), color)
 
         elif value > 2:
 
             if show_value:
-                return format_text(u"{0}{0} {1:.2f}%".format(arrow,v), color)
+                return format_text("{0}{0} {1:.2f}%".format(arrow,v), color)
             else:
-                return format_text(u"{0}{0}".format(arrow), color)
+                return format_text("{0}{0}".format(arrow), color)
 
         else:
             if show_value:
-                return format_text(u"{0} {1:.2f}%".format(arrow,v), color)
+                return format_text("{0} {1:.2f}%".format(arrow,v), color)
             else:
-                return format_text(u"{0}".format(arrow), color)
+                return format_text("{0}".format(arrow), color)
 
 
 
@@ -595,21 +600,21 @@ class CGlobalStats(CTRexStats):
                              ("version", "{ver}, UUID: {uuid}".format(ver=self.server_version.get("version", "N/A"),
                                                                       uuid="N/A")),
 
-                             ("cpu_util", u"{0}% {1}".format( format_threshold(self.get("m_cpu_util"), [85, 100], [0, 85]),
+                             ("cpu_util", "{0}% {1}".format( format_threshold(self.get("m_cpu_util"), [85, 100], [0, 85]),
                                                               self.get_trend_gui("m_cpu_util", use_raw = True))),
 
                              (" ", ""),
 
-                             ("total_tx_L2", u"{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
+                             ("total_tx_L2", "{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
                                                                 self.get_trend_gui("m_tx_bps"))),
 
-                            ("total_tx_L1", u"{0} {1}".format( self.get("m_tx_bps_L1", format=True, suffix="b/sec"),
+                            ("total_tx_L1", "{0} {1}".format( self.get("m_tx_bps_L1", format=True, suffix="b/sec"),
                                                                 self.get_trend_gui("m_tx_bps_L1"))),
 
-                             ("total_rx", u"{0} {1}".format( self.get("m_rx_bps", format=True, suffix="b/sec"),
+                             ("total_rx", "{0} {1}".format( self.get("m_rx_bps", format=True, suffix="b/sec"),
                                                               self.get_trend_gui("m_rx_bps"))),
 
-                             ("total_pps", u"{0} {1}".format( self.get("m_tx_pps", format=True, suffix="pkt/sec"),
+                             ("total_pps", "{0} {1}".format( self.get("m_tx_pps", format=True, suffix="pkt/sec"),
                                                               self.get_trend_gui("m_tx_pps"))),
 
                              ("  ", ""),
@@ -721,24 +726,24 @@ class CPortStats(CTRexStats):
                 "----": " ",
                 "-----": " ",
 
-                "Tx bps L1": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps_L1", show_value = False),
+                "Tx bps L1": "{0} {1}".format(self.get_trend_gui("m_total_tx_bps_L1", show_value = False),
                                                self.get("m_total_tx_bps_L1", format = True, suffix = "bps")),
 
-                "Tx bps L2": u"{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
+                "Tx bps L2": "{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
                                                self.get("m_total_tx_bps", format = True, suffix = "bps")),
 
-                "Line Util.": u"{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False),
+                "Line Util.": "{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False),
                                                 format_text(
                                                     self.get("m_percentage", format = True, suffix = "%") if self._port_obj else "",
-                                                    'bold')),
+                                                    'bold')) if self._port_obj else "",
 
-                "Rx bps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
+                "Rx bps": "{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
                                             self.get("m_total_rx_bps", format = True, suffix = "bps")),
                   
-                "Tx pps": u"{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
+                "Tx pps": "{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
                                             self.get("m_total_tx_pps", format = True, suffix = "pps")),
 
-                "Rx pps": u"{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
+                "Rx pps": "{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
                                             self.get("m_total_rx_pps", format = True, suffix = "pps")),
 
                  "opackets" : self.get_rel("opackets"),
