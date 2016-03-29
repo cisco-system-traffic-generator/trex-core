@@ -272,6 +272,22 @@ TrexStatelessPort::stop_traffic(void) {
 }
 
 /**
+ * remove all RX filters from port
+ * 
+ * @author imarom (28-Mar-16)
+ */
+void
+TrexStatelessPort::remove_rx_filters(void) {
+    /* only valid when IDLE or with streams and not TXing */
+    verify_state(PORT_STATE_STREAMS);
+
+    for (auto entry : m_stream_table) {
+        get_stateless_obj()->m_rx_flow_stat.stop_stream(entry.second);
+    }
+
+}
+
+/**
  * when a port stops, perform various actions
  * 
  */
@@ -287,9 +303,6 @@ TrexStatelessPort::common_port_stop_actions(bool async) {
         get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
     }
 
-    for (auto entry : m_stream_table) {
-        get_stateless_obj()->m_rx_flow_stat.stop_stream(entry.second);
-    }
 }
 
 void

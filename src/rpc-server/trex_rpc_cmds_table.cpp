@@ -61,6 +61,8 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdResumeTraffic());
     register_command(new TrexRpcCmdUpdateTraffic());
 
+    register_command(new TrexRpcCmdRemoveRXFilters());
+
     register_command(new TrexRpcCmdValidate());
 }
 

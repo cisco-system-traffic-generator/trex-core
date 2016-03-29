@@ -16,7 +16,8 @@ def imix_test (server, mult):
     
 
     # create client
-    c = STLClient(server = server)
+    c = STLClient(server = server, verbose_level = LoggerApi.VERBOSE_REGULAR)
+    
     passed = True
 
 
@@ -27,6 +28,7 @@ def imix_test (server, mult):
 
         # take all the ports
         c.reset()
+        
 
         # map ports - identify the routes
         table = stl_map_ports(c)

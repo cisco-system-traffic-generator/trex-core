@@ -430,6 +430,10 @@ class STLStream(object):
         return self.next
 
 
+    def has_flow_stats (self):
+        """ Return True if stream was configured with flow stats """
+        return self.fields['flow_stats']['enabled']
+
     def get_pkt (self):
         """ Get packet as string """
         return self.pkt

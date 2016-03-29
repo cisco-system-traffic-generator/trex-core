@@ -852,8 +852,26 @@ class STLClient(object):
         return RC_OK()
 
 
- 
- 
+    # remove all RX filters in a safe manner
+    def _remove_rx_filters (self, ports, rx_delay_ms):
+
+        # get the enabled RX ports
+        rx_ports = [port_id for port_id in ports if self.ports[port_id].has_rx_enabled()]
+
+        if not rx_ports:
+            return RC_OK()
+
+        # block while any RX configured port has not yet have it's delay expired
+        while any([not self.ports[port_id].has_rx_delay_expired(rx_delay_ms) for port_id in rx_ports]):
+            time.sleep(0.01)
+
+        # remove RX filters
+        rc = RC()
+        for port_id in rx_ports:
+            rc.add(self.ports[port_id].remove_rx_filters())
+
+        return rc
+
 
     #################################
     # ------ private methods ------ #
@@ -1088,6 +1106,7 @@ class STLClient(object):
         return [port_id
                 for port_id, port_obj in self.ports.items()
                 if port_obj.is_active()]
+
 
     # get paused ports
     def get_paused_ports (self):
@@ -1336,7 +1355,7 @@ class STLClient(object):
         ports = self._validate_port_list(ports)
 
         self.acquire(ports, force = True)
-        self.stop(ports)
+        self.stop(ports, rx_delay_ms = 0)
         self.remove_all_streams(ports)
         self.clear_stats(ports)
 
@@ -1535,13 +1554,20 @@ class STLClient(object):
 
     
     @__api_check(True)
-    def stop (self, ports = None):
+    def stop (self, ports = None, rx_delay_ms = 10):
         """
             stop port(s)
 
             :parameters:
                 ports : list
                     ports to execute the command
+
+                rx_delay_ms : int
+                    time to wait until RX filters are removed
+                    this value should reflect the time it takes
+                    packets which were transmitted to arrive
+                    to the destination.
+                    after this time the RX filters will be removed
 
             :raises:
                 + :exc:`STLError`
@@ -1558,6 +1584,11 @@ class STLClient(object):
         rc = self.__stop(ports)
         self.logger.post_cmd(rc)
 
+        if not rc:
+            raise STLError(rc)
+
+        # remove any RX filters
+        rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
         if not rc:
             raise STLError(rc)
 
@@ -2025,7 +2056,7 @@ class STLClient(object):
             self.logger.log(format_text("No active traffic on provided ports\n", 'bold'))
             return
 
-        self.stop(ports)
+        self.stop(ports, rx_delay_ms = 2000)
 
         # true means print time
         return True
