@@ -3,19 +3,25 @@
 # function finds python2
 function find_python2 {
     # two candidates - machine python and cisco linux python
+
+    if [ -n "$PYTHON" ]; then #  
+        return;
+    fi
+    
+    
     MACHINE_PYTHON=python
     CEL_PYTHON=/router/bin/python-2.7.4
 
     # try the machine python
     PYTHON=$MACHINE_PYTHON
-    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 27)"`
+    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 27)" > /dev/null 2>&1 ` 
     if [ $? -eq 0 ]; then
         return
     fi
 
     # try the CEL python
     PYTHON=$CEL_PYTHON
-    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 27)"`
+    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 27)" > /dev/null 2>&1 ` 
     if [ $? -eq 0 ]; then
         return
     fi
@@ -26,15 +32,21 @@ function find_python2 {
 
 # function finds python3
 function find_python3 {
+
+    if [ -n "$PYTHON3" ]; then 
+        PYTHON=$PYTHON3
+        return;
+    fi
+
     MACHINE_PYTHON=python3
     ITAY_PYTHON=/auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3
     PYTHON=$MACHINE_PYTHON
-    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)"`
+    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)" > /dev/null 2>&1 ` 
     if [ $? -eq 0 ]; then
         return
     fi
     PYTHON=$ITAY_PYTHON
-    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)"`
+    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)" > /dev/null 2>&1 ` 
     if [ $? -eq 0 ]; then
         return
     fi
