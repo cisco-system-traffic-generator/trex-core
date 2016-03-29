@@ -1825,7 +1825,7 @@ class STLClient(object):
         ports = self._validate_port_list(ports)
 
         # check arguments
-        validate_type('promiscuous', promiscuous, (bool, NoneType))
+        validate_type('promiscuous', promiscuous, (bool, type(None)))
 
         # build attributes
         attr_dict = {}
