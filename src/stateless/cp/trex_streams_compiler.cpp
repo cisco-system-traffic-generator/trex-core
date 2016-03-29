@@ -477,8 +477,10 @@ TrexStreamsCompiler::compile_stream(TrexStream *stream,
 
     TrexStream *fixed_rx_flow_stat_stream = stream->clone(true);
 
-    // not checking for errors. We assume that if add_stream succeeded, start_stream will too.
-    get_stateless_obj()->m_rx_flow_stat.start_stream(fixed_rx_flow_stat_stream, fixed_rx_flow_stat_stream->m_rx_check.m_hw_id);
+    get_stateless_obj()->m_rx_flow_stat.start_stream(fixed_rx_flow_stat_stream);
+    // CFlowStatRuleMgr keeps state of the stream object. We duplicated the stream here (in order not
+    // change the packet kept in the stream). We want the state to be saved in the original stream.
+    get_stateless_obj()->m_rx_flow_stat.copy_state(fixed_rx_flow_stat_stream, stream);
 
     /* can this stream be split to many cores ? */
     if (!stream->is_splitable(dp_core_count)) {
