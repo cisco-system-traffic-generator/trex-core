@@ -545,7 +545,11 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
     std::string op     = parse_string(mul_obj, "op", result);
     double      value  = parse_double(mul_obj, "value", result);
-    
+
+    if ( value <=0 ){
+        generate_parse_err(result, "multiplier can't be zero");
+    }
+
     if (op != "abs") {
         generate_parse_err(result, "start message can only specify absolute speed rate");
     }
