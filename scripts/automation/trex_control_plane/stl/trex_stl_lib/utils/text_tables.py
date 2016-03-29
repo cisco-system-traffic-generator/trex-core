@@ -25,10 +25,7 @@ def print_table_with_header(texttable_obj, header="", untouched_header=""):
     header = header.replace("_", " ").title() + untouched_header
     print(format_text(header, 'cyan', 'underline') + "\n")
 
-    if sys.version_info < (3,0):
-        print((texttable_obj.draw().encode('utf-8') + "\n"))
-    else:
-        print((texttable_obj.draw() + "\n"))
+    print((texttable_obj.draw() + "\n"))
 
 if __name__ == "__main__":
     pass

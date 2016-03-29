@@ -590,10 +590,7 @@ class Texttable:
             array = []
             for c in cell.split('\n'):
                 try:
-                    if sys.version >= '3.0':
-                        c = str(c)
-                    else:
-                        c = unicode(c, 'utf')
+                    c = str(c)
                 except UnicodeDecodeError as strerror:
                     sys.stderr.write("UnicodeDecodeError exception for string '%s': %s\n" % (c, strerror))
                     if sys.version >= '3.0':
