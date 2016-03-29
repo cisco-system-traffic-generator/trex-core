@@ -82,7 +82,7 @@ int CFlowStatParser::set_ip_id(uint16_t new_id) {
         return -1;
 
     // Updating checksum, not recalculating, so if someone put bad checksum on purpose, it will stay bad
-    m_ipv4->updateCheckSum(m_ipv4->getId(), PKT_NTOHS(new_id));
+    m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getId()), PKT_NTOHS(new_id));
     m_ipv4->setId(new_id);
 
     return 0;
@@ -111,7 +111,7 @@ int CFlowStatParser::test() {
         0x0a, 0xbc, 0x08, 0x00, // vlan
         // IP header
         0x45,0x02,0x00,0x30,
-        0x00,0x00,0x40,0x00,
+        0x01,0x02,0x40,0x00,
         0xff, TEST_L4_PROTO, 0xbd,0x04,
         0x10,0x0,0x0,0x1,
         0x30,0x0,0x0,0x1,

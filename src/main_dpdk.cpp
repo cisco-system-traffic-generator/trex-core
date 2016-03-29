@@ -191,7 +191,8 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return 0;}
+    //virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
 };
@@ -244,7 +245,8 @@ public:
 
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return 0;}
+    //    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
 };
 
 
@@ -281,7 +283,8 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return 0;}
+    //    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual CFlowStatParser *get_flow_stat_parser();
 };
 
