@@ -1809,7 +1809,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def wait_on_traffic (self, ports = None, timeout = 60):
+    def wait_on_traffic (self, ports = None, timeout = 60, rx_delay_ms = 10):
         """
             block until specify port(s) traffic has ended
 
@@ -1819,6 +1819,14 @@ class STLClient(object):
 
                 timeout : int
                     timeout in seconds
+
+                rx_delay_ms : int
+                    time to wait until RX filters are removed
+                    this value should reflect the time it takes
+                    packets which were transmitted to arrive
+                    to the destination.
+                    after this time the RX filters will be removed
+
 
             :raises:
                 + :exc:`STLTimeoutError` - in case timeout has expired
@@ -1837,6 +1845,11 @@ class STLClient(object):
             time.sleep(0.01)
             if time.time() > expr:
                 raise STLTimeoutError(timeout)
+
+        # remove any RX filters
+        rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
+        if not rc:
+            raise STLError(rc)
 
 
     @__api_check(True)
