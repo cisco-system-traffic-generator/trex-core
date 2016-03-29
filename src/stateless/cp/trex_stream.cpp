@@ -106,6 +106,15 @@ void TrexStream::Dump(FILE *fd){
         }
     }
 
+    if (m_rx_check.m_enabled) {
+        fprintf(fd, " Flow stat enabled:\n");
+        fprintf(fd, "   seq check %s latency check %s packet group id %d hw_id %d\n"
+                , m_rx_check.m_seq_enabled ? "enabled":"disabled"
+                , m_rx_check.m_latency ? "enabled":"disabled", m_rx_check.m_pg_id, m_rx_check.m_hw_id
+                );
+    } else {
+        fprintf(fd, " Flow stat disabled\n");
+    }
     fprintf(fd," rate    :\n\n");
 
     fprintf(fd," pps         : %f\n", m_rate.get_pps());

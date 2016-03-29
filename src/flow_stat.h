@@ -200,10 +200,12 @@ class CFlowStatRuleMgr {
     CFlowStatRuleMgr();
     ~CFlowStatRuleMgr();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
-    int add_stream(const TrexStream * stream);
-    int del_stream(const TrexStream * stream);
-    int start_stream(TrexStream * stream, uint16_t &ret_hw_id);
-    int stop_stream(const TrexStream * stream);
+    void copy_state(TrexStream * from, TrexStream * to);
+    void init_stream(TrexStream * stream);
+    int add_stream(TrexStream * stream);
+    int del_stream(TrexStream * stream);
+    int start_stream(TrexStream * stream);
+    int stop_stream(TrexStream * stream);
     int get_active_pgids(flow_stat_active_t &result);
     bool dump_json(std::string & json, bool baseline);
 

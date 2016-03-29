@@ -18,6 +18,32 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 */
+
+/*
+Important classes in this file:
+CFlowStatUserIdInfo - Information about one packet group id
+CFlowStatUserIdMap - Mapping between packet group id (chosen by user) and hardware counter id
+CFlowStatHwIdMap - Mapping between hardware id and packet group id
+CFlowStatRuleMgr - API to users of the file
+
+General idea of operation:
+For each stream needing flow statistics, the user provides packet group id (pg_id). Few streams can have the same pg_id. 
+We maintain reference count.
+When doing start_stream, for the first stream in pg_id, hw_id is associated with the pg_id, and relevant hardware rules are
+inserted (on supported hardware). When stopping all streams with the pg_id, the hw_id <--> pg_id mapping is removed, hw_id is
+returned to the free hw_id pool, and hardware rules are removed. Counters for the pg_id are kept. 
+If starting streams again, new hw_id will be assigned, and counters will continue from where they stopped. Only When deleting
+all streams using certain pg_id, infromation about this pg_id will be freed.
+
+For each stream we keep state in the m_rx_check.m_hw_id field. Since we keep reference count for certain structs, we want to
+protect from illegal operations, like starting stream while it is already starting, stopping when it is stopped...
+State machine is:
+stream_init: HW_ID_INIT
+stream_add: HW_ID_FREE
+stream_start: legal hw_id (range is 0..MAX_FLOW_STATS)
+stream_stop: HW_ID_FREE
+stream_del: HW_ID_INIT
+ */
 #include <sstream>
 #include <string>
 #include <iostream>
@@ -33,7 +59,8 @@
 
 #define FLOW_STAT_ADD_ALL_PORTS 255
 
-static const uint16_t FREE_HW_ID = UINT16_MAX;
+static const uint16_t HW_ID_INIT = UINT16_MAX;
+static const uint16_t HW_ID_FREE = UINT16_MAX - 1;
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -47,6 +74,11 @@ inline std::string methodName(const std::string& prettyFunction)
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 #ifdef __DEBUG_FUNC_ENTRY__
 #define FUNC_ENTRY (std::cout << __METHOD_NAME__ << std::endl);
+#ifdef __STREAM_DUMP__
+#define stream_dump(stream) stream->Dump(stderr)
+#else
+#define stream_dump(stream)
+#endif
 #else
 #define FUNC_ENTRY
 #endif
@@ -146,7 +178,7 @@ uint16_t CFlowStatUserIdMap::get_hw_id(uint32_t user_id) {
     CFlowStatUserIdInfo *cf = find_user_id(user_id);
 
     if (cf == NULL) {
-        return FREE_HW_ID;
+        return HW_ID_FREE;
     } else {
         return cf->get_hw_id();
     }
@@ -217,7 +249,7 @@ int CFlowStatUserIdMap::del_stream(uint32_t user_id) {
     }
 
     if (c_user_id->del_stream() == 0) {
-        // ref count of this port became 0. can release this entry.
+        // ref count of this entry became 0. can release this entry.
         m_map.erase(user_id);
         delete c_user_id;
     }
@@ -331,7 +363,7 @@ uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
 CFlowStatHwIdMap::CFlowStatHwIdMap() {
     m_num_free = MAX_FLOW_STATS;
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
-        m_map[i] = FREE_HW_ID;
+        m_map[i] = HW_ID_FREE;
     }
 }
 
@@ -356,11 +388,11 @@ std::ostream& operator<<(std::ostream& os, const CFlowStatHwIdMap& cf) {
 
 uint16_t CFlowStatHwIdMap::find_free_hw_id() {
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
-        if (m_map[i] == FREE_HW_ID)
+        if (m_map[i] == HW_ID_FREE)
             return i;
     }
 
-    return FREE_HW_ID;
+    return HW_ID_FREE;
 }
 
 void CFlowStatHwIdMap::map(uint16_t hw_id, uint32_t user_id) {
@@ -377,7 +409,7 @@ void CFlowStatHwIdMap::unmap(uint16_t hw_id) {
     std::cout << __METHOD_NAME__ << " hw id:" << hw_id << std::endl;
 #endif
 
-    m_map[hw_id] = FREE_HW_ID;
+    m_map[hw_id] = HW_ID_FREE;
     m_num_free++;
 }
 
@@ -451,9 +483,17 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
     return 0;
 }
 
-int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
+void CFlowStatRuleMgr::copy_state(TrexStream * from, TrexStream * to) {
+    to->m_rx_check.m_hw_id = from->m_rx_check.m_hw_id;
+}
+void CFlowStatRuleMgr::init_stream(TrexStream * stream) {
+    stream->m_rx_check.m_hw_id = HW_ID_INIT;
+}
+
+int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    stream_dump(stream);
 #endif
 
     if (! stream->m_rx_check.m_enabled) {
@@ -465,6 +505,8 @@ int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
     if (! m_api ) {
         create();
     }
+
+    //??? put back    assert(stream->m_rx_check.m_hw_id == HW_ID_INIT);
 
     uint16_t rule_type = TrexPlatformApi::IF_STAT_IPV4_ID; // In the future need to get it from the stream;
 
@@ -485,12 +527,14 @@ int CFlowStatRuleMgr::add_stream(const TrexStream * stream) {
     // throws exception if there is error
     m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
 
+    stream->m_rx_check.m_hw_id = HW_ID_FREE;
     return 0;
 }
 
-int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
+int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    stream_dump(stream);
 #endif
 
     if (! stream->m_rx_check.m_enabled) {
@@ -500,14 +544,19 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
     if (! m_api)
         throw TrexException("Called del_stream, but no stream was added");
 
-    if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
-        std::cerr << "Error: Trying to delete flow statistics stream " << stream->m_rx_check.m_pg_id
-                  << " which is not stopped." << std::endl;
-        throw TrexException("Trying to delete stream which was not stopped");
+    // we got del_stream command for a stream which has valid hw_id.
+    // Probably someone forgot to call stop
+    if(stream->m_rx_check.m_hw_id < MAX_FLOW_STATS) {
+        stop_stream(stream);
     }
 
+    // calling del for same stream twice, or for a stream which was never "added"
+    if(stream->m_rx_check.m_hw_id == HW_ID_INIT) {
+        return 0;
+    }
     // Throws exception in case of error
     m_user_id_map.del_stream(stream->m_rx_check.m_pg_id);
+    stream->m_rx_check.m_hw_id = HW_ID_INIT;
 
     return 0;
 }
@@ -518,9 +567,10 @@ int CFlowStatRuleMgr::del_stream(const TrexStream * stream) {
 // If stream does not need flow stat counting, make sure it does not interfere with
 // other streams that do need stat counting.
 // Might change the IP ID of the stream packet
-int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
+int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    stream_dump(stream);
 #endif
 
     int ret;
@@ -554,11 +604,15 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
 
     // from here, we know the stream need rx stat
 
-    // compile_stream throws exception if something goes wrong
-    if ((ret = compile_stream(stream, m_parser)) < 0)
-        return ret;
+    // Starting a stream which was never added
+    if (stream->m_rx_check.m_hw_id == HW_ID_INIT) {
+        add_stream(stream);
+    }
 
-    uint16_t hw_id;
+    if (stream->m_rx_check.m_hw_id < MAX_FLOW_STATS) {
+        throw TrexException("Starting a stream which was already started");
+    }
+
     uint16_t rule_type = TrexPlatformApi::IF_STAT_IPV4_ID; // In the future, need to get it from the stream;
 
     if ((m_capabilities & rule_type) == 0) {
@@ -566,12 +620,18 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
         throw TrexException("Interface does not support given rule type");
     }
 
+    // compile_stream throws exception if something goes wrong
+    if ((ret = compile_stream(stream, m_parser)) < 0)
+        return ret;
+
+    uint16_t hw_id;
+
     if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
         m_user_id_map.start_stream(stream->m_rx_check.m_pg_id); // just increase ref count;
         hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id); // can't fail if we got here
     } else {
         hw_id = m_hw_id_map.find_free_hw_id();
-        if (hw_id == FREE_HW_ID) {
+        if (hw_id == HW_ID_FREE) {
             printf("Error: %s failed finding free hw_id\n", __func__);
             throw TrexException("Failed allocating statistic counter. Probably all are used.");
         } else {
@@ -579,7 +639,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
                 m_max_hw_id = hw_id;
             }
             uint32_t user_id = stream->m_rx_check.m_pg_id;
-            m_user_id_map.start_stream(user_id, hw_id); // ??? can throw exception. return hw_id
+            m_user_id_map.start_stream(user_id, hw_id);
             m_hw_id_map.map(hw_id, user_id);
             add_hw_rule(hw_id, m_user_id_map.l4_proto(user_id));
         }
@@ -587,10 +647,12 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream, uint16_t &ret_hw_id) {
 
     m_parser->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
 
-    ret_hw_id = hw_id;
+    // saving given hw_id on stream for use by tx statistics count
+    stream->m_rx_check.m_hw_id = hw_id;
 
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << "exit:" << __METHOD_NAME__ << " hw_id:" << ret_hw_id << std::endl;
+    std::cout << "exit:" << __METHOD_NAME__ << " hw_id:" << hw_id << std::endl;
+    stream_dump(stream);
 #endif
 
     if (m_num_started_streams == 0) {
@@ -608,9 +670,10 @@ int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint8_t proto) {
     return 0;
 }
 
-int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
+int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    stream_dump(stream);
 #endif
     if (! stream->m_rx_check.m_enabled) {
         return 0;
@@ -618,6 +681,13 @@ int CFlowStatRuleMgr::stop_stream(const TrexStream * stream) {
 
     if (! m_api)
         throw TrexException("Called stop_stream, but no stream was added");
+
+    if (stream->m_rx_check.m_hw_id >= MAX_FLOW_STATS) {
+        printf("Trying to stop stream with high hw_id %d\n", stream->m_rx_check.m_hw_id);
+        throw TrexException("Trying to stop stream which is not started (maybe stop was called twice?)");
+    }
+
+    stream->m_rx_check.m_hw_id = HW_ID_FREE;
 
     if (m_user_id_map.stop_stream(stream->m_rx_check.m_pg_id) == 0) {
         // last stream associated with the entry stopped transmittig.

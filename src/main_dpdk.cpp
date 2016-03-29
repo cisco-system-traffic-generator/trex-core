@@ -4284,12 +4284,19 @@ int core_mask_sanity(uint32_t wanted_core_mask) {
     wanted_core_num = num_set_bits(wanted_core_mask);
     calc_core_num = num_set_bits(calc_core_mask);
 
+    if (calc_core_num == 1) {
+        printf ("Error: You have only 1 core available. Minimum configuration requires 2 cores\n");
+        printf("        If you are running on VM, consider adding more cores if possible\n");
+        return -1;
+    }
     if (wanted_core_num > calc_core_num) {
         printf("Error: You have %d threads available, but you asked for %d threads.\n", calc_core_num, wanted_core_num);
         printf("       Calculation is: -c <num>(%d) * dual ports (%d) + 1 master thread %s"
                , CGlobalInfo::m_options.preview.getCores(), CGlobalInfo::m_options.get_expected_dual_ports()
                , get_is_rx_thread_enabled() ? "+1 latency thread (because of -l flag)\n" : "\n");
-        printf("       Maybe try smaller -c <num>.\n");
+        if (CGlobalInfo::m_options.preview.getCores() > 1)
+            printf("       Maybe try smaller -c <num>.\n");
+        printf("       If you are running on VM, consider adding more cores if possible\n");
         return -1;
     }
 
