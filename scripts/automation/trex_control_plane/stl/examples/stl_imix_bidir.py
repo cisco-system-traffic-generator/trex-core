@@ -29,14 +29,15 @@ def imix_test (server):
         # take all the ports
         c.reset()
 
-    	dir_0 = [0]
-    	dir_1 = [1]
+        dir_0 = [0]
+        dir_1 = [1]
 
         print "Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1)
 
         # load IMIX profile
-        profile1 = STLProfile.load_py('../../../../stl/imix.py', direction=0)
-        profile2 = STLProfile.load_py('../../../../stl/imix.py', direction=1)
+        profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'imix.py')
+        profile1 = STLProfile.load_py(profile_file, direction=0)
+        profile2 = STLProfile.load_py(profile_file, direction=1)
         stream1 = profile1.get_streams()
         stream2 = profile2.get_streams()
 

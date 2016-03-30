@@ -12,7 +12,7 @@ import argparse
 # and attach it to both sides and inject
 # at a certain rate for some time
 # finally it checks that all packets arrived
-def imix_test (server):
+def imix_test (server, mult):
     
 
     # create client
@@ -37,7 +37,8 @@ def imix_test (server):
         print("Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1))
 
         # load IMIX profile
-        profile = STLProfile.load_py('../../../../stl/imix.py')
+        profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'imix.py')
+        profile = STLProfile.load_py(profile_file)
         streams = profile.get_streams()
 
         # add both streams to ports
@@ -47,9 +48,8 @@ def imix_test (server):
         # clear the stats before injecting
         c.clear_stats()
 
-        # choose rate and start traffic for 10 seconds on 5 mpps
+        # choose rate and start traffic for 10 seconds
         duration = 10
-        mult = "30%"
         print("Injecting {0} <--> {1} on total rate of '{2}' for {3} seconds".format(dir_0, dir_1, mult, duration))
 
         c.start(ports = (dir_0 + dir_1), mult = mult, duration = duration, total = True)
@@ -107,8 +107,13 @@ parser.add_argument('-s', '--server',
                     help='Remote trex address',
                     default='127.0.0.1',
                     type = str)
+parser.add_argument('-m', '--mult',
+                    dest='mult',
+                    help='Multiplier of traffic, see Stateless help for more info',
+                    default='30%',
+                    type = str)
 args = parser.parse_args()
 
 # run the tests
-imix_test(args.server)
+imix_test(args.server, args.mult)
 

@@ -29,9 +29,10 @@ def simple ():
         print(c.get_port_info(my_ports))
 
         c.ping()
+        profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'udp_1pkt_simple.py')
 
         print("start")
-        c.start_line (" -f ../../../../stl/udp_1pkt_simple.py -m 10mpps --port 0 1 ")
+        c.start_line (" -f %s -m 10mpps --port 0 1 " % profile_file)
         time.sleep(2);
         c.pause_line("--port 0 1");
         time.sleep(2);

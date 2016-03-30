@@ -963,17 +963,25 @@ def release(bld, custom_dir = None):
         os.system("cp -rv %s %s " %(src_file,dest_file));
         os.system("chmod 755 %s " %(dest_file));
 
+    rel=get_build_num ()
+
     # create client package
     os.system('mkdir -p %s/trex_client/external_libs' % exec_p)
-    os.system('touch %s/trex_client/__init__.py' % exec_p)
     for ext_lib in client_external_libs:
         os.system('cp ../scripts/external_libs/%s %s/trex_client/external_libs/ -r' % (ext_lib, exec_p))
     os.system('cp ../scripts/automation/trex_control_plane/stf %s/trex_client/ -r' % exec_p)
-    os.system('cp ../scripts/automation/trex_control_plane/stl/trex_stl_lib %s/trex_client/stl -r' % exec_p)
-    shutil.make_archive(os.path.join(exec_p, 'trex_client'), 'gztar', exec_p, 'trex_client')
+    os.system('cp ../scripts/automation/trex_control_plane/stl %s/trex_client/ -r' % exec_p)
+    with open('%s/trex_client/stl/examples/stl_path.py' % exec_p) as f:
+        stl_path_content = f.read()
+    if 'STL_PROFILES_PATH' not in stl_path_content:
+        raise Exception('Could not find STL_PROFILES_PATH in stl/examples/stl_path.py')
+    stl_path_content = re.sub('STL_PROFILES_PATH.*?\n', "STL_PROFILES_PATH = os.path.join(os.pardir, 'profiles')\n", stl_path_content)
+    with open('%s/trex_client/stl/examples/stl_path.py' % exec_p, 'w') as f:
+        f.write(stl_path_content)
+    os.system('cp ../scripts/stl %s/trex_client/stl/profiles -r' % exec_p)
+    shutil.make_archive(os.path.join(exec_p, 'trex_client_%s' % rel), 'gztar', exec_p, 'trex_client')
     os.system('rm -r %s/trex_client' % exec_p)
 
-    rel=get_build_num ()
     os.system('cd %s/..;tar --exclude="*.pyc" -zcvf %s/%s.tar.gz %s' %(exec_p,os.getcwd(),rel,rel))
     os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),rel,exec_p));
 

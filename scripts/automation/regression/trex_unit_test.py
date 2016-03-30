@@ -36,8 +36,8 @@ import misc_methods
 from rednose import RedNose
 import termstyle
 from trex import CTRexScenario
-from stf.trex_client import *
-from stf.trex_exceptions import *
+from trex_stf_lib.trex_client import *
+from trex_stf_lib.trex_exceptions import *
 from trex_stl_lib.api import *
 import trex
 import socket
@@ -67,10 +67,10 @@ STATEFUL_STOP_COMMAND = './trex_daemon_server stop; sleep 1; ./trex_daemon_serve
 STATEFUL_RUN_COMMAND = 'rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
 TREX_FILES = ('_t-rex-64', '_t-rex-64-o', '_t-rex-64-debug', '_t-rex-64-debug-o')
 
-def trex_remote_command(trex_data, command, background = False, from_scripts = True):
+def trex_remote_command(trex_data, command, background = False, from_scripts = True, timeout = 20):
     if from_scripts:
-        return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command, background)
-    return misc_methods.run_remote_command(trex_data['trex_name'], command, background)
+        return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command, background, timeout)
+    return misc_methods.run_remote_command(trex_data['trex_name'], command, background, timeout)
 
 # 1 = running, 0 - not running
 def check_trex_running(trex_data):
@@ -183,7 +183,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             new_path = '/tmp/trex-scripts'
             rsync_template = 'rm -rf /tmp/trex-scripts; mkdir -p %s; rsync -Lc %s /tmp; tar -mxzf /tmp/%s -C %s; mv %s/v*.*/* %s'
             rsync_command = rsync_template % (new_path, self.pkg, os.path.basename(self.pkg), new_path, new_path, new_path)
-            return_code, stdout, stderr = trex_remote_command(self.configuration.trex, rsync_command, from_scripts = False)
+            return_code, stdout, stderr = trex_remote_command(self.configuration.trex, rsync_command, from_scripts = False, timeout = 300)
             if return_code:
                 print('Failed copying')
                 sys.exit(-1)
@@ -339,8 +339,9 @@ if __name__ == "__main__":
     finally:
         save_setup_info()
 
-    if (result == True and not CTRexScenario.is_test_list):
-        print(termstyle.green("""
+    if not CTRexScenario.is_test_list:
+        if result == True:
+            print(termstyle.green("""
                  ..::''''::..
                .;''        ``;.
               ::    ::  ::    ::
@@ -358,8 +359,18 @@ if __name__ == "__main__":
             /_/  /_/ |_/___/___(_)
 
         """))
-        sys.exit(0)
-    sys.exit(-1)
+            sys.exit(0)
+        else:
+            print(termstyle.red("""
+           /\_/\ 
+          ( o.o ) 
+           > ^ < 
+
+This cat is sad, test failed.
+        """))
+            sys.exit(-1)
+
+
 
 
 
