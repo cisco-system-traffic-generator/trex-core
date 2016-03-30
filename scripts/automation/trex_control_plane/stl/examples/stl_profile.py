@@ -18,8 +18,7 @@ def simple ():
 
         # prepare our ports
         c.reset(ports = my_ports)
-
-        profile_file =   "../../../../stl/udp_1pkt_simple.py"
+        profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'hlt', 'udp_1pkt_simple.py')
 
         try:
             profile = STLProfile.load(profile_file)
