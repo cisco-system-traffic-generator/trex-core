@@ -832,6 +832,11 @@ class STLProfile(object):
     def __str__ (self):
         return '\n'.join([str(stream) for stream in self.streams])
 
+    def is_pauseable (self):
+        return all([x.get_mode() == "Continuous" for x in (self.get_streams())])
+
+    def needs_rx_caps (self):
+        return any([x.has_flow_stats() for x in self.get_streams()])
 
     @staticmethod
     def load_yaml (yaml_file):

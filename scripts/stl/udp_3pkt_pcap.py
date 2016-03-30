@@ -1,6 +1,9 @@
 from trex_stl_lib.api import *
+import os
 
 # stream from pcap file. continues pps 10 in sec 
+
+CP = os.path.join(os.path.dirname(__file__))
 
 class STLS1(object):
 
@@ -8,19 +11,19 @@ class STLS1(object):
 
         return STLProfile( [ STLStream( isg = 10.0, # star in delay 
                                         name    ='S0',
-                                        packet = STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap"),
+                                        packet = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_64B_no_crc.pcap")),
                                         mode = STLTXSingleBurst( pps = 10, total_pkts = 10),
                                         next = 'S1'), # point to next stream 
 
                              STLStream( self_start = False, # stream is  disabled enable trow S0
                                         name    ='S1',
-                                        packet  = STLPktBuilder(pkt ="stl/yaml/udp_594B_no_crc.pcap"),
+                                        packet  = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_594B_no_crc.pcap")),
                                         mode    = STLTXSingleBurst( pps = 10, total_pkts = 20),
                                         next    = 'S2' ),
 
                              STLStream(  self_start = False, # stream is  disabled enable trow S0
                                          name   ='S2',
-                                         packet = STLPktBuilder(pkt ="stl/yaml/udp_1518B_no_crc.pcap"),
+                                         packet = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_1518B_no_crc.pcap")),
                                          mode = STLTXSingleBurst( pps = 10, total_pkts = 30 )
                                         )
                             ]).get_streams()

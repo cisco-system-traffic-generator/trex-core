@@ -18,7 +18,8 @@
                   "min_value" : 1000,
                   "name" : "l3_src",
                   "op" : "inc",
-                  "size" : 2,
+                  "step": 1,
+                  "size" : 4,
                   "type" : "flow_var"
                },
                {
