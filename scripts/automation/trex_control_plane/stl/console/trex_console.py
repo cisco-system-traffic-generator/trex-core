@@ -30,14 +30,20 @@ import os
 import sys
 import tty, termios
 
+try:
+    import stl_path
+except:
+    from . import stl_path
 from trex_stl_lib.api import *
 
 from trex_stl_lib.utils.text_opts import *
 from trex_stl_lib.utils.common import user_input, get_current_user
 from trex_stl_lib.utils import parsing_opts
 
-
-from . import trex_tui
+try:
+    import trex_tui
+except:
+    from . import trex_tui
 
 from functools import wraps
 
