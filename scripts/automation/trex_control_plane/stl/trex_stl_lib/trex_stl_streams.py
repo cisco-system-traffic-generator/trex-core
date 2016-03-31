@@ -112,7 +112,7 @@ class STLTXCont(STLTXMode):
         super(STLTXCont, self).__init__(**kwargs)
 
 
-        self.fields['type'] = 'Continuous'
+        self.fields['type'] = 'continuous'
 
     @staticmethod
     def __str__ ():
