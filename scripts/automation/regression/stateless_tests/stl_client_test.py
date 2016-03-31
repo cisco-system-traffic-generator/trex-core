@@ -4,13 +4,13 @@ from trex_stl_lib.api import *
 import os, sys
 import glob
 
+
 def get_error_in_percentage (golden, value):
     return abs(golden - value) / float(golden)
 
 def get_stl_profiles ():
     profiles_path = os.path.join(CTRexScenario.scripts_path, 'stl/')
     profiles = glob.glob(profiles_path + "/*.py") + glob.glob(profiles_path + "yaml/*.yaml")
-
 
     return profiles
 
@@ -20,6 +20,7 @@ class STLClient_Test(CStlGeneral_Test):
 
     def setUp(self):
         CStlGeneral_Test.setUp(self)
+        
         assert 'bi' in CTRexScenario.stl_ports_map
 
         self.c = CTRexScenario.stl_trex
@@ -52,7 +53,7 @@ class STLClient_Test(CStlGeneral_Test):
   
 
     def test_basic_single_burst (self):
-        try:
+        try:                              
             b1 = STLStream(name = 'burst',
                            packet = self.pkt,
                            mode = STLTXSingleBurst(total_pkts = 100,
@@ -219,6 +220,11 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
+
+        if self.is_virt_nics or not self.is_loopback:
+            print("skipping for non loopback / virtual")
+            return
+
         try:
             self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
 
@@ -228,7 +234,7 @@ class STLClient_Test(CStlGeneral_Test):
                 p1 = STLProfile.load(profile, port_id = self.tx_port)
                 p2 = STLProfile.load(profile, port_id = self.rx_port)
 
-                if p1.needs_rx_caps():
+                if p1.has_flow_stats():
                     print("profile needs RX caps - skipping...")
                     continue
 
@@ -237,7 +243,7 @@ class STLClient_Test(CStlGeneral_Test):
 
                 self.c.clear_stats()
 
-                self.c.start(ports = [self.tx_port, self.rx_port], mult = "50%")
+                self.c.start(ports = [self.tx_port, self.rx_port], mult = "30%")
                 time.sleep(100 / 1000.0)
 
                 if p1.is_pauseable() and p2.is_pauseable():
@@ -251,12 +257,12 @@ class STLClient_Test(CStlGeneral_Test):
 
                 stats = self.c.get_stats()
 
-                assert self.tx_port in stats
-                assert self.rx_port in stats
+                assert self.tx_port in stats, '{0} - no stats for TX port'.format(profile)
+                assert self.rx_port in stats, '{0} - no stats for RX port'.format(profile)
 
-                assert stats[self.tx_port]['opackets'] == stats[self.rx_port]['ipackets']
+                assert stats[self.tx_port]['opackets'] == stats[self.rx_port]['ipackets'], '{0} - number of TX packets differ from RX packets'.format(profile)
 
-                assert stats[self.rx_port]['opackets'] == stats[self.tx_port]['ipackets']
+                assert stats[self.rx_port]['opackets'] == stats[self.tx_port]['ipackets'], '{0} - number of TX packets differ from RX packets'.format(profile)
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
 

@@ -2069,7 +2069,7 @@ class STLClient(object):
             self.logger.log(format_text("No active traffic on provided ports\n", 'bold'))
             return
 
-        self.stop(ports, rx_delay_ms = 2000)
+        self.stop(ports)
 
         # true means print time
         return True

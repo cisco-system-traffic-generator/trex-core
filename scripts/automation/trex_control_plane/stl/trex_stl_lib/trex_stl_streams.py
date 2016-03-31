@@ -835,7 +835,7 @@ class STLProfile(object):
     def is_pauseable (self):
         return all([x.get_mode() == "Continuous" for x in (self.get_streams())])
 
-    def needs_rx_caps (self):
+    def has_flow_stats (self):
         return any([x.has_flow_stats() for x in self.get_streams()])
 
     @staticmethod

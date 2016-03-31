@@ -16,7 +16,7 @@ def imix_test (server, mult):
     
 
     # create client
-    c = STLClient(server = server, verbose_level = LoggerApi.VERBOSE_REGULAR)
+    c = STLClient(server = server)
     
     passed = True
 
