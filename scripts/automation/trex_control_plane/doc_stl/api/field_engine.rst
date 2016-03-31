@@ -2,19 +2,19 @@
 Field Engine modules 
 =======================
 
-The Field Engine (FE) has limited number of instructions/operation for supporting most use cases. 
+The Field Engine (FE) has limited number of instructions/operations to support most use cases. 
 There is a plan to add LuaJIT to be more flexible at the cost of performance.
-The FE can allocate stream variables in a Stream context, write a stream variable to a packet offset, change packet size,  etc.
+The FE can allocate stream variables in a stream context, write a stream variable to a packet offset, change packet size, and so on.
 
-*Some examples for what can be done:*
+*Examples of Field Engine uses:*
 
 * Change ipv4.tos 1-10
-* Change packet size to be random in the range 64-9K
-* Create range of flows (change src_ip, dest_ip, src_port, dest_port) 
+* Change packet size to a random value in the range 64 to 9K
+* Create a range of flows (change src_ip, dest_ip, src_port, dest_port) 
 * Update IPv4 checksum 
 
 
-Snippet will create SYN Attack::
+The following snippet creates a SYN attack::
 
     # create attack from random src_ip from 16.0.0.0-18.0.0.254 and random src_port 1025-65000    
     # attack 48.0.0.1 server 
@@ -60,7 +60,7 @@ Snippet will create SYN Attack::
 STLScVmRaw class
 ----------------
 
-Aggregate a raw instructions objects 
+Aggregate raw instructions objects 
 
 .. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLScVmRaw
     :members: 
