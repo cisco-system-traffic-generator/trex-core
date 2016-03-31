@@ -2,15 +2,15 @@
 Packet builder modules 
 =======================
 
-The packet builder module objective is to build a template packet for a stream and to create a Field engine program to change fields in the packet.
+The packet builder module is used for building a template packet for a stream, and creating a Field Engine program to change fields in the packet.
 
-**Some examples for what can be done:**
+**Examples:**
 
-* Build a IP/UDP/DNS packet and create a range of src_ip = 10.0.0.1-10.0.0.255
-* Build a IP/UDP packets in IMIX sizes 
+* Build a IP/UDP/DNS packet with a src_ip range of 10.0.0.1 to 10.0.0.255
+* Build IP/UDP packets in IMIX sizes 
 
 
-for example this snippet will create SYN Attack::
+For example, this snippet creates a SYN attack::
 
     # create attack from random src_ip from 16.0.0.0-18.0.0.254 and random src_port 1025-65000    
     # attack 48.0.0.1 server 

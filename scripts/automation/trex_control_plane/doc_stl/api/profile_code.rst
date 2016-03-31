@@ -2,13 +2,13 @@
 Traffic profile modules 
 =======================
 
-TRex STLProfile profile include a list of STLStream. The profile is a ``program`` of streams with a relation betwean the streams.
-Each stream can trigger another stream. Stream can be given a name for a full examples see here Manual_.
+The TRex STLProfile traffic profile includes a number of streams. The profile is a ``program`` of related streams.
+Each stream can trigger another stream. Each stream can be named. For a full set of examples, see Manual_.
 
-..   _Manual: ../draft_trex_stateless1.html
+..   _Manual: ../trex_stateless.html
 
 
-for example::
+Example::
 
     def create_stream (self):
 

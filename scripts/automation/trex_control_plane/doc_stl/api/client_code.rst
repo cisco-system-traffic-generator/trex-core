@@ -2,16 +2,23 @@
 Client Module 
 ==================
 
-TRex Client is an object to access TRex server. It is per user. Each user can own number of interfaces. 
-Multi user can interact with one TRex server each user should own a different set of interfaces.
+The TRex Client provides access to the TRex server.
+
+**Client and interfaces**
+
+Multiple users can interact with one TRex server. Each user "owns" a different set of interfaces.
 The protocol is JSON-RPC2 over ZMQ transport.
 
-The API has two type of API 
+In addition to the Python API, a console-based API interface is also available.
 
-1. Normal API 
-2. xx_line:  this api get a line like the Console and parse it and call the low level api 
+Python-like example::
+.. c.start(ports = [0, 1], mult = "5mpps", duration = 10)
 
-Example1::
+Console-like example::
+.. c.start_line (" -f ../../../../stl/udp_1pkt_simple.py -m 10mpps --port 0 1 ")
+
+
+Example 1 - Typical Python API::
 
     c = STLClient(username = "itay",server = "10.0.0.10", verbose_level = LoggerApi.VERBOSE_HIGH)
 
@@ -49,7 +56,7 @@ STLClient snippet
 -----------------
 
 
-Example1::
+Example 1: Minimal example of client interacting with the TRex server::
 
     c = STLClient()
 
@@ -76,7 +83,7 @@ Example1::
 
 
 
-Example2: wait while doing somthing::
+Example 2: Client can execute other functions while the TRex server is generating traffic::
 
     c = STLClient()
     try:
@@ -99,7 +106,7 @@ Example2: wait while doing somthing::
         c.disconnect()
 
 
-Example3: Console like::
+Example 3: Console-like API interface::
 
         def simple ():
         
@@ -148,7 +155,7 @@ Example3: Console like::
             finally:
                 c.disconnect()
 
-Example4: Load profile from a file::
+Example 4: Load profile from a file::
 
   def simple ():
 
