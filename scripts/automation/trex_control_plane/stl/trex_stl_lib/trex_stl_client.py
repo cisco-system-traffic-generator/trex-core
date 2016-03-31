@@ -40,15 +40,15 @@ class LoggerApi(object):
 
     # implemented by specific logger
     def write(self, msg, newline = True):
-        raise Exception("implement this")
+        raise Exception("Implement this")
 
     # implemented by specific logger
     def flush(self):
-        raise Exception("implement this")
+        raise Exception("Implement this")
 
     def set_verbose (self, level):
         if not level in range(self.VERBOSE_QUIET, self.VERBOSE_HIGH + 1):
-            raise ValueError("bad value provided for logger")
+            raise ValueError("Bad value provided for logger")
 
         self.level = level
 
@@ -146,7 +146,7 @@ class AsyncEventHandler(object):
 
     def on_async_dead (self):
         if self.client.connected:
-            msg = 'lost connection to server'
+            msg = 'Lost connection to server'
             self.__add_event_log(msg, 'local', True)
             self.client.connected = False
 
@@ -319,7 +319,7 @@ class AsyncEventHandler(object):
 ############################                   #############################
 
 class CCommLink(object):
-    """describes the connectivity of the stateless client method"""
+    """Describes the connectivity of the stateless client method"""
     def __init__(self, server="localhost", port=5050, virtual=False, prn_func = None):
         self.virtual = virtual
         self.server = server
@@ -380,7 +380,7 @@ class CCommLink(object):
 ############################                #############################
 
 class STLClient(object):
-    """TRex Stateless client object- gives operations per TRex/user"""
+    """TRex Stateless client object - gives operations per TRex/user"""
 
     def __init__(self,
                  username = common.get_current_user(),
@@ -391,7 +391,7 @@ class STLClient(object):
                  logger = None,
                  virtual = False):
         """ 
-        Set the connection setting 
+        Configure the connection settings 
 
         :parameters:
              username : string 
@@ -496,11 +496,11 @@ class STLClient(object):
             port_id_list = [port_id_list]
 
         if not isinstance(port_id_list, list):
-             raise ValueError("bad port id list: {0}".format(port_id_list))
+             raise ValueError("Bad port id list: {0}".format(port_id_list))
 
         for port_id in port_id_list:
             if not isinstance(port_id, int) or (port_id < 0) or (port_id > self.get_port_count()):
-                raise ValueError("bad port id {0}".format(port_id))
+                raise ValueError("Bad port id {0}".format(port_id))
 
         return port_id_list
 
@@ -727,7 +727,7 @@ class STLClient(object):
 
         
         # connect async channel
-        self.logger.pre_cmd("connecting to publisher server on {0}:{1}".format(self.connection_info['server'], self.connection_info['async_port']))
+        self.logger.pre_cmd("Connecting to publisher server on {0}:{1}".format(self.connection_info['server'], self.connection_info['async_port']))
         rc = self.async_client.connect()
         self.logger.post_cmd(rc)
 
@@ -765,7 +765,7 @@ class STLClient(object):
         if clear_flow_stats:
             self.flow_stats.clear_stats()
 
-        self.logger.log_cmd("clearing stats on port(s) {0}:".format(port_id_list))
+        self.logger.log_cmd("Clearing stats on port(s) {0}:".format(port_id_list))
 
         return RC
 
@@ -852,8 +852,26 @@ class STLClient(object):
         return RC_OK()
 
 
- 
- 
+    # remove all RX filters in a safe manner
+    def _remove_rx_filters (self, ports, rx_delay_ms):
+
+        # get the enabled RX ports
+        rx_ports = [port_id for port_id in ports if self.ports[port_id].has_rx_enabled()]
+
+        if not rx_ports:
+            return RC_OK()
+
+        # block while any RX configured port has not yet have it's delay expired
+        while any([not self.ports[port_id].has_rx_delay_expired(rx_delay_ms) for port_id in rx_ports]):
+            time.sleep(0.01)
+
+        # remove RX filters
+        rc = RC()
+        for port_id in rx_ports:
+            rc.add(self.ports[port_id].remove_rx_filters())
+
+        return rc
+
 
     #################################
     # ------ private methods ------ #
@@ -914,13 +932,13 @@ class STLClient(object):
     # return verbose level of the logger
     def get_verbose (self):
         """ 
-        get the verbose mode  
+        Get the verbose mode  
 
         :parameters:
           none
 
         :return:
-            get the verbose mode as Bool
+            Get the verbose mode as Bool
 
         :raises:
           None
@@ -934,10 +952,10 @@ class STLClient(object):
          is_all_ports_acquired
 
         :parameters:
-          none
+          None
 
         :return:
-            return  True if all ports are acquired
+            Returns True if all ports are acquired
 
         :raises:
           None
@@ -951,7 +969,7 @@ class STLClient(object):
         """ 
 
         :parameters:
-          none
+          None
 
         :return:
             is_connected
@@ -969,10 +987,10 @@ class STLClient(object):
         """ 
 
         :parameters:
-          none
+          None
 
         :return:
-            connection dict 
+            Connection dict 
 
         :raises:
           None
@@ -987,10 +1005,10 @@ class STLClient(object):
         """ 
 
         :parameters:
-          none
+          None
 
         :return:
-            connection dict 
+            Connection dict 
 
         :raises:
           None
@@ -1004,10 +1022,10 @@ class STLClient(object):
         """ 
 
         :parameters:
-          none
+          None
 
         :return:
-            connection dict 
+            Connection dict 
 
         :raises:
           None
@@ -1021,10 +1039,10 @@ class STLClient(object):
         """ 
 
         :parameters:
-          none
+          None
 
         :return:
-            connection dict 
+            Connection dict 
 
         :raises:
           None
@@ -1038,10 +1056,10 @@ class STLClient(object):
         """ 
 
         :parameters:
-          none
+          None
 
         :return:
-            connection dict 
+            Connection dict 
 
         :raises:
           None
@@ -1065,10 +1083,10 @@ class STLClient(object):
         """ 
 
         :parameters:
-          none
+          None
 
         :return:
-            connection dict 
+            Connection dict 
 
         :raises:
           None
@@ -1088,6 +1106,7 @@ class STLClient(object):
         return [port_id
                 for port_id, port_obj in self.ports.items()
                 if port_obj.is_active()]
+
 
     # get paused ports
     def get_paused_ports (self):
@@ -1189,9 +1208,9 @@ class STLClient(object):
 
             :parameters:
                 stop_traffic : bool
-                    tries to stop traffic before disconnecting
+                    Attempts to stop traffic before disconnecting.
                 release_ports : bool
-                    tries to release all the acquired ports
+                    Attempts to release all the acquired ports.
 
         """
 
@@ -1217,9 +1236,9 @@ class STLClient(object):
 
             :parameters:
                 ports : list
-                    ports to execute the command
+                    Ports on which to execute the command
                 force : bool
-                    force acquire the ports
+                    Force acquire the ports.
 
             :raises:
                 + :exc:`STLError`
@@ -1252,7 +1271,7 @@ class STLClient(object):
 
             :parameters:
                 ports : list
-                    ports to execute the command
+                    Ports on which to execute the command
 
             :raises:
                 + :exc:`STLError`
@@ -1295,7 +1314,7 @@ class STLClient(object):
     @__api_check(True)
     def get_active_pgids(self):
         """
-            Get active group ids
+            Get active group IDs
 
             :parameters:
                 None
@@ -1319,11 +1338,11 @@ class STLClient(object):
     @__api_check(True)
     def reset(self, ports = None):
         """
-            force acquire ports, stop the traffic, remove all streams and clear stats
+            Force acquire ports, stop the traffic, remove all streams and clear stats
 
             :parameters:
                 ports : list
-                   ports to execute the command
+                   Ports on which to execute the command
 
 
             :raises:
@@ -1336,7 +1355,7 @@ class STLClient(object):
         ports = self._validate_port_list(ports)
 
         self.acquire(ports, force = True)
-        self.stop(ports)
+        self.stop(ports, rx_delay_ms = 0)
         self.remove_all_streams(ports)
         self.clear_stats(ports)
 
@@ -1348,7 +1367,7 @@ class STLClient(object):
 
             :parameters:
                 ports : list
-                    ports to execute the command
+                    Ports on which to execute the command
 
 
             :raises:
@@ -1371,16 +1390,16 @@ class STLClient(object):
     @__api_check(True)
     def add_streams (self, streams, ports = None):
         """
-            add a list of streams to port(s)
+            Add a list of streams to port(s)
 
             :parameters:
                 ports : list
-                    ports to execute the command
+                    Ports on which to execute the command
                 streams: list
-                    streams to attach (or profile)
+                    Streams to attach (or profile)
 
             :returns:
-                list of stream IDs in order of the stream list
+                List of stream IDs in order of the stream list
 
             :raises:
                 + :exc:`STLError`
@@ -1416,13 +1435,13 @@ class STLClient(object):
     @__api_check(True)
     def remove_streams (self, stream_id_list, ports = None):
         """
-            remove a list of streams from ports
+            Remove a list of streams from ports
 
             :parameters:
                 ports : list
-                    ports to execute the command
+                    Ports on which to execute the command
                 stream_id_list: list
-                    stream id list to remove
+                    Stream id list to remove
 
 
             :raises:
@@ -1460,27 +1479,29 @@ class STLClient(object):
                duration = -1,
                total = False):
         """
-            start traffic on port(s)
+            Start traffic on port(s)
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
                 mult : str
-                    multiplier in a form of pps, bps, or line util in %
-                    examples: "5kpps", "10gbps", "85%", "32mbps"
+                    Multiplier in a form of pps, bps, or line util in %
+                    Examples: "5kpps", "10gbps", "85%", "32mbps"
 
                 force : bool
-                    imply stopping the port of active and also
-                    forces a profile that exceeds the L1 BW
+                    If the ports are not in stopped mode or do not have sufficient bandwidth for the traffic, determines whether to stop the current traffic and force start.
+                    True: Force start
+                    False: Do not force start
 
                 duration : int
-                    limit the run for time in seconds
-                    -1 means unlimited
+                    Limit the run time (seconds)
+                    -1 = unlimited
 
                 total : bool
-                    should the B/W be divided by the ports
-                    or duplicated for each
+                    Determines whether to divide the configured bandwidth among the ports, or to duplicate the bandwidth for each port.
+                    True: Divide bandwidth among the ports
+                    False: Duplicate
 
 
             :raises:
@@ -1535,13 +1556,20 @@ class STLClient(object):
 
     
     @__api_check(True)
-    def stop (self, ports = None):
+    def stop (self, ports = None, rx_delay_ms = 10):
         """
-            stop port(s)
+            Stop port(s)
 
             :parameters:
                 ports : list
-                    ports to execute the command
+                    Ports on which to execute the command
+
+                rx_delay_ms : int
+                    time to wait until RX filters are removed
+                    this value should reflect the time it takes
+                    packets which were transmitted to arrive
+                    to the destination.
+                    after this time the RX filters will be removed
 
             :raises:
                 + :exc:`STLError`
@@ -1561,27 +1589,35 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+        # remove any RX filters
+        rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
+        if not rc:
+            raise STLError(rc)
+
         
     @__api_check(True)
     def update (self, ports = None, mult = "1", total = False, force = False):
         """
-            update traffic on port(s)
+            Update traffic on port(s)
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
                 mult : str
-                    multiplier in a form of pps, bps, or line util in %
-                    and also with +/-
-                    examples: "5kpps+", "10gbps-", "85%", "32mbps", "20%+"
+                    Multiplier in a form of pps, bps, or line util in %
+                    Can also specify +/-
+                    Examples: "5kpps+", "10gbps-", "85%", "32mbps", "20%+"
 
                 force : bool
-                    forces a profile that exceeds the L1 BW
+                    If the ports are not in stopped mode or do not have sufficient bandwidth for the traffic, determines whether to stop the current traffic and force start.
+                    True: Force start
+                    False: Do not force start
 
                 total : bool
-                    should the B/W be divided by the ports
-                    or duplicated for each
+                    Determines whether to divide the configured bandwidth among the ports, or to duplicate the bandwidth for each port.
+                    True: Divide bandwidth among the ports
+                    False: Duplicate
 
 
             :raises:
@@ -1619,11 +1655,11 @@ class STLClient(object):
     @__api_check(True)
     def pause (self, ports = None):
         """
-            pause traffic on port(s). works only for ports that are active and all streams are in cont mode 
+            Pause traffic on port(s). Works only for ports that are active, and only if all streams are in Continuous mode.
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
             :raises:
                 + :exc:`STLError`
@@ -1644,11 +1680,11 @@ class STLClient(object):
     @__api_check(True)
     def resume (self, ports = None):
         """
-            resume traffic on port(s)
+            Resume traffic on port(s)
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
             :raises:
                 + :exc:`STLError`
@@ -1671,23 +1707,24 @@ class STLClient(object):
     @__api_check(True)
     def validate (self, ports = None, mult = "1", duration = "-1", total = False):
         """
-            validate port(s) configuration
+            Validate port(s) configuration
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
              mult : str
-                    multiplier in a form of pps, bps, or line util in %
-                    examples: "5kpps", "10gbps", "85%", "32mbps"
+                    Multiplier in a form of pps, bps, or line util in %
+                    Examples: "5kpps", "10gbps", "85%", "32mbps"
 
             duration : int
-                    limit the run for time in seconds
-                    -1 means unlimited
+                    Limit the run time (seconds)
+                    -1 = unlimited
 
             total : bool
-                    should the B/W be divided by the ports
-                    or duplicated for each
+                    Determines whether to divide the configured bandwidth among the ports, or to duplicate the bandwidth for each port.
+                    True: Divide bandwidth among the ports
+                    False: Duplicate
 
             :raises:
                 + :exc:`STLError`
@@ -1723,17 +1760,17 @@ class STLClient(object):
     @__api_check(False)
     def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True):
         """
-            clear stats on port(s)
+            Clear stats on port(s)
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
                 clear_global : bool
-                    clear the global stats
+                    Clear the global stats
 
                 clear_flow_stats : bool 
-                    clear the flow stats
+                    Clear the flow stats
 
             :raises:
                 + :exc:`STLError`
@@ -1757,11 +1794,11 @@ class STLClient(object):
     @__api_check(True)
     def is_traffic_active (self, ports = None):
         """
-            retrun if  specify port(s) has traffic 
+            Return if specified port(s) have traffic 
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
 
             :raises:
@@ -1778,16 +1815,24 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def wait_on_traffic (self, ports = None, timeout = 60):
+    def wait_on_traffic (self, ports = None, timeout = 60, rx_delay_ms = 10):
         """
-            block until specify port(s) traffic has ended
+            Block until traffic on specified port(s) has ended
 
             :parameters:
                 ports : list
-                    ports to execute command
+                    Ports on which to execute the command
 
                 timeout : int
                     timeout in seconds
+
+                rx_delay_ms : int
+                    time to wait until RX filters are removed
+                    this value should reflect the time it takes
+                    packets which were transmitted to arrive
+                    to the destination.
+                    after this time the RX filters will be removed
+
 
             :raises:
                 + :exc:`STLTimeoutError` - in case timeout has expired
@@ -1807,14 +1852,19 @@ class STLClient(object):
             if time.time() > expr:
                 raise STLTimeoutError(timeout)
 
+        # remove any RX filters
+        rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
+        if not rc:
+            raise STLError(rc)
+
 
     @__api_check(True)
     def set_port_attr (self, ports = None, promiscuous = None):
         """
-            set port(s) attributes
+            Set port attributes
 
             :parameters:
-                promiscuous - set this to True or False
+                promiscuous - True or False
 
             :raises:
                 None
@@ -1845,7 +1895,7 @@ class STLClient(object):
 
     def clear_events (self):
         """
-            clear all events
+            Clear all events
 
             :parameters:
                 None
@@ -1921,7 +1971,7 @@ class STLClient(object):
 
     @__console
     def start_line (self, line):
-        '''Start selected traffic in specified ports on TRex\n'''
+        '''Start selected traffic on specified ports on TRex\n'''
         # define a parser
         parser = parsing_opts.gen_parser(self,
                                          "start",
@@ -2008,7 +2058,7 @@ class STLClient(object):
 
     @__console
     def stop_line (self, line):
-        '''Stop active traffic in specified ports on TRex\n'''
+        '''Stop active traffic on specified ports on TRex\n'''
         parser = parsing_opts.gen_parser(self,
                                          "stop",
                                          self.stop_line.__doc__,
@@ -2061,7 +2111,7 @@ class STLClient(object):
 
     @__console
     def pause_line (self, line):
-        '''Pause active traffic in specified ports on TRex\n'''
+        '''Pause active traffic on specified ports on TRex\n'''
         parser = parsing_opts.gen_parser(self,
                                          "pause",
                                          self.pause_line.__doc__,
@@ -2086,7 +2136,7 @@ class STLClient(object):
 
     @__console
     def resume_line (self, line):
-        '''Resume active traffic in specified ports on TRex\n'''
+        '''Resume active traffic on specified ports on TRex\n'''
         parser = parsing_opts.gen_parser(self,
                                          "resume",
                                          self.resume_line.__doc__,
@@ -2130,7 +2180,7 @@ class STLClient(object):
 
     @__console
     def show_stats_line (self, line):
-        '''Fetch statistics from TRex server by port\n'''
+        '''Get statistics from TRex server by port\n'''
         # define a parser
         parser = parsing_opts.gen_parser(self,
                                          "stats",
@@ -2161,7 +2211,7 @@ class STLClient(object):
 
     @__console
     def show_streams_line(self, line):
-        '''Fetch streams statistics from TRex server by port\n'''
+        '''Get stream statistics from TRex server by port\n'''
         # define a parser
         parser = parsing_opts.gen_parser(self,
                                          "streams",
@@ -2190,7 +2240,7 @@ class STLClient(object):
 
     @__console
     def validate_line (self, line):
-        '''validates port(s) stream configuration\n'''
+        '''Validates port(s) stream configuration\n'''
 
         parser = parsing_opts.gen_parser(self,
                                          "validate",
@@ -2208,7 +2258,7 @@ class STLClient(object):
  
     @__console
     def push_line (self, line):
-        '''Push a PCAP file '''
+        '''Push a pcap file '''
 
         parser = parsing_opts.gen_parser(self,
                                          "push",

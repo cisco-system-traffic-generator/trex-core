@@ -238,7 +238,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
     
             d= pkt_builder.get_vm_data()
         except  CTRexPacketBuildException as e:
-            assert_equal(str(e), "[errcode:-11] 'variable my_valn_err does not exists  '")
+            error=str(e) 
+            assert_equal(error.find("[errcode:-11]"),0);
 
     def test_simple_tuple_gen(self):
         vm = STLScVmRaw( [ STLVmTupleGen(name="tuple"), # define tuple gen 

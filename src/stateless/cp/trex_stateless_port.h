@@ -178,6 +178,14 @@ public:
     void stop_traffic(void);
 
     /**
+     * remove all RX filters 
+     * valid only when port is stopped 
+     * 
+     * @author imarom (28-Mar-16)
+     */
+    void remove_rx_filters(void);
+
+    /**
      * pause traffic
      * throws TrexException in case of an error
      */

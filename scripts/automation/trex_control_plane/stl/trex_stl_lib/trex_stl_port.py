@@ -7,8 +7,8 @@ from .trex_stl_types import *
 from . import trex_stl_stats
 
 import base64
-import time
 import copy
+from datetime import datetime, timedelta
 
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
@@ -61,6 +61,8 @@ class Port(object):
         self.port_stats = trex_stl_stats.CPortStats(self)
 
         self.next_available_id = 1
+        self.tx_stopped_ts = None
+        self.has_rx_streams = False
 
 
     def err(self, msg):
@@ -239,6 +241,9 @@ class Port(object):
                                            'rate' : streams_list[i].get_rate()}
 
                 ret.add(RC_OK(data = stream_id))
+
+                self.has_rx_streams = self.has_rx_streams or streams_list[i].has_flow_stats()
+
             else:
                 ret.add(RC(*single_rc))
 
@@ -283,6 +288,9 @@ class Port(object):
 
         self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
 
+        # recheck if any RX stats streams present on the port
+        self.has_rx_streams = any([stream.has_flow_stats() for stream in self.streams])
+
         return self.ok() if rc else self.err(rc.err())
 
 
@@ -305,6 +313,7 @@ class Port(object):
         self.streams = {}
 
         self.state = self.STATE_IDLE
+        self.has_rx_streams = False
 
         return self.ok()
 
@@ -351,7 +360,7 @@ class Port(object):
     # stop traffic
     # with force ignores the cached state and sends the command
     def stop (self, force = False):
-
+        
         if not self.is_acquired():
             return self.err("port is not owned")
 
@@ -359,7 +368,6 @@ class Port(object):
         if not force:
             if (self.state == self.STATE_IDLE) or (self.state == self.state == self.STATE_STREAMS):
                 return self.ok()
-
 
         params = {"handler": self.handler,
                   "port_id": self.port_id}
@@ -370,7 +378,55 @@ class Port(object):
 
         self.state = self.STATE_STREAMS
 
+        # timestamp for last tx
+        self.tx_stopped_ts = datetime.now()
+
         return self.ok()
+
+
+    # return True if port has any stream configured with RX stats
+    def has_rx_enabled (self):
+        return self.has_rx_streams
+
+
+    # return true if rx_delay_ms has passed since the last port stop
+    def has_rx_delay_expired (self, rx_delay_ms):
+        assert(self.has_rx_enabled())
+
+        # if active - it's not safe to remove RX filters
+        if self.is_active():
+            return False
+
+        # either no timestamp present or time has already passed
+        return not self.tx_stopped_ts or (datetime.now() - self.tx_stopped_ts) > timedelta(milliseconds = rx_delay_ms)
+
+
+
+    def remove_rx_filters (self):
+        assert(self.has_rx_enabled())
+
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
+        if self.state == self.STATE_DOWN:
+            return self.err("Unable to remove RX filters - port is down")
+
+        if self.state == self.STATE_TX:
+            return self.err("Unable to remove RX filters - port is transmitting")
+
+        if self.state == self.STATE_IDLE:
+            return self.ok()
+
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id}
+
+        rc = self.transmit("remove_rx_filters", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
 
     def pause (self):
 
@@ -597,6 +653,8 @@ class Port(object):
 
   ################# events handler ######################
     def async_event_port_job_done (self):
+        # until thread is locked - order is important
+        self.tx_stopped_ts = datetime.now()
         self.state = self.STATE_STREAMS
 
     # rest of the events are used for TUI / read only sessions

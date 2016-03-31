@@ -20,19 +20,23 @@ How to Install
 | Put it at any place you like, preferably same place as your scripts.
 | (If it's not at same place as your scripts, you will need to ensure trex_client directory is in sys.path)
 
-Un-pack it using command: tar -xzf trex_client.tar.gz
+Un-pack it using command::
 
-How to pyATS/v2.0
+ tar -xzf trex_client.tar.gz
+ 
+
+How to pyATS
 ==================
 
 .. sectionauthor:: David Shen 
 
 pyATS Compatibility 
 
-Trex only supports python2 for now, so it only works for **Python2** pyats.
+TRex supports both Python2 and Python3 pyATS.
      
-* Install python2 pyats
+* Install python2/python3 pyats
   	/auto/pyats/bin/pyats-install --python2
+  	/auto/pyats/bin/pyats-install --python3
 
 * setenv TREX_PATH to the trex stateless lib path 
    	setenv TREX_PATH <your path>/automation/trex_control_plane/stl
