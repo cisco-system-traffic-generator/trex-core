@@ -141,6 +141,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--no-ssh', '--no_ssh', action="store_true", default = False,
                             dest="no_ssh",
                             help="Flag to disable any ssh to server machine.")
+        parser.add_option('--collect', action="store_true", default = False,
+                            dest="collect",
+                            help="Alias to --collect-only.")
+        parser.add_option('--warmup', action="store_true", default = False,
+                            dest="warmup",
+                            help="Warm up the system for stateful: run 30 seconds 9k imix test without check of results.")
 
     def configure(self, options, conf):
         self.collect_only = options.collect_only
@@ -272,6 +278,8 @@ if __name__ == "__main__":
 
 
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--detailed-errors']
+    if '--collect' in sys.argv:
+        sys.argv.append('--collect-only')
     if '--collect-only' in sys.argv: # this is a user trying simply to view the available tests. no need xunit.
         CTRexScenario.is_test_list   = True
         xml_arg                      = ''
@@ -324,7 +332,10 @@ if __name__ == "__main__":
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
         if len(CTRexScenario.test_types['stateful_tests']):
-            additional_args = ['--stf'] + CTRexScenario.test_types['stateful_tests']
+            additional_args = ['--stf']
+            if '--warmup' in sys.argv:
+                additional_args.append('stateful_tests/trex_imix_test.py:CTRexIMIX_Test.test_warm_up')
+            additional_args += CTRexScenario.test_types['stateful_tests']
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin]) and result
@@ -333,9 +344,9 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin]) and result
-    except Exception as e:
-        result = False
-        print(e)
+    #except Exception as e:
+    #    result = False
+    #    print(e)
     finally:
         save_setup_info()
 

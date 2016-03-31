@@ -96,10 +96,8 @@ def imix_test (server, mult):
 
     if passed:
         print("\nTest has passed :-)\n")
-        sys.exit(0)
     else:
         print("\nTest has failed :-(\n")
-        sys.exit(-1)
 
 parser = argparse.ArgumentParser(description="Example for TRex Stateless, sending IMIX traffic")
 parser.add_argument('-s', '--server',

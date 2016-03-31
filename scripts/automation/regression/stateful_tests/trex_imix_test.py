@@ -4,6 +4,7 @@ from CPlatform import CStaticRouteConfig
 from tests_exceptions import *
 #import sys
 import time
+from nose.tools import nottest
 
 class CTRexIMIX_Test(CTRexGeneral_Test):
     """This class defines the IMIX testcase of the T-Rex traffic generator"""
@@ -164,7 +165,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_CPU_benchmark(trex_res)
 
 
-    def test_jumbo(self):
+    def test_jumbo(self, duration = 100):
         if not self.is_loopback:
             self.router.configure_basic_interfaces(mtu = 9216)
             self.router.config_pbr(mode = "config")
@@ -177,7 +178,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p = True,
             nc = True,
-            d = 100,   
+            d = duration,
             f = 'cap2/imix_9k.yaml',
             l = 1000)
 
@@ -190,6 +191,15 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res, minimal_cpu = 0, maximal_cpu = 10)
+
+    # don't include it to regular nose search
+    @nottest
+    def test_warm_up(self):
+        try:
+            self._testMethodName = 'test_jumbo'
+            self.test_jumbo(duration = 30)
+        except Exception as e:
+            print('Ignoring this error: %s' % e)
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)
