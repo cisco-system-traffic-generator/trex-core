@@ -12,10 +12,13 @@ The protocol is JSON-RPC2 over ZMQ transport.
 In addition to the Python API, a console-based API interface is also available.
 
 Python-like example::
-.. c.start(ports = [0, 1], mult = "5mpps", duration = 10)
-
+    
+   c.start(ports = [0, 1], mult = "5mpps", duration = 10)
+   
 Console-like example::
-.. c.start_line (" -f ../../../../stl/udp_1pkt_simple.py -m 10mpps --port 0 1 ")
+
+  c.start_line (" -f stl/udp_1pkt_simple.py -m 10mpps --port 0 1 ")
+
 
 
 Example 1 - Typical Python API::
@@ -56,7 +59,8 @@ STLClient snippet
 -----------------
 
 
-Example 1: Minimal example of client interacting with the TRex server::
+.. code-block:: python
+    :caption: Example 1: Minimal example of client interacting with the TRex server
 
     c = STLClient()
 
@@ -82,8 +86,9 @@ Example 1: Minimal example of client interacting with the TRex server::
         c.disconnect()
 
 
+.. code-block:: python
+    :caption: Example 2: Client can execute other functions while the TRex server is generating traffic
 
-Example 2: Client can execute other functions while the TRex server is generating traffic::
 
     c = STLClient()
     try:
@@ -106,7 +111,10 @@ Example 2: Client can execute other functions while the TRex server is generatin
         c.disconnect()
 
 
-Example 3: Console-like API interface::
+
+.. code-block:: python
+    :caption: Example 3: Console-like API interface
+
 
         def simple ():
         
@@ -154,6 +162,7 @@ Example 3: Console-like API interface::
         
             finally:
                 c.disconnect()
+
 
 Example 4: Load profile from a file::
 
