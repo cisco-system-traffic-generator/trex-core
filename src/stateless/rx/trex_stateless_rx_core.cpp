@@ -55,6 +55,7 @@ void CRxCoreStateless::idle_state_loop() {
     int counter = 0;
 
     while (m_state == STATE_IDLE) {
+        flush_rx();
         bool had_msg = periodic_check_for_cp_messages();
         if (had_msg) {
             counter = 0;
@@ -160,6 +161,30 @@ void CRxCoreStateless::try_rx_queues() {
             handle_rx_queue_msgs((uint8_t)ti, r);
         }
     }
+}
+
+// exactly the same as try_rx, without the handle_rx_pkt
+// purpose is to flush rx queues when core is in idle state
+void CRxCoreStateless::flush_rx() {
+    rte_mbuf_t * rx_pkts[64];
+    int i, total_pkts = 0;
+    for (i = 0; i < m_max_ports; i++) {
+        CLatencyManagerPerPort * lp = &m_ports[i];
+        rte_mbuf_t * m;
+        m_cpu_dp_u.start_work();
+        /* try to read 64 packets clean up the queue */
+        uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
+        total_pkts += cnt_p;
+        if (cnt_p) {
+            int j;
+            for (j = 0; j < cnt_p; j++) {
+                m = rx_pkts[j];
+                rte_pktmbuf_free(m);
+            }
+            /* commit only if there was work to do ! */
+            m_cpu_dp_u.commit();
+        }/* if work */
+    }// all ports
 }
 
 int CRxCoreStateless::try_rx() {

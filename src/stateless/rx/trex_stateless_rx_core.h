@@ -62,6 +62,7 @@ class CRxCoreStateless {
     void idle_state_loop();
     void handle_rx_pkt(CLatencyManagerPerPort * lp, rte_mbuf_t * m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
+    void flush_rx();
     int try_rx();
     void try_rx_queues();
     bool is_flow_stat_id(uint16_t id);

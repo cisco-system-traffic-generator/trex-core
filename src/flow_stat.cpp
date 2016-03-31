@@ -642,6 +642,12 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
             m_user_id_map.start_stream(user_id, hw_id);
             m_hw_id_map.map(hw_id, user_id);
             add_hw_rule(hw_id, m_user_id_map.l4_proto(user_id));
+            // clear hardware counters. Just in case we have garbage from previous iteration
+            rx_per_flow_t rx_counter;
+            tx_per_flow_t tx_counter;
+            for (uint8_t port = 0; port < m_num_ports; port++) {
+                m_api->get_flow_stats(port, &rx_counter, (void *)&tx_counter, hw_id, hw_id, true);
+            }
         }
     }
 
@@ -683,8 +689,8 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
         throw TrexException("Called stop_stream, but no stream was added");
 
     if (stream->m_rx_check.m_hw_id >= MAX_FLOW_STATS) {
-        printf("Trying to stop stream with high hw_id %d\n", stream->m_rx_check.m_hw_id);
-        throw TrexException("Trying to stop stream which is not started (maybe stop was called twice?)");
+        // We allow stopping while already stopped. Will not hurt us.
+        return 0;
     }
 
     stream->m_rx_check.m_hw_id = HW_ID_FREE;
