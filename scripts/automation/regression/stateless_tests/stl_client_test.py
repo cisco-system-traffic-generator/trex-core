@@ -20,7 +20,11 @@ class STLClient_Test(CStlGeneral_Test):
 
     def setUp(self):
         CStlGeneral_Test.setUp(self)
-        
+
+        if self.is_virt_nics or not self.is_loopback:
+            self.skip("skipping for non loopback / virtual")
+            return  
+
         assert 'bi' in CTRexScenario.stl_ports_map
 
         self.c = CTRexScenario.stl_trex
@@ -220,10 +224,6 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
-
-        if self.is_virt_nics or not self.is_loopback:
-            print("skipping for non loopback / virtual")
-            return
 
         try:
             self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
