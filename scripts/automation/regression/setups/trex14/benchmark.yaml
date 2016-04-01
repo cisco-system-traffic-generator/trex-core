@@ -12,18 +12,20 @@ test_nbar_simple :
   exp_max_latency   : 1000
 
   nbar_classification:
-    rtp             : 35.24
-    http            : 30.41
-    oracle_sqlnet   : 11.3
-    ssl             : 6.03
+    http            : 32.58
+    rtp-audio       : 21.21
+    oracle_sqlnet   : 11.41
+    exchange        : 11.22
+    rtp             : 11.2
     citrix          : 5.65
-    exchange        : 4.99
+    rtsp            : 2.87
     dns             : 1.96
     smtp            : 0.57
     pop3            : 0.37
+    ssl             : 0.28
     sctp            : 0.13
     sip             : 0.09
-    unknown         : 3.22
+    unknown         : 0.45
 
 test_rx_check :
   multiplier        : 13
@@ -109,15 +111,15 @@ test_static_routing_imix_asymmetric:
   exp_latency       : 1
 
 test_ipv6_simple    :
-  multiplier        : 18
-  cores             : 4
+  multiplier        : 9
+  cores             : 2
   cpu_to_core_ratio : 30070000
   cpu2core_custom_dev: YES
   cpu2core_dev : 0.07
 
 
 test_rx_check_sfr:
-    multiplier        : 15
+    multiplier        : 10
     cores             : 3
     rx_sample_rate    : 16
     # allow 0.03% errors, bad router
@@ -127,11 +129,11 @@ test_rx_check_http:
     multiplier        : 15000
     cores             : 1
     rx_sample_rate    : 16
-    # allow 0.03% errors, bad router
+    # allow 0.03% errors, bad routerifconfig
     error_tolerance   : 0.03
 
 test_rx_check_sfr_ipv6:
-    multiplier        : 15
+    multiplier        : 10
     cores             : 3
     rx_sample_rate    : 16
     # allow 0.03% errors, bad router
@@ -165,5 +167,5 @@ test_rx_check_http_negative:
 
 
 test_jumbo:
-    multiplier : 28
+    multiplier : 17
     cores      : 1
