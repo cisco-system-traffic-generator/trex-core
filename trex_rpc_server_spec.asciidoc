@@ -1061,6 +1061,46 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 ----
 
+
+=== Remove RX Filters
+* *Name* - 'remove_rx_filters'
+* *Valid States* - 'owned'
+* *Description* - Post to calling stop, the client should call this function to remove
+                  any RX filters that were attached.
+		  this is because the server cannot know when it is safe to remove those
+		  (after stop some packets might take time to get to arrive - RTT)
+* *Paramters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to remove all RX filters
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1jwrw9nx",
+    "jsonrpc": "2.0",
+    "method": "remove_rx_filters",
+    "params": {
+        "handler": "ywVlqZa8",
+        "port_id": 3
+    }
+}
+
+'Request':
+
+{
+    "id": "1jwrw9nx",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+
+----
+
 === Get Global Stats
 * *Name* - 'get_global_stats'
 * *Valid States* - 'unowned', 'owned', 'active'
