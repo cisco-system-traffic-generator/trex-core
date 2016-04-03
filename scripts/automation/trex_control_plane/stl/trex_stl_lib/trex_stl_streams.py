@@ -833,7 +833,7 @@ class STLProfile(object):
         return '\n'.join([str(stream) for stream in self.streams])
 
     def is_pauseable (self):
-        return all([x.get_mode() == "Continuous" for x in (self.get_streams())])
+        return all([x.get_mode() == "Continuous" for x in self.get_streams()])
 
     def has_flow_stats (self):
         return any([x.has_flow_stats() for x in self.get_streams()])

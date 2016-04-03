@@ -53,6 +53,8 @@ TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
     m_platform_api = cfg.m_platform_api;
     m_publisher    = cfg.m_publisher;
 
+    /* API core version */
+    m_api_classes[APIClass::API_CLASS_TYPE_CORE].init(APIClass::API_CLASS_TYPE_CORE, 1, 0);
 }
 
 /** 
@@ -175,3 +177,4 @@ TrexStateless::generate_publish_snapshot(std::string &snapshot) {
 
     snapshot = writer.write(root);
 }
+

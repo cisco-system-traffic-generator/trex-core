@@ -117,6 +117,7 @@ SimStateless::SimStateless() {
 
     /* override ownership checks */
     TrexRpcCommand::test_set_override_ownership(true);
+    TrexRpcCommand::test_set_override_api(true);
 }
 
 

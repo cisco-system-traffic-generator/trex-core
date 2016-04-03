@@ -26,9 +26,9 @@ class BatchMessage(object):
         self.rpc_client = rpc_client
         self.batch_list = []
 
-    def add (self, method_name, params={}):
+    def add (self, method_name, params = None, api_class = 'core'):
 
-        id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, encode = False)
+        id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, api_class, encode = False)
         self.batch_list.append(msg)
 
     def invoke(self, block = False):
@@ -46,8 +46,9 @@ class JsonRpcClient(object):
     MSG_COMPRESS_THRESHOLD = 4096
     MSG_COMPRESS_HEADER_MAGIC = 0xABE85CEA
 
-    def __init__ (self, default_server, default_port, logger):
-        self.logger = logger
+    def __init__ (self, default_server, default_port, client):
+        self.client = client
+        self.logger = client.logger
         self.connected = False
 
         # default values
@@ -93,14 +94,18 @@ class JsonRpcClient(object):
     def create_batch (self):
         return BatchMessage(self)
 
-    def create_jsonrpc_v2 (self, method_name, params = {}, encode = True):
+    def create_jsonrpc_v2 (self, method_name, params = None, api_class = 'core', encode = True):
         msg = {}
         msg["jsonrpc"] = "2.0"
         msg["method"]  = method_name
-
-        msg["params"] = params
-
         msg["id"] = next(self.id_gen)
+
+        msg["params"] = params if params is not None else {}
+
+        # if this RPC has an API class - add it's handler
+        if api_class:
+            msg["params"]["api_h"] = self.client.api_h[api_class]
+        
 
         if encode:
             return id, json.dumps(msg)
@@ -108,11 +113,11 @@ class JsonRpcClient(object):
             return id, msg
 
 
-    def invoke_rpc_method (self, method_name, params = {}):
+    def invoke_rpc_method (self, method_name, params = None, api_class = 'core'):
         if not self.connected:
             return RC_ERR("Not connected to server")
 
-        id, msg = self.create_jsonrpc_v2(method_name, params)
+        id, msg = self.create_jsonrpc_v2(method_name, params, api_class)
 
         return self.send_msg(msg)
 
@@ -273,7 +278,7 @@ class JsonRpcClient(object):
 
         self.connected = True
 
-        rc = self.invoke_rpc_method('ping')
+        rc = self.invoke_rpc_method('ping', api_class = None)
         if not rc:
             self.connected = False
             return rc

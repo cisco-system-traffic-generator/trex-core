@@ -21,6 +21,7 @@ limitations under the License.
 #ifndef __TREX_STATELESS_PORT_H__
 #define __TREX_STATELESS_PORT_H__
 
+#include "common/basic_utils.h"
 #include "internal_api/trex_platform_api.h"
 #include "trex_dp_port_events.h"
 #include "trex_stream.h"
@@ -65,7 +66,7 @@ public:
         m_owner_name = owner_name;
 
         /* internal data */
-        m_handler = generate_handler();
+        m_handler = utl_generate_random_str(m_seed, 8);
         m_is_free = false;
     }
 
@@ -83,7 +84,6 @@ public:
 
 
 private:
-    std::string  generate_handler();
 
     /* is this port owned by someone ? */
     bool         m_is_free;

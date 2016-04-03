@@ -39,7 +39,7 @@ class BpSimException(Exception):
 
 # stateless simulation
 class STLSim(object):
-    def __init__ (self, bp_sim_path = None, handler = 0, port_id = 0):
+    def __init__ (self, bp_sim_path = None, handler = 0, port_id = 0, api_h = "dummy"):
 
         if not bp_sim_path:
             # auto find scripts
@@ -54,6 +54,7 @@ class STLSim(object):
 
         # dummies
         self.handler = handler
+        self.api_h   = api_h
         self.port_id = port_id
 
 
@@ -62,6 +63,7 @@ class STLSim(object):
                  "jsonrpc": "2.0",
                  "method": "start_traffic",
                  "params": {"handler": self.handler,
+                            "api_h" : self.api_h,
                             "force":  force,
                             "port_id": self.port_id,
                             "mul": parsing_opts.decode_multiplier(mult),
@@ -168,6 +170,7 @@ class STLSim(object):
                    "jsonrpc": "2.0",
                    "method": "add_stream",
                    "params": {"handler": self.handler,
+                              "api_h": self.api_h,
                               "port_id": self.port_id,
                               "stream_id": stream_id,
                               "stream": stream_json}

@@ -81,8 +81,7 @@ class Port(object):
                   "session_id":  self.session_id,
                   "force":       force}
 
-        command = RpcCmdData("acquire", params)
-        rc = self.transmit(command.method, command.params)
+        rc = self.transmit("acquire", params)
         if rc.good():
             self.handler = rc.data()
             return self.ok()
@@ -94,8 +93,7 @@ class Port(object):
         params = {"port_id": self.port_id,
                   "handler": self.handler}
 
-        command = RpcCmdData("release", params)
-        rc = self.transmit(command.method, command.params)
+        rc = self.transmit("release", params)
         self.handler = None
 
         if rc.good():
@@ -119,8 +117,7 @@ class Port(object):
     def sync(self):
         params = {"port_id": self.port_id}
 
-        command = RpcCmdData("get_port_status", params)
-        rc = self.transmit(command.method, command.params)
+        rc = self.transmit("get_port_status", params)
         if rc.bad():
             return self.err(rc.err())
 
@@ -149,8 +146,7 @@ class Port(object):
         # sync the streams
         params = {"port_id": self.port_id}
 
-        command = RpcCmdData("get_all_streams", params)
-        rc = self.transmit(command.method, command.params)
+        rc = self.transmit("get_all_streams", params)
         if rc.bad():
             return self.err(rc.err())
 
@@ -224,7 +220,7 @@ class Port(object):
                       "stream_id": stream_id,
                       "stream": stream_json}
 
-            cmd = RpcCmdData('add_stream', params)
+            cmd = RpcCmdData('add_stream', params, 'core')
             batch.append(cmd)
 
 
@@ -276,7 +272,7 @@ class Port(object):
                       "port_id": self.port_id,
                       "stream_id": stream_id}
 
-            cmd = RpcCmdData('remove_stream', params)
+            cmd = RpcCmdData('remove_stream', params, 'core')
             batch.append(cmd)
 
 

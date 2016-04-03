@@ -38,6 +38,50 @@ limitations under the License.
 using namespace std;
 
 /**
+ * API sync
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdAPISync::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &api_vers = parse_array(params, "api_vers", result);
+
+    Json::Value api_ver_rc = Json::arrayValue;
+
+    /* for every element in the list - generate the appropirate API handler */
+    for (const auto api_ver : api_vers) {
+        Json::Value single_rc;
+
+        /* only those are supported */
+        const std::string type = parse_choice(api_ver, "type", {"core"}, result);
+
+        int major = parse_int(api_ver, "major", result);
+        int minor = parse_int(api_ver, "minor", result);
+        APIClass::type_e api_type;
+
+        /* decode type of API */
+        if (type == "core") {
+            api_type = APIClass::API_CLASS_TYPE_CORE;
+        }
+
+        single_rc["type"]    = type;
+
+        /* this section might throw exception in case versions do not match */
+        try {
+            single_rc["api_h"] = get_stateless_obj()->verify_api(api_type, major, minor);
+
+        } catch (const TrexAPIException &e) {
+            generate_execute_err(result, e.what());
+        }
+
+        /* add to the response */
+        api_ver_rc.append(single_rc);
+    }
+
+    result["result"]["api_vers"] = api_ver_rc;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
  * ping command
  */
 trex_rpc_cmd_rc_e

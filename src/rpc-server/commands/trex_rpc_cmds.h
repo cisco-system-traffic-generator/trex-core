@@ -36,33 +36,39 @@ class TrexStream;
  * syntactic sugar for creating a simple command
  */
 
-#define TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, param_count, needs_ownership, ext)              \
-    class class_name : public TrexRpcCommand {                                                            \
-    public:                                                                                               \
-        class_name () : TrexRpcCommand(cmd_name, param_count, needs_ownership) {}                         \
-    protected:                                                                                            \
-        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);                   \
-        ext                                                                                               \
+#define TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, param_count, needs_ownership, api_type, ext)      \
+    class class_name : public TrexRpcCommand {                                                               \
+    public:                                                                                                  \
+        class_name () : TrexRpcCommand(cmd_name, param_count, needs_ownership, api_type) {}                  \
+    protected:                                                                                               \
+        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);                      \
+        ext                                                                                                  \
     }
 
-#define TREX_RPC_CMD_DEFINE(class_name, cmd_name, param_count, needs_ownership) TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, param_count, needs_ownership, ;)
+#define TREX_RPC_CMD_DEFINE(class_name, cmd_name, param_count, needs_ownership, api_type) TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, param_count, needs_ownership, api_type, ;)
 
 /**
  * test cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdTestAdd,    "test_add", 2, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub", 2, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdTestAdd,    "test_add", 2, false, APIClass::API_CLASS_TYPE_NO_API);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub", 2, false, APIClass::API_CLASS_TYPE_NO_API);
+
+/**
+ * api_sync command always present and valid and also ping....
+ */
+TREX_RPC_CMD_DEFINE(TrexRpcCmdAPISync,    "api_sync",             1, false, APIClass::API_CLASS_TYPE_NO_API);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping",                 0, false, APIClass::API_CLASS_TYPE_NO_API);
 
 /**
  * general cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping",                 0, false);
-TREX_RPC_CMD_DEFINE(TrexRpcPublishNow,    "publish_now",          2, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCmds,    "get_supported_cmds",   0, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetVersion, "get_version",          0, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetActivePGIds, "get_active_pgids",0, false);
 
-TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdGetSysInfo, "get_system_info", 0, false,
+TREX_RPC_CMD_DEFINE(TrexRpcPublishNow,         "publish_now",          2, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCmds,         "get_supported_cmds",   0, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetVersion,      "get_version",          0, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetActivePGIds,  "get_active_pgids",     0, false, APIClass::API_CLASS_TYPE_CORE);
+
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdGetSysInfo, "get_system_info", 0, false, APIClass::API_CLASS_TYPE_CORE, 
 
 std::string get_cpu_model();
 void get_hostname(std::string &hostname);
@@ -72,25 +78,25 @@ void get_hostname(std::string &hostname);
 /**
  * ownership
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetOwner,   "get_owner",       1, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdAcquire,    "acquire",         4, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetOwner,   "get_owner",       1, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdAcquire,    "acquire",         4, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true,  APIClass::API_CLASS_TYPE_CORE);
 
 
 /**
  * port commands
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats, "get_port_stats", 1, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStatus, "get_port_status", 1, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdSetPortAttr, "set_port_attr", 3, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats,   "get_port_stats",   1, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStatus,  "get_port_status",  1, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetPortAttr,    "set_port_attr",    3, false, APIClass::API_CLASS_TYPE_CORE);
 
 /**
  * stream cmds
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveAllStreams,   "remove_all_streams",   1, true);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveStream,       "remove_stream",        2, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveAllStreams,   "remove_all_streams",   1, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveStream,       "remove_stream",        2, true, APIClass::API_CLASS_TYPE_CORE);
 
-TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdAddStream, "add_stream", 3, true, 
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdAddStream, "add_stream", 3, true, APIClass::API_CLASS_TYPE_CORE,
 
 /* extended part */
 std::unique_ptr<TrexStream> allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result);
@@ -107,21 +113,22 @@ void parse_vm_instr_write_mask_flow_var(const Json::Value &inst, std::unique_ptr
 );
 
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1, false);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetAllStreams, "get_all_streams", 1, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStreamList, "get_stream_list", 1, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetAllStreams, "get_all_streams", 1, false, APIClass::API_CLASS_TYPE_CORE);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, false, APIClass::API_CLASS_TYPE_CORE);
 
 
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic,  "start_traffic", 4, true);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic,   "stop_traffic", 1, true);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveRXFilters, "remove_rx_filters", 1, true);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdPauseTraffic,  "pause_traffic", 1, true);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdResumeTraffic, "resume_traffic", 1, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic,    "start_traffic",     4, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic,     "stop_traffic",      1, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveRXFilters, "remove_rx_filters", 1, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdPauseTraffic,    "pause_traffic",     1, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdResumeTraffic,   "resume_traffic",    1, true, APIClass::API_CLASS_TYPE_CORE);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdUpdateTraffic, "update_traffic", 3, true);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdUpdateTraffic, "update_traffic", 3, true, APIClass::API_CLASS_TYPE_CORE);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdValidate, "validate", 2, false);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdValidate, "validate", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
 #endif /* __TREX_RPC_CMD_H__ */
+

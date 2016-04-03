@@ -4,7 +4,7 @@ from .utils.text_opts import *
 from .trex_stl_exceptions import *
 import types
 
-RpcCmdData = namedtuple('RpcCmdData', ['method', 'params'])
+RpcCmdData = namedtuple('RpcCmdData', ['method', 'params', 'api_class'])
 TupleRC    = namedtuple('RCT', ['rc', 'data', 'is_warn'])
 
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):

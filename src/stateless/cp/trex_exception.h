@@ -18,27 +18,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#ifndef __TREX_EXCEPTION_H__
+#define __TREX_EXCEPTION_H__
 
-#ifndef __TREX_RPC_EXCEPTION_API_H__
-#define __TREX_RPC_EXCEPTION_API_H__
-
-#include <string>
 #include <stdexcept>
-
-#include "trex_exception.h"
+#include <string>
 
 /**
- * generic exception for RPC errors
- * 
+ * generic exception for errors
+ * TODO: move this to a better place
  */
-class TrexRpcException : public TrexException {
-
+class TrexException : public std::runtime_error 
+{
 public:
-    TrexRpcException() : TrexException("") {
+    TrexException() : std::runtime_error("") {
 
     }
-    TrexRpcException(const std::string &what) : TrexException(what) {
+    TrexException(const std::string &what) : std::runtime_error(what) {
     }
 };
 
-#endif /* __TREX_RPC_EXCEPTION_API_H__ */
+#endif /* __TREX_EXCEPTION_H__ */

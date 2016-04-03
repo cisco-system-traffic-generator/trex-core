@@ -27,27 +27,18 @@ limitations under the License.
 
 #include <mutex>
 
-#include <trex_stream.h>
-#include <trex_stateless_port.h>
-#include <trex_rpc_server_api.h>
-#include <publisher/trex_publisher.h>
+#include "trex_stream.h"
+#include "trex_stateless_port.h"
+#include "trex_rpc_server_api.h"
 
-#include <flow_stat.h>
-#include <internal_api/trex_platform_api.h>
+#include "publisher/trex_publisher.h"
+#include "internal_api/trex_platform_api.h"
 
-/**
- * generic exception for errors
- * TODO: move this to a better place
- */
-class TrexException : public std::runtime_error 
-{
-public:
-    TrexException() : std::runtime_error("") {
+#include "flow_stat.h"
 
-    }
-    TrexException(const std::string &what) : std::runtime_error(what) {
-    }
-};
+
+#include "trex_exception.h"
+#include "trex_api_class.h"
 
 class TrexStatelessPort;
 
@@ -80,6 +71,7 @@ public:
         uint64_t m_tx_rx_errors;
     } m_stats;
 };
+
 
 /**
  * config object for stateless object
@@ -167,6 +159,14 @@ public:
         return m_rpc_server;
     }
 
+    const std::string & verify_api(APIClass::type_e type, int major, int minor) {
+        return m_api_classes[type].verify_api(major, minor);
+    }
+
+    const std::string & get_api_handler(APIClass::type_e type) {
+        return m_api_classes[type].get_api_handler();
+    }
+
     CFlowStatRuleMgr                     m_rx_flow_stat;
 
 protected:
@@ -187,6 +187,8 @@ protected:
 
     TrexPublisher                        *m_publisher;
 
+    /* API */
+    APIClass                              m_api_classes[APIClass::API_CLASS_TYPE_MAX];
 };
 
 /**

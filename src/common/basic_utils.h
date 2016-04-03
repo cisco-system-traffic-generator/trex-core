@@ -21,8 +21,6 @@ limitations under the License.
 #include <stdio.h>
 #include <string>
 
-
-
 /**
  * the round must be power 2 e.g 2,4,8...
  * 
@@ -86,6 +84,8 @@ inline void utl_swap(T& a, T& b) {
 bool utl_is_file_exists (const std::string& name) ;
 
 void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output);
+
+std::string utl_generate_random_str(unsigned int &seed, int len);
 
 #endif
 

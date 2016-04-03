@@ -27,6 +27,8 @@ limitations under the License.
 #include <json/json.h>
 #include <trex_rpc_exception_api.h>
 
+#include "trex_api_class.h"
+
 /**
  * describe different types of rc for run()
  */
@@ -68,16 +70,10 @@ public:
     /**
      * method name and params
      */
-    TrexRpcCommand(const std::string &method_name, int param_count, bool needs_ownership) : 
-                                                                    m_name(method_name),
-                                                                    m_param_count(param_count),
-                                                                    m_needs_ownership(needs_ownership) {
-
-        /* if needs ownership - another field is needed (handler) */
-        if (m_needs_ownership) {
-            m_param_count++;
-        }
-    }
+    TrexRpcCommand(const std::string &method_name,
+                   int param_count,
+                   bool needs_ownership,
+                   APIClass::type_e type);
 
     /**
      * entry point for executing RPC command
@@ -97,6 +93,10 @@ public:
      */
     static void test_set_override_ownership(bool enable) {
         g_test_override_ownership = enable;
+    }
+
+    static void test_set_override_api(bool enable) {
+        g_test_override_api = enable;
     }
 
     virtual ~TrexRpcCommand() {}
@@ -131,11 +131,18 @@ protected:
     void check_param_count(const Json::Value &params, int expected, Json::Value &result);
 
     /**
+     * verify API handler
+     * 
+     */
+    void verify_api_handler(const Json::Value &params, Json::Value &result);
+
+    /**
      * verify ownership
      * 
      */
     void verify_ownership(const Json::Value &params, Json::Value &result);
 
+    
     /**
      * validate port id
      * 
@@ -360,11 +367,13 @@ protected:
     const char * json_type_to_name(const Json::Value &value);
 
     /* RPC command name */
-    std::string   m_name;
-    int           m_param_count;
-    bool          m_needs_ownership;
-
-    static bool   g_test_override_ownership;
+    std::string        m_name;
+    int                m_param_count;
+    bool               m_needs_ownership;
+    std::string        m_api_handler;
+    APIClass::type_e   m_api_type; 
+    static bool        g_test_override_ownership;
+    static bool        g_test_override_api;
 };
 
 #endif /* __TREX_RPC_CMD_API_H__ */

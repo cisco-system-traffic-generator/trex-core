@@ -781,26 +781,5 @@ TrexPortOwner::TrexPortOwner() {
     m_seed = time(NULL);
 }
 
-/**
- * generate a random connection handler
- * 
- */
-std::string 
-TrexPortOwner::generate_handler() {
-    std::stringstream ss;
-
-    static const char alphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
-
-    /* generate 8 bytes of random handler */
-    for (int i = 0; i < 8; ++i) {
-        ss << alphanum[rand_r(&m_seed) % (sizeof(alphanum) - 1)];
-    }
-
-    return (ss.str());
-}
-
 const std::string TrexPortOwner::g_unowned_name = "<FREE>";
 const std::string TrexPortOwner::g_unowned_handler = "";

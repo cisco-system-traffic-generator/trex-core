@@ -320,11 +320,11 @@ class AsyncEventHandler(object):
 
 class CCommLink(object):
     """Describes the connectivity of the stateless client method"""
-    def __init__(self, server="localhost", port=5050, virtual=False, prn_func = None):
+    def __init__(self, server="localhost", port=5050, virtual=False, client = None):
         self.virtual = virtual
         self.server = server
         self.port = port
-        self.rpc_link = JsonRpcClient(self.server, self.port, prn_func)
+        self.rpc_link = JsonRpcClient(self.server, self.port, client)
 
     @property
     def is_connected(self):
@@ -347,25 +347,25 @@ class CCommLink(object):
         if not self.virtual:
             return self.rpc_link.disconnect()
 
-    def transmit(self, method_name, params={}):
+    def transmit(self, method_name, params = None, api_class = 'core'):
         if self.virtual:
             self._prompt_virtual_tx_msg()
-            _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params)
+            _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params, api_class)
             print(msg)
             return
         else:
-            return self.rpc_link.invoke_rpc_method(method_name, params)
+            return self.rpc_link.invoke_rpc_method(method_name, params, api_class)
 
     def transmit_batch(self, batch_list):
         if self.virtual:
             self._prompt_virtual_tx_msg()
             print([msg
-                   for _, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params)
+                   for _, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params, command.api_class)
                                   for command in batch_list]])
         else:
             batch = self.rpc_link.create_batch()
             for command in batch_list:
-                batch.add(command.method, command.params)
+                batch.add(command.method, command.params, command.api_class)
             # invoke the batch
             return batch.invoke()
 
@@ -449,7 +449,7 @@ class STLClient(object):
         self.comm_link = CCommLink(server,
                                    sync_port,
                                    virtual,
-                                   self.logger)
+                                   self)
 
         # async event handler manager
         self.event_handler = AsyncEventHandler(self)
@@ -481,7 +481,11 @@ class STLClient(object):
                                                                  self.flow_stats)
 
 
- 
+        # API classes
+        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':0 }
+                        ]
+        self.api_h = {'core': None}
+
     ############# private functions - used by the class itself ###########
 
     # some preprocessing for port argument
@@ -668,6 +672,7 @@ class STLClient(object):
         return rc
 
 
+
     # connect to server
     def __connect(self):
 
@@ -686,11 +691,21 @@ class STLClient(object):
         if not rc:
             return rc
 
+
+        # API sync
+        rc = self._transmit("api_sync", params = {'api_vers': self.api_vers}, api_class = None)
+        if not rc:
+            return rc
+
+        # decode
+        for api in rc.data()['api_vers']:
+            self.api_h[ api['type'] ] = api['api_h']
+
+
         # version
         rc = self._transmit("get_version")
         if not rc:
             return rc
-
 
         self.server_version = rc.data()
         self.global_stats.server_version = rc.data()
@@ -817,8 +832,8 @@ class STLClient(object):
 
 
     # transmit request on the RPC link
-    def _transmit(self, method_name, params={}):
-        return self.comm_link.transmit(method_name, params)
+    def _transmit(self, method_name, params = None, api_class = 'core'):
+        return self.comm_link.transmit(method_name, params, api_class)
 
     # transmit batch request on the RPC link
     def _transmit_batch(self, batch_list):
@@ -1304,7 +1319,7 @@ class STLClient(object):
 
         self.logger.pre_cmd( "Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                                self.connection_info['sync_port']))
-        rc = self._transmit("ping")
+        rc = self._transmit("ping", api_class = None)
         
         self.logger.post_cmd(rc)
 

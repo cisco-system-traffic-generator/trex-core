@@ -3,8 +3,6 @@
 from .utils import text_tables
 from .utils.text_opts import format_text, format_threshold, format_num
 
-from .trex_stl_async_client import CTRexAsyncStats
-
 from collections import namedtuple, OrderedDict, deque
 import sys
 import copy

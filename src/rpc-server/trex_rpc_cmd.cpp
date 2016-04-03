@@ -23,6 +23,32 @@ limitations under the License.
 #include <trex_stateless.h>
 #include <trex_stateless_port.h>
 
+/**
+ * method name and params
+ * 
+ */
+TrexRpcCommand::TrexRpcCommand(const std::string &method_name,
+                               int param_count,
+                               bool needs_ownership,
+                               APIClass::type_e type) :   m_name(method_name),
+                                                          m_param_count(param_count),
+                                                          m_needs_ownership(needs_ownership) {
+
+    /* if needs ownership - another field is needed (handler) */
+    if (m_needs_ownership) {
+        m_param_count++;
+    }
+
+    /* API verification */
+     m_api_type = type;
+
+    if (type != APIClass::API_CLASS_TYPE_NO_API) {
+        m_api_handler = get_stateless_obj()->get_api_handler(type);
+        m_param_count++;
+    }
+
+}
+
 trex_rpc_cmd_rc_e 
 TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
     trex_rpc_cmd_rc_e rc;
@@ -30,11 +56,17 @@ TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
     /* the internal run can throw a parser error / other error */
     try {
 
-        check_param_count(params, m_param_count, result);
+        /* verify API handler is correct (version mismatch) */
+        if ( (m_api_type != APIClass::API_CLASS_TYPE_NO_API) && !g_test_override_api ) {
+            verify_api_handler(params, result);
+        }
 
+        /* verify ownership */
         if (m_needs_ownership && !g_test_override_ownership) {
             verify_ownership(params, result);
         }
+
+        check_param_count(params, m_param_count, result);
 
         /* run the command itself*/
         rc = _run(params, result);
@@ -69,6 +101,17 @@ TrexRpcCommand::verify_ownership(const Json::Value &params, Json::Value &result)
 
     if (!port->get_owner().verify(handler)) {
         generate_execute_err(result, "port is not owned by you or your current executing session");
+    }
+}
+
+void
+TrexRpcCommand::verify_api_handler(const Json::Value &params, Json::Value &result) {
+    std::string api_handler = parse_string(params, "api_h", result);
+
+    if (m_api_handler != api_handler) {
+        std::stringstream ss;
+        ss << "API verification failed - API handler provided mismatch for class: '" << APIClass::type_to_name(m_api_type) << "'";
+        generate_execute_err(result, ss.str());
     }
 }
 
@@ -281,3 +324,4 @@ TrexRpcCommand::generate_execute_err(Json::Value &result, const std::string &msg
  * by default this is off
  */
 bool TrexRpcCommand::g_test_override_ownership = false;
+bool TrexRpcCommand::g_test_override_api = false;

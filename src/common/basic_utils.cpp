@@ -17,6 +17,7 @@ limitations under the License.
 #include <ctype.h>
 #include <stdio.h>
 #include <string>
+#include <sstream>
 
 bool utl_is_file_exists (const std::string& name) {
     if (FILE *file = fopen(name.c_str(), "r")) {
@@ -175,3 +176,25 @@ void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output) {
     }
 
 }
+
+/**
+ * generate a random connection handler
+ * 
+ */
+std::string 
+utl_generate_random_str(unsigned int &seed, int len) {
+    std::stringstream ss;
+
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+
+    /* generate 8 bytes of random handler */
+    for (int i = 0; i < len; ++i) {
+        ss << alphanum[rand_r(&seed) % (sizeof(alphanum) - 1)];
+    }
+
+    return (ss.str());
+}
+
