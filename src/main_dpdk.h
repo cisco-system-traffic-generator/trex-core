@@ -122,6 +122,7 @@ class CPhyEthIF  {
     CPhyEthIFStats     & get_stats(){
         return ( m_stats );
     }
+    void flush_dp_rx_queue(void);
     void flush_rx_queue(void);
     int add_rx_flow_stat_rule(uint8_t type, uint16_t proto, uint16_t id);
     int del_rx_flow_stat_rule(uint8_t type, uint16_t proto, uint16_t id);

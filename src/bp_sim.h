@@ -41,7 +41,7 @@ limitations under the License.
 #include <common/Network/Packet/IPv6Header.h>
 #include <common/Network/Packet/EthernetHeader.h>
 #include <math.h>
-#include <common/bitMan.h> 
+#include <common/bitMan.h>
 #include <yaml-cpp/yaml.h>
 #include "trex_defs.h"
 #include "os_time.h"
@@ -97,7 +97,7 @@ public:
         MIN_VM_V6=1    // IPv6 addressing
     };
     uint8_t   m_cmd;
-    uint8_t   m_flags; 
+    uint8_t   m_flags;
     uint16_t  m_start_0;
     uint16_t  m_stop_1;
     uint16_t  m_add_pkt_len; /* request more length for mbuf packet the size */
@@ -116,16 +116,16 @@ public:
     uint16_t  m_server_port;
 };
 
-/* this command replace IP in 2 diffrent location and port 
+/* this command replace IP in 2 diffrent location and port
 
-c =  10.1.1.2 
-o =  10.1.1.2 
+c =  10.1.1.2
+o =  10.1.1.2
 m = audio 102000
 
 ==>
 
-c =  xx.xx.xx.xx 
-o =  xx.xx.xx.xx 
+c =  xx.xx.xx.xx
+o =  xx.xx.xx.xx
 m = audio yyyy
 
 */
@@ -248,7 +248,7 @@ class CFlowGenListPerThread ;
 
 /* callback */
 void on_node_first(uint8_t plugin_id,CGenNode *     node,
-                   CFlowYamlInfo *  template_info, 
+                   CFlowYamlInfo *  template_info,
                    CTupleTemplateGeneratorSmart * tuple_gen,
                    CFlowGenListPerThread  * flow_gen
                    );
@@ -259,7 +259,7 @@ rte_mbuf_t * on_node_generate_mbuf(uint8_t plugin_id,CGenNode *     node,CFlowPk
 
 class CPreviewMode ;
 struct CGenNode;
-/* represent the virtual interface 
+/* represent the virtual interface
 */
 
 /* counters per side */
@@ -276,7 +276,7 @@ public:
     uint64_t   m_tx_drop;
     uint64_t   m_tx_queue_full;
     uint64_t   m_tx_alloc_error;
-    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS];    
+    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS];
     CPerTxthreadTemplateInfo m_template;
 
 public:
@@ -309,10 +309,10 @@ public:
 void CVirtualIFPerSideStats::Dump(FILE *fd){
 
     #define DP_B(f) if (f) printf(" %-40s : %lu \n",#f,f)
-    DP_B(m_tx_pkt);  
+    DP_B(m_tx_pkt);
     DP_B(m_tx_rx_check_pkt);
-    DP_B(m_tx_bytes);  
-    DP_B(m_tx_drop);  
+    DP_B(m_tx_bytes);
+    DP_B(m_tx_drop);
     DP_B(m_tx_alloc_error);
     DP_B(m_tx_queue_full);
     m_template.Dump(fd);
@@ -342,17 +342,17 @@ public:
 
     /**
      * send one packet
-     * 
+     *
      * @param node
-     * 
-     * @return 
+     *
+     * @return
      */
     virtual int send_node(CGenNode * node) =0;
 
 
     /**
      * send one packet to a specific dir. flush all packets
-     * 
+     *
      * @param dir
      * @param m
      */
@@ -361,26 +361,29 @@ public:
 
 
     /**
-     * flush all pending packets into the stream 
-     * 
-     * @return 
+     * flush all pending packets into the stream
+     *
+     * @return
      */
     virtual int flush_tx_queue(void)=0;
-
+    // read all packets from rx_queue on dp core
+    virtual void flush_dp_rx_queue(void) {};
+    // read all packets from rx queue
+    virtual void flush_rx_queue(void) {};
 
     /**
      * update the source and destination mac-addr of a given mbuf by global database
-     * 
+     *
      * @param dir
      * @param m
-     * 
-     * @return 
+     *
+     * @return
      */
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p)=0;
 
     /**
      * translate a port_id to the correct dir on the core
-     * 
+     *
      */
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
         return (CS_INVALID);
@@ -602,13 +605,13 @@ public:
         }
     }
 
-	bool get_is_rx_check_enable(){
-		return (btGetMaskBit32(m_flags,31,31) ? true:false);
-	}
+    bool get_is_rx_check_enable(){
+        return (btGetMaskBit32(m_flags,31,31) ? true:false);
+    }
 
-	void set_rx_check_enable(bool enable){
-		btSetMaskBit32(m_flags,31,31,enable?1:0);
-	}
+    void set_rx_check_enable(bool enable){
+        btSetMaskBit32(m_flags,31,31,enable?1:0);
+    }
 
 
     bool get_mac_ip_features_enable(){
@@ -693,7 +696,7 @@ public:
         u.m_mac.dest[3]=1;
         u.m_mac.src[3]=1;
     }
-    union {  
+    union {
         mac_align_t m_mac;
         uint8_t     m_data[16];
     } u;
@@ -717,10 +720,10 @@ public:
     };
 
     enum trex_learn_mode_e {
-	LEARN_MODE_DISABLED=0,
-	LEARN_MODE_TCP_ACK=1,
-	LEARN_MODE_IP_OPTION=2,
-	LEARN_MODE_MAX=LEARN_MODE_IP_OPTION
+    LEARN_MODE_DISABLED=0,
+    LEARN_MODE_TCP_ACK=1,
+    LEARN_MODE_IP_OPTION=2,
+    LEARN_MODE_MAX=LEARN_MODE_IP_OPTION
     };
 
 public:
@@ -736,7 +739,7 @@ public:
         m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less */
         m_vlan_port[0]=100;
         m_vlan_port[1]=100;
-		m_rx_check_sample=0;
+        m_rx_check_sample=0;
         m_rx_check_hops = 0;
         m_io_mode=1;
         m_run_flags=0;
@@ -759,12 +762,12 @@ public:
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
     uint32_t        m_latency_mask;
     uint32_t        m_latency_prev;
-    uint16_t 		m_rx_check_sample; /* the sample rate of flows */
+    uint16_t        m_rx_check_sample; /* the sample rate of flows */
     uint16_t        m_rx_check_hops;
     uint16_t        m_zmq_port;
     uint16_t        m_telnet_port;
     uint16_t        m_expected_portd;
-    uint16_t        m_io_mode; //0,1,2 0 disable, 1- normal , 2 - short 
+    uint16_t        m_io_mode; //0,1,2 0 disable, 1- normal , 2 - short
     uint16_t        m_run_flags;
     uint8_t         m_mac_splitter;
     uint8_t         m_l_pkt_mode;
@@ -782,7 +785,7 @@ public:
     std::string        out_file;
     std::string        prefix;
 
-                                 
+
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
 
     uint8_t *       get_src_mac_addr(int if_index){
@@ -861,7 +864,7 @@ public:
     void Dump(FILE *fd);
 
 public:
-    uint32_t         m_mbuf[MBUF_SIZE]; // relative to traffic norm to 2x10G ports 
+    uint32_t         m_mbuf[MBUF_SIZE]; // relative to traffic norm to 2x10G ports
     uint32_t         m_num_cores;
 
 };
@@ -869,28 +872,28 @@ public:
 typedef uint8_t socket_id_t;
 typedef uint8_t port_id_t;
 /* the real phsical thread id */
-typedef uint8_t physical_thread_id_t; 
+typedef uint8_t physical_thread_id_t;
 
 
-typedef uint8_t virtual_thread_id_t; 
-/* 
+typedef uint8_t virtual_thread_id_t;
+/*
 
- virtual thread 0 (v0)- is always the master 
-  
-for 2 dual ports ( 2x2 =4 ports) the virtual thread looks like that                      
+ virtual thread 0 (v0)- is always the master
+
+for 2 dual ports ( 2x2 =4 ports) the virtual thread looks like that
 -----------------
 DEFAULT:
 -----------------
   (0,1)       (2,3)
   dual-if0       dual-if-1
     v1        v2
-    v3        v4     
+    v3        v4
     v5        v6
-    v7        v8       
-       
-    rx is v9          
+    v7        v8
 
-  */  
+    rx is v9
+
+  */
 
 #define MAX_SOCKETS_SUPPORTED   (4)
 #define MAX_THREADS_SUPPORTED   (120)
@@ -904,12 +907,12 @@ public:
 
     /* is socket enabled */
     virtual bool is_sockets_enable(socket_id_t socket)=0;
-    
+
     /* number of main active sockets. socket #0 is always used  */
     virtual socket_id_t max_num_active_sockets()=0;
 
     virtual ~CPlatformSocketInfoBase() {}
-    
+
 public:
     /* which socket to allocate memory to each port */
     virtual socket_id_t port_to_socket(port_id_t port)=0;
@@ -949,7 +952,7 @@ public:
 
     /* is socket enabled */
     bool is_sockets_enable(socket_id_t socket);
-    
+
     /* number of main active sockets. socket #0 is always used  */
     socket_id_t max_num_active_sockets();
 
@@ -995,7 +998,7 @@ public:
 
         /* is socket enabled */
     bool is_sockets_enable(socket_id_t socket);
-    
+
     /* number of main active sockets. socket #0 is always used  */
     socket_id_t max_num_active_sockets();
 
@@ -1033,7 +1036,7 @@ private:
     bool                     m_sockets_enable[MAX_SOCKETS_SUPPORTED];
     uint32_t                 m_sockets_enabled;
     socket_id_t              m_socket_per_dual_if[(TREX_MAX_PORTS >> 1)];
-    
+
     uint32_t                 m_max_threads_per_dual_if;
 
     uint32_t                 m_num_dual_if;
@@ -1058,7 +1061,7 @@ public:
 
     /* is socket enabled */
     bool is_sockets_enable(socket_id_t socket);
-    
+
     /* number of main active sockets. socket #0 is always used  */
     socket_id_t max_num_active_sockets();
 
@@ -1141,15 +1144,15 @@ public:
 public:
     rte_mempool_t *   m_small_mbuf_pool; /* pool for start packets */
 
-    rte_mempool_t *   m_mbuf_pool_128;  
-    rte_mempool_t *   m_mbuf_pool_256;  
-    rte_mempool_t *   m_mbuf_pool_512;  
-    rte_mempool_t *   m_mbuf_pool_1024;  
-    rte_mempool_t *   m_mbuf_pool_2048;  
-    rte_mempool_t *   m_mbuf_pool_4096;  
-    rte_mempool_t *   m_mbuf_pool_9k;  
+    rte_mempool_t *   m_mbuf_pool_128;
+    rte_mempool_t *   m_mbuf_pool_256;
+    rte_mempool_t *   m_mbuf_pool_512;
+    rte_mempool_t *   m_mbuf_pool_1024;
+    rte_mempool_t *   m_mbuf_pool_2048;
+    rte_mempool_t *   m_mbuf_pool_4096;
+    rte_mempool_t *   m_mbuf_pool_9k;
 
-    rte_mempool_t *   m_mbuf_global_nodes;  
+    rte_mempool_t *   m_mbuf_global_nodes;
     uint32_t          m_pool_id;
 };
 
@@ -1167,16 +1170,16 @@ public:
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
     }
 
-    
+
 
     /**
-     * try to allocate small buffers too 
-     * _alloc allocate big buffers only 
-     * 
+     * try to allocate small buffers too
+     * _alloc allocate big buffers only
+     *
      * @param socket
      * @param size
-     * 
-     * @return 
+     *
+     * @return
      */
     static inline rte_mbuf_t   * pktmbuf_alloc(socket_id_t socket,uint16_t size){
         if (size<FIRST_PKT_SIZE) {
@@ -1232,7 +1235,7 @@ public:
 public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
 
-    static uint32_t              m_nodes_pool_size;     
+    static uint32_t              m_nodes_pool_size;
     static CParserOption         m_options;
     static CGlobalMemory         m_memory_cfg;
     static CPlatformSocketInfo   m_socket;
@@ -1320,19 +1323,19 @@ struct CFlowYamlInfo {
         m_server_pool_idx = 0;
         m_cap_mode=false;
     }
-    
+
     std::string     m_name;
     std::string     m_client_pool_name;
     std::string     m_server_pool_name;
-    double          m_k_cps;    //k CPS 
-	double          m_restart_time; /* restart time of this template */
-    dsec_t          m_ipg_sec;   // ipg in sec 
+    double          m_k_cps;    //k CPS
+    double          m_restart_time; /* restart time of this template */
+    dsec_t          m_ipg_sec;   // ipg in sec
     dsec_t          m_rtt_sec;   // rtt in sec
-    uint32_t        m_w;    
+    uint32_t        m_w;
     uint32_t        m_wlength;
     uint32_t        m_limit;
     uint32_t        m_flowcnt;
-    uint8_t         m_plugin_id; /* 0 - default , 1 - RTSP160 , 2- RTSP250 */       
+    uint8_t         m_plugin_id; /* 0 - default , 1 - RTSP160 , 2- RTSP250 */
     uint8_t         m_client_pool_idx;
     uint8_t         m_server_pool_idx;
     bool            m_one_app_server;
@@ -1418,7 +1421,7 @@ public:
         NODE_FLAGS_LEARN_MSG_PROCESSED  =0x10,   /* got NAT msg */
 
         NODE_FLAGS_LATENCY              =0x20,   /* got NAT msg */
-        NODE_FLAGS_INIT_START_FROM_SERVER_SIDE = 0x40,  
+        NODE_FLAGS_INIT_START_FROM_SERVER_SIDE = 0x40,
         NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE     = 0x80,
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100 /* init packet start from server side with server addr */
     };
@@ -1434,8 +1437,8 @@ public:
 
     uint16_t            m_src_port;
     uint16_t            m_flags; /* BIT 0 - DIR ,
-                                    BIT 1 - mbug_cache 
-									BIT 2 - SAMPLE DUPLICATE */
+                                    BIT 1 - mbug_cache
+                                    BIT 2 - SAMPLE DUPLICATE */
 
     double              m_time;    /* can't change this header - size 16 bytes*/
 
@@ -1512,7 +1515,7 @@ public:
     /* is it possible to cache MBUF */
 
     inline void update_next_pkt_in_flow(void);
-    inline void reset_pkt_in_flow(void);    
+    inline void reset_pkt_in_flow(void);
     inline uint8_t get_plugin_id(void){
         return ( m_template_info->m_plugin_id);
     }
@@ -1567,8 +1570,8 @@ public:
     /* direction for TCP/UDP port */
     inline  pkt_dir_t cur_pkt_port_addr_dir();
     /* from which interface dir to get out */
-    inline  pkt_dir_t cur_interface_dir(); 
-    
+    inline  pkt_dir_t cur_interface_dir();
+
 
     inline void set_mbuf_cache_dir(pkt_dir_t  dir){
         if (dir) {
@@ -1597,19 +1600,19 @@ public:
 
 public:
 
-	inline void set_rx_check(){
-		m_flags |= NODE_FLAGS_SAMPLE_RX_CHECK;
-	}
+    inline void set_rx_check(){
+        m_flags |= NODE_FLAGS_SAMPLE_RX_CHECK;
+    }
 
-	inline bool is_rx_check_enabled(){
-		return ((m_flags & NODE_FLAGS_SAMPLE_RX_CHECK)?true:false);
-	}
+    inline bool is_rx_check_enabled(){
+        return ((m_flags & NODE_FLAGS_SAMPLE_RX_CHECK)?true:false);
+    }
 
 public:
 
     inline void set_nat_first_state(){
         btSetMaskBit16(m_flags,4,3,1);
-        m_type=FLOW_PKT_NAT; 
+        m_type=FLOW_PKT_NAT;
     }
 
     inline bool is_nat_first_state(){
@@ -1665,8 +1668,8 @@ public:
 
     bool is_external_is_eq_to_internal_ip(){
         /* this API is used to check TRex itself */
-        if ( (get_nat_ipv4_addr() == m_src_ip ) && 
-             (get_nat_ipv4_port()==m_src_port) && 
+        if ( (get_nat_ipv4_addr() == m_src_ip ) &&
+             (get_nat_ipv4_port()==m_src_port) &&
              ( get_nat_ipv4_addr_server() == m_dest_ip) ) {
             return (true);
         }else{
@@ -1704,7 +1707,7 @@ struct CGenNodeDeferPort  {
     uint16_t            m_ports[DEFER_CLIENTS_NUM];
     uint8_t             m_pool_idx[DEFER_CLIENTS_NUM];
 public:
-    void init(void){ 
+    void init(void){
         m_type=CGenNode::FLOW_DEFER_PORT_RELEASE;
         m_cnt=0;
     }
@@ -1724,7 +1727,7 @@ public:
 
 } __rte_cache_aligned ;
 
-/* run time verification of objects size and offsets 
+/* run time verification of objects size and offsets
    need to clean this up and derive this objects from base object but require too much refactoring right now
    hhaim
 */
@@ -1817,19 +1820,19 @@ public:
 
     /**
      * send one packet
-     * 
+     *
      * @param node
-     * 
-     * @return 
+     *
+     * @return
      */
     virtual int send_node(CGenNode * node);
 
 
 
     /**
-     * flush all pending packets into the stream 
-     * 
-     * @return 
+     * flush all pending packets into the stream
+     *
+     * @return
      */
     virtual int flush_tx_queue(void);
 
@@ -1858,7 +1861,7 @@ public:
 
 /**
  * same as regular STL but no I/O (dry run)
- * 
+ *
  * @author imarom (07-Jan-16)
  */
 class CErfIFStlNull : public CErfIFStl {
@@ -1959,7 +1962,7 @@ public:
     int   open_file(std::string file_name,
                     CPreviewMode * preview);
     int   close_file(CFlowGenListPerThread * thread);
-    int   flush_file(dsec_t max_time, 
+    int   flush_file(dsec_t max_time,
                      dsec_t d_time,
                      bool always,
                      CFlowGenListPerThread * thread,
@@ -2012,7 +2015,7 @@ public:
     CPreviewMode              m_preview_mode;
     uint64_t                  m_cnt;
     uint64_t                  m_limit;
-    CTimeHistogram            m_realtime_his;  
+    CTimeHistogram            m_realtime_his;
 };
 
 
@@ -2128,7 +2131,7 @@ inline bool CFlowKey::operator ==(const CFlowKey& rhs) const{
 
 #define IS_PCAP_TIMING 7
 
-// 8-12 is used 
+// 8-12 is used
 #define FLOW_ID 8
 
 
@@ -2164,9 +2167,9 @@ public:
     }
 
 private:
-    // per direction info 
+    // per direction info
     uint16_t    m_dir_pkt_num;   // pkt id
-    uint16_t    m_max_dir_flow_pkts;  
+    uint16_t    m_max_dir_flow_pkts;
 };
 
 
@@ -2219,7 +2222,7 @@ public:
     }
     /**
      * start from zero 0,1,2,.. , it is on global flow if you have couple of flows it will count all of the flows
-     * 
+     *
      * flow  FlowPktNum
      * 0         0
      * 0         1
@@ -2227,8 +2230,8 @@ public:
      * 1         0
      * 1         1
      * 2         0
-     * 
-     * @return 
+     *
+     * @return
      */
     inline uint32_t getFlowPktNum(){
         return ( m_flow_pkt_num);
@@ -2252,7 +2255,7 @@ public:
     }
 
 
-    /* return true if this packet in diff direction from prev flow packet , 
+    /* return true if this packet in diff direction from prev flow packet ,
     if true need to choose RTT else IPG for inter packet gap */
     inline bool IsRtt(){
         return (btGetMaskBit32(m_flags,IS_RTT,IS_RTT) ? true:false);
@@ -2313,7 +2316,7 @@ public:
 
     inline void SetId(uint16_t _id){
         btSetMaskBit32(m_flags,31,16,_id);
-        
+
     }
     inline uint16_t getId(){
         return ( ( uint16_t)btGetMaskBit32(m_flags,31,16));
@@ -2328,7 +2331,7 @@ public:
         return (btGetMaskBit32(m_flags,IS_LAST_PKT_S,IS_LAST_PKT_E) ? true:false);
     }
 
-    // there could be couple of flows per template in case of plugin 
+    // there could be couple of flows per template in case of plugin
     inline void SetMaxPktsPerFlow(uint32_t pkts){
         assert(pkts<65000);
         m_max_flow_pkts=pkts;
@@ -2336,7 +2339,7 @@ public:
     inline uint16_t GetMaxPktsPerFlow(){
         return ( m_max_flow_pkts );
     }
-        // there could be couple of flows per template in case of plugin 
+        // there could be couple of flows per template in case of plugin
     inline void SetMaxFlowTimeout(double sec){
         //assert (sec<65000);
         sec = sec*2.0+5.0;
@@ -2369,12 +2372,12 @@ public:
 
 private:
     uint32_t    m_flags;
-    uint16_t    m_flow_pkt_num; // packet number inside the flow 
-    uint8_t     m_plugin_id; // packet number inside the flow 
+    uint16_t    m_flow_pkt_num; // packet number inside the flow
+    uint8_t     m_plugin_id; // packet number inside the flow
     uint8_t     m_pad;
     uint16_t    m_max_flow_pkts;  // how many packet per this flow getFlowId()
-    uint16_t    m_max_flow_aging; // maximum aging in sec 
-    CPacketDescriptorPerDir  m_per_dir[CS_NUM]; // per direction info 
+    uint16_t    m_max_flow_aging; // maximum aging in sec
+    CPacketDescriptorPerDir  m_per_dir[CS_NUM]; // per direction info
 };
 
 
@@ -2427,7 +2430,7 @@ public:
 class CPacketIndication {
 
 public:
-    dsec_t       m_cap_ipg; /* ipg from cap file */  
+    dsec_t       m_cap_ipg; /* ipg from cap file */
     CCapPktRaw * m_packet;
 
     CFlow *          m_flow;
@@ -2437,10 +2440,10 @@ public:
         IPv6Header     * m_ipv6;
     } l3;
     bool        m_is_ipv6;
-    union {                             
+    union {
         TCPHeader * m_tcp;
         UDPHeader * m_udp;
-        ICMPHeader * m_icmp;      
+        ICMPHeader * m_icmp;
     } l4;
     uint8_t *       m_payload;
     uint16_t        m_payload_len;
@@ -2489,10 +2492,10 @@ public:
 
 
     /**
-     * return the application ipv4/ipv6 option offset 
+     * return the application ipv4/ipv6 option offset
      * if learn bit is ON , it is always the first options ( IPV6/IPV4)
-     * 
-     * @return 
+     *
+     * @return
      */
     uint32_t getIpAppOptionOffset(){
         if ( is_ipv6() ) {
@@ -2585,7 +2588,7 @@ class CPacketParser {
 public:
     bool Create();
     void Delete();
-    bool ProcessPacket(CPacketIndication * pkt_indication, 
+    bool ProcessPacket(CPacketIndication * pkt_indication,
                        CCapPktRaw * raw_packet);
 public:
     CCPacketParserCounters m_counter;
@@ -2706,12 +2709,12 @@ public:
     inline rte_mbuf_t * do_generate_new_mbuf_ex(CGenNode * node,CFlowInfo * flow_info);
     inline rte_mbuf_t * do_generate_new_mbuf_ex_big(CGenNode * node,CFlowInfo * flow_info);
     inline rte_mbuf_t * do_generate_new_mbuf_ex_vm(CGenNode * node,
-    								CFlowInfo * flow_info, int16_t * s_size);
+                                    CFlowInfo * flow_info, int16_t * s_size);
 
 public:
-    /* push the number of bytes into the packets and make more room 
-      should be used by NAT feature that should have ipv4 option in the first packet 
-      this function should not be called in runtime, only when template is loaded due to it heavey cost of operation ( malloc/free memory ) 
+    /* push the number of bytes into the packets and make more room
+      should be used by NAT feature that should have ipv4 option in the first packet
+      this function should not be called in runtime, only when template is loaded due to it heavey cost of operation ( malloc/free memory )
     */
     char * push_ipv4_option_offline(uint8_t bytes);
     char * push_ipv6_option_offline(uint8_t bytes);
@@ -2720,10 +2723,10 @@ public:
 
     /**
      * mark this packet as learn packet
-     * should 
+     * should
      * 1. push ipv4 option ( 8 bytes)
-     * 2. mask the packet as learn 
-     * 3. update the option pointer 
+     * 2. mask the packet as learn
+     * 3. update the option pointer
      */
     void   mask_as_learn();
 
@@ -2750,7 +2753,7 @@ private:
 
 public:
     CPacketIndication   m_pkt_indication;
-    CCapPktRaw        * m_packet; 
+    CCapPktRaw        * m_packet;
     rte_mbuf_t        * m_big_mbuf[MAX_SOCKETS_SUPPORTED]; /* allocate big mbug per socket */
 };
 
@@ -2764,10 +2767,10 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
                                            int update_len ,
                                            CGenNode * node
                                            ){
-    IPHeader       * ipv4= 
+    IPHeader       * ipv4=
         (IPHeader       *)(p + m_pkt_indication.getFastIpOffsetFast());
 
-    EthernetHeader * et  = 
+    EthernetHeader * et  =
         (EthernetHeader * )(p + m_pkt_indication.getFastEtherOffset());
 
     (void)et;
@@ -2820,7 +2823,7 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
                 m_tcp->setSourcePort(flow_info->server_port);
             }
         }
-        
+
     }else {
         if ( m_pkt_indication.m_desc.IsUdp() ){
             UDPHeader * m_udp =(UDPHeader *)(p +m_pkt_indication.getFastTcpOffset() );
@@ -2848,10 +2851,10 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
 inline void CFlowPktInfo::update_pkt_info(char *p,
                                    CGenNode * node){
 
-    IPHeader       * ipv4= 
+    IPHeader       * ipv4=
         (IPHeader       *)(p + m_pkt_indication.getFastIpOffsetFast());
 
-    EthernetHeader * et  = 
+    EthernetHeader * et  =
         (EthernetHeader * )(p + m_pkt_indication.getFastEtherOffset());
 
     (void)et;
@@ -2863,7 +2866,7 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 
 
     if ( unlikely (m_pkt_indication.is_ipv6())) {
-    
+
         // Update the IPv6 address
         IPv6Header *ipv6= (IPv6Header *)ipv4;
 
@@ -2886,22 +2889,22 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
 
                 /* first ipv4 option add the info in case of learn packet, usualy only the first packet */
-		if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
-		    CNatOption *lpNat =(CNatOption *)ipv4->getOption();
-		    lpNat->set_fid(node->get_short_fid());
-		    lpNat->set_thread_id(node->get_thread_id()); 
-		} else {
-		    // This method only work on first TCP SYN
-		    if (ipv4->getProtocol() == IPPROTO_TCP) {
-			TCPHeader *tcp = (TCPHeader *)(((uint8_t *)ipv4) + ipv4->getHeaderLength());
-			if (tcp->getSynFlag()) {
-			    tcp->setAckNumber(CNatRxManager::calc_tcp_ack_val(node->get_short_fid(), node->get_thread_id()));
-			}
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
+            CNatOption *lpNat =(CNatOption *)ipv4->getOption();
+            lpNat->set_fid(node->get_short_fid());
+            lpNat->set_thread_id(node->get_thread_id());
+        } else {
+            // This method only work on first TCP SYN
+            if (ipv4->getProtocol() == IPPROTO_TCP) {
+            TCPHeader *tcp = (TCPHeader *)(((uint8_t *)ipv4) + ipv4->getHeaderLength());
+            if (tcp->getSynFlag()) {
+                tcp->setAckNumber(CNatRxManager::calc_tcp_ack_val(node->get_short_fid(), node->get_thread_id()));
+            }
 #ifdef NAT_TRACE_
-			printf(" %.3f : flow_id: %x thread_id %x TCP ack %x\n",now_sec(), node->get_short_fid(), node->get_thread_id(), tcp->getAckNumber());
+            printf(" %.3f : flow_id: %x thread_id %x TCP ack %x\n",now_sec(), node->get_short_fid(), node->get_thread_id(), tcp->getAckNumber());
 #endif
-		    }
-		}
+            }
+        }
             }
             /* in all cases update the ip using the outside ip */
 
@@ -3005,7 +3008,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex(CGenNode * node,
 
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
-    memcpy(p,m_packet->raw,len); 
+    memcpy(p,m_packet->raw,len);
 
     update_pkt_info2(p,flow_info,0,node);
 
@@ -3014,7 +3017,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex(CGenNode * node,
     return(m);
 }
 
-    
+
 inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_big(CGenNode * node,
                                                           CFlowInfo * flow_info){
     rte_mbuf_t        * m;
@@ -3029,7 +3032,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_big(CGenNode * node,
 
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
-    memcpy(p,m_packet->raw,len); 
+    memcpy(p,m_packet->raw,len);
 
     update_pkt_info2(p,flow_info,0,node);
 
@@ -3055,7 +3058,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
 
     /* alloc big buffer to update it*/
     m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), len);
-	assert(m);
+    assert(m);
 
     /* append the additional bytes requested and update later */
     char *p=rte_pktmbuf_append(m, len);
@@ -3063,7 +3066,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
     /* copy the headers until the payload  */
-    memcpy(p, m_packet->raw, m_pkt_indication.getPayloadOffset() ); 
+    memcpy(p, m_packet->raw, m_pkt_indication.getPayloadOffset() );
     CMiniVM vm;
     vm.m_pkt_info = this;
     vm.m_pyload_mbuf_ptr = p+m_pkt_indication.getPayloadOffset();
@@ -3077,7 +3080,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
     /* update IP length , and TCP checksum , we can accelerate this using hardware ! */
     uint16_t pkt_adjust = vm.m_new_pkt_size - m_packet->pkt_len;
     update_pkt_info2(p,flow_info,pkt_adjust,node);
-    
+
     /* return change in packet size due to packet tranforms */
     *s_size = vm.m_new_pkt_size - m_packet->pkt_len;
 
@@ -3110,7 +3113,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
 
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
-    memcpy(p,m_packet->raw,len); 
+    memcpy(p,m_packet->raw,len);
 
     update_pkt_info(p,node);
 
@@ -3119,7 +3122,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     return m;
 }
 
-    
+
 inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
     rte_mbuf_t        * m;
     uint16_t len =  m_packet->pkt_len;
@@ -3133,7 +3136,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
 
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
-    memcpy(p,m_packet->raw,len); 
+    memcpy(p,m_packet->raw,len);
 
     update_pkt_info(p,node);
 
@@ -3206,15 +3209,15 @@ public:
 class CCapFileFlowInfo {
 public:
     enum load_cap_file_err {
-	kOK = 0,
-	kFileNotExist,
-	kNegTimestamp,
-	kNoSyn,
-	kTCPOffsetTooBig,
-	kNoTCPFromServer,
-	kPktNotSupp,
-	kPktProcessFail,
-	kCapFileErr
+    kOK = 0,
+    kFileNotExist,
+    kNegTimestamp,
+    kNoSyn,
+    kTCPOffsetTooBig,
+    kNoTCPFromServer,
+    kPktNotSupp,
+    kPktProcessFail,
+    kCapFileErr
     };
 
     bool Create();
@@ -3253,7 +3256,7 @@ public:
         return (m_total_errors);
     }
 
-    // return the cap file length in sec 
+    // return the cap file length in sec
     double get_cap_file_length_sec();
 
     void get_total_memory(CCCapFileMemoryUsage & memory);
@@ -3287,8 +3290,8 @@ public:
 // IPv4 addressing
 
 // IPv6 addressing
-    std::vector     <uint16_t> m_src_ipv6;   
-    std::vector     <uint16_t> m_dst_ipv6;   
+    std::vector     <uint16_t> m_src_ipv6;
+    std::vector     <uint16_t> m_dst_ipv6;
     bool             m_ipv6_set;
 
 // new section
@@ -3342,7 +3345,7 @@ public:
     double duration_sec;
     double m_cps;
     double m_mb_sec;
-    double m_mB_sec; 
+    double m_mB_sec;
     double m_c_flows;
     double m_pps ;
     double m_total_Mbytes ;
@@ -3367,7 +3370,7 @@ public:
 class CFlowGeneratorRecPerThread {
 
 public:
-    bool Create(CTupleGeneratorSmart  * global_gen, 
+    bool Create(CTupleGeneratorSmart  * global_gen,
                 CFlowYamlInfo *         info,
                 CFlowsYamlInfo *        yaml_flow_info,
                 CCapFileFlowInfo *      flow_info,
@@ -3388,11 +3391,11 @@ public:
     CCapFileFlowInfo *      m_flow_info;
     CFlowYamlInfo *         m_info;
     CFlowsYamlInfo *        m_flows_info;
-    CPolicer                m_policer;   
+    CPolicer                m_policer;
     uint16_t                m_id ;
     uint32_t                m_thread_id;
     bool                    m_tuple_gen_was_set;
-} __rte_cache_aligned; 
+} __rte_cache_aligned;
 
 
 
@@ -3405,16 +3408,16 @@ public:
                 uint16_t _id);
     void Delete();
 public:
-    
+
     void Dump(FILE *fd);
     void getFlowStats(CFlowStats * stats);
 public:
     CCapFileFlowInfo m_flow_info;
     CFlowYamlInfo *  m_info;
     CFlowsYamlInfo * m_flows_info;
-    CPolicer         m_policer;   
+    CPolicer         m_policer;
     uint16_t         m_id;
-private: 
+private:
     void fixup_ipg_if_needed();
 };
 
@@ -3423,7 +3426,7 @@ public:
     CPPSMeasure(){
         reset();
     }
-    //reset 
+    //reset
     void reset(void){
         m_start=false;
         m_last_time_msec=0;
@@ -3453,7 +3456,7 @@ public:
 class CBwMeasure {
 public:
     CBwMeasure();
-    //reset 
+    //reset
     void reset(void);
     //add packet size
     double add(uint64_t size);
@@ -3498,7 +3501,7 @@ public:
     friend class CNodeGenerator;
     friend class CPluginCallbackSimple;
     friend class CCapFileFlowInfo;
-    
+
     typedef  CGenericMap<flow_id_t,CGenNode> flow_id_node_t;
 
     bool Create(uint32_t           thread_id,
@@ -3518,23 +3521,23 @@ public:
         m_node_gen.set_vif(v_if);
     }
 
-    /* return the dual port ID this thread is attached to in 4 ports configuration 
-       there are 2 dual-ports 
+    /* return the dual port ID this thread is attached to in 4 ports configuration
+       there are 2 dual-ports
 
       thread 0 - dual 0
       thread 1 - dual 1
 
       thread 2 - dual 0
       thread 3 - dual 1
-      
-     */         
+
+     */
     uint32_t getDualPortId();
 public :
     double get_total_kcps();
     double get_total_kcps(uint8_t pool_idx, bool is_client);
     double get_delta_flow_is_sec();
-    double get_longest_flow(); 
-    double get_longest_flow(uint8_t pool_idx, bool is_client); 
+    double get_longest_flow();
+    double get_longest_flow(uint8_t pool_idx, bool is_client);
     void inc_current_template(void);
     int generate_flows_roundrobin(bool *done);
     int reschedule_flow(CGenNode *node);
@@ -3627,9 +3630,9 @@ public:
     CFlowGenList                *    m_flow_list;
     rte_mempool_t *                  m_node_pool;
 
-    std::vector<CFlowGeneratorRecPerThread *> m_cap_gen;   
+    std::vector<CFlowGeneratorRecPerThread *> m_cap_gen;
 
-    CFlowsYamlInfo                   m_yaml_info; 
+    CFlowsYamlInfo                   m_yaml_info;
 
     CTupleGeneratorSmart             m_smart_gen;
 
@@ -3644,7 +3647,7 @@ public:
     double                           m_stop_time_sec;
 
     CPreviewMode                     m_preview_mode;
-public:    
+public:
     CFlowGenStats                    m_stats;
     CBwMeasure                       m_mb_sec;
     CCpuUtlDp                        m_cpu_dp_u;
@@ -3663,7 +3666,7 @@ private:
     bool                             m_terminated_by_master;
 
 private:
-    uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech 
+    uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech
 } __rte_cache_aligned ;
 
 inline CGenNode * CFlowGenListPerThread::create_node(void){
@@ -3726,7 +3729,7 @@ public:
 public:
     std::vector<CFlowGeneratorRec *> m_cap_gen;   /* global info */
     CFlowsYamlInfo                   m_yaml_info; /* global yaml*/
-    std::vector<CFlowGenListPerThread   *> m_threads_info;  
+    std::vector<CFlowGenListPerThread   *> m_threads_info;
     CFlowGenListMac                  m_mac_info;
 };
 
@@ -3761,19 +3764,19 @@ inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tup
     node->m_flow_info = this;
     node->m_flags=0;
     node->m_template_info =template_info;
-    node->m_tuple_gen = tuple_gen->get_gen(); 
+    node->m_tuple_gen = tuple_gen->get_gen();
     node->m_src_ip= tuple.getClient();
     node->m_dest_ip = tuple.getServer();
     node->m_src_idx = tuple.getClientId();
     node->m_dest_idx = tuple.getServerId();
     node->m_src_port = tuple.getClientPort();
-    memcpy(&node->m_src_mac, 
-           tuple.getClientMac(), 
+    memcpy(&node->m_src_mac,
+           tuple.getClientMac(),
            sizeof(mac_addr_align_t));
     node->m_plugin_info =(void *)0;
 
     if ( unlikely( CGlobalInfo::is_learn_mode()  ) ){
-        // check if flow is two direction 
+        // check if flow is two direction
         if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ) {
             /* we are in learn mode */
             CFlowGenListPerThread  * lpThread=gen->Parent();
@@ -3822,7 +3825,7 @@ inline void CFlowGeneratorRecPerThread::generate_flow(CNodeGenerator * gen,
                                                       uint64_t flow_id,
                                                       CGenNode * node){
 
-    m_flow_info->generate_flow(&tuple_gen, 
+    m_flow_info->generate_flow(&tuple_gen,
                                gen,
                                time,
                                flow_id,
@@ -3869,7 +3872,7 @@ inline void CGenNode::update_next_pkt_in_flow(void){
         m_pkt_info = m_flow_info->GetPacket((pkt_index-1));
 }
 
-inline void CGenNode::reset_pkt_in_flow(void){       
+inline void CGenNode::reset_pkt_in_flow(void){
         m_pkt_info = m_flow_info->GetPacket(0);
 }
 
@@ -3898,7 +3901,7 @@ public:
 class CPluginCallbackSimple : public CPluginCallback {
 public:
     virtual void on_node_first(uint8_t plugin_id,CGenNode *     node,
-                               CFlowYamlInfo *  template_info, 
+                               CFlowYamlInfo *  template_info,
                                CTupleTemplateGeneratorSmart * tuple_gen,
                                CFlowGenListPerThread  * flow_gen);
     virtual void on_node_last(uint8_t plugin_id,CGenNode *     node);
@@ -3950,7 +3953,7 @@ inline  pkt_dir_t CGenNode::cur_interface_dir(){
         return (is_eligible_from_server_side()?SERVER_SIDE:CLIENT_SIDE);
     }else{
         return ( is_init ?CLIENT_SIDE:SERVER_SIDE);
-    } 
+    }
 }
 
 

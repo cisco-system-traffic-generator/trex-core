@@ -27,11 +27,11 @@ CFlowStatHwIdMap - Mapping between hardware id and packet group id
 CFlowStatRuleMgr - API to users of the file
 
 General idea of operation:
-For each stream needing flow statistics, the user provides packet group id (pg_id). Few streams can have the same pg_id. 
+For each stream needing flow statistics, the user provides packet group id (pg_id). Few streams can have the same pg_id.
 We maintain reference count.
 When doing start_stream, for the first stream in pg_id, hw_id is associated with the pg_id, and relevant hardware rules are
 inserted (on supported hardware). When stopping all streams with the pg_id, the hw_id <--> pg_id mapping is removed, hw_id is
-returned to the free hw_id pool, and hardware rules are removed. Counters for the pg_id are kept. 
+returned to the free hw_id pool, and hardware rules are removed. Counters for the pg_id are kept.
 If starting streams again, new hw_id will be assigned, and counters will continue from where they stopped. Only When deleting
 all streams using certain pg_id, infromation about this pg_id will be freed.
 
@@ -52,6 +52,7 @@ stream_del: HW_ID_INIT
 #include "internal_api/trex_platform_api.h"
 #include "trex_stateless.h"
 #include "trex_stateless_messaging.h"
+#include "trex_stateless_rx_core.h"
 #include "trex_stream.h"
 #include "flow_stat_parser.h"
 #include "flow_stat.h"
@@ -421,6 +422,7 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_ring_to_rx = NULL;
     m_capabilities = 0;
     m_parser = NULL;
+    m_rx_core = NULL;
 }
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {
@@ -442,6 +444,7 @@ void CFlowStatRuleMgr::create() {
     }
     m_ring_to_rx = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     assert(m_ring_to_rx);
+    m_rx_core = get_rx_sl_core_obj();
     m_parser = m_api->get_flow_stat_parser();
     assert(m_parser);
     m_capabilities = capabilities;
@@ -663,6 +666,22 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     if (m_num_started_streams == 0) {
         send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+
+        // wait to make sure that message is acknowledged. RX core might be in deep sleep mode, and we want to
+        // start transmitting packets only after it is working, otherwise, packets will get lost.
+        if (m_rx_core) { // in simulation, m_rx_core will be NULL
+            int count = 0;
+            while (!m_rx_core->is_working()) {
+                delay(1);
+                count++;
+                if (count == 100) {
+                    throw TrexException("Critical error!! - RX core failed to start");
+                }
+            }
+        }
+    } else {
+        // make sure rx core is working. If not, we got really confused somehow.
+        assert(m_rx_core->is_working());
     }
     m_num_started_streams++;
     return 0;

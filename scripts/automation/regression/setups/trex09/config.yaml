@@ -33,6 +33,6 @@
 # expected_bw    - the "golden" bandwidth (in Gbps) results planned on receiving from the test
 
 trex:
-  hostname       : csi-trex-08
+  hostname       : csi-trex-09
   cores          : 2
   modes          : ['loopback']

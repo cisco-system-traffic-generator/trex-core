@@ -2,6 +2,7 @@
 #include "bp_sim.h"
 #include "flow_stat_parser.h"
 #include "latency.h"
+#include "pal/linux/sanb_atomic.h"
 #include "trex_stateless_messaging.h"
 #include "trex_stateless_rx_core.h"
 
@@ -55,11 +56,12 @@ void CRxCoreStateless::idle_state_loop() {
     int counter = 0;
 
     while (m_state == STATE_IDLE) {
-        flush_rx();
         bool had_msg = periodic_check_for_cp_messages();
         if (had_msg) {
             counter = 0;
             continue;
+        } else {
+            flush_rx();
         }
 
         /* enter deep sleep only if enough time had passed */
@@ -73,8 +75,8 @@ void CRxCoreStateless::idle_state_loop() {
 }
 
 void CRxCoreStateless::start() {
-    static int count = 0;
-    static int i = 0;
+    int count = 0;
+    int i = 0;
     bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
 
     while (true) {
@@ -92,7 +94,11 @@ void CRxCoreStateless::start() {
         } else {
             if (m_state == STATE_QUIT)
                 break;
+            count = 0;
+            i = 0;
+            set_working_msg_ack(false);
             idle_state_loop();
+            set_working_msg_ack(true);
         }
         if (do_try_rx_queue) {
             try_rx_queues();
@@ -234,6 +240,12 @@ int CRxCoreStateless::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int
         }
     }
     return 0;
+}
+
+void CRxCoreStateless::set_working_msg_ack(bool val) {
+    sanb_smp_memory_barrier();
+    m_ack_start_work_msg = val;
+    sanb_smp_memory_barrier();
 }
 
 double CRxCoreStateless::get_cpu_util() {

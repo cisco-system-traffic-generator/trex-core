@@ -22,6 +22,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <bp_sim.h>
+#include <flow_stat.h>
 
 #define L_PKT_SUBMODE_NO_REPLY 1
 #define L_PKT_SUBMODE_REPLY 2

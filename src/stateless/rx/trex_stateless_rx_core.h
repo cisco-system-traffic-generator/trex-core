@@ -54,6 +54,8 @@ class CRxCoreStateless {
     void work() {m_state = STATE_WORKING;}
     void idle() {m_state = STATE_IDLE;}
     void quit() {m_state = STATE_QUIT;}
+    bool is_working() const {return (m_ack_start_work_msg == true);}
+    void set_working_msg_ack(bool val);
     double get_cpu_util();
 
  private:
@@ -72,10 +74,13 @@ class CRxCoreStateless {
     uint32_t m_max_ports;
     bool m_has_streams;
     CLatencyManagerPerPort m_ports[TREX_MAX_PORTS];
-    state_e   m_state; /* state of all ports */
+    state_e   m_state;
     CNodeRing *m_ring_from_cp;
     CNodeRing *m_ring_to_cp;
     CCpuUtlDp m_cpu_dp_u;
     CCpuUtlCp m_cpu_cp_u;
+    // Used for acking "work" (go out of idle) messages from cp
+    volatile bool m_ack_start_work_msg __rte_cache_aligned;
+
 };
 #endif

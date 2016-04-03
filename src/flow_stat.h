@@ -37,6 +37,8 @@
 typedef std::map<uint32_t, uint16_t> flow_stat_map_t;
 typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;
 
+class CRxCoreStateless;
+
 class tx_per_flow_t_ {
  public:
     tx_per_flow_t_() {
@@ -220,6 +222,7 @@ class CFlowStatRuleMgr {
     CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
     uint8_t m_num_ports; // How many ports are being used
     const TrexPlatformApi *m_api;
+    const CRxCoreStateless *m_rx_core;
     int m_max_hw_id; // max hw id we ever used
     uint32_t m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core

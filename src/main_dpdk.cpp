@@ -191,8 +191,7 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return 0;}
-    //virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
 };
@@ -245,8 +244,7 @@ public:
 
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return 0;}
-    //    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
 };
 
 
@@ -283,8 +281,7 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return 0;}
-    //    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
     virtual CFlowStatParser *get_flow_stat_parser();
 };
 
@@ -1239,6 +1236,10 @@ void CPhyEthIFStats::Dump(FILE *fd){
     DP_A(rx_nombuf);
 }
 
+// only on VM we have rx queues on DP cores
+void CPhyEthIF::flush_dp_rx_queue(void) {
+}
+
 // Clear the RX queue of an interface, dropping all packets
 void CPhyEthIF::flush_rx_queue(void){
 
@@ -1743,8 +1744,8 @@ public:
     virtual int send_node(CGenNode * node);
     virtual void send_one_pkt(pkt_dir_t       dir, rte_mbuf_t      *m);
 
+    virtual void flush_dp_rx_queue(void);
     virtual int flush_tx_queue(void);
-
     __attribute__ ((noinline)) void flush_rx_queue();
     __attribute__ ((noinline)) void update_mac_addr(CGenNode * node,uint8_t *p);
 
@@ -1810,6 +1811,11 @@ bool CCoreEthIF::Create(uint8_t             core_id,
     m_ring_to_rx = rx_dp->getRingDpToCp(core_id-1);
     assert( m_ring_to_rx);
     return (true);
+}
+
+// On VM, we get the packets in dp core, so just call general flush_rx_queue
+void CCoreEthIF::flush_dp_rx_queue(void) {
+    flush_rx_queue();
 }
 
 // This function is only relevant if we are in VM. In this case, we only have one rx queue. Can't have
@@ -4126,9 +4132,12 @@ bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
     return (send);
 }
 
-
 TrexStateless * get_stateless_obj() {
     return g_trex.m_trex_stateless;
+}
+
+CRxCoreStateless * get_rx_sl_core_obj() {
+    return &g_trex.m_rx_sl;
 }
 
 static int latency_one_lcore(__attribute__((unused)) void *dummy)

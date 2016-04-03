@@ -253,6 +253,10 @@ TrexStateless * get_stateless_obj() {
     return m_sim_statelss_obj;
 }
 
+CRxCoreStateless * get_rx_sl_core_obj() {
+    return NULL;
+}
+
 void set_stateless_obj(TrexStateless *obj) {
     m_sim_statelss_obj = obj;
 }

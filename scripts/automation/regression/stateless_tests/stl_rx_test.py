@@ -7,6 +7,9 @@ class STLRX_Test(CStlGeneral_Test):
     """Tests for RX feature"""
 
     def setUp(self):
+        per_driver_params = {"rte_vmxnet3_pmd": [1, 50], "rte_ixgbe_pmd": [30, 5000], "rte_i40e_pmd": [80, 5000],
+                        "rte_igb_pmd": [80, 500]}
+
         CStlGeneral_Test.setUp(self)
         assert 'bi' in CTRexScenario.stl_ports_map
 
@@ -19,12 +22,8 @@ class STLRX_Test(CStlGeneral_Test):
         if cap != 1:
             self.skip('port {0} does not support RX'.format(self.rx_port))
 
-        if port_info['speed'] == 40:
-            self.rate_percent = 80
-            self.total_pkts = 50000
-        else:
-            self.rate_percent = 1
-            self.total_pkts = 10
+        self.rate_percent = per_driver_params[port_info['driver']][0]
+        self.total_pkts = per_driver_params[port_info['driver']][1]
         self.c.reset(ports = [self.tx_port, self.rx_port])
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
@@ -100,21 +99,26 @@ class STLRX_Test(CStlGeneral_Test):
 
     # one simple stream on TX --> RX
     def test_multiple_streams(self):
-        total_pkts = self.total_pkts * 10
+        num_streams = 10
+        total_pkts = self.total_pkts / num_streams
+        if total_pkts == 0:
+            total_pkts = 1
+        percent = self.rate_percent / num_streams
+        if percent == 0:
+            percent = 1
 
         try:
             streams = []
             exp = []
             # 10 identical streams
-            for pg_id in range(1, 10):
+            for pg_id in range(1, num_streams):
 
                 streams.append(STLStream(name = 'rx {0}'.format(pg_id),
                                          packet = self.pkt,
                                          flow_stats = STLFlowStats(pg_id = pg_id),
-                                         mode = STLTXSingleBurst(total_pkts = total_pkts * pg_id,
-                                                                 pps = total_pkts * pg_id)))
+                                         mode = STLTXSingleBurst(total_pkts = total_pkts+pg_id, percentage = percent)))
 
-                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts * pg_id, 'pkt_len': self.pkt.get_pkt_len()})
+                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': self.pkt.get_pkt_len()})
 
             # add both streams to ports
             self.c.add_streams(streams, ports = [self.tx_port])
