@@ -1,8 +1,9 @@
 import argparse
 import stf_path
 from trex_stf_lib.trex_client import CTRexClient
+from pprint import pprint
 
-# sample TRex stateless run
+# sample TRex stateful run
 # assuming server daemon is running.
 
 def minimal_stateful_test(server):
@@ -14,9 +15,8 @@ def minimal_stateful_test(server):
             c = 1,
             m = 700,
             f = 'cap2/http_simple.yaml',
-            d = 5,
+            d = 30,
             l = 1000,
-            trex_development = True,
             )
 
     print('Sample until end')
@@ -36,8 +36,9 @@ def minimal_stateful_test(server):
     print('CPU utilization:')
     print(result.get_value_list('trex-global.data.m_cpu_util'))
 
-    #print('Dump of *latest* result sample, uncomment to see it all')
-    #print(result.get_latest_dump())
+    #Dump of *latest* result sample, uncomment to see it all
+    #print('Latest result dump:')
+    #pprint(result.get_latest_dump())
 
 
 if __name__ == '__main__':

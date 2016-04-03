@@ -20,7 +20,7 @@ class CTRexClientPKG_Test(CTRexGeneral_Test):
                     'cd trex_client/stf/examples',
                     '$PYTHON stf_example.py -s %s' % self.configuration.trex['trex_name'],
                    ]
-        return_code, _, stderr = run_command("timeout 60 bash -ce '%s'" % '; '.join(commands))
+        return_code, _, stderr = run_command("bash -ce '%s'" % '; '.join(commands))
         if return_code:
             self.fail('Error in running stf_example using %s: %s' % (python_version, stderr))
 

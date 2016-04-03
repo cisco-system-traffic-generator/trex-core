@@ -39,7 +39,7 @@ class CTRexServer(object):
     TREX_START_CMD    = './t-rex-64'
     DEFAULT_FILE_PATH = '/tmp/trex_files/'
 
-    def __init__(self, trex_path, trex_files_path, trex_host='0.0.0.0', trex_daemon_port=8090, trex_zmq_port=4500):
+    def __init__(self, trex_path, trex_files_path, trex_host='0.0.0.0', trex_daemon_port=8090, trex_zmq_port=4500, trex_nice=-19):
         """ 
         Parameters
         ----------
@@ -68,6 +68,12 @@ class CTRexServer(object):
         self.start_lock         = threading.Lock()
         self.__reservation      = None
         self.zmq_monitor        = ZmqMonitorSession(self.trex, self.trex_zmq_port)    # intiate single ZMQ monitor thread for server usage
+        self.trex_nice          = int(trex_nice)
+        if self.trex_nice < -20 or self.trex_nice > 19:
+            err = "Parameter 'nice' should be integer in range [-20, 19]"
+            print(err)
+            logger.error(err)
+            raise Exception(err)
     
     def add(self, x, y):
         print "server function add ",x,y
@@ -366,7 +372,8 @@ class CTRexServer(object):
             else:
                 trex_cmd_options += (dash + '{k} {val}'.format( k = tmp_key, val =  value ))
 
-        cmd = "{run_command} -f {gen_file} -d {duration} --iom {io} {cmd_options} --no-key > {export}".format( # -- iom 0 disables the periodic log to the screen (not needed)
+        cmd = "{nice}{run_command} -f {gen_file} -d {duration} --iom {io} {cmd_options} --no-key > {export}".format( # -- iom 0 disables the periodic log to the screen (not needed)
+            nice = '' if self.trex_nice == 0 else 'nice -n %s ' % self.trex_nice,
             run_command = self.TREX_START_CMD,
             gen_file    = f,
             duration    = d,
@@ -508,6 +515,8 @@ trex_daemon_server [options]
         action="store", help="Specify a hostname to be registered as the TRex server.\n"
                              "Default is to bind all IPs using '0.0.0.0'.",
         metavar="HOST", default = '0.0.0.0')
+    parser.add_argument('-n', '--nice', dest='nice', action="store", default = -19, type = int,
+        help="Determine the priority TRex process [-20, 19] (lower = higher priority)\nDefault is -19.")
     return parser
 
 trex_parser = generate_trex_parser()
@@ -517,7 +526,7 @@ def do_main_program ():
     args = trex_parser.parse_args()
     server = CTRexServer(trex_path = args.trex_path,  trex_files_path = args.files_path,
                          trex_host = args.trex_host, trex_daemon_port = args.daemon_port,
-                         trex_zmq_port = args.zmq_port)
+                         trex_zmq_port = args.zmq_port, trex_nice = args.nice)
     server.start()
 
 

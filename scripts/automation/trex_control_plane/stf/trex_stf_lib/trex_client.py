@@ -39,7 +39,7 @@ class CTRexClient(object):
     This class defines the client side of the RESTfull interaction with TRex
     """
 
-    def __init__(self, trex_host, max_history_size = 100, trex_daemon_port = 8090, trex_zmq_port = 4500, verbose = False):
+    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, trex_zmq_port = 4500, verbose = False):
         """ 
         Instantiate a TRex client object, and connecting it to listening daemon-server
 
@@ -50,6 +50,12 @@ class CTRexClient(object):
                 a number to set the maximum history size of a single TRex run. Each sampling adds a new item to history.
 
                 default value : **100**
+
+             filtered_latency_amount : float
+                Ignore high latency for this ammount of packets. (by default take value of 99.9% measurements)
+
+                default value : **0.001**
+
              trex_daemon_port : int
                 the port number on which the trex-daemon server can be reached
 
@@ -75,7 +81,7 @@ class CTRexClient(object):
         self.trex_zmq_port      = trex_zmq_port
         self.seq                = None
         self.verbose            = verbose
-        self.result_obj         = CTRexResult(max_history_size)
+        self.result_obj         = CTRexResult(max_history_size, filtered_latency_amount)
         self.decoder            = JSONDecoder()
         self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
         self.__verbose_print("Connecting to TRex @ {trex_path} ...".format( trex_path = self.trex_server_path ) )
@@ -834,22 +840,25 @@ class CTRexResult(object):
 
     Ontop to containing the results, this class offers easier data access and extended results processing options
     """
-    def __init__(self, max_history_size):
+    def __init__(self, max_history_size, filtered_latency_amount = 0.001):
         """ 
         Instatiate a TRex result object
 
         :parameters:
              max_history_size : int
-                a number to set the maximum history size of a single TRex run. Each sampling adds a new item to history.
+                A number to set the maximum history size of a single TRex run. Each sampling adds a new item to history.
+             filtered_latency_amount : float
+                Ignore high latency for this ammount of packets. (by default take into account 99.9%)
 
         """
         self._history = deque(maxlen = max_history_size)
         self.clear_results()
         self.latency_checked = True
+        self.filtered_latency_amount = filtered_latency_amount
 
     def __repr__(self):
         return ("Is valid history?       {arg}\n".format( arg = self.is_valid_hist() ) +
-                "Done warmup?            {arg}\n".format( arg =  self.is_done_warmup() ) +
+                "Done warmup?            {arg}\n".format( arg = self.is_done_warmup() ) +
                 "Expected tx rate:       {arg}\n".format( arg = self.get_expected_tx_rate() ) +
                 "Current tx rate:        {arg}\n".format( arg = self.get_current_tx_rate() ) +
                 "Maximum latency:        {arg}\n".format( arg = self.get_max_latency() ) +
@@ -1107,22 +1116,16 @@ class CTRexResult(object):
             self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_(?!expected_)\w+")
             if not self._done_warmup and self._expected_tx_rate is not None:
                 # check for up to 2% change between expected and actual
-                if (self._current_tx_rate['m_tx_bps']/self._expected_tx_rate['m_tx_expected_bps'] > 0.98):
+                if (self._current_tx_rate['m_tx_bps'] > 0.98 * self._expected_tx_rate['m_tx_expected_bps']):
                     self._done_warmup = True
-            
+
             # handle latency data
             if self.latency_checked:
-                latency_pre = "trex-latency"
-                self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "max-")#None # TBC
-                # support old typo
-                if self._max_latency is None:
-                    latency_pre = "trex-latecny"
-                    self._max_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "max-")
-
-                self._avg_latency = self.get_last_value("{latency}.data".format(latency = latency_pre), "avg-")#None # TBC
-                self._avg_latency = CTRexResult.__avg_all_and_rename_keys(self._avg_latency)
-
-                avg_win_latency_list     = self.get_value_list("{latency}.data".format(latency = latency_pre), "avg-")
+                latency_per_port         = self.get_last_value("trex-latecny-v2.data", "port-")
+                self._max_latency        = self.__get_filtered_max_latency(latency_per_port, self.filtered_latency_amount)
+                avg_latency              = self.get_last_value("trex-latecny.data", "avg-")
+                self._avg_latency        = CTRexResult.__avg_all_and_rename_keys(avg_latency)
+                avg_win_latency_list     = self.get_value_list("trex-latecny.data", "avg-")
                 self._avg_window_latency = CTRexResult.__calc_latency_win_stats(avg_win_latency_list)
 
             tx_pkts = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_total_tx_pkts")
@@ -1208,6 +1211,29 @@ class CTRexResult(object):
                 tmp_key = "port"+reg_res.group(1)
                 res[tmp_key] = val  # don't touch original fields values
         return res
+
+    @staticmethod
+    def __get_filtered_max_latency (src_dict, filtered_latency_amount = 0.001):
+        result = {}
+        for port, data in src_dict.items():
+            if port.startswith('port-'):
+                max_port = 'max-%s' % port[5:]
+                res = data['hist']
+                if not len(res['histogram']):
+                    result[max_port] = 0
+                    continue
+                hist_last_keys = deque([res['histogram'][-1]['key']], maxlen = 2)
+                sum_high = 0.0
+        
+                for i, elem in enumerate(reversed(res['histogram'])):
+                    sum_high += elem['val']
+                    hist_last_keys.append(elem['key'])
+                    if sum_high / res['cnt'] >= filtered_latency_amount:
+                        break
+                result[max_port] = sum(hist_last_keys) / len(hist_last_keys)
+            else:
+                return {}
+        return result
 
 
 
