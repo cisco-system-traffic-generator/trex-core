@@ -28,6 +28,8 @@ class STLClient_Test(CStlGeneral_Test):
             self.percentage = 50
             self.pps = 50000
         
+        # strict mode is only for 'wire only' connection
+        self.strict = True if self.is_loopback and not self.is_virt_nics else False
 
         assert 'bi' in CTRexScenario.stl_ports_map
 
@@ -49,6 +51,13 @@ class STLClient_Test(CStlGeneral_Test):
             CTRexScenario.stl_trex.connect()
 
 
+    def verify (self, expected, got):
+        if self.strict:
+            assert expected == got
+        else:
+            assert get_error_in_percentage(expected, got) < 0.05
+
+
     def test_basic_connect_disconnect (self):
         try:
             self.c.connect()
@@ -61,6 +70,7 @@ class STLClient_Test(CStlGeneral_Test):
   
 
     def test_basic_single_burst (self):
+
         try:                              
             b1 = STLStream(name = 'burst',
                            packet = self.pkt,
@@ -83,11 +93,12 @@ class STLClient_Test(CStlGeneral_Test):
                 assert self.tx_port in stats
                 assert self.rx_port in stats
 
-                assert stats[self.tx_port]['opackets'] == 100
-                assert stats[self.rx_port]['ipackets'] == 100
+                self.verify(100, stats[self.tx_port]['opackets'])
+                self.verify(100, stats[self.rx_port]['ipackets'])
 
-                assert stats[self.rx_port]['opackets'] == 100
-                assert stats[self.tx_port]['ipackets'] == 100
+                self.verify(100, stats[self.rx_port]['opackets'])
+                self.verify(100, stats[self.tx_port]['ipackets'])
+
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
 
@@ -122,11 +133,11 @@ class STLClient_Test(CStlGeneral_Test):
                 assert self.tx_port in stats
                 assert self.rx_port in stats
 
-                assert stats[self.tx_port]['opackets'] == 200
-                assert stats[self.rx_port]['ipackets'] == 200
+                self.verify(200, stats[self.tx_port]['opackets'])
+                self.verify(200, stats[self.rx_port]['ipackets'])
 
-                assert stats[self.rx_port]['opackets'] == 200
-                assert stats[self.tx_port]['ipackets'] == 200
+                self.verify(200, stats[self.rx_port]['opackets'])
+                self.verify(200, stats[self.tx_port]['ipackets'])
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
 
