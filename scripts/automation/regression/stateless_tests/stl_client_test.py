@@ -21,9 +21,13 @@ class STLClient_Test(CStlGeneral_Test):
     def setUp(self):
         CStlGeneral_Test.setUp(self)
 
-        if self.is_virt_nics or not self.is_loopback:
-            self.skip("skipping for non loopback / virtual")
-            return  
+        if self.is_virt_nics:
+            self.percentage = 5
+            self.pps = 500
+        else:
+            self.percentage = 50
+            self.pps = 50000
+        
 
         assert 'bi' in CTRexScenario.stl_ports_map
 
@@ -61,7 +65,7 @@ class STLClient_Test(CStlGeneral_Test):
             b1 = STLStream(name = 'burst',
                            packet = self.pkt,
                            mode = STLTXSingleBurst(total_pkts = 100,
-                                                   pps = 1000)
+                                                   percentage = self.percentage)
                            )
 
             for i in range(0, 5):
@@ -100,7 +104,7 @@ class STLClient_Test(CStlGeneral_Test):
                            packet = self.pkt,
                            mode = STLTXMultiBurst(pkts_per_burst = 10,
                                                   count =  20,
-                                                  pps = 1000)
+                                                  percentage = self.percentage)
                            )
 
             for i in range(0, 5):
@@ -134,7 +138,7 @@ class STLClient_Test(CStlGeneral_Test):
 
     #
     def test_basic_cont (self):
-        pps = 49182
+        pps = self.pps
         duration = 0.1
         golden = pps * duration
 
@@ -160,6 +164,7 @@ class STLClient_Test(CStlGeneral_Test):
                 assert self.rx_port in stats
 
                 # cont. with duration should be quite percise - 5% error is relaxed enough
+
                 assert get_error_in_percentage(stats[self.tx_port]['opackets'], golden) < 0.05
                 assert get_error_in_percentage(stats[self.rx_port]['ipackets'], golden) < 0.05
 
@@ -193,7 +198,7 @@ class STLClient_Test(CStlGeneral_Test):
         try:
             s1 = STLStream(name = 'stress',
                            packet = self.pkt,
-                           mode = STLTXCont(percentage = 60))
+                           mode = STLTXCont(percentage = self.percentage))
 
             # add both streams to ports
             self.c.add_streams([s1], ports = [self.tx_port, self.rx_port])
@@ -224,6 +229,10 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
+        # need promiscious for this one...
+        if self.is_virt_nics or not self.is_loopback:
+            self.skip('skipping profile tests for virtual NICs')
+            return
 
         try:
             self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
