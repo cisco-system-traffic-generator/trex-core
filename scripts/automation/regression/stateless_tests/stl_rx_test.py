@@ -8,7 +8,7 @@ class STLRX_Test(CStlGeneral_Test):
 
     def setUp(self):
         per_driver_params = {"rte_vmxnet3_pmd": [1, 50], "rte_ixgbe_pmd": [30, 5000], "rte_i40e_pmd": [80, 5000],
-                        "rte_igb_pmd": [80, 500]}
+                             "rte_igb_pmd": [80, 500], "rte_em_pmd": [1, 50], "rte_virtio_pmd": [1, 50]}
 
         CStlGeneral_Test.setUp(self)
         assert 'bi' in CTRexScenario.stl_ports_map
