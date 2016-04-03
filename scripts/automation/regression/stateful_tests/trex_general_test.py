@@ -37,6 +37,7 @@ import threading
 from tests_exceptions import *
 from platform_cmd_link import *
 import unittest
+from glob import glob
 
 def setUpModule(module):
     pass
@@ -261,6 +262,21 @@ class CTRexGeneral_Test(unittest.TestCase):
         #     e.args += ('T-Rex has crashed!') 
         #     raise
 
+    def unzip_client_package(self):
+        client_pkg_files = glob('%s/trex_client*.tar.gz' % CTRexScenario.scripts_path)
+        if not len(client_pkg_files):
+            raise Exception('Could not find client package')
+        if len(client_pkg_files) > 1:
+            raise Exception('Found more than one client packages')
+        client_pkg_name = os.path.basename(client_pkg_files[0])
+        if not os.path.exists('%s/trex_client' % CTRexScenario.scripts_path):
+            print('\nUnzipping package')
+            return_code, _, stderr = run_command("sh -ec 'cd %s; tar -xzf %s'" % (CTRexScenario.scripts_path, client_pkg_name))
+            if return_code:
+                raise Exception('Could not untar the client package: %s' % stderr)
+        else:
+            print('\nClient package is untarred')
+
     # We encountered error, don't fail the test immediately
     def fail(self, reason = 'Unknown error'):
         print 'Error: %s' % reason
@@ -299,14 +315,12 @@ class CTRexGeneral_Test(unittest.TestCase):
 #   def test_isInitialized(self):
 #       assert CTRexScenario.is_init == True
     def tearDown(self):
-        if not self.trex:
-            return
-        if not self.trex.is_idle():
+        if self.trex and not self.trex.is_idle():
             print 'Warning: TRex is not idle at tearDown, trying to stop it.'
             self.trex.force_kill(confirm = False)
         if not self.skipping:
             # print server logs of test run
-            if CTRexScenario.server_logs:
+            if self.trex and CTRexScenario.server_logs:
                 try:
                     print termstyle.green('\n>>>>>>>>>>>>>>> Daemon log <<<<<<<<<<<<<<<')
                     daemon_log = self.trex.get_trex_daemon_log()
