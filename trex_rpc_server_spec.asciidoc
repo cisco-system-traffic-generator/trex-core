@@ -39,7 +39,9 @@ include::trex_ga.asciidoc[]
 | 1.5    | Hanoch Haim (hhaim)
 |
 - add more instructions (v1.92)
-
+| 1.6    | Itay Marom (imarom)
+|
+- added API synchronization
 |=================
 
 
@@ -158,8 +160,77 @@ image::images/rpc_states.png[title="Port States",align="left",width=150, link="i
 == RPC Commands
 The following RPC commands are supported
 
+=== API Synchronization
+* *Name* - 'api_sync'
+* *API Class* - 'None'
+* *Valid States* - 'not relevant'
+* *Description* - Sync with server about API classes. This allows the server and the client
+                  to be sure they are fully synced.
+		  The return values are used for furthur communication with the server.
+		  every API from a specific class requires its corresponding api_h parameter
+		  added to the specific parameters of the function.
+* *Paramters* - 
+** *api_vers* [list] - A list of objects of type xref:api_class['api_class']
+* *Result* ['object'] - A list of objects of type xref:api_class_rc['api_class_rc']
+
+.Object type 'api_class' 
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| type            | string  | name of the API class
+| major           | int     | major version
+| minor           | int     | minor version
+|=================
+
+.Object type 'api_class_rc' 
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| type            | string  | name of the API class
+| api_h           | string  | API handler for this API class
+|=================
+
+Example:
+
+[source,bash]
+----
+'Request':
+
+{
+    "id": "6d4e9gs3",
+    "jsonrpc": "2.0",
+    "method": "api_sync",
+    "params": {
+        "api_vers": [
+            {
+	        "type": "core"
+                "major": 1,
+                "minor": 0,
+            }
+        ]
+    }
+}
+
+'Response':
+
+{
+    "id": "6d4e9gs3",
+    "jsonrpc": "2.0",
+    "result": {
+        "api_vers": [
+         {
+	    "type": "core"
+            "api_h": "SPhoCDIV",
+         }
+        ]
+    }
+}
+
+----
+
 === Ping
 * *Name* - 'ping'
+* *API Class* - 'None'
 * *Valid States* - 'not relevant'
 * *Description* - Pings the TRex server
 * *Paramters* - None
@@ -190,6 +261,7 @@ Example:
 
 === Get Server Supported Commands
 * *Name* - 'get_supported_cmds'
+* *API Class* - 'core'
 * *Valid States* - 'not relevant'
 * *Description* - Queries the server for all the supported commands
 * *Paramters* - None
@@ -205,7 +277,9 @@ Example:
     "jsonrpc": "2.0",
     "id": 1,
     "method": "get_supported_cmds",
-    "params": null
+    "params": {
+	"api_h": "SPhoCDIV"
+    }
 }
 
 
@@ -231,6 +305,7 @@ Example:
 
 === Get Version
 * *Name* - 'get_version'
+* *API Class* - 'core'
 * *Valid States* - 'not relevant'
 * *Description* - Queries the server for version information
 * *Paramters* - None
@@ -255,7 +330,9 @@ Example:
     "id": "wapkk8m6",
     "jsonrpc": "2.0",
     "method": "get_version",
-    "params": null
+    "params": {
+	"api_h": "SPhoCDIV"
+    }
 }
 
 
@@ -276,6 +353,7 @@ Example:
 
 === Get System Info
 * *Name* - 'get_system_info'
+* *API Class* - 'core'
 * *Description* - Queries the server for system properties
 * *Paramters* - None
 * *Result* ['object'] - See table below
@@ -311,7 +389,9 @@ Example:
     "id": "zweuldlh",
     "jsonrpc": "2.0",
     "method": "get_system_info",
-    "params": null
+    "params": {
+	"api_h": "SPhoCDIV"
+    }
 }
 
 'Response':
@@ -353,6 +433,7 @@ Example:
 
 === Get Port Status
 * *Name* - 'get_port_status'
+* *API Class* - 'core'
 * *Valid States* - 'all'
 * *Description* - Queries the server for status
 * *Paramters* -
@@ -369,6 +450,7 @@ Example:
     "jsonrpc": "2.0",
     "method": "get_port_status",
     "params": {
+	"api_h": "SPhoCDIV",
         "port_id": 2
     }
 }
@@ -398,6 +480,7 @@ Example:
 
 === Acquire
 * *Name* - 'Acquire'
+* *API Class* - 'core'
 * *Valid States* - 'all'
 * *Description* - Takes ownership over the port
 * *Paramters* -
@@ -416,8 +499,9 @@ Example:
     "jsonrpc": "2.0",
     "method": "Acquire",
     "params": {
-	"user": "itay"
-	"port_id": 1
+	"api_h": "SPhoCDIV",
+	"user": "itay",
+	"port_id": 1,
         "force": false,
     }
 }
@@ -436,6 +520,7 @@ Example:
 
 === Release
 * *Name* - 'release'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Release owernship over the device
 * *Paramters* -
@@ -453,7 +538,8 @@ Example:
     "jsonrpc": "2.0",
     "method": "release",
     "params": {
-        "handler": "37JncCHr"
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
 	"port_id": 1
     }
 }
@@ -471,6 +557,7 @@ Example:
 
 === Add Stream
 * *Name* - 'add_stream'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Adds a stream to a port
 * *Paramters* 
@@ -770,6 +857,7 @@ This could be stream_id different from the stream object which contains the rx_s
     "jsonrpc": "2.0",
     "method": "add_stream",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
 	"stream_id": 502
@@ -819,6 +907,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Remove Stream
 * *Name* - 'remove_stream'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Removes a stream from a port
 * *Paramters*
@@ -838,6 +927,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "remove_stream",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
         "stream_id": 502
@@ -857,6 +947,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream ID List
 * *Name* - 'get_stream_list'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - fetch all the assoicated streams for a port
 * *Paramters*
@@ -875,6 +966,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "get_stream_list",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1
     }
@@ -896,6 +988,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream
 * *Name* - 'get_stream'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - get a specific stream object
 * *Paramters*
@@ -915,6 +1008,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "get_stream",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
         "stream_id": 7
@@ -954,6 +1048,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Remove All Streams
 * *Name* - 'remove_all_streams'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - remove all streams from a port
 * *Paramters*
@@ -973,6 +1068,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "remove_all_streams",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 2
     }
@@ -992,6 +1088,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Start Traffic
 * *Name* - 'start_traffic'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
 * *Paramters*
@@ -1010,6 +1107,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "start_traffic",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 3
     }
@@ -1027,6 +1125,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Stop Traffic
 * *Name* - 'stop_traffic'
+* *API Class* - 'core'
 * *Valid States* - 'active'
 * *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
 * *Paramters*
@@ -1045,6 +1144,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "stop_traffic",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 3
     }
@@ -1064,6 +1164,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Remove RX Filters
 * *Name* - 'remove_rx_filters'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Post to calling stop, the client should call this function to remove
                   any RX filters that were attached.
@@ -1085,6 +1186,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "remove_rx_filters",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "ywVlqZa8",
         "port_id": 3
     }
@@ -1103,6 +1205,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Global Stats
 * *Name* - 'get_global_stats'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get machine global stats
 * *Paramters* - None
@@ -1128,6 +1231,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Port Stats
 * *Name* - 'get_port_stats'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
 * *Paramters*
@@ -1154,6 +1258,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream Stats
 * *Name* - 'get_steram_stats'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
 * *Paramters*
@@ -1252,6 +1357,7 @@ On the following example, there's no VM instructions, rx_stats option is disable
   "jsonrpc" : "2.0",
   "method" : "add_stream",
   "params" : {
+     "api_h": "SPhoCDIV",
      "handler" : "37JncCHr",
      "port_id" : 1,
      "stream" : {
@@ -1332,6 +1438,7 @@ Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `s
       "jsonrpc" : "2.0",
       "method" : "add_stream",
       "params" : {
+	 "api_h": "SPhoCDIV",
          "handler" : "2JjzhMai",
          "port_id" : 3,
          "stream" : {
@@ -1374,6 +1481,7 @@ Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `s
       "jsonrpc" : "2.0",
       "method" : "add_stream",
       "params" : {
+         "api_h": "SPhoCDIV",
          "handler" : "2JjzhMai",
          "port_id" : 3,
          "stream" : {
