@@ -24,6 +24,18 @@ ifdef::backend-docbook[]
 endif::backend-docbook[]
 
 
+== Release 1.99  ==
+
+
+* The Client package includes Console/examples 
+* Client API verification mechanism. The client should match the server version range 
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]
+* Python2/Python3 client API hardening 
+* Per stream statistics in software hardening - add support for wait on rx packets
+
 
 == Release 1.98  ==
 
