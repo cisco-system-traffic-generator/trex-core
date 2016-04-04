@@ -7,7 +7,7 @@ exec /usr/bin/expect "$0" "$@"
 source trex_tcl_client.tcl
 
 #Initializing trex server attributes
-set check [TRexTclClient::create_host "http://172.18.73.122"]
+set check [TRexTclClient::create_host "localhost"]
 
 #Formulate the command options as a dict
 set trex_cmds [dict create c 2 m 10 l 1000 ]

@@ -31,7 +31,7 @@ namespace eval TRexTclClient {
 
     variable TRex_Status [dict create 1 "Idle" 2 "Starting" 3 "Running"]
     
-    variable trex_host "http://172.18.73.122"
+    variable trex_host "localhost"
     variable server_port "8090"
     variable trex_zmq_port "4500"
 
