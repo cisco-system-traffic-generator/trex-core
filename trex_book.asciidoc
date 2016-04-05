@@ -1699,6 +1699,64 @@ enabled=0
 
 * Reboot
 
+=== Configure Linux host as network emulator
+
+There are lots of Linux tutorials on the web, so this will not be full tutorial, only highlighting some key points. Commands
+were checked on Ubuntu system.
+
+==== Enable forwarding
+One time (will be discarded after reboot): +
+[source,bash]
+----
+echo 1 > /proc/sys/net/ipv4/ip_forward
+----
+To make this permanent, add the following line to the file /etc/sysctl.conf: +
+----
+net.ipv4.ip_forward=1
+----
+
+==== Add static routes
+Example if for the default TRex networks, 48.0.0.0 and 16.0.0.0.
+
+Routing all traffic from 48.0.0.0 to the gateway 10.0.0.100
+[source,bash]
+----
+route add -net 48.0.0.0 netmask 255.255.0.0 gw 10.0.0.100
+----
+
+Routing all traffic from 16.0.0.0 to the gateway 172.168.0.100
+[source,bash]
+----
+route add -net 16.0.0.0 netmask 255.255.0.0 gw 172.168.0.100
+----
+If you use stateless mode, and decide to add route only in one direction, remember to disable reverse path check. +
+For example, to disable on all interfaces:
+[source,bash]
+----
+for i in /proc/sys/net/ipv4/conf/*/rp_filter ; do
+  echo 0 > $i 
+done
+----
+
+Alternatively, you can edit /etc/network/interfaces, and add something like this for both ports connected to TRex.
+This will take effect, only after restarting networking (rebooting the machine in an alternative also).
+----
+auto eth1
+iface eth1 inet static
+address 16.0.0.100
+netmask 255.0.0.0
+network 16.0.0.0
+broadcast 16.255.255.255
+... same for 48.0.0.0
+----
+
+==== Add static ARP entries
+[source,bash]
+----
+sudo arp -s 10.0.0.100 <Second TRex port MAC>
+sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
+----
+
 ===  Troubleshoot common problems, FAQ
 
 Q: During OS installation, screen is skewed / error "Out of range" / resolution not supported etc. +
@@ -1734,8 +1792,7 @@ sudo ./dpdk_nic_bind.py -b <driver name> <1> <PCI address> <2>
 We are planning to add MACs to `./dpdk_setup_ports.py -s`
 =====================================
 
-
-Q: TRex traffic doesn't show up on Wireshark, So I can't capture the traffic from the TRex port +
-A: TRex uses DPDK that take ownership on the ports. We are using a Switch with port mirroring to capture the traffic
+Q: TRex traffic does not show up on Wireshark, so I can not capture the traffic from the TRex port +
+A: TRex uses DPDK which takes ownership of the ports, so using Wireshark is not possible. You can use switch with port mirroring to capture the traffic.
 
 
