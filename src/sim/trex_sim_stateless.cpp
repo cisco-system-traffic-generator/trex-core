@@ -30,6 +30,23 @@ limitations under the License.
 
 using namespace std;
 
+class DPCoreStats {
+public:
+    DPCoreStats() {
+        m_simulated_pkts   = 0;
+        m_non_active_pkts  = 0;
+        m_written_pkts     = 0;
+    }
+
+    uint64_t get_on_wire_count() {
+        return (m_simulated_pkts - m_non_active_pkts);
+    }
+
+    uint64_t m_simulated_pkts;
+    uint64_t m_non_active_pkts;
+    uint64_t m_written_pkts;
+};
+
 /****** utils ******/
 static string format_num(double num, const string &suffix = "") {
     const char x[] = {' ','K','M','G','T','P'};
@@ -330,21 +347,21 @@ SimStateless::show_intro(const std::string &out_filename) {
 
 void
 SimStateless::run_dp(const std::string &out_filename) {
-   uint64_t simulated_pkts_cnt = 0;
-   uint64_t written_pkts_cnt = 0;
+    std::vector<DPCoreStats> core_stats(m_dp_core_count);
+    DPCoreStats total;
 
-   show_intro(out_filename);
+    show_intro(out_filename);
 
     if (is_multiple_capture()) {
         for (int i = 0; i < m_dp_core_count; i++) {
             std::stringstream ss;
             ss << out_filename << "-" << i;
-            run_dp_core(i, ss.str(), simulated_pkts_cnt, written_pkts_cnt);
+            run_dp_core(i, ss.str(), core_stats, total);
         }
 
     } else {
         for (int i = 0; i < m_dp_core_count; i++) {
-            run_dp_core(i, out_filename, simulated_pkts_cnt, written_pkts_cnt);
+            run_dp_core(i, out_filename, core_stats, total);
         }
     }
 
@@ -354,12 +371,25 @@ SimStateless::run_dp(const std::string &out_filename) {
 
     std::cout << "\n\nSimulation summary:\n";
     std::cout << "-------------------\n\n";
-    std::cout << "simulated " << simulated_pkts_cnt << " packets\n";
+
+    for (int i = 0; i < m_dp_core_count; i++) {
+        std::cout << "core index " << i << "\n";
+        std::cout << "-----------------\n\n";
+        std::cout << "    simulated packets  : " << core_stats[i].m_simulated_pkts << "\n";
+        std::cout << "    non active packets : " << core_stats[i].m_non_active_pkts << "\n";
+        std::cout << "    on-wire packets    : " << core_stats[i].get_on_wire_count() << "\n\n";
+    }
+
+    std::cout << "Total:" << "\n";
+    std::cout << "-----------------\n\n";
+    std::cout << "    simulated packets  : " << total.m_simulated_pkts << "\n";
+    std::cout << "    non active packets : " << total.m_non_active_pkts << "\n";
+    std::cout << "    on-wire packets    : " << total.get_on_wire_count() << "\n\n";
 
     if (m_is_dry_run) {
         std::cout << "*DRY RUN* - no packets were written\n";
     } else {
-        std::cout << "written " << written_pkts_cnt << " packets " << "to '" << out_filename << "'\n\n";
+        std::cout << "written " << total.m_written_pkts << " packets " << "to '" << out_filename << "'\n\n";
     }
 
     std::cout << "\n";
@@ -395,8 +425,8 @@ SimStateless::get_limit_per_core(int core_index) {
 void
 SimStateless::run_dp_core(int core_index,
                           const std::string &out_filename,
-                          uint64_t &simulated_pkts,
-                          uint64_t &written_pkts) {
+                          std::vector<DPCoreStats> &stats,
+                          DPCoreStats &total) {
 
     CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
 
@@ -406,10 +436,17 @@ SimStateless::run_dp_core(int core_index,
 
     flush_dp_to_cp_messages_core(core_index);
 
-    simulated_pkts += lpt->m_node_gen.m_cnt;
+    /* core */
+    stats[core_index].m_simulated_pkts   = lpt->m_node_gen.m_cnt;
+    stats[core_index].m_non_active_pkts  = lpt->m_node_gen.m_non_active;
+
+    /* total */
+    total.m_simulated_pkts   += lpt->m_node_gen.m_cnt;
+    total.m_non_active_pkts  += lpt->m_node_gen.m_non_active;
 
     if (should_capture_core(core_index)) {
-        written_pkts += lpt->m_node_gen.m_cnt;
+        stats[core_index].m_written_pkts  = (lpt->m_node_gen.m_cnt - lpt->m_node_gen.m_non_active);
+        total.m_written_pkts             += (lpt->m_node_gen.m_cnt - lpt->m_node_gen.m_non_active);
     }
 }
 

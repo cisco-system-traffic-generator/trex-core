@@ -356,6 +356,14 @@ public:
         m_type = type;
     }
 
+    void set_null_stream(bool enable) {
+        m_null_stream = enable;
+    }
+
+    bool get_null_stream() {
+        return m_null_stream;
+    }
+
     uint8_t get_type(void) const {
         return ( m_type );
     }
@@ -413,8 +421,9 @@ public:
             dp->m_vm_dp = NULL;
         }
 
-        dp->m_isg_usec      = m_isg_usec;
-        dp->m_next_stream_id = m_next_stream_id;
+        dp->m_isg_usec                = m_isg_usec;
+        dp->m_delay_next_stream_sec   = m_delay_next_stream_sec;
+        dp->m_next_stream_id          = m_next_stream_id;
 
         dp->m_enabled    = m_enabled;
         dp->m_self_start = m_self_start;
@@ -448,6 +457,9 @@ public:
         return ( (m_burst_total_pkts / get_pps()) * 1000 * 1000);
     }
 
+    double get_ipg() {
+        return (1.0 / get_pps());
+    }
    
     void Dump(FILE *fd);
 
@@ -490,6 +502,7 @@ public:
     
 
     /* config fields */
+    double        m_delay_next_stream_sec;
     double        m_isg_usec;
     int           m_next_stream_id;
 
@@ -497,6 +510,8 @@ public:
     bool          m_enabled;
     bool          m_self_start;
 
+    /* null stream (a dummy stream) */
+    bool          m_null_stream;
 
     /* VM CP and DP */
     StreamVm      m_vm;

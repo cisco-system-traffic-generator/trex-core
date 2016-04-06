@@ -3195,6 +3195,7 @@ int CNodeGenerator::open_file(std::string file_name,
     m_v_if->set_review_mode(preview_mode);
     m_v_if->open_file(file_name);
     m_cnt   = 0;
+    m_non_active = 0;
     m_limit = 0;
     return (0);
 }
@@ -3209,10 +3210,13 @@ int CNodeGenerator::close_file(CFlowGenListPerThread * thread){
 
 int CNodeGenerator::update_stl_stats(CGenNodeStateless *node_sl){
     m_cnt++;
-
+    if (!node_sl->is_node_active()) {
+        m_non_active++;
+    }
     #ifdef _DEBUG
     if ( m_preview_mode.getVMode() >2 ){
         fprintf(stdout," %4lu ,", (ulong)m_cnt);
+        fprintf(stdout," %4lu ,", (ulong)m_non_active);
         node_sl->Dump(stdout);
     }
     #endif

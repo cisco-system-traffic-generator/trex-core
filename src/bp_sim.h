@@ -2014,6 +2014,7 @@ public:
     CFlowGenListPerThread  *  m_parent;
     CPreviewMode              m_preview_mode;
     uint64_t                  m_cnt;
+    uint64_t                  m_non_active;
     uint64_t                  m_limit;
     CTimeHistogram            m_realtime_his;
 };

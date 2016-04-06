@@ -129,11 +129,13 @@ TrexStream::TrexStream(uint8_t type,
                        uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) , m_rate(*this) {
 
     /* default values */
-    m_type            = type;
-    m_isg_usec        = 0;
-    m_next_stream_id  = -1;
-    m_enabled    = false;
-    m_self_start = false;
+    m_type              = type;
+    m_isg_usec          = 0;
+    m_next_stream_id    = -1;
+    m_enabled           = false;
+    m_self_start        = false;
+
+    m_delay_next_stream_sec  = 0;
 
     m_pkt.binary       = NULL;
     m_pkt.len          = 0;
@@ -148,6 +150,7 @@ TrexStream::TrexStream(uint8_t type,
     m_vm_dp = NULL;
     m_flags=0;
     m_action_count=0;
+    m_null_stream = false;
 }
 
 TrexStream::~TrexStream() {

@@ -123,6 +123,23 @@ private:
     void add_warning(const std::string &warning);
     void err(const std::string &err);
 
+    void compile_on_single_core(uint8_t                                port_id,
+                                const std::vector<TrexStream *>        &streams,
+                                std::vector<TrexStreamsCompiledObj *>  &objs,
+                                uint8_t                                dp_core_count,
+                                double                                 factor,
+                                GraphNodeMap                           &nodes,
+                                bool                                   all_continues);
+
+    void compile_on_all_cores(uint8_t                                port_id,
+                              const std::vector<TrexStream *>        &streams,
+                              std::vector<TrexStreamsCompiledObj *>  &objs,
+                              uint8_t                                dp_core_count,
+                              double                                 factor,
+                              GraphNodeMap                           &nodes,
+                              bool                                   all_continues);
+
+
     void compile_stream(TrexStream *stream,
                         double factor,
                         uint8_t dp_core_count,
@@ -131,7 +148,8 @@ private:
 
     void compile_stream_on_single_core(TrexStream *stream,
                                        double factor,
-                                       TrexStreamsCompiledObj *obj,
+                                       uint8_t dp_core_count,
+                                       std::vector<TrexStreamsCompiledObj *> &objs,
                                        int new_id,
                                        int new_next_id);
 
