@@ -120,6 +120,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPort *lp, rte_mbuf_t *m) 
             }
         }
     }
+    rte_pktmbuf_free(m);
 }
 
 // In VM setup, handle packets coming as messages from DP cores.
