@@ -4,7 +4,7 @@
 
 test_nbar_simple :
   multiplier        : 1.5 
-  cores             : 1
+  cores             : 2
   exp_gbps          : 0.5
   cpu_to_core_ratio : 20800000
   cpu2core_custom_dev: YES
