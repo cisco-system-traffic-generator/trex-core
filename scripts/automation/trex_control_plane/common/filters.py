@@ -23,6 +23,9 @@ class ToggleFilter(object):
         else:
             raise KeyError("Provided item key isn't a key of the referenced data structure.")
 
+    def toggle_items(self, *args):
+        return all(map(self.toggle_item, args))
+
     def filter_items(self):
         """
         Filters the pointed database by showing only the items mapped at toggle_db set.
@@ -41,7 +44,7 @@ class ToggleFilter(object):
             if isinstance(self._data, dict):
                 self._filter_method = ToggleFilter.dict_filter
                 if show_by_default:
-                    self._toggle_db = self._data.keys()
+                    self._toggle_db = set(self._data.keys())
                 return
             elif isinstance(self._data, list):
                 self._filter_method = ToggleFilter.list_filter
@@ -65,7 +68,7 @@ class ToggleFilter(object):
         assert isinstance(iterable, dict)
         return {k: v
                 for k,v in iterable.iteritems()
-                if function(k, v)}
+                if function(k)}
 
     @staticmethod
     def list_filter(function, iterable):
