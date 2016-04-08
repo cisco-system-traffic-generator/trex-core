@@ -1,7 +1,14 @@
 #!/router/bin/python
 
 import functional_general_test
-import misc_methods
+#HACK FIX ME START
+import sys
+import os
+
+CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.abspath(os.path.join(CURRENT_PATH, '../../trex_control_plane/common')))
+#HACK FIX ME END
+import filters
 from nose.tools import assert_equal
 from nose.tools import assert_not_equal
 from nose.tools import assert_raises
