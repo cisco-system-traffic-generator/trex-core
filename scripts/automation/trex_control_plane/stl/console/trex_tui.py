@@ -13,6 +13,8 @@ else:
 from trex_stl_lib.utils.text_opts import *
 from trex_stl_lib.utils import text_tables
 from trex_stl_lib import trex_stl_stats
+import trex_root_path
+from common.filters import ToggleFilter
 
 # for STL exceptions
 from trex_stl_lib.api import *
@@ -65,10 +67,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
         self.key_actions['-'] = {'action': self.action_lower,  'legend': 'low 5%', 'show': True}
 
         self.ports = self.stateless_client.get_all_ports()
-
+        self.toggle_filter = ToggleFilter(self.ports)
 
     def show (self):
-        stats = self.stateless_client._get_formatted_stats(self.ports)
+        stats = self.stateless_client._get_formatted_stats(self.toggle_filter.filter_items())
         # print stats to screen
         for stat_type, stat_data in stats.items():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -289,7 +291,7 @@ class TrexTUIPanelManager():
         self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams stats', 'show': True}
 
         for port_id in self.ports:
-            self.key_actions[str(port_id)] = {'action': self.action_show_port(port_id), 'legend': 'port {0}'.format(port_id), 'show': False}
+            self.key_actions[str(port_id)] = {'action': self.action_toggle_port(port_id), 'legend': 'port {0}'.format(port_id), 'show': False}
             self.panels['port {0}'.format(port_id)] = TrexTUIPort(self, port_id)
 
         # start with dashboard
@@ -386,6 +388,15 @@ class TrexTUIPanelManager():
             return ""
 
         return action_show_port_x
+
+    def action_toggle_port(self, port_id):
+        def action_toggle_port_x():
+            self.panels['dashboard'].toggle_filter.toggle_item(port_id)
+            self.init()
+            return ""
+
+        return action_toggle_port_x
+
 
 
     def action_show_sstats (self):
