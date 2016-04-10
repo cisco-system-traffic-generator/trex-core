@@ -161,8 +161,8 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         self.assert_gt(nat_stats['num_of_hits'], 50000, 'total nat hits is not high enough')
 
     def tearDown(self):
-        CTRexGeneral_Test.tearDown(self)
         self.router.clear_nat_translations()
+        CTRexGeneral_Test.tearDown(self)
 
 
 if __name__ == "__main__":

@@ -1224,13 +1224,12 @@ class CTRexResult(object):
                     continue
                 hist_last_keys = deque([res['histogram'][-1]['key']], maxlen = 2)
                 sum_high = 0.0
-        
-                for i, elem in enumerate(reversed(res['histogram'])):
+                for elem in reversed(res['histogram']):
                     sum_high += elem['val']
                     hist_last_keys.append(elem['key'])
                     if sum_high / res['cnt'] >= filtered_latency_amount:
                         break
-                result[max_port] = sum(hist_last_keys) / len(hist_last_keys)
+                result[max_port] = (hist_last_keys[0] + hist_last_keys[-1]) / 2
             else:
                 return {}
         return result

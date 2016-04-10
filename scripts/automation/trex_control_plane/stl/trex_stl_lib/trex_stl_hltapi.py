@@ -172,11 +172,21 @@ import sys
 import os
 import socket
 import copy
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 from .api import *
 from .trex_stl_types import *
 from .utils.common import get_number
+
+class LRU_cache(OrderedDict):
+    def __init__(self, maxlen = 20, *args, **kwargs):
+        OrderedDict.__init__(self, *args, **kwargs)
+        self.maxlen = maxlen
+
+    def __setitem__(self, *args, **kwargs):
+        OrderedDict.__setitem__(self, *args, **kwargs)
+        if len(self) > self.maxlen:
+            self.popitem(last = False)
 
 
 class HLT_ERR(dict):
@@ -201,7 +211,7 @@ def merge_kwargs(default_kwargs, user_kwargs):
     for key, value in user_kwargs.items():
         if key in kwargs:
             kwargs[key] = value
-        elif key in ('save_to_yaml', 'save_to_pcap'): # internal debug arguments
+        elif key in ('save_to_yaml', 'save_to_pcap', 'pg_id'): # internal arguments
             kwargs[key] = value
         else:
             print("Warning: provided parameter '%s' is not supported" % key)
@@ -338,8 +348,11 @@ class CTRexHltApi(object):
     def __init__(self, verbose = 0):
         self.trex_client = None
         self.verbose = verbose
-        self._streams_history = {} # streams per stream_id per port in format of HLT arguments for modify later
-
+        self._last_pg_id = 0              # pg_id acts as stream_handle
+        self._streams_history = {}        # streams in format of HLT arguments for modify later
+        self._native_handle_by_pg_id = {} # pg_id -> native handle + port
+        self._pg_id_by_id = {}            # stream_id -> pg_id
+        self._pg_id_by_name = {}          # name -> pg_id
 
 ###########################
 #    Session functions    #
@@ -375,9 +388,6 @@ class CTRexHltApi(object):
             self.trex_client = None
             return HLT_ERR('Could not acquire ports %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
 
-        # since only supporting single TRex at the moment, 1:1 map
-        port_handle = self.trex_client.get_acquired_ports()
-
         # arrived here, all desired ports were successfully acquired
         if kwargs['reset']:
             # remove all port traffic configuration from TRex
@@ -389,7 +399,7 @@ class CTRexHltApi(object):
                 return HLT_ERR('Error in reset traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
 
         self._streams_history = CStreamsPerPort(hlt_history = True)
-        return HLT_OK(port_handle = port_handle)
+        return HLT_OK(port_handle = dict([(port_id, port_id) for port_id in port_list]))
 
     def cleanup_session(self, **user_kwargs):
         kwargs = merge_kwargs(cleanup_session_kwargs, user_kwargs)
@@ -446,23 +456,9 @@ class CTRexHltApi(object):
         kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
         stream_id = kwargs['stream_id']
         mode = kwargs['mode']
-        if type(stream_id) is list:
-            if len(stream_id) > 1:
-                streams_per_port = CStreamsPerPort()
-                for each_stream_id in stream_id:
-                    user_kwargs[stream_id] = each_stream_id
-                    res = self.traffic_config(**user_kwargs)
-                    if type(res) is HLT_ERR:
-                        return res
-                    streams_per_port.add_streams_from_res(res)
-                if mode == 'create':
-                    return HLT_OK(stream_id = streams_per_port)
-                else:
-                    return HLT_OK()
-            else:
-                stream_id = stream_id[0]
-
+        pg_id = None
         port_handle = port_list = self._parse_port_list(kwargs['port_handle'])
+
         ALLOWED_MODES = ['create', 'modify', 'remove', 'enable', 'disable', 'reset']
         if mode not in ALLOWED_MODES:
             return HLT_ERR('Mode must be one of the following values: %s' % ALLOWED_MODES)
@@ -480,7 +476,7 @@ class CTRexHltApi(object):
         if mode == 'remove':
             if stream_id is None:
                 return HLT_ERR('Please specify stream_id to remove.')
-            if type(stream_id) is str and stream_id == 'all':
+            if stream_id == 'all':
                 try:
                     self.trex_client.remove_all_streams(port_handle)
                     for port in port_handle:
@@ -504,14 +500,14 @@ class CTRexHltApi(object):
         #    self._streams_history[stream_id].update(kwargs) # <- the modification
 
         if mode == 'modify': # we remove stream and create new one with same stream_id
-            stream_id = kwargs.get('stream_id')
-            if stream_id is None:
+            pg_id = kwargs.get('stream_id')
+            if pg_id is None:
                 return HLT_ERR('Please specify stream_id to modify.')
 
             if len(port_handle) > 1:
                 for port in port_handle:
-                    user_kwargs[port_handle] = port
-                    res = self.traffic_config(**user_kwargs) # recurse per port, each port can have different stream with such id
+                    user_kwargs['port_handle'] = port
+                    res = self.traffic_config(**user_kwargs)
             else:
                 if type(port_handle) is list:
                     port = port_handle[0]
@@ -519,9 +515,9 @@ class CTRexHltApi(object):
                     port = port_handle
                 if port not in self._streams_history:
                     return HLT_ERR('Port %s was not used/acquired' % port)
-                if stream_id not in self._streams_history[port]:
+                if pg_id not in self._streams_history[port]:
                     return HLT_ERR('This stream_id (%s) was not used before at port %s, please create new.' % (stream_id, port))
-                kwargs.update(self._streams_history[port][stream_id])
+                kwargs.update(self._streams_history[port][pg_id])
                 kwargs.update(user_kwargs)
             try:
                 self.trex_client.remove_streams(stream_id, port_handle)
@@ -530,24 +526,24 @@ class CTRexHltApi(object):
 
         if mode == 'create' or mode == 'modify':
             # create a new stream with desired attributes, starting by creating packet
-            streams_per_port = CStreamsPerPort()
             if is_true(kwargs['bidirectional']): # two streams with opposite directions
                 del user_kwargs['bidirectional']
+                stream_per_port = {}
                 save_to_yaml = user_kwargs.get('save_to_yaml')
                 bidirect_err = 'When using bidirectional flag, '
                 if len(port_handle) != 1:
                     return HLT_ERR(bidirect_err + 'port_handle1 should be single port handle.')
+                port_handle = port_handle[0]
                 port_handle2 = kwargs['port_handle2']
                 if (type(port_handle2) is list and len(port_handle2) > 1) or port_handle2 is None:
                     return HLT_ERR(bidirect_err + 'port_handle2 should be single port handle.')
                 try:
                     if save_to_yaml and type(save_to_yaml) is str:
                         user_kwargs['save_to_yaml'] = save_to_yaml.replace('.yaml', '_bi1.yaml')
-                    user_kwargs['port_handle'] = port_handle[0]
                     res1 = self.traffic_config(**user_kwargs)
                     if res1['status'] == 0:
                         raise STLError('Could not create bidirectional stream 1: %s' % res1['log'])
-                    streams_per_port.add_streams_from_res(res1)
+                    stream_per_port[port_handle] = res1['stream_id']
                     kwargs['direction'] = 1 - kwargs['direction'] # not
                     correct_direction(user_kwargs, kwargs)
                     if save_to_yaml and type(save_to_yaml) is str:
@@ -556,11 +552,11 @@ class CTRexHltApi(object):
                     res2 = self.traffic_config(**user_kwargs)
                     if res2['status'] == 0:
                         raise STLError('Could not create bidirectional stream 2: %s' % res2['log'])
-                    streams_per_port.add_streams_from_res(res2)
+                    stream_per_port[port_handle2] = res2['stream_id']
                 except Exception as e:
                     return HLT_ERR('Could not generate bidirectional traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
                 if mode == 'create':
-                    return HLT_OK(stream_id = streams_per_port)
+                    return HLT_OK(stream_id = stream_per_port)
                 else:
                     return HLT_OK()
 
@@ -568,6 +564,9 @@ class CTRexHltApi(object):
                 if kwargs['load_profile']:
                     stream_obj = STLProfile.load_py(kwargs['load_profile'], direction = kwargs['direction'])
                 else:
+                    if not pg_id:
+                        pg_id = self._get_available_pg_id()
+                    user_kwargs['pg_id'] = pg_id
                     stream_obj = STLHltStream(**user_kwargs)
             except Exception as e:
                 return HLT_ERR('Could not create stream: %s' % e if isinstance(e, STLError) else traceback.format_exc())
@@ -583,10 +582,7 @@ class CTRexHltApi(object):
             except Exception as e:
                 return HLT_ERR('Could not add stream to ports: %s' % e if isinstance(e, STLError) else traceback.format_exc())
             if mode == 'create':
-                if len(stream_id_arr) == 1:
-                    return HLT_OK(stream_id = dict((port, stream_id_arr[0]) for port in port_handle))
-                else:
-                    return HLT_OK(stream_id = dict((port, stream_id_arr) for port in port_handle))
+                return HLT_OK(stream_id = pg_id)
             else:
                 return HLT_OK()
 
@@ -652,42 +648,64 @@ class CTRexHltApi(object):
         kwargs = merge_kwargs(traffic_stats_kwargs, user_kwargs)
         mode = kwargs['mode']
         port_handle = kwargs['port_handle']
+        if type(port_handle) is not list:
+            port_handle = [port_handle]
         ALLOWED_MODES = ['aggregate', 'streams', 'all']
         if mode not in ALLOWED_MODES:
             return HLT_ERR("'mode' must be one of the following values: %s" % ALLOWED_MODES)
-        if mode == 'streams':
-            return HLT_ERR("mode 'streams' not implemented'")
-        if mode in ('all', 'aggregate'):
-            hlt_stats_dict = {}
-            try:
-                stats = self.trex_client.get_stats(port_handle)
-            except Exception as e:
-                return HLT_ERR('Could not retrieve stats: %s' % e if isinstance(e, STLError) else traceback.format_exc())
-            for port_id, stat_dict in stats.items():
-                if is_integer(port_id):
-                    hlt_stats_dict[port_id] = {
-                        'aggregate': {
-                            'tx': {
-                                'pkt_bit_rate': stat_dict.get('tx_bps'),
-                                'pkt_byte_count': stat_dict.get('obytes'),
-                                'pkt_count': stat_dict.get('opackets'),
-                                'pkt_rate': stat_dict.get('tx_pps'),
-                                'total_pkt_bytes': stat_dict.get('obytes'),
-                                'total_pkt_rate': stat_dict.get('tx_pps'),
-                                'total_pkts': stat_dict.get('opackets'),
-                                },
-                            'rx': {
-                                'pkt_bit_rate': stat_dict.get('rx_bps'),
-                                'pkt_byte_count': stat_dict.get('ibytes'),
-                                'pkt_count': stat_dict.get('ipackets'),
-                                'pkt_rate': stat_dict.get('rx_pps'),
-                                'total_pkt_bytes': stat_dict.get('ibytes'),
-                                'total_pkt_rate': stat_dict.get('rx_pps'),
-                                'total_pkts': stat_dict.get('ipackets'),
+        hlt_stats_dict = dict([(port, {}) for port in port_handle])
+        try:
+            stats = self.trex_client.get_stats(port_handle)
+            if mode in ('all', 'aggregate'):
+                for port_id in port_handle:
+                    port_stats = stats[port_id]
+                    if is_integer(port_id):
+                        hlt_stats_dict[port_id]['aggregate'] = {
+                                'tx': {
+                                    'pkt_bit_rate':    port_stats.get('tx_bps', 0),
+                                    'pkt_byte_count':  port_stats.get('obytes', 0),
+                                    'pkt_count':       port_stats.get('opackets', 0),
+                                    'pkt_rate':        port_stats.get('tx_pps', 0),
+                                    'total_pkt_bytes': port_stats.get('obytes', 0),
+                                    'total_pkt_rate':  port_stats.get('tx_pps', 0),
+                                    'total_pkts':      port_stats.get('opackets', 0),
+                                    },
+                                'rx': {
+                                    'pkt_bit_rate':    port_stats.get('rx_bps', 0),
+                                    'pkt_byte_count':  port_stats.get('ibytes', 0),
+                                    'pkt_count':       port_stats.get('ipackets', 0),
+                                    'pkt_rate':        port_stats.get('rx_pps', 0),
+                                    'total_pkt_bytes': port_stats.get('ibytes', 0),
+                                    'total_pkt_rate':  port_stats.get('rx_pps', 0),
+                                    'total_pkts':      port_stats.get('ipackets', 0),
+                                    }
                                 }
-                            }
-                        }
-            return HLT_OK(hlt_stats_dict)
+            if mode in ('all', 'streams'):
+                for pg_id, pg_stats in stats['flow_stats'].items():
+                    for port_id in port_handle:
+                        if 'stream' not in hlt_stats_dict[port_id]:
+                            hlt_stats_dict[port_id]['stream'] = {}
+                        hlt_stats_dict[port_id]['stream'][pg_id] = {
+                                'tx': {
+                                    'total_pkts':           pg_stats['tx_pkts'].get(port_id, 0),
+                                    'total_pkt_bytes':      pg_stats['tx_bytes'].get(port_id, 0),
+                                    'total_pkts_bytes':     pg_stats['tx_bytes'].get(port_id, 0),
+                                    'total_pkt_bit_rate':   pg_stats['tx_bps'].get(port_id, 0),
+                                    'total_pkt_rate':       pg_stats['tx_pps'].get(port_id, 0),
+                                    'line_rate_percentage': pg_stats['tx_line_util'].get(port_id, 0),
+                                    },
+                                'rx': {
+                                    'total_pkts':           pg_stats['rx_pkts'].get(port_id, 0),
+                                    'total_pkt_bytes':      pg_stats['rx_bytes'].get(port_id, 0),
+                                    'total_pkts_bytes':     pg_stats['rx_bytes'].get(port_id, 0),
+                                    'total_pkt_bit_rate':   pg_stats['rx_bps'].get(port_id, 0),
+                                    'total_pkt_rate':       pg_stats['rx_pps'].get(port_id, 0),
+                                    'line_rate_percentage': pg_stats['rx_line_util'].get(port_id, 0),
+                                    },
+                                }
+        except Exception as e:
+            return HLT_ERR('Could not retrieve stats: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+        return HLT_OK(hlt_stats_dict)
 
     # timeout = maximal time to wait
     def wait_on_traffic(self, port_handle = None, timeout = 60):
@@ -699,6 +717,18 @@ class CTRexHltApi(object):
 ###########################
 #    Private functions    #
 ###########################
+
+    def _get_available_pg_id(self):
+        pg_id = self._last_pg_id
+        used_pg_ids = self.trex_client.get_stats()['flow_stats'].keys()
+        for i in range(65535):
+            pg_id += 1
+            if pg_id not in used_pg_ids:
+                self._last_pg_id = pg_id
+                return pg_id
+            if pg_id == 65535:
+                pg_id = 0
+        raise STLError('Could not find free pg_id in range [1, 65535].')
 
     # remove streams from given port(s).
     # stream_id can be:
@@ -812,30 +842,33 @@ def STLHltStream(**user_kwargs):
 
     # packet generation
     packet = generate_packet(**user_kwargs)
+
+    # stream generation
     try:
         rate_types_dict = {'rate_pps': 'pps', 'rate_bps': 'bps_L2', 'rate_percent': 'percentage'}
         rate_stateless = {rate_types_dict[rate_key]: float(kwargs[rate_key])}
         transmit_mode = kwargs['transmit_mode']
         pkts_per_burst = kwargs['pkts_per_burst']
         if transmit_mode == 'continuous':
-            transmit_mode_class = STLTXCont(**rate_stateless)
+            transmit_mode_obj = STLTXCont(**rate_stateless)
         elif transmit_mode == 'single_burst':
-            transmit_mode_class = STLTXSingleBurst(total_pkts = pkts_per_burst, **rate_stateless)
+            transmit_mode_obj = STLTXSingleBurst(total_pkts = pkts_per_burst, **rate_stateless)
         elif transmit_mode == 'multi_burst':
-            transmit_mode_class = STLTXMultiBurst(total_pkts = pkts_per_burst, count = int(kwargs['burst_loop_count']),
+            transmit_mode_obj = STLTXMultiBurst(total_pkts = pkts_per_burst, count = int(kwargs['burst_loop_count']),
                                                   ibg = kwargs['inter_burst_gap'], **rate_stateless)
         else:
             raise STLError('transmit_mode %s not supported/implemented')
     except Exception as e:
-        raise STLError('Could not create transmit_mode class %s: %s' % (transmit_mode, e if isinstance(e, STLError) else traceback.format_exc()))
+        raise STLError('Could not create transmit_mode object %s: %s' % (transmit_mode, e if isinstance(e, STLError) else traceback.format_exc()))
 
-    # stream generation
     try:
+        pg_id = kwargs.get('pg_id')
         stream = STLStream(packet = packet,
                            random_seed = 1 if is_true(kwargs['consistent_random']) else 0,
                            #enabled = True,
                            #self_start = True,
-                           mode = transmit_mode_class,
+                           flow_stats = STLFlowStats(pg_id) if pg_id else None,
+                           mode = transmit_mode_obj,
                            stream_id = kwargs['stream_id'],
                            name = kwargs['name'],
                            )
@@ -848,8 +881,12 @@ def STLHltStream(**user_kwargs):
         stream.dump_to_yaml(debug_filename)
     return stream
 
+packet_cache = LRU_cache(maxlen = 20)
+
 def generate_packet(**user_kwargs):
     correct_macs(user_kwargs)
+    if repr(user_kwargs) in packet_cache:
+        return packet_cache[repr(user_kwargs)]
     kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
     correct_sizes(kwargs) # we are producing the packet - 4 bytes fcs
     correct_direction(kwargs, kwargs)
@@ -868,8 +905,12 @@ def generate_packet(**user_kwargs):
             kwargs['mac_dst'] = None
             kwargs['mac_src_mode'] = 'fixed'
             kwargs['mac_dst_mode'] = 'fixed'
-
-        l2_layer = Ether(src = kwargs['mac_src'], dst = kwargs['mac_dst'])
+        ethernet_kwargs = {}
+        if kwargs['mac_src']:
+            ethernet_kwargs['src'] = kwargs['mac_src']
+        if kwargs['mac_dst']:
+            ethernet_kwargs['dst'] = kwargs['mac_dst']
+        l2_layer = Ether(**ethernet_kwargs)
 
         # Eth VM, change only 32 lsb
         if kwargs['mac_src_mode'] != 'fixed':
@@ -1475,6 +1516,7 @@ def generate_packet(**user_kwargs):
     debug_filename = kwargs.get('save_to_pcap')
     if type(debug_filename) is str:
         pkt.dump_pkt_to_pcap(debug_filename)
+    packet_cache[repr(user_kwargs)] = pkt
     return pkt
 
 def get_TOS(user_kwargs, kwargs):
