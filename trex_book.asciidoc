@@ -2,7 +2,7 @@ TRex
 ====
 :author: hhaim 
 :email: <hhaim@cisco.com> 
-:revnumber: 1.88
+:revnumber: 2.0
 :quotes.++:
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
@@ -79,41 +79,58 @@ TRex curretly works on x86 architecture and can operates well on Cisco UCS hardw
 =====================================
  A high-end UCS platform is not required for operating TRex in its current version, but may be required for future versions.
 =====================================
+
+[NOTE]
+=====================================
+Not all supported DPDK interfaces are supported by TRex
+=====================================
  
 
 .Preferred UCS 
 [options="header",cols="1,3"]
 |=================
 | UCS Type | Comments 
-| UCS C220 M3/M4  | Supports up to 40Gb/sec with 540-D2 and with newer Intel NIC 80Gb/sec with 1RU, recommended
+| UCS C220 M3/M4  | *Prefered, Low-End*, Supports up to 40Gb/sec with 540-D2 and with newer Intel NIC 80Gb/sec with 1RU, recommended
 | UCS C200| Early UCS model
 | UCS C210 M2 | Supports up to 40Gb/sec  PCIe3.0
-| UCS C240 M3 | Supports up to 200Gb/sec  using Intel XL710 NICS
+| UCS C240 M3/M4 | *Prefered, High-End* Supports up to 200Gb/sec. 6x XL710 NICS (PCIex8) or 2xFM10K (PCIex16) 
 | UCS C260M2 | Supports up to 30Gb/sec due to V2 PCIe. 
 |=================
 
-.Internal Components
+.Internal Components Low-End C220M4
 [options="header",cols="1,2",width="60%"]
 |=================
 | Components |  Details 
-| CPU  | 2x CPU E5-2620 
+| CPU  | 2x CPU E5-2620/2.0 GHz 
+| CPU Configuration | 2-Socket CPU configurations (can also work with one CPU)	 
+| Memory | 2x4 banks for each CPU. Total of 8 BANKS ==> 32GB	 
+| NO RAID | NO RAID
+|=================
+
+.Internal Components High-End C240M4
+[options="header",cols="1,2",width="60%"]
+|=================
+| Components |  Details 
+| CPU  | 2x CPU E5-2667 /3.20 GHz 
+| PCIe | 1x ,Riser PCI expantion card option A PID UCSC-PCI-1A-240M4 this will give the option to have two PCIex16 
 | CPU Configuration | 2-Socket CPU configurations (can also work with one CPU)	 
 | Memory | 2x4 banks for each CPU. Total of 8 BANKS ==> 32GB	 
 | NO RAID | NO RAID
 |=================
  
-.Intel NICS supported
+.Supported NICS 
 [options="header",cols="1,1,2",width="50%"]
 |=================
 | Bandwidth | Chipset |  Example
 | 1Gb/sec  | Intel I350 | Intel 4x1GE 350-T4 NIC
-| 10Gb/sec | Intel 82599  | Intel x520-D2  Cisco Order tool 2X Intel N2XX-AIPCI01, Intel X520 Dual Port 10Gb SFP+ Adapter
-| 40Gb/sec | Intel XL710 Intel X710  | QSFP+ (copper/optical), SFP+
+| 10Gb/sec | Intel 82599| Intel x520-D2 Cisco Order tool 2X Intel N2XX-AIPCI01, Intel X520 Dual Port 10Gb SFP+ Adapter
+| 10Gb/sec | Intel X710   | SFP+, *Preferred* support per stream stats in hardware 
+| 40Gb/sec | Intel XL710  | QSFP+ (copper/optical)
+| 100Gb/sec | Intel Intel FM10420  | QSFP28,  by Silicon link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[PE3100G2DQiR_96] *under dev*
 | VMXNET / +
 VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | E1000    | paravirtualize  | vmWare/KVM/VirtualBox 
 |=================
-
 
 .XL710 QSFP+ support 
 [options="header",cols="1,1",width="70%"]
@@ -127,7 +144,17 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | Active QSFP+ Copper Cables |  Cisco QSFP-4SFP10G-CU link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
 |=================
 
+[NOTE]
+=====================================
  For Intel XL710 NICS, Cisco SR4/LR QSFP+ won't work 
+=====================================
+
+.FM10K QSFP28 support 
+[options="header",cols="1,1",width="70%"]
+|=================
+| QSFP28             | Example 
+| todo  |  todo
+|=================
 
 
 [IMPORTANT]
@@ -150,7 +177,7 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
     PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc
 =====================================
 
-.Sample order for UCSC-C220-M3S with 4x10Gb ports
+.Sample order for low-end UCSC-C220-M3S with 4x10Gb ports
 [options="header",cols="2,1^",width="50%"]
 |=================
 | Component  | Amount
@@ -168,7 +195,7 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 |  UCSC-RAIL1       |  1
 |========================  
 
-NOTE: You should buy seperatly the 10Gb/sec SFP+, Cisco would be fine with TRex ( but not for plain Linux driver ).
+NOTE: You should buy seperatly the 10Gb/sec SFP+, Cisco would be fine with TRex (but not for plain Linux driver).
 
 === Install OS 
 
