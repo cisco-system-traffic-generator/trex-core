@@ -262,3 +262,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
 
+    def test_multicore_scheduling (self):
+        mc_tests = ['stl/tests/single_cont.py',
+                    'stl/tests/single_burst.py',
+                    'stl/tests/multi_burst.py',
+                    'stl/tests/many_streams.py',
+                   ]
+
+        for mc_test in mc_tests:
+            rc = self.run_sim(mc_test, output = None, options = '--test_multi_core --limit=3840', silent = True)
+            assert_equal(rc, True)
+
