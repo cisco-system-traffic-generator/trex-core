@@ -52,7 +52,8 @@ public:
         ccGPP='p',
         ccGAP='a',
         ccGL='l',
-        ccGRC='r'
+        ccGRC='r',
+        ccMem='m'
     };
 
     enum CliDumpMode {
@@ -65,7 +66,9 @@ public:
     enum Global {
       gDISABLE=0, // no print at all 
       gHELP=1,    // help
-      gNORMAL=2   // normal 
+      gNORMAL=2,   // normal 
+      gMem=3
+
     };
 
     typedef uint8_t Global_t;

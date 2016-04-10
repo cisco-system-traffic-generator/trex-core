@@ -729,6 +729,7 @@ public:
 public:
     CParserOption(){
         m_factor=1.0;
+        m_mbuf_factor=1.0;
         m_duration=0.0;
         m_latency_rate =0;
         m_latency_mask =0xffffffff;
@@ -753,6 +754,7 @@ public:
 
     CPreviewMode    preview;
     float           m_factor;
+    float           m_mbuf_factor;
     float           m_duration;
     float           m_platform_factor;
     uint16_t		m_vlan_port[2]; /* vlan value */
@@ -845,8 +847,8 @@ class  CGlobalMemory {
 public:
     CGlobalMemory(){
         CPlatformMemoryYamlInfo info;
-        set(info,1.0);
         m_num_cores=1;
+        m_pool_cache_size=32;
     }
     void set(const CPlatformMemoryYamlInfo &info,float mul);
 
@@ -861,11 +863,16 @@ public:
         m_num_cores = cores;
     }
 
+    void set_pool_cache_size(uint32_t pool_cache){
+        m_pool_cache_size=pool_cache;
+    }
+
     void Dump(FILE *fd);
 
 public:
-    uint32_t         m_mbuf[MBUF_SIZE]; // relative to traffic norm to 2x10G ports
+    uint32_t         m_mbuf[MBUF_ELM_SIZE]; // relative to traffic norm to 2x10G ports
     uint32_t         m_num_cores;
+    uint32_t         m_pool_cache_size;
 
 };
 
@@ -1141,6 +1148,14 @@ public:
 
     void dump_in_case_of_error(FILE *fd);
 
+    std::string dump_as_json(uint8_t id,bool last);
+
+private:
+        std::string add_to_json(std::string name,
+                                rte_mempool_t * pool,
+                                bool last=false);
+
+
 public:
     rte_mempool_t *   m_small_mbuf_pool; /* pool for start packets */
 
@@ -1227,9 +1242,13 @@ public:
         return (res);
     }
 
+
     static inline void free_node(CGenNode *p){
         rte_mempool_put(m_mem_pool[0].m_mbuf_global_nodes, p);
     }
+
+
+    static std::string dump_pool_as_json(void);
 
 
 public:

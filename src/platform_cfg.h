@@ -29,7 +29,7 @@ limitations under the License.
 #include <string>
 
 
-#define CONST_NB_MBUF_2_10G  (16380/4)
+#define CONST_NB_MBUF_2_10G  (16380/2)
 
 typedef enum {         MBUF_64        , // per dual port, per NUMA
 
@@ -55,7 +55,7 @@ typedef enum {         MBUF_64        , // per dual port, per NUMA
 
                        MBUF_DP_FLOWS        ,
                        MBUF_GLOBAL_FLOWS    , 
-                       MBUF_SIZE         
+                       MBUF_ELM_SIZE         
               } mbuf_sizes_t;
 
 const std::string * get_mbuf_names(void);
@@ -157,7 +157,7 @@ public:
     CPlatformMemoryYamlInfo(){
         reset();
     }
-    uint32_t         m_mbuf[MBUF_SIZE]; // relative to traffic norm to 2x10G ports 
+    uint32_t         m_mbuf[MBUF_ELM_SIZE]; // relative to traffic norm to 2x10G ports 
 
 public:
     void Dump(FILE *fd);

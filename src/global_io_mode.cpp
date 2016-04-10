@@ -96,7 +96,16 @@ bool CTrexGlobalIoMode::handle_io_modes(void){
                 m_rc_mode = rcDISABLE;
             }
             break;
+        case ccMem:
+            if ( m_g_mode==gNORMAL ){
+                m_g_mode=gMem;
+            }else{
+                m_g_mode=gNORMAL;
+            }
+            break;
         }
+
+
     }
     return false;
 }
@@ -121,6 +130,7 @@ void CTrexGlobalIoMode::DumpHelp(FILE *fd){
         fprintf(fd,"  a  : Global ports Toggle mode, disable -> enable \n");
         fprintf(fd,"  l  : Latency      Toggle mode, disable -> enable -> enhanced  \n");
         fprintf(fd,"  r  : Rx check  Toggle mode, disable -> enable -> enhanced  \n");
+        fprintf(fd,"  m  : memory stats , disable -> enable   \n");
         fprintf(fd,"  Press h or 1 to go back to Normal mode \n");
 }
 

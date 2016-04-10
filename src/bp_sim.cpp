@@ -65,7 +65,7 @@ void CGlobalMemory::Dump(FILE *fd){
     uint32_t c_total=0;
 
     int i=0; 
-    for (i=0; i<MBUF_SIZE; i++) {
+    for (i=0; i<MBUF_ELM_SIZE; i++) {
         if ( (i>MBUF_9k) && (i<MBUF_DP_FLOWS)){
             continue;
         }
@@ -85,7 +85,7 @@ void CGlobalMemory::Dump(FILE *fd){
 
 void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
     int i;
-    for (i=0; i<MBUF_SIZE; i++) {
+    for (i=0; i<MBUF_ELM_SIZE; i++) {
         m_mbuf[i]=(uint32_t)((float)info.m_mbuf[i]*mul);
     }
     /* no need to multiply */
@@ -97,6 +97,15 @@ void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
     m_mbuf[MBUF_2048] += info.m_mbuf[TRAFFIC_MBUF_2048];
     m_mbuf[MBUF_4096] += info.m_mbuf[TRAFFIC_MBUF_4096];
     m_mbuf[MBUF_9k]   += info.m_mbuf[MBUF_9k];
+
+    for (i=0; i<MBUF_1024; i++) {
+        float per_queue_factor= (float)m_mbuf[i]/((float)m_pool_cache_size*(float)m_num_cores);
+        if (per_queue_factor<2.0) {
+            printf("WARNING not enough mbuf memory for this configuration trying to auto update\n");
+            printf(" %d : %f \n",(int)i,per_queue_factor);
+            m_mbuf[i]=(uint32_t)(m_mbuf[i]*2.0/per_queue_factor);
+        }
+    }
 }
 
 
@@ -487,6 +496,42 @@ void CRteMemPool::dump_in_case_of_error(FILE *fd){
     dump(fd);
 }
 
+std::string CRteMemPool::add_to_json(
+                              std::string name,
+                              rte_mempool_t * pool,
+                              bool last){
+    uint32_t p_free = rte_mempool_count(pool);
+    uint32_t p_size = pool->size;
+    char buff[200];
+    sprintf(buff,"\"%s\":[%llu,%llu]",name.c_str(),(unsigned long long)p_free,(unsigned long long)p_size);
+    std::string json = std::string(buff) + (last?std::string(""):std::string(","));
+    return (json);
+}
+
+
+std::string CRteMemPool::dump_as_json(uint8_t id,bool last){
+
+    char buff[200];
+    sprintf(buff,"\"socket-%d\":{", (int)id);
+
+    std::string json=std::string(buff);
+
+    json+=add_to_json("64b",m_small_mbuf_pool);
+    json+=add_to_json("128b",m_mbuf_pool_128);
+    json+=add_to_json("256b",m_mbuf_pool_256);
+    json+=add_to_json("512b",m_mbuf_pool_512);
+    json+=add_to_json("1024b",m_mbuf_pool_1024);
+    json+=add_to_json("2048b",m_mbuf_pool_2048);
+    json+=add_to_json("4096b",m_mbuf_pool_4096);
+    json+=add_to_json("9kb",m_mbuf_pool_9k,true);
+
+    json+="}" ;
+    if (last==false) {
+        json+="," ;
+    }
+    return (json);
+}
+
 
 void CRteMemPool::dump(FILE *fd){
     #define DUMP_MBUF(a,b)  { float p=(100.0*(float)rte_mempool_count(b)/(float)b->size); fprintf(fd," %-30s  : %.2f %%   %s \n",a,p,(p<5.0?"<-":"OK") ); }
@@ -503,6 +548,29 @@ void CRteMemPool::dump(FILE *fd){
 }
 ////////////////////////////////////////
 
+
+std::string CGlobalInfo::dump_pool_as_json(void){
+
+    std::string json="\"mbuf_stats\":{";
+    CPlatformSocketInfo * lpSocket =&m_socket;
+    int last_socket=-1;
+
+    /* calc the last socket */
+    int i;
+    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
+        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
+            last_socket=i;
+        }
+    }
+
+    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
+        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
+            json+=m_mem_pool[i].dump_as_json(i,last_socket==i?true:false);
+        }
+    }
+    json+="},";
+    return json;
+}
 
 void CGlobalInfo::free_pools(){
     CPlatformSocketInfo * lpSocket =&m_socket;
@@ -4514,6 +4582,7 @@ void CParserOption::dump(FILE *fd){
     fprintf(fd," out file    : %s \n",out_file.c_str());
     fprintf(fd," duration    : %.0f \n",m_duration);
     fprintf(fd," factor      : %.0f \n",m_factor);
+    fprintf(fd," mbuf_factor : %.0f \n",m_mbuf_factor);
     fprintf(fd," latency     : %d pkt/sec \n",m_latency_rate);
     fprintf(fd," zmq_port    : %d \n",m_zmq_port);
     fprintf(fd," telnet_port : %d \n",m_telnet_port);

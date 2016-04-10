@@ -516,7 +516,7 @@ enum { OPT_HELP,
        OPT_PUB_DISABLE,
        OPT_LIMT_NUM_OF_PORTS,
        OPT_PLAT_CFG_FILE,
-
+       OPT_MBUF_FACTOR,
 
        OPT_LATENCY,
        OPT_NO_CLEAN_FLOW_CLOSE,
@@ -601,6 +601,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_PREFIX, "--prefix", SO_REQ_SEP },
         { OPT_MAC_SPLIT, "--mac-spread", SO_REQ_SEP },
         { OPT_SEND_DEBUG_PKT, "--send-debug-pkt", SO_REQ_SEP },
+        { OPT_MBUF_FACTOR     , "--mbuf-factor",  SO_REQ_SEP },
+
 
         SO_END_OF_OPTIONS
     };
@@ -699,6 +701,7 @@ static int usage(){
     printf(" --mac-spread               : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
     printf("                             maximum is up to 128 devices   \n");
 
+    printf(" --mbuf-factor              : factor for packet memory \n");
 
     printf("\n simulation mode : \n");
     printf(" Using this mode you can generate the traffic into a pcap file and learn how trex works \n");
@@ -891,6 +894,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 a=atoi(args.OptionArg());
                 node_dump=1;
                 po->preview.setFileWrite(false);
+                break;
+            case OPT_MBUF_FACTOR:
+                sscanf(args.OptionArg(),"%f", &po->m_mbuf_factor);
                 break;
             case OPT_BW_FACTOR :
                 sscanf(args.OptionArg(),"%f", &po->m_factor);
@@ -2343,7 +2349,7 @@ public:
 public:
     void Dump(FILE *fd,DumpFormat mode);
     void DumpAllPorts(FILE *fd);
-    void dump_json(std::string & json, bool baseline);
+    void dump_json(std::string & json, bool baseline,uint32_t stats_tick);
 private:
     std::string get_field(std::string name,float &f);
     std::string get_field(std::string name,uint64_t &f);
@@ -2377,7 +2383,7 @@ std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
 }
 
 
-void CGlobalStats::dump_json(std::string & json, bool baseline){
+void CGlobalStats::dump_json(std::string & json, bool baseline,uint32_t stats_tick){
     /* refactor this to JSON */
 
     json="{\"name\":\"trex-global\",\"type\":0,";
@@ -2438,6 +2444,10 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
         json+=GET_FIELD_PORT(i,m_total_rx_pps);
     }
     json+=m_template.dump_as_json("template");
+    if ( stats_tick %4==0){
+        json+=CGlobalInfo::dump_pool_as_json(); /* no need a feq update beacuse it trash the cores D cache, once in 2 sec */
+    }
+
     json+="\"unknown\":0}}"  ;
 }
 
@@ -2724,6 +2734,7 @@ private:
     CLatencyPktInfo     m_latency_pkt;
     TrexPublisher       m_zmq_publisher;
     CGlobalStats        m_stats;
+    uint32_t            m_stats_cnt;
     std::mutex          m_cp_lock;
 
 public:
@@ -3094,6 +3105,7 @@ int  CGlobalTRex::ixgbe_start(void){
 bool CGlobalTRex::Create(){
     CFlowsYamlInfo     pre_yaml_info;
 
+    m_stats_cnt =0;
     if (!get_is_stateless()) {
         pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
     }
@@ -3652,7 +3664,7 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
         get_stats(m_stats);
     }
 
-    m_stats.dump_json(json, baseline);
+    m_stats.dump_json(json, baseline,m_stats_cnt);
     m_zmq_publisher.publish_json(json);
 
     /* generator json , all cores are the same just sample the first one */
@@ -3700,6 +3712,8 @@ int CGlobalTRex::run_in_master() {
     std::unique_lock<std::mutex> cp_lock(m_cp_lock);
 
     while ( true ) {
+        m_stats_cnt+=1;
+
 
         if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ){
             if ( m_io_modes.handle_io_modes() ){
@@ -3744,6 +3758,13 @@ int CGlobalTRex::run_in_master() {
             fprintf (stdout," test duration   : %.1f sec  \n",d);
         }
 
+        if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gMem) {
+
+            if ( m_stats_cnt%4==0){
+                fprintf (stdout," %s \n",CGlobalInfo::dump_pool_as_json().c_str());
+            }
+        }
+
 
         if ( CGlobalInfo::m_options.is_rx_enabled() ){
             m_mg.update();
@@ -3783,6 +3804,8 @@ int CGlobalTRex::run_in_master() {
 
             }
         }
+
+
 
         /* publish data */
         publish_async_data(false);
@@ -4256,9 +4279,15 @@ int update_global_info_from_platform_file(){
     mul = mul*(float)cg->m_port_bandwidth_gb/10.0;
     mul= mul * (float)cg->m_port_limit/2.0;
 
-    CGlobalInfo::m_memory_cfg.set(cg->m_memory,mul);
+    mul= mul * CGlobalInfo::m_options.m_mbuf_factor;
+
+
+    CGlobalInfo::m_memory_cfg.set_pool_cache_size(RTE_MEMPOOL_CACHE_MAX_SIZE);
+
     CGlobalInfo::m_memory_cfg.set_number_of_dp_cors(
                                                     CGlobalInfo::m_options.get_number_of_dp_cores_needed() );
+
+    CGlobalInfo::m_memory_cfg.set(cg->m_memory,mul);
     return (0);
 }
 

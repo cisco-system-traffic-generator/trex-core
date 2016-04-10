@@ -28,10 +28,11 @@ limitations under the License.
 void CPlatformMemoryYamlInfo::reset(){
        int i;
        i=0;
-       for (i=0; i<MBUF_SIZE; i++) {
+       for (i=0; i<MBUF_ELM_SIZE; i++) {
            m_mbuf[i] = CONST_NB_MBUF_2_10G;
        }
        m_mbuf[MBUF_64]           = m_mbuf[MBUF_64]*2;
+
        m_mbuf[MBUF_2048]         = CONST_NB_MBUF_2_10G/2;
 
        m_mbuf[MBUF_4096]         = 128;
@@ -39,6 +40,8 @@ void CPlatformMemoryYamlInfo::reset(){
 
 
        m_mbuf[TRAFFIC_MBUF_64]           = m_mbuf[MBUF_64] * 4;
+       m_mbuf[TRAFFIC_MBUF_128]           = m_mbuf[MBUF_128] * 4;
+
        m_mbuf[TRAFFIC_MBUF_2048]         = CONST_NB_MBUF_2_10G * 8;
 
        m_mbuf[TRAFFIC_MBUF_4096]         = 128;
@@ -140,7 +143,7 @@ void CPlatformMemoryYamlInfo::Dump(FILE *fd){
     const std::string * names =get_mbuf_names();
 
     int i=0;
-    for (i=0; i<MBUF_SIZE; i++) {
+    for (i=0; i<MBUF_ELM_SIZE; i++) {
         fprintf(fd," %-40s  : %lu \n",names[i].c_str(), (ulong)m_mbuf[i]);
     }
 }
