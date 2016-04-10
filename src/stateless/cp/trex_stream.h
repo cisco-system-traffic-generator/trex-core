@@ -401,6 +401,7 @@ public:
         set_multi_burst(burst_total_pkts,1,0.0); 
     }
 
+
     /* create new stream */
     TrexStream * clone(bool full = false) const {
 
@@ -422,7 +423,11 @@ public:
         }
 
         dp->m_isg_usec                = m_isg_usec;
-        dp->m_delay_next_stream_sec   = m_delay_next_stream_sec;
+
+        /* multi core phase paramters */
+        dp->m_mc_phase_pre_sec            = m_mc_phase_pre_sec;
+        dp->m_mc_phase_post_sec           = m_mc_phase_post_sec;
+
         dp->m_next_stream_id          = m_next_stream_id;
 
         dp->m_enabled    = m_enabled;
@@ -457,7 +462,7 @@ public:
         return ( (m_burst_total_pkts / get_pps()) * 1000 * 1000);
     }
 
-    double get_ipg() {
+    double get_ipg_sec() {
         return (1.0 / get_pps());
     }
    
@@ -502,7 +507,9 @@ public:
     
 
     /* config fields */
-    double        m_delay_next_stream_sec;
+    double        m_mc_phase_pre_sec;
+    double        m_mc_phase_post_sec;
+
     double        m_isg_usec;
     int           m_next_stream_id;
 

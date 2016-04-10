@@ -144,7 +144,7 @@ public:
 
     /* we restart the stream, schedule it using stream isg */
     inline void update_refresh_time(double cur_time){
-        m_time = cur_time + usec_to_sec(m_ref_stream_info->m_isg_usec);
+        m_time = cur_time + usec_to_sec(m_ref_stream_info->m_isg_usec) + m_ref_stream_info->m_mc_phase_pre_sec;
     }
 
     inline bool is_mask_for_free(){
@@ -236,8 +236,7 @@ public:
                 set_state(CGenNodeStateless::ss_INACTIVE);
                 if ( thread->set_stateless_next_node(this,m_next_stream) ){
                     /* update the next stream time using isg */
-                    //m_next_stream->update_refresh_time(m_time + m_next_time_offset);
-                    m_next_stream->update_refresh_time(m_time + m_ref_stream_info->m_delay_next_stream_sec);
+                    m_next_stream->update_refresh_time(m_time + m_ref_stream_info->m_mc_phase_post_sec);
 
                     thread->m_node_gen.m_p_queue.push( (CGenNode *)m_next_stream);
                 }else{
@@ -246,7 +245,7 @@ public:
                 }
 
             }else{
-                m_time += get_multi_ibg_sec();
+                m_time += get_multi_ibg_sec() + m_ref_stream_info->m_mc_phase_post_sec + m_ref_stream_info->m_mc_phase_pre_sec;
                 m_single_burst = m_single_burst_refill;
                 thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
             }

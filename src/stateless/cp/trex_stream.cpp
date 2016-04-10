@@ -135,7 +135,8 @@ TrexStream::TrexStream(uint8_t type,
     m_enabled           = false;
     m_self_start        = false;
 
-    m_delay_next_stream_sec  = 0;
+    m_mc_phase_pre_sec           = 0;
+    m_mc_phase_post_sec          = 0;
 
     m_pkt.binary       = NULL;
     m_pkt.len          = 0;

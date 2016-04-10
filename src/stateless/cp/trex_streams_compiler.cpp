@@ -586,6 +586,11 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
 
     int per_core_burst_total_pkts = (stream->m_burst_total_pkts / dp_core_count);
     int burst_remainder           = (stream->m_burst_total_pkts % dp_core_count);
+    bool has_remainder            = (burst_remainder > 0);
+    int remainder_left            = burst_remainder;
+
+    double base_ipg_sec     = factor * stream->get_ipg_sec();
+
 
     /* for each core - creates its own version of the stream */
     for (uint8_t i = 0; i < dp_core_count; i++) {
@@ -594,30 +599,32 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
         /* fix stream ID */
         dp_stream->fix_dp_stream_id(new_id, new_next_id);
 
+        /* some phase */
+        dp_stream->m_mc_phase_pre_sec = base_ipg_sec * i;
+
 
         /* each core gets a share of the packets */
         dp_stream->m_burst_total_pkts  = per_core_burst_total_pkts;
-
-        /* core 0 also gets the remainder */
-        if (i == 0) {
-            dp_stream->m_burst_total_pkts += burst_remainder;
-        }
-
-        /* for continous the rate is divided by the cores */
-        if (stream->m_type == TrexStream::stCONTINUOUS) {
-            dp_stream->update_rate_factor(factor / dp_core_count);
-        } else {
-            /* rate is according to the share of the packetes the core got */
-            dp_stream->update_rate_factor(factor * (dp_stream->m_burst_total_pkts / double(stream->m_burst_total_pkts)));
-        }
+      
+        /* rate is slower * dp_core_count */
+        dp_stream->update_rate_factor(factor / dp_core_count);
         
 
-        //dp_stream->m_pkt.binary[14 + 20] = 0;
-        //dp_stream->m_pkt.binary[14 + 21] = i;
-
-        /* some phase */
-        dp_stream->m_isg_usec              += (stream->get_ipg() * i) * 1e6;
-        dp_stream->m_delay_next_stream_sec = stream->get_ipg() * (dp_core_count - 1 - i);
+        /* allocate the rest of the packets */
+        if (has_remainder) {
+            if (remainder_left > 0) {
+                dp_stream->m_burst_total_pkts++;
+                remainder_left--;
+                dp_stream->m_mc_phase_post_sec = base_ipg_sec * remainder_left;
+            } else {
+                /* a delay slot if no packets left */
+                dp_stream->m_mc_phase_post_sec = base_ipg_sec * (dp_core_count - 1 - i + burst_remainder);
+            }
+            
+        } else {
+            /* if no remainder (or continous) simply add a reverse phase */
+            dp_stream->m_mc_phase_post_sec = base_ipg_sec * (dp_core_count - 1 - i);
+        }
 
         core_streams[i] = dp_stream;
     }
