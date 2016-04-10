@@ -305,6 +305,6 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                    ]
 
         for mc_test in mc_tests:
-            rc = self.run_sim(mc_test, output = None, options = '--test_multi_core --limit=3840', silent = True)
+            rc = self.run_sim(mc_test, output = None, options = '--test_multi_core --limit=3840 -m 27kpps', silent = True)
             assert_equal(rc, True)
 

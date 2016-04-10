@@ -550,17 +550,17 @@ TrexStreamsCompiler::compile_stream(TrexStream *stream,
     // change the packet kept in the stream). We want the state to be saved in the original stream.
     get_stateless_obj()->m_rx_flow_stat.copy_state(fixed_rx_flow_stat_stream, stream);
 
+    fixed_rx_flow_stat_stream->update_rate_factor(factor);
+
     /* can this stream be split to many cores ? */
     if ( (dp_core_count == 1) || (!stream->is_splitable(dp_core_count)) ) {
         compile_stream_on_single_core(fixed_rx_flow_stat_stream,
-                                      factor,
                                       dp_core_count,
                                       objs,
                                       new_id,
                                       new_next_id);
     } else {
         compile_stream_on_all_cores(fixed_rx_flow_stat_stream,
-                                    factor,
                                     dp_core_count,
                                     objs,
                                     new_id,
@@ -576,7 +576,6 @@ TrexStreamsCompiler::compile_stream(TrexStream *stream,
  */
 void
 TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
-                                                 double factor,
                                                  uint8_t dp_core_count,
                                                  std::vector<TrexStreamsCompiledObj *> &objs,
                                                  int new_id,
@@ -589,7 +588,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
     int remainder_left            = burst_remainder;
 
     /* this is the stream base IPG (pre split) */
-    double base_ipg_sec     = factor * stream->get_ipg_sec();
+    double base_ipg_sec     = stream->get_ipg_sec();
 
 
     /* for each core - creates its own version of the stream */
@@ -607,7 +606,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
         dp_stream->m_burst_total_pkts  = per_core_burst_total_pkts;
       
         /* rate is slower * dp_core_count */
-        dp_stream->update_rate_factor(factor / dp_core_count);
+        dp_stream->update_rate_factor(1.0 / dp_core_count);
         
 
         if (remainder_left > 0) {
@@ -641,7 +640,6 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
  */
 void
 TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
-                                                   double factor,
                                                    uint8_t dp_core_count,
                                                    std::vector<TrexStreamsCompiledObj *> &objs,
                                                    int new_id,

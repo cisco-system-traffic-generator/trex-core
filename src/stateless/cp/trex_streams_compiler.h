@@ -147,14 +147,12 @@ private:
                         GraphNodeMap &nodes);
 
     void compile_stream_on_single_core(TrexStream *stream,
-                                       double factor,
                                        uint8_t dp_core_count,
                                        std::vector<TrexStreamsCompiledObj *> &objs,
                                        int new_id,
                                        int new_next_id);
 
     void compile_stream_on_all_cores(TrexStream *stream,
-                                     double factor,
                                      uint8_t dp_core_count,
                                      std::vector<TrexStreamsCompiledObj *> &objs,
                                      int new_id,
