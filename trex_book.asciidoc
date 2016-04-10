@@ -1704,8 +1704,28 @@ enabled=0
 There are lots of Linux tutorials on the web, so this will not be full tutorial, only highlighting some key points. Commands
 were checked on Ubuntu system.
 
+For this example:
+
+1. TRex Client side network is 16.0.0.x 
+2. TRex Server side network is 48.0.0.x 
+3. Linux Client side network eth0 is configured with IPv4 as 172.168.0.1 
+4. Linux Server side network eth1 is configured with IPv4 as 10.0.0.1 
+
+[source,bash]
+----
+
+  TRex-0 (16.0.0.1->48.0.0.1 )   <-->
+
+                ( 172.168.0.1/255.255.0.0)-eth0 [linux] -( 10.0.0.1/255.255.0.0)-eth1 
+
+                <--> TRex-1 (16.0.0.1<-48.0.0.1)
+  
+----
+
+
 ==== Enable forwarding
 One time (will be discarded after reboot): +
+
 [source,bash]
 ----
 echo 1 > /proc/sys/net/ipv4/ip_forward
