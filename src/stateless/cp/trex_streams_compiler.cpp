@@ -481,7 +481,7 @@ TrexStreamsCompiler::compile_on_single_core(uint8_t                             
             continue;
         }
      
-        /* compile a single stream to all cores */
+        /* compile the stream for only one core */
         compile_stream(stream, factor, 1, objs, nodes);
     }
 }
@@ -585,10 +585,10 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
     std::vector<TrexStream *> core_streams(dp_core_count);
 
     int per_core_burst_total_pkts = (stream->m_burst_total_pkts / dp_core_count);
-    int burst_remainder           = (stream->m_burst_total_pkts % dp_core_count);
-    bool has_remainder            = (burst_remainder > 0);
+    const int burst_remainder     = (stream->m_burst_total_pkts % dp_core_count);
     int remainder_left            = burst_remainder;
 
+    /* this is the stream base IPG (pre split) */
     double base_ipg_sec     = factor * stream->get_ipg_sec();
 
 
@@ -599,7 +599,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
         /* fix stream ID */
         dp_stream->fix_dp_stream_id(new_id, new_next_id);
 
-        /* some phase */
+        /* some phase is added to avoid all the cores TXing at once */
         dp_stream->m_mc_phase_pre_sec = base_ipg_sec * i;
 
 
@@ -610,21 +610,16 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
         dp_stream->update_rate_factor(factor / dp_core_count);
         
 
-        /* allocate the rest of the packets */
-        if (has_remainder) {
-            if (remainder_left > 0) {
-                dp_stream->m_burst_total_pkts++;
-                remainder_left--;
-                dp_stream->m_mc_phase_post_sec = base_ipg_sec * remainder_left;
-            } else {
-                /* a delay slot if no packets left */
-                dp_stream->m_mc_phase_post_sec = base_ipg_sec * (dp_core_count - 1 - i + burst_remainder);
-            }
-            
+        if (remainder_left > 0) {
+            dp_stream->m_burst_total_pkts++;
+            remainder_left--;
+            /* this core needs to wait to the rest of the cores that will participate in the last round */
+            dp_stream->m_mc_phase_post_sec = base_ipg_sec * remainder_left;
         } else {
-            /* if no remainder (or continous) simply add a reverse phase */
-            dp_stream->m_mc_phase_post_sec = base_ipg_sec * (dp_core_count - 1 - i);
+            /* this core did not participate in the last round so it will wait its current round's left + burst_remainder */
+            dp_stream->m_mc_phase_post_sec = base_ipg_sec * (dp_core_count - 1 - i + burst_remainder);
         }
+
 
         core_streams[i] = dp_stream;
     }
@@ -662,9 +657,6 @@ TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
         stream->vm_compile();
         dp_stream->m_vm_dp = stream->m_vm_dp->clone();
     }
-
-    //dp_stream->m_pkt.binary[14 + 20] = 0;
-    //dp_stream->m_pkt.binary[14 + 21] = 0;
 
     /* update core 0 with the real stream */
     objs[0]->add_compiled_stream(dp_stream);

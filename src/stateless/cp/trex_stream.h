@@ -360,10 +360,6 @@ public:
         m_null_stream = enable;
     }
 
-    bool get_null_stream() {
-        return m_null_stream;
-    }
-
     uint8_t get_type(void) const {
         return ( m_type );
     }

@@ -447,7 +447,7 @@ def compare_caps (cap1, cap2, max_diff_sec = (5 * 1e-6)):
     pkts2 = list(RawPcapReader(cap2))
 
     if len(pkts1) != len(pkts2):
-        print('{0} contains {1} packets vs. {1} contains {2} packets'.format(cap1, len(pkts1), cap2, len(pkts2)))
+        print('{0} contains {1} packets vs. {2} contains {3} packets'.format(cap1, len(pkts1), cap2, len(pkts2)))
         return False
 
     # to be less strict we define equality if all packets from cap1 exists and in cap2
