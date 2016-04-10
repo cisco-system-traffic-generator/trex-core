@@ -15,7 +15,7 @@ class STLS1(object):
         base_pkt_a = Ether()/IP()/IPv6()/IP(dst="48.0.0.1",options=IPOption(b'\x01\x01\x01\x00'))/UDP(dport=12,sport=1025)
 
         vm1 = STLScVmRaw([
-                          STLVmFlowVar(name="src",min_value="10.0.0.1",max_value="10.0.0.10",size=4,op="inc"),
+                          STLVmFlowVar(name="src",min_value="16.0.0.1",max_value="16.0.0.10",size=4,op="inc"),
                           STLVmWrFlowVar(fv_name="src",pkt_offset= "IP:1.src"),
                            # checksum
                           STLVmFixIpv4(offset = "IP:1")

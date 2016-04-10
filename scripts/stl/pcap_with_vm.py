@@ -34,7 +34,7 @@ class STLPcap(object):
                      ipg_usec = 10.0,
                      loop_count = 5,
                      ip_src_range = None,
-                     ip_dst_range = {'start' : '10.0.0.1', 'end': '10.0.0.254'},
+                     ip_dst_range = {'start' : '16.0.0.1', 'end': '16.0.0.254'},
                      **kwargs):
 
         vm = self.create_vm(ip_src_range, ip_dst_range)

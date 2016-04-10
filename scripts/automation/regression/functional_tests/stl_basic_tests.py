@@ -9,8 +9,16 @@ from nose.plugins.attrib import attr
 from trex import CTRexScenario
 from trex_stl_lib import trex_stl_sim
 from trex_stl_lib.trex_stl_streams import STLProfile
-from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWriter
+from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWriter, Ether
+from trex_stl_lib.utils.text_opts import *
+
 import sys
+
+if sys.version_info > (3,0):
+    from io import StringIO
+else:
+    from cStringIO import StringIO
+
 import os
 import subprocess
 import shlex
@@ -64,9 +72,18 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             raise Exception("cannot find '{0}'".format(name))
 
 
-    def compare_caps (self, cap1, cap2, max_diff_sec = 0.01):
-        pkts1 = list(RawPcapReader(cap1))
-        pkts2 = list(RawPcapReader(cap2))
+    def scapy_pkt_show_to_str (self, scapy_pkt):
+        capture = StringIO()
+        save_stdout = sys.stdout
+        sys.stdout = capture
+        scapy_pkt.show()
+        sys.stdout = save_stdout
+        return capture.getvalue()
+
+
+    def compare_caps (self, output, golden, max_diff_sec = 0.01):
+        pkts1 = list(RawPcapReader(output))
+        pkts2 = list(RawPcapReader(golden))
 
         assert_equal(len(pkts1), len(pkts2))
 
@@ -75,11 +92,29 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ts2 = float(pkt2[1][0]) + (float(pkt2[1][1]) / 1e6)
 
             if abs(ts1-ts2) > 0.000005: # 5 nsec
-                raise AssertionError("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'".format(cap1, cap2, i, ts1, ts2))
+                raise AssertionError("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'".format(output, golden, i, ts1, ts2))
 
             if pkt1[0] != pkt2[0]:
-                raise AssertionError("RAW error: cap files '{0}', '{1}' differ in cap #{2}".format(cap1, cap2, i))
+                errmsg = "RAW error: output file '{0}', differs from golden '{1}' in cap #{2}".format(output, golden, i)
+                print(errmsg)
 
+                print(format_text("\ndifferent fields for packet #{0}:".format(i), 'underline'))
+
+                scapy_pkt1_info = self.scapy_pkt_show_to_str(Ether(pkt1[0])).split('\n')
+                scapy_pkt2_info = self.scapy_pkt_show_to_str(Ether(pkt2[0])).split('\n')
+
+                print(format_text("\nGot:\n", 'bold', 'underline'))
+                for line, ref in zip(scapy_pkt1_info, scapy_pkt2_info):
+                    if line != ref:
+                        print(format_text(line, 'bold'))
+                
+                print(format_text("\nExpected:\n", 'bold', 'underline'))
+                for line, ref in zip(scapy_pkt2_info, scapy_pkt1_info):
+                    if line != ref:
+                        print(format_text(line, 'bold'))
+
+                print("\n")
+                raise AssertionError(errmsg)
 
 
     def run_sim (self, yaml, output, options = "", silent = False, obj = None):
