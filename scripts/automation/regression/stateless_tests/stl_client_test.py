@@ -240,22 +240,29 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
-        # need promiscious for this one...
-        if self.is_virt_nics or not self.is_loopback:
-            self.skip('skipping profile tests for virtual NICs')
-            return
 
         try:
-            self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
-
+            
             for profile in self.profiles:
+
                 print("now testing profile {0}...\n").format(profile)
 
                 p1 = STLProfile.load(profile, port_id = self.tx_port)
                 p2 = STLProfile.load(profile, port_id = self.rx_port)
 
+                # if profile contains custom MAC addrs we need promiscuous mode
+                # but virtual NICs does not support promiscuous mode
+                self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
+
+                if p1.has_custom_mac_addr():
+                    if not self.is_virt_nics:
+                        self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
+                    else:
+                        print("\n*** profile needs promiscuous mode but running on virtual NICs - skipping... ***\n")
+                        continue
+
                 if p1.has_flow_stats():
-                    print("profile needs RX caps - skipping...")
+                    print("\n*** profile needs RX caps - skipping... ***\n")
                     continue
 
                 self.c.add_streams(p1, ports = self.tx_port)
@@ -280,9 +287,8 @@ class STLClient_Test(CStlGeneral_Test):
                 assert self.tx_port in stats, '{0} - no stats for TX port'.format(profile)
                 assert self.rx_port in stats, '{0} - no stats for RX port'.format(profile)
 
-                assert stats[self.tx_port]['opackets'] == stats[self.rx_port]['ipackets'], '{0} - number of TX packets differ from RX packets'.format(profile)
-
-                assert stats[self.rx_port]['opackets'] == stats[self.tx_port]['ipackets'], '{0} - number of TX packets differ from RX packets'.format(profile)
+                self.verify(stats[self.tx_port]['opackets'], stats[self.rx_port]['ipackets'])
+                self.verify(stats[self.rx_port]['opackets'], stats[self.tx_port]['ipackets'])
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
 

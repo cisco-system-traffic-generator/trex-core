@@ -63,12 +63,6 @@ limitations under the License.
 
 #undef NAT_TRACE_
 
-static inline double
-usec_to_sec(double usec) {
-    return (usec / (1000 * 1000));
-}
-
-
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 
 /* IP address, last 32-bits of IPv6 remaps IPv4 */
@@ -2033,6 +2027,7 @@ public:
     CFlowGenListPerThread  *  m_parent;
     CPreviewMode              m_preview_mode;
     uint64_t                  m_cnt;
+    uint64_t                  m_non_active;
     uint64_t                  m_limit;
     CTimeHistogram            m_realtime_his;
 };

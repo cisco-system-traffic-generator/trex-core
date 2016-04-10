@@ -122,26 +122,31 @@ test_rx_check_sfr:
     multiplier        : 25
     cores             : 4
     rx_sample_rate    : 32
+    error_tolerance   : 0.01
 
 test_rx_check_http:
     multiplier        : 40000
     cores             : 2
     rx_sample_rate    : 32
+    error_tolerance   : 0.01
 
 test_rx_check_sfr_ipv6:
     multiplier        : 25
     cores             : 4
     rx_sample_rate    : 32
+    error_tolerance   : 0.01
 
 test_rx_check_http_ipv6:
     multiplier        : 40000
     cores             : 2
     rx_sample_rate    : 32
+    error_tolerance   : 0.01
 
 test_rx_check_http_negative:
     multiplier        : 40000
     cores             : 2
     rx_sample_rate    : 32
+    error_tolerance   : 0.01
 
 test_jumbo:
     multiplier : 55

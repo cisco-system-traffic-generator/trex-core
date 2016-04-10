@@ -191,7 +191,7 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;}
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
 };
@@ -244,7 +244,7 @@ public:
 
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;}
 };
 
 
@@ -281,7 +281,7 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;}
     virtual CFlowStatParser *get_flow_stat_parser();
 };
 
@@ -5139,11 +5139,12 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
 
 int CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats) {
     uint32_t diff_stats[MAX_FLOW_STATS];
+    uint32_t diff_bytes[MAX_FLOW_STATS];
 
     // The HW counters start from some random values. The driver give us the diffs from previous,
     // each time we do get_rx_stats. We need to make one first call, at system startup,
     // and ignore the returned diffs
-    return get_rx_stats(_if, diff_stats, stats, NULL, NULL, 0, MAX_FLOW_STATS - 1);
+    return get_rx_stats(_if, diff_stats, stats, diff_bytes, NULL, 0, MAX_FLOW_STATS - 1);
 }
 
 // instead of adding this to rte_ethdev.h
@@ -5170,6 +5171,7 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
             pkts[i] = (uint64_t)((hw_stats[i - min] + ((uint64_t)1 << 32)) - prev_pkts[i]);
         }
         prev_pkts[i] = hw_stats[i - min];
+        bytes[i] = 0;
     }
 
     return 0;

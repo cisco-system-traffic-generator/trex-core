@@ -22,6 +22,9 @@ limitations under the License.
 #ifndef __TREX_STREAM_H__
 #define __TREX_STREAM_H__
 
+#include <stdio.h>
+#include <string.h>
+
 #include <unordered_map>
 #include <vector>
 #include <stdint.h>
@@ -29,9 +32,8 @@ limitations under the License.
 
 #include <json/json.h>
 
-#include <trex_stream_vm.h>
-#include <stdio.h>
-#include <string.h>
+#include "os_time.h"
+#include "trex_stream_vm.h"
 #include <common/captureFile.h>
 #include <common/bitMan.h> 
 
@@ -356,6 +358,10 @@ public:
         m_type = type;
     }
 
+    void set_null_stream(bool enable) {
+        m_null_stream = enable;
+    }
+
     uint8_t get_type(void) const {
         return ( m_type );
     }
@@ -393,6 +399,7 @@ public:
         set_multi_burst(burst_total_pkts,1,0.0); 
     }
 
+
     /* create new stream */
     TrexStream * clone(bool full = false) const {
 
@@ -413,8 +420,13 @@ public:
             dp->m_vm_dp = NULL;
         }
 
-        dp->m_isg_usec      = m_isg_usec;
-        dp->m_next_stream_id = m_next_stream_id;
+        dp->m_isg_usec                = m_isg_usec;
+
+        /* multi core phase paramters */
+        dp->m_mc_phase_pre_sec            = m_mc_phase_pre_sec;
+        dp->m_mc_phase_post_sec           = m_mc_phase_post_sec;
+
+        dp->m_next_stream_id          = m_next_stream_id;
 
         dp->m_enabled    = m_enabled;
         dp->m_self_start = m_self_start;
@@ -448,7 +460,25 @@ public:
         return ( (m_burst_total_pkts / get_pps()) * 1000 * 1000);
     }
 
+    double get_ipg_sec() {
+        return (1.0 / get_pps());
+    }
    
+    /* return the delay before starting a stream */
+    inline double get_start_delay_sec() {
+        return usec_to_sec(m_isg_usec) + m_mc_phase_pre_sec;
+    }
+
+    /* return the delay before starting the next stream */
+    inline double get_next_stream_delay_sec() {
+        return m_mc_phase_post_sec;
+    }
+
+    /* return the delay between scheduling a new burst in a multi burst stream */
+    inline double get_next_burst_delay_sec() {
+        return usec_to_sec(m_ibg_usec) + m_mc_phase_post_sec + m_mc_phase_pre_sec;
+    }
+
     void Dump(FILE *fd);
 
     StreamVmDp * getDpVm(){
@@ -490,6 +520,9 @@ public:
     
 
     /* config fields */
+    double        m_mc_phase_pre_sec;
+    double        m_mc_phase_post_sec;
+
     double        m_isg_usec;
     int           m_next_stream_id;
 
@@ -497,6 +530,8 @@ public:
     bool          m_enabled;
     bool          m_self_start;
 
+    /* null stream (a dummy stream) */
+    bool          m_null_stream;
 
     /* VM CP and DP */
     StreamVm      m_vm;

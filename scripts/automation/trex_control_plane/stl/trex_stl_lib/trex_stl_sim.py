@@ -22,6 +22,7 @@ from .trex_stl_streams import *
 from .utils import parsing_opts
 from .trex_stl_client import STLClient
 from .utils import pcap
+from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWriter, hexdump
 
 from yaml import YAMLError
 
@@ -291,10 +292,10 @@ class STLSim(object):
             return
 
 
-        print("Mering cores output to a single pcap file...\n")
+        if not self.silent:
+            print("Mering cores output to a single pcap file...\n")
         inputs = ["{0}-{1}".format(self.outfile, index) for index in range(0, self.dp_core_count)]
         pcap.merge_cap_files(inputs, self.outfile, delete_src = True)
-
 
 
 
@@ -421,6 +422,11 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
+    group.add_argument("--test_multi_core",
+                       help = "runs the profile with c=1-8",
+                       action = "store_true",
+                       default = False)
+
     return parser
 
 
@@ -433,6 +439,110 @@ def validate_args (parser, options):
     # zero is ok - no limit, but other values must be at least as the number of cores
     if (options.limit != 0) and options.limit < options.dp_core_count:
         parser.error("limit cannot be lower than number of DP cores")
+
+
+# a more flexible check
+def compare_caps (cap1, cap2, max_diff_sec = (5 * 1e-6)):
+    pkts1 = list(RawPcapReader(cap1))
+    pkts2 = list(RawPcapReader(cap2))
+
+    if len(pkts1) != len(pkts2):
+        print('{0} contains {1} packets vs. {2} contains {3} packets'.format(cap1, len(pkts1), cap2, len(pkts2)))
+        return False
+
+    # to be less strict we define equality if all packets from cap1 exists and in cap2
+    # and vice versa
+    # 'exists' means the same packet with abs(TS1-TS2) < 5nsec
+    # its O(n^2) but who cares, right ?
+    for i, pkt1 in enumerate(pkts1):
+        ts1 = float(pkt1[1][0]) + (float(pkt1[1][1]) / 1e6)
+        found = None
+        for j, pkt2 in enumerate(pkts2):
+            ts2 = float(pkt2[1][0]) + (float(pkt2[1][1]) / 1e6)
+            
+            if abs(ts1-ts2) > max_diff_sec:
+                break
+
+            if pkt1[0] == pkt2[0]:
+                found = j
+                break
+
+        
+        if found is None:
+            print(format_text("cannot find packet #{0} from {1} in {2}\n".format(i, cap1, cap2), 'bold'))
+            return False
+        else:
+            del pkts2[found]
+
+    return True
+
+
+  
+
+# a more strict comparsion 1 <--> 1
+def compare_caps_strict (cap1, cap2, max_diff_sec = (5 * 1e-6)):
+    pkts1 = list(RawPcapReader(cap1))
+    pkts2 = list(RawPcapReader(cap2))
+
+    if len(pkts1) != len(pkts2):
+        print('{0} contains {1} packets vs. {1} contains {2} packets'.format(cap1, len(pkts1), cap2, len(pkts2)))
+        return False
+
+    # a strict check
+    for pkt1, pkt2, i in zip(pkts1, pkts2, range(1, len(pkts1))):
+        ts1 = float(pkt1[1][0]) + (float(pkt1[1][1]) / 1e6)
+        ts2 = float(pkt2[1][0]) + (float(pkt2[1][1]) / 1e6)
+
+        if abs(ts1-ts2) > 0.000005: # 5 nsec
+            print(format_text("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'\n".format(cap1, cap2, i, ts1, ts2), 'bold'))
+            return False
+
+        if pkt1[0] != pkt2[0]:
+            print(format_text("RAW error: cap files '{0}', '{1}' differ in cap #{2}\n".format(cap1, cap2, i), 'bold'))
+            print(hexdump(pkt1[0]))
+            print("")
+            print(hexdump(pkt2[0]))
+            print("")
+            return False
+
+    return True
+
+#
+def test_multi_core (r, options):
+
+    for core_count in [1, 2, 4, 6, 8]:
+        r.run(input_list = options.input_file,
+              outfile = '{0}.cap'.format(core_count),
+              dp_core_count = core_count,
+              is_debug = (not options.release),
+              pkt_limit = options.limit,
+              mult = options.mult,
+              duration = options.duration,
+              mode = 'none',
+              silent = True,
+              tunables = options.tunables)
+
+    print("")
+
+    print(format_text("comparing 2 cores to 1 core:\n", 'underline'))
+    rc = compare_caps('1.cap', '2.cap')
+    if rc:
+        print("[Passed]\n")
+
+    print(format_text("comparing 4 cores to 1 core:\n", 'underline'))
+    rc = compare_caps('1.cap', '4.cap')
+    if rc:
+        print("[Passed]\n")
+
+    print(format_text("comparing 6 cores to 1 core:\n", 'underline'))
+    rc = compare_caps('1.cap', '6.cap')
+    if rc:
+        print("[Passed]\n")
+
+    print(format_text("comparing 8 cores to 1 core:\n", 'underline'))
+    rc = compare_caps('1.cap', '8.cap')
+    if rc:
+        print("[Passed]\n")
 
 
 def main (args = None):
@@ -455,23 +565,28 @@ def main (args = None):
         mode = 'native'
     elif options.pkt:
         mode = 'pkt'
+    elif options.test_multi_core:
+        mode = 'test_multi_core'
     else:
         mode = 'none'
 
     try:
         r = STLSim(bp_sim_path = options.bp_sim_path, port_id = options.port_id)
 
-        r.run(input_list = options.input_file,
-              outfile = options.output_file,
-              dp_core_count = options.dp_core_count,
-              dp_core_index = options.dp_core_index,
-              is_debug = (not options.release),
-              pkt_limit = options.limit,
-              mult = options.mult,
-              duration = options.duration,
-              mode = mode,
-              silent = options.silent,
-              tunables = options.tunables)
+        if mode == 'test_multi_core':
+            test_multi_core(r, options)
+        else:
+            r.run(input_list = options.input_file,
+                  outfile = options.output_file,
+                  dp_core_count = options.dp_core_count,
+                  dp_core_index = options.dp_core_index,
+                  is_debug = (not options.release),
+                  pkt_limit = options.limit,
+                  mult = options.mult,
+                  duration = options.duration,
+                  mode = mode,
+                  silent = options.silent,
+                  tunables = options.tunables)
 
     except KeyboardInterrupt as e:
         print("\n\n*** Caught Ctrl + C... Exiting...\n\n")

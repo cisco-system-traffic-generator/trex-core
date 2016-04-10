@@ -845,7 +845,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
             if (user_id_info->need_to_send_rx(port) || baseline) {
                 user_id_info->set_no_need_to_send_rx(port);
                 data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port).get_pkts());
-                data_section[str_user_id]["rx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port).get_bytes());
+                if (m_capabilities & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT)
+                    data_section[str_user_id]["rx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_rx_counter(port).get_bytes());
                 send_empty = false;
             }
             if (user_id_info->need_to_send_tx(port) || baseline) {

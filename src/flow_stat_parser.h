@@ -34,6 +34,7 @@ class CFlowStatParser {
     virtual int get_ip_id(uint16_t &ip_id);
     virtual int set_ip_id(uint16_t ip_id);
     virtual int get_l4_proto(uint8_t &proto);
+    virtual int get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload_len);
     virtual int test();
 
  protected:

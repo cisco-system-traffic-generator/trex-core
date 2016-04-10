@@ -602,7 +602,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         node->m_state =CGenNodeStateless::ss_INACTIVE;
     }
 
-    node->m_time = m_core->m_cur_time_sec + usec_to_sec(stream->m_isg_usec);
+    node->m_time = m_core->m_cur_time_sec + stream->get_start_delay_sec();
 
     pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(stream->m_port_id);
     node->m_flags = 0; 
@@ -627,6 +627,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->m_pause =0;
     node->m_stream_type = stream->m_type;
     node->m_next_time_offset = 1.0 / stream->get_pps();
+    node->m_null_stream = (stream->m_null_stream ? 1 : 0);
 
     /* stateless specific fields */
     switch ( stream->m_type ) {

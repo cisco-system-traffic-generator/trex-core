@@ -361,6 +361,8 @@ class STLStream(object):
             int_mac_dst_override_mode = int(mac_dst_override_mode);
 
 
+        self.is_default_mac = not (int_mac_src_override_by_pkt or int_mac_dst_override_mode)
+
         self.fields['flags'] = (int_mac_src_override_by_pkt&1) +  ((int_mac_dst_override_mode&3)<<1)
 
         self.fields['action_count'] = action_count
@@ -420,6 +422,10 @@ class STLStream(object):
         """ Get the stream id after resolution  """
         return self.id
 
+
+    def has_custom_mac_addr (self):
+        """ Return True if src or dst MAC were set as custom """
+        return not self.is_default_mac
 
     def get_name (self):
         """ Get the stream name """
@@ -834,6 +840,9 @@ class STLProfile(object):
 
     def is_pauseable (self):
         return all([x.get_mode() == "Continuous" for x in self.get_streams()])
+
+    def has_custom_mac_addr (self):
+        return any([x.has_custom_mac_addr() for x in self.get_streams()])
 
     def has_flow_stats (self):
         return any([x.has_flow_stats() for x in self.get_streams()])

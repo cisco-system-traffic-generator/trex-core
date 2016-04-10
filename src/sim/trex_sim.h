@@ -26,12 +26,14 @@ limitations under the License.
 #include <bp_sim.h>
 #include <json/json.h>
 #include <trex_stateless.h>
+#include <vector>
 
 int gtest_main(int argc, char **argv);
 
 class TrexStateless;
 class TrexPublisher;
 class DpToCpHandler;
+class DPCoreStats;
 
 void set_stateless_obj(TrexStateless *obj);
 
@@ -146,8 +148,8 @@ private:
 
     void run_dp_core(int core_index,
                      const std::string &out_filename,
-                     uint64_t &simulated_pkts,
-                     uint64_t &written_pkts);
+                     std::vector<DPCoreStats> &stats,
+                     DPCoreStats &total);
 
     void cleanup();
     void flush_dp_to_cp_messages_core(int core_index);

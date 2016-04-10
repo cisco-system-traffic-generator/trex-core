@@ -84,7 +84,7 @@ private:
     double              m_next_time_offset; /* in sec */
     uint16_t            m_action_counter;
     uint8_t             m_stat_hw_id; // hw id used to count rx and tx stats
-    uint8_t             m_pad11;
+    uint8_t             m_null_stream;
     uint32_t            m_pad12;
 
     stream_state_t      m_state;
@@ -144,7 +144,7 @@ public:
 
     /* we restart the stream, schedule it using stream isg */
     inline void update_refresh_time(double cur_time){
-        m_time = cur_time + usec_to_sec(m_ref_stream_info->m_isg_usec);
+        m_time = cur_time + usec_to_sec(m_ref_stream_info->m_isg_usec) + m_ref_stream_info->m_mc_phase_pre_sec;
     }
 
     inline bool is_mask_for_free(){
@@ -168,6 +168,11 @@ public:
         }else{
             m_pause=0;
         }
+    }
+
+    bool is_node_active() {
+        /* bitwise or - faster instead of two IFs */
+        return ((m_pause | m_null_stream) == 0);
     }
 
     inline uint8_t  get_stream_type(){
@@ -199,7 +204,7 @@ public:
 
     inline void handle_continues(CFlowGenListPerThread *thread) {
 
-        if (unlikely (is_pause()==false)) {
+        if (likely (is_node_active())) {
             thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
         }
 
@@ -211,7 +216,9 @@ public:
     }
 
     inline void handle_multi_burst(CFlowGenListPerThread *thread) {
-        thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
+        if (likely (is_node_active())) {
+            thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
+        }
 
         m_single_burst--;
         if (m_single_burst > 0 ) {
@@ -224,8 +231,8 @@ public:
             if ( m_multi_bursts == 0 ) {
                 set_state(CGenNodeStateless::ss_INACTIVE);
                 if ( thread->set_stateless_next_node(this,m_next_stream) ){
-                    /* update the next stream time using isg */
-                    m_next_stream->update_refresh_time(m_time);
+                    /* update the next stream time using isg and post phase */
+                    m_next_stream->update_refresh_time(m_time + m_ref_stream_info->get_next_stream_delay_sec());
 
                     thread->m_node_gen.m_p_queue.push( (CGenNode *)m_next_stream);
                 }else{
@@ -234,7 +241,8 @@ public:
                 }
 
             }else{
-                m_time += get_multi_ibg_sec();
+                /* next burst is like starting a new stream - add pre and post phase */
+                m_time +=  m_ref_stream_info->get_next_burst_delay_sec();
                 m_single_burst = m_single_burst_refill;
                 thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
             }
