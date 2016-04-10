@@ -240,6 +240,9 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
+        if self.is_virt_nics or not self.is_loopback:
+            self.skip('skipping profile tests for virtual / non loopback')
+            return
 
         try:
             
