@@ -20,7 +20,7 @@ class STLS1(object):
         s3 = STLStream(name = 's3',
                        self_start = False,
                        packet = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.3")/UDP(dport=12,sport=1025)/(10*'x')),
-                       mode = STLTXMultiBurst(pps = 57, pkts_per_burst = 9, count = 5, ibg = 12),
+                       mode = STLTXMultiBurst(pps = 57, pkts_per_burst = 3, count = 5, ibg = 12),
                        next = 's4'
                        )
 

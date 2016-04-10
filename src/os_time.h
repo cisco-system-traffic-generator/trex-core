@@ -31,6 +31,11 @@ typedef double     dsec_t;    //time in sec double
 uint32_t 	 os_get_time_msec();
 uint32_t 	 os_get_time_freq();
 
+static inline double
+usec_to_sec(double usec) {
+    return (usec / (1000 * 1000));
+}
+
 
 
 #ifdef LINUX

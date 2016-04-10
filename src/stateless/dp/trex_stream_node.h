@@ -232,7 +232,7 @@ public:
                 set_state(CGenNodeStateless::ss_INACTIVE);
                 if ( thread->set_stateless_next_node(this,m_next_stream) ){
                     /* update the next stream time using isg and post phase */
-                    m_next_stream->update_refresh_time(m_time + m_ref_stream_info->m_mc_phase_post_sec);
+                    m_next_stream->update_refresh_time(m_time + m_ref_stream_info->get_next_stream_delay_sec());
 
                     thread->m_node_gen.m_p_queue.push( (CGenNode *)m_next_stream);
                 }else{
@@ -242,7 +242,7 @@ public:
 
             }else{
                 /* next burst is like starting a new stream - add pre and post phase */
-                m_time += get_multi_ibg_sec() + m_ref_stream_info->m_mc_phase_post_sec + m_ref_stream_info->m_mc_phase_pre_sec;
+                m_time +=  m_ref_stream_info->get_next_burst_delay_sec();
                 m_single_burst = m_single_burst_refill;
                 thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
             }

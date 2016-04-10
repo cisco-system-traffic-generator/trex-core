@@ -22,6 +22,9 @@ limitations under the License.
 #ifndef __TREX_STREAM_H__
 #define __TREX_STREAM_H__
 
+#include <stdio.h>
+#include <string.h>
+
 #include <unordered_map>
 #include <vector>
 #include <stdint.h>
@@ -29,9 +32,8 @@ limitations under the License.
 
 #include <json/json.h>
 
-#include <trex_stream_vm.h>
-#include <stdio.h>
-#include <string.h>
+#include "os_time.h"
+#include "trex_stream_vm.h"
 #include <common/captureFile.h>
 #include <common/bitMan.h> 
 
@@ -462,6 +464,21 @@ public:
         return (1.0 / get_pps());
     }
    
+    /* return the delay before starting a stream */
+    inline double get_start_delay_sec() {
+        return usec_to_sec(m_isg_usec) + m_mc_phase_pre_sec;
+    }
+
+    /* return the delay before starting the next stream */
+    inline double get_next_stream_delay_sec() {
+        return m_mc_phase_post_sec;
+    }
+
+    /* return the delay between scheduling a new burst in a multi burst stream */
+    inline double get_next_burst_delay_sec() {
+        return usec_to_sec(m_ibg_usec) + m_mc_phase_post_sec + m_mc_phase_pre_sec;
+    }
+
     void Dump(FILE *fd);
 
     StreamVmDp * getDpVm(){
