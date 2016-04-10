@@ -32,7 +32,7 @@ def create_pkt (size, direction):
 
 
     base = Ether()/IP()/UDP()
-    pad = max(0, len(base)) * 'x'
+    pad = max(0, size-len(base)) * 'x'
 
     return STLPktBuilder(pkt = base/pad,
                          vm  = vm)
@@ -73,8 +73,8 @@ def simple_burst ():
         c.clear_stats()
 
         # choose rate and start traffic for 10 seconds on 5 mpps
-        print("Running 5 Mpps on ports 0, 1 for 10 seconds...")
-        c.start(ports = [0, 1], mult = "5mpps", duration = 10)
+        print("Running 100 Mbps on ports 0, 1 for 10 seconds...")
+        c.start(ports = [0, 1], mult = "100mbps", duration = 10)
 
         # block until done
         c.wait_on_traffic(ports = [0, 1])

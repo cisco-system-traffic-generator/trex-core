@@ -32,7 +32,7 @@ def create_pkt (size, direction):
 
 
     base = Ether()/IP()/UDP()
-    pad = max(0, len(base)) * 'x'
+    pad = max(0, size-len(base)) * 'x'
 
     return STLPktBuilder(pkt = base/pad,
                          vm  = vm)
