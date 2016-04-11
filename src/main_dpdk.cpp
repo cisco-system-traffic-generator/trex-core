@@ -101,6 +101,7 @@ extern "C" void i40e_set_trex_mode(int mode);
 #define RTE_TEST_RX_DESC_DROP    0
 
 static int max_stat_hw_id_seen = 0;
+static int max_stat_hw_id_seen_payload = 0;
 
 static inline int get_vm_one_queue_enable(){
     return (CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ?1:0);
@@ -191,7 +192,10 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;}
+    virtual int get_rx_stat_capabilities() {
+        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+            | TrexPlatformApi::IF_STAT_PAYLOAD;
+    }
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
 };
@@ -244,7 +248,10 @@ public:
 
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;}
+    virtual int get_rx_stat_capabilities() {
+        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+            | TrexPlatformApi::IF_STAT_PAYLOAD;
+    }
 };
 
 
@@ -281,7 +288,10 @@ public:
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;}
+    virtual int get_rx_stat_capabilities() {
+        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+            | TrexPlatformApi::IF_STAT_PAYLOAD;
+    }   
     virtual CFlowStatParser *get_flow_stat_parser();
 };
 
@@ -329,7 +339,9 @@ public:
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {return TrexPlatformApi::IF_STAT_IPV4_ID;}
+    virtual int get_rx_stat_capabilities() {
+        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+    }
     virtual int wait_for_stable_link();
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
     virtual bool flow_control_disable_supported(){return false;}
@@ -2025,10 +2037,22 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
 
     if (unlikely(node_sl->is_stat_needed())) {
         uint16_t hw_id = node_sl->get_stat_hw_id();
-        if (hw_id > max_stat_hw_id_seen) {
-            max_stat_hw_id_seen = hw_id;
+        tx_per_flow_t *lp_s;
+        if (hw_id >= MAX_FLOW_STATS) {
+            // payload rule
+            // payload rule hw_ids are in the range right above ip id rules
+            uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
+            if (hw_id_payload > max_stat_hw_id_seen_payload) {
+                max_stat_hw_id_seen_payload = hw_id_payload;
+            }
+            //??? add seq num (m_seq_num[..], timestamp
+        } else {
+            // ip id rule
+            if (hw_id > max_stat_hw_id_seen) {
+                max_stat_hw_id_seen = hw_id;
+            }
         }
-        tx_per_flow_t *lp_s = &lp_stats->m_tx_per_flow[hw_id];
+        lp_s = &lp_stats->m_tx_per_flow[hw_id];
         lp_s->add_pkts(1);
         lp_s->add_bytes(m->pkt_len);
     }
@@ -2300,8 +2324,8 @@ public:
     uint64_t ibytes;
     uint64_t ierrors;
     uint64_t oerrors;
-    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS];
-    tx_per_flow_t m_prev_tx_per_flow[MAX_FLOW_STATS];
+    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD];
+    tx_per_flow_t m_prev_tx_per_flow[MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD];
 
     float     m_total_tx_bps;
     float     m_total_tx_pps;
@@ -3509,8 +3533,12 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_rx +=_if->get_last_rx_rate();
         total_tx_pps +=_if->get_last_tx_pps_rate();
         total_rx_pps +=_if->get_last_rx_pps_rate();
-
+        // IP ID rules
         for (uint16_t flow = 0; flow <= max_stat_hw_id_seen; flow++) {
+            stats.m_port[i].m_tx_per_flow[flow].clear();
+        }
+        // payload rules
+        for (uint16_t flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS + max_stat_hw_id_seen_payload; flow++) {
             stats.m_port[i].m_tx_per_flow[flow].clear();
         }
     }
@@ -3560,12 +3588,21 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_nat_open     +=lpt->m_stats.m_nat_lookup_add_flow_id;
         total_nat_learn_error   +=lpt->m_stats.m_nat_flow_learn_error;
         uint8_t port0 = lpt->getDualPortId() *2;
+        // IP ID rules
         for (uint16_t flow = 0; flow <= max_stat_hw_id_seen; flow++) {
             stats.m_port[port0].m_tx_per_flow[flow] +=
                 lpt->m_node_gen.m_v_if->m_stats[0].m_tx_per_flow[flow];
             stats.m_port[port0 + 1].m_tx_per_flow[flow] +=
                 lpt->m_node_gen.m_v_if->m_stats[1].m_tx_per_flow[flow];
         }
+        // payload rules
+        for (uint16_t flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS + max_stat_hw_id_seen_payload; flow++) {
+            stats.m_port[port0].m_tx_per_flow[flow] +=
+                lpt->m_node_gen.m_v_if->m_stats[0].m_tx_per_flow[flow];
+            stats.m_port[port0 + 1].m_tx_per_flow[flow] +=
+                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_per_flow[flow];
+        }
+
     }
 
     stats.m_total_nat_time_out = total_nat_time_out;
@@ -4125,6 +4162,7 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
     uint32_t diff_bytes[MAX_FLOW_STATS];
     bool hw_rx_stat_supported = get_ex_drv()->hw_rx_stat_supported();
 
+    // ???? if 40G, but payload rules, need to read from software 
     if (hw_rx_stat_supported) {
         if (get_ex_drv()->get_rx_stats(this, diff_pkts, m_stats.m_fdir_prev_pkts
                                        , diff_bytes, m_stats.m_fdir_prev_bytes, min, max) < 0) {
@@ -4939,7 +4977,9 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * 
     uint8_t port_id = _if->get_rte_port_id();
     int  ip_id_lsb;
 
-    for (ip_id_lsb = 0; ip_id_lsb < MAX_FLOW_STATS; ip_id_lsb++ ) {
+    // 0..MAX_FLOW_STATS-1 is for rules using ip_id.
+    // MAX_FLOW_STATS rule is for the payload rules. Meaning counter value is in the payload
+    for (ip_id_lsb = 0; ip_id_lsb <= MAX_FLOW_STATS; ip_id_lsb++ ) {
         struct rte_eth_fdir_filter fdir_filter;
         int res = 0;
 
@@ -5214,6 +5254,7 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statfull(CPhyEthIF * _
 const uint32_t TEMP_FDIR_HW_ID = 511;
 int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     if (get_is_stateless()) {
+        //??? if we add here one rule for IP/TCP/OTHER, it lowers our IP_ID support to 127 rules
         rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, TEMP_FDIR_HW_ID, 1);
         return 0; // Rules are configured dynamically in stateless
     } else {

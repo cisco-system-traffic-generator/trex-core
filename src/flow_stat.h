@@ -25,6 +25,7 @@
 #include <string>
 #include <map>
 #include "trex_defs.h"
+#include "trex_exception.h"
 #include "trex_stream.h"
 #include "msg_manager.h"
 #include <internal_api/trex_platform_api.h>
@@ -38,6 +39,20 @@ typedef std::map<uint32_t, uint16_t> flow_stat_map_t;
 typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;
 
 class CRxCoreStateless;
+
+struct flow_stat_payload_header {
+    uint64_t time_stamp;
+    uint16_t hw_id;
+    uint16_t magic;
+    uint32_t seq;
+};
+
+
+class TrexFStatEx : public TrexException {
+ public:
+    TrexFStatEx(const std::string &what, enum TrexExceptionTypes_t type): TrexException(what, type) {
+    }
+};
 
 class tx_per_flow_t_ {
  public:
@@ -111,6 +126,7 @@ class CFlowStatParser;
 class CFlowStatUserIdInfo {
  public:
     CFlowStatUserIdInfo(uint8_t proto);
+    virtual ~CFlowStatUserIdInfo() {};
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
     void set_rx_counter(uint8_t port, rx_per_flow_t val) {m_rx_counter[port] = val;}
     rx_per_flow_t get_rx_counter(uint8_t port) {return m_rx_counter[port] + m_rx_counter_base[port];}
@@ -122,7 +138,7 @@ class CFlowStatUserIdInfo {
     bool is_hw_id() {return (m_hw_id != UINT16_MAX);}
     uint64_t get_proto() {return m_proto;}
     uint8_t get_ref_count() {return m_ref_count;}
-    int add_stream(uint8_t proto);
+    virtual void add_stream(uint8_t proto);
     int del_stream() {m_ref_count--; return m_ref_count;}
     void add_started_stream() {m_trans_ref_count++;}
     int stop_started_stream() {m_trans_ref_count--; return m_trans_ref_count;}
@@ -155,6 +171,12 @@ class CFlowStatUserIdInfo {
 typedef std::map<uint32_t, class CFlowStatUserIdInfo *> flow_stat_user_id_map_t;
 typedef std::map<uint32_t, class CFlowStatUserIdInfo *>::iterator flow_stat_user_id_map_it_t;
 
+class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
+ public:
+    CFlowStatUserIdInfoPayload(uint8_t proto) : CFlowStatUserIdInfo(proto){};
+    virtual void add_stream(uint8_t proto);
+};
+
 class CFlowStatUserIdMap {
  public:
     CFlowStatUserIdMap();
@@ -163,7 +185,7 @@ class CFlowStatUserIdMap {
     uint16_t get_hw_id(uint32_t user_id);
     CFlowStatUserIdInfo * find_user_id(uint32_t user_id);
     CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint8_t proto);
-    int add_stream(uint32_t user_id, uint8_t proto);
+    void add_stream(uint32_t user_id, uint8_t proto);
     int del_stream(uint32_t user_id);
     int start_stream(uint32_t user_id, uint16_t hw_id);
     int start_stream(uint32_t user_id);
@@ -219,11 +241,15 @@ class CFlowStatRuleMgr {
 
  private:
     CFlowStatHwIdMap m_hw_id_map; // map hw ids to user ids
+    // ??? need to make CFlowStatHwIdMap class adjustable per size. For now it is working since we allow same number
+    // of IP ID and pyaload rules
+    CFlowStatHwIdMap m_hw_id_map_payload; // map hw id numbers of payload rules to user ids
     CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
     uint8_t m_num_ports; // How many ports are being used
     const TrexPlatformApi *m_api;
     const CRxCoreStateless *m_rx_core;
     int m_max_hw_id; // max hw id we ever used
+    int m_max_hw_id_payload; // max hw id we ever used for payload rules
     uint32_t m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
     CFlowStatParser *m_parser;

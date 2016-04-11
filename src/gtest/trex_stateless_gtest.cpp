@@ -3676,7 +3676,7 @@ TEST_F(basic_stl, pcap_remote_duration) {
 
 
 /********************************************* Itay Tests End *************************************/
-class rx_stat_pkt_parse  : public testing::Test {
+class flow_stat_pkt_parse  : public testing::Test {
     protected:
      virtual void SetUp() {
      }
@@ -3686,12 +3686,110 @@ class rx_stat_pkt_parse  : public testing::Test {
 };
 
 
-TEST_F(rx_stat_pkt_parse, x710_parser) {
+TEST_F(flow_stat_pkt_parse, x710_parser) {
     CFlowStatParser parser;
 
     parser.test();
 }
 
+class flow_stat  : public testing::Test {
+    protected:
+     virtual void SetUp() {
+     }
+     virtual void TearDown() {
+     }
+   public:
+};
 
 
+static const uint8_t TEST_L4_PROTO = IPPROTO_TCP;
 
+TEST_F(flow_stat, add_del_stream) {
+    CFlowStatRuleMgr rule_mgr;
+    uint8_t test_pkt[] = {
+        // ether header
+        0x74, 0xa2, 0xe6, 0xd5, 0x39, 0x25,
+        0xa0, 0x36, 0x9f, 0x38, 0xa4, 0x02,
+        0x81, 0x00,
+        0x0a, 0xbc, 0x08, 0x00, // vlan
+        // IP header
+        0x45,0x02,0x00,0x30,
+        0x01,0x02,0x40,0x00,
+        0xff, TEST_L4_PROTO, 0xbd,0x04,
+        0x10,0x0,0x0,0x1,
+        0x30,0x0,0x0,0x1,
+        // TCP heaader
+        0xab, 0xcd, 0x00, 0x80, // src, dst ports
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // seq num, ack num
+        0x50, 0x00, 0xff, 0xff, // Header size, flags, window size
+        0x00, 0x00, 0x00, 0x00, // checksum ,urgent pointer
+        // some extra bytes
+        0x1, 0x2, 0x3, 0x4
+    };
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    TrexStream stream2(TrexStream::stSINGLE_BURST, 0, 0);
+    
+    stream.m_rx_check.m_enabled = true;
+
+    stream.m_rx_check.m_rule_type = 7;
+    stream.m_rx_check.m_pg_id = 5;
+    stream.m_pkt.binary = (uint8_t *)test_pkt;
+    stream.m_pkt.len = sizeof(test_pkt);
+
+    rule_mgr.init_stream(&stream);
+
+    try {
+        rule_mgr.del_stream(&stream);
+    } catch (TrexFStatEx e) {
+        assert(e.type() == TrexException::T_FLOW_STAT_NO_STREAMS_EXIST);
+    }
+        
+    try {
+        rule_mgr.add_stream(&stream);
+    } catch (TrexFStatEx e) {
+        assert(e.type() == TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
+    }
+
+    stream.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+    try {
+        rule_mgr.add_stream(&stream);
+    } catch (TrexFStatEx e) {
+        assert(e.type() == TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
+    }
+
+    // change to UDP packet so it will be fine to work with
+    test_pkt[27] = IPPROTO_UDP;
+    int ret = rule_mgr.add_stream(&stream);
+    assert (ret == 0);
+    ret = rule_mgr.del_stream(&stream);
+    assert (ret == 0);
+
+    stream2.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
+    stream2.m_rx_check.m_pg_id = 5; // ??? same as first stream
+    stream2.m_pkt.binary = (uint8_t *)test_pkt;
+    stream2.m_pkt.len = sizeof(test_pkt);
+    ret = rule_mgr.add_stream(&stream2);
+    assert (ret == 0);
+
+
+    ret = rule_mgr.del_stream(&stream2);
+    assert (ret == 0);
+    try {
+        rule_mgr.del_stream(&stream2);
+    } catch (TrexFStatEx e) {
+        assert(e.type() == TrexException::T_FLOW_STAT_DEL_NON_EXIST);
+    } 
+
+    // do not want the constructor to try to free it
+    stream.m_pkt.binary = NULL; 
+    stream2.m_pkt.binary = NULL;
+}
+
+TEST_F(flow_stat, start_stop_stream) {
+    // try starting with no add
+    // try starting  more than 128 streams
+    // check that ip_id is changed for streams with no flow stat
+    // check that ip_id is changed for streams with flow stat IP_ID, PAYLOAD
+
+}

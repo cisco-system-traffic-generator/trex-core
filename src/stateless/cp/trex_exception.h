@@ -34,7 +34,8 @@ class TrexException : public std::runtime_error
  public:
     enum TrexExceptionTypes_t {
         T_FLOW_STAT_PG_ID_DIFF_L4,
-        T_FLOW_STAT_ADD_FAIL,
+        T_FLOW_STAT_DUP_PG_ID,
+        T_FLOW_STAT_ALLOC_FAIL,
         T_FLOW_STAT_DEL_NON_EXIST,
         T_FLOW_STAT_ASSOC_NON_EXIST_ID,
         T_FLOW_STAT_ASSOC_OCC_ID,

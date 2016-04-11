@@ -144,7 +144,7 @@ TrexStream::TrexStream(uint8_t type,
     m_expected_pkt_len = 0;
 
     m_rx_check.m_enabled = false;
-
+    m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD; // default for now. Should come from user???
 
     m_burst_total_pkts=0; 
     m_num_bursts=1; 

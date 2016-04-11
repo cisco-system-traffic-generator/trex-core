@@ -273,7 +273,8 @@ public:
     uint64_t   m_tx_drop;
     uint64_t   m_tx_queue_full;
     uint64_t   m_tx_alloc_error;
-    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS];
+    tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD];
+    uint64_t   m_seq_num[MAX_FLOW_STATS_PAYLOAD]; // seq num to put in packet for payload rules
     CPerTxthreadTemplateInfo m_template;
 
 public:

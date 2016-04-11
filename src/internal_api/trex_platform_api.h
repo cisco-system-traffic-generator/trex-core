@@ -219,7 +219,7 @@ public:
 
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
     }
-    virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const {num_counters=128; capabilities=TrexPlatformApi::IF_STAT_IPV4_ID; }
+    virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const {num_counters=128; capabilities=TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD; }
 
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
         for (int i = 0; i < m_dp_core_count; i++) {

@@ -62,6 +62,7 @@ stream_del: HW_ID_INIT
 
 static const uint16_t HW_ID_INIT = UINT16_MAX;
 static const uint16_t HW_ID_FREE = UINT16_MAX - 1;
+static const uint8_t PAYLOAD_RULE_PROTO = 255;
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -133,17 +134,16 @@ std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf) {
     return os;
 }
 
-int CFlowStatUserIdInfo::add_stream(uint8_t proto) {
+void CFlowStatUserIdInfo::add_stream(uint8_t proto) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " proto:" << (uint16_t)proto << std::endl;
 #endif
 
     if (proto != m_proto)
-        throw TrexException("Can't use same pg_id for streams with different l4 protocol");
+        throw TrexFStatEx("Can't use same pg_id for streams with different l4 protocol",
+                                    TrexException::T_FLOW_STAT_PG_ID_DIFF_L4);
 
     m_ref_count++;
-
-    return 0;
 }
 
 void CFlowStatUserIdInfo::reset_hw_id() {
@@ -159,6 +159,15 @@ void CFlowStatUserIdInfo::reset_hw_id() {
         memset(&m_tx_counter[i], 0, sizeof(m_tx_counter[0]));
     }
 }
+
+/************** class CFlowStatUserIdInfoPayload ***************/
+void CFlowStatUserIdInfoPayload::add_stream(uint8_t proto) {
+    //??? add unit test
+    throw TrexFStatEx("Can't have two streams with same packet group id for payload rules"
+                      , TrexException::T_FLOW_STAT_DUP_PG_ID);
+}
+
+
 /************** class CFlowStatUserIdMap ***************/
 CFlowStatUserIdMap::CFlowStatUserIdMap() {
 
@@ -204,21 +213,28 @@ CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint8_t proto) {
 #endif
 
     CFlowStatUserIdInfo *new_id = new CFlowStatUserIdInfo(proto);
+
+    if (proto == PAYLOAD_RULE_PROTO) {
+        new_id = new CFlowStatUserIdInfo(proto);
+    } else {
+        new_id = new CFlowStatUserIdInfoPayload(proto);
+    }
     if (new_id != NULL) {
         std::pair<flow_stat_user_id_map_it_t, bool> ret;
         ret = m_map.insert(std::pair<uint32_t, CFlowStatUserIdInfo *>(user_id, new_id));
         if (ret.second == false) {
-            printf("%s Error: Trying to add user id %d which already exist\n", __func__, user_id);
             delete new_id;
-            return NULL;
+            throw TrexFStatEx("packet group id " + std::to_string(user_id) + " already exists"
+                              , TrexException::T_FLOW_STAT_ALREADY_EXIST);
         }
         return new_id;
     } else {
-        return NULL;
+        throw TrexFStatEx("Failed allocating memory for new statistic counter"
+                          , TrexException::T_FLOW_STAT_ALLOC_FAIL);
     }
 }
 
-int CFlowStatUserIdMap::add_stream(uint32_t user_id, uint8_t proto) {
+void CFlowStatUserIdMap::add_stream(uint32_t user_id, uint8_t proto) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << user_id << " proto:" << (uint16_t)proto
               << std::endl;
@@ -228,12 +244,9 @@ int CFlowStatUserIdMap::add_stream(uint32_t user_id, uint8_t proto) {
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
-        c_user_id = add_user_id(user_id, proto);
-        if (! c_user_id)
-            throw TrexException("Failed adding statistic counter - Failure in add_stream");
-        return 0;
+        c_user_id = add_user_id(user_id, proto); // throws exception on error
     } else {
-        return c_user_id->add_stream(proto);
+        c_user_id->add_stream(proto);
     }
 }
 
@@ -246,7 +259,8 @@ int CFlowStatUserIdMap::del_stream(uint32_t user_id) {
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
-        throw TrexException("Trying to delete stream which does not exist");
+        throw TrexFStatEx("Trying to delete stream which does not exist"
+                          , TrexException::T_FLOW_STAT_DEL_NON_EXIST);
     }
 
     if (c_user_id->del_stream() == 0) {
@@ -267,15 +281,16 @@ int CFlowStatUserIdMap::start_stream(uint32_t user_id, uint16_t hw_id) {
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
-        fprintf(stderr, "%s Error: Trying to associate hw id %d to user_id %d but it does not exist\n"
-                , __func__, hw_id, user_id);
-        throw TrexException("Internal error: Trying to associate non exist group id");
+        throw TrexFStatEx("Internal error: Trying to associate non exist group id " + std::to_string(user_id)
+                          + " to hardware id " + std::to_string(hw_id)
+                          , TrexException::T_FLOW_STAT_ASSOC_NON_EXIST_ID);
     }
 
     if (c_user_id->is_hw_id()) {
-        fprintf(stderr, "%s Error: Trying to associate hw id %d to user_id %d but it is already associated to %u\n"
-                , __func__, hw_id, user_id, c_user_id->get_hw_id());
-        throw TrexException("Internal error: Trying to associate used packet group id to different hardware counter");
+        throw TrexFStatEx("Internal error: Trying to associate hw id " + std::to_string(hw_id) + " to user_id "
+                          + std::to_string(user_id) + ", but it is already associated to "
+                          + std::to_string(c_user_id->get_hw_id())
+                          , TrexException::T_FLOW_STAT_ASSOC_OCC_ID);
     }
     c_user_id->set_hw_id(hw_id);
     c_user_id->add_started_stream();
@@ -292,9 +307,8 @@ int CFlowStatUserIdMap::start_stream(uint32_t user_id) {
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
-        fprintf(stderr, "%s Error: Trying to start stream on pg_id %d but it does not exist\n"
-                , __func__, user_id);
-        throw TrexException("Trying to start stream with non exist packet group id");
+        throw TrexFStatEx("Trying to start stream with non exist packet group id " + std::to_string(user_id)
+                          , TrexException::T_FLOW_STAT_NON_EXIST_ID);
     }
 
     c_user_id->add_started_stream();
@@ -313,9 +327,8 @@ int CFlowStatUserIdMap::stop_stream(uint32_t user_id) {
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
-        fprintf(stderr, "%s Error: Trying to stop stream on pg_id %d but it does not exist\n"
-                , __func__, user_id);
-        throw TrexException("Trying to stop stream with non exist packet group id");
+        throw TrexFStatEx("Trying to stop stream with non exist packet group id" + std::to_string(user_id)
+                          , TrexException::T_FLOW_STAT_NON_EXIST_ID);
     }
 
     return c_user_id->stop_started_stream();
@@ -418,6 +431,7 @@ void CFlowStatHwIdMap::unmap(uint16_t hw_id) {
 CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_api = NULL;
     m_max_hw_id = -1;
+    m_max_hw_id_payload = -1;
     m_num_started_streams = 0;
     m_ring_to_rx = NULL;
     m_capabilities = 0;
@@ -453,6 +467,7 @@ void CFlowStatRuleMgr::create() {
 std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf) {
     os << "Flow stat rule mgr (" << cf.m_num_ports << ") ports:" << std::endl;
     os << cf.m_hw_id_map;
+    os << cf.m_hw_id_map_payload;
     os << cf.m_user_id_map;
     return os;
 }
@@ -466,23 +481,24 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
     if (parser->parse(stream->m_pkt.binary, stream->m_pkt.len) != 0) {
         // if we could not parse the packet, but no stat count needed, it is probably OK.
         if (stream->m_rx_check.m_enabled) {
-            fprintf(stderr, "Error: %s - Compilation failed\n", __func__);
-            throw TrexException("Failed parsing given packet for flow stat. Probably bad packet format.");
+            throw TrexFStatEx("Failed parsing given packet for flow stat. Probably bad packet format."
+                              , TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
         } else {
             return 0;
         }
     }
 
     if (!parser->is_stat_supported()) {
-        if (stream->m_stream_id <= 0) {
+        if (! stream->m_rx_check.m_enabled) {
             // flow stat not needed. Do nothing.
             return 0;
         } else {
             // flow stat needed, but packet format is not supported
-            fprintf(stderr, "Error: %s - Unsupported packet format for flow stat\n", __func__);
-            throw TrexException("Unsupported packet format for flow stat on given interface type");
+            throw TrexFStatEx("Unsupported packet format for flow stat on given interface type"
+                              , TrexException::T_FLOW_STAT_UNSUPP_PKT_FORMAT);
         }
     }
+
     return 0;
 }
 
@@ -511,24 +527,41 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
 
     //??? put back    assert(stream->m_rx_check.m_hw_id == HW_ID_INIT);
 
-    uint16_t rule_type = TrexPlatformApi::IF_STAT_IPV4_ID; // In the future need to get it from the stream;
+    uint16_t rule_type = stream->m_rx_check.m_rule_type;
 
     if ((m_capabilities & rule_type) == 0) {
-        fprintf(stderr, "Error: %s - rule type not supported by interface\n", __func__);
-        throw TrexException("Interface does not support given rule type");
+        throw TrexFStatEx("Interface does not support given rule type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_IF);
     }
 
     // compile_stream throws exception if something goes wrong
     compile_stream(stream, m_parser);
 
-    uint8_t l4_proto;
-    if (m_parser->get_l4_proto(l4_proto) < 0) {
-        fprintf(stderr, "Error: %s failed finding l4 proto\n", __func__);
-        throw TrexException("Failed determining l4 proto for packet");
-    }
+    switch(rule_type) {
+    case TrexPlatformApi::IF_STAT_IPV4_ID:
+        uint8_t l4_proto;
+        if (m_parser->get_l4_proto(l4_proto) < 0) {
+            throw TrexFStatEx("Failed determining l4 proto for packet", TrexException::T_FLOW_STAT_FAILED_FIND_L4);
+        }
 
-    // throws exception if there is error
-    m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
+        // throws exception if there is error
+        m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
+        break;
+    case TrexPlatformApi::IF_STAT_PAYLOAD:
+        uint16_t payload_len;
+        if (m_parser->get_payload_len(stream->m_pkt.binary, stream->m_pkt.len, payload_len) < 0) {
+            throw TrexFStatEx("Failed getting payload len", TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+        }
+        if (payload_len < sizeof(struct flow_stat_payload_header)) {
+            throw TrexFStatEx("Need at least " + std::to_string(sizeof(struct latency_header))
+                              + " payload bytes for payload rules. Packet only has " + std::to_string(payload_len) + " bytes"
+                              , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
+        }
+        m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, PAYLOAD_RULE_PROTO);
+        break;
+    default:
+        throw TrexFStatEx("Wrong rule_type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
+        break;
+    }
 
     stream->m_rx_check.m_hw_id = HW_ID_FREE;
     return 0;
@@ -545,11 +578,22 @@ int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
     }
 
     if (! m_api)
-        throw TrexException("Called del_stream, but no stream was added");
+        throw TrexFStatEx("Called del_stream, but no stream was added", TrexException::T_FLOW_STAT_NO_STREAMS_EXIST);
+
+    uint16_t rule_type = stream->m_rx_check.m_rule_type;
+    switch(rule_type) {
+    case TrexPlatformApi::IF_STAT_IPV4_ID:
+        break;
+    case TrexPlatformApi::IF_STAT_PAYLOAD:
+        break;
+    default:
+        throw TrexFStatEx("Wrong rule_type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
+        break;
+    }
 
     // we got del_stream command for a stream which has valid hw_id.
     // Probably someone forgot to call stop
-    if(stream->m_rx_check.m_hw_id < MAX_FLOW_STATS) {
+    if(stream->m_rx_check.m_hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
         stop_stream(stream);
     }
 
@@ -557,8 +601,7 @@ int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
     if(stream->m_rx_check.m_hw_id == HW_ID_INIT) {
         return 0;
     }
-    // Throws exception in case of error
-    m_user_id_map.del_stream(stream->m_rx_check.m_pg_id);
+    m_user_id_map.del_stream(stream->m_rx_check.m_pg_id); // Throws exception in case of error
     stream->m_rx_check.m_hw_id = HW_ID_INIT;
 
     return 0;
@@ -587,7 +630,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     if (! stream->m_rx_check.m_enabled) {
         try {
             compile_stream(stream, m_parser);
-        } catch (TrexException) {
+        } catch (TrexFStatEx) {
             // If no statistics needed, and we can't parse the stream, that's OK.
             return 0;
         }
@@ -599,7 +642,8 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         // verify no reserved IP_ID used, and change if needed
         if (ip_id >= IP_ID_RESERVE_BASE) {
             if (m_parser->set_ip_id(ip_id & 0xefff) < 0) {
-                throw TrexException("Stream IP ID in reserved range. Failed changing it");
+                throw TrexFStatEx("Stream IP ID in reserved range. Failed changing it"
+                                  , TrexException::T_FLOW_STAT_FAILED_CHANGE_IP_ID);
             }
         }
         return 0;
@@ -612,15 +656,15 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         add_stream(stream);
     }
 
-    if (stream->m_rx_check.m_hw_id < MAX_FLOW_STATS) {
-        throw TrexException("Starting a stream which was already started");
+    if (stream->m_rx_check.m_hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
+        throw TrexFStatEx("Starting a stream which was already started"
+                          , TrexException::T_FLOW_STAT_ALREADY_STARTED);
     }
 
-    uint16_t rule_type = TrexPlatformApi::IF_STAT_IPV4_ID; // In the future, need to get it from the stream;
+    uint16_t rule_type = stream->m_rx_check.m_rule_type;
 
     if ((m_capabilities & rule_type) == 0) {
-        fprintf(stderr, "Error: %s - rule type not supported by interface\n", __func__);
-        throw TrexException("Interface does not support given rule type");
+        throw TrexFStatEx("Interface does not support given rule type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_IF);
     }
 
     // compile_stream throws exception if something goes wrong
@@ -629,22 +673,43 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     uint16_t hw_id;
 
+    switch(rule_type) {
+    case TrexPlatformApi::IF_STAT_IPV4_ID:
+        break;
+    case TrexPlatformApi::IF_STAT_PAYLOAD:
+        break;
+    default:
+        throw TrexFStatEx("Wrong rule_type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
+        break;
+    }
+
     if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
         m_user_id_map.start_stream(stream->m_rx_check.m_pg_id); // just increase ref count;
         hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id); // can't fail if we got here
     } else {
-        hw_id = m_hw_id_map.find_free_hw_id();
-        if (hw_id == HW_ID_FREE) {
-            printf("Error: %s failed finding free hw_id\n", __func__);
-            throw TrexException("Failed allocating statistic counter. Probably all are used.");
+        if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+            hw_id = m_hw_id_map.find_free_hw_id();
         } else {
-            if (hw_id > m_max_hw_id) {
-                m_max_hw_id = hw_id;
-            }
+            hw_id = m_hw_id_map_payload.find_free_hw_id();
+        }
+        if (hw_id == HW_ID_FREE) {
+            throw TrexFStatEx("Failed allocating statistic counter. Probably all are used for this rule type."
+                              , TrexException::T_FLOW_STAT_NO_FREE_HW_ID);
+        } else {
             uint32_t user_id = stream->m_rx_check.m_pg_id;
             m_user_id_map.start_stream(user_id, hw_id);
-            m_hw_id_map.map(hw_id, user_id);
-            add_hw_rule(hw_id, m_user_id_map.l4_proto(user_id));
+            if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+                if (hw_id > m_max_hw_id) {
+                    m_max_hw_id = hw_id;
+                }
+                m_hw_id_map.map(hw_id, user_id);
+                add_hw_rule(hw_id, m_user_id_map.l4_proto(user_id));
+            } else {
+                if (hw_id > m_max_hw_id_payload) {
+                    m_max_hw_id_payload = hw_id;
+                }
+                m_hw_id_map_payload.map(hw_id, user_id);
+            }
             // clear hardware counters. Just in case we have garbage from previous iteration
             rx_per_flow_t rx_counter;
             tx_per_flow_t tx_counter;
@@ -657,7 +722,12 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     m_parser->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
 
     // saving given hw_id on stream for use by tx statistics count
-    stream->m_rx_check.m_hw_id = hw_id;
+    if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+        stream->m_rx_check.m_hw_id = hw_id;
+    } else {
+        // for payload rules, we use the range right after ip id rules
+        stream->m_rx_check.m_hw_id = hw_id + MAX_FLOW_STATS;
+    }
 
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << "exit:" << __METHOD_NAME__ << " hw_id:" << hw_id << std::endl;
@@ -675,13 +745,14 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
                 delay(1);
                 count++;
                 if (count == 100) {
-                    throw TrexException("Critical error!! - RX core failed to start");
+                    throw TrexFStatEx("Critical error!! - RX core failed to start", TrexException::T_FLOW_STAT_RX_CORE_START_FAIL);
                 }
             }
         }
     } else {
         // make sure rx core is working. If not, we got really confused somehow.
-        assert(m_rx_core->is_working());
+        if (m_rx_core)
+            assert(m_rx_core->is_working());
     }
     m_num_started_streams++;
     return 0;
@@ -705,11 +776,22 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
     }
 
     if (! m_api)
-        throw TrexException("Called stop_stream, but no stream was added");
+        throw TrexFStatEx("Called stop_stream, but no stream was added", TrexException::T_FLOW_STAT_NO_STREAMS_EXIST);
 
-    if (stream->m_rx_check.m_hw_id >= MAX_FLOW_STATS) {
+    if (stream->m_rx_check.m_hw_id >= MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
         // We allow stopping while already stopped. Will not hurt us.
         return 0;
+    }
+
+    uint16_t rule_type = stream->m_rx_check.m_rule_type;
+    switch(rule_type) {
+    case TrexPlatformApi::IF_STAT_IPV4_ID:
+        break;
+    case TrexPlatformApi::IF_STAT_PAYLOAD:
+        break;
+    default:
+        throw TrexFStatEx("Wrong rule_type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
+        break;
     }
 
     stream->m_rx_check.m_hw_id = HW_ID_FREE;
@@ -720,16 +802,24 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
         uint8_t proto = m_user_id_map.l4_proto(stream->m_rx_check.m_pg_id);
         uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id);
         if (hw_id >= MAX_FLOW_STATS) {
-            fprintf(stderr, "Error: %s got wrong hw_id %d from unmap\n", __func__, hw_id);
-            throw TrexException("Internal error in stop_stream. Got bad hw_id");
+            throw TrexFStatEx("Internal error in stop_stream. Got bad hw_id" + std::to_string(hw_id)
+                              , TrexException::T_FLOW_STAT_BAD_HW_ID);
         } else {
+            CFlowStatUserIdInfo *p_user_id;
             // update counters, and reset before unmapping
-            CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
+            if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+                p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
+            } else {
+                p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(hw_id));
+                hw_id += MAX_FLOW_STATS;
+            }
             assert(p_user_id != NULL);
             rx_per_flow_t rx_counter;
             tx_per_flow_t tx_counter;
             for (uint8_t port = 0; port < m_num_ports; port++) {
-                m_api->del_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
+                if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+                    m_api->del_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
+                }
                 m_api->get_flow_stats(port, &rx_counter, (void *)&tx_counter, hw_id, hw_id, true);
                 // when stopping, always send counters for stopped stream one last time
                 p_user_id->set_rx_counter(port, rx_counter);
@@ -738,7 +828,11 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
                 p_user_id->set_need_to_send_tx(port);
             }
             m_user_id_map.unmap(stream->m_rx_check.m_pg_id);
-            m_hw_id_map.unmap(hw_id);
+            if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+                m_hw_id_map.unmap(hw_id);
+            } else {
+                m_hw_id_map_payload.unmap(hw_id);
+            }
         }
     }
     m_num_started_streams--;
@@ -774,7 +868,9 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
 // return false if no counters changed since last run. true otherwise
 bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     rx_per_flow_t rx_stats[MAX_FLOW_STATS];
+    rx_per_flow_t rx_stats_payload[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
+    tx_per_flow_t tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
     Json::FastWriter writer;
     Json::Value root;
 
@@ -797,7 +893,9 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
     // read hw counters, and update
     for (uint8_t port = 0; port < m_num_ports; port++) {
         m_api->get_flow_stats(port, rx_stats, (void *)tx_stats, 0, m_max_hw_id, false);
+        m_api->get_flow_stats(port, rx_stats_payload, (void *)tx_stats_payload, MAX_FLOW_STATS, MAX_FLOW_STATS + m_max_hw_id_payload, false);
         for (int i = 0; i <= m_max_hw_id; i++) {
+            //??? add rx for payload rules
             if (rx_stats[i].get_pkts() != 0) {
                 rx_per_flow_t rx_pkts = rx_stats[i];
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
@@ -814,6 +912,22 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
             if (tx_stats[i].get_pkts() != 0) {
                 tx_per_flow_t tx_pkts = tx_stats[i];
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                if (likely(p_user_id != NULL)) {
+                    if (p_user_id->get_tx_counter(port) != tx_pkts) {
+                        p_user_id->set_tx_counter(port, tx_pkts);
+                        p_user_id->set_need_to_send_tx(port);
+                    }
+                } else {
+                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
+                              << (uint16_t)port << ", because no mapping was found." << std::endl;
+                }
+            }
+        }
+        // payload rules
+        for (int i = 0; i <= m_max_hw_id_payload; i++) {
+            if (tx_stats_payload[i].get_pkts() != 0) {
+                tx_per_flow_t tx_pkts = tx_stats_payload[i];
+                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_tx_counter(port) != tx_pkts) {
                         p_user_id->set_tx_counter(port, tx_pkts);
