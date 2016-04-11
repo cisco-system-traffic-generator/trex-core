@@ -474,7 +474,7 @@ class STLClient(object):
                                                         self.server_version,
                                                         self.ports)
 
-        self.flow_stats = trex_stl_stats.CRxStats()
+        self.flow_stats = trex_stl_stats.CRxStats(self.ports)
 
         self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
                                                                  self.ports,

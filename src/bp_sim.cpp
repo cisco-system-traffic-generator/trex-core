@@ -3652,10 +3652,15 @@ int CNodeGenerator::flush_file(dsec_t max_time,
              if ( unlikely( node_sl->is_mask_for_free() ) ) {
                  thread->free_node(node);
              } else {
+
+                 /* count before handle - node might be destroyed */
+                 #ifdef TREX_SIM
+                 update_stl_stats(node_sl);
+                 #endif
+
                  node_sl->handle(thread);
 
                  #ifdef TREX_SIM
-                 update_stl_stats(node_sl);
                  if (has_limit_reached()) {
                      thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
                  }

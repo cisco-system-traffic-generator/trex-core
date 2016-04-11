@@ -2,6 +2,7 @@
 
 from .utils import text_tables
 from .utils.text_opts import format_text, format_threshold, format_num
+from .trex_stl_types import StatNotAvailable
 
 from collections import namedtuple, OrderedDict, deque
 import sys
@@ -16,11 +17,13 @@ import pprint
 
 GLOBAL_STATS = 'g'
 PORT_STATS = 'p'
+PORT_GRAPH = 'pg'
 PORT_STATUS = 'ps'
 STREAMS_STATS = 's'
 
-ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS]
+ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, PORT_GRAPH]
 COMPACT = [GLOBAL_STATS, PORT_STATS]
+GRAPH_PORT_COMPACT = [GLOBAL_STATS, PORT_GRAPH]
 SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS]
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
@@ -107,11 +110,15 @@ class CTRexInfoGenerator(object):
         elif statistic_type == PORT_STATS:
             return self._generate_port_stats(port_id_list)
 
+        elif statistic_type == PORT_GRAPH:
+            return self._generate_port_graph(port_id_list)
+
         elif statistic_type == PORT_STATUS:
             return self._generate_port_status(port_id_list)
 
         elif statistic_type == STREAMS_STATS:
             return self._generate_streams_stats()
+
         else:
             # ignore by returning empty object
             return {}
@@ -163,70 +170,49 @@ class CTRexInfoGenerator(object):
 
         return {"streams_statistics": ExportableStats(sstats_data, stats_table)}
 
-        
+    @staticmethod
+    def _get_rational_block_char(value, range_start, interval):
+        # in Konsole, utf-8 is sometimes printed with artifacts, return ascii for now
+        return 'X' if value >= range_start + float(interval) / 2 else ' '
+        value -= range_start
+        ratio = float(value) / interval
+        if ratio <= 0.0625:
+            return u' '         # empty block
+        if ratio <= 0.1875:
+            return u'\u2581'    # 1/8
+        if ratio <= 0.3125:
+            return u'\u2582'    # 2/4
+        if ratio <= 0.4375:
+            return u'\u2583'    # 3/8
+        if ratio <= 0.5625:
+            return u'\u2584'    # 4/8
+        if ratio <= 0.6875:
+            return u'\u2585'    # 5/8
+        if ratio <= 0.8125:
+            return u'\u2586'    # 6/8
+        if ratio <= 0.9375:
+            return u'\u2587'    # 7/8
+        return u'\u2588'        # full block
 
-        per_stream_stats = OrderedDict([("owner", []),
-                                       ("state", []),
-                                       ("--", []),
-                                       ("Tx bps L2", []),
-                                       ("Tx bps L1", []),
-                                       ("Tx pps", []),
-                                       ("Line Util.", []),
+    def _generate_port_graph(self, port_id_list):
+        relevant_port = self.__get_relevant_ports(port_id_list)[0]
+        hist_len = len(relevant_port.port_stats.history)
+        hist_maxlen = relevant_port.port_stats.history.maxlen
+        util_tx_hist = [0] * (hist_maxlen - hist_len) + [round(relevant_port.port_stats.history[i]['m_percentage']) for i in range(hist_len)]
+        util_rx_hist = [0] * (hist_maxlen - hist_len) + [round(relevant_port.port_stats.history[i]['m_rx_percentage']) for i in range(hist_len)]
 
-                                       ("---", []),
-                                       ("Rx bps", []),
-                                       ("Rx pps", []),
-
-                                       ("----", []),
-                                       ("opackets", []),
-                                       ("ipackets", []),
-                                       ("obytes", []),
-                                       ("ibytes", []),
-                                       ("tx-bytes", []),
-                                       ("rx-bytes", []),
-                                       ("tx-pkts", []),
-                                       ("rx-pkts", []),
-
-                                       ("-----", []),
-                                       ("oerrors", []),
-                                       ("ierrors", []),
-
-                                      ]
-                                      )
-
-        total_stats = CPortStats(None)
-
-        for port_obj in relevant_ports:
-            # fetch port data
-            port_stats = port_obj.generate_port_stats()
-
-            total_stats += port_obj.port_stats
-
-            # populate to data structures
-            return_stats_data[port_obj.port_id] = port_stats
-            self.__update_per_field_dict(port_stats, per_field_stats)
-
-        total_cols = len(relevant_ports)
-        header = ["port"] + [port.port_id for port in relevant_ports]
-
-        if (total_cols > 1):
-            self.__update_per_field_dict(total_stats.generate_stats(), per_field_stats)
-            header += ['total']
-            total_cols += 1
 
         stats_table = text_tables.TRexTextTable()
-        stats_table.set_cols_align(["l"] + ["r"] * total_cols)
-        stats_table.set_cols_width([10] + [17]   * total_cols)
-        stats_table.set_cols_dtype(['t'] + ['t'] * total_cols)
+        stats_table.header([' Util(%)', 'TX', 'RX'])
+        stats_table.set_cols_align(['c', 'c', 'c'])
+        stats_table.set_cols_width([8, hist_maxlen, hist_maxlen])
+        stats_table.set_cols_dtype(['t', 't', 't'])
 
-        stats_table.add_rows([[k] + v
-                              for k, v in per_field_stats.items()],
-                              header=False)
+        for y in range(95, -1, -5):
+            stats_table.add_row([y, ''.join([self._get_rational_block_char(util_tx, y, 5) for util_tx in util_tx_hist]),
+                                    ''.join([self._get_rational_block_char(util_rx, y, 5) for util_rx in util_rx_hist])])
 
-        stats_table.header(header)
-
-        return {"streams_statistics": ExportableStats(return_stats_data, stats_table)}
-
+        return {"port_statistics": ExportableStats({}, stats_table)}
 
     def _generate_port_stats(self, port_id_list):
         relevant_ports = self.__get_relevant_ports(port_id_list)
@@ -374,7 +360,8 @@ class CTRexInfoGenerator(object):
         
         # display only the first FOUR options, by design
         if len(ports) > 4:
-            self.logger.log(format_text("[WARNING]: ", 'magenta', 'bold'), format_text("displaying up to 4 ports", 'magenta'))
+            #self.logger is not defined
+            #self.logger.log(format_text("[WARNING]: ", 'magenta', 'bold'), format_text("displaying up to 4 ports", 'magenta'))
             ports = ports[:4]
         return ports
 
@@ -400,7 +387,7 @@ class CTRexStats(object):
         self.reference_stats = {}
         self.latest_stats = {}
         self.last_update_ts = time.time()
-        self.history = deque(maxlen = 10)
+        self.history = deque(maxlen = 30)
         self.lock = threading.Lock()
         self.has_baseline = False
 
@@ -444,6 +431,7 @@ class CTRexStats(object):
 
     def clear_stats(self):
         self.reference_stats = copy.deepcopy(self.latest_stats)
+        self.history.clear()
 
 
     def invalidate (self):
@@ -469,19 +457,18 @@ class CTRexStats(object):
     def get(self, field, format=False, suffix=""):
         value = self._get(self.latest_stats, field)
         if value == None:
-            return "N/A"
+            return 'N/A'
 
         return value if not format else format_num(value, suffix)
 
 
     def get_rel(self, field, format=False, suffix=""):
-        
         ref_value = self._get(self.reference_stats, field)
         latest_value = self._get(self.latest_stats, field)
 
         # latest value is an aggregation - must contain the value
         if latest_value == None:
-            return "N/A"
+            return 'N/A'
 
         if ref_value == None:
             ref_value = 0
@@ -493,7 +480,7 @@ class CTRexStats(object):
 
     # get trend for a field
     def get_trend (self, field, use_raw = False, percision = 10.0):
-        if not field in self.latest_stats:
+        if field not in self.latest_stats:
             return 0
 
         # not enough history - no trend
@@ -506,7 +493,7 @@ class CTRexStats(object):
         
         # must lock, deque is not thread-safe for iteration
         with self.lock:
-            field_samples = [sample[field] for sample in self.history]
+            field_samples = [sample[field] for sample in list(self.history)[-5:]]
 
         if use_raw:
             return calculate_diff_raw(field_samples)
@@ -694,10 +681,14 @@ class CPortStats(CTRexStats):
         # L1 bps
         bps = snapshot.get("m_total_tx_bps")
         pps = snapshot.get("m_total_tx_pps")
+        rx_bps = snapshot.get("m_total_rx_bps")
+        rx_pps = snapshot.get("m_total_rx_pps")
 
         bps_L1 = calc_bps_L1(bps, pps)
+        rx_bps_L1 = calc_bps_L1(rx_bps, rx_pps)
         snapshot['m_total_tx_bps_L1'] = bps_L1
         snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100
+        snapshot['m_rx_percentage'] = (rx_bps_L1 / self._port_obj.get_speed_bps()) * 100
 
         # simple...
         self.latest_stats = snapshot
@@ -769,9 +760,15 @@ class CPortStats(CTRexStats):
 
 # RX stats objects - COMPLEX :-(
 class CRxStats(CTRexStats):
-    def __init__(self):
+    def __init__(self, ports):
         super(CRxStats, self).__init__()
+        self.ports = ports
+        self.ports_speed = {}
 
+    def get_ports_speed(self):
+        for port in self.ports:
+            self.ports_speed[str(port)] = self.ports[port].get_speed_bps()
+        self.ports_speed['total'] = sum(self.ports_speed.values())
 
     # calculates a diff between previous snapshot
     # and current one
@@ -797,7 +794,7 @@ class CRxStats(CTRexStats):
 
         for field in ['tx_pkts', 'tx_bytes', 'rx_pkts', 'rx_bytes']:
             # is in the first time ? (nothing in prev)
-            if not field in output:
+            if field not in output:
                 output[field] = {}
 
             # does the current snapshot has this field ?
@@ -869,46 +866,66 @@ class CRxStats(CTRexStats):
 
 
     def calculate_bw_for_pg (self, pg_current, pg_prev = None, diff_sec = 0.0):
-
-        # if no previous values - its None
+        # no previous values
         if (pg_prev == None) or not (diff_sec > 0):
-            pg_current['tx_pps'] = None
-            pg_current['tx_bps'] = None
-            pg_current['tx_bps_L1'] = None
-            pg_current['rx_pps'] = None
-            pg_current['rx_bps'] = None
+            pg_current['tx_pps']        = {}
+            pg_current['tx_bps']        = {}
+            pg_current['tx_bps_L1']     = {}
+            pg_current['tx_line_util']  = {}
+            pg_current['rx_pps']        = {}
+            pg_current['rx_bps']        = {}
+            pg_current['rx_bps_L1']     = {}
+            pg_current['rx_line_util']  = {}
+
+            pg_current['tx_pps_lpf']    = {}
+            pg_current['tx_bps_lpf']    = {}
+            pg_current['tx_bps_L1_lpf'] = {}
+            pg_current['rx_pps_lpf']    = {}
+            pg_current['rx_bps_lpf']    = {}
+            pg_current['rx_bps_L1_lpf'] = {}
             return
 
+        # TX
+        self.get_ports_speed()
+        for port in pg_current['tx_pkts'].keys():
+            prev_tx_pps   = pg_prev['tx_pps'].get(port)
+            now_tx_pkts   = pg_current['tx_pkts'].get(port)
+            prev_tx_pkts  = pg_prev['tx_pkts'].get(port)
+            pg_current['tx_pps'][port], pg_current['tx_pps_lpf'][port] = self.calc_pps(prev_tx_pps, now_tx_pkts, prev_tx_pkts, diff_sec)
 
-        # read the current values
-        now_tx_pkts   = pg_current['tx_pkts']['total']
-        now_tx_bytes  = pg_current['tx_bytes']['total']
-        now_rx_pkts   = pg_current['rx_pkts']['total']
-        now_rx_bytes  = pg_current['rx_bytes']['total']
+            prev_tx_bps   = pg_prev['tx_bps'].get(port)
+            now_tx_bytes  = pg_current['tx_bytes'].get(port)
+            prev_tx_bytes = pg_prev['tx_bytes'].get(port)
+            pg_current['tx_bps'][port], pg_current['tx_bps_lpf'][port] = self.calc_bps(prev_tx_bps, now_tx_bytes, prev_tx_bytes, diff_sec)
 
-        # prev values
-        prev_tx_pkts  = pg_prev['tx_pkts']['total']
-        prev_tx_bytes = pg_prev['tx_bytes']['total']
-        prev_rx_pkts  = pg_prev['rx_pkts']['total']
-        prev_rx_bytes = pg_prev['rx_bytes']['total']
+            if pg_current['tx_bps'].get(port) != None and pg_current['tx_pps'].get(port) != None:
+                pg_current['tx_bps_L1'][port] = calc_bps_L1(pg_current['tx_bps'][port], pg_current['tx_pps'][port])
+                pg_current['tx_bps_L1_lpf'][port] = calc_bps_L1(pg_current['tx_bps_lpf'][port], pg_current['tx_pps_lpf'][port])
+                pg_current['tx_line_util'][port] = 100.0 * pg_current['tx_bps_L1'][port] / self.ports_speed[port]
+            else:
+                pg_current['tx_bps_L1'][port] = None
+                pg_current['tx_bps_L1_lpf'][port] = None
+                pg_current['tx_line_util'][port] = None
 
-        # prev B/W
-        prev_tx_pps   = pg_prev['tx_pps']
-        prev_tx_bps   = pg_prev['tx_bps']
-        prev_rx_pps   = pg_prev['rx_pps']
-        prev_rx_bps   = pg_prev['rx_bps']
-
-      
-        #assert(now_tx_pkts >= prev_tx_pkts)
-        pg_current['tx_pps'] = self.calc_pps(prev_tx_pps, now_tx_pkts, prev_tx_pkts, diff_sec)
-        pg_current['tx_bps'] = self.calc_bps(prev_tx_bps, now_tx_bytes, prev_tx_bytes, diff_sec)
-        pg_current['rx_pps'] = self.calc_pps(prev_rx_pps, now_rx_pkts, prev_rx_pkts, diff_sec)
-        pg_current['rx_bps'] = self.calc_bps(prev_rx_bps, now_rx_bytes, prev_rx_bytes, diff_sec)
-
-        if pg_current['tx_bps'] != None and pg_current['tx_pps'] != None:
-            pg_current['tx_bps_L1'] = calc_bps_L1(pg_current['tx_bps'], pg_current['tx_pps'])
-        else:
-            pg_current['tx_bps_L1'] = None
+        # RX
+        for port in pg_current['rx_pkts'].keys():
+            prev_rx_pps   = pg_prev['rx_pps'].get(port)
+            now_rx_pkts   = pg_current['rx_pkts'].get(port)
+            prev_rx_pkts  = pg_prev['rx_pkts'].get(port)
+            pg_current['rx_pps'][port], pg_current['rx_pps_lpf'][port] = self.calc_pps(prev_rx_pps, now_rx_pkts, prev_rx_pkts, diff_sec)
+    
+            prev_rx_bps   = pg_prev['rx_bps'].get(port)
+            now_rx_bytes  = pg_current['rx_bytes'].get(port)
+            prev_rx_bytes = pg_prev['rx_bytes'].get(port)
+            pg_current['rx_bps'][port], pg_current['rx_bps_lpf'][port] = self.calc_bps(prev_rx_bps, now_rx_bytes, prev_rx_bytes, diff_sec)
+            if pg_current['rx_bps'].get(port) != None and pg_current['rx_pps'].get(port) != None:
+                pg_current['rx_bps_L1'][port] = calc_bps_L1(pg_current['rx_bps'][port], pg_current['rx_pps'][port])
+                pg_current['rx_bps_L1_lpf'][port] = calc_bps_L1(pg_current['rx_bps_lpf'][port], pg_current['rx_pps_lpf'][port])
+                pg_current['rx_line_util'][port] = 100.0 * pg_current['rx_bps_L1'][port] / self.ports_speed[port]
+            else:
+                pg_current['rx_bps_L1'][port] = None
+                pg_current['rx_bps_L1_lpf'][port] = None
+                pg_current['rx_line_util'][port] = None
 
 
     def calc_pps (self, prev_bw, now, prev, diff_sec):
@@ -918,11 +935,11 @@ class CRxStats(CTRexStats):
     def calc_bps (self, prev_bw, now, prev, diff_sec):
         return self.calc_bw(prev_bw, now, prev, diff_sec, True)
 
-
+    # returns tuple - first value is real, second is low pass filtered
     def calc_bw (self, prev_bw, now, prev, diff_sec, is_bps):
         # B/W is not valid when the values are None
         if (now is None) or (prev is None):
-            return None
+            return (None, None)
         
         # calculate the B/W for current snapshot
         current_bw = (now - prev) / diff_sec
@@ -933,7 +950,7 @@ class CRxStats(CTRexStats):
         if prev_bw is None:
             prev_bw = 0
 
-        return ( (0.5 * prev_bw) + (0.5 * current_bw) )
+        return (current_bw, 0.5 * prev_bw + 0.5 * current_bw)
 
 
 
@@ -960,22 +977,29 @@ class CRxStats(CTRexStats):
             # skip non ints
             if not is_intable(pg_id):
                 continue
-
+            # bare counters
             stats[int(pg_id)] = {}
-            for field in ['tx_pkts', 'tx_bytes', 'rx_pkts']:
-                stats[int(pg_id)][field] = {'total': self.get_rel([pg_id, field, 'total'])}
+            for field in ['tx_pkts', 'tx_bytes', 'rx_pkts', 'rx_bytes']:
+                val = self.get_rel([pg_id, field, 'total'])
+                stats[int(pg_id)][field] = {'total': val if val != 'N/A' else StatNotAvailable(field)}
+                for port in value[field].keys():
+                    if is_intable(port):
+                        val = self.get_rel([pg_id, field, port])
+                        stats[int(pg_id)][field][int(port)] = val if val != 'N/A' else StatNotAvailable(field)
 
-                for port, pv in value[field].items():
-                    try:
-                        int(port)
-                    except ValueError:
-                        continue
-                    stats[int(pg_id)][field][int(port)] = self.get_rel([pg_id, field, port])
+            # BW values
+            for field in ['tx_pps', 'tx_bps', 'tx_bps_L1', 'rx_pps', 'rx_bps', 'rx_bps_L1', 'tx_line_util', 'rx_line_util']:
+                val = self.get([pg_id, field, 'total'])
+                stats[int(pg_id)][field] = {'total': val if val != 'N/A' else StatNotAvailable(field)}
+                for port in value[field].keys():
+                    if is_intable(port):
+                        val = self.get([pg_id, field, port])
+                        stats[int(pg_id)][field][int(port)] = val if val != 'N/A' else StatNotAvailable(field)
 
         return stats
 
 
-
+    # for Console
     def generate_stats (self):
 
         # for TUI - maximum 4 
@@ -1005,13 +1029,13 @@ class CRxStats(CTRexStats):
         # maximum 4
         for pg_id in pg_ids:
 
-            formatted_stats['Tx pps'].append(self.get([pg_id, 'tx_pps'], format = True, suffix = "pps"))
-            formatted_stats['Tx bps L2'].append(self.get([pg_id, 'tx_bps'], format = True, suffix = "bps"))
+            formatted_stats['Tx pps'].append(self.get([pg_id, 'tx_pps_lpf', 'total'], format = True, suffix = "pps"))
+            formatted_stats['Tx bps L2'].append(self.get([pg_id, 'tx_bps_lpf', 'total'], format = True, suffix = "bps"))
 
-            formatted_stats['Tx bps L1'].append(self.get([pg_id, 'tx_bps_L1'], format = True, suffix = "bps"))
+            formatted_stats['Tx bps L1'].append(self.get([pg_id, 'tx_bps_L1_lpf', 'total'], format = True, suffix = "bps"))
 
-            formatted_stats['Rx pps'].append(self.get([pg_id, 'rx_pps'], format = True, suffix = "pps"))
-            formatted_stats['Rx bps'].append(self.get([pg_id, 'rx_bps'], format = True, suffix = "bps"))
+            formatted_stats['Rx pps'].append(self.get([pg_id, 'rx_pps_lpf', 'total'], format = True, suffix = "pps"))
+            formatted_stats['Rx bps'].append(self.get([pg_id, 'rx_bps_lpf', 'total'], format = True, suffix = "bps"))
             
             formatted_stats['opackets'].append(self.get_rel([pg_id, 'tx_pkts', 'total']))
             formatted_stats['ipackets'].append(self.get_rel([pg_id, 'rx_pkts', 'total']))

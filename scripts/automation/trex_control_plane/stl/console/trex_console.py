@@ -358,6 +358,7 @@ class TRexConsole(TRexGeneralCmd):
         ports = self.stateless_client.get_acquired_ports()
         if not ports:
             print("No ports acquired\n")
+            return
 
         with self.stateless_client.logger.supress():
             table = stl_map_ports(self.stateless_client, ports = ports)

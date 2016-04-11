@@ -139,4 +139,16 @@ def validate_type(arg_name, arg, valid_types):
 def verify_exclusive_arg (args_list):
     if not (len(list(filter(lambda x: x is not None, args_list))) == 1):
         raise STLError('exactly one parameter from {0} should be provided'.format(args_list))
-        
+
+
+# shows as 'N/A', but does not let any compares for user to not mistake in automation
+class StatNotAvailable(object):
+    def __init__(self, stat_name):
+        self.stat_name = stat_name
+
+    def __repr__(self, *args, **kwargs):
+        return 'N/A'
+
+    def __cmp__(self, *args, **kwargs):
+        raise Exception("Stat '%s' not available at this setup" % self.stat_name)
+

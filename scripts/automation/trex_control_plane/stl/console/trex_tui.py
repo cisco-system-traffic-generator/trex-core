@@ -2,7 +2,7 @@ import termios
 import sys
 import os
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 import datetime
 
 if sys.version_info > (3,0):
@@ -40,6 +40,7 @@ class TrexTUIPanel(object):
         self.mng = mng
         self.name = name
         self.stateless_client = mng.stateless_client
+        self.is_graph = False
 
     def show (self):
         raise NotImplementedError("must implement this")
@@ -75,7 +76,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
 
     def get_key_actions (self):
-        allowed = {}
+        allowed = OrderedDict()
 
         allowed['c'] = self.key_actions['c']
 
@@ -152,19 +153,26 @@ class TrexTUIPort(TrexTUIPanel):
         self.key_actions['r'] = {'action': self.action_resume, 'legend': 'resume', 'show': True}
         self.key_actions['+'] = {'action': self.action_raise, 'legend': 'up 5%', 'show': True}
         self.key_actions['-'] = {'action': self.action_lower, 'legend': 'low 5%', 'show': True}
+        self.key_actions['t'] = {'action': self.action_toggle_graph, 'legend': 'toggle graph', 'show': True}
 
 
     def show (self):
-        stats = self.stateless_client._get_formatted_stats([self.port_id])
-        # print stats to screen
-        for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+        if self.mng.tui.is_graph is False:
+            stats = self.stateless_client._get_formatted_stats([self.port_id])
+            # print stats to screen
+            for stat_type, stat_data in stats.items():
+                text_tables.print_table_with_header(stat_data.text_table, stat_type)
+        else:
+            stats = self.stateless_client._get_formatted_stats([self.port_id], stats_mask = trex_stl_stats.GRAPH_PORT_COMPACT)
+            for stat_type, stat_data in stats.items():
+                text_tables.print_table_with_header(stat_data.text_table, stat_type)
 
     def get_key_actions (self):
 
-        allowed = {}
+        allowed = OrderedDict()
 
         allowed['c'] = self.key_actions['c']
+        allowed['t'] = self.key_actions['t']
 
         if self.stateless_client.is_all_ports_acquired():
             return allowed
@@ -180,7 +188,14 @@ class TrexTUIPort(TrexTUIPanel):
 
         return allowed
 
-    # actions
+    def action_toggle_graph(self):
+        try:
+            self.mng.tui.is_graph = not self.mng.tui.is_graph
+        except Exception:
+            pass
+
+        return ""
+
     def action_pause (self):
         try:
             self.stateless_client.pause(ports = [self.port_id])
@@ -399,6 +414,7 @@ class TrexTUI():
     STATE_ACTIVE     = 0
     STATE_LOST_CONT  = 1
     STATE_RECONNECT  = 2
+    is_graph = False
 
     def __init__ (self, stateless_client):
         self.stateless_client = stateless_client
