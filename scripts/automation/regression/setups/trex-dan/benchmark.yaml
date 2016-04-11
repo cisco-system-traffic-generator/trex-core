@@ -112,7 +112,7 @@ test_static_routing_imix_asymmetric:
 
 test_ipv6_simple    :
   multiplier        : 1.5
-  cores             : 1
+  cores             : 2
   cpu_to_core_ratio : 30070000
   cpu2core_custom_dev: YES
   cpu2core_dev : 0.07
