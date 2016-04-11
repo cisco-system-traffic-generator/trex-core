@@ -315,7 +315,7 @@ class CStreamsPerPort(defaultdict):
 
     # save HLT args to modify streams later
     def save_stream_args(self, ports_list, stream_id, stream_hlt_args):
-        if stream_id is None: return # no stream_id, can't save TODO: remove this check ASAP
+        if stream_id is None: raise STLError('CStreamsPerPort: no stream_id in stream')
         if stream_hlt_args.get('load_profile'): return # can't modify profiles, don't save
         if not self.hlt_history: raise STLError('CStreamsPerPort: this object works only with HLT history, try init with hlt_history = True')
         if not is_integer(stream_id): raise STLError('CStreamsPerPort: stream_id should be number')
@@ -323,10 +323,9 @@ class CStreamsPerPort(defaultdict):
         if not isinstance(ports_list, list):
             ports_list = [ports_list]
         for port in ports_list:
-            if stream_id in self[port]:
-                self[port][stream_id].update(stream_hlt_args)
-            else:
-                self[port][stream_id] = stream_hlt_args
+            if stream_id not in self[port]:
+                self[port][stream_id] = {}
+            self[port][stream_id].update(stream_hlt_args)
 
     def remove_stream(self, ports_list, stream_id):
         if not isinstance(ports_list, list):
@@ -348,11 +347,11 @@ class CTRexHltApi(object):
     def __init__(self, verbose = 0):
         self.trex_client = None
         self.verbose = verbose
-        self._last_pg_id = 0              # pg_id acts as stream_handle
-        self._streams_history = {}        # streams in format of HLT arguments for modify later
-        self._native_handle_by_pg_id = {} # pg_id -> native handle + port
-        self._pg_id_by_id = {}            # stream_id -> pg_id
-        self._pg_id_by_name = {}          # name -> pg_id
+        self._last_pg_id = 0                # pg_id acts as stream_handle
+        self._streams_history = {}          # streams in format of HLT arguments for modify later
+        self._native_handle_by_pg_id = {}   # pg_id -> native handle + port
+        self._pg_id_by_id = {}              # stream_id -> pg_id
+        self._pg_id_by_name = {}            # name -> pg_id
 
 ###########################
 #    Session functions    #
@@ -384,6 +383,8 @@ class CTRexHltApi(object):
         try:
             port_list = self._parse_port_list(kwargs['port_list'])
             self.trex_client.acquire(ports = port_list, force = kwargs['break_locks'])
+            for port in port_list:
+                self._native_handle_by_pg_id[port] = {}
         except Exception as e:
             self.trex_client = None
             return HLT_ERR('Could not acquire ports %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
@@ -506,8 +507,14 @@ class CTRexHltApi(object):
 
             if len(port_handle) > 1:
                 for port in port_handle:
-                    user_kwargs['port_handle'] = port
-                    res = self.traffic_config(**user_kwargs)
+                    try:
+                        user_kwargs['port_handle'] = port
+                        res = self.traffic_config(**user_kwargs)
+                        if res['status'] == 0:
+                            return HLT_ERR('Error during modify of stream: %s' % res['log'])
+                    except Exception as e:
+                        return HLT_ERR('Could not remove stream(s) %s from port(s) %s: %s' % (stream_id, port_handle, e if isinstance(e, STLError) else traceback.format_exc()))
+                return HLT_OK()
             else:
                 if type(port_handle) is list:
                     port = port_handle[0]
@@ -517,10 +524,12 @@ class CTRexHltApi(object):
                     return HLT_ERR('Port %s was not used/acquired' % port)
                 if pg_id not in self._streams_history[port]:
                     return HLT_ERR('This stream_id (%s) was not used before at port %s, please create new.' % (stream_id, port))
-                kwargs.update(self._streams_history[port][pg_id])
-                kwargs.update(user_kwargs)
+                new_kwargs = {}
+                new_kwargs.update(self._streams_history[port][pg_id])
+                new_kwargs.update(user_kwargs)
+                user_kwargs = new_kwargs
             try:
-                self.trex_client.remove_streams(stream_id, port_handle)
+                self._remove_stream(pg_id, [port])
             except Exception as e:
                 return HLT_ERR('Could not remove stream(s) %s from port(s) %s: %s' % (stream_id, port_handle, e if isinstance(e, STLError) else traceback.format_exc()))
 
@@ -532,7 +541,7 @@ class CTRexHltApi(object):
                 save_to_yaml = user_kwargs.get('save_to_yaml')
                 bidirect_err = 'When using bidirectional flag, '
                 if len(port_handle) != 1:
-                    return HLT_ERR(bidirect_err + 'port_handle1 should be single port handle.')
+                    return HLT_ERR(bidirect_err + 'port_handle should be single port handle.')
                 port_handle = port_handle[0]
                 port_handle2 = kwargs['port_handle2']
                 if (type(port_handle2) is list and len(port_handle2) > 1) or port_handle2 is None:
@@ -561,11 +570,11 @@ class CTRexHltApi(object):
                     return HLT_OK()
 
             try:
+                if not pg_id:
+                    pg_id = self._get_available_pg_id()
                 if kwargs['load_profile']:
                     stream_obj = STLProfile.load_py(kwargs['load_profile'], direction = kwargs['direction'])
                 else:
-                    if not pg_id:
-                        pg_id = self._get_available_pg_id()
                     user_kwargs['pg_id'] = pg_id
                     stream_obj = STLHltStream(**user_kwargs)
             except Exception as e:
@@ -573,12 +582,13 @@ class CTRexHltApi(object):
 
             # try adding the stream per ports
             try:
-                stream_id_arr = self.trex_client.add_streams(streams = stream_obj,
-                                                             ports = port_handle)
-                if type(stream_id_arr) is not list:
-                    stream_id_arr = [stream_id_arr]
                 for port in port_handle:
-                    self._streams_history.save_stream_args(port_handle, stream_id_arr[0], user_kwargs)
+                    stream_id_arr = self.trex_client.add_streams(streams = stream_obj,
+                                                                 ports = port)
+                    self._streams_history.save_stream_args(port, pg_id, user_kwargs)
+                    if type(stream_id_arr) is not list:
+                        stream_id_arr = [stream_id_arr]
+                    self._native_handle_by_pg_id[port][pg_id] = stream_id_arr
             except Exception as e:
                 return HLT_ERR('Could not add stream to ports: %s' % e if isinstance(e, STLError) else traceback.format_exc())
             if mode == 'create':
@@ -736,10 +746,13 @@ class CTRexHltApi(object):
     #    * list   - list of stream_id values or strings (see below)
     #    * string - exact stream_id value, mix of ranges/list separated by comma: 2, 4-13
     def _remove_stream(self, stream_id, port_handle):
-        if get_number(stream_id) is not None: # exact value of int or str
-            self.trex_client.remove_streams(get_number(stream_id), port_handle)         # actual remove
+        stream_num = get_number(stream_id)
+        if stream_num is not None: # exact value of int or str
             for port in port_handle:
-                del self._streams_history[port][get_number(stream_id)]
+                native_handles = self._native_handle_by_pg_id[port][stream_num]
+                self.trex_client.remove_streams(native_handles, port)                   # actual remove
+                del self._native_handle_by_pg_id[port][stream_num]
+                del self._streams_history[port][stream_num]
             return
         if type(stream_id) is list: # list of values/strings
             for each_stream_id in stream_id:
@@ -763,7 +776,7 @@ class CTRexHltApi(object):
                 for each_stream_id in xrange(stream_id_min, stream_id_max + 1):
                     self._remove_stream(each_stream_id, port_handle)                    # recurse
                 return
-        raise STLError('_remove_stream: wrong param %s' % stream_id)
+        raise STLError('_remove_stream: wrong stream_id param %s' % stream_id)
 
     @staticmethod
     def _parse_port_list(port_list):
@@ -869,8 +882,6 @@ def STLHltStream(**user_kwargs):
                            #self_start = True,
                            flow_stats = STLFlowStats(pg_id) if pg_id else None,
                            mode = transmit_mode_obj,
-                           stream_id = kwargs['stream_id'],
-                           name = kwargs['name'],
                            )
     except Exception as e:
         raise STLError('Could not create stream: %s' % e if isinstance(e, STLError) else traceback.format_exc())

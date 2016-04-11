@@ -231,10 +231,11 @@ class Port(object):
             if single_rc.rc:
                 stream_id = batch[i].params['stream_id']
                 next_id   = batch[i].params['stream']['next_stream_id']
-                self.streams[stream_id] = {'next_id' : next_id,
-                                           'pkt'  : streams_list[i].get_pkt(),
-                                           'mode' : streams_list[i].get_mode(),
-                                           'rate' : streams_list[i].get_rate()}
+                self.streams[stream_id] = {'next_id'        : next_id,
+                                           'pkt'            : streams_list[i].get_pkt(),
+                                           'mode'           : streams_list[i].get_mode(),
+                                           'rate'           : streams_list[i].get_rate(),
+                                           'has_flow_stats' : streams_list[i].has_flow_stats()}
 
                 ret.add(RC_OK(data = stream_id))
 
@@ -280,12 +281,12 @@ class Port(object):
         for i, single_rc in enumerate(rc):
             if single_rc:
                 id = batch[i].params['stream_id']
-                del self.streams[stream_id]
+                del self.streams[id]
 
         self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
 
         # recheck if any RX stats streams present on the port
-        self.has_rx_streams = any([stream.has_flow_stats() for stream in self.streams])
+        self.has_rx_streams = any([stream['has_flow_stats'] for stream in self.streams.values()])
 
         return self.ok() if rc else self.err(rc.err())
 

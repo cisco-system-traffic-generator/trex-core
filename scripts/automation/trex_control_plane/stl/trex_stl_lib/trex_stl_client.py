@@ -1473,8 +1473,8 @@ class STLClient(object):
             stream_id_list = [stream_id_list]
 
         # check streams
-        if not all([isinstance(stream_id, long) for stream_id in stream_id_list]):
-            raise STLArgumentError('stream_id_list', stream_id_list)
+        for stream_id in stream_id_list:
+            validate_type('stream_id', stream_id, int)
 
         # remove streams
         self.logger.pre_cmd("Removing {0} streams from port(s) {1}:".format(len(stream_id_list), ports))

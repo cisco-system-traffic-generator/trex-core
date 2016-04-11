@@ -49,11 +49,12 @@ def random_id_gen(length=8):
 # try to get number from input, return None in case of fail
 def get_number(input):
     try:
-        if type(input) in (int, long):
-            return input
-        return int(input)
+        return long(input)
     except:
-        return None
+        try:
+            return int(input)
+        except:
+            return None
 
 def list_intersect(l1, l2):
     return list(filter(lambda x: x in l2, l1))
