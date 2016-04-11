@@ -1140,35 +1140,6 @@ public:
         m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
         m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
         m_port_conf.fdir_conf.status=RTE_FDIR_NO_REPORT_STATUS;
-        /* Offset of flexbytes field in RX packets (in 16-bit word units). */
-        /* Note: divide by 2 to convert byte offset to word offset */
-#if 0
-        if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
-            m_port_conf.fdir_conf.flexbytes_offset=(14+6)/2;
-        }else{
-            m_port_conf.fdir_conf.flexbytes_offset=(14+8)/2;
-        }
-
-        /* Increment offset 4 bytes for the case where we add VLAN */
-        if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ){
-            m_port_conf.fdir_conf.flexbytes_offset+=(4/2);
-        }
-#endif
-
-        // TBD Flow Director does not work with XL710 yet we need to understand why
-#if 0
-        struct rte_eth_fdir_flex_conf * lp = &m_port_conf.fdir_conf.flex_conf;
-
-        //lp->nb_flexmasks=1;
-        //lp->flex_mask[0].flow_type=RTE_ETH_FLOW_TYPE_SCTPV4;
-        //memset(lp->flex_mask[0].mask,0xff,RTE_ETH_FDIR_MAX_FLEXLEN);
-
-        lp->nb_payloads=1;
-        lp->flex_set[0].type = RTE_ETH_L3_PAYLOAD;
-        lp->flex_set[0].src_offset[0]=8;
-
-        //m_port_conf.fdir_conf.drop_queue=1;
-#endif
     }
 
     struct rte_eth_conf     m_port_conf;
