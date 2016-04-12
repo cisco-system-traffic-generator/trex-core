@@ -105,6 +105,9 @@ class WatchedField(object):
         self.current = None
 
     def update (self, value):
+        if value is None:
+            return
+
         if value > self.high_th and not self.hot:
             self.events_handler.log_warning("{0} is high: {1}{2}".format(self.name, value, self.suffix))
             self.hot = True
@@ -607,8 +610,8 @@ class CGlobalStats(CTRexStats):
         # simple...
         self.latest_stats = snapshot
 
-        self.watched_cpu_util.update(snapshot['m_cpu_util'])
-        self.watched_rx_cpu_util.update(snapshot['m_rx_cpu_util'])
+        self.watched_cpu_util.update(snapshot.get('m_cpu_util'))
+        self.watched_rx_cpu_util.update(snapshot.get('m_rx_cpu_util'))
 
         return True
 

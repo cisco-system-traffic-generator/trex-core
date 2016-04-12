@@ -38,7 +38,7 @@ def create_pkt (size, direction):
                          vm  = vm)
 
 
-def simple_burst ():
+def simple_burst (port_a, port_b, pkt_size, rate):
    
   
     # create client
@@ -50,11 +50,11 @@ def simple_burst ():
         #c.set_verbose("high")
 
         # create two streams
-        s1 = STLStream(packet = create_pkt(200, 0),
+        s1 = STLStream(packet = create_pkt(pkt_size, 0),
                        mode = STLTXCont(pps = 100))
 
         # second stream with a phase of 1ms (inter stream gap)
-        s2 = STLStream(packet = create_pkt(200, 1),
+        s2 = STLStream(packet = create_pkt(pkt_size, 1),
                        isg = 1000,
                        mode = STLTXCont(pps = 100))
 
@@ -62,36 +62,41 @@ def simple_burst ():
         # connect to server
         c.connect()
 
-        # prepare our ports (my machine has 0 <--> 1 with static route)
-        c.reset(ports = [0, 1])
+        # prepare our ports
+        c.reset(ports = [port_a, port_b])
 
         # add both streams to ports
-        c.add_streams(s1, ports = [0])
-        c.add_streams(s2, ports = [1])
+        c.add_streams(s1, ports = [port_a])
+        c.add_streams(s2, ports = [port_b])
 
         # clear the stats before injecting
         c.clear_stats()
 
-        # choose rate and start traffic for 10 seconds on 5 mpps
-        print("Running 100 Mbps on ports 0, 1 for 10 seconds...")
-        c.start(ports = [0, 1], mult = "100mbps", duration = 10)
+        # here we multiply the traffic lineaer to whatever given in rate
+        print("Running {:} on ports {:}, {:} for 10 seconds...".format(rate, port_a, port_b))
+        c.start(ports = [port_a, port_b], mult = rate, duration = 10)
 
         # block until done
-        c.wait_on_traffic(ports = [0, 1])
+        c.wait_on_traffic(ports = [port_a, port_b])
 
         # read the stats after the test
         stats = c.get_stats()
 
-        print(json.dumps(stats[0], indent = 4, separators=(',', ': '), sort_keys = True))
-        print(json.dumps(stats[1], indent = 4, separators=(',', ': '), sort_keys = True))
+        print(json.dumps(stats[port_a], indent = 4, separators=(',', ': '), sort_keys = True))
+        print(json.dumps(stats[port_b], indent = 4, separators=(',', ': '), sort_keys = True))
 
-        lost_a = stats[0]["opackets"] - stats[1]["ipackets"]
-        lost_b = stats[1]["opackets"] - stats[0]["ipackets"]
+        lost_a = stats[port_a]["opackets"] - stats[port_b]["ipackets"]
+        lost_b = stats[port_b]["opackets"] - stats[port_a]["ipackets"]
 
-        print("\npackets lost from 0 --> 1:   {0} pkts".format(lost_a))
-        print("packets lost from 1 --> 0:   {0} pkts".format(lost_b))
+        print("\npackets lost from {0} --> {1}:   {2} pkts".format(port_a, port_b, lost_a))
+        print("packets lost from {0} --> {1}:   {2} pkts".format(port_b, port_a, lost_b))
 
-        if (lost_a == 0) and (lost_b == 0):
+        if c.get_warnings():
+            print("\n\n*** test had warnings ****\n\n")
+            for w in c.get_warnings():
+                print(w)
+
+        if (lost_a == 0) and (lost_b == 0) and not c.get_warnings():
             passed = True
         else:
             passed = False
@@ -108,7 +113,6 @@ def simple_burst ():
     else:
         print("\nTest has failed :-(\n")
 
-while True:
 # run the tests
-  simple_burst()
+simple_burst(0, 3, 64, "10gbps")
 
