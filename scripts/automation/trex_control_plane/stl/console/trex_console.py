@@ -538,28 +538,7 @@ class TRexConsole(TRexGeneralCmd):
 
     def do_events (self, line):
         '''shows events recieved from server\n'''
-
-        x = parsing_opts.ArgumentPack(['-c','--clear'],
-                                      {'action' : "store_true",
-                                       'default': False,
-                                       'help': "clear the events log"})
-
-        parser = parsing_opts.gen_parser(self,
-                                         "events",
-                                         self.do_events.__doc__,
-                                         x)
-
-        opts = parser.parse_args(line.split())
-        if opts is None:
-            return
-
-        events = self.stateless_client.get_events()
-        for ev in events:
-            print(ev)
-
-        if opts.clear:
-            self.stateless_client.clear_events()
-            print(format_text("\n\nEvent log was cleared\n\n"))
+        return self.stateless_client.get_events_line(line)
 
 
     def complete_profile(self, text, line, begidx, endidx):
@@ -591,7 +570,7 @@ class TRexConsole(TRexGeneralCmd):
             info = self.stateless_client.get_connection_info()
 
             exe = './trex-console --top -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
-            cmd = ['/usr/bin/xterm', '-geometry', '111x47', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+            cmd = ['/usr/bin/xterm', '-geometry', '111x48', '-sl', '0', '-title', 'trex_tui', '-e', exe]
 
             self.terminal = subprocess.Popen(cmd)
 

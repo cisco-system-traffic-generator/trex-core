@@ -125,8 +125,26 @@ class DefaultLogger(LoggerApi):
 ############################                            #############################
 ############################                            #############################
 
+# an event
+class Event(object):
+
+    def __init__ (self, origin, ev_type, msg):
+        self.origin = origin
+        self.ev_type = ev_type
+        self.msg = msg
+
+        self.ts = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+
+    def __str__ (self):
+
+        prefix = "[{:^}][{:^}]".format(self.origin, self.ev_type)
+
+        return "{:<10} - {:18} - {:}".format(self.ts, prefix, format_text(self.msg, 'bold'))
+
+
 # handles different async events given to the client
-class AsyncEventHandler(object):
+class EventsHandler(object):
+
 
     def __init__ (self, client):
         self.client = client
@@ -136,31 +154,41 @@ class AsyncEventHandler(object):
 
     # public functions
 
-    def get_events (self):
-        return self.events
+    def get_events (self, ev_type_filter = None):
+        if ev_type_filter:
+            return [ev for ev in self.events if ev.ev_type in listify(ev_type_filter)]
+        else:
+            return [ev for ev in self.events]
 
 
     def clear_events (self):
         self.events = []
 
 
+    def log_warning (self, msg, show = True):
+        self.__add_event_log('local', 'warning', msg, show)
+
+
+    # events called internally
+
     def on_async_dead (self):
         if self.client.connected:
             msg = 'Lost connection to server'
-            self.__add_event_log(msg, 'local', True)
+            self.__add_event_log('local', 'info', msg, True)
             self.client.connected = False
 
 
     def on_async_alive (self):
         pass
 
+    
 
-    def handle_async_rx_stats_event (self, data, baseline):
+    def on_async_rx_stats_event (self, data, baseline):
         self.client.flow_stats.update(data, baseline)
 
 
     # handles an async stats update from the subscriber
-    def handle_async_stats_update(self, dump_data, baseline):
+    def on_async_stats_update(self, dump_data, baseline):
         global_stats = {}
         port_stats = {}
 
@@ -189,8 +217,9 @@ class AsyncEventHandler(object):
             self.client.ports[port_id].port_stats.update(data, baseline)
 
 
+
     # dispatcher for server async events (port started, port stopped and etc.)
-    def handle_async_event (self, type, data):
+    def on_async_event (self, type, data):
         # DP stopped
         show_event = False
 
@@ -263,7 +292,7 @@ class AsyncEventHandler(object):
             return
 
 
-        self.__add_event_log(ev, 'server', show_event)
+        self.__add_event_log('server', 'info', ev, show_event)
 
 
     # private functions
@@ -296,19 +325,12 @@ class AsyncEventHandler(object):
 
 
     # add event to log
-    def __add_event_log (self, msg, ev_type, show = False):
+    def __add_event_log (self, origin, ev_type, msg, show = False):
 
-        if ev_type == "server":
-            prefix = "[server]"
-        elif ev_type == "local":
-            prefix = "[local]"
-
-        ts = time.time()
-        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-        self.events.append("{:<10} - {:^8} - {:}".format(st, prefix, format_text(msg, 'bold')))
-
+        event = Event(origin, ev_type, msg)
+        self.events.append(event)
         if show:
-            self.logger.async_log(format_text("\n\n{:^8} - {:}".format(prefix, format_text(msg, 'bold'))))
+            self.logger.async_log("\n\n{0}".format(str(event)))
 
 
   
@@ -452,7 +474,7 @@ class STLClient(object):
                                    self)
 
         # async event handler manager
-        self.event_handler = AsyncEventHandler(self)
+        self.event_handler = EventsHandler(self)
 
         # async subscriber level
         self.async_client = CTRexAsyncClient(server,
@@ -472,7 +494,8 @@ class STLClient(object):
         
         self.global_stats = trex_stl_stats.CGlobalStats(self.connection_info,
                                                         self.server_version,
-                                                        self.ports)
+                                                        self.ports,
+                                                        self.event_handler)
 
         self.flow_stats = trex_stl_stats.CRxStats(self.ports)
 
@@ -482,7 +505,7 @@ class STLClient(object):
 
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':0 }
+        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':1 }
                         ]
         self.api_h = {'core': None}
 
@@ -1155,9 +1178,58 @@ class STLClient(object):
 
         return self.__get_stats(ports)
 
-    # return all async events
-    def get_events (self):
-        return self.event_handler.get_events()
+
+    def get_events (self, ev_type_filter = None):
+        """ 
+        returns all the logged events
+
+        :parameters:
+          ev_type_filter - 'info', 'warning' or a list of those
+                           default is no filter
+
+        :return:
+            logged events
+
+        :raises:
+          None
+
+        """
+        return self.event_handler.get_events(ev_type_filter)
+
+
+    def get_warnings (self):
+        """ 
+        returns all the warnings logged events
+
+        :parameters:
+          None
+
+        :return:
+            warning logged events
+
+        :raises:
+          None
+
+        """
+        return self.get_events(ev_type_filter = 'warning')
+
+
+    def get_info (self):
+        """ 
+        returns all the info logged events
+
+        :parameters:
+          None
+
+        :return:
+            warning logged events
+
+        :raises:
+          None
+
+        """
+        return self.get_events(ev_type_filter = 'info')
+
 
     # get port(s) info as a list of dicts
     @__api_check(True)
@@ -2212,7 +2284,7 @@ class STLClient(object):
         mask = self.__get_mask_keys(**self.__filter_namespace_args(opts, trex_stl_stats.ALL_STATS_OPTS))
         if not mask:
             # set to show all stats if no filter was given
-            mask = trex_stl_stats.ALL_STATS_OPTS
+            mask = trex_stl_stats.COMPACT
 
         stats_opts = common.list_intersect(trex_stl_stats.ALL_STATS_OPTS, mask)
 
@@ -2370,4 +2442,56 @@ class STLClient(object):
             self.logger.log('Type:             {:^12}'.format('PCAP file'))
 
         self.logger.log("")
+
+
+    @__console
+    def get_events_line (self, line):
+        '''shows events recieved from server\n'''
+
+        x = [parsing_opts.ArgumentPack(['-c','--clear'],
+                                      {'action' : "store_true",
+                                       'default': False,
+                                       'help': "clear the events log"}),
+
+             parsing_opts.ArgumentPack(['-i','--info'],
+                                      {'action' : "store_true",
+                                       'default': False,
+                                       'help': "show info events"}),
+
+             parsing_opts.ArgumentPack(['-w','--warn'],
+                                      {'action' : "store_true",
+                                       'default': False,
+                                       'help': "show warning events"}),
+
+             ]
+
+
+        parser = parsing_opts.gen_parser(self,
+                                         "events",
+                                         self.get_events_line.__doc__,
+                                         *x)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+
+        ev_type_filter = []
+
+        if opts.info:
+            ev_type_filter.append('info')
+
+        if opts.warn:
+            ev_type_filter.append('warning')
+
+        if not ev_type_filter:
+            ev_type_filter = None
+
+        events = self.get_events(ev_type_filter)
+        for ev in events:
+            self.logger.log(ev)
+
+        if opts.clear:
+            self.clear_events()
+            self.logger.log(format_text("\nEvent log was cleared\n"))
 

@@ -275,18 +275,18 @@ class CTRexAsyncClient():
 
         # stats
         if name == "trex-global":
-            self.event_handler.handle_async_stats_update(data, baseline)
+            self.event_handler.on_async_stats_update(data, baseline)
 
         # events
         elif name == "trex-event":
-            self.event_handler.handle_async_event(type, data)
+            self.event_handler.on_async_event(type, data)
 
         # barriers
         elif name == "trex-barrier":
             self.handle_async_barrier(type, data)
 
         elif name == "flow_stats":
-            self.event_handler.handle_async_rx_stats_event(data, baseline)
+            self.event_handler.on_async_rx_stats_event(data, baseline)
 
         else:
             pass

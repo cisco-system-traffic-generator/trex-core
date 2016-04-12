@@ -2368,6 +2368,7 @@ void CGlobalStats::dump_json(std::string & json, bool baseline,uint32_t stats_ti
 #define GET_FIELD_PORT(p,f) get_field_port(p,std::string(#f),lp->f)
 
     json+=GET_FIELD(m_cpu_util);
+    json+=GET_FIELD(m_rx_cpu_util);
     json+=GET_FIELD(m_platform_factor);
     json+=GET_FIELD(m_tx_bps);
     json+=GET_FIELD(m_rx_bps);
