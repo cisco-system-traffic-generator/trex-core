@@ -2114,6 +2114,21 @@ i40e_trex_fdir_stats_get(struct rte_eth_dev *dev, uint32_t *stats, uint32_t star
     }
 }
 
+// TREX_PATCH
+void
+i40e_trex_fdir_stats_reset(struct rte_eth_dev *dev, uint32_t *stats, uint32_t start, uint32_t len)
+{
+    int i;
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    for (i = 0; i < len; i++) {
+        if (stats) {
+            stats[i] = I40E_READ_REG(hw, I40E_GLQF_PCNT(i + start));
+        }
+        I40E_WRITE_REG(hw, I40E_GLQF_PCNT(i + start), 0xffffffff);
+    }
+}
+
 /* Get all statistics of a port */
 static void
 i40e_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)

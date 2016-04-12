@@ -144,7 +144,7 @@ public:
     virtual bool hw_rx_stat_supported(){return false;}
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes
                              , int min, int max) {return -1;}
-    virtual int reset_rx_stats(CPhyEthIF * _if, uint32_t *stats) {return 0;}
+    virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {}
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) { return -1;}
     virtual int get_stat_counters_num() {return 0;}
     virtual int get_rx_stat_capabilities() {return 0;}
@@ -325,7 +325,7 @@ public:
     }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
-    virtual int reset_rx_stats(CPhyEthIF * _if, uint32_t *stats);
+    virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
@@ -4009,9 +4009,7 @@ static CGlobalTRex g_trex;
 
 int CPhyEthIF::reset_hw_flow_stats() {
     if (get_ex_drv()->hw_rx_stat_supported()) {
-        if (get_ex_drv()->reset_rx_stats(this, m_stats.m_fdir_prev_pkts) < 0) {
-            return -1;
-        }
+        get_ex_drv()->reset_rx_stats(this, m_stats.m_fdir_prev_pkts, 0, MAX_FLOW_STATS);
     } else {
         g_trex.m_rx_sl.reset_rx_stats(get_port_id());
     }
@@ -4047,6 +4045,8 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
                 }
                 m_stats.m_rx_per_flow_pkts[i] = 0;
                 m_stats.m_rx_per_flow_bytes[i] = 0;
+                get_ex_drv()->reset_rx_stats(this, &m_stats.m_fdir_prev_pkts[i], i, 1);
+
             }
             if (tx_stats != NULL) {
                 tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i);
@@ -5059,6 +5059,8 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
     }
 }
 
+extern "C" int rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len);
+
 // type - rule type. Currently we only support rules in IP ID.
 // proto - Packet protocol: UDP or TCP
 // id - Counter id in HW. We assume it is in the range 0..MAX_FLOW_STATS
@@ -5086,6 +5088,7 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statfull(CPhyEthIF * _
     uint16_t hops = get_rx_check_hops();
     int i;
 
+    rte_eth_fdir_stats_reset(port_id, NULL, 0, 1);
     for (i = 0; i < 2; i++) {
         uint8_t ttl = TTL_RESERVE_DUPLICATE - i - hops;
         add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl, 0, MAIN_DPDK_RX_Q, 0);
@@ -5109,18 +5112,24 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     }
 }
 
-int CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats) {
-    uint32_t diff_stats[MAX_FLOW_STATS];
-    uint32_t diff_bytes[MAX_FLOW_STATS];
-
-    // The HW counters start from some random values. The driver give us the diffs from previous,
-    // each time we do get_rx_stats. We need to make one first call, at system startup,
-    // and ignore the returned diffs
-    return get_rx_stats(_if, diff_stats, stats, diff_bytes, NULL, 0, MAX_FLOW_STATS - 1);
+void CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
+    uint32_t port_id = _if->get_port_id();
+    // Since the xl710 fdir counter stuck at 0xffffffff issue, we zero the HW counters, so should zero here also.
+    for (int i = min; i <=  min - len + 1; i++) {
+        uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + i;
+        stats[i - min] = 0;
+        // Since flow dir counters are not wrapped around as promised in the data sheet, but rather get stuck at 0xffffffff
+        // we reset the HW value
+        rte_eth_fdir_stats_reset(port_id, NULL, rule_id, 1);
+    }
 }
 
 // instead of adding this to rte_ethdev.h
 extern "C" int rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len);
+// we read every 0.5 second. We want to catch the counter when it approach the maximum (where it will stuck,
+// and we will start losing packets).
+const uint32_t X710_FDIR_RESET_THRESHOLD = 0xffffffff - 1000000000/8/64*40;
+
 // get rx stats on _if, between min and max
 // prev_pkts should be the previous values read from the hardware.
 //            Getting changed to be equal to current HW values.
@@ -5136,13 +5145,17 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
 
     rte_eth_fdir_stats_get(port_id, hw_stats, start, len);
     for (int i = loop_start; i <  loop_start + len; i++) {
-        if (hw_stats[i - min] >= prev_pkts[i]) {
-            pkts[i] = (uint64_t)(hw_stats[i - min] - prev_pkts[i]);
+        if (unlikely(hw_stats[i - min] > X710_FDIR_RESET_THRESHOLD)) {
+            // read again, and reset. Trying to lose minimal amount of packets.
+            // better solution is on its way - see trex-199 for details
+            uint32_t counter;
+            rte_eth_fdir_stats_reset(port_id, &counter, start + i, 1);
+            pkts[i] = counter - prev_pkts[i];
+            prev_pkts[i] = 0;
         } else {
-            // Wrap around
-            pkts[i] = (uint64_t)((hw_stats[i - min] + ((uint64_t)1 << 32)) - prev_pkts[i]);
+            pkts[i] = hw_stats[i - min] - prev_pkts[i];
+            prev_pkts[i] = hw_stats[i - min];
         }
-        prev_pkts[i] = hw_stats[i - min];
         bytes[i] = 0;
     }
 
