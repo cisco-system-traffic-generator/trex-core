@@ -289,7 +289,7 @@ class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
 public:
     CTRexExtendedDriverBase40G(){
         // Since we support only 128 counters per if, it is OK to configure here 4 statically.
-        // If we want to support more counters in case in case of card having less interfaces, we
+        // If we want to support more counters in case of card having less interfaces, we
         // Will have to identify the number of interfaces dynamically.
         m_if_per_card = 4;
     }
@@ -4998,6 +4998,9 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
     cfg->update_global_config_fdir_40g();
 }
 
+// What is the type of the rule the respective hw_id counter counts.
+static uint16_t fdir_hw_id_rule_type[512];
+
 /* Add rule to send packets with protocol 'type', and ttl 'ttl' to rx queue 1 */
 // ttl is used in statefull mode, and ip_id in stateless. We configure the driver registers so that only one of them applies.
 // So, the rule will apply if packet has either the correct ttl or IP ID, depending if we are in statfull or stateless.
@@ -5026,6 +5029,10 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
     filter.action.stat_count_index = stat_idx;
     filter.soft_id = filter_soft_id++;
     filter.input.flow_type = type;
+
+    if (op == RTE_ETH_FILTER_ADD) {
+        fdir_hw_id_rule_type[stat_idx] = type;
+    }
 
     switch (type) {
     case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
@@ -5095,6 +5102,7 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statfull(CPhyEthIF * _
         add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl, 0, MAIN_DPDK_RX_Q, 0);
         add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl, 0, MAIN_DPDK_RX_Q, 0);
         add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl, 0, MAIN_DPDK_RX_Q, 0);
+
     }
 
     /* Configure rules for latency measurement packets */
@@ -5104,8 +5112,10 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statfull(CPhyEthIF * _
     return 0;
 }
 
+const uint32_t TEMP_FDIR_HW_ID = 511;
 int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     if (get_is_stateless()) {
+        rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, TEMP_FDIR_HW_ID, 1);
         return 0; // Rules are configured dynamically in stateless
     } else {
         return configure_rx_filter_rules_statfull(_if);
@@ -5114,13 +5124,14 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
 
 void CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
     uint32_t port_id = _if->get_port_id();
-    // Since the xl710 fdir counter stuck at 0xffffffff issue, we zero the HW counters, so should zero here also.
-    for (int i = min; i <=  min - len + 1; i++) {
-        uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + i;
-        stats[i - min] = 0;
-        // Since flow dir counters are not wrapped around as promised in the data sheet, but rather get stuck at 0xffffffff
-        // we reset the HW value
-        rte_eth_fdir_stats_reset(port_id, NULL, rule_id, 1);
+    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + min;
+
+    // Since flow dir counters are not wrapped around as promised in the data sheet, but rather get stuck at 0xffffffff
+    // we reset the HW value
+    rte_eth_fdir_stats_reset(port_id, NULL, rule_id, len);
+
+    for (int i =0; i < len; i++) {
+        stats[i] = 0;
     }
 }
 
@@ -5146,11 +5157,19 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
     rte_eth_fdir_stats_get(port_id, hw_stats, start, len);
     for (int i = loop_start; i <  loop_start + len; i++) {
         if (unlikely(hw_stats[i - min] > X710_FDIR_RESET_THRESHOLD)) {
-            // read again, and reset. Trying to lose minimal amount of packets.
-            // better solution is on its way - see trex-199 for details
-            uint32_t counter;
-            rte_eth_fdir_stats_reset(port_id, &counter, start + i, 1);
-            pkts[i] = counter - prev_pkts[i];
+            // When x710 fdir counters reach max of 32 bits (4G), the get stuck. To handle this, we temporarily
+            // move to temp counter, reset the counter in danger, and go back to using it.
+            // see trex-199 for more details
+            uint32_t counter, temp_count;
+            uint32_t hw_id = start - min + i;
+
+            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_type[hw_id], 0, IP_ID_RESERVE_BASE + i, MAIN_DPDK_DATA_Q, TEMP_FDIR_HW_ID);
+            delay(100);
+            rte_eth_fdir_stats_reset(port_id, &counter, hw_id, 1);
+            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_type[hw_id], 0, IP_ID_RESERVE_BASE + i, MAIN_DPDK_DATA_Q, hw_id);
+            delay(100);
+            rte_eth_fdir_stats_reset(port_id, &temp_count, TEMP_FDIR_HW_ID, 1);
+            pkts[i] = counter + temp_count - prev_pkts[i];
             prev_pkts[i] = 0;
         } else {
             pkts[i] = hw_stats[i - min] - prev_pkts[i];

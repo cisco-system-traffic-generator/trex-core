@@ -20,7 +20,7 @@ limitations under the License.
 
 #define TREX_MAX_PORTS 12
 
-#define MAX_FLOW_STATS 128
+#define MAX_FLOW_STATS 127
 
 #ifndef UINT8_MAX
     #define UINT8_MAX 255
