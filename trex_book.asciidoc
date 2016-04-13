@@ -447,7 +447,7 @@ zmq publisher at: tcp://*:4500
 
  -Global stats enabled 
  Cpu Utilization : 0.0  % <12>  29.7 Gb/core <13>
- Platform_factor : 1.0  
+ Platform_factor : 1.0    
  Total-Tx        :     867.89 Kbps                                             <2>
  Total-Rx        :     867.86 Kbps                                             <3>
  Total-PPS       :       1.64 Kpps  
@@ -457,8 +457,8 @@ zmq publisher at: tcp://*:4500
  Expected-CPS    :       1.00  cps   <10>
  Expected-BPS    :       1.36 Kbps   <11>
 
- Active-flows    :        0 <6> Clients :      510   Socket-util : 0.0000 %    
- Open-flows      :        1 <7> Servers :      254   Socket :        1 Socket/Clients :  0.0 
+ Active-flows    :        0 <6> Clients :      510   Socket-util  : 0.0000 % 
+ Open-flows      :        1 <7> Servers :      254   Socket   :        1  Socket/Clients :  0.0  
  drop-rate       :       0.00  bps   <8>
  current time    : 5.3 sec  
  test duration   : 94.7 sec  
@@ -487,6 +487,21 @@ zmq publisher at: tcp://*:4500
 <12> Average CPU utilization of transmitters threads. For best results it should be lower than 80%.
 <13> Gb/sec generated per core of DP. Higer is better.
 <14> Rx and latency thread CPU utilization.
+
+
+More statistic information:
+
+*socket*::  same as the active flows.  
+
+*Socket/Clients*:: is equal active_flows/#clients, average of active flow per client.
+
+*Socket-util*:: is equal to ~(100*active_flows/#clients)/64K equal to (average active flows per client*100/64K ) in words, it give an estimation of how many socket ports are used per client IP. Utilization of more than 50% means that TRex is generating too many flows per one client and you need to add more clients.
+
+*Max window*:: shows a momentary maximum latency for a time window of 500msec. There are a few numbers per number of windows that are shown. 
+ The new number (the last 500msec) is the right number. The oldest in the left number. This can help to identify spikes of high latency that after a time clear.in a contrast the maximum latency will stuck at the maximum value for all the test. 
+
+*Platform_factor*:: There are cases that we duplicate the traffic using splitter/Switch and we would like all the number to be multiplied by this factor (e.g. x2) 
+
 
 WARNING: If you don't see rx packets, revisit your MAC address configuration.
 
@@ -935,15 +950,17 @@ Cpu Utilization : 0.1 %                                                         
 
  Rx Check stats enabled                                                                       <2>
  -------------------------------------------------------------------------------------------
- rx check:  avg/max/jitter latency,       94  ,     744,       49      |  252  287  309    <3>
+ rx check:  avg/max/jitter latency,       94  ,     744,       49      |  252  287  309       <3>
  
- active flows:       10, fif:      308,  drop:        0, errors:        0                     <4>
+ active flows: <6>      10, fif: <5>     308,  drop:        0, errors:        0                <4>
  -------------------------------------------------------------------------------------------
 ----
 <1> CPU% of the Rx thread. If it is too high *increase* the sample rate.
 <2> Rx Check section. For more detailed info, press 'r' during the test or at the end of the test.
 <3> Average latency, max latency, jitter on the template flows in microseconds. This is usually *higher* than the latency check packet because the feature works more on this packet.
 <4> Drop counters and errors counter should be zero. If not, press 'r' to see the full report or view the report at the end of the test.
+<5> First in flow (fif)- number of new flows handled by rx thread 
+<6> active flows - number of active flows handled by rx thread 
 
 .Full report by pressing 'r'
 [source,python]
@@ -960,7 +977,7 @@ Cpu Utilization : 0.1 %                                                         
  cnt        : 2 
  high_cnt   : 2 
  max_d_time : 1041 usec
- sliding_average    : 1 usec
+ sliding_average    : 1 usec                            <3>
  precent    : 100.0 %
  histogram 
  -----------
@@ -990,6 +1007,7 @@ Cpu Utilization : 0.1 %                                                         
 ----
 <1> Any errors shown here
 <2> Error per template info
+<3> low pass filter on the active average of latency events 
 
 *Limitation:*::
 
