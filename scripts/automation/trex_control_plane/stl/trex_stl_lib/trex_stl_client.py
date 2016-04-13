@@ -277,7 +277,7 @@ class EventsHandler(object):
             ev = "Port {0} was forcely taken by '{1}'".format(port_id, who)
 
             # call the handler
-            self.__async_event_port_forced_acquired(port_id)
+            self.__async_event_port_forced_acquired(port_id, who)
             show_event = True
 
         # server stopped
@@ -316,8 +316,8 @@ class EventsHandler(object):
         self.client.ports[port_id].async_event_port_resumed()
 
 
-    def __async_event_port_forced_acquired (self, port_id):
-        self.client.ports[port_id].async_event_forced_acquired()
+    def __async_event_port_forced_acquired (self, port_id, who):
+        self.client.ports[port_id].async_event_forced_acquired(who)
 
 
     def __async_event_server_stopped (self):
@@ -1000,7 +1000,8 @@ class STLClient(object):
 
         """
 
-        return not (self.get_all_ports() == self.get_acquired_ports())
+        return (self.get_all_ports() == self.get_acquired_ports())
+
 
     # is the client connected ?
     def is_connected (self):
@@ -2023,11 +2024,33 @@ class STLClient(object):
 
     @__console
     def connect_line (self, line):
-        '''Connects to the TRex server'''
-        # define a parser
+        '''Connects to the TRex server and acquire ports'''
         parser = parsing_opts.gen_parser(self,
                                          "connect",
                                          self.connect_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.FORCE)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return
+
+        self.connect()
+        self.acquire(ports = opts.ports, force = opts.force)
+
+        # true means print time
+        return True
+
+    @__console
+    def acquire_line (self, line):
+        '''Acquire ports\n'''
+
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "acquire",
+                                         self.acquire_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split())
@@ -2036,8 +2059,39 @@ class STLClient(object):
             return
 
         # call the API
-        self.connect()
-        self.acquire(force = opts.force)
+        ports = [x for x in opts.ports if x not in self.get_acquired_ports()]
+        if not ports:
+            self.logger.log("Port(s) {0} are already acquired\n".format(opts.ports))
+            return
+
+        self.acquire(ports = ports, force = opts.force)
+
+        # true means print time
+        return True
+
+
+    #
+    @__console
+    def release_line (self, line):
+        '''Release ports\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "release",
+                                         self.release_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+
+        if opts is None:
+            return
+
+        # call the API
+        ports = [x for x in opts.ports if x in self.get_acquired_ports()]
+        if not ports:
+            self.logger.log("Port(s) {0} are not owned by you\n".format(opts.ports))
+            return
+
+        self.release(ports = ports)
 
         # true means print time
         return True

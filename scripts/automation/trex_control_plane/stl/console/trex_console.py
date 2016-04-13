@@ -47,7 +47,7 @@ except:
 
 from functools import wraps
 
-__version__ = "1.1"
+__version__ = "2.0"
 
 # console custom logger
 class ConsoleLogger(LoggerApi):
@@ -267,16 +267,18 @@ class TRexConsole(TRexGeneralCmd):
         if not self.stateless_client.is_connected():
             self.prompt = "trex(offline)>"
             self.supported_rpc = None
-            return stop
 
-        if self.stateless_client.is_all_ports_acquired():
+        elif not self.stateless_client.get_acquired_ports():
             self.prompt = "trex(read-only)>"
-            return stop
 
+        elif self.stateless_client.is_all_ports_acquired():
+            self.prompt = "trex>"
 
-        self.prompt = "trex>"
+        else:
+            self.prompt = "trex {0}>".format(self.stateless_client.get_acquired_ports())
 
         return stop
+
 
     def default(self, line):
         print("'{0}' is an unrecognized command. type 'help' or '?' for a list\n".format(line))
@@ -416,17 +418,35 @@ class TRexConsole(TRexGeneralCmd):
 
     ############### connect
     def do_connect (self, line):
-        '''Connects to the server\n'''
+        '''Connects to the server and acquire ports\n'''
 
         self.stateless_client.connect_line(line)
 
+    def help_connect (self):
+        self.do_connect("-h")
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
 
         self.stateless_client.disconnect_line(line)
 
+
+    def do_acquire (self, line):
+        '''Acquire ports\n'''
+
+        self.stateless_client.acquire_line(line)
  
+    def help_acquire (self):
+        self.do_acquire("-h")
+
+    def do_release (self, line):
+        '''Release ports\n'''
+
+        self.stateless_client.release_line(line)
+
+    def help_release (self):
+        self.do_release("-h")
+
     ############### start
 
     def complete_start(self, text, line, begidx, endidx):
@@ -730,9 +750,24 @@ def setParserOptions():
                         default = False)
 
 
-    parser.add_argument("--no_acquire", dest="acquire",
-                        action="store_false", help="Acquire all ports on connect. Default is: ON.",
-                        default = True)
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument("-a", "--acquire", dest="acquire",
+                       nargs = '+',
+                       type = int,
+                       help="Acquire ports on connect. default is all available ports",
+                       default = None)
+
+    group.add_argument("-r", "--readonly", dest="readonly",
+                       action="store_true",
+                       help="Starts console in a read only mode",
+                       default = False)
+
+
+    parser.add_argument("-f", "--force", dest="force",
+                        action="store_true",
+                        help="Force acquire the requested ports",
+                        default = False)
 
     parser.add_argument("--batch", dest="batch",
                         nargs = 1,
@@ -795,15 +830,19 @@ def main():
         logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
         return
 
-    if not options.tui and options.acquire:
+    if not options.tui and not options.readonly:
         try:
             # acquire all ports
-            stateless_client.acquire()
+            stateless_client.acquire(options.acquire, force = options.force)
         except STLError as e:
             logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
-            logger.log(format_text("\nSwitching to read only mode - only few commands will be available", 'bold'))
+            
+            logger.log("\n*** Failed to acquire all required ports ***\n")
+            return
 
-  
+    if options.readonly:
+        logger.log(format_text("\nRead only mode - only few commands will be available", 'bold'))
+
     # a script mode
     if options.batch:
         cont = run_script_file(options.batch[0], stateless_client)

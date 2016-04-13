@@ -747,7 +747,7 @@ class CPortStats(CTRexStats):
             state = format_text(state, 'bold')
 
 
-        return {"owner": self._port_obj.user if self._port_obj else "",
+        return {"owner": self._port_obj.get_owner() if self._port_obj else "",
                 "state": "{0}".format(state),
 
                 "--": " ",
