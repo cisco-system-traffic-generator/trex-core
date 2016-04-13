@@ -4,7 +4,7 @@ from trex_stl_lib.api import *
 import time
 import pprint
 
-def rx_example (tx_port, rx_port, burst_size):
+def rx_example (tx_port, rx_port, burst_size, bw):
 
     print("\nGoing to inject {0} packets on port {1} - checking RX stats on port {2}\n".format(burst_size, tx_port, rx_port))
 
@@ -19,9 +19,7 @@ def rx_example (tx_port, rx_port, burst_size):
                        packet = pkt,
                        flow_stats = STLFlowStats(pg_id = 5),
                        mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                               #pps = total_pkts
-                                               percentage = 80
-                                               ))
+                                               percentage = bw))
 
         # connect to server
         c.connect()
@@ -36,7 +34,7 @@ def rx_example (tx_port, rx_port, burst_size):
 
         for i in range(0, 10):
             print("\nStarting iteration: {0}:".format(i))
-            rc = rx_iteration(c, tx_port, rx_port, total_pkts, pkt.get_pkt_len())
+            rc = rx_iteration(c, tx_port, rx_port, total_pkts, pkt.get_pkt_len(), bw)
             if not rc:
                 passed = False
                 break
@@ -55,7 +53,7 @@ def rx_example (tx_port, rx_port, burst_size):
         print("\nTest has failed :-(\n")
 
 # RX one iteration
-def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
+def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     
     c.clear_stats()
 
@@ -70,6 +68,12 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     tx_pkts  = flow_stats['tx_pkts'].get(tx_port, 0)
     tx_bytes = flow_stats['tx_bytes'].get(tx_port, 0)
     rx_pkts  = flow_stats['rx_pkts'].get(rx_port, 0)
+
+    if c.get_warnings():
+            print("\n\n*** test had warnings ****\n\n")
+            for w in c.get_warnings():
+                print(w)
+            return False
 
     if tx_pkts != total_pkts:
         print("TX pkts mismatch - got: {0}, expected: {1}".format(tx_pkts, total_pkts))
@@ -95,5 +99,5 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     return True
 
 # run the tests
-rx_example(tx_port = 1, rx_port = 2, burst_size = 500000)
+rx_example(tx_port = 1, rx_port = 2, burst_size = 500000, bw = 50)
 

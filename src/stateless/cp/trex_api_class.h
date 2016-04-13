@@ -75,20 +75,42 @@ public:
          m_handler = utl_generate_random_str(seed, 8);
     }
 
+    std::string ver(int major, int minor) {
+        std::stringstream ss;
+        ss << major << "." << minor;
+        return ss.str();
+    }
+
+    std::string get_server_ver() {
+        return ver(m_major, m_major);
+    }
+
     std::string & verify_api(int major, int minor) {
         std::stringstream ss;
         ss << "API type '" << type_to_name(m_type) << "': ";
-                                                   
+
         assert(m_type < API_CLASS_TYPE_MAX);
+
+        bool fail = false;
 
         /* for now a simple major check */
         if (major < m_major) {
-            ss << "server has a major newer API version - server: '" << m_major << "', client: '" << major << "'";
-            throw TrexAPIException(ss.str());
+            ss << "server has a newer major API version";
+            fail = true;
         }
 
         if (major > m_major) {
-            ss << "server has an older API version - server: '" << m_major << "', client: '" << major << "'";
+            ss << "server has an older major API version";
+            fail = true;
+        }
+
+        if (minor > m_minor) {
+            ss << "client revision API is newer than server";
+            fail = true;
+        }
+
+        if (fail) {
+            ss <<  " - server: '" << get_server_ver() << "', client: '" << ver(major, minor) << "'";
             throw TrexAPIException(ss.str());
         }
 

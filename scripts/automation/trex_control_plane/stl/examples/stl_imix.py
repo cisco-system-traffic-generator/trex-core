@@ -83,7 +83,12 @@ def imix_test (server, mult):
         print("\npackets lost from {0} --> {1}:   {2:,} pkts".format(dir_0, dir_0, lost_0))
         print("packets lost from {0} --> {1}:   {2:,} pkts".format(dir_1, dir_1, lost_1))
 
-        if (lost_0 <= 0) and (lost_1 <= 0): # less or equal because we might have incoming arps etc.
+        if c.get_warnings():
+            print("\n\n*** test had warnings ****\n\n")
+            for w in c.get_warnings():
+                print(w)
+
+        if (lost_0 <= 0) and (lost_1 <= 0) and not c.get_warnings(): # less or equal because we might have incoming arps etc.
             passed = True
         else:
             passed = False

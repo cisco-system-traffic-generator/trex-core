@@ -2114,6 +2114,21 @@ i40e_trex_fdir_stats_get(struct rte_eth_dev *dev, uint32_t *stats, uint32_t star
     }
 }
 
+// TREX_PATCH
+void
+i40e_trex_fdir_stats_reset(struct rte_eth_dev *dev, uint32_t *stats, uint32_t start, uint32_t len)
+{
+    int i;
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    for (i = 0; i < len; i++) {
+        if (stats) {
+            stats[i] = I40E_READ_REG(hw, I40E_GLQF_PCNT(i + start));
+        }
+        I40E_WRITE_REG(hw, I40E_GLQF_PCNT(i + start), 0xffffffff);
+    }
+}
+
 /* Get all statistics of a port */
 static void
 i40e_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
@@ -8413,6 +8428,7 @@ i40e_dcb_hw_configure(struct i40e_pf *pf,
  *
  * Returns 0 on success, negative value on failure
  */
+//TREX_PATCH - changed all ERR to INFO in below func
 static int
 i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 {
@@ -8421,7 +8437,7 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 	int ret = 0;
 
 	if ((pf->flags & I40E_FLAG_DCB) == 0) {
-		PMD_INIT_LOG(ERR, "HW doesn't support DCB");
+		PMD_INIT_LOG(INFO, "HW doesn't support DCB");
 		return -ENOTSUP;
 	}
 
@@ -8463,7 +8479,7 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 						I40E_APP_PROTOID_FCOE;
 			ret = i40e_set_dcb_config(hw);
 			if (ret) {
-				PMD_INIT_LOG(ERR, "default dcb config fails."
+				PMD_INIT_LOG(INFO, "default dcb config fails."
 					" err = %d, aq_err = %d.", ret,
 					  hw->aq.asq_last_status);
 				return -ENOSYS;
@@ -8482,12 +8498,12 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 		ret = i40e_init_dcb(hw);
 		if (!ret) {
 			if (hw->dcbx_status == I40E_DCBX_STATUS_DISABLED) {
-				PMD_INIT_LOG(ERR, "HW doesn't support"
+				PMD_INIT_LOG(INFO, "HW doesn't support"
 						  " DCBX offload.");
 				return -ENOTSUP;
 			}
 		} else {
-			PMD_INIT_LOG(ERR, "DCBX configuration failed, err = %d,"
+			PMD_INIT_LOG(INFO, "DCBX configuration failed, err = %d,"
 					  " aq_err = %d.", ret,
 					  hw->aq.asq_last_status);
 			return -ENOTSUP;

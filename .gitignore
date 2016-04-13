@@ -27,6 +27,10 @@ scripts/automation/trex_control_plane/doc/_build/*
 scripts/automation/trex_control_plane/doc_stl/_build/*
 scripts/a.pcap
 
+scripts/exp/stl_vm_split_client_var.erf-0.erf
+scripts/exp/stl_vm_split_flow_var_big_range.erf-0.erf
+scripts/exp/stl_vm_split_flow_var_inc.erf-0.erf
+scripts/exp/stl_vm_split_flow_var_small_range.erf-0.erf
 scripts/exp/http1_with_option_ipv6.pcap
 scripts/exp/http1_with_option.pcap
 scripts/stl/exportedFile.pcap

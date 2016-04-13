@@ -91,6 +91,33 @@ def calculate_diff_raw (samples):
 
     return total
 
+# a simple object to keep a watch over a field
+class WatchedField(object):
+
+    def __init__ (self, name, suffix, high_th, low_th, events_handler):
+        self.name           = name
+        self.suffix         = suffix
+        self.high_th        = high_th
+        self.low_th         = low_th
+        self.events_handler = events_handler
+
+        self.hot     = False
+        self.current = None
+
+    def update (self, value):
+        if value is None:
+            return
+
+        if value > self.high_th and not self.hot:
+            self.events_handler.log_warning("{0} is high: {1}{2}".format(self.name, value, self.suffix))
+            self.hot = True
+
+        if value < self.low_th and self.hot:
+            self.hot = False
+
+        self.current = value
+
+
 
 class CTRexInfoGenerator(object):
     """
@@ -540,17 +567,24 @@ class CTRexStats(object):
 
 class CGlobalStats(CTRexStats):
 
-    def __init__(self, connection_info, server_version, ports_dict_ref):
+    def __init__(self, connection_info, server_version, ports_dict_ref, events_handler):
         super(CGlobalStats, self).__init__()
+
         self.connection_info = connection_info
-        self.server_version = server_version
-        self._ports_dict = ports_dict_ref
+        self.server_version  = server_version
+        self._ports_dict     = ports_dict_ref
+        self.events_handler  = events_handler
+
+        self.watched_cpu_util    = WatchedField('CPU util.', '%', 85, 60, events_handler)
+        self.watched_rx_cpu_util = WatchedField('RX core util.', '%', 85, 60, events_handler)
 
     def get_stats (self):
         stats = {}
 
         # absolute
-        stats['cpu_util'] = self.get("m_cpu_util")
+        stats['cpu_util']    = self.get("m_cpu_util")
+        stats['rx_cpu_util'] = self.get("m_rx_cpu_util")
+
         stats['tx_bps'] = self.get("m_tx_bps")
         stats['tx_pps'] = self.get("m_tx_pps")
 
@@ -576,6 +610,9 @@ class CGlobalStats(CTRexStats):
         # simple...
         self.latest_stats = snapshot
 
+        self.watched_cpu_util.update(snapshot.get('m_cpu_util'))
+        self.watched_rx_cpu_util.update(snapshot.get('m_rx_cpu_util'))
+
         return True
 
 
@@ -587,6 +624,9 @@ class CGlobalStats(CTRexStats):
 
                              ("cpu_util", "{0}% {1}".format( format_threshold(self.get("m_cpu_util"), [85, 100], [0, 85]),
                                                               self.get_trend_gui("m_cpu_util", use_raw = True))),
+
+                             ("rx_cpu_util", "{0}% {1}".format( format_threshold(self.get("m_rx_cpu_util"), [85, 100], [0, 85]),
+                                                                self.get_trend_gui("m_rx_cpu_util", use_raw = True))),
 
                              (" ", ""),
 
@@ -707,7 +747,7 @@ class CPortStats(CTRexStats):
             state = format_text(state, 'bold')
 
 
-        return {"owner": self._port_obj.user if self._port_obj else "",
+        return {"owner": self._port_obj.get_owner() if self._port_obj else "",
                 "state": "{0}".format(state),
 
                 "--": " ",

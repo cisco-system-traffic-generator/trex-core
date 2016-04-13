@@ -64,6 +64,8 @@ class Port(object):
         self.tx_stopped_ts = None
         self.has_rx_streams = False
 
+        self.owner = ''
+
 
     def err(self, msg):
         return RC_ERR("port {0} : {1}\n".format(self.port_id, msg))
@@ -113,6 +115,11 @@ class Port(object):
     def is_paused (self):
         return (self.state == self.STATE_PAUSE)
 
+    def get_owner (self):
+        if self.is_acquired():
+            return self.user
+        else:
+            return self.owner
 
     def sync(self):
         params = {"port_id": self.port_id}
@@ -137,6 +144,7 @@ class Port(object):
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
+        self.owner = rc.data()['owner']
 
         self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
@@ -671,6 +679,7 @@ class Port(object):
         if not self.is_acquired():
             self.state = self.STATE_TX
 
-    def async_event_forced_acquired (self):
+    def async_event_forced_acquired (self, who):
         self.handler = None
+        self.owner = who
 

@@ -140,6 +140,11 @@ def verify_exclusive_arg (args_list):
     if not (len(list(filter(lambda x: x is not None, args_list))) == 1):
         raise STLError('exactly one parameter from {0} should be provided'.format(args_list))
 
+def listify (x):
+    if isinstance(x, list):
+        return x
+    else:
+        return [x]
 
 # shows as 'N/A', but does not let any compares for user to not mistake in automation
 class StatNotAvailable(object):
