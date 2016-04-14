@@ -233,8 +233,27 @@ int C82599Parser::parse(uint8_t *p, uint16_t len) {
 
     switch( ether->getNextProtocol() ) {
     case EthernetHeader::Protocol::IP :
+        // In 82599 all streams should be with vlan, or without. Can't mix
+        if (m_vlan_supported)
+            return -1;
         m_ipv4 = (IPHeader *)(p + ETH_HDR_LEN);
         m_stat_supported = true;
+        break;
+    case EthernetHeader::Protocol::VLAN :
+        if (!m_vlan_supported)
+            return -1;
+        min_len += 4;
+        if (len < min_len)
+            return -1;
+        switch ( ether->getVlanProtocol() ){
+        case EthernetHeader::Protocol::IP:
+            m_ipv4 = (IPHeader *)(p + 18);
+            m_stat_supported = true;
+            break;
+        default:
+            m_stat_supported = false;
+            return -1;
+        }
         break;
     default:
         m_stat_supported = false;

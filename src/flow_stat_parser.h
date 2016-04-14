@@ -27,10 +27,10 @@
 
 class CFlowStatParser {
  public:
-    virtual ~CFlowStatParser() {};
+    virtual ~CFlowStatParser() {}
     virtual void reset();
     virtual int parse(uint8_t *pkt, uint16_t len);
-    virtual bool is_stat_supported() {return m_stat_supported == true;};
+    virtual bool is_stat_supported() {return m_stat_supported == true;}
     virtual int get_ip_id(uint16_t &ip_id);
     virtual int set_ip_id(uint16_t ip_id);
     virtual int get_l4_proto(uint8_t &proto);
@@ -45,8 +45,12 @@ class CFlowStatParser {
 
 class C82599Parser : public CFlowStatParser {
  public:
-    ~C82599Parser() {};
+    C82599Parser(bool vlan_supported) {m_vlan_supported = vlan_supported;}
+    ~C82599Parser() {}
     int parse(uint8_t *pkt, uint16_t len);
+
+ private:
+    bool m_vlan_supported;
 };
 
 #endif

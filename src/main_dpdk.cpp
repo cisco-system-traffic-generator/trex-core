@@ -1121,6 +1121,10 @@ public:
         /* Note: divide by 2 to convert byte offset to word offset */
         if (get_is_stateless()) {
             m_port_conf.fdir_conf.flexbytes_offset = (14+4)/2;
+            /* Increment offset 4 bytes for the case where we add VLAN */
+            if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) {
+                m_port_conf.fdir_conf.flexbytes_offset += (4/2);
+            }
         } else {
             if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ) {
                 m_port_conf.fdir_conf.flexbytes_offset = (14+6)/2;
@@ -4974,7 +4978,7 @@ int CTRexExtendedDriverBase10G::wait_for_stable_link(){
 }
 
 CFlowStatParser *CTRexExtendedDriverBase10G::get_flow_stat_parser() {
-    CFlowStatParser *parser = new C82599Parser();
+    CFlowStatParser *parser = new C82599Parser(CGlobalInfo::m_options.preview.get_vlan_mode_enable() ? true:false);
     assert (parser);
     return parser;
 }
@@ -5488,6 +5492,5 @@ int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
 }
 
 CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
-    return CTRexExtendedDriverDb::Ins()->get_drv()
-        ->get_flow_stat_parser();
+    return CTRexExtendedDriverDb::Ins()->get_drv()->get_flow_stat_parser();
 }
