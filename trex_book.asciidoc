@@ -124,13 +124,25 @@ Not all supported DPDK interfaces are supported by TRex
 | Bandwidth | Chipset |  Example
 | 1Gb/sec  | Intel I350 | Intel 4x1GE 350-T4 NIC
 | 10Gb/sec | Intel 82599| Intel x520-D2 Cisco Order tool 2X Intel N2XX-AIPCI01, Intel X520 Dual Port 10Gb SFP+ Adapter
-| 10Gb/sec | Intel X710   | SFP+, *Preferred* support per stream stats in hardware 
+| 10Gb/sec | Intel X710   | SFP+, *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[PE310G4i71L]
 | 40Gb/sec | Intel XL710  | QSFP+ (copper/optical)
 | 100Gb/sec | Intel Intel FM10420  | QSFP28,  by Silicon link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[PE3100G2DQiR_96] *under dev*
 | VMXNET / +
 VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | E1000    | paravirtualize  | vmWare/KVM/VirtualBox 
 |=================
+
+.X710 SFP+ support (*for Silicom PE310G4i71L with Open Optic*)
+[options="header",cols="1,1",width="70%"]
+|=================
+| SFP+  | Example 
+| Cisco SFP-10G-SR  |   see link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[here]
+| Cisco SFP-10G-LR  |  see link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[here]
+| Cisco SFP-H10GB-CU1M | see link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[here]
+| Cisco SFP-10G-AOC1M |  see link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[here]
+|=================
+
+WARNING: Intel X710 NIC for example FH X710DA4FHBLK will work *only* with Intel SFP+. In case you like an open optic buy Silicom PE310G4i71L NIC
 
 .XL710 QSFP+ support 
 [options="header",cols="1,1",width="70%"]
@@ -146,7 +158,7 @@ VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 
 [NOTE]
 =====================================
- For Intel XL710 NICS, Cisco SR4/LR QSFP+ won't work 
+ For Intel XL710 NICS, Cisco SR4/LR QSFP+ won't work you can buy Silicom with Open Optic 
 =====================================
 
 .FM10K QSFP28 support 
