@@ -24,6 +24,30 @@ ifdef::backend-docbook[]
 endif::backend-docbook[]
 
 
+== Release 2.00  ==
+
+* Console 
+** Support partial port acquire using new CLI switch `-a ACQUIRE` (first phase)
+** Add tx/rx graphs 
+* Python API: add an API for reading events as warning/errors
+* HLTAPI support for per stream stats  
+* support VALN mode for per stream stats for 82599 using `--vlan` switch at server invocation
+* A peek into TRex stateless GUI version for evaluation still without many features like packet builder, advance packet builder, per stream stats link:https://www.dropbox.com/s/vs9gojtdc5ewv05/setupCiscoTrex1.96-SNAPSHOT.exe?dl=0[TRex Stateless GUI Download]
+** Only pcap file packet builder is supported in this version 
+
+image::images/trex_stl_gui.png[title="TRex Stateless GUI",align="left",width=600, link="images/trex_stl_gui.png"]
+
+
+=== fix issues: ===
+
+* X710/XL710 per stream hardware stats 
+** link:http://trex-tgn.cisco.com/youtrack/issue/trex-199[trex-199]
+** Fix issue of RX bytes 
+** Fix issue with mbuf leak
+* Packet Memory shortage fix link:http://trex-tgn.cisco.com/youtrack/issue/trex-197[trex-197]
+* Python Examples - move all examples to be 16.0.0.x/48.0.0.x for some refactor 
+
+
 == Release 1.99  ==
 
 
