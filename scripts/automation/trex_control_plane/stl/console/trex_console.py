@@ -225,7 +225,7 @@ class TRexConsole(TRexGeneralCmd):
                 print(format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold'))
                 return
 
-            if inst.stateless_client.is_all_ports_acquired():
+            if not inst.stateless_client.get_acquired_ports():
                 print(format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold'))
                 return
 
