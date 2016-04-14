@@ -736,10 +736,10 @@ TrexStatelessPort::add_stream(TrexStream *stream) {
 
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
+    get_stateless_obj()->m_rx_flow_stat.add_stream(stream);
+
     m_stream_table.add_stream(stream);
     delete_streams_graph();
-
-    get_stateless_obj()->m_rx_flow_stat.add_stream(stream);
 
     change_state(PORT_STATE_STREAMS);
 }
