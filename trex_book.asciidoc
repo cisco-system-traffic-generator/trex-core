@@ -126,7 +126,7 @@ Not all supported DPDK interfaces are supported by TRex
 | 10Gb/sec | Intel 82599| Intel x520-D2 Cisco Order tool 2X Intel N2XX-AIPCI01, Intel X520 Dual Port 10Gb SFP+ Adapter
 | 10Gb/sec | Intel X710   | SFP+, *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[PE310G4i71L]
 | 40Gb/sec | Intel XL710  | QSFP+ (copper/optical)
-| 100Gb/sec | Intel Intel FM10420  | QSFP28,  by Silicon link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[PE3100G2DQiR_96] *under dev*
+| 100Gb/sec | Intel Intel FM10420  | QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[PE3100G2DQiR_96] *under dev*
 | VMXNET / +
 VMXNET3 (read notes) | VMware paravirtualize  | connect using vmWare vSwitch
 | E1000    | paravirtualize  | vmWare/KVM/VirtualBox 
