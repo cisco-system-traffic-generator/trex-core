@@ -1,5 +1,6 @@
 import argparse
 from collections import namedtuple
+from .common import list_intersect, list_difference
 import sys
 import re
 import os
@@ -262,7 +263,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                             'action': "store_false"}),
 
 
-              PORT_LIST: ArgumentPack(['--port'],
+              PORT_LIST: ArgumentPack(['--port', '-p'],
                                         {"nargs": '+',
                                          'dest':'ports',
                                          'metavar': 'PORTS',
@@ -374,22 +375,49 @@ class CCmdArgParser(argparse.ArgumentParser):
     def __init__(self, stateless_client, *args, **kwargs):
         super(CCmdArgParser, self).__init__(*args, **kwargs)
         self.stateless_client = stateless_client
+        self.cmd_name = kwargs.get('prog')
 
-    def parse_args(self, args=None, namespace=None):
+
+    def has_ports_cfg (self, opts):
+        return hasattr(opts, "all_ports") or hasattr(opts, "ports")
+
+    def parse_args(self, args=None, namespace=None, default_ports=None, verify_acquired=False):
         try:
             opts = super(CCmdArgParser, self).parse_args(args, namespace)
             if opts is None:
                 return None
 
+            if not self.has_ports_cfg(opts):
+                return opts
+
             # if all ports are marked or 
             if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
-                opts.ports = self.stateless_client.get_all_ports()
+                if default_ports is None:
+                    opts.ports = self.stateless_client.get_acquired_ports()
+                else:
+                    opts.ports = default_ports
 
             # so maybe we have ports configured
-            elif getattr(opts, "ports", None):
-                for port in opts.ports:
-                    if not self.stateless_client._validate_port_list(port):
-                        self.error("port id '{0}' is not a valid port id\n".format(port))
+            invalid_ports = list_difference(opts.ports, self.stateless_client.get_all_ports())
+            if invalid_ports:
+                self.stateless_client.logger.log("{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports))
+                return None
+
+            # verify acquired ports
+            if verify_acquired:
+                acquired_ports = self.stateless_client.get_acquired_ports()
+
+                diff = list_difference(opts.ports, acquired_ports)
+                if diff:
+                    self.stateless_client.logger.log("{0} - port(s) {1} are not acquired".format(self.cmd_name, diff))
+                    return None
+
+                # no acquire ports at all
+                if not acquired_ports:
+                    self.stateless_client.logger.log("{0} - no acquired ports".format(self.cmd_name))
+                    return None
+
+
 
             return opts
 

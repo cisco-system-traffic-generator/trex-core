@@ -12,6 +12,7 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
+from .utils.common import list_intersect, list_difference, is_sub_list
 from .utils.text_opts import *
 from functools import wraps
 
@@ -1141,23 +1142,39 @@ class STLClient(object):
                 if port_obj.is_acquired()]
 
     # get all active ports (TX or pause)
-    def get_active_ports(self):
-        return [port_id
-                for port_id, port_obj in self.ports.items()
-                if port_obj.is_active()]
+    def get_active_ports(self, owned = True):
+        if owned:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_active() and port_obj.is_acquired()]
+        else:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_active()]
 
 
     # get paused ports
-    def get_paused_ports (self):
-        return [port_id
-                for port_id, port_obj in self.ports.items()
-                if port_obj.is_paused()]
+    def get_paused_ports (self, owned = True):
+        if owned:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_paused() and port_obj.is_acquired()]
+        else:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_paused()]
+
 
     # get all TX ports
-    def get_transmitting_ports (self):
-        return [port_id
-                for port_id, port_obj in self.ports.items()
-                if port_obj.is_transmitting()]
+    def get_transmitting_ports (self, owned = True):
+        if owned:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_transmitting() and port_obj.is_acquired()]
+        else:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_transmitting()]
 
 
     # get stats
@@ -2031,8 +2048,7 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.FORCE)
 
-        opts = parser.parse_args(line.split())
-
+        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
         if opts is None:
             return
 
@@ -2041,6 +2057,7 @@ class STLClient(object):
 
         # true means print time
         return True
+
 
     @__console
     def acquire_line (self, line):
@@ -2053,15 +2070,14 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.FORCE)
 
-        opts = parser.parse_args(line.split())
-
+        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
         if opts is None:
             return
 
-        # call the API
-        ports = [x for x in opts.ports if x not in self.get_acquired_ports()]
+        # filter out all the already owned ports
+        ports = list_difference(opts.ports, self.get_acquired_ports())
         if not ports:
-            self.logger.log("Port(s) {0} are already acquired\n".format(opts.ports))
+            self.logger.log("acquire - all port(s) {0} are already acquired".format(opts.ports))
             return
 
         self.acquire(ports = ports, force = opts.force)
@@ -2080,21 +2096,25 @@ class STLClient(object):
                                          self.release_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
-        opts = parser.parse_args(line.split())
-
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
         if opts is None:
             return
 
-        # call the API
-        ports = [x for x in opts.ports if x in self.get_acquired_ports()]
+        ports = list_intersect(opts.ports, self.get_acquired_ports())
         if not ports:
-            self.logger.log("Port(s) {0} are not owned by you\n".format(opts.ports))
-            return
+            if not opts.ports:
+                self.logger.log("release - no acquired ports")
+                return
+            else:
+                self.logger.log("release - none of port(s) {0} are acquired".format(opts.ports))
+                return
 
+        
         self.release(ports = ports)
 
         # true means print time
         return True
+
 
     @__console
     def disconnect_line (self, line):
@@ -2104,10 +2124,22 @@ class STLClient(object):
 
     @__console
     def reset_line (self, line):
-        self.reset()
+        '''Reset ports - if no ports are provided all acquired ports will be reset'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "reset",
+                                         self.reset_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        if opts is None:
+            return
+
+        self.reset(ports = opts.ports)
 
         # true means print time
         return True
+
 
 
     @__console
@@ -2126,15 +2158,11 @@ class STLClient(object):
                                          parsing_opts.MULTIPLIER_STRICT,
                                          parsing_opts.DRY_RUN)
 
-        opts = parser.parse_args(line.split())
-
-
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if opts is None:
             return
 
-
-        active_ports = list(set(self.get_active_ports()).intersection(opts.ports))
-
+        active_ports = list_intersect(self.get_active_ports(), opts.ports)
         if active_ports:
             if not opts.force:
                 msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
@@ -2205,17 +2233,21 @@ class STLClient(object):
                                          self.stop_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
         if opts is None:
             return
 
-        # find the relevant ports
-        ports = list(set(self.get_active_ports()).intersection(opts.ports))
 
+        # find the relevant ports
+        ports = list_intersect(opts.ports, self.get_active_ports())
         if not ports:
-            self.logger.log(format_text("No active traffic on provided ports\n", 'bold'))
+            if not opts.ports:
+                self.logger.log('stop - no active ports')
+            else:
+                self.logger.log('stop - no active traffic on ports {0}'.format(opts.ports))
             return
 
+        # call API
         self.stop(ports)
 
         # true means print time
@@ -2233,15 +2265,18 @@ class STLClient(object):
                                          parsing_opts.TOTAL,
                                          parsing_opts.FORCE)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
         if opts is None:
             return
 
-         # find the relevant ports
-        ports = list(set(self.get_active_ports()).intersection(opts.ports))
 
+        # find the relevant ports
+        ports = list_intersect(opts.ports, self.get_active_ports())
         if not ports:
-            self.logger.log(format_text("No ports in valid state to update\n", 'bold'))
+            if not opts.ports:
+                self.logger.log('update - no active ports')
+            else:
+                self.logger.log('update - no active traffic on ports {0}'.format(opts.ports))
             return
 
         self.update(ports, opts.mult, opts.total, opts.force)
@@ -2258,15 +2293,22 @@ class STLClient(object):
                                          self.pause_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), default_ports = self.get_transmitting_ports(), verify_acquired = True)
         if opts is None:
             return
 
-        # find the relevant ports
-        ports = list(set(self.get_transmitting_ports()).intersection(opts.ports))
+        # check for already paused case
+        if opts.ports and is_sub_list(opts.ports, self.get_paused_ports()):
+            self.logger.log('pause - all of port(s) {0} are already paused'.format(opts.ports))
+            return
 
+        # find the relevant ports
+        ports = list_intersect(opts.ports, self.get_transmitting_ports())
         if not ports:
-            self.logger.log(format_text("No ports in valid state to pause\n", 'bold'))
+            if not opts.ports:
+                self.logger.log('pause - no transmitting ports')
+            else:
+                self.logger.log('pause - none of ports {0} are transmitting'.format(opts.ports))
             return
 
         self.pause(ports)
@@ -2283,18 +2325,21 @@ class STLClient(object):
                                          self.resume_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), default_ports = self.get_paused_ports(), verify_acquired = True)
         if opts is None:
             return
 
         # find the relevant ports
-        ports = list(set(self.get_paused_ports()).intersection(opts.ports))
-
+        ports = list_intersect(opts.ports, self.get_paused_ports())
         if not ports:
-            self.logger.log(format_text("No ports in valid state to resume\n", 'bold'))
+            if not opts.ports:
+                self.logger.log('resume - no paused ports')
+            else:
+                self.logger.log('resume - none of ports {0} are paused'.format(opts.ports))
             return
 
-        return self.resume(ports)
+
+        self.resume(ports)
 
         # true means print time
         return True

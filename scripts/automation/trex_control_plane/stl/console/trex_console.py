@@ -212,29 +212,7 @@ class TRexConsole(TRexGeneralCmd):
 
         return wrap
 
-    # TODO: remove this ugly duplication
-    def verify_connected_and_rw (f):
-        @wraps(f)
-        def wrap(*args):
-            inst = args[0]
-            func_name = f.__name__
-            if func_name.startswith("do_"):
-                func_name = func_name[3:]
-
-            if not inst.stateless_client.is_connected():
-                print(format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold'))
-                return
-
-            if not inst.stateless_client.get_acquired_ports():
-                print(format_text("\n'{0}' cannot be executed on read only mode\n".format(func_name), 'bold'))
-                return
-
-            rc = f(*args)
-            return rc
-
-        return wrap
-
-
+    
     def get_console_identifier(self):
         return "{context}_{server}".format(context=get_current_user(),
                                            server=self.stateless_client.get_connection_info()['server'])
@@ -431,18 +409,21 @@ class TRexConsole(TRexGeneralCmd):
         self.stateless_client.disconnect_line(line)
 
 
+    @verify_connected
     def do_acquire (self, line):
         '''Acquire ports\n'''
 
         self.stateless_client.acquire_line(line)
- 
-    def help_acquire (self):
-        self.do_acquire("-h")
 
+
+    @verify_connected
     def do_release (self, line):
         '''Release ports\n'''
-
         self.stateless_client.release_line(line)
+
+
+    def help_acquire (self):
+        self.do_acquire("-h")
 
     def help_release (self):
         self.do_release("-h")
@@ -462,7 +443,7 @@ class TRexConsole(TRexGeneralCmd):
             return TRexConsole.tree_autocomplete(s[l - 1])
 
 
-    @verify_connected_and_rw
+    @verify_connected
     def do_start(self, line):
         '''Start selected traffic in specified port(s) on TRex\n'''
 
@@ -475,7 +456,7 @@ class TRexConsole(TRexGeneralCmd):
         self.do_start("-h")
 
     ############# stop
-    @verify_connected_and_rw
+    @verify_connected
     def do_stop(self, line):
         '''stops port(s) transmitting traffic\n'''
 
@@ -485,7 +466,7 @@ class TRexConsole(TRexGeneralCmd):
         self.do_stop("-h")
 
     ############# update
-    @verify_connected_and_rw
+    @verify_connected
     def do_update(self, line):
         '''update speed of port(s)currently transmitting traffic\n'''
 
@@ -495,14 +476,14 @@ class TRexConsole(TRexGeneralCmd):
         self.do_update("-h")
 
     ############# pause
-    @verify_connected_and_rw
+    @verify_connected
     def do_pause(self, line):
         '''pause port(s) transmitting traffic\n'''
 
         self.stateless_client.pause_line(line)
 
     ############# resume
-    @verify_connected_and_rw
+    @verify_connected
     def do_resume(self, line):
         '''resume port(s) transmitting traffic\n'''
 
@@ -511,7 +492,7 @@ class TRexConsole(TRexGeneralCmd):
    
 
     ########## reset
-    @verify_connected_and_rw
+    @verify_connected
     def do_reset (self, line):
         '''force stop all ports\n'''
         self.stateless_client.reset_line(line)

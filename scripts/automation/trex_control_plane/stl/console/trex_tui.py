@@ -48,12 +48,17 @@ class TrexTUIPanel(object):
     def get_key_actions (self):
         raise NotImplementedError("must implement this")
 
+
     def get_name (self):
         return self.name
 
 
 # dashboard panel
 class TrexTUIDashBoard(TrexTUIPanel):
+
+    FILTER_ACQUIRED = 1
+    FILTER_ALL      = 2
+
     def __init__ (self, mng):
         super(TrexTUIDashBoard, self).__init__(mng, "dashboard")
 
@@ -65,11 +70,23 @@ class TrexTUIDashBoard(TrexTUIPanel):
         self.key_actions['+'] = {'action': self.action_raise,  'legend': 'up 5%', 'show': True}
         self.key_actions['-'] = {'action': self.action_lower,  'legend': 'low 5%', 'show': True}
 
-        self.ports = self.stateless_client.get_all_ports()
+        self.key_actions['o'] = {'action': self.action_show_owned,  'legend': 'owned ports', 'show': True}
+        self.key_actions['a'] = {'action': self.action_show_all,  'legend': 'all ports', 'show': True}
 
+        self.ports_filter = self.FILTER_ACQUIRED
+
+
+    def get_ports (self):
+        if self.ports_filter == self.FILTER_ACQUIRED:
+            return self.stateless_client.get_acquired_ports()
+
+        elif self.ports_filter == self.FILTER_ALL:
+            return self.stateless_client.get_all_ports()
+
+        assert(0)
 
     def show (self):
-        stats = self.stateless_client._get_formatted_stats(self.ports)
+        stats = self.stateless_client._get_formatted_stats(self.get_ports())
         # print stats to screen
         for stat_type, stat_data in stats.items():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -79,8 +96,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
         allowed = OrderedDict()
 
         allowed['c'] = self.key_actions['c']
+        allowed['o'] = self.key_actions['o']
+        allowed['a'] = self.key_actions['a']
 
-        if self.stateless_client.is_all_ports_acquired():
+        if self.ports_filter == self.FILTER_ALL:
             return allowed
 
         if len(self.stateless_client.get_transmitting_ports()) > 0:
@@ -132,6 +151,14 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
         return ""
 
+
+    def action_show_owned (self):
+        self.ports_filter = self.FILTER_ACQUIRED
+        return ""
+
+    def action_show_all (self):
+        self.ports_filter = self.FILTER_ALL
+        return ""
 
     def action_clear (self):
         self.stateless_client.clear_stats(self.mng.ports)
