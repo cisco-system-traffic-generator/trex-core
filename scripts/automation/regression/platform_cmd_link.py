@@ -5,6 +5,7 @@ import CustomLogger
 import misc_methods
 import telnetlib
 import socket
+import time
 from collections import OrderedDict
 
 class CCommandCache(object):
@@ -193,8 +194,8 @@ class CIfObj(object):
         self.if_type        = if_type
         self.src_mac_addr   = src_mac_addr
         self.dest_mac_addr  = dest_mac_addr
-        self.ipv4_addr	    = ipv4_addr 
-        self.ipv6_addr	    = ipv6_addr 
+        self.ipv4_addr      = ipv4_addr 
+        self.ipv6_addr      = ipv6_addr 
         self.pair_parent    = None     # a pointer to CDualIfObj which holds this interface and its pair-complement
 
     def __get_and_increment_id (self):
@@ -373,6 +374,23 @@ class AuthError(Exception):
 
 class CIosTelnet(telnetlib.Telnet):
     AuthError = AuthError
+
+    # wrapper for compatibility with Python2/3, convert input to bytes
+    def str_to_bytes_wrapper(self, func, text, *args, **kwargs):
+        if type(text) in (list, tuple):
+            text = [elem.encode('ascii') if type(elem) is str else elem for elem in text]
+        res = func(self, text.encode('ascii') if type(text) is str else text, *args, **kwargs)
+        return res.decode() if type(res) is bytes else res
+
+    def read_until(self, text, *args, **kwargs):
+        return self.str_to_bytes_wrapper(telnetlib.Telnet.read_until, text, *args, **kwargs)
+
+    def write(self, text, *args, **kwargs):
+        return self.str_to_bytes_wrapper(telnetlib.Telnet.write, text, *args, **kwargs)
+
+    def expect(self, text, *args, **kwargs):
+        return self.str_to_bytes_wrapper(telnetlib.Telnet.expect, text, *args, **kwargs)
+
     def __init__ (self, host, line_pass, en_pass, port = 23, str_wait = "#"):
         telnetlib.Telnet.__init__(self)
         self.host           = host
@@ -401,33 +419,33 @@ class CIosTelnet(telnetlib.Telnet):
         except Exception as inst:
             raise
 
-    def write_ios_cmd (self, cmd_list, result_from = 0, timeout = 1, **kwargs):
+    def write_ios_cmd (self, cmd_list, result_from = 0, timeout = 10, **kwargs):
         assert (isinstance (cmd_list, list) == True)
-
-        if 'flush_first' in kwargs:
-            self.read_until(self.pr, timeout)   # clear any accumulated data in telnet session 
+        self.read_until(self.pr, timeout = 1)
 
         res = ''
-        wf  = ''
         if 'read_until' in kwargs:
             wf = kwargs['read_until']
         else:
             wf = self.pr
 
+        start_time = time.time()
         for idx, cmd in enumerate(cmd_list):
             self.write(cmd+'\r\n')
             if idx < result_from:
                 # don't care for return string
                 if type(wf) is list:
-                    self.expect(wf, timeout)[2]
+                    self.expect(wf, timeout = 3)[2]
                 else:
-                    self.read_until(wf, timeout)
+                    self.read_until(wf, timeout = 3)
             else:
                 # care for return string
                 if type(wf) is list:
-                    res += self.expect(wf, timeout)[2]
+                    res += self.expect(wf, timeout = 3)[2]
                 else:
-                    res += self.read_until(wf, timeout)
+                    res += self.read_until(wf, timeout = 3)
+        if time.time() - start_time >= timeout:
+            raise Exception('A timeout error has occured at command %s' % cmd_list)
 #       return res.split('\r\n')
         return res  # return the received response as a string, each line is seperated by '\r\n'.
 

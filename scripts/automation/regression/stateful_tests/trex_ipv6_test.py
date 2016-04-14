@@ -1,14 +1,13 @@
 #!/router/bin/python
-from trex_general_test import CTRexGeneral_Test
-from tests_exceptions import *
+from .trex_general_test import CTRexGeneral_Test
+from .tests_exceptions import *
 import time
 from nose.tools import assert_equal
 
 class CTRexIPv6_Test(CTRexGeneral_Test):
     """This class defines the IPv6 testcase of the T-Rex traffic generator"""
     def __init__(self, *args, **kwargs):
-    	super(CTRexIPv6_Test, self).__init__(*args, **kwargs)
-    	pass
+        super(CTRexIPv6_Test, self).__init__(*args, **kwargs)
 
     def setUp(self):
         super(CTRexIPv6_Test, self).setUp() # launch super test class setUp process
@@ -43,8 +42,8 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res)
         
@@ -80,8 +79,8 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         trex_tx_pckt    = float(trex_res.get_last_value("trex-global.data.m_total_tx_pkts"))
         trex_drops      = int(trex_res.get_total_drops())
@@ -95,7 +94,7 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)
-    	# remove config here
+        # remove config here
         pass
 
 if __name__ == "__main__":

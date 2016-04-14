@@ -1,5 +1,5 @@
 #!/router/bin/python
-from stl_general_test import CStlGeneral_Test, CTRexScenario
+from .stl_general_test import CStlGeneral_Test, CTRexScenario
 import os, sys
 from misc_methods import run_command
 
@@ -27,7 +27,4 @@ class STLExamples_Test(CStlGeneral_Test):
         for example in examples_to_test:
             return_code, stdout, stderr = run_command("sh -c 'cd %s; %s %s -s %s'" % (examples_dir, sys.executable, example, CTRexScenario.configuration.trex['trex_name']))
             assert return_code == 0, 'example %s failed.\nstdout: %s\nstderr: %s' % (return_code, stdout, stderr)
-
-    def test_stl_examples1(self):
-        print 'in test_stl_examples1'
 

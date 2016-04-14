@@ -1,5 +1,5 @@
 #!/router/bin/python
-from stl_general_test import CStlGeneral_Test, CTRexScenario
+from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from misc_methods import run_command
 from nose.plugins.attrib import attr
 

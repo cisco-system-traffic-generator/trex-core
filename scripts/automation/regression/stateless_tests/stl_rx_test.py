@@ -1,5 +1,5 @@
 #!/router/bin/python
-from stl_general_test import CStlGeneral_Test, CTRexScenario
+from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
 
@@ -86,7 +86,7 @@ class STLRX_Test(CStlGeneral_Test):
             # add both streams to ports
             self.c.add_streams([s1], ports = [self.tx_port])
 
-            print "\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port)
+            print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
 
             exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
 
@@ -148,7 +148,7 @@ class STLRX_Test(CStlGeneral_Test):
             exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
 
             for i in range(0, 10):
-                print "starting iteration {0}".format(i)
+                print("starting iteration {0}".format(i))
                 self.__rx_iteration( [exp] )
 
 

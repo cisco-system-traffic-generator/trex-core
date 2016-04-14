@@ -34,7 +34,7 @@ import os
 from CPlatform import *
 import termstyle
 import threading
-from tests_exceptions import *
+from .tests_exceptions import *
 from platform_cmd_link import *
 import unittest
 from glob import glob
@@ -77,11 +77,11 @@ class CTRexGeneral_Test(unittest.TestCase):
                 CTRexScenario.router.load_platform_data_from_file(device_cfg)
                 CTRexScenario.router.launch_connection(device_cfg)
                 running_image = CTRexScenario.router.get_running_image_details()['image']
-                print 'Current router image: %s' % running_image
+                print('Current router image: %s' % running_image)
                 if CTRexScenario.router_cfg['forceImageReload']:
                     needed_image = device_cfg.get_image_name()
                     if not CTRexScenario.router.is_image_matches(needed_image):
-                        print 'Setting router image: %s' % needed_image
+                        print('Setting router image: %s' % needed_image)
                         CTRexScenario.router.config_tftp_server(device_cfg)
                         CTRexScenario.router.load_platform_image(needed_image)
                         CTRexScenario.router.set_boot_image(needed_image)
@@ -91,14 +91,14 @@ class CTRexGeneral_Test(unittest.TestCase):
                         if not CTRexScenario.router.is_image_matches(needed_image):
                             self.fail('Unable to set router image: %s, current image is: %s' % (needed_image, running_image))
                     else:
-                        print 'Matches needed image: %s' % needed_image
+                        print('Matches needed image: %s' % needed_image)
                 CTRexScenario.router_image = running_image
 
             if self.modes:
-                print termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes))
+                print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes)))
 
             CTRexScenario.is_init = True
-            print termstyle.green("Done instantiating T-Rex scenario!\n")
+            print(termstyle.green("Done instantiating T-Rex scenario!\n"))
 
 #           raise RuntimeError('CTRexScenario class is not initialized!')
         self.router = CTRexScenario.router
@@ -155,11 +155,11 @@ class CTRexGeneral_Test(unittest.TestCase):
             trex_tx_bps  = trex_res.get_last_value("trex-global.data.m_total_tx_bytes")
             test_norm_cpu = 100.0*(trex_tx_bps/(cores*cpu_util))/1e6
 
-            print "TRex CPU utilization: %g%%, norm_cpu is : %d Mb/core" % (round(cpu_util), int(test_norm_cpu))
+            print("TRex CPU utilization: %g%%, norm_cpu is : %d Mb/core" % (round(cpu_util), int(test_norm_cpu)))
 
             #expected_norm_cpu = self.get_benchmark_param('cpu_to_core_ratio')
 
-            #calc_error_precent = abs(100.0*(test_norm_cpu/expected_norm_cpu)-100.0)
+            #calc_error_precent = abs(100.0*(test_norm_cpu/expected_norm_cpu)-100.0) 
 
 #           if calc_error_precent > err:
 #               msg ='Normalized bandwidth to CPU utilization ratio is %2.0f Mb/core expected %2.0f Mb/core more than %2.0f %% - ERROR' % (test_norm_cpu, expected_norm_cpu, err)
@@ -256,8 +256,8 @@ class CTRexGeneral_Test(unittest.TestCase):
 
                 # check for trex-router packet consistency
                 # TODO: check if it's ok
-                print 'router drop stats: %s' % pkt_drop_stats
-                print 'TRex drop stats: %s' % trex_drops
+                print('router drop stats: %s' % pkt_drop_stats)
+                print('TRex drop stats: %s' % trex_drops)
                 #self.assertEqual(pkt_drop_stats, trex_drops, "TRex's and router's drop stats don't match.")
 
         except KeyError as e:
@@ -285,12 +285,12 @@ class CTRexGeneral_Test(unittest.TestCase):
 
     # We encountered error, don't fail the test immediately
     def fail(self, reason = 'Unknown error'):
-        print 'Error: %s' % reason
+        print('Error: %s' % reason)
         self.fail_reasons.append(reason)
 
     # skip running of the test, counts as 'passed' but prints 'skipped'
     def skip(self, message = 'Unknown reason'):
-        print 'Skip: %s' % message
+        print('Skip: %s' % message)
         self.skipping = True
         raise SkipTest(message)
 
@@ -303,10 +303,10 @@ class CTRexGeneral_Test(unittest.TestCase):
         if test_setup_modes_conflict:
             self.skip("The test can't run with following modes of given setup: %s " % test_setup_modes_conflict)
         if self.trex and not self.trex.is_idle():
-            print 'Warning: TRex is not idle at setUp, trying to stop it.'
+            print('Warning: TRex is not idle at setUp, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
-            print ''
+            print('')
             if self.trex: # stateful
                 self.router.load_clean_config()
             self.router.clear_counters()
@@ -322,24 +322,24 @@ class CTRexGeneral_Test(unittest.TestCase):
 #       assert CTRexScenario.is_init == True
     def tearDown(self):
         if self.trex and not self.trex.is_idle():
-            print 'Warning: TRex is not idle at tearDown, trying to stop it.'
+            print('Warning: TRex is not idle at tearDown, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.skipping:
             # print server logs of test run
             if self.trex and CTRexScenario.server_logs:
                 try:
-                    print termstyle.green('\n>>>>>>>>>>>>>>> Daemon log <<<<<<<<<<<<<<<')
+                    print(termstyle.green('\n>>>>>>>>>>>>>>> Daemon log <<<<<<<<<<<<<<<'))
                     daemon_log = self.trex.get_trex_daemon_log()
                     log_size = len(daemon_log)
-                    print ''.join(daemon_log[CTRexScenario.daemon_log_lines:])
+                    print(''.join(daemon_log[CTRexScenario.daemon_log_lines:]))
                     CTRexScenario.daemon_log_lines = log_size
                 except Exception as e:
-                    print "Can't get TRex daemon log:", e
+                    print("Can't get TRex daemon log:", e)
                 try:
-                    print termstyle.green('>>>>>>>>>>>>>>>> Trex log <<<<<<<<<<<<<<<<')
-                    print ''.join(self.trex.get_trex_log())
+                    print(termstyle.green('>>>>>>>>>>>>>>>> Trex log <<<<<<<<<<<<<<<<'))
+                    print(''.join(self.trex.get_trex_log()))
                 except Exception as e:
-                    print "Can't get TRex log:", e
+                    print("Can't get TRex log:", e)
             if len(self.fail_reasons):
                 raise Exception('The test is failed, reasons:\n%s' % '\n'.join(self.fail_reasons))
 

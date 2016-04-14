@@ -1,6 +1,6 @@
 #!/router/bin/python
-from trex_general_test import CTRexGeneral_Test
-from tests_exceptions import *
+from .trex_general_test import CTRexGeneral_Test
+from .tests_exceptions import *
 import time
 from CPlatform import CStaticRouteConfig, CNatConfig
 from nose.tools import assert_equal
@@ -9,13 +9,11 @@ from nose.tools import assert_equal
 class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines the NAT testcase of the T-Rex traffic generator"""
     def __init__(self, *args, **kwargs):
-    	super(CTRexNoNat_Test, self).__init__(*args, **kwargs)
+        super(CTRexNoNat_Test, self).__init__(*args, **kwargs)
         self.unsupported_modes = ['loopback'] # NAT requires device
-    	pass
 
     def setUp(self):
         super(CTRexNoNat_Test, self).setUp() # launch super test class setUp process
-        pass
 
     def check_nat_stats (self, nat_stats):
         pass
@@ -46,10 +44,10 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
         trex_res = self.trex.sample_to_run_finish()
 
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
-        print ("\nLATEST DUMP:")
-        print trex_res.get_latest_dump()
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
+        print("\nLATEST DUMP:")
+        print(trex_res.get_latest_dump())
 
 
         expected_nat_opened = self.get_benchmark_param('nat_opened')
@@ -77,9 +75,8 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines the NAT testcase of the T-Rex traffic generator"""
     def __init__(self, *args, **kwargs):
-    	super(CTRexNat_Test, self).__init__(*args, **kwargs)
+        super(CTRexNat_Test, self).__init__(*args, **kwargs)
         self.unsupported_modes = ['loopback'] # NAT requires device
-    	pass
 
     def setUp(self):
         super(CTRexNat_Test, self).setUp() # launch super test class setUp process
@@ -124,10 +121,10 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
         trex_res = self.trex.sample_to_run_finish()
 
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
-        print ("\nLATEST DUMP:")
-        print trex_res.get_latest_dump()
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
+        print("\nLATEST DUMP:")
+        print(trex_res.get_latest_dump())
 
         trex_nat_stats = trex_res.get_last_value("trex-global.data", ".*nat.*") # extract all nat data
         if self.get_benchmark_param('allow_timeout_dev'):
@@ -153,7 +150,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         #    raiseraise AbnormalResultError('Normalized bandwidth to CPU utilization ratio exceeds 3%')
 
         nat_stats = self.router.get_nat_stats()
-        print nat_stats
+        print(nat_stats)
 
         self.assert_gt(nat_stats['total_active_trans'], 5000, 'total active translations is not high enough')
         self.assert_gt(nat_stats['dynamic_active_trans'], 5000, 'total dynamic active translations is not high enough')

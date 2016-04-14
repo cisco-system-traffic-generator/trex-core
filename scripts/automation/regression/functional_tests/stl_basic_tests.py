@@ -135,6 +135,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True, test_generated=True, do_no_remove_generated = False):
+        print('Testing profile: %s' % profile)
         output_cap = "a.pcap"
         input_file =  os.path.join('stl/', profile)
         golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');

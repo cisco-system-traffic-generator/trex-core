@@ -1,5 +1,5 @@
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from .utils.text_opts import *
 from .trex_stl_exceptions import *
 import types
@@ -157,3 +157,12 @@ class StatNotAvailable(object):
     def __cmp__(self, *args, **kwargs):
         raise Exception("Stat '%s' not available at this setup" % self.stat_name)
 
+class LRU_cache(OrderedDict):
+    def __init__(self, maxlen = 20, *args, **kwargs):
+        OrderedDict.__init__(self, *args, **kwargs)
+        self.maxlen = maxlen
+
+    def __setitem__(self, *args, **kwargs):
+        OrderedDict.__setitem__(self, *args, **kwargs)
+        if len(self) > self.maxlen:
+            self.popitem(last = False)

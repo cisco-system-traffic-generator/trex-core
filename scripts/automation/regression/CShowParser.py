@@ -54,7 +54,7 @@ class CShowParser(object):
                 if avg_pkt_cnt == 0.0:
                     # escaping zero division case
                     continue
-                if stats.has_key(key) :
+                if key in stats:
                     stats[key] += avg_pkt_cnt
                 else:
                     stats[key] = avg_pkt_cnt

@@ -200,7 +200,7 @@ class CTRexInfoGenerator(object):
     @staticmethod
     def _get_rational_block_char(value, range_start, interval):
         # in Konsole, utf-8 is sometimes printed with artifacts, return ascii for now
-        return 'X' if value >= range_start + float(interval) / 2 else ' '
+        #return 'X' if value >= range_start + float(interval) / 2 else ' '
         value -= range_start
         ratio = float(value) / interval
         if ratio <= 0.0625:
@@ -225,8 +225,8 @@ class CTRexInfoGenerator(object):
         relevant_port = self.__get_relevant_ports(port_id_list)[0]
         hist_len = len(relevant_port.port_stats.history)
         hist_maxlen = relevant_port.port_stats.history.maxlen
-        util_tx_hist = [0] * (hist_maxlen - hist_len) + [round(relevant_port.port_stats.history[i]['m_percentage']) for i in range(hist_len)]
-        util_rx_hist = [0] * (hist_maxlen - hist_len) + [round(relevant_port.port_stats.history[i]['m_rx_percentage']) for i in range(hist_len)]
+        util_tx_hist = [0] * (hist_maxlen - hist_len) + [round(relevant_port.port_stats.history[i]['tx_percentage']) for i in range(hist_len)]
+        util_rx_hist = [0] * (hist_maxlen - hist_len) + [round(relevant_port.port_stats.history[i]['rx_percentage']) for i in range(hist_len)]
 
 
         stats_table = text_tables.TRexTextTable()
@@ -239,7 +239,7 @@ class CTRexInfoGenerator(object):
             stats_table.add_row([y, ''.join([self._get_rational_block_char(util_tx, y, 5) for util_tx in util_tx_hist]),
                                     ''.join([self._get_rational_block_char(util_rx, y, 5) for util_rx in util_rx_hist])])
 
-        return {"port_statistics": ExportableStats({}, stats_table)}
+        return {"port_graph": ExportableStats({}, stats_table)}
 
     def _generate_port_stats(self, port_id_list):
         relevant_ports = self.__get_relevant_ports(port_id_list)
@@ -414,7 +414,7 @@ class CTRexStats(object):
         self.reference_stats = {}
         self.latest_stats = {}
         self.last_update_ts = time.time()
-        self.history = deque(maxlen = 30)
+        self.history = deque(maxlen = 47)
         self.lock = threading.Lock()
         self.has_baseline = False
 
@@ -723,12 +723,24 @@ class CPortStats(CTRexStats):
         pps = snapshot.get("m_total_tx_pps")
         rx_bps = snapshot.get("m_total_rx_bps")
         rx_pps = snapshot.get("m_total_rx_pps")
+        ts_diff = 0.5 # TODO: change this to real ts diff from server
 
         bps_L1 = calc_bps_L1(bps, pps)
-        rx_bps_L1 = calc_bps_L1(rx_bps, rx_pps)
+        bps_rx_L1 = calc_bps_L1(rx_bps, rx_pps)
         snapshot['m_total_tx_bps_L1'] = bps_L1
         snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100
-        snapshot['m_rx_percentage'] = (rx_bps_L1 / self._port_obj.get_speed_bps()) * 100
+
+        # TX line util not smoothed
+        diff_tx_pkts = snapshot.get('opackets', 0) - self.latest_stats.get('opackets', 0)
+        diff_tx_bytes = snapshot.get('obytes', 0) - self.latest_stats.get('obytes', 0)
+        tx_bps_L1 = calc_bps_L1(8.0 * diff_tx_bytes / ts_diff, float(diff_tx_pkts) / ts_diff)
+        snapshot['tx_percentage'] = 100.0 * tx_bps_L1 / self._port_obj.get_speed_bps()
+
+        # RX line util not smoothed
+        diff_rx_pkts = snapshot.get('ipackets', 0) - self.latest_stats.get('ipackets', 0)
+        diff_rx_bytes = snapshot.get('ibytes', 0) - self.latest_stats.get('ibytes', 0)
+        rx_bps_L1 = calc_bps_L1(8.0 * diff_rx_bytes / ts_diff, float(diff_rx_pkts) / ts_diff)
+        snapshot['rx_percentage'] = 100.0 * rx_bps_L1 / self._port_obj.get_speed_bps()
 
         # simple...
         self.latest_stats = snapshot

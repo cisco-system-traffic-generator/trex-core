@@ -172,22 +172,11 @@ import sys
 import os
 import socket
 import copy
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 
 from .api import *
 from .trex_stl_types import *
 from .utils.common import get_number
-
-class LRU_cache(OrderedDict):
-    def __init__(self, maxlen = 20, *args, **kwargs):
-        OrderedDict.__init__(self, *args, **kwargs)
-        self.maxlen = maxlen
-
-    def __setitem__(self, *args, **kwargs):
-        OrderedDict.__setitem__(self, *args, **kwargs)
-        if len(self) > self.maxlen:
-            self.popitem(last = False)
-
 
 class HLT_ERR(dict):
     def __init__(self, log = 'Unknown error', **kwargs):
@@ -1078,7 +1067,7 @@ def generate_packet(**user_kwargs):
         if ip_tos < 0 or ip_tos > 255:
             raise STLError('TOS %s is not in range 0-255' % ip_tos)
         l3_layer = IP(tos    = ip_tos,
-                      len    = kwargs['l3_length'],
+                      #len    = kwargs['l3_length'], don't let user create corrupt packets
                       id     = kwargs['ip_id'],
                       frag   = kwargs['ip_fragment_offset'],
                       ttl    = kwargs['ip_ttl'],

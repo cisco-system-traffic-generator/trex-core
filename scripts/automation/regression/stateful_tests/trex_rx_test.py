@@ -1,7 +1,7 @@
 #!/router/bin/python
-from trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test
 from CPlatform import CStaticRouteConfig, CNatConfig
-from tests_exceptions import *
+from .tests_exceptions import *
 #import sys
 import time
 import copy
@@ -13,11 +13,9 @@ class CTRexRx_Test(CTRexGeneral_Test):
     def __init__(self, *args, **kwargs):
         CTRexGeneral_Test.__init__(self, *args, **kwargs)
         self.unsupported_modes = ['virt_nics'] # TODO: fix
-    	pass
 
     def setUp(self):
         CTRexGeneral_Test.setUp(self)
-        pass
 
 
     def check_rx_errors(self, trex_res, allow_error_tolerance = True):
@@ -58,9 +56,9 @@ class CTRexRx_Test(CTRexGeneral_Test):
                     raise AbnormalResultError('No TRex results by path: %s' % path)
 
 
-                print 'Total packets checked: %s' % total_rx
-                print 'Latency counters: %s' % latency_counters_display
-                print 'rx_check counters: %s' % rx_counters
+                print('Total packets checked: %s' % total_rx)
+                print('Latency counters: %s' % latency_counters_display)
+                print('rx_check counters: %s' % rx_counters)
 
             except KeyError as e:
                 self.fail('Expected key in TRex result was not found.\n%s' % traceback.print_exc())
@@ -77,11 +75,11 @@ class CTRexRx_Test(CTRexGeneral_Test):
                 if self.is_loopback or error_percentage > error_tolerance:
                     self.fail('Too much errors in rx_check. (~%s%% of traffic)' % error_percentage)
                 else:
-                    print 'There are errors in rx_check (%f%%), not exceeding allowed limit (%s%%)' % (error_percentage, error_tolerance)
+                    print('There are errors in rx_check (%f%%), not exceeding allowed limit (%s%%)' % (error_percentage, error_tolerance))
             else:
-                print 'No errors in rx_check.'
+                print('No errors in rx_check.')
         except Exception as e:
-            print traceback.print_exc()
+            print(traceback.print_exc())
             self.fail('Errors in rx_check: %s' % e)
 
     def test_rx_check_sfr(self):
@@ -108,8 +106,8 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
         trex_res = self.trex.sample_to_run_finish()
 
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
         #print ("\nLATEST DUMP:")
         #print trex_res.get_latest_dump()
 
@@ -144,8 +142,8 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
         trex_res = self.trex.sample_to_run_finish()
 
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
@@ -176,8 +174,8 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
         trex_res = self.trex.sample_to_run_finish()
 
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
         #print ("\nLATEST DUMP:")
         #print trex_res.get_latest_dump()
 
@@ -210,8 +208,8 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
         trex_res = self.trex.sample_to_run_finish()
 
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
@@ -241,15 +239,15 @@ class CTRexRx_Test(CTRexGeneral_Test):
             learn_verify = True,
             l_pkt_mode = 2)
 
-        print 'Run for 40 seconds, expect no errors'
+        print('Run for 40 seconds, expect no errors')
         trex_res = self.trex.sample_x_seconds(40)
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
         self.check_rx_errors(trex_res)
 
-        print 'Run until finish, expect errors'
+        print('Run until finish, expect errors')
         old_errors = copy.deepcopy(self.fail_reasons)
         nat_dict = self.get_benchmark_param('nat_dict', test_name = 'test_nat_simple')
         nat_obj  = CNatConfig(nat_dict)
@@ -258,13 +256,13 @@ class CTRexRx_Test(CTRexGeneral_Test):
         trex_res = self.trex.sample_to_run_finish()
         self.router.config_no_zbf()
         self.router.clear_nat_translations()
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
         self.check_rx_errors(trex_res, allow_error_tolerance = False)
         if self.fail_reasons == old_errors:
             self.fail('Expected errors here, got none.')
         else:
-            print 'Got errors as expected.'
+            print('Got errors as expected.')
             self.fail_reasons = old_errors
 
     def tearDown(self):

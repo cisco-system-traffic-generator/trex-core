@@ -28,11 +28,11 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 sys.stdout.write('.')
                 sys.stdout.flush()
                 self.stl_trex.connect()
-                print ''
+                print('')
                 return True
             except:
                 time.sleep(1)
-        print ''
+        print('')
         return False
 
     def map_ports(self, timeout = 5):
@@ -42,10 +42,10 @@ class CStlGeneral_Test(CTRexGeneral_Test):
             sys.stdout.flush()
             CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
             if self.verify_bidirectional(CTRexScenario.stl_ports_map):
-                print ''
+                print('')
                 return True
             time.sleep(1)
-        print ''
+        print('')
         return False
 
     # verify all the ports are bidirectional
@@ -82,5 +82,5 @@ class STLBasic_Test(CStlGeneral_Test):
         CTRexScenario.stl_init_error = err
         if not self.map_ports():
             self.fail(err)
-        print 'Got ports mapping: %s' % CTRexScenario.stl_ports_map
+        print('Got ports mapping: %s' % CTRexScenario.stl_ports_map)
         CTRexScenario.stl_init_error = None

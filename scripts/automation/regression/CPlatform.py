@@ -67,7 +67,9 @@ class CPlatform(object):
 
         cache = CCommandCache()
         cache.add('EXEC', "configure replace {drive}:{file} force".format(drive = cfg_drive, file = config_filename))
-        self.cmd_link.run_single_command(cache)
+        res = self.cmd_link.run_single_command(cache)
+        if 'Rollback Done' not in res:
+            raise UserWarning('Could not load clean config, please verify file exists. Response:\n%s' % res)
 
     def config_pbr (self, mode = 'config'):
         idx = 1
@@ -566,7 +568,7 @@ class CPlatform(object):
         # print response
         # response    = self.cmd_link.run_single_command('show platform hardware qfp active interface all statistics')
         # print response
-        if_list_by_name = map( lambda x: x.get_name(), self.if_mngr.get_if_list() )
+        if_list_by_name = [x.get_name() for x in self.if_mngr.get_if_list()]
         return CShowParser.parse_drop_stats(response, if_list_by_name )
 
     def get_nat_stats (self):
@@ -820,7 +822,7 @@ class CPlatform(object):
             self.reload_connection(device_cfg_obj)
             progress_thread.join()
         except Exception as e:
-            print e
+            print(e)
 
     def get_if_manager(self):
         return self.if_mngr
@@ -864,9 +866,8 @@ class CStaticRouteConfig(object):
     def extract_net_addr (self, ip_addr, ip_mask):
         addr_lst = ip_addr.split('.')
         mask_lst = ip_mask.split('.')
-        mask_lst = map(lambda x,y: int(x) & int(y), addr_lst, mask_lst )
-        masked_str = map(lambda x: str(x), mask_lst )
-        return '.'.join(masked_str)
+        mask_lst = [str(int(x) & int(y)) for x, y in zip(addr_lst, mask_lst)]
+        return '.'.join(mask_lst)
 
     def dump_config (self):
         import yaml
@@ -884,9 +885,9 @@ class CNatConfig(object):
 
     @staticmethod
     def calc_pool_end (nat_pool_start, netmask):
-        pool_start_lst  = map(lambda x: int(x), nat_pool_start.split('.') )
+        pool_start_lst  = [int(x) for x in nat_pool_start.split('.')]
         pool_end_lst    = list( pool_start_lst )   # create new list object, don't point to the original one
-        mask_lst        = map(lambda x: int(x), netmask.split('.'))
+        mask_lst        = [int(x) for x in netmask.split('.')]
         curr_octet      = 3 # start with the LSB octet
         inc_val         = 1
 
@@ -902,7 +903,7 @@ class CNatConfig(object):
             else:
                 pool_end_lst[curr_octet] += (inc_val - 1)
                 break
-        return '.'.join(map(lambda x: str(x), pool_end_lst))
+        return '.'.join([str(x) for x in pool_end_lst])
 
     def dump_config (self):
         import yaml

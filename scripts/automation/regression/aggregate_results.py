@@ -8,7 +8,10 @@ import sys, os
 from collections import OrderedDict
 import copy
 import datetime, time
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except:
+    import pickle
 import subprocess, shlex
 from ansi2html import Ansi2HTMLConverter
 
@@ -83,12 +86,12 @@ def add_category_of_tests(category, tests, tests_type = None, category_info_dir 
                 with open(category_info_file) as f:
                     for info_line in f.readlines():
                         key_value = info_line.split(':', 1)
-                        if key_value[0].strip() in trex_info_dict.keys() + ['User']: # always 'hhaim', no need to show
+                        if key_value[0].strip() in list(trex_info_dict.keys()) + ['User']: # always 'hhaim', no need to show
                             continue
                         html_output += add_th_td('%s:' % key_value[0], key_value[1])
             else:
                 html_output += add_th_td('Info:', 'No info')
-                print 'add_category_of_tests: no category info %s' % category_info_file
+                print('add_category_of_tests: no category info %s' % category_info_file)
         if tests_type:
             html_output += add_th_td('Tests type:', tests_type.capitalize())
         if len(tests):
@@ -253,13 +256,16 @@ if __name__ == '__main__':
     build_url               = os.environ.get('BUILD_URL')
     build_id                = os.environ.get('BUILD_ID')
     trex_repo               = os.environ.get('TREX_CORE_REPO')
+    python_ver              = os.environ.get('PYTHON_VER')
     if not scenario:
-        print 'Warning: no environment variable SCENARIO, using default'
+        print('Warning: no environment variable SCENARIO, using default')
         scenario = 'TRex regression'
     if not build_url:
-        print 'Warning: no environment variable BUILD_URL'
+        print('Warning: no environment variable BUILD_URL')
     if not build_id:
-        print 'Warning: no environment variable BUILD_ID'
+        print('Warning: no environment variable BUILD_ID')
+    if not python_ver:
+        print('Warning: no environment variable PYTHON_VER')
 
     trex_info_dict = OrderedDict()
     for file in glob.glob('%s/report_*.info' % args.input_dir):
@@ -279,17 +285,17 @@ if __name__ == '__main__':
     trex_last_commit_hash = trex_info_dict.get('Git SHA')
     if trex_last_commit_hash and trex_repo:
         try:
-            print 'Getting TRex commit with hash %s' % trex_last_commit_hash
+            print('Getting TRex commit with hash %s' % trex_last_commit_hash)
             command = 'git --git-dir %s show %s --quiet' % (trex_repo, trex_last_commit_hash)
-            print 'Executing: %s' % command
+            print('Executing: %s' % command)
             proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             (trex_last_commit_info, stderr) = proc.communicate()
-            print 'Stdout:\n\t' + trex_last_commit_info.replace('\n', '\n\t')
-            print 'Stderr:', stderr
-            print 'Return code:', proc.returncode
+            print('Stdout:\n\t' + trex_last_commit_info.replace('\n', '\n\t'))
+            print('Stderr:', stderr)
+            print('Return code:', proc.returncode)
             trex_last_commit_info = trex_last_commit_info.replace('\n', '<br>')
         except Exception as e:
-            print 'Error getting last commit: %s' % e
+            print('Error getting last commit: %s' % e)
 
 ##### get xmls: report_<setup name>.xml
 
@@ -304,7 +310,7 @@ if __name__ == '__main__':
                     jobs_list.append(line)
     else:
         message = '%s does not exist!' % jobs_file
-        print message
+        print(message)
         err.append(message)
 
 ##### aggregate results to 1 single tree
@@ -331,7 +337,7 @@ if __name__ == '__main__':
             tests = root.getchildren()
             if not len(tests): # there should be tests:
                 message = 'No tests in xml %s' % xml_file
-                print message
+                print(message)
                 #err.append(message)
             for test in tests:
                 setups[job][test_type].append(test)
@@ -340,7 +346,7 @@ if __name__ == '__main__':
                 aggregated_root.append(test)
         if not sum([len(x) for x in setups[job].values()]):
             message = 'No reports from setup %s!' % job
-            print message
+            print(message)
             err.append(message)
             continue
 
@@ -405,7 +411,10 @@ if __name__ == '__main__':
 <body>
 <table class="reference">
 '''
-    html_output += add_th_td('Scenario:', scenario.capitalize())
+    if scenario:
+        html_output += add_th_td('Scenario:', scenario.capitalize())
+    if python_ver:
+        html_output += add_th_td('Python:', python_ver)
     start_time_file = '%s/start_time.info' % args.input_dir
     if os.path.exists(start_time_file):
         with open(start_time_file) as f:
@@ -530,7 +539,10 @@ if __name__ == '__main__':
 <body>
 <table class="reference">
 '''
-    mail_output += add_th_td('Scenario:', scenario.capitalize())
+    if scenario:
+        mail_output += add_th_td('Scenario:', scenario.capitalize())
+    if python_ver:
+        mail_output += add_th_td('Python:', python_ver)
     if build_url:
         mail_output += add_th_td('Full HTML report:', '<a class="example" href="%s/HTML_Report">link</a>' % build_url)
     start_time_file = '%s/start_time.info' % args.input_dir
@@ -565,7 +577,7 @@ if __name__ == '__main__':
             with open(category_info_file) as f:
                 for info_line in f.readlines():
                     key_value = info_line.split(':', 1)
-                    if key_value[0].strip() in trex_info_dict.keys() + ['User']: # always 'hhaim', no need to show
+                    if key_value[0].strip() in list(trex_info_dict.keys()) + ['User']: # always 'hhaim', no need to show
                         continue
                     mail_output += add_th_td('%s:' % key_value[0].strip(), key_value[1].strip())
         else:
@@ -598,12 +610,15 @@ if __name__ == '__main__':
 # build status
     category_dict_status = {}
     if os.path.exists(args.build_status_file):
-        with open(args.build_status_file) as f:
-            print('Reading: %s' % args.build_status_file)
-            category_dict_status = pickle.load(f)
-            if type(category_dict_status) is not dict:
-                print '%s is corrupt, truncating' % args.build_status_file
-                category_dict_status = {}
+        print('Reading: %s' % args.build_status_file)
+        with open(args.build_status_file, 'rb') as f:
+            try:
+                category_dict_status = pickle.load(f)
+            except Exception as e:
+                print('Error during pickle load: %s' % e)
+        if type(category_dict_status) is not dict:
+            print('%s is corrupt, truncating' % args.build_status_file)
+            category_dict_status = {}
 
     last_status = category_dict_status.get(scenario, 'Successful') # assume last is passed if no history
     if err or len(error_tests): # has fails
@@ -618,7 +633,7 @@ if __name__ == '__main__':
             current_status = 'Fixed'
     category_dict_status[scenario] = current_status
 
-    with open(args.build_status_file, 'w') as f:
+    with open(args.build_status_file, 'wb') as f:
         print('Writing output file: %s' % args.build_status_file)
         pickle.dump(category_dict_status, f)
 

@@ -1,7 +1,7 @@
 #!/router/bin/python
-from trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test
 from CPlatform import CStaticRouteConfig
-from tests_exceptions import *
+from .tests_exceptions import *
 #import sys
 import time
 from nose.tools import nottest
@@ -11,7 +11,6 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
     def __init__(self, *args, **kwargs):
         # super(CTRexIMIX_Test, self).__init__()
         CTRexGeneral_Test.__init__(self, *args, **kwargs)
-        pass
 
     def setUp(self):
         super(CTRexIMIX_Test, self).setUp() # launch super test class setUp process
@@ -43,8 +42,8 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
@@ -62,7 +61,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             trex_development = True)
 
         trex_res = self.trex.sample_to_run_finish()
-        print trex_res
+        print(trex_res)
 
     def test_routing_imix (self):
         # test initializtion
@@ -87,8 +86,8 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res)
 
@@ -123,10 +122,10 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
-        print ("\nLATEST DUMP:")
-        print trex_res.get_latest_dump()
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
+        print("\nLATEST DUMP:")
+        print(trex_res.get_latest_dump())
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
@@ -157,8 +156,8 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResults instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res)
 
@@ -186,8 +185,8 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResults instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res, minimal_cpu = 0, maximal_cpu = 10)

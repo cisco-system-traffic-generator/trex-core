@@ -1,6 +1,6 @@
 #!/router/bin/python
-from trex_general_test import CTRexGeneral_Test
-from tests_exceptions import *
+from .trex_general_test import CTRexGeneral_Test
+from .tests_exceptions import *
 from interfaces_e import IFType
 from nose.tools import nottest
 from misc_methods import print_r
@@ -8,9 +8,8 @@ from misc_methods import print_r
 class CTRexNbar_Test(CTRexGeneral_Test):
     """This class defines the NBAR testcase of the T-Rex traffic generator"""
     def __init__(self, *args, **kwargs):
-    	super(CTRexNbar_Test, self).__init__(*args, **kwargs)
+        super(CTRexNbar_Test, self).__init__(*args, **kwargs)
         self.unsupported_modes = ['loopback'] # obviously no NBar in loopback
-    	pass
 
     def setUp(self):
         super(CTRexNbar_Test, self).setUp() # launch super test class setUp process
@@ -21,8 +20,8 @@ class CTRexNbar_Test(CTRexGeneral_Test):
     def match_classification (self):
         nbar_benchmark = self.get_benchmark_param("nbar_classification")
         test_classification = self.router.get_nbar_stats()
-        print "TEST CLASSIFICATION:"
-        print test_classification
+        print("TEST CLASSIFICATION:")
+        print(test_classification)
         missmatchFlag = False
         missmatchMsg = "NBAR classification contians a missmatch on the following protocols:"
         fmt = '\n\t{0:15} | Expected: {1:>3.2f}%, Got: {2:>3.2f}%'
@@ -31,7 +30,7 @@ class CTRexNbar_Test(CTRexGeneral_Test):
         for cl_intf in self.router.get_if_manager().get_if_list(if_type = IFType.Client):
             client_intf = cl_intf.get_name()
 
-            for protocol, bench in nbar_benchmark.iteritems():
+            for protocol, bench in nbar_benchmark.items():
                 if protocol != 'total':
                     try:
                         bench = float(bench)
@@ -44,11 +43,11 @@ class CTRexNbar_Test(CTRexGeneral_Test):
                             missmatchMsg += fmt.format(protocol, bench, protocol_test_res)
                     except KeyError as e:
                         missmatchFlag = True
-                        print e
-                        print "Changes missmatchFlag to True. ", "\n\tProtocol {0} isn't part of classification results on interface {intf}".format( protocol, intf = client_intf )
+                        print(e)
+                        print("Changes missmatchFlag to True. ", "\n\tProtocol {0} isn't part of classification results on interface {intf}".format( protocol, intf = client_intf ))
                         missmatchMsg += "\n\tProtocol {0} isn't part of classification results on interface {intf}".format( protocol, intf = client_intf )
                     except ZeroDivisionError as e:
-                        print "ZeroDivisionError: %s" % protocol
+                        print("ZeroDivisionError: %s" % protocol)
                         pass
         if missmatchFlag:
             self.fail(missmatchMsg)
@@ -78,10 +77,10 @@ class CTRexNbar_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
-        print ("\nLATEST DUMP:")
-        print trex_res.get_latest_dump()
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
+        print("\nLATEST DUMP:")
+        print(trex_res.get_latest_dump())
 
 
         self.check_general_scenario_results(trex_res, check_latency = False) # NBAR can cause latency
@@ -89,16 +88,16 @@ class CTRexNbar_Test(CTRexGeneral_Test):
         trex_tx_pckt  = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
         cpu_util = trex_res.get_last_value("trex-global.data.m_cpu_util")
         cpu_util_hist = trex_res.get_value_list("trex-global.data.m_cpu_util")
-        print "cpu util is:", cpu_util
-        print cpu_util_hist
+        print("cpu util is:", cpu_util)
+        print(cpu_util_hist)
         test_norm_cpu = 2 * trex_tx_pckt / (core * cpu_util)
-        print "test_norm_cpu is:", test_norm_cpu
+        print("test_norm_cpu is:", test_norm_cpu)
 
         
         if self.get_benchmark_param('cpu2core_custom_dev'):
             # check this test by custom deviation
             deviation_compare_value = self.get_benchmark_param('cpu2core_dev')
-            print "Comparing test with custom deviation value- {dev_val}%".format( dev_val = int(deviation_compare_value*100) )
+            print("Comparing test with custom deviation value- {dev_val}%".format( dev_val = int(deviation_compare_value*100) ))
 
         # need to be fixed !
         #if ( abs((test_norm_cpu/self.get_benchmark_param('cpu_to_core_ratio')) - 1) > deviation_compare_value):
@@ -134,10 +133,10 @@ class CTRexNbar_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
-        print ("\nLATEST DUMP:")
-        print trex_res.get_latest_dump()
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
+        print("\nLATEST DUMP:")
+        print(trex_res.get_latest_dump())
 
         self.check_general_scenario_results(trex_res)
 
@@ -170,8 +169,8 @@ class CTRexNbar_Test(CTRexGeneral_Test):
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print ("\nLATEST RESULT OBJECT:")
-        print trex_res
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
 
         self.check_general_scenario_results(trex_res, check_latency = False)
 

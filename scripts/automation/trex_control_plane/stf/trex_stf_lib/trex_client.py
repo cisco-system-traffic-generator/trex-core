@@ -592,7 +592,10 @@ class CTRexClient(object):
 
         """
         try:
-            return binascii.a2b_base64(self.server.get_trex_daemon_log())
+            res = binascii.a2b_base64(self.server.get_trex_daemon_log())
+            if type(res) is bytes:
+                return res.decode()
+            return res
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -613,7 +616,10 @@ class CTRexClient(object):
 
         """
         try:
-            return binascii.a2b_base64(self.server.get_trex_log())
+            res = binascii.a2b_base64(self.server.get_trex_log())
+            if type(res) is bytes:
+                return res.decode()
+            return res
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -636,7 +642,10 @@ class CTRexClient(object):
 
         try:
             version_dict = OrderedDict()
-            result_lines = binascii.a2b_base64(self.server.get_trex_version()).split('\n')
+            res = binascii.a2b_base64(self.server.get_trex_version())
+            if type(res) is bytes:
+                res = res.decode()
+            result_lines = res.split('\n')
             for line in result_lines:
                 if not line:
                     continue

@@ -1,5 +1,5 @@
 #!/router/bin/python
-from trex_general_test import CTRexGeneral_Test, CTRexScenario
+from .trex_general_test import CTRexGeneral_Test, CTRexScenario
 from misc_methods import run_command
 from nose.plugins.attrib import attr
 
