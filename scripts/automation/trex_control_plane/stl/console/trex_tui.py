@@ -73,7 +73,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
         self.key_actions['o'] = {'action': self.action_show_owned,  'legend': 'owned ports', 'show': True}
         self.key_actions['a'] = {'action': self.action_show_all,  'legend': 'all ports', 'show': True}
 
-        self.ports_filter = self.FILTER_ACQUIRED
+        self.ports_filter = self.FILTER_ALL
 
 
     def get_ports (self):
