@@ -1584,7 +1584,7 @@ def correct_direction(user_kwargs, kwargs):
 
 # we produce packets without fcs, so need to reduce produced sizes
 def correct_sizes(kwargs):
-    for arg in kwargs.keys():
-        if is_integer(arg):
+    for arg, value in kwargs.items():
+        if is_integer(value):
             if arg.endswith(('_length', '_size', '_size_min', '_size_max', '_length_min', '_length_max')):
                 kwargs[arg] -= 4

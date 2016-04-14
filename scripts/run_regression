@@ -1,6 +1,37 @@
 #!/bin/bash
 
-source find_python.sh --python2
-cd automation/regression
-$PYTHON trex_unit_test.py --exclude functional $@
+INPUT_ARGS=${@//--python[23]/}
+
+if [[ $@ =~ '--python2' || ! $@ =~ '--python3' ]]; then
+    source find_python.sh --python2
+    cd automation/regression
+
+    # Python 2
+    echo Python2 test
+    $PYTHON trex_unit_test.py $INPUT_ARGS
+    if [ $? -eq 0 ]; then
+        printf "\n$PYTHON test succeeded\n\n"
+    else
+        printf "\n*** $PYTHON test failed\n\n"
+        exit -1
+    fi
+    cd -
+fi
+
+if [[ $@ =~ '--python3' ]]; then
+    source find_python.sh --python3
+    cd automation/regression
+
+    # Python 3
+    echo Python3 test
+    $PYTHON trex_unit_test.py $INPUT_ARGS
+    if [ $? -eq 0 ]; then
+        printf "\n$PYTHON test succeeded\n\n"
+    else
+        printf "\n*** $PYTHON test failed\n\n"
+        exit -1
+    fi
+    cd -
+fi
+
 

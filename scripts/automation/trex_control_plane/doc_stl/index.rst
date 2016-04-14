@@ -24,6 +24,32 @@ Un-pack it using command::
 
  tar -xzf trex_client.tar.gz
  
+How to use
+==================
+
+| The client assumes server is running.
+| After un-tarring the client package, you can verify basic tests in examples directory out of the box:
+
+.. code-block:: bash
+
+ cd trex_client/stl/examples
+ python stl_imix.py -s <server address>
+
+You can verify that the traffic was sent and arrives properly if you see something like this:::
+
+ Mapped ports to sides [0, 2] <--> [1, 3]
+ Injecting [0, 2] <--> [1, 3] on total rate of '30%' for 10 seconds
+
+ Packets injected from [0, 2]: 473,856
+ Packets injected from [1, 3]: 473,856
+
+ packets lost from [0, 2] --> [0, 2]:   0 pkts
+ packets lost from [1, 3] --> [1, 3]:   0 pkts
+
+ Test has passed :-)
+
+
+Also, in the stl folder there are directories with profiles that define streams and the console (with which you can easily send the profiles)
 
 How to pyATS
 ==================

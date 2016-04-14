@@ -164,7 +164,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_CPU_benchmark(trex_res)
 
 
-    def test_jumbo(self, duration = 100):
+    def test_jumbo(self, duration = 100, **kwargs):
         if not self.is_loopback:
             self.router.configure_basic_interfaces(mtu = 9216)
             self.router.config_pbr(mode = "config")
@@ -179,7 +179,8 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             nc = True,
             d = duration,
             f = 'cap2/imix_9k.yaml',
-            l = 1000)
+            l = 1000,
+            **kwargs)
 
         trex_res = self.trex.sample_to_run_finish()
 
@@ -196,9 +197,12 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
     def test_warm_up(self):
         try:
             self._testMethodName = 'test_jumbo'
-            self.test_jumbo(duration = 30)
+            self.test_jumbo(duration = 5, trex_development = True)
         except Exception as e:
             print('Ignoring this error: %s' % e)
+        if self.fail_reasons:
+            print('Ignoring this error(s):\n%s' % '\n'.join(self.fail_reasons))
+            self.fail_reasons = []
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)
