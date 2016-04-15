@@ -382,14 +382,15 @@ class CIosTelnet(telnetlib.Telnet):
         res = func(self, text.encode('ascii') if type(text) is str else text, *args, **kwargs)
         return res.decode() if type(res) is bytes else res
 
-    def read_until(self, text, *args, **kwargs):
-        return self.str_to_bytes_wrapper(telnetlib.Telnet.read_until, text, *args, **kwargs)
+    def read_until(self, *args, **kwargs):
+        return self.str_to_bytes_wrapper(telnetlib.Telnet.read_until, *args, **kwargs)
 
-    def write(self, text, *args, **kwargs):
-        return self.str_to_bytes_wrapper(telnetlib.Telnet.write, text, *args, **kwargs)
+    def write(self, *args, **kwargs):
+        return self.str_to_bytes_wrapper(telnetlib.Telnet.write, *args, **kwargs)
 
-    def expect(self, text, *args, **kwargs):
-        return self.str_to_bytes_wrapper(telnetlib.Telnet.expect, text, *args, **kwargs)
+    def expect(self, *args, **kwargs):
+        res = self.str_to_bytes_wrapper(telnetlib.Telnet.expect, *args, **kwargs)
+        return [elem.decode() if type(elem) is bytes else elem for elem in res]
 
     def __init__ (self, host, line_pass, en_pass, port = 23, str_wait = "#"):
         telnetlib.Telnet.__init__(self)

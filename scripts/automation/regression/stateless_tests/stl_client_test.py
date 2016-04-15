@@ -248,7 +248,7 @@ class STLClient_Test(CStlGeneral_Test):
             
             for profile in self.profiles:
 
-                print("now testing profile {0}...\n").format(profile)
+                print("now testing profile {0}...\n".format(profile))
 
                 p1 = STLProfile.load(profile, port_id = self.tx_port)
                 p2 = STLProfile.load(profile, port_id = self.rx_port)

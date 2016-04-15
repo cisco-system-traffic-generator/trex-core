@@ -100,10 +100,10 @@ class STLRX_Test(CStlGeneral_Test):
     # one simple stream on TX --> RX
     def test_multiple_streams(self):
         num_streams = 10
-        total_pkts = self.total_pkts / num_streams
+        total_pkts = int(self.total_pkts / num_streams)
         if total_pkts == 0:
             total_pkts = 1
-        percent = self.rate_percent / num_streams
+        percent = int(self.rate_percent / num_streams)
         if percent == 0:
             percent = 1
 

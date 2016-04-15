@@ -33,6 +33,8 @@ def run_command(cmd, background = False):
         print('Running command: %s' % cmd)
         proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         (stdout, stderr) = proc.communicate()
+        stdout = stdout.decode()
+        stderr = stderr.decode()
         if stdout:
             print('Stdout:\n%s' % stdout)
         if proc.returncode:

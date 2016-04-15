@@ -709,7 +709,7 @@ class CPlatform(object):
                 if self.running_image is None:
                     self.get_running_image_details()
                 
-                command = "copy tftp://{tftp_ip}/{img_path}/{image} harddisk:".format(
+                command = "copy tftp://{tftp_ip}/{img_path}/{image} bootflash:".format(
                     tftp_ip  = self.tftp_cfg['ip_address'],
                     img_path = self.tftp_cfg['images_path'],
                     image    = img_filename)

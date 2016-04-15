@@ -881,7 +881,7 @@ class CRxStats(CTRexStats):
         output['ts'] = current['ts']
 
         # we care only about the current active keys
-        pg_ids = filter(is_intable, current.keys())
+        pg_ids = list(filter(is_intable, current.keys()))
 
         for pg_id in pg_ids:
 
@@ -907,7 +907,7 @@ class CRxStats(CTRexStats):
 
 
         # cleanp old reference values - they are dead
-        ref_pg_ids = filter(is_intable, self.reference_stats.keys())
+        ref_pg_ids = list(filter(is_intable, self.reference_stats.keys()))
 
         deleted_pg_ids = set(ref_pg_ids).difference(pg_ids)
         for d_pg_id in deleted_pg_ids:
