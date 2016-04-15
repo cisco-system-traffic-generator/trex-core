@@ -388,7 +388,7 @@ class CPlatform(object):
         cache.add('CONF', conf_t_command_set)
 
         # deploy the configs (order is important!)
-        self.cmd_link.run_single_command( cache )
+        return self.cmd_link.run_single_command( cache )
 
 
     def config_no_nat (self, nat_obj = None):
@@ -575,6 +575,9 @@ class CPlatform(object):
         response    = self.cmd_link.run_single_command('show ip nat statistics')
         return CShowParser.parse_nat_stats(response)
 
+    def get_nat_trans (self):
+        return self.cmd_link.run_single_command('show ip nat translation')
+
     def get_cvla_memory_usage(self):
         response    = self.cmd_link.run_single_command('show platform hardware qfp active infrastructure cvla client handles')
         # (res, res2) = CShowParser.parse_cvla_memory_usage(response)
@@ -584,8 +587,15 @@ class CPlatform(object):
     # clear methods
     def clear_nat_translations(self):
         pre_commit_cache = CCommandCache()
+        # prevent new NAT entries
+        # http://www.cisco.com/c/en/us/support/docs/ip/network-address-translation-nat/13779-clear-nat-comments.html
+        for dual_if in self.if_mngr.get_dual_if_list(is_duplicated = False):
+            pre_commit_cache.add('IF', "no ip nat inside", dual_if.client_if.get_name())
+            pre_commit_cache.add('IF', "no ip nat outside", dual_if.server_if.get_name())
+        # clear the translation
         pre_commit_cache.add('EXEC', 'clear ip nat translation *')
-        self.cmd_link.run_single_command( pre_commit_cache )
+        self.cmd_link.run_single_command(pre_commit_cache)
+        time.sleep(1)
 
     def clear_cft_counters (self):
         """ clear_cft_counters(self) -> None

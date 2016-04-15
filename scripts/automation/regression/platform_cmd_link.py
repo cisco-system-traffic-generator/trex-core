@@ -419,7 +419,7 @@ class CIosTelnet(telnetlib.Telnet):
         except Exception as inst:
             raise
 
-    def write_ios_cmd (self, cmd_list, result_from = 0, timeout = 10, **kwargs):
+    def write_ios_cmd (self, cmd_list, result_from = 0, timeout = 3, **kwargs):
         assert (isinstance (cmd_list, list) == True)
         self.read_until(self.pr, timeout = 1)
 
@@ -429,23 +429,20 @@ class CIosTelnet(telnetlib.Telnet):
         else:
             wf = self.pr
 
-        start_time = time.time()
         for idx, cmd in enumerate(cmd_list):
             self.write(cmd+'\r\n')
             if idx < result_from:
                 # don't care for return string
                 if type(wf) is list:
-                    self.expect(wf, timeout = 3)[2]
+                    self.expect(wf, timeout)[2]
                 else:
-                    self.read_until(wf, timeout = 3)
+                    self.read_until(wf, timeout)
             else:
                 # care for return string
                 if type(wf) is list:
-                    res += self.expect(wf, timeout = 3)[2]
+                    res += self.expect(wf, timeout)[2]
                 else:
-                    res += self.read_until(wf, timeout = 3)
-        if time.time() - start_time >= timeout:
-            raise Exception('A timeout error has occured at command %s' % cmd_list)
+                    res += self.read_until(wf, timeout)
 #       return res.split('\r\n')
         return res  # return the received response as a string, each line is seperated by '\r\n'.
 
