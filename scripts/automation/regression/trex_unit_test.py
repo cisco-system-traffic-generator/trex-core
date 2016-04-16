@@ -218,7 +218,10 @@ class CTRexTestConfiguringPlugin(Plugin):
             CTRexScenario.trex = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
         elif self.stateless:
             if not self.no_ssh:
-                trex_remote_command(self.configuration.trex, './t-rex-64 -i', background = True)
+                cores = self.configuration.trex.get('trex_cores', 1)
+                if 'virt_nics' in self.modes and cores > 1:
+                    raise Exception('Number of cores should be 1 with virtual NICs')
+                trex_remote_command(self.configuration.trex, './t-rex-64 -i -c %s' % cores, background = True)
             CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
                                                server = self.configuration.trex['trex_name'],
                                                verbose_level = self.verbose_mode)

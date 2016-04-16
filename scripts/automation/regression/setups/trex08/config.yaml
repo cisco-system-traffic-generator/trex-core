@@ -35,6 +35,6 @@
 
 trex:
   hostname       : csi-trex-08
-  cores          : 2
+  cores          : 7
   modes          : ['loopback']
 

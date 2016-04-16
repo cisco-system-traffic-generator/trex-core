@@ -63,13 +63,17 @@ class CPlatform(object):
 
 
     def load_clean_config (self, config_filename = "clean_config.cfg", cfg_drive = "bootflash"):
-        self.clear_nat_translations()
-
-        cache = CCommandCache()
-        cache.add('EXEC', "configure replace {drive}:{file} force".format(drive = cfg_drive, file = config_filename))
-        res = self.cmd_link.run_single_command(cache)
-        if 'Rollback Done' not in res:
-            raise UserWarning('Could not load clean config, please verify file exists. Response:\n%s' % res)
+        for i in range(5):
+            self.clear_nat_translations()
+            cache = CCommandCache()
+            cache.add('EXEC', "configure replace {drive}:{file} force".format(drive = cfg_drive, file = config_filename))
+            res = self.cmd_link.run_single_command(cache)
+            if 'Rollback Done' not in res:
+                print('Failed to load clean config, trying again')
+                if i < 4:
+                    continue
+                raise Exception('Could not load clean config, response: %s' % res)
+            return
 
     def config_pbr (self, mode = 'config'):
         idx = 1
@@ -592,10 +596,13 @@ class CPlatform(object):
         for dual_if in self.if_mngr.get_dual_if_list(is_duplicated = False):
             pre_commit_cache.add('IF', "no ip nat inside", dual_if.client_if.get_name())
             pre_commit_cache.add('IF', "no ip nat outside", dual_if.server_if.get_name())
+        self.cmd_link.run_single_command(pre_commit_cache)
+        time.sleep(0.5)
+        pre_commit_cache = CCommandCache()
         # clear the translation
         pre_commit_cache.add('EXEC', 'clear ip nat translation *')
         self.cmd_link.run_single_command(pre_commit_cache)
-        time.sleep(1)
+        time.sleep(0.5)
 
     def clear_cft_counters (self):
         """ clear_cft_counters(self) -> None
