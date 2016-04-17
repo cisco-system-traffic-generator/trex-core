@@ -201,6 +201,10 @@ class CTRexInfoGenerator(object):
     def _get_rational_block_char(value, range_start, interval):
         # in Konsole, utf-8 is sometimes printed with artifacts, return ascii for now
         #return 'X' if value >= range_start + float(interval) / 2 else ' '
+
+        if sys.__stdout__.encoding != 'UTF-8':
+            return 'X' if value >= range_start + float(interval) / 2 else ' '
+
         value -= range_start
         ratio = float(value) / interval
         if ratio <= 0.0625:
@@ -532,7 +536,12 @@ class CTRexStats(object):
         v = self.get_trend(field, use_raw)
 
         value = abs(v)
-        arrow = u'\u25b2' if v > 0 else u'\u25bc'
+
+        # use arrows if utf-8 is supported
+        if sys.__stdout__.encoding == 'UTF-8':
+            arrow = u'\u25b2' if v > 0 else u'\u25bc'
+        else:
+            arrow = ''
 
         if sys.version_info < (3,0):
             arrow = arrow.encode('utf-8')
