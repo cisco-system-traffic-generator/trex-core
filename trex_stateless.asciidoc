@@ -1876,6 +1876,82 @@ class STLS1(object):
 <2> Writes the stream variable `mac_src` with an offset determined by the offset of `IP.src` plus the `offset_fixup` of 2. 
 
 
+==== Tutorial: Field Engine, many clients with ARP
+
+In the following example, there are two Switchs SW1 and SW2. 
+The TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2.
+There are 253 hosts connected to SW1 and SW2 with two networks ports. 
+
+.Client side the network of the hosts
+[cols="3<,3<", options="header",width="50%"]
+|=================
+| Name      |  Description   
+| TRex port 0 MAC       | 00:00:01:00:00:01     
+| TRex port 0 IPv4      | 16.0.0.1
+| IPv4 host client side range     | 16.0.0.2-16.0.0.254
+| MAC host client side range     | 00:00:01:00:00:02-00:00:01:00:00:FE 
+|=================
+
+
+.Server side the network of the hosts
+[cols="3<,3<", options="header",width="50%"]
+|=================
+| Name      |  Description   
+| TRex port 1 MAC       | 00:00:02:00:00:01     
+| TRex port 1 IPv4      | 48.0.0.1
+| IPv4 host server side range     | 48.0.0.2-48.0.0.254
+| MAC host server side range     | 00:00:02:00:00:02-00:00:02:00:00:FE 
+|=================
+
+image::images/stl_arp.png[title="arp/nd",align="left",width={p_width}, link="images/stl_arp.png"]
+
+In the following example, there are two Switchs SW1 and SW2. 
+The TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2
+In this example, because there are many hosts connected to the same network using SW1 and not as a next hope we would like to teach SW1 the MAC addresses of the hosts and not to send the traffic directly to the hosts MAC (as it in any case known)
+For that we would send an ARP to all the hosts (16.0.0.2-16.0.0.254) from TRex port 0 and Gratius ARP from server side (48.0.0.1) TRex port 1 as the first stage of the test
+
+So the step would be like that:
+
+1. Send a gratuitous ARP from TRex port 1 with server IP/MAC (48.0.0.1) after this stage SW2 will know that 48.0.0.1 is located after this port of SW2.
+2. Send ARP request for all hosts from port 0 with a range of 16.0.0.2-16.0.0.254 after this stage all switch ports will learn the PORT/MAC locations. Without this stage the first packets from TRex port 0 will be flooded to all Switch ports. 
+3. send traffic from TRex0->clients, port 1->servers 
+
+
+.ARP traffic profile 
+[source,python]
+----
+
+ base_pkt =  Ether(dst="ff:ff:ff:ff:ff:ff")/
+            ARP(psrc="16.0.0.1",hwsrc="00:00:01:00:00:01", pdst="16.0.0.2")                      <1>
+
+ vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", min_value=2, max_value=254, size=2, op="inc"),  <2>
+                    STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="ARP.pdst",offset_fixup=2),                
+                  ]
+                 ,split_by_field = "mac_src"  # split 
+                )
+
+
+----
+<1> ARP packet with TRex port 0 MAC and IP and pdst as variable.
+<2> Write it to `ARP.pdst`.
+
+
+.Gratuitous ARP traffic profile 
+[source,python]
+----
+
+        base_pkt =  Ether(src="00:00:02:00:00:01",dst="ff:ff:ff:ff:ff:ff")/
+                    ARP(psrc="48.0.0.1",hwsrc="00:00:02:00:00:01", 
+                        hwdst="00:00:02:00:00:01", pdst="48.0.0.1") <1>
+
+----
+<1> G ARP packet with TRex port 1 MAC and IP no need a VM.
+
+[NOTE] 
+=====================================================================
+This principal can be done for IPv6 too. ARP could be replaced with Neighbor Solicitation IPv6 packet.
+=====================================================================
+ 
 ==== Tutorial: Field Engine, split to core 
 
 The following example splits generated traffic into a number of threads. You can specify the field to use for determining how to split the traffic into threads. Without this feature, the traffic is duplicated and all the threads transmit the same traffic. (See the results tables in the examples below in this tutorial.)
