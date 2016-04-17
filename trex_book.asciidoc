@@ -400,14 +400,16 @@ and example
 ----
         - port_limit      : 2                                                                           
           version       : 2                                                                             
-          interfaces    : ["03:00.0","03:00.1"]                                                         
+          interfaces    : ["03:00.0","03:00.1"]   <2>                                                      
           port_info       :  # set eh mac addr 
                   - dest_mac        :   [0x1,0x0,0x0,0x1,0x0,0x00]  # port 0                            
                     src_mac         :   [0x2,0x0,0x0,0x2,0x0,0x00]                                     <1>
                   - dest_mac        :   [0x2,0x0,0x0,0x2,0x0,0x00]  # port 1                           <1>
                     src_mac         :   [0x1,0x0,0x0,0x1,0x0,0x00]
 ----
-<1>  source mac is like destination mac (this should be set or taken from vmware). the mac was taken from hypervisor 
+<1> Source mac is like destination mac (this should be set or taken from vmware). the mac was taken from hypervisor 
+<2> Currently TRex has a limitation and support only one type of NIC at a time. You can't mix different  type of NIC in one config file. see here for more info link:http://trex-tgn.cisco.com/youtrack/issue/trex-197[trex-201]
+
 
 ==== Running TRex
 
