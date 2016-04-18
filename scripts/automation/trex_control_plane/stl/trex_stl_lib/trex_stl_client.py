@@ -2158,7 +2158,17 @@ class STLClient(object):
 
     @__console
     def reacquire_line (self, line):
-        '''reacquire all the ports under your username'''
+        '''reacquire all the ports under your username which are not acquired by your session'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "reacquire",
+                                         self.reacquire_line.__doc__)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        # find all the on-owned ports under your name
         my_unowned_ports = list_difference([k for k, v in self.ports.items() if v.get_owner() == self.username], self.get_acquired_ports())
         if not my_unowned_ports:
             self.logger.log("reacquire - no unowned ports under '{0}'".format(self.username))
@@ -2166,6 +2176,7 @@ class STLClient(object):
 
         self.acquire(ports = my_unowned_ports, force = True)
         return True
+
 
     @__console
     def disconnect_line (self, line):

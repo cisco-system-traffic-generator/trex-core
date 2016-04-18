@@ -431,6 +431,9 @@ class TRexConsole(TRexGeneralCmd):
     def help_release (self):
         self.do_release("-h")
 
+    def help_reacquire (self):
+        self.do_reacquire("-h")
+
     ############### start
 
     def complete_start(self, text, line, begidx, endidx):
