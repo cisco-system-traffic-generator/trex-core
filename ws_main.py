@@ -375,6 +375,11 @@ def publish_ext(bld):
    os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/doc/' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ) )
    
 
+def publish_test(bld):
+    # copy all the files to our web server 
+    remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../test/')
+    os.system('rsync -av --rsh=ssh build/ %s' % (remote_dir))
+
 
 
 

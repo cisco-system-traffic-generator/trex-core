@@ -40,6 +40,9 @@ def release(bld):
 def publish(bld):
     ws_main.publish(bld)
 
+def publish_test(bld):
+    ws_main.publish_test(bld)
+
 def publish_ext(bld):
     ws_main.publish_ext(bld)
 
