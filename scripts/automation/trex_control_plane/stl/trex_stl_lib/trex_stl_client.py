@@ -2553,13 +2553,18 @@ class STLClient(object):
         '''Sets port attributes '''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port",
+                                         "port_attr",
                                          self.set_port_attr_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.PROMISCUOUS_SWITCH)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if opts is None:
+            return
+
+        # if no attributes - fall back to printing the status
+        if opts.prom is None:
+            self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
         self.set_port_attr(opts.ports, opts.prom)
@@ -2654,5 +2659,4 @@ class STLClient(object):
 
         if opts.clear:
             self.clear_events()
-            self.logger.log(format_text("\nEvent log was cleared\n"))
-
+         
