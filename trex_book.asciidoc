@@ -554,13 +554,13 @@ image:images/passthrough_adding.png[title="passthrough_adding"]
 
 ==== Running TRex for the first time with router
 
-You can follow this presentation link:trex_config_guide.html[first time TRex configuration] 
+You can follow this presentation: link:trex_config_guide.html[first time TRex configuration] 
 //TBD: Note that the link does not work correctly in PDF rendition
 or continue reading. 
-TRex set source-mac of all port to `00:00:00:01:00:00` and expected to get to this MAC address `00:00:00:01:00:00` without a config file.
-so you just need to configure router with the right MAC address.
+Without config file, TRex sets source MAC of all ports to `00:00:00:01:00:00` and expects to receive packets with this destination MAC address.
+So, you just need to configure your router with static ARP entry pointing to the above MAC address.
 
-NOTE: Virtual routers on ESXi (for example, Cisco CSR1000v) must have a distinct MAC address for each port. Specify the address in the configuration file. see more xref:trex_config[here]. Another example is where the TRex is connected to a switch. In that case each of TRex port should have a distinc MAC address.
+NOTE: Virtual routers on ESXi (for example, Cisco CSR1000v) must have distinct MAC address for each port. You need to specify the addresses in the configuration file. see more xref:trex_config[here]. Another example is TRex connected to a switch. In this case, each one of the TRex ports should have distinct MAC address.
 
 include::trex_book_basic.asciidoc[]
 
