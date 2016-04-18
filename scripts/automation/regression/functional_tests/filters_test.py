@@ -86,7 +86,7 @@ class ToggleFilter_Test(functional_general_test.CGeneralFunctional_Test):
         self.list_db.remove(1)
         assert_equal(toggle_filter.filter_items(), [3, 5, 6])
 
-    def test_list_toggeliing_negative(self):
+    def test_list_toggling_negative(self):
         toggle_filter = filters.ToggleFilter(self.list_db)
         assert_raises(KeyError, toggle_filter.toggle_item, 10)
 
