@@ -2038,6 +2038,11 @@ class STLClient(object):
 
         return wrap
 
+    @__console
+    def ping_line (self, line):
+        '''pings the server'''
+        self.ping()
+        return True
 
     @__console
     def connect_line (self, line):
