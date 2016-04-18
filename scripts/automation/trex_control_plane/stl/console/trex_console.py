@@ -421,6 +421,9 @@ class TRexConsole(TRexGeneralCmd):
         '''Release ports\n'''
         self.stateless_client.release_line(line)
 
+    def do_reacquire (self, line):
+        '''reacquire all the ports under your logged user name'''
+        self.stateless_client.reacquire_line(line)
 
     def help_acquire (self):
         self.do_acquire("-h")

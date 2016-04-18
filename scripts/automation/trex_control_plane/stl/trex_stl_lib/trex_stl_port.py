@@ -96,9 +96,12 @@ class Port(object):
                   "handler": self.handler}
 
         rc = self.transmit("release", params)
-        self.handler = None
-
+        
         if rc.good():
+
+            self.handler = None
+            self.owner = ''
+
             return self.ok()
         else:
             return self.err(rc.err())
@@ -679,7 +682,10 @@ class Port(object):
         if not self.is_acquired():
             self.state = self.STATE_TX
 
-    def async_event_forced_acquired (self, who):
+    def async_event_acquired (self, who):
         self.handler = None
         self.owner = who
+
+    def async_event_released (self):
+        self.owner = ''
 
