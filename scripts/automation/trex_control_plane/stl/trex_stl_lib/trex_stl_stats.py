@@ -251,6 +251,7 @@ class CTRexInfoGenerator(object):
         return_stats_data = {}
         per_field_stats = OrderedDict([("owner", []),
                                        ("state", []),
+                                       ("speed", []),
                                        ("--", []),
                                        ("Tx bps L2", []),
                                        ("Tx bps L1", []),
@@ -767,9 +768,17 @@ class CPortStats(CTRexStats):
         else:
             state = format_text(state, 'bold')
 
+        # mark owned ports by color
+        if self._port_obj:
+            owner = self._port_obj.get_owner()
+            if self._port_obj.is_acquired():
+                owner = format_text(owner, 'green')
+        else:
+            owner = ''
 
-        return {"owner": self._port_obj.get_owner() if self._port_obj else "",
+        return {"owner": owner,
                 "state": "{0}".format(state),
+                "speed": self._port_obj.get_formatted_speed() if self._port_obj else '',
 
                 "--": " ",
                 "---": " ",

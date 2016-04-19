@@ -76,6 +76,9 @@ class Port(object):
     def get_speed_bps (self):
         return (self.info['speed'] * 1000 * 1000 * 1000)
 
+    def get_formatted_speed (self):
+        return "{0} Gbps".format(self.info['speed'])
+
     # take the port
     def acquire(self, force = False):
         params = {"port_id":     self.port_id,

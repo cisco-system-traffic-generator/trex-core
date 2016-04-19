@@ -577,7 +577,7 @@ class TRexConsole(TRexGeneralCmd):
             info = self.stateless_client.get_connection_info()
 
             exe = './trex-console --top -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
-            cmd = ['/usr/bin/xterm', '-geometry', '111x48', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+            cmd = ['/usr/bin/xterm', '-geometry', '111x49', '-sl', '0', '-title', 'trex_tui', '-e', exe]
 
             # detach child
             self.terminal = subprocess.Popen(cmd, preexec_fn = os.setpgrp)
