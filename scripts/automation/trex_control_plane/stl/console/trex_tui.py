@@ -70,10 +70,9 @@ class TrexTUIDashBoard(TrexTUIPanel):
         self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
         self.key_actions['p'] = {'action': self.action_pause,  'legend': 'pause', 'show': True, 'color': 'red'}
         self.key_actions['r'] = {'action': self.action_resume, 'legend': 'resume', 'show': True, 'color': 'blue'}
-        self.key_actions['+'] = {'action': self.action_raise,  'legend': 'up 5%', 'show': True}
-        self.key_actions['-'] = {'action': self.action_lower,  'legend': 'low 5%', 'show': True}
 
         self.key_actions['o'] = {'action': self.action_show_owned,  'legend': 'owned ports', 'show': True}
+        self.key_actions['n'] = {'action': self.action_reset_view,  'legend': 'reset view', 'show': True}
         self.key_actions['a'] = {'action': self.action_show_all,  'legend': 'all ports', 'show': True}
 
         # register all the ports to the toggle action
@@ -103,25 +102,29 @@ class TrexTUIDashBoard(TrexTUIPanel):
     def get_key_actions (self):
         allowed = OrderedDict()
 
-        allowed['c'] = self.key_actions['c']
+
+        allowed['n'] = self.key_actions['n']
         allowed['o'] = self.key_actions['o']
         allowed['a'] = self.key_actions['a']
         for i in self.ports:
             allowed[str(i)] = self.key_actions[str(i)]
 
 
+        if self.get_showed_ports():
+            allowed['c'] = self.key_actions['c']
+
         # if not all ports are acquired - no operations
         if not (set(self.get_showed_ports()) <= set(self.stateless_client.get_acquired_ports())):
             return allowed
 
+        # if any/some ports can be resumed
+        if set(self.get_showed_ports()) & set(self.stateless_client.get_paused_ports()):
+            allowed['r'] = self.key_actions['r']
+
         # if any/some ports are transmitting - support those actions
         if set(self.get_showed_ports()) & set(self.stateless_client.get_transmitting_ports()):
             allowed['p'] = self.key_actions['p']
-            allowed['+'] = self.key_actions['+']
-            allowed['-'] = self.key_actions['-']
 
-        if set(self.get_showed_ports()) & set(self.stateless_client.get_paused_ports()):
-            allowed['r'] = self.key_actions['r']
 
         return allowed
 
@@ -146,23 +149,9 @@ class TrexTUIDashBoard(TrexTUIPanel):
         return ""
 
 
-    def action_raise (self):
-        try:
-            self.stateless_client.update(mult = "5%+", ports = self.get_showed_ports())
-        except STLError:
-            pass
-
+    def action_reset_view (self):
+        self.toggle_filter.reset()
         return ""
-
-
-    def action_lower (self):
-        try:
-            self.stateless_client.update(mult = "5%-", ports = self.get_showed_ports())
-        except STLError:
-            pass
-
-        return ""
-
 
     def action_show_owned (self):
         self.toggle_filter.reset()
@@ -280,6 +269,7 @@ class TrexTUIPanelManager():
 
 
         self.legend += "\n{:<12}".format(self.main_panel.get_name() + ":")
+
         for k, v in self.main_panel.get_key_actions().items():
             if v['show']:
                 x = "'{0}' - {1}, ".format(k, v['legend'])
