@@ -52,9 +52,10 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
                 path = 'rx-check.data.stats.m_total_rx'
                 total_rx = trex_res.get_last_value(path)
-                if not total_rx:
+                if total_rx is None:
                     raise AbnormalResultError('No TRex results by path: %s' % path)
-
+                elif not total_rx:
+                    raise AbnormalResultError('Total rx_check (%s) packets is zero.' % path)
 
                 print('Total packets checked: %s' % total_rx)
                 print('Latency counters: %s' % latency_counters_display)
@@ -255,7 +256,8 @@ class CTRexRx_Test(CTRexGeneral_Test):
         self.router.config_zbf()
         trex_res = self.trex.sample_to_run_finish()
         self.router.config_no_zbf()
-        self.router.clear_nat_translations()
+        self.router.config_no_nat(nat_obj)
+        #self.router.clear_nat_translations()
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
         self.check_rx_errors(trex_res, allow_error_tolerance = False)

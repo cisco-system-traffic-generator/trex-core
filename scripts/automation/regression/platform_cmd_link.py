@@ -95,11 +95,9 @@ class CCommandLink(object):
 
     def __transmit (self, cmd_list, **kwargs):
         self.history.extend(cmd_list)
-        if not self.silent_mode:
-            print('\n'.join(cmd_list))   # prompting the pushed platform commands
         if not self.virtual_mode:
             # transmit the command to platform. 
-            return self.telnet_con.write_ios_cmd(cmd_list, **kwargs)
+            return self.telnet_con.write_ios_cmd(cmd_list, verbose = not self.silent_mode, **kwargs)
 
     def run_command (self, cmd_list, **kwargs):
         response = ''
@@ -420,7 +418,7 @@ class CIosTelnet(telnetlib.Telnet):
         except Exception as inst:
             raise
 
-    def write_ios_cmd (self, cmd_list, result_from = 0, timeout = 3, **kwargs):
+    def write_ios_cmd (self, cmd_list, result_from = 0, timeout = 60, **kwargs):
         assert (isinstance (cmd_list, list) == True)
         self.read_until(self.pr, timeout = 1)
 
@@ -431,19 +429,22 @@ class CIosTelnet(telnetlib.Telnet):
             wf = self.pr
 
         for idx, cmd in enumerate(cmd_list):
+            start_time = time.time()
             self.write(cmd+'\r\n')
-            if idx < result_from:
-                # don't care for return string
-                if type(wf) is list:
-                    self.expect(wf, timeout)[2]
-                else:
-                    self.read_until(wf, timeout)
+            if kwargs.get('verbose'):
+                print('-->\n%s' % cmd)
+            if type(wf) is list:
+                output = self.expect(wf, timeout)[2]
             else:
-                # care for return string
-                if type(wf) is list:
-                    res += self.expect(wf, timeout)[2]
-                else:
-                    res += self.read_until(wf, timeout)
+                output = self.read_until(wf, timeout)
+            if idx >= result_from:
+                res += output
+            if kwargs.get('verbose'):
+                print('<-- (%ss)\n%s' % (round(time.time() - start_time, 2), output))
+            if time.time() - start_time > timeout - 1:
+                raise Exception('Timeout while performing telnet command: %s' % cmd)
+        if 'Invalid' in res:
+            print('Warning: telnet command probably failed.\nCommand: %s\nResponse: %s' % (cmd_list, res))
 #       return res.split('\r\n')
         return res  # return the received response as a string, each line is seperated by '\r\n'.
 

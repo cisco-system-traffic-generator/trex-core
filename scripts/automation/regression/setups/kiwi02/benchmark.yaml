@@ -142,11 +142,12 @@ test_rx_check_http_ipv6:
     rx_sample_rate    : 32
     error_tolerance   : 0.01
 
-test_rx_check_http_negative:
-    multiplier        : 40000
-    cores             : 2
-    rx_sample_rate    : 32
-    error_tolerance   : 0.01
+#works badly on kiwi02, comment out for now
+#test_rx_check_http_negative:
+#    multiplier        : 40000
+#    cores             : 2
+#    rx_sample_rate    : 32
+#    error_tolerance   : 0.01
 
 test_jumbo:
     multiplier : 55

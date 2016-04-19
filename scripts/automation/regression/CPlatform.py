@@ -618,8 +618,8 @@ class CPlatform(object):
         """
 
         pre_commit_cache = CCommandCache()
-        pre_commit_cache.add('EXEC', ['clear counters','\r'] )
-        self.cmd_link.run_single_command( pre_commit_cache )
+        pre_commit_cache.add('EXEC', ['clear counters', '\r'] )
+        self.cmd_link.run_single_command( pre_commit_cache , read_until = ['#', '\[confirm\]'])
 
     def clear_nbar_stats(self):
         """ clear_nbar_stats(self) -> None
@@ -725,7 +725,7 @@ class CPlatform(object):
                 progress_thread = CProgressDisp.ProgressThread(notifyMessage = "Copying image via tftp, this may take a while...\n")
                 progress_thread.start()
 
-                response = self.cmd_link.run_single_command(cache, timeout = 900, read_until = ['\?', '\#'])
+                response = self.cmd_link.run_single_command(cache, timeout = 900, read_until = ['\?', '#'])
                 print("RESPONSE:")
                 print(response)
                 progress_thread.join()

@@ -135,15 +135,12 @@ class CTRexGeneral_Test(unittest.TestCase):
         if res[name] != float(val):
             self.fail('TRex results[%s]==%f and not as expected %f ' % (name, res[name], val))
 
-    def check_CPU_benchmark (self, trex_res, err = 10, minimal_cpu = None, maximal_cpu = 85):
+    def check_CPU_benchmark (self, trex_res, err = 10, minimal_cpu = 30, maximal_cpu = 85):
             #cpu_util = float(trex_res.get_last_value("trex-global.data.m_cpu_util"))
             cpu_util = sum([float(x) for x in trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]]) / 3 # mean of 3 values before last
 
-            if minimal_cpu is None:
-                if '1G' in self.modes:
-                    minimal_cpu = 1
-                else:
-                    minimal_cpu = 30
+            if '1G' in self.modes:
+                minimal_cpu /= 10
 
             if not self.is_virt_nics:
                 if cpu_util > maximal_cpu:
