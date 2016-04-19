@@ -73,7 +73,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
         self.key_actions['o'] = {'action': self.action_show_owned,  'legend': 'owned ports', 'show': True}
         self.key_actions['a'] = {'action': self.action_show_all,  'legend': 'all ports', 'show': True}
 
-        self.ports_filter = self.FILTER_ALL
+        if self.stateless_client.get_acquired_ports():
+            self.ports_filter = self.FILTER_ACQUIRED
+        else:
+            self.ports_filter = self.FILTER_ALL
 
 
     def get_ports (self):
@@ -99,7 +102,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
         allowed['o'] = self.key_actions['o']
         allowed['a'] = self.key_actions['a']
 
-        if self.ports_filter == self.FILTER_ALL:
+        if self.ports_filter == self.FILTER_ALL and self.stateless_client.get_acquired_ports() != self.stateless_client.get_all_ports():
             return allowed
 
         if len(self.stateless_client.get_transmitting_ports()) > 0:
@@ -201,7 +204,7 @@ class TrexTUIPort(TrexTUIPanel):
         allowed['c'] = self.key_actions['c']
         allowed['t'] = self.key_actions['t']
 
-        if self.stateless_client.is_all_ports_acquired():
+        if self.port_id not in self.stateless_client.get_acquired_ports():
             return allowed
 
         if self.port.state == self.port.STATE_TX:
@@ -535,7 +538,9 @@ class TrexTUI():
             sys.stdout = old_stdout
 
             self.clear_screen()
+
             print(mystdout.getvalue())
+
             sys.stdout.flush()
 
             self.draw_policer = 0

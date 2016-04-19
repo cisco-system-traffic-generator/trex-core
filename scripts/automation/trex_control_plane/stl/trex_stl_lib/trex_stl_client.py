@@ -264,22 +264,55 @@ class EventsHandler(object):
             self.__async_event_port_job_done(port_id)
             show_event = True
 
-        # port was stolen...
+        # port was acquired - maybe stolen...
         elif (type == 5):
             session_id = data['session_id']
 
-            # false alarm, its us
-            if session_id == self.client.session_id:
-                return
-
             port_id = int(data['port_id'])
-            who = data['who']
+            who     = data['who']
+            force   = data['force']
 
-            ev = "Port {0} was forcely taken by '{1}'".format(port_id, who)
+            # if we hold the port and it was not taken by this session - show it
+            if port_id in self.client.get_acquired_ports() and session_id != self.client.session_id:
+                show_event = True
 
-            # call the handler
-            self.__async_event_port_forced_acquired(port_id, who)
-            show_event = True
+            # format the thief/us...
+            if session_id == self.client.session_id:
+                user = 'you'
+            elif who == self.client.username:
+                user = 'another session of you'
+            else:
+                user = "'{0}'".format(who)
+
+            if force:
+                ev = "Port {0} was forcely taken by {1}".format(port_id, user)
+            else:
+                ev = "Port {0} was taken by {1}".format(port_id, user)
+
+            # call the handler in case its not this session
+            if session_id != self.client.session_id:
+                self.__async_event_port_acquired(port_id, who)
+
+
+        # port was released
+        elif (type == 6):
+            port_id     = int(data['port_id'])
+            who         = data['who']
+            session_id  = data['session_id']
+
+            if session_id == self.client.session_id:
+                user = 'you'
+            elif who == self.client.username:
+                user = 'another session of you'
+            else:
+                user = "'{0}'".format(who)
+
+            ev = "Port {0} was released by {1}".format(port_id, user)
+
+            # call the handler in case its not this session
+            if session_id != self.client.session_id:
+                self.__async_event_port_released(port_id)
+
 
         # server stopped
         elif (type == 100):
@@ -317,9 +350,11 @@ class EventsHandler(object):
         self.client.ports[port_id].async_event_port_resumed()
 
 
-    def __async_event_port_forced_acquired (self, port_id, who):
-        self.client.ports[port_id].async_event_forced_acquired(who)
+    def __async_event_port_acquired (self, port_id, who):
+        self.client.ports[port_id].async_event_acquired(who)
 
+    def __async_event_port_released (self, port_id):
+        self.client.ports[port_id].async_event_released()
 
     def __async_event_server_stopped (self):
         self.client.connected = False
@@ -506,7 +541,7 @@ class STLClient(object):
 
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':1 }
+        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':2 }
                         ]
         self.api_h = {'core': None}
 
@@ -2038,6 +2073,11 @@ class STLClient(object):
 
         return wrap
 
+    @__console
+    def ping_line (self, line):
+        '''pings the server'''
+        self.ping()
+        return True
 
     @__console
     def connect_line (self, line):
@@ -2113,6 +2153,28 @@ class STLClient(object):
         self.release(ports = ports)
 
         # true means print time
+        return True
+
+
+    @__console
+    def reacquire_line (self, line):
+        '''reacquire all the ports under your username which are not acquired by your session'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "reacquire",
+                                         self.reacquire_line.__doc__)
+
+        opts = parser.parse_args(line.split())
+        if opts is None:
+            return
+
+        # find all the on-owned ports under your name
+        my_unowned_ports = list_difference([k for k, v in self.ports.items() if v.get_owner() == self.username], self.get_acquired_ports())
+        if not my_unowned_ports:
+            self.logger.log("reacquire - no unowned ports under '{0}'".format(self.username))
+            return
+
+        self.acquire(ports = my_unowned_ports, force = True)
         return True
 
 
@@ -2491,13 +2553,18 @@ class STLClient(object):
         '''Sets port attributes '''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port",
+                                         "port_attr",
                                          self.set_port_attr_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.PROMISCUOUS_SWITCH)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if opts is None:
+            return
+
+        # if no attributes - fall back to printing the status
+        if opts.prom is None:
+            self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
         self.set_port_attr(opts.ports, opts.prom)
@@ -2592,5 +2659,4 @@ class STLClient(object):
 
         if opts.clear:
             self.clear_events()
-            self.logger.log(format_text("\nEvent log was cleared\n"))
-
+         

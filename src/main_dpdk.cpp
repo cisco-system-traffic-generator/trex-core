@@ -2335,25 +2335,25 @@ private:
 
 std::string CGlobalStats::get_field(std::string name,float &f){
     char buff[200];
-    sprintf(buff,"\"%s\":%.1f,",name.c_str(),f);
+    snprintf(buff, sizeof(buff), "\"%s\":%.1f,",name.c_str(),f);
     return (std::string(buff));
 }
 
 std::string CGlobalStats::get_field(std::string name,uint64_t &f){
     char buff[200];
-    sprintf(buff,"\"%s\":%llu,",name.c_str(), (unsigned long long)f);
+    snprintf(buff,  sizeof(buff), "\"%s\":%llu,",name.c_str(), (unsigned long long)f);
     return (std::string(buff));
 }
 
 std::string CGlobalStats::get_field_port(int port,std::string name,float &f){
     char buff[200];
-    sprintf(buff,"\"%s-%d\":%.1f,",name.c_str(),port,f);
+    snprintf(buff,  sizeof(buff), "\"%s-%d\":%.1f,",name.c_str(),port,f);
     return (std::string(buff));
 }
 
 std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
     char buff[200];
-    sprintf(buff,"\"%s-%d\":%llu,",name.c_str(),port, (unsigned long long)f);
+    snprintf(buff, sizeof(buff), "\"%s-%d\":%llu,",name.c_str(),port, (unsigned long long)f);
     return (std::string(buff));
 }
 
@@ -2367,6 +2367,10 @@ void CGlobalStats::dump_json(std::string & json, bool baseline,uint32_t stats_ti
     }
 
     json +="\"data\":{";
+
+    char ts_buff[200];
+    snprintf(ts_buff , sizeof(ts_buff), "\"ts\":{\"value\":%lu, \"freq\":%lu},", os_get_hr_tick_64(), os_get_hr_freq());
+    json+= std::string(ts_buff);
 
 #define GET_FIELD(f) get_field(std::string(#f),f)
 #define GET_FIELD_PORT(p,f) get_field_port(p,std::string(#f),lp->f)
@@ -4339,7 +4343,7 @@ int  update_dpdk_args(void){
         lpsock->dump(stdout);
     }
 
-    sprintf(global_cores_str,"0x%llx",(unsigned long long)lpsock->get_cores_mask());
+    snprintf(global_cores_str, sizeof(global_cores_str), "0x%llx" ,(unsigned long long)lpsock->get_cores_mask());
     if (core_mask_sanity(strtol(global_cores_str, NULL, 16)) < 0) {
         return -1;
     }
@@ -4355,11 +4359,11 @@ int  update_dpdk_args(void){
 
     if ( CGlobalInfo::m_options.preview.getVMode() == 0  ) {
         global_dpdk_args[5]=(char *)"--log-level";
-        sprintf(global_loglevel_str,"%d",4);
+        snprintf(global_loglevel_str, sizeof(global_loglevel_str), "%d", 4);
         global_dpdk_args[6]=(char *)global_loglevel_str;
     }else{
         global_dpdk_args[5]=(char *)"--log-level";
-        sprintf(global_loglevel_str,"%d",CGlobalInfo::m_options.preview.getVMode()+1);
+        snprintf(global_loglevel_str, sizeof(global_loglevel_str), "%d", CGlobalInfo::m_options.preview.getVMode()+1);
         global_dpdk_args[6]=(char *)global_loglevel_str;
     }
 
@@ -4375,7 +4379,7 @@ int  update_dpdk_args(void){
 
     if ( lpop->prefix.length()  ){
         global_dpdk_args[global_dpdk_args_num++]=(char *)"--file-prefix";
-        sprintf(global_prefix_str,"%s",lpop->prefix.c_str());
+        snprintf(global_prefix_str, sizeof(global_prefix_str), "%s", lpop->prefix.c_str());
         global_dpdk_args[global_dpdk_args_num++]=(char *)global_prefix_str;
         global_dpdk_args[global_dpdk_args_num++]=(char *)"-m";
         if (global_platform_cfg_info.m_limit_memory.length()) {

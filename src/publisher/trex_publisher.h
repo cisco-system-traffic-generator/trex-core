@@ -46,7 +46,8 @@ public:
         EVENT_PORT_PAUSED           = 2,
         EVENT_PORT_RESUMED          = 3,
         EVENT_PORT_FINISHED_TX      = 4,
-        EVENT_PORT_FORCE_ACQUIRED   = 5,
+        EVENT_PORT_ACQUIRED         = 5,
+        EVENT_PORT_RELEASED         = 6,
 
         EVENT_SERVER_STOPPED        = 100,
         
