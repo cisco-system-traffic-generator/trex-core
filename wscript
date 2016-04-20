@@ -24,6 +24,9 @@ def configure(conf):
     ws_main.configure(conf)
 
 
+def create_toc (bld):
+    ws_main.create_toc(bld)
+
 def build(bld):
     ws_main.build(bld)
 

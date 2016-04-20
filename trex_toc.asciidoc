@@ -1,0 +1,221 @@
+
+ifdef::backend-xhtml11[]
+++++
+    <div id="toggle"><img src="images\icons\toggle.png" title="click to toggle table of contents"></div>
+
+    <div id="toc">
+        <div id="toctitle">
+            Table of Contents
+        </div>
+        
+        <div id="nav-tree">
+          
+        </div>
+    </div>
+
+
+    <!-- load the theme CSS file -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" rel="stylesheet"/>
+    
+    <link href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
+
+    <!-- include the jQuery library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.1/jquery.min.js">
+    </script>
+
+    <!-- include the jQuery UI library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js">
+    </script>
+
+    <!-- include the minified jstree source -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/jstree.min.js">
+    </script>
+    
+    <style type="text/css">
+    
+        #toc {
+          margin-bottom: 2.5em;
+        }
+        
+        #toctitle {
+          color: #527bbd;
+          font-size: 1.1em;
+          font-weight: bold;
+          margin-top: 1.0em;
+          margin-bottom: 0.1em;
+        }
+
+        @media screen {
+          body {
+            max-width: 50em; /* approximately 80 characters wide */
+            margin-left: 20em;
+          }
+        
+          #toc {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 18em;
+            padding-bottom: 1.5em;
+            margin: 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+            border-right: solid 2px #cfcfcf;
+            background-color: #FAFAFA;
+            white-space: nowrap;
+          }
+        
+          #toctitle {
+            font-size: 17px !important;
+            color: #4d4d4d !important;
+            margin-top: 0px;
+            height: 36px;
+            line-height: 36px;
+            background-color: #e4e2e2;
+            padding: 8px 0px 7px 45px;
+            white-space: nowrap;
+          }
+          
+          #toc .toclevel1 {
+            margin-top: 0.5em;
+          }
+        
+          #toc .toclevel2 {
+            margin-top: 0.25em;
+            display: list-item;
+            color: #aaaaaa;
+          }
+        
+        }
+
+
+      /* Custom for Nave Tree */
+      #nav-tree{
+        margin-left: 10px !important;
+      }
+      
+      #nav-tree ul > li {
+        color: #000 !important;
+      }
+      
+      .jstree-wholerow.jstree-wholerow-clicked {
+        background-image: url('images\icons\selected_tab_bg.png');
+        background-repeat: repeat-x;
+        color: #fff !important;
+        text-shadow: 0px 1px 1px rgba(0, 0, 0, 1.0);
+      }
+
+      .jstree-anchor {
+        font-size: 12px !important;
+        color: #91A501 !important;
+      }
+
+      /* For side bar */
+      .ui-resizable-e{
+        width: 10px !important;
+      }
+
+      .jstree-clicked{
+        color: green !important;
+      }
+      
+      .jstree-default .jstree-themeicon{
+        display: none !important;
+      }
+
+      #toggle {
+        position: fixed;
+        top: 14px;
+        left: 10px;
+        z-index: 10;
+      }
+
+      #toggle img {
+        opacity:0.3;
+      }
+
+      #toggle img:hover {
+        opacity:0.9;
+      }
+
+    </style>
+
+
+
+<script>
+
+      $(document).ready(function(){
+
+        // Initialize NavTree
+        initializeNavTree();
+        // Drag TOC left and right
+        initResizable();
+        // Toggle TOC whe clicking on the menu icon
+        toggleTOC();
+
+        function initializeNavTree() {
+          $('#nav-tree').jstree({
+            'core' : {
+              "animation" :false,
+              "themes" : { "stripes" : false },
+              'data' : {
+                "url" : "./input_replace_me.json",  
+                "dataType" : "json" // needed only if you do not supply JSON headers
+              }
+            }
+            ,
+            "plugins" : [ "wholerow" ]
+          });
+
+          $('#nav-tree').on("changed.jstree", function (e, data) {
+            window.location.href = data.instance.get_selected(true)[0].original.link;
+          });
+        }
+        
+        function initResizable() {
+            var toc = $("#toc");
+            var bodyLeftMargin = $("body");
+            $("#toc").resizable({
+                resize: function(e, ui) {
+                    var tocWidth = $("#toc").outerWidth();
+                    bodyLeftMargin.css({"marginLeft":parseInt(tocWidth)+20+"px"}); 
+                },
+                handles: 'e'
+            });
+        }
+
+
+        function toggleTOC(){
+          var isOpen = true;
+          $( "#toggle" ).click(function() {
+            if ( isOpen ) {
+              // Close it
+              $("#toc").hide("slide", 500);
+              // Show the show/hide button
+              $("#toggle").css("right", "-40px");
+              // $("body").css("margin-left", "20px");
+              $("body").animate({
+                "margin-left": "50px"
+              }, 500);
+            } else {
+              // Open it
+              $("#toc").show("slide", 500);
+              // Show the show/hide button
+              $("#toggle").css("right", "15px");
+              // $("body").css("margin-left", $(toc).outerWidth()+20+"px");
+              $("body").animate({
+                "margin-left": $(toc).outerWidth()+20+"px"
+              }, 500);
+            }
+            isOpen = !isOpen;
+          });
+        }
+
+      }
+      )
+
+</script>
+++++
+endif::backend-xhtml11[]
+

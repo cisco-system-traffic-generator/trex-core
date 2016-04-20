@@ -22,6 +22,8 @@ ifdef::backend-xhtml11[]
 endif::backend-xhtml11[]
 
 include::trex_ga.asciidoc[]
+include::trex_toc.asciidoc[]
+
 
 == Audience 
 

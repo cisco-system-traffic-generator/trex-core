@@ -10,6 +10,7 @@ TRex
 :toclevels: 4
 
 include::trex_ga.asciidoc[]
+include::trex_toc.asciidoc[]
 
 
 == Introduction
