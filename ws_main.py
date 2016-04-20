@@ -25,24 +25,30 @@ class CTocNode:
     def __init__ (self):
         self.name="root"
         self.level=1; # 1,2,3,4
+        self.link=None;
         self.parent=None
         self.childs=[]; # link to CTocNode
 
     def get_link (self):
-        name=self.name
-        l=name.split('.');
-        l=l[-1].lower()
-        s='';
-        for c in l:
-            if c.isalpha() or c.isspace():
-                s+=c
+        if self.link==None:
+            name=self.name
+            l=name.split('.');
+            l=l[-1].lower()
+            s='';
+            for c in l:
+                if c.isalpha() or c.isspace():
+                    s+=c
+    
+            return  '#_'+'_'.join(s.lower().split());
+        else:
+            return '#'+self.link
 
-        return  '#_'+'_'.join(s.lower().split());
 
 
-    def add_new_child (self,name,level):
+    def add_new_child (self,name,level,link):
         n=CTocNode();
         n.name=name;
+        n.link=link
         n.level=level;
         n.parent=self;
         self.childs.append(n);
@@ -82,6 +88,7 @@ class TocHTMLParser(HTMLParser):
         self.root=CTocNode()
         self.root.parent=self.root
         self.level=2;
+        self.attrs=None
         self.d={};
         self.last_level=1
         self.set_level(1,self.root)
@@ -122,6 +129,7 @@ class TocHTMLParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         if self.is_header (tag):
+            self.attrs=attrs
             self.state=True;
             self.level=int(tag[1]);
 
@@ -129,14 +137,23 @@ class TocHTMLParser(HTMLParser):
         if self.is_header (tag):
             self.state=False;
 
+    def get_id (self):
+        if self.attrs:
+            for obj in self.attrs:
+                if obj[0]=='id':
+                    return obj[1] 
+        else:
+            return None
+
 
     def handle_data(self, data):
         if self.state:
+            
            level=self.level
 
            cnode=self.get_level(level-1)
 
-           n=cnode.add_new_child(data,level);
+           n=cnode.add_new_child(data,level,self.get_id());
            assert(n!=None);
            self.set_level(level,n) 
            self.last_level=level
