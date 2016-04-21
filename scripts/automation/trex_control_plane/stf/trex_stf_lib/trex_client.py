@@ -728,8 +728,11 @@ class CTRexClient(object):
 
     def get_files_list (self, path):
         """
-        Gets a tuple (dirs, files) with lists of dirs and files from given path.
-        Path is limited to /tmp/trex_files or TRex directory (can be used relative path)
+        Gets a list of dirs and files either from /tmp/trex_files or path relative to TRex server.
+
+        :parameters:
+            path : str
+                a path to directory to read.
 
         :return: 
             Tuple: list of dirs and list of files in given path
@@ -751,7 +754,7 @@ class CTRexClient(object):
 
     def get_file(self, filepath):
         """
-        Gets a file from /tmp/trex_files or TRex server directory.
+        Gets content of file as bytes string from /tmp/trex_files or TRex server directory.
 
         :parameters:
             filepath : str
@@ -1285,7 +1288,7 @@ class CTRexResult(object):
                 for elem in reversed(res['histogram']):
                     sum_high += elem['val']
                     hist_last_keys.append(elem['key'])
-                    if sum_high / res['cnt'] >= filtered_latency_amount:
+                    if sum_high >= filtered_latency_amount * res['cnt']:
                         break
                 result[max_port] = (hist_last_keys[0] + hist_last_keys[-1]) / 2
             else:
