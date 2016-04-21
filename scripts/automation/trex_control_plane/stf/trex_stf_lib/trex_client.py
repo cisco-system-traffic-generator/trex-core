@@ -725,7 +725,56 @@ class CTRexClient(object):
             raise
         finally:
             self.prompt_verbose_data()
-    
+
+    def get_files_list (self, path):
+        """
+        Gets a tuple (dirs, files) with lists of dirs and files from given path.
+        Path is limited to /tmp/trex_files or TRex directory (can be used relative path)
+
+        :return: 
+            Tuple: list of dirs and list of files in given path
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying to cancel the reservation.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        
+        try:
+            return self.server.get_files_list(path)
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
+    def get_file(self, filepath):
+        """
+        Gets a file from /tmp/trex_files or TRex server directory.
+
+        :parameters:
+            filepath : str
+                a path to a file at server.
+                it can be either relative to TRex server or absolute path starting with /tmp/trex_files
+
+        :return: 
+            Content of the file
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying to cancel the reservation.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+        """
+
+        try:
+            return binascii.a2b_base64(self.server.get_file(filepath))
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
     def push_files (self, filepaths):
         """
         Pushes a file (or a list of files) to store locally on server. 
@@ -761,7 +810,7 @@ class CTRexClient(object):
                     filename = os.path.basename(filepath)
                     with open(filepath, 'rb') as f:
                         file_content = f.read()
-                        self.server.push_file(filename, binascii.b2a_base64(file_content))
+                        self.server.push_file(filename, binascii.b2a_base64(file_content).decode())
             finally:
                 self.prompt_verbose_data()
         return True
