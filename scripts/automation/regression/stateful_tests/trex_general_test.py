@@ -137,10 +137,10 @@ class CTRexGeneral_Test(unittest.TestCase):
 
     def check_CPU_benchmark (self, trex_res, err = 10, minimal_cpu = 30, maximal_cpu = 85):
             #cpu_util = float(trex_res.get_last_value("trex-global.data.m_cpu_util"))
-            cpu_util = sum([float(x) for x in trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]]) / 3 # mean of 3 values before last
+            cpu_util = sum(trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]) / 3.0 # mean of 3 values before last
 
             if '1G' in self.modes:
-                minimal_cpu /= 10
+                minimal_cpu /= 10.0
 
             if not self.is_virt_nics:
                 if cpu_util > maximal_cpu:
@@ -149,21 +149,19 @@ class CTRexGeneral_Test(unittest.TestCase):
                     self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
             cores = self.get_benchmark_param('cores')
-            trex_tx_bps  = trex_res.get_last_value("trex-global.data.m_total_tx_bytes")
-            test_norm_cpu = 100.0*(trex_tx_bps/(cores*cpu_util))/1e6
+            trex_tx_bps  = sum(trex_res.get_value_list("trex-global.data.m_tx_bps")[-4:-1]) / 3.0
+            test_norm_cpu = 200.0 * trex_tx_bps / (cores * cpu_util * 1e6)
 
             print("TRex CPU utilization: %g%%, norm_cpu is : %d Mb/core" % (round(cpu_util), int(test_norm_cpu)))
 
-            #expected_norm_cpu = self.get_benchmark_param('cpu_to_core_ratio')
-
-            #calc_error_precent = abs(100.0*(test_norm_cpu/expected_norm_cpu)-100.0) 
-
-#           if calc_error_precent > err:
-#               msg ='Normalized bandwidth to CPU utilization ratio is %2.0f Mb/core expected %2.0f Mb/core more than %2.0f %% - ERROR' % (test_norm_cpu, expected_norm_cpu, err)
-#               raise AbnormalResultError(msg)
-#           else:
-#               msg ='Normalized bandwidth to CPU utilization ratio is %2.0f Mb/core expected %2.0f Mb/core less than %2.0f %% - OK' % (test_norm_cpu, expected_norm_cpu, err)
-#               print msg
+            expected_norm_cpu = self.get_benchmark_param('bw_per_core')
+            if not expected_norm_cpu:
+                expected_norm_cpu = '1'
+            calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
+            print('Err percent: %s' % calc_error_precent)
+            # TODO: gather statistics from regression, uncomment ASAP
+            #if calc_error_precent > err:
+            #    raise AbnormalResultError('Excepted bw_per_core ratio %s, got %s' % (bw_per_core, test_norm_cpu))
 
 
     def check_results_gt (self, res, name, val):

@@ -54,9 +54,9 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         learning_stats = trex_res.get_last_value("trex-global.data", ".*nat.*") # extract all nat data
 
         if self.get_benchmark_param('allow_timeout_dev'):
-            nat_timeout_ratio = learning_stats['m_total_nat_time_out']/learning_stats['m_total_nat_open']
+            nat_timeout_ratio = float(learning_stats['m_total_nat_time_out']) / learning_stats['m_total_nat_open']
             if nat_timeout_ratio > 0.005:
-                self.fail('TRex nat_timeout ratio %f > 0.005 (0.5%) and not as expected to be less than 0.5%' %(nat_timeout_ratio))
+                self.fail('TRex nat_timeout ratio %f > 0.5%%' % nat_timeout_ratio)
         else:
             self.check_results_eq (learning_stats, 'm_total_nat_time_out', 0.0)
         self.check_results_eq (learning_stats, 'm_total_nat_no_fid', 0.0)
@@ -128,7 +128,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
         trex_nat_stats = trex_res.get_last_value("trex-global.data", ".*nat.*") # extract all nat data
         if self.get_benchmark_param('allow_timeout_dev'):
-            nat_timeout_ratio = trex_nat_stats['m_total_nat_time_out']/trex_nat_stats['m_total_nat_open']
+            nat_timeout_ratio = float(trex_nat_stats['m_total_nat_time_out']) / trex_nat_stats['m_total_nat_open']
             if nat_timeout_ratio > 0.005:
                 self.fail('TRex nat_timeout ratio %f > 0.5%%' % nat_timeout_ratio)
         else:
