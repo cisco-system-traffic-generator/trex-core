@@ -156,7 +156,7 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             expected_norm_cpu = self.get_benchmark_param('bw_per_core')
             if not expected_norm_cpu:
-                expected_norm_cpu = '1'
+                expected_norm_cpu = 1
             calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
             print('Err percent: %s' % calc_error_precent)
             # TODO: gather statistics from regression, uncomment ASAP
