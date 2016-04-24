@@ -161,7 +161,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         self.check_general_scenario_results(trex_res)
 
-        self.check_CPU_benchmark(trex_res)
+        self.check_CPU_benchmark(trex_res, minimal_cpu = 25)
 
 
     def test_jumbo(self, duration = 100, **kwargs):
