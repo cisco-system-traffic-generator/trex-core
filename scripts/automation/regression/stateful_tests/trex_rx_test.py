@@ -98,24 +98,19 @@ class CTRexRx_Test(CTRexGeneral_Test):
             p = True,
             nc = True,
             rx_check = sample_rate,
-            d = 50,
+            d = 100,
             f = 'avl/sfr_delay_10_1g_no_bundeling.yaml',
             l = 1000,
             k = 10,
             learn_verify = True,
-            iom = 1,
             l_pkt_mode = 2)
 
         trex_res = self.trex.sample_to_run_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
-        print ("\nLATEST DUMP:")
-        print trex_res.get_latest_dump()
-        cpu_util = trex_res.get_last_value("trex-global.data.m_cpu_util")
-        cpu_util_hist = trex_res.get_value_list("trex-global.data.m_cpu_util")
-        print("cpu util is:", cpu_util)
-        print(cpu_util_hist)
+        #print ("\nLATEST DUMP:")
+        #print trex_res.get_latest_dump()
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
@@ -243,7 +238,6 @@ class CTRexRx_Test(CTRexGeneral_Test):
             l = 1000,
             k = 10,
             learn_verify = True,
-            iom = 1,
             l_pkt_mode = 2)
 
         print('Run for 40 seconds, expect no errors')
