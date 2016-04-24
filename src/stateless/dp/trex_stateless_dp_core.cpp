@@ -211,6 +211,18 @@ std::string CGenNodeStateless::get_stream_state_str(stream_state_t stream_state)
     return(res);
 }
 
+rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m) {
+    //?????????
+    // temp implementation. Just copy the entire mbuf
+    rte_mbuf_t *m_new = CGlobalInfo::pktmbuf_alloc( get_socket_id(), m->data_len );
+    /* TBD remove this, should handle cases of error */
+    assert(m_new);
+    char *p = rte_pktmbuf_mtod(m, char*);
+    char *p_new = rte_pktmbuf_append(m_new, m->data_len);
+    memcpy(p_new , p, m->data_len);
+
+    return m_new;
+}
 
 rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
 

@@ -390,7 +390,7 @@ public:
         return (m_src_port);
     }
 
-
+    rte_mbuf_t   * alloc_flow_stat_mbuf(rte_mbuf_t *); //temp ???
     rte_mbuf_t   * alloc_node_with_vm();
 
     void free_stl_node();

@@ -103,7 +103,7 @@ public:
 
 class TrexPlatformApi {
 public:
-    enum driver_stat_capabilities_e {
+    enum driver_stat_cap_e {
         IF_STAT_IPV4_ID = 1,
         IF_STAT_PAYLOAD = 2,
         IF_STAT_IPV6_FLOW_LABEL = 4,
@@ -145,7 +145,9 @@ public:
     virtual void publish_async_data_now(uint32_t key, bool baseline) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
     virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const =0;
-    virtual int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset) const = 0;
+    virtual int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
+                               , TrexPlatformApi::driver_stat_cap_e type) const = 0;
+    virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const = 0;
     virtual int reset_hw_flow_stats(uint8_t port_id) const = 0;
     virtual void get_port_num(uint8_t &port_num) const = 0;
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
@@ -175,7 +177,9 @@ public:
     void publish_async_data_now(uint32_t key, bool baseline) const;
     uint8_t get_dp_core_count() const;
     void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const;
-    int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset) const;
+    int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
+                       , TrexPlatformApi::driver_stat_cap_e type) const;
+    int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const;
     int reset_hw_flow_stats(uint8_t port_id) const;
     void get_port_num(uint8_t &port_num) const;
     int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
@@ -230,7 +234,7 @@ public:
     virtual void publish_async_data_now(uint32_t key, bool baseline) const {
 
     }
-    virtual int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset) const {return 0;};
+    virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const {return 0;};
     virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
     virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}

@@ -177,9 +177,6 @@ void CCPortLatency::reset(){
     m_seq_error=0;
     m_length_error=0;
     m_no_ipv4_option=0;
-    for (int i = 0; i < MAX_FLOW_STATS; i++) {
-        m_rx_pg_stat[i].clear();
-    }
     m_hist.Reset();
 }
 
@@ -567,7 +564,6 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
     }
     return (true);
 }
-
 
 void  CLatencyManager::send_pkt_all_ports(){
     m_start_time = os_get_hr_tick_64();

@@ -551,7 +551,7 @@ public:
         bool      m_enabled;
         bool      m_seq_enabled;
         bool      m_latency;
-        uint8_t   m_rule_type;
+        uint16_t  m_rule_type;
         uint32_t  m_pg_id;
         uint16_t  m_hw_id;
     } m_rx_check;

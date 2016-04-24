@@ -246,12 +246,8 @@ public:
      uint64_t m_rx_check;
      uint64_t m_no_ipv4_option;
      uint64_t m_length_error;
-     rx_per_flow_t m_rx_pg_stat[MAX_FLOW_STATS];
-     rx_per_flow_t m_rx_pg_payload_stats[MAX_FLOW_STATS_PAYLOAD];
-     CTimeHistogram  m_per_flow_hist[MAX_FLOW_STATS_PAYLOAD]; /* all window */
-     CJitter         m_per_flow_jitter[MAX_FLOW_STATS_PAYLOAD];
      CTimeHistogram  m_hist; /* all window */
-     CJitter         m_jitter; 
+     CJitter         m_jitter;
 };
 
 

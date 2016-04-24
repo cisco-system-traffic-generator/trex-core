@@ -212,7 +212,10 @@ void CTimeHistogram::Dump(FILE *fd){
 
 void CTimeHistogram::dump_json(std::string name,std::string & json ){
     char buff[200];
-    sprintf(buff,"\"%s\":{",name.c_str());
+    if (name != "")
+        sprintf(buff,"\"%s\":{",name.c_str());
+    else
+        sprintf(buff,"{");
     json+=std::string(buff);
 
     json+=add_json("min_usec",get_usec(m_min_delta));

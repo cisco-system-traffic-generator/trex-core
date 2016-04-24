@@ -1,4 +1,4 @@
-/*
+/*/
   Ido Barnea
   Cisco Systems, Inc.
 */
@@ -34,6 +34,8 @@
 // Do not change this value. In i350 cards, we filter according to first byte of IP ID
 // In other places, we identify packets by if (ip_id > IP_ID_RESERVE_BASE)
 #define IP_ID_RESERVE_BASE 0xff00
+#define FLOW_STAT_PAYLOAD_MAGIC 0xABCD
+extern const uint16_t FLOW_STAT_PAYLOAD_IP_ID;
 
 typedef std::map<uint32_t, uint16_t> flow_stat_map_t;
 typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;
@@ -52,6 +54,92 @@ class TrexFStatEx : public TrexException {
  public:
     TrexFStatEx(const std::string &what, enum TrexExceptionTypes_t type): TrexException(what, type) {
     }
+};
+
+
+class rfc2544_info_t_ {
+ friend class CFlowStatUserIdInfoPayload;
+
+ public:
+    rfc2544_info_t_() {
+        clear();
+    }
+
+    inline void get_latency_json(std::string & json) const {
+        json = m_latency;
+    }
+
+    inline void set_latency_json(std::string json) {
+        m_latency = json;
+    }
+
+    inline void set_err_cntrs(uint64_t seq, uint64_t ooo) {
+        m_seq_error = seq;
+        m_out_of_order = ooo;
+    }
+
+    inline uint64_t get_seq_err_cnt() {
+        return m_seq_error;
+    }
+
+    inline uint64_t get_ooo_cnt() {
+        return m_out_of_order;
+    }
+
+    inline double get_jitter() const {
+        return m_jitter;
+    }
+
+    inline void set_jitter(double jitter) {
+        m_jitter = jitter;
+    }
+
+    inline void clear() {
+        m_seq_error = 0;
+        m_out_of_order = 0;
+        m_jitter = 0;
+        m_latency = "";
+    }
+
+    inline rfc2544_info_t_ operator+ (const rfc2544_info_t_ &t_in) {
+        rfc2544_info_t_ t_out;
+        t_out.m_seq_error = this->m_seq_error + t_in.m_seq_error;
+        t_out.m_out_of_order = this->m_out_of_order + t_in.m_out_of_order;
+        return t_out;
+    }
+
+    inline rfc2544_info_t_ operator- (const rfc2544_info_t_ &t_in) {
+        rfc2544_info_t_ t_out;
+        t_out.m_seq_error = this->m_seq_error - t_in.m_seq_error;
+        t_out.m_out_of_order = this->m_out_of_order - t_in.m_out_of_order;
+        return t_out;
+    }
+
+    inline rfc2544_info_t_ operator+= (const rfc2544_info_t_ &t_in) {
+        m_seq_error += t_in.m_seq_error;
+        m_out_of_order += t_in.m_out_of_order;
+        return *this;
+    }
+
+    inline bool operator!= (const rfc2544_info_t_ &t_in) {
+        if ((m_jitter != t_in.m_jitter) || (m_seq_error != t_in.m_seq_error) || (m_out_of_order != t_in.m_out_of_order))
+            return true;
+        return false;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const rfc2544_info_t_ &t) {
+        os  << "jitter:" << t.m_jitter << " errors(seq:"
+            << t.m_seq_error << " out of order:" << t.m_out_of_order << ")";
+        return os;
+    }
+
+ private:
+    uint64_t m_seq_error;
+    uint64_t m_out_of_order;
+    double   m_jitter;
+    // json string of latency. In case of stop/start, we calculate latency graph from scratch,
+    // so when stopping, we just "freeze" state for reporting by saving the json string
+    std::string m_latency;
 };
 
 class tx_per_flow_t_ {
@@ -115,8 +203,12 @@ class tx_per_flow_t_ {
  private:
     uint64_t m_bytes;
     uint64_t m_pkts;
+    uint64_t m_seq_error_base;
+    uint64_t m_out_of_order_base;
+
 };
 
+typedef class rfc2544_info_t_ rfc2544_info_t;
 typedef class tx_per_flow_t_ tx_per_flow_t;
 typedef class tx_per_flow_t_ rx_per_flow_t;
 
@@ -128,13 +220,13 @@ class CFlowStatUserIdInfo {
     CFlowStatUserIdInfo(uint8_t proto);
     virtual ~CFlowStatUserIdInfo() {};
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
-    void set_rx_counter(uint8_t port, rx_per_flow_t val) {m_rx_counter[port] = val;}
-    rx_per_flow_t get_rx_counter(uint8_t port) {return m_rx_counter[port] + m_rx_counter_base[port];}
-    void set_tx_counter(uint8_t port, tx_per_flow_t val) {m_tx_counter[port] = val;}
-    tx_per_flow_t get_tx_counter(uint8_t port) {return m_tx_counter[port] + m_tx_counter_base[port];}
+    void set_rx_cntr(uint8_t port, rx_per_flow_t val) {m_rx_cntr[port] = val;}
+    rx_per_flow_t get_rx_cntr(uint8_t port) {return m_rx_cntr[port] + m_rx_cntr_base[port];}
+    void set_tx_cntr(uint8_t port, tx_per_flow_t val) {m_tx_cntr[port] = val;}
+    tx_per_flow_t get_tx_cntr(uint8_t port) {return m_tx_cntr[port] + m_tx_cntr_base[port];}
     void set_hw_id(uint16_t hw_id) {m_hw_id = hw_id;}
     uint16_t get_hw_id() {return m_hw_id;}
-    void reset_hw_id();
+    virtual void reset_hw_id();
     bool is_hw_id() {return (m_hw_id != UINT16_MAX);}
     uint64_t get_proto() {return m_proto;}
     uint8_t get_ref_count() {return m_ref_count;}
@@ -151,16 +243,20 @@ class CFlowStatUserIdInfo {
     void set_need_to_send_tx(uint8_t port) {m_tx_changed[port] = true;}
     bool was_sent() {return m_was_sent == true;}
     void set_was_sent(bool val) {m_was_sent = val;}
+    bool rfc2544_support() {return m_rfc2544_support;}
+
+ protected:
+        bool m_rfc2544_support;
 
  private:
     bool m_rx_changed[TREX_MAX_PORTS]; // Which RX counters changed since we last published
     bool m_tx_changed[TREX_MAX_PORTS]; // Which TX counters changed since we last published
-    rx_per_flow_t m_rx_counter[TREX_MAX_PORTS]; // How many packets received with this user id since stream start
+    rx_per_flow_t m_rx_cntr[TREX_MAX_PORTS]; // How many packets received with this user id since stream start
     // How many packets received with this user id, since stream creation, before stream start.
-    rx_per_flow_t m_rx_counter_base[TREX_MAX_PORTS];
-    tx_per_flow_t m_tx_counter[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
+    rx_per_flow_t m_rx_cntr_base[TREX_MAX_PORTS];
+    tx_per_flow_t m_tx_cntr[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
     // How many packets transmitted with this user id, since stream creation, before stream start.
-    tx_per_flow_t m_tx_counter_base[TREX_MAX_PORTS];
+    tx_per_flow_t m_tx_cntr_base[TREX_MAX_PORTS];
     uint16_t m_hw_id;     // Associated hw id. UINT16_MAX if no associated hw id.
     uint8_t m_proto;      // protocol (UDP, TCP, other), associated with this user id.
     uint8_t m_ref_count;  // How many streams with this user id exists
@@ -173,8 +269,57 @@ typedef std::map<uint32_t, class CFlowStatUserIdInfo *>::iterator flow_stat_user
 
 class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
  public:
-    CFlowStatUserIdInfoPayload(uint8_t proto) : CFlowStatUserIdInfo(proto){};
+    CFlowStatUserIdInfoPayload(uint8_t proto) : CFlowStatUserIdInfo(proto){m_rfc2544_support = true; clear();};
     virtual void add_stream(uint8_t proto);
+
+    void clear() {
+        m_rfc2544_info.clear();
+        m_seq_error_base = 0;
+        m_out_of_order_base = 0;
+    }
+    inline void get_latency_json(std::string & json) const {
+        json = m_rfc2544_info.m_latency;
+    }
+
+    inline void set_latency_json(std::string json) {
+        m_rfc2544_info.m_latency = json;
+    }
+
+    inline double get_jitter() const {
+        return m_rfc2544_info.m_jitter;
+    }
+
+    inline void set_jitter(double jitter) {
+        m_rfc2544_info.m_jitter = jitter;
+    }
+
+    inline void set_seq_err_cnt(uint64_t cnt) {
+        m_rfc2544_info.m_seq_error = cnt;
+    }
+
+    inline uint64_t get_seq_err_cnt() const {
+        return m_rfc2544_info.m_seq_error + m_seq_error_base;
+    }
+
+    inline void set_ooo_cnt(uint64_t cnt) {
+        m_rfc2544_info.m_out_of_order = cnt;
+    }
+
+    inline uint64_t get_ooo_cnt() const {
+        return m_rfc2544_info.m_out_of_order + m_out_of_order_base;
+    }
+
+    inline void reset_hw_id() {
+        m_seq_error_base += m_rfc2544_info.m_seq_error;
+        m_out_of_order_base += m_rfc2544_info.m_out_of_order;
+        m_rfc2544_info.m_seq_error = 0;
+        m_rfc2544_info.m_out_of_order = 0;
+    }
+
+ private:
+    rfc2544_info_t m_rfc2544_info;
+    uint64_t m_seq_error_base;
+    uint64_t m_out_of_order_base;
 };
 
 class CFlowStatUserIdMap {
@@ -202,13 +347,14 @@ class CFlowStatUserIdMap {
 class CFlowStatHwIdMap {
  public:
     CFlowStatHwIdMap();
+    void create(uint16_t size);
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatHwIdMap& cf);
     uint16_t find_free_hw_id();
     void map(uint16_t hw_id, uint32_t user_id);
     void unmap(uint16_t hw_id);
     uint32_t get_user_id(uint16_t hw_id) {return m_map[hw_id];};
  private:
-    uint32_t m_map[MAX_FLOW_STATS]; // translation from hw id to user id
+    uint32_t *m_map; // translation from hw id to user id
     uint16_t m_num_free; // How many free entries in the m_rules array
 };
 
@@ -241,8 +387,6 @@ class CFlowStatRuleMgr {
 
  private:
     CFlowStatHwIdMap m_hw_id_map; // map hw ids to user ids
-    // ??? need to make CFlowStatHwIdMap class adjustable per size. For now it is working since we allow same number
-    // of IP ID and pyaload rules
     CFlowStatHwIdMap m_hw_id_map_payload; // map hw id numbers of payload rules to user ids
     CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
     uint8_t m_num_ports; // How many ports are being used
@@ -253,7 +397,7 @@ class CFlowStatRuleMgr {
     uint32_t m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
     CFlowStatParser *m_parser;
-    uint16_t m_capabilities;
+    uint16_t m_cap;
 };
 
 #endif

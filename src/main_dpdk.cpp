@@ -291,7 +291,7 @@ public:
     virtual int get_rx_stat_capabilities() {
         return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
             | TrexPlatformApi::IF_STAT_PAYLOAD;
-    }   
+    }
     virtual CFlowStatParser *get_flow_stat_parser();
 };
 
@@ -1733,7 +1733,7 @@ public:
     virtual int close_file(void){
         return (flush_tx_queue());
     }
-
+    __attribute__ ((noinline)) void send_node_flow_stat(CGenNode * node);
     virtual int send_node(CGenNode * node);
     virtual void send_one_pkt(pkt_dir_t       dir, rte_mbuf_t      *m);
 
@@ -1784,6 +1784,7 @@ protected:
 
 class CCoreEthIFStateless : public CCoreEthIF {
 public:
+    virtual int send_node_flow_stat(CGenNodeStateless * node_sl);
     virtual int send_node(CGenNode * node);
 protected:
     int handle_slow_path_node(CGenNode *node);
@@ -2004,7 +2005,65 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
     }
 }
 
+/// ??? need better implementation. Maybe implement as template of send_node.
+// Maybe make it part of send_node somehow
+int CCoreEthIFStateless::send_node_flow_stat(CGenNodeStateless * node_sl) {
+    uint16_t hw_id = node_sl->get_stat_hw_id();
+    tx_per_flow_t *lp_s;
+    /* check that we have mbuf  */
+    rte_mbuf_t *temp_m = node_sl->get_cache_mbuf();
+    rte_mbuf_t *m;
 
+    if (temp_m) {
+        /* cache case */
+        m = node_sl->alloc_flow_stat_mbuf(temp_m);
+    }else{
+        temp_m = node_sl->alloc_node_with_vm();
+        assert(temp_m);
+        m = node_sl->alloc_flow_stat_mbuf(temp_m);
+        rte_pktmbuf_free(temp_m);
+    }
+
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    CCorePerPort *  lp_port=&m_ports[dir];
+    CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
+
+    if (hw_id >= MAX_FLOW_STATS) {
+        // payload rule hw_ids are in the range right above ip id rules
+        uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
+        if (hw_id_payload > max_stat_hw_id_seen_payload) {
+            max_stat_hw_id_seen_payload = hw_id_payload;
+        }
+        uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
+        struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
+            (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
+        fsp_head->seq = lp_stats->m_seq_num[hw_id_payload];
+        fsp_head->time_stamp = os_get_hr_tick_64();
+        lp_stats->m_seq_num[hw_id_payload]++;
+        // remove ???
+#if 0
+        if (temp % 11 == 0) {
+            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload]++;
+        }
+
+        if ((temp -1) % 100 == 0) {
+            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 3;
+            lp_stats->m_seq_num[hw_id_payload]--;
+        }
+#endif
+    } else {
+        // ip id rule
+        if (hw_id > max_stat_hw_id_seen) {
+            max_stat_hw_id_seen = hw_id;
+        }
+    }
+    lp_s = &lp_stats->m_tx_per_flow[hw_id];
+    lp_s->add_pkts(1);
+    lp_s->add_bytes(m->pkt_len);
+
+    send_pkt(lp_port,m,lp_stats);
+    return 0;
+}
 
 int CCoreEthIFStateless::send_node(CGenNode * no) {
 
@@ -2013,8 +2072,12 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
         return handle_slow_path_node(no);
     }
 
-
     CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
+
+    if (unlikely(node_sl->is_stat_needed())) {
+        return send_node_flow_stat(node_sl);
+    }
+
     /* check that we have mbuf  */
     rte_mbuf_t *    m;
 
@@ -2035,27 +2098,6 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
         }
     }
 
-    if (unlikely(node_sl->is_stat_needed())) {
-        uint16_t hw_id = node_sl->get_stat_hw_id();
-        tx_per_flow_t *lp_s;
-        if (hw_id >= MAX_FLOW_STATS) {
-            // payload rule
-            // payload rule hw_ids are in the range right above ip id rules
-            uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
-            if (hw_id_payload > max_stat_hw_id_seen_payload) {
-                max_stat_hw_id_seen_payload = hw_id_payload;
-            }
-            //??? add seq num (m_seq_num[..], timestamp
-        } else {
-            // ip id rule
-            if (hw_id > max_stat_hw_id_seen) {
-                max_stat_hw_id_seen = hw_id;
-            }
-        }
-        lp_s = &lp_stats->m_tx_per_flow[hw_id];
-        lp_s->add_pkts(1);
-        lp_s->add_bytes(m->pkt_len);
-    }
     send_pkt(lp_port,m,lp_stats);
 
     return (0);
@@ -4162,14 +4204,13 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
     uint32_t diff_bytes[MAX_FLOW_STATS];
     bool hw_rx_stat_supported = get_ex_drv()->hw_rx_stat_supported();
 
-    // ???? if 40G, but payload rules, need to read from software 
     if (hw_rx_stat_supported) {
         if (get_ex_drv()->get_rx_stats(this, diff_pkts, m_stats.m_fdir_prev_pkts
                                        , diff_bytes, m_stats.m_fdir_prev_bytes, min, max) < 0) {
             return -1;
         }
     } else {
-        g_trex.m_rx_sl.get_rx_stats(get_port_id(), rx_stats, min, max, reset);
+        g_trex.m_rx_sl.get_rx_stats(get_port_id(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID);
     }
 
     for (int i = min; i <= max; i++) {
@@ -4199,6 +4240,23 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
             }
             if (tx_stats != NULL) {
                 tx_stats[i - min] = g_trex.get_flow_tx_stats(m_port_id, i);
+            }
+        }
+    }
+
+    return 0;
+}
+
+int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
+    g_trex.m_rx_sl.get_rx_stats(get_port_id(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD);
+    for (int i = min; i <= max; i++) {
+        if ( reset ) {
+            if (tx_stats != NULL) {
+                tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i + MAX_FLOW_STATS);
+            }
+        } else {
+            if (tx_stats != NULL) {
+                tx_stats[i - min] = g_trex.get_flow_tx_stats(m_port_id, i + MAX_FLOW_STATS);
             }
         }
     }
@@ -5251,12 +5309,17 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statfull(CPhyEthIF * _
     return 0;
 }
 
-const uint32_t TEMP_FDIR_HW_ID = 511;
+const uint32_t FDIR_TEMP_HW_ID = 511;
+const uint32_t FDIR_PAYLOAD_RULES_HW_ID = 510;
+extern const uint16_t FLOW_STAT_PAYLOAD_IP_ID;
 int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     if (get_is_stateless()) {
-        //??? if we add here one rule for IP/TCP/OTHER, it lowers our IP_ID support to 127 rules
-        rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, TEMP_FDIR_HW_ID, 1);
-        return 0; // Rules are configured dynamically in stateless
+        uint32_t port_id = _if->get_port_id();
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, FDIR_TEMP_HW_ID, 1);
+        return 0; // Other rules are configured dynamically in stateless
     } else {
         return configure_rx_filter_rules_statfull(_if);
     }
@@ -5303,12 +5366,12 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
             uint32_t counter, temp_count;
             uint32_t hw_id = start - min + i;
 
-            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_type[hw_id], 0, IP_ID_RESERVE_BASE + i, MAIN_DPDK_DATA_Q, TEMP_FDIR_HW_ID);
+            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_type[hw_id], 0, IP_ID_RESERVE_BASE + i, MAIN_DPDK_DATA_Q, FDIR_TEMP_HW_ID);
             delay(100);
             rte_eth_fdir_stats_reset(port_id, &counter, hw_id, 1);
             add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_type[hw_id], 0, IP_ID_RESERVE_BASE + i, MAIN_DPDK_DATA_Q, hw_id);
             delay(100);
-            rte_eth_fdir_stats_reset(port_id, &temp_count, TEMP_FDIR_HW_ID, 1);
+            rte_eth_fdir_stats_reset(port_id, &temp_count, FDIR_TEMP_HW_ID, 1);
             pkts[i] = counter + temp_count - prev_pkts[i];
             prev_pkts[i] = 0;
         } else {
@@ -5593,8 +5656,19 @@ TrexDpdkPlatformApi::get_interface_stat_info(uint8_t interface_id, uint16_t &num
     capabilities = CTRexExtendedDriverDb::Ins()->get_drv()->get_rx_stat_capabilities();
 }
 
-int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset) const {
-    return g_trex.m_ports[port_id].get_flow_stats((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats, min, max, reset);
+int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset
+                                        , TrexPlatformApi::driver_stat_cap_e type) const {
+    if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+        return g_trex.m_ports[port_id].get_flow_stats_payload((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats
+                                                              , min, max, reset);
+    } else {
+        return g_trex.m_ports[port_id].get_flow_stats((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats
+                                                      , min, max, reset);
+    }
+}
+
+int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const {
+    return g_trex.m_rx_sl.get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset);
 }
 
 int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {

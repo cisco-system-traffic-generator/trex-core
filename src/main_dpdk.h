@@ -76,6 +76,7 @@ class CPhyEthIF  {
     int dump_fdir_global_stats(FILE *fd);
     int reset_hw_flow_stats();
     int get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
+    int get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
     void get_stats_1g(CPhyEthIFStats *stats);
     void rx_queue_setup(uint16_t rx_queue_id,
                         uint16_t nb_rx_desc,
