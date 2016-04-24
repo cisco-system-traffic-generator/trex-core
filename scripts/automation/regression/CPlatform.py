@@ -174,7 +174,8 @@ class CPlatform(object):
 
         # finish handling pre-config cache
         pre_commit_set = list(pre_commit_set)
-#       pre_commit_set.append('exit')
+        if len(pre_commit_set):
+            pre_commit_set.append('exit')
         pre_commit_cache.add('CONF', pre_commit_set )
         # deploy the configs (order is important!)
         self.cmd_link.run_command( [pre_commit_cache, cache] )
@@ -290,7 +291,8 @@ class CPlatform(object):
 
         # finish handling pre-config cache
         pre_commit_set = list(pre_commit_set)
-#       pre_commit_set.append('exit')
+        if len(pre_commit_set):
+            pre_commit_set.append('exit')
         pre_commit_cache.add('CONF', pre_commit_set )
         # assign generated config list to cache
         cache.add('CONF', conf_t_command_set)

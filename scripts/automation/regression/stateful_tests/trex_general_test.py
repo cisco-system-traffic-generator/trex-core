@@ -149,8 +149,9 @@ class CTRexGeneral_Test(unittest.TestCase):
                     self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
             cores = self.get_benchmark_param('cores')
+            ports_count = trex_res.get_ports_count()
             trex_tx_bps  = sum(trex_res.get_value_list("trex-global.data.m_tx_bps")[-4:-1]) / 3.0
-            test_norm_cpu = 200.0 * trex_tx_bps / (cores * cpu_util * 1e6)
+            test_norm_cpu = 200.0 * trex_tx_bps / (ports_count * cores * cpu_util * 1e6)
 
             print("TRex CPU utilization: %g%%, norm_cpu is : %d Mb/core" % (round(cpu_util), int(test_norm_cpu)))
 

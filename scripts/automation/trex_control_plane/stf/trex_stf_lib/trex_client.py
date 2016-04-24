@@ -1094,7 +1094,7 @@ class CTRexResult(object):
         if not self.is_valid_hist():
             return None
         else:
-            return CTRexResult.__get_value_by_path(self._history[len(self._history)-1], tree_path_to_key, regex)
+            return CTRexResult.__get_value_by_path(self._history[-1], tree_path_to_key, regex)
 
     def get_value_list (self, tree_path_to_key, regex = None, filter_none = True):
         """
@@ -1145,11 +1145,23 @@ class CTRexResult(object):
             + an empty dictionary if history is empty.
 
         """
-        history_size = len(self._history)
-        if history_size != 0:
-            return self._history[len(self._history) - 1]
-        else:
-            return {}
+        if len(self._history):
+            return self._history[-1]
+        return {}
+
+    def get_ports_count(self):
+        """
+        Returns number of ports based on TRex result
+
+        :return: 
+            + number of ports in TRex result
+            + -1 if history is empty.
+        """
+
+        if not len(self._history):
+            return -1
+        return len(self.__get_value_by_path(self._history[-1], 'trex-global.data', 'opackets-\d+'))
+
 
     def update_result_data (self, latest_dump):
         """

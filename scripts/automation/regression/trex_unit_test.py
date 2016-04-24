@@ -117,9 +117,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--log-path', '--log_path', action='store',
                             dest='log_path',
                             help='Specify path for the tests` log to be saved at. Once applied, logs capturing by nose will be disabled.') # Default is CURRENT/WORKING/PATH/trex_log/trex_log.log')
-        parser.add_option('--verbose-mode', '--verbose_mode', action="store_true", default = False,
-                            dest="verbose_mode",
-                            help="Print RPC command and router commands.")
+        parser.add_option('--json-verbose', '--json_verbose', action="store_true", default = False,
+                            dest="json_verbose",
+                            help="Print JSON-RPC commands.")
+        parser.add_option('--telnet-verbose', '--telnet_verbose', action="store_true", default = False,
+                            dest="telnet_verbose",
+                            help="Print telnet commands and responces.")
         parser.add_option('--server-logs', '--server_logs', action="store_true", default = False,
                             dest="server_logs",
                             help="Print server side (TRex and trex_daemon) logs per test.")
@@ -155,12 +158,13 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.collect_only = options.collect_only
         if self.collect_only:
             return
-        self.functional   = options.functional
-        self.stateless    = options.stateless
-        self.stateful     = options.stateful
-        self.pkg          = options.pkg
-        self.no_ssh       = options.no_ssh
-        self.verbose_mode = options.verbose_mode
+        self.functional     = options.functional
+        self.stateless      = options.stateless
+        self.stateful       = options.stateful
+        self.pkg            = options.pkg
+        self.no_ssh         = options.no_ssh
+        self.json_verbose   = options.json_verbose
+        self.telnet_verbose = options.telnet_verbose
         if self.functional and (not self.pkg or self.no_ssh):
             return
         if CTRexScenario.setup_dir and options.config_path:
@@ -215,7 +219,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.stateful:
             if not self.no_ssh:
                 trex_remote_command(self.configuration.trex, STATEFUL_RUN_COMMAND)
-            CTRexScenario.trex = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.verbose_mode)
+            CTRexScenario.trex = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.json_verbose)
         elif self.stateless:
             if not self.no_ssh:
                 cores = self.configuration.trex.get('trex_cores', 1)
@@ -224,11 +228,11 @@ class CTRexTestConfiguringPlugin(Plugin):
                 trex_remote_command(self.configuration.trex, './t-rex-64 -i -c %s' % cores, background = True)
             CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
                                                server = self.configuration.trex['trex_name'],
-                                               verbose_level = self.verbose_mode)
+                                               verbose_level = self.json_verbose)
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg = dict(config_dict      = self.configuration.router,
                                             forceImageReload = self.load_image,
-                                            silent_mode      = not self.verbose_mode,
+                                            silent_mode      = not self.telnet_verbose,
                                             forceCleanConfig = self.clean_config,
                                             tftp_config_dict = self.configuration.tftp)
         try:
