@@ -151,7 +151,8 @@ class CTRexGeneral_Test(unittest.TestCase):
             cores = self.get_benchmark_param('cores')
             ports_count = trex_res.get_ports_count()
             trex_tx_bps  = sum(trex_res.get_value_list("trex-global.data.m_tx_bps")[-4:-1]) / 3.0
-            test_norm_cpu = 200.0 * trex_tx_bps / (ports_count * cores * cpu_util * 1e6)
+            # x2 because each thread uses 2 ports and another x2 because each core can use 2 threads
+            test_norm_cpu = 2 * 2 * (100.0 / cpu_util) * trex_tx_bps / (ports_count * cores * 1e6)
 
             print("TRex CPU utilization: %g%%, norm_cpu is : %d Mb/core" % (round(cpu_util), int(test_norm_cpu)))
 
