@@ -48,6 +48,7 @@ def tearDownModule(module):
 class CTRexGeneral_Test(unittest.TestCase):
     """This class defines the general stateful testcase of the T-Rex traffic generator"""
     def __init__ (self, *args, **kwargs):
+        sys.stdout.flush()
         unittest.TestCase.__init__(self, *args, **kwargs)
         if CTRexScenario.is_test_list:
             return
@@ -338,7 +339,9 @@ class CTRexGeneral_Test(unittest.TestCase):
                 except Exception as e:
                     print("Can't get TRex log:", e)
             if len(self.fail_reasons):
+                sys.stdout.flush()
                 raise Exception('The test is failed, reasons:\n%s' % '\n'.join(self.fail_reasons))
+        sys.stdout.flush()
 
     def check_for_trex_crash(self):
         pass

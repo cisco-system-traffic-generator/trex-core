@@ -2,58 +2,48 @@
 ####           TRex benchmark configuration file           ####
 ###############################################################
 
-test_routing_imix_64    :
-  multiplier        : 8000
-  cores             : 7
-  cpu_to_core_ratio : 280
-  exp_latency       : 1
 
-test_routing_imix   :
-  multiplier        : 80
-  cores             : 4
-  cpu_to_core_ratio : 1800
-  exp_latency       : 1
+test_jumbo:
+    multiplier          : 150
+    cores               : 2
+    bw_per_core         : 962464
+
+
+test_routing_imix:
+    multiplier          : 80
+    cores               : 4
+    bw_per_core         : 55130
+
+
+test_routing_imix_64:
+    multiplier          : 8000
+    cores               : 7
+    bw_per_core         : 11699
+
 
 test_static_routing_imix_asymmetric:
-  stat_route_dict :
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
-  multiplier        : 70
-  cores             : 3
-  cpu_to_core_ratio : 1800
-  exp_latency       : 1
+    multiplier          : 70
+    cores               : 3
+    bw_per_core         : 50561
 
-test_ipv6_simple    :
-  multiplier        : 80
-  cores             : 7
-  cpu_to_core_ratio : 30070000
-  cpu2core_custom_dev: YES
-  cpu2core_dev : 0.07
+
+test_ipv6_simple:
+    multiplier          : 80
+    cores               : 7
+    bw_per_core         : 25948
+
+
+test_rx_check_http:
+    multiplier          : 99000
+    cores               : 3
+    rx_sample_rate      : 128
+    bw_per_core         : 49464
 
 
 test_rx_check_sfr:
-    multiplier        : 80
-    cores             : 7
-    rx_sample_rate    : 128
+    multiplier          : 80
+    cores               : 7
+    rx_sample_rate      : 128
+    bw_per_core         : 20871
 
-test_rx_check_sfr_ipv6_disabled:
-    multiplier        : 80
-    cores             : 7
-    rx_sample_rate    : 128
 
-test_rx_check_http:
-    multiplier        : 99000
-    cores             : 3
-    rx_sample_rate    : 128
-
-test_rx_check_http_ipv6_disabled:
-    multiplier        : 99000
-    cores             : 3
-    rx_sample_rate    : 128
-
-test_jumbo:
-    multiplier        : 150
-    cores             : 2

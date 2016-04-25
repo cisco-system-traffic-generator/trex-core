@@ -3,60 +3,27 @@
 ################################################################
 
 
-test_rx_check :
-  multiplier        : 0.8 
-  cores             : 1
-  rx_sample_rate    : 128
-  exp_gbps          : 0.5
-  cpu_to_core_ratio : 37270000
-  exp_bw            : 1
-  exp_latency       : 1
+test_jumbo:
+    multiplier          : 2.8
+    cores               : 1
+    bw_per_core         : 66489
 
 
-test_routing_imix_64    :
-  multiplier        : 28
-  cores             : 1
-  cpu_to_core_ratio : 280
-  exp_latency       : 1
+test_routing_imix:
+    multiplier          : 0.5
+    cores               : 1
+    bw_per_core         : 5530
 
-test_routing_imix   :
-  multiplier        : 0.5
-  cores             : 1
-  cpu_to_core_ratio : 1800
-  exp_latency       : 1
 
-test_static_routing_imix    :
-  stat_route_dict :
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
-  multiplier        : 0.8
-  cores             : 1
-  cpu_to_core_ratio : 1800
-  exp_latency       : 1
+test_routing_imix_64:
+    multiplier          : 28
+    cores               : 1
+    bw_per_core         : 859
+
 
 test_static_routing_imix_asymmetric:
-  stat_route_dict :
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
-  multiplier        : 0.8
-  cores             : 1
-  cpu_to_core_ratio : 1800
-  exp_latency       : 1
-
-test_ipv6_simple    :
-  multiplier        : 0.5
-  cores             : 1
-  cpu_to_core_ratio : 30070000
-  cpu2core_custom_dev: YES
-  cpu2core_dev : 0.07
+    multiplier          : 0.8
+    cores               : 1
+    bw_per_core         : 9635
 
 
-test_jumbo:
-    multiplier : 2.8
-    cores      : 1
