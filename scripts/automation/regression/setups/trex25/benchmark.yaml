@@ -65,6 +65,7 @@ test_nat_simple_mode1: &test_nat_simple
     nat_dict            : *nat_dict
     multiplier          : 2200
     cores               : 1
+    allow_timeout_dev   : True
     bw_per_core         : 32171
 
 test_nat_simple_mode2: *test_nat_simple
