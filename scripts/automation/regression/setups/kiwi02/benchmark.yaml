@@ -1,154 +1,120 @@
-################################################################
-####           T-Rex benchmark configuration file           ####
-################################################################
+###############################################################
+####           TRex benchmark configuration file           ####
+###############################################################
 
-test_nbar_simple :
-  multiplier        : 20
-  cores             : 2
-  exp_gbps          : 4.5
-  cpu_to_core_ratio : 37270000
-  cpu2core_custom_dev: YES
-  cpu2core_dev : 0.07
-  exp_max_latency   : 1000
+#### common templates ###
 
-  nbar_classification:
-    http          : 30.41
-    rtp_audio     : 21.22
-    rtp           : 11.4
-    oracle_sqlnet : 11.3
-    exchange      : 10.95
-    citrix        : 5.65
-    rtsp          : 2.67
-    dns           : 1.95
-    smtp          : 0.57
-    pop3          : 0.36
-    sctp          : 0.09
-    sip           : 0.09
-    ssl           : 0.06
-    unknown       : 3.2
-
-test_rx_check :
-  multiplier        : 25 
-  cores             : 4
-  rx_sample_rate    : 128
-  exp_gbps          : 0.5
-  cpu_to_core_ratio : 37270000
-  exp_bw            : 1
-  exp_latency       : 1
-
-test_nat_simple  : &test_nat_simple
-  stat_route_dict :
+stat_route_dict: &stat_route_dict
     clients_start           : 16.0.0.1
     servers_start           : 48.0.0.1
     dual_port_mask          : 1.0.0.0
     client_destination_mask : 255.0.0.0
     server_destination_mask : 255.0.0.0
-  nat_dict :
+
+nat_dict: &nat_dict
     clients_net_start        : 16.0.0.0
     client_acl_wildcard_mask : 0.0.0.255
     dual_port_mask           : 1.0.0.0
     pool_start               : 200.0.0.0
     pool_netmask             : 255.255.255.0
-  multiplier        : 10000
-  cpu_to_core_ratio : 37270000
-  cores             : 1
-  exp_bw            : 1
-  exp_latency       : 1
-  allow_timeout_dev : YES
-
-test_nat_simple_mode1 : *test_nat_simple
-test_nat_simple_mode2 : *test_nat_simple
-
-test_nat_learning  : 
-  stat_route_dict :
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
-  multiplier        : 10000 
-  cores             : 1
-  nat_opened        : 100000
-  cpu_to_core_ratio : 37270000
-  exp_bw            : 1
-  exp_latency       : 1
-  allow_timeout_dev : YES
-
-test_routing_imix_64    :
-  multiplier        : 2500
-  cores             : 4
-  cpu_to_core_ratio : 8900
-  exp_latency       : 1
-
-test_routing_imix   :
-  multiplier        : 32
-  cores             : 2
-  cpu_to_core_ratio : 8900
-  exp_latency       : 1
-
-test_static_routing_imix    :
-  stat_route_dict :
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
-  multiplier        : 32
-  cores             : 2
-  cpu_to_core_ratio : 3766666
-  exp_latency       : 1
-
-test_static_routing_imix_asymmetric:
-  stat_route_dict :
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
-  multiplier        : 16
-  cores             : 1
-  cpu_to_core_ratio : 3766666
-  exp_latency       : 1
-
-test_ipv6_simple    :
-  multiplier        : 32
-  cores             : 4
-  cpu_to_core_ratio : 30070000
-  cpu2core_custom_dev: YES
-  cpu2core_dev : 0.07
 
 
-test_rx_check_sfr:
-    multiplier        : 25
-    cores             : 4
-    rx_sample_rate    : 32
-    error_tolerance   : 0.01
-
-test_rx_check_http:
-    multiplier        : 40000
-    cores             : 2
-    rx_sample_rate    : 32
-    error_tolerance   : 0.01
-
-test_rx_check_sfr_ipv6:
-    multiplier        : 25
-    cores             : 4
-    rx_sample_rate    : 32
-    error_tolerance   : 0.01
-
-test_rx_check_http_ipv6:
-    multiplier        : 40000
-    cores             : 2
-    rx_sample_rate    : 32
-    error_tolerance   : 0.01
-
-#works badly on kiwi02, comment out for now
-#test_rx_check_http_negative:
-#    multiplier        : 40000
-#    cores             : 2
-#    rx_sample_rate    : 32
-#    error_tolerance   : 0.01
+### tests ###
 
 test_jumbo:
-    multiplier : 55
-    cores      : 1
+    multiplier          : 55
+    cores               : 1
+    bw_per_core         : 647305
+
+
+test_routing_imix:
+    multiplier          : 32
+    cores               : 2
+    bw_per_core         : 39131
+
+
+test_routing_imix_64:
+    multiplier          : 2500
+    cores               : 4
+    bw_per_core         : 7427
+
+
+test_static_routing_imix:
+    stat_route_dict     : *stat_route_dict
+    multiplier          : 32
+    cores               : 2
+    bw_per_core         : 39039
+
+
+test_static_routing_imix_asymmetric:
+    stat_route_dict     : *stat_route_dict
+    multiplier          : 16
+    cores               : 1
+    bw_per_core         : 38796
+
+
+test_ipv6_simple:
+    multiplier          : 32
+    cores               : 4
+    bw_per_core         : 19283
+
+
+test_nat_simple_mode1: &test_nat_simple
+    stat_route_dict     : *stat_route_dict
+    nat_dict            : *nat_dict
+    multiplier          : 10000
+    cores               : 1
+    bw_per_core         : 45304
+
+test_nat_simple_mode2: *test_nat_simple
+
+test_nat_learning:
+    <<                  : *test_nat_simple
+    nat_opened          : 100000
+
+
+test_nbar_simple:
+    multiplier          : 20
+    cores               : 2
+    bw_per_core         : 18243
+    nbar_classification:
+        http            : 30.41
+        rtp_audio       : 21.22
+        rtp             : 11.4
+        oracle_sqlnet   : 11.3
+        exchange        : 10.95
+        citrix          : 5.65
+        rtsp            : 2.67
+        dns             : 1.95
+        smtp            : 0.57
+        pop3            : 0.36
+        sctp            : 0.09
+        sip             : 0.09
+        ssl             : 0.06
+        unknown         : 3.2
+
+
+test_rx_check_http: &rx_http
+    multiplier          : 40000
+    cores               : 2
+    rx_sample_rate      : 32
+    error_tolerance     : 0.01
+    bw_per_core         : 38071
+
+test_rx_check_http_ipv6:
+    <<                  : *rx_http
+    bw_per_core         : 46733
+
+
+test_rx_check_sfr: &rx_sfr
+    multiplier          : 25
+    cores               : 4
+    rx_sample_rate      : 32
+    error_tolerance     : 0.01
+    bw_per_core         : 16915
+
+test_rx_check_sfr_ipv6:
+    <<                  : *rx_sfr
+    bw_per_core         : 20323
+
+
