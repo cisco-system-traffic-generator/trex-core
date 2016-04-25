@@ -69,7 +69,8 @@ test_nat_simple_mode1: &test_nat_simple
 
 test_nat_simple_mode2: *test_nat_simple
 
-test_nat_learning: * test_nat_simple
+test_nat_learning:
+    <<                  : *test_nat_simple
     nat_opened          : 40000
 
 
@@ -101,10 +102,12 @@ test_rx_check_http: &rx_http
     rx_sample_rate      : 16
     bw_per_core         : 31389
 
-test_rx_check_http_ipv6: *rx_http
+test_rx_check_http_ipv6:
+    <<                  : *rx_http
     bw_per_core         : 37114
 
-test_rx_check_http_negative: *rx_http
+test_rx_check_http_negative:
+    <<                  : *rx_http
     stat_route_dict     : *stat_route_dict
     nat_dict            : *nat_dict
 
@@ -115,7 +118,8 @@ test_rx_check_sfr: &rx_sfr
     rx_sample_rate      : 16
     bw_per_core         : 16063
 
-test_rx_check_sfr_ipv6: *rx_sfr
+test_rx_check_sfr_ipv6:
+    <<                  : *rx_sfr
     bw_per_core         : 19663
 
 
