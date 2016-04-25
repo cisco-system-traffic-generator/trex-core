@@ -1985,7 +1985,8 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
     if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_mapping_enable() ) ) {
         /* mac mapping file is configured
          */
-        if (node->m_src_mac.inused==INUSED) {
+        if (node->is_initiator_pkt() && 
+            node->m_src_mac.inused==INUSED) {
             memcpy(p+6, &node->m_src_mac.mac, sizeof(uint8_t)*6);
         }
     } else if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_overide_enable() ) ){
