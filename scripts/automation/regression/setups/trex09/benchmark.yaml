@@ -6,44 +6,44 @@
 test_jumbo:
     multiplier          : 110
     cores               : 1
-    bw_per_core         : 962464
+    bw_per_core         : 767198
 
 
 test_routing_imix:
     multiplier          : 64
     cores               : 2
-    bw_per_core         : 55130
+    bw_per_core         : 35889
 
 
 test_routing_imix_64:
     multiplier          : 5000
     cores               : 2
-    bw_per_core         : 11699
+    bw_per_core         : 10672
 
 
 test_static_routing_imix_asymmetric:
     multiplier          : 32
     cores               : 1
-    bw_per_core         : 50561
+    bw_per_core         : 52738
 
 
 test_ipv6_simple:
     multiplier          : 64
     cores               : 4
-    bw_per_core         : 25948
+    bw_per_core         : 22808
 
 
 test_rx_check_http:
     multiplier          : 90000
     cores               : 2
     rx_sample_rate      : 32
-    bw_per_core         : 49464
+    bw_per_core         : 46075
 
 
 test_rx_check_sfr:
     multiplier          : 50
     cores               : 3
     rx_sample_rate      : 32
-    bw_per_core         : 20871
+    bw_per_core         : 20469
 
 
