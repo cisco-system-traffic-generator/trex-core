@@ -73,7 +73,8 @@ class CPlatform(object):
                 if i < 4:
                     continue
                 raise Exception('Could not load clean config, response: %s' % res)
-            return
+            if i > 0: # were errors, better to wait
+                time.sleep(2)
 
     def config_pbr (self, mode = 'config'):
         idx = 1
@@ -228,7 +229,7 @@ class CPlatform(object):
 
                 # define the relevant VRF name
                 pre_commit_set.add('{mode}ip vrf {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
-                
+
                 # assign VRF to interfaces, config interfaces with relevant route-map
                 client_if_command_set.append ('{mode}ip vrf forwarding {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
                 server_if_command_set.append ('{mode}ip vrf forwarding {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
