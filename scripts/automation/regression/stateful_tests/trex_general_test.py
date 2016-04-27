@@ -155,16 +155,15 @@ class CTRexGeneral_Test(unittest.TestCase):
             # x2 because each thread uses 2 ports and another x2 because each core can use 2 threads
             test_norm_cpu = 2 * 2 * (100.0 / cpu_util) * trex_tx_bps / (ports_count * cores * 1e6)
 
-            print("TRex CPU utilization: %g%%, norm_cpu is : %d Mb/core" % (round(cpu_util), int(test_norm_cpu)))
+            print("TRex CPU utilization: %g%%, norm_cpu is : %g Mb/core" % (round(cpu_util), round(test_norm_cpu)))
 
             expected_norm_cpu = self.get_benchmark_param('bw_per_core')
             if not expected_norm_cpu:
                 expected_norm_cpu = 1
             calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
             print('Err percent: %s' % calc_error_precent)
-            # TODO: gather statistics from regression, uncomment ASAP
-            #if calc_error_precent > err:
-            #    raise AbnormalResultError('Excepted bw_per_core ratio %s, got %s' % (bw_per_core, test_norm_cpu))
+            if calc_error_precent > err:
+                self.fail('Excepted bw_per_core ratio: %s, got: %g' % (bw_per_core, round(test_norm_cpu)))
 
 
     def check_results_gt (self, res, name, val):
