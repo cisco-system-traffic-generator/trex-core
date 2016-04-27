@@ -34,36 +34,5 @@
 
 trex:
   hostname       : csi-trex-11
-  cores          : 2
+  cores          : 1
   modes          : ['loopback', 'virtual']
-
-router:
-  model          : 1RU
-  hostname       : ASR1001_T-Rex
-#  ip_address     : 10.56.199.247
-  ip_address     : 10.56.199.247123123123
-  image          : asr1001-universalk9.BLD_V155_1_S_XE314_THROTTLE_LATEST_20141112_090734-std.bin
-  #image          : asr1001-universalk9.BLD_V155_2_S_XE315_THROTTLE_LATEST_20150121_110036-std.bin
-  #image          : asr1001-universalk9.BLD_V155_2_S_XE315_THROTTLE_LATEST_20150324_100047-std.bin
-  line_password  : lab
-  en_password    : lab
-  mgmt_interface : GigabitEthernet0/0/0
-  clean_config   : /Configurations/danklei/asr1001_TRex_clean_config.cfg
-  intf_masking   : 255.255.255.0
-  ipv6_mask      : 64
-  interfaces     :
-    - client : 
-        name          : GigabitEthernet0/0/1
-        src_mac_addr  : 0000.0001.0000
-        dest_mac_addr : 0000.0001.0000
-      server : 
-        name          : GigabitEthernet0/0/2
-        src_mac_addr  : 0000.0001.0000
-        dest_mac_addr : 0000.0001.0000
-      vrf_name      : null    
-
-tftp:
-  hostname       : ats-asr-srv-1
-  ip_address     : 10.56.128.23
-  root_dir       : /auto/avc-devtest/
-  images_path    : /images/1RU/
