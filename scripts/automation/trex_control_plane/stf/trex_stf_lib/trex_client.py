@@ -1296,6 +1296,7 @@ class CTRexResult(object):
             if not len(res['histogram']):
                 result[max_port] = 0
                 continue
+            result[max_port] = 5 # if sum below will not get to filtered amount, use this value
             sum_high = 0.0
             for elem in reversed(res['histogram']):
                 sum_high += elem['val']

@@ -457,7 +457,7 @@ if __name__ == '__main__':
     if len(error_tests):
         html_output += '\n<button onclick=tgl_cat("cat_tglr_{error}")>{error}</button>'.format(error = ERROR_CATEGORY)
     # Setups buttons
-    for category in setups.keys():
+    for category in sorted(setups.keys()):
         category_arr.append(category)
         html_output += '\n<button onclick=tgl_cat("cat_tglr_%s")>%s</button>' % (category_arr[-1], category)
     # Functional buttons
