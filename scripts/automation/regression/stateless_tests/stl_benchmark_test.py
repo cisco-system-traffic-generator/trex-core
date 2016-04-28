@@ -27,7 +27,6 @@ class STLBenchmark_Test(CStlGeneral_Test):
             for i in range(timeout + 1):
                 stats = self.stl_trex.get_stats()
                 cpu_utils.append(stats['global']['cpu_util'])
-                print stats['global']['cpu_util']
                 if i > stabilize and min(cpu_utils) > max(cpu_utils) * 0.98 - 0.1:
                     break
                 sleep(0.5)
