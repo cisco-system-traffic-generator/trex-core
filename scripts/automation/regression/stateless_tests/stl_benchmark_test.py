@@ -9,8 +9,11 @@ class STLBenchmark_Test(CStlGeneral_Test):
     """Benchark stateless performance"""
 
     def test_CPU_benchmark(self):
-        timeout   = 30 # max time to wait for stabilization
+        timeout   = 60 # max time to wait for stabilization
         stabilize = 5  # ensure stabilization over this period
+        cores     = self.configuration.trex['trex_cores']
+        ports     = self.stl_trex.get_port_count()
+        print('')
 
         for profile_bench in self.get_benchmark_param('profiles'):
             cpu_utils = deque([0] * stabilize, maxlen = stabilize)
@@ -27,7 +30,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
             for i in range(timeout + 1):
                 stats = self.stl_trex.get_stats()
                 cpu_utils.append(stats['global']['cpu_util'])
-                if i > stabilize and min(cpu_utils) > max(cpu_utils) * 0.98 - 0.1:
+                if i > stabilize and min(cpu_utils) > max(cpu_utils) * 0.98:
                     break
                 sleep(0.5)
 
@@ -39,13 +42,13 @@ class STLBenchmark_Test(CStlGeneral_Test):
                 raise Exception('Too much queue_full: %s' % stats['global']['queue_full'])
             if not cpu_utils[-1]:
                 raise Exception('CPU util is zero, last values: %s' % cpu_utils)
-            if not stats['global']['tx_bps']:
-                raise Exception('TX bps is zero: %s' % stats['global']['tx_bps'])
-            bw_per_core = 2 * 2 * 100 * stats['global']['tx_bps'] / (cpu_utils[-1] * self.stl_trex.get_port_count() * 1e6)
-            print('Done (%ss), CPU util: %4g, bw_per_core: %6sMb/core' % (int(time() - start_time), cpu_utils[-1], int(bw_per_core)))
+            bw_per_core = 2 * 2 * (100 / cpu_utils[-1]) * stats['global']['tx_bps'] / (ports * cores * 1e9)
+            print('Done (%ss), CPU util: %4g, bw_per_core: %6sGb/core' % (int(time() - start_time), cpu_utils[-1], round(bw_per_core, 2)))
             # TODO: add check of benchmark based on results from regression
 
+
+    def tearDown(self):
         self.stl_trex.reset()
         self.stl_trex.clear_stats()
-
+        CStlGeneral_Test.tearDown(self)
 
