@@ -34,7 +34,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
 
             if i == timeout:
                 raise Exception('Timeout on waiting for stabilization, CPU util values: %s' % cpu_utils)
-            if stats[0]['opackets'] < 10000 or stats[1]['opackets'] < 10000:
+            if stats[0]['opackets'] < 1000 or stats[1]['opackets'] < 1000:
                 raise Exception('Too few opackets, port0: %s, port1: %s' % (stats[0]['opackets'], stats[1]['opackets']))
             if stats['global']['queue_full'] > 100000:
                 raise Exception('Too much queue_full: %s' % stats['global']['queue_full'])
