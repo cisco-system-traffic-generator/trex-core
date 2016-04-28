@@ -23,6 +23,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
 
             self.stl_trex.reset()
             self.stl_trex.clear_stats()
+            sleep(1)
             self.stl_trex.add_streams(profile, ports = [0, 1])
             self.stl_trex.start(ports = [0, 1], mult = '10%')
             start_time = time()
@@ -30,7 +31,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
             for i in range(timeout + 1):
                 stats = self.stl_trex.get_stats()
                 cpu_utils.append(stats['global']['cpu_util'])
-                if i > stabilize and min(cpu_utils) > max(cpu_utils) * 0.98:
+                if i > stabilize and min(cpu_utils) > max(cpu_utils) * 0.95:
                     break
                 sleep(0.5)
 
@@ -42,13 +43,15 @@ class STLBenchmark_Test(CStlGeneral_Test):
                 raise Exception('Too much queue_full: %s' % stats['global']['queue_full'])
             if not cpu_utils[-1]:
                 raise Exception('CPU util is zero, last values: %s' % cpu_utils)
-            bw_per_core = 2 * 2 * (100 / cpu_utils[-1]) * stats['global']['tx_bps'] / (ports * cores * 1e9)
-            print('Done (%ss), CPU util: %4g, bw_per_core: %6sGb/core' % (int(time() - start_time), cpu_utils[-1], round(bw_per_core, 2)))
+            agv_cpu_util = sum(cpu_utils) / stabilize
+            bw_per_core = 2 * 2 * (100 / agv_cpu_util) * stats['global']['tx_bps'] / (ports * cores * 1e9)
+            print('Done (%ss), CPU util: %4g, bw_per_core: %6sGb/core' % (int(time() - start_time), agv_cpu_util, round(bw_per_core, 2)))
             # TODO: add check of benchmark based on results from regression
 
 
     def tearDown(self):
         self.stl_trex.reset()
         self.stl_trex.clear_stats()
+        sleep(1)
         CStlGeneral_Test.tearDown(self)
 
