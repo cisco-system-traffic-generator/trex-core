@@ -121,10 +121,11 @@ test_CPU_benchmark:
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
-        kwargs          : {packet_len: 9000, packet_count: 1000}
-        cpu_util        : 1
-        bw_per_core     : 1
+# not enough memory + queue full if memory increase
+#      - name            : stl/udp_1pkt_simple.py
+#        kwargs          : {packet_len: 9000, packet_count: 1000}
+#        cpu_util        : 1
+#        bw_per_core     : 1
 
       - name            : stl/imix.py
         cpu_util        : 1

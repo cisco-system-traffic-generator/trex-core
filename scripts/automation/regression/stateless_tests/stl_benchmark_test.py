@@ -41,8 +41,11 @@ class STLBenchmark_Test(CStlGeneral_Test):
                 raise Exception('CPU util is zero, last values: %s' % cpu_utils)
             if not stats['global']['tx_bps']:
                 raise Exception('TX bps is zero: %s' % stats['global']['tx_bps'])
-
-            bw_per_core = 100 * stats['global']['tx_bps'] / cpu_utils[-1] / 1e6
+            bw_per_core = 2 * 2 * 100 * stats['global']['tx_bps'] / (cpu_utils[-1] * self.stl_trex.get_port_count() * 1e6)
             print('Done (%ss), CPU util: %4g, bw_per_core: %6sMb/core' % (int(time() - start_time), cpu_utils[-1], int(bw_per_core)))
             # TODO: add check of benchmark based on results from regression
+
+        self.stl_trex.reset()
+        self.stl_trex.clear_stats()
+
 
