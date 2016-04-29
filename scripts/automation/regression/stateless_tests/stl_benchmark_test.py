@@ -36,13 +36,13 @@ class STLBenchmark_Test(CStlGeneral_Test):
                 sleep(0.5)
 
             if i == timeout:
-                raise Exception('Timeout on waiting for stabilization, CPU util values: %s' % cpu_utils)
+                raise Exception('Timeout on waiting for stabilization, last CPU util values: %s' % list(cpu_utils))
             if stats[0]['opackets'] < 1000 or stats[1]['opackets'] < 1000:
                 raise Exception('Too few opackets, port0: %s, port1: %s' % (stats[0]['opackets'], stats[1]['opackets']))
             if stats['global']['queue_full'] > 100000:
                 raise Exception('Too much queue_full: %s' % stats['global']['queue_full'])
             if not cpu_utils[-1]:
-                raise Exception('CPU util is zero, last values: %s' % cpu_utils)
+                raise Exception('CPU util is zero, last values: %s' % list(cpu_utils))
             agv_cpu_util = sum(cpu_utils) / stabilize
             bw_per_core = 2 * 2 * (100 / agv_cpu_util) * stats['global']['tx_bps'] / (ports * cores * 1e9)
             print('Done (%ss), CPU util: %4g, bw_per_core: %6sGb/core' % (int(time() - start_time), agv_cpu_util, round(bw_per_core, 2)))
@@ -50,7 +50,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
 
             # report benchmarks
             if self.GAManager:
-                profile_repr = '%s %s' % (self.get_name(), repr(kwargs).replace("'", ''))
+                profile_repr = '%s %s' % (os.path.basename(profile_bench['name']), repr(kwargs).replace("'", ''))
                 self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr, label = 'bw_per_core', value = int(bw_per_core))
                 # TODO: report expected once acquired
                 #self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
