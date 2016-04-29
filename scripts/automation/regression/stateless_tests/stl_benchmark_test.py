@@ -49,7 +49,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
             # TODO: add check of benchmark based on results from regression
 
             # report benchmarks
-            if GAManager:
+            if self.GAManager:
                 profile_repr = '%s %s' % (self.get_name(), repr(kwargs).replace("'", ''))
                 self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr, label = 'bw_per_core', value = int(bw_per_core))
                 # TODO: report expected once acquired

@@ -168,7 +168,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
 
             # report benchmarks
-            if GAManager:
+            if self.GAManager:
                 self.GAManager.gaAddAction(Event = 'stateful_test', action = self.get_name(), label = 'bw_per_core', value = int(test_norm_cpu))
                 self.GAManager.gaAddAction(Event = 'stateful_test', action = self.get_name(), label = 'bw_per_core_exp', value = int(expected_norm_cpu))
                 self.GAManager.emptyAndReportQ()
