@@ -39,6 +39,7 @@ from trex import CTRexScenario
 from trex_stf_lib.trex_client import *
 from trex_stf_lib.trex_exceptions import *
 from trex_stl_lib.api import *
+from trex_stl_lib.utils.GAObjClass import GAmanager
 import trex
 import socket
 from pprint import pprint
@@ -153,6 +154,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--test-client-package', '--test_client_package', action="store_true", default = False,
                             dest="test_client_package",
                             help="Includes tests of client package.")
+        parser.add_option('--long', action="store_true", default = False,
+                            dest="long", type = int,
+                            help="Flag of long tests (stability).")
 
     def configure(self, options, conf):
         self.collect_only = options.collect_only
@@ -301,6 +305,7 @@ if __name__ == "__main__":
         xml_name                     = 'unit_test.xml'
         if CTRexScenario.setup_dir:
             CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
+            CTRexScenario.GAManager  = GAmanager(GoogleID='UA-75220362-4', UserID=CTRexScenario.setup_name, QueueSize=100, Timeout=5, UserPermission=1, BlockingMode=1, appName='TRex', appVer='1.11.232') #timeout in seconds
             xml_name = 'report_%s.xml' % CTRexScenario.setup_name
         xml_arg= '--xunit-file=%s/%s' % (CTRexScenario.report_dir, xml_name)
         set_report_dir(CTRexScenario.report_dir)

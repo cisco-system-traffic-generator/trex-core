@@ -58,6 +58,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.trex                  = CTRexScenario.trex
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
+        self.GAManager             = CTRexScenario.GAManager
         self.skipping              = False
         self.fail_reasons          = []
         if not hasattr(self, 'unsupported_modes'):
@@ -136,7 +137,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         if res[name] != float(val):
             self.fail('TRex results[%s]==%f and not as expected %f ' % (name, res[name], val))
 
-    def check_CPU_benchmark (self, trex_res, err = 10, minimal_cpu = 30, maximal_cpu = 85):
+    def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 30, maximal_cpu = 85):
             #cpu_util = float(trex_res.get_last_value("trex-global.data.m_cpu_util"))
             cpu_util = sum(trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]) / 3.0 # mean of 3 values before last
 
@@ -155,16 +156,22 @@ class CTRexGeneral_Test(unittest.TestCase):
             # x2 because each thread uses 2 ports and another x2 because each core can use 2 threads
             test_norm_cpu = 2 * 2 * (100.0 / cpu_util) * trex_tx_bps / (ports_count * cores * 1e6)
 
-            print("TRex CPU utilization: %g%%, norm_cpu is : %g Mb/core" % (round(cpu_util), round(test_norm_cpu)))
+            print("TRex CPU utilization: %g%%, norm_cpu is : %g Mb/core" % (round(cpu_util, 2), round(test_norm_cpu)))
 
             expected_norm_cpu = self.get_benchmark_param('bw_per_core')
             if not expected_norm_cpu:
                 expected_norm_cpu = 1
+
             calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
             print('Err percent: %s' % calc_error_precent)
             if calc_error_precent > err:
                 self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
 
+            # report benchmarks
+            if GAManager:
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = self.get_name(), label = 'bw_per_core', value = int(test_norm_cpu))
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = self.get_name(), label = 'bw_per_core_exp', value = int(expected_norm_cpu))
+                self.GAManager.emptyAndReportQ()
 
     def check_results_gt (self, res, name, val):
         if res is None:

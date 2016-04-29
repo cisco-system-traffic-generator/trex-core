@@ -48,6 +48,13 @@ class STLBenchmark_Test(CStlGeneral_Test):
             print('Done (%ss), CPU util: %4g, bw_per_core: %6sGb/core' % (int(time() - start_time), agv_cpu_util, round(bw_per_core, 2)))
             # TODO: add check of benchmark based on results from regression
 
+            # report benchmarks
+            if GAManager:
+                profile_repr = '%s %s' % (self.get_name(), repr(kwargs).replace("'", ''))
+                self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr, label = 'bw_per_core', value = int(bw_per_core))
+                # TODO: report expected once acquired
+                #self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
+                self.GAManager.emptyAndReportQ()
 
     def tearDown(self):
         self.stl_trex.reset()
