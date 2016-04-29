@@ -200,7 +200,7 @@ class GAmanager:
 #           print items
 
     def reportBatched(self,batched):
-        req = Request(url_batched, data=batched)
+        req = Request(url_batched, data=batched.encode('ascii'))
         urlopen(req)
         #requests.post(url_batched,data=batched)
         
