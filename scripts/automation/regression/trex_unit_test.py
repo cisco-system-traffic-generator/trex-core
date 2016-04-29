@@ -155,7 +155,7 @@ class CTRexTestConfiguringPlugin(Plugin):
                             dest="test_client_package",
                             help="Includes tests of client package.")
         parser.add_option('--long', action="store_true", default = False,
-                            dest="long", type = int,
+                            dest="long",
                             help="Flag of long tests (stability).")
 
     def configure(self, options, conf):
