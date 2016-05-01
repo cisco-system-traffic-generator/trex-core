@@ -2335,10 +2335,7 @@ private:
 
 std::string CGlobalStats::get_field(std::string name,float &f){
     char buff[200];
-    if(f >= 10 || f <= -10)
-        snprintf(buff, sizeof(buff), "\"%s\":%.1f,",name.c_str(),f);
-    else
-        snprintf(buff, sizeof(buff), "\"%s\":%.3e,",name.c_str(),f);
+    snprintf(buff, sizeof(buff), "\"%s\":%.1f,",name.c_str(),f);
     return (std::string(buff));
 }
 
@@ -2350,10 +2347,7 @@ std::string CGlobalStats::get_field(std::string name,uint64_t &f){
 
 std::string CGlobalStats::get_field_port(int port,std::string name,float &f){
     char buff[200];
-    if(f >= 10 || f <= -10)
-        snprintf(buff,  sizeof(buff), "\"%s-%d\":%.1f,",name.c_str(),port,f);
-    else
-        snprintf(buff, sizeof(buff), "\"%s-%d\":%.3e,",name.c_str(),port,f);
+    snprintf(buff,  sizeof(buff), "\"%s-%d\":%.1f,",name.c_str(),port,f);
     return (std::string(buff));
 }
 
