@@ -1,17 +1,22 @@
 
 ifdef::backend-xhtml11[]
 ++++
-    <div id="toggle"><img src="images\icons\toggle.png" title="click to toggle table of contents"></div>
 
-    <div id="toc">
         <div id="toctitle">
+            <img class="trex_logo" src="images\trex_logo_toc.png"/>
             Table of Contents
         </div>
-        
-        <div id="nav-tree">
-          
+
+        <div id="toggle">
+          <img src="images\icons\toggle.png" title="click to toggle table of contents"/>
         </div>
-    </div>
+        
+
+        <div id="toc">
+          <div id="nav-tree">
+          
+          </div>
+        </div>
 
 
     <!-- load the theme CSS file -->
@@ -53,14 +58,14 @@ ifdef::backend-xhtml11[]
         
           #toc {
             position: fixed;
-            top: 0;
+            top: 51px;
             left: 0;
             bottom: 0;
             width: 18em;
             padding-bottom: 1.5em;
             margin: 0;
-            overflow-x: auto;
-            overflow-y: hidden;
+            overflow-x: auto !important;
+            overflow-y: auto !important;
             border-right: solid 2px #cfcfcf;
             background-color: #FAFAFA;
             white-space: nowrap;
@@ -75,6 +80,13 @@ ifdef::backend-xhtml11[]
             background-color: #e4e2e2;
             padding: 8px 0px 7px 45px;
             white-space: nowrap;
+            left: 0px;
+            display: block;
+            position: fixed;
+            z-index: 100;
+            width: 245px;
+            top: 0px;
+            overflow: hidden;
           }
           
           #toc .toclevel1 {
@@ -106,29 +118,39 @@ ifdef::backend-xhtml11[]
         text-shadow: 0px 1px 1px rgba(0, 0, 0, 1.0);
       }
 
+            /* For side bar */
+      .ui-resizable-e{
+        height: 100%;
+        width: 4px !important;
+        position: fixed !important;
+        top: 0px !important;
+        cursor: e-resize !important;
+        background: url('images\splitbar.png') repeat scroll right center transparent !important;
+        background-image: url('images\splitbar.png');
+      }
+
+      .jstree-default .jstree-themeicon{
+        display: none !important;
+      }
+
+
       .jstree-anchor {
         font-size: 12px !important;
         color: #91A501 !important;
       }
 
-      /* For side bar */
-      .ui-resizable-e{
-        width: 10px !important;
-      }
 
       .jstree-clicked{
         color: green !important;
       }
       
-      .jstree-default .jstree-themeicon{
-        display: none !important;
-      }
 
       #toggle {
         position: fixed;
         top: 14px;
         left: 10px;
-        z-index: 10;
+        z-index: 210;
+        width: 24px;
       }
 
       #toggle img {
@@ -137,6 +159,11 @@ ifdef::backend-xhtml11[]
 
       #toggle img:hover {
         opacity:0.9;
+      }
+
+      .trex_logo{
+        top: 6px;
+        position: relative;
       }
 
     </style>
@@ -153,9 +180,15 @@ ifdef::backend-xhtml11[]
         initResizable();
         // Toggle TOC whe clicking on the menu icon
         toggleTOC();
+        // Handle Mobile - close TOC
+        checkMobile();
 
         function initializeNavTree() {
-          $('#nav-tree').jstree({
+
+          // TOC tree options
+          var toc_tree = $('#nav-tree');        
+
+          var toc_tree_options = {
             'core' : {
               "animation" :false,
               "themes" : { "stripes" : false },
@@ -166,7 +199,9 @@ ifdef::backend-xhtml11[]
             }
             ,
             "plugins" : [ "wholerow" ]
-          });
+          };
+
+          $('#nav-tree').jstree(toc_tree_options)
 
           $('#nav-tree').on("changed.jstree", function (e, data) {
             window.location.href = data.instance.get_selected(true)[0].original.link;
@@ -174,46 +209,92 @@ ifdef::backend-xhtml11[]
         }
         
         function initResizable() {
-            var toc = $("#toc");
-            var bodyLeftMargin = $("body");
-            $("#toc").resizable({
-                resize: function(e, ui) {
-                    var tocWidth = $("#toc").outerWidth();
-                    bodyLeftMargin.css({"marginLeft":parseInt(tocWidth)+20+"px"}); 
-                },
-                handles: 'e'
-            });
-        }
+          var toc = $("#toc");
+          var body = $("body");
 
+          // On resize
+          $("#toc").resizable({
+              resize: function(e, ui) {
+                  var tocWidth = $(toc).outerWidth();
+                  body.css({"marginLeft":parseInt(tocWidth)+20+"px"}); 
+                  $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"}); 
+                  $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"}); 
+              },
+              handles: 'e'
+          });
+       
+          // Do it for the first time
+          var tocWidth = $(toc).outerWidth();
+          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"}); 
+          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"}); 
+
+        }
 
         function toggleTOC(){
           var isOpen = true;
           $( "#toggle" ).click(function() {
             if ( isOpen ) {
               // Close it
-              $("#toc").hide("slide", 500);
-              // Show the show/hide button
-              $("#toggle").css("right", "-40px");
-              // $("body").css("margin-left", "20px");
-              $("body").animate({
-                "margin-left": "50px"
-              }, 500);
+               closTOC();
             } else {
               // Open it
-              $("#toc").show("slide", 500);
-              // Show the show/hide button
-              $("#toggle").css("right", "15px");
-              // $("body").css("margin-left", $(toc).outerWidth()+20+"px");
-              $("body").animate({
-                "margin-left": $(toc).outerWidth()+20+"px"
-              }, 500);
+              openTOC();
             }
+            // Toggle status
             isOpen = !isOpen;
           });
         }
 
-      }
-      )
+
+        // Close TOC by default if it is mobile
+        function checkMobile(){
+          if(isMobileDevice()){
+            closTOC();
+          }
+        }
+
+        // Check it it it is running on mobile device
+        function isMobileDevice() {
+            if(
+                navigator.userAgent.match(/Android/i) ||
+                navigator.userAgent.match(/BlackBerry/i) ||
+                navigator.userAgent.match(/iPhone|iPad|iPod/i) ||
+                navigator.userAgent.match(/Opera Mini/i) ||
+                navigator.userAgent.match(/IEMobile/i) || 
+                navigator.userAgent.match(/iPhone|iPad|iPod/i)
+              )
+            {
+              return true;
+            }
+            else
+            {
+              return false;
+            }
+        }
+
+        // Close TOC
+        function closTOC(){
+            $("#toc").hide("slide", 500);
+            $("#toctitle").hide("slide", 500);
+            $(".ui-resizable-e").hide("slide", 500);
+            // Show the show/hide button
+            $("#toggle").css("right", "-40px");
+            // Fil width
+            $("body").animate({"margin-left": "50px"}, 500);
+        }
+
+        // Open TOC
+        function openTOC(){
+            $("#toc").show("slide", 500);
+            $("#toctitle").show("slide", 500);
+            $(".ui-resizable-e").show("slide", 500);
+            // Show the show/hide button
+            $("#toggle").css("right", "15px");
+            // Minimize page width
+            $("body").animate({"margin-left": $(toc).outerWidth()+20+"px"}, 500);
+        }
+
+      });
 
 </script>
 ++++

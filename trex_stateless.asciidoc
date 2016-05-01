@@ -3222,9 +3222,10 @@ $command   [-a] [-port 1 2 3]  [-port 0xff]  [-port clients/servers]
   port mask : 
     [-a]           : all ports 
     [-port 1 2 3]  : port 1,2 3
-    [-port 0xff]   : port by mask 0x1 for port 0 0x3 for port 0 and 1 
+    [-port 0xff]   : port by mask 0x1 for port 0 0x3 for port 0 and 1   <1> 
     [-port clients/servers] : -port clients will choose all the client side ports
 ----
+<7> 
 
 ==== Duration 
 

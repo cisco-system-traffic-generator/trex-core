@@ -254,8 +254,7 @@ def configure(conf):
 def convert_to_pdf(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
-    return (0)
+    return  os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
 
 
 
@@ -280,20 +279,22 @@ def convert_to_html_toc_book(task):
     json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
     tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
     json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
-    
-    cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book   -a max-width=55em  -o {2} {3}'.format(
+
+    cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book -a max-width=55em  -o {2} {3}'.format(
             task.env['ASCIIDOC'],
             task.inputs[1].abspath(),
             tmp,
             task.inputs[0].abspath());
 
-    os.system( cmd )
+    res= os.system( cmd )
+    if res !=0 :
+        return (1)
 
     create_toc_json(tmp,json_out_file)
 
     toc_fixup_file(tmp,task.outputs[0].abspath(),json_out_file_short);
 
-    os.system('rm {0}'.format(tmp));
+    return os.system('rm {0}'.format(tmp));
 
 
 
@@ -301,8 +302,7 @@ def convert_to_html_toc_book(task):
 def convert_to_pdf_book(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
-    return (0)
+    return os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
 
 
 def ensure_dir(f):
@@ -494,7 +494,6 @@ def build(bld):
         source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html',scan=ascii_doc_scan);
 
 
-
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='vm_doc.asciidoc waf.css', target='vm_doc.html', scan=ascii_doc_scan)
 
@@ -594,6 +593,9 @@ def publish_test(bld):
 
 
 
+def publish_both(bld):
+    publish(bld)
+    publish_ext(bld)
 
          
                
