@@ -2448,7 +2448,6 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
 
 
     fprintf (fd," Cpu Utilization : %2.1f  %%  %2.1f Gb/core \n",m_cpu_util,(2*(m_tx_bps/1e9)*100.0/(m_cpu_util*m_threads)));
-    fprintf (fd,"tx_bps: %2.1f, m_cpu_util: %2.5f, m_threads: %2.1f", (double) m_tx_bps, (double) m_cpu_util, (double) m_threads);
     fprintf (fd," Platform_factor : %2.1f  \n",m_platform_factor);
     fprintf (fd," Total-Tx        : %s  ",double_to_human_str(m_tx_bps,"bps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
