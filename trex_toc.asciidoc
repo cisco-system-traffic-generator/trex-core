@@ -214,13 +214,16 @@ ifdef::backend-xhtml11[]
           // On resize
           $("#toc").resizable({
               resize: function(e, ui) {
-                  var tocWidth = $(toc).outerWidth();
-                  body.css({"marginLeft":parseInt(tocWidth)+20+"px"}); 
-                  $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"}); 
-                  $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"}); 
+                  resized();
               },
               handles: 'e'
           });
+          
+        // On zoom changed
+          $(window).resize(function() {
+            resized();
+          });
+
        
           // Do it for the first time
           var tocWidth = $(toc).outerWidth();
@@ -228,6 +231,16 @@ ifdef::backend-xhtml11[]
           $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"}); 
 
         }
+
+        function resized(){
+          var body = $("body");
+          var tocWidth = $(toc).outerWidth();
+          
+          body.css({"marginLeft":parseInt(tocWidth)+20+"px"}); 
+          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"}); 
+          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"}); 
+        }
+
 
         function toggleTOC(){
           var isOpen = true;
