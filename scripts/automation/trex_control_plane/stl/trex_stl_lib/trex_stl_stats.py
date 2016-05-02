@@ -698,12 +698,13 @@ class CPortStats(CTRexStats):
             else:
                 self.__merge_dicts(self.reference_stats, x.reference_stats)
 
-        # history
-        if not self.history:
-            self.history = copy.deepcopy(x.history)
-        else:
-            for h1, h2 in zip(self.history, x.history):
-                self.__merge_dicts(h1, h2)
+        # history - should be traverse with a lock
+        with self.lock, x.lock:
+            if not self.history:
+                self.history = copy.deepcopy(x.history)
+            else:
+                for h1, h2 in zip(self.history, x.history):
+                    self.__merge_dicts(h1, h2)
 
         return self
 

@@ -80,18 +80,38 @@ class Port(object):
         return "{0} Gbps".format(self.info['speed'])
 
     # take the port
-    def acquire(self, force = False):
+    def acquire(self, force = False, sync_streams = True):
         params = {"port_id":     self.port_id,
                   "user":        self.user,
                   "session_id":  self.session_id,
                   "force":       force}
 
         rc = self.transmit("acquire", params)
-        if rc.good():
-            self.handler = rc.data()
-            return self.ok()
-        else:
+        if not rc:
             return self.err(rc.err())
+
+        self.handler = rc.data()
+
+        if sync_streams:
+            return self.sync_streams()
+        else:
+            return self.ok()
+
+      
+    # sync all the streams with the server
+    def sync_streams (self):
+        params = {"port_id": self.port_id}
+
+        rc = self.transmit("get_all_streams", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        for k, v in rc.data()['streams'].items():
+            self.streams[k] = {'next_id': v['next_stream_id'],
+                               'pkt'    : base64.b64decode(v['packet']['binary']),
+                               'mode'   : v['mode']['type'],
+                               'rate'   : STLStream.get_rate_from_field(v['mode']['rate'])}
+        return self.ok()
 
     # release the port
     def release(self):
@@ -157,19 +177,7 @@ class Port(object):
         # attributes
         self.attr = rc.data()['attr']
 
-        # sync the streams
-        params = {"port_id": self.port_id}
-
-        rc = self.transmit("get_all_streams", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        for k, v in rc.data()['streams'].items():
-            self.streams[k] = {'next_id': v['next_stream_id'],
-                               'pkt'    : base64.b64decode(v['packet']['binary']),
-                               'mode'   : v['mode']['type'],
-                               'rate'   : STLStream.get_rate_from_field(v['mode']['rate'])}
-
+     
         return self.ok()
 
 

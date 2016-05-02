@@ -582,13 +582,13 @@ class STLClient(object):
         return rc
 
     # acquire ports, if port_list is none - get all
-    def __acquire (self, port_id_list = None, force = False):
+    def __acquire (self, port_id_list = None, force = False, sync_streams = True):
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].acquire(force))
+            rc.add(self.ports[port_id].acquire(force, sync_streams))
 
         return rc
 
@@ -1372,15 +1372,19 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def acquire (self, ports = None, force = False):
+    def acquire (self, ports = None, force = False, sync_streams = True):
         """
             Acquires ports for executing commands
 
             :parameters:
                 ports : list
                     Ports on which to execute the command
+
                 force : bool
                     Force acquire the ports.
+
+                sync_streams: bool
+                    sync with the server about the configured streams
 
             :raises:
                 + :exc:`STLError`
@@ -1396,7 +1400,7 @@ class STLClient(object):
         else:
             self.logger.pre_cmd("Acquiring ports {0}:".format(ports))
 
-        rc = self.__acquire(ports, force)
+        rc = self.__acquire(ports, force, sync_streams)
 
         self.logger.post_cmd(rc)
 
@@ -1496,7 +1500,8 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
 
-        self.acquire(ports, force = True)
+        # force take the port and ignore any streams on it
+        self.acquire(ports, force = True, sync_streams = False)
         self.stop(ports, rx_delay_ms = 0)
         self.remove_all_streams(ports)
         self.clear_stats(ports)
