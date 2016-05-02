@@ -112,7 +112,7 @@ ifdef::backend-xhtml11[]
       }
       
       .jstree-wholerow.jstree-wholerow-clicked {
-        background-image: url('images\icons\selected_tab_bg.png');
+        background-image: url('images/icons/selected_tab_bg.png');
         background-repeat: repeat-x;
         color: #fff !important;
         text-shadow: 0px 1px 1px rgba(0, 0, 0, 1.0);
@@ -125,8 +125,7 @@ ifdef::backend-xhtml11[]
         position: fixed !important;
         top: 0px !important;
         cursor: e-resize !important;
-        background: url('images\splitbar.png') repeat scroll right center transparent !important;
-        background-image: url('images\splitbar.png');
+        background: url('images/splitbar.png') repeat scroll right center transparent !important;
       }
 
       .jstree-default .jstree-themeicon{
