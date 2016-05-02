@@ -497,6 +497,11 @@ class STLClient(object):
         self.session_id = random.getrandbits(32)
         self.connected = False
 
+        # API classes
+        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':2 }
+                        ]
+        self.api_h = {'core': None}
+
         # logger
         self.logger = DefaultLogger() if not logger else logger
 
@@ -540,10 +545,7 @@ class STLClient(object):
                                                                  self.flow_stats)
 
 
-        # API classes
-        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':2 }
-                        ]
-        self.api_h = {'core': None}
+       
 
     ############# private functions - used by the class itself ###########
 
