@@ -880,18 +880,28 @@ struct CTupleGenYamlInfo {
 public:
     bool is_valid(uint32_t num_threads,bool is_plugins);
     uint8_t get_server_pool_id(std::string name){
+         if (name=="default") {
+             return 0;
+         }
         for (uint8_t i=0;i<m_server_pool.size();i++) {
             if (m_server_pool[i].m_name==name) 
                 return i;
         }
+        printf("ERROR invalid server pool name %s, please review your YAML file\n",(char *)name.c_str());
+        exit(-1);
         return 0;
     }
 
     uint8_t get_client_pool_id(std::string name){
+         if (name=="default") {
+             return 0;
+         }
         for (uint8_t i=0;i<m_client_pool.size();i++) {
             if (m_client_pool[i].m_name==name) 
                 return i;
         }
+        printf("ERROR invalid client pool name %s, please review your YAML file\n",(char *)name.c_str());
+        exit(-1);
         return 0;
     }
 };
