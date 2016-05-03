@@ -181,6 +181,24 @@ TrexStatelessDpUpdate::clone() {
     return new_msg;
 }
 
+
+/*************************
+  push PCAP message
+ ************************/
+bool
+TrexStatelessDpPushPCAP::handle(TrexStatelessDpCore *dp_core) {
+    dp_core->push_pcap(m_port_id, m_event_id, m_pcap_filename);
+    return true;
+}
+
+TrexStatelessCpToDpMsgBase *
+TrexStatelessDpPushPCAP::clone() {
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpPushPCAP(m_port_id, m_event_id, m_pcap_filename);
+
+    return new_msg;
+}
+
+
 /*************************
   barrier message
  ************************/
@@ -203,7 +221,7 @@ TrexStatelessDpBarrier::clone() {
 bool
 TrexDpPortEventMsg::handle() {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(m_port_id);
-    port->get_dp_events().on_core_reporting_in(m_event_id, m_thread_id);
+    port->get_dp_events().on_core_reporting_in(m_event_id, m_thread_id, get_status());
 
     return (true);
 }

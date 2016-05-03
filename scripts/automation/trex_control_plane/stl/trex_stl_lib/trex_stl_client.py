@@ -313,6 +313,10 @@ class EventsHandler(object):
             if session_id != self.client.session_id:
                 self.__async_event_port_released(port_id)
 
+        elif (type == 7):
+            port_id = int(data['port_id'])
+            ev = "port {0} job failed".format(port_id)
+            show_event = True
 
         # server stopped
         elif (type == 100):
@@ -707,6 +711,17 @@ class STLClient(object):
 
         for port_id in port_id_list:
             rc.add(self.ports[port_id].update(mult, force))
+
+        return rc
+
+
+    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].push_remote(pcap_filename, ipg_usec, speedup, count))
 
         return rc
 
@@ -1852,6 +1867,49 @@ class STLClient(object):
 
 
     @__api_check(True)
+    def push_remote (self, pcap_filename, ports = None, ipg_usec = None, speedup = 1.0, count = 1):
+        """
+            Push a remote reachable PCAP file
+            the path must be fullpath accessible to the server
+
+            :parameters:
+                pcap_filename : str
+                    PCAP file name in full path and accessible to the server
+
+                ports : list
+                    Ports on which to execute the command
+
+                ipg_usec : float
+                    Inter-packet gap in microseconds
+
+                speedup : float
+                    A factor to adjust IPG. effectively IPG = IPG / speedup
+
+                count: int
+                    How many times to transmit the cap
+
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        validate_type('pcap_filename', pcap_filename, str)
+        validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
+        validate_type('speedup',  speedup, float)
+        validate_type('count',  count, int)
+
+        self.logger.pre_cmd("Pushing remote pcap on port(s) {0}:".format(ports))
+        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
+    @__api_check(True)
     def validate (self, ports = None, mult = "1", duration = "-1", total = False):
         """
             Validate port(s) configuration
@@ -2519,6 +2577,7 @@ class STLClient(object):
                                          "push",
                                          self.push_line.__doc__,
                                          parsing_opts.FILE_PATH,
+                                         parsing_opts.REMOTE_FILE,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.COUNT,
                                          parsing_opts.DURATION,
@@ -2541,15 +2600,23 @@ class STLClient(object):
                 self.stop(active_ports)
 
         # pcap injection removes all previous streams from the ports
-        self.remove_all_streams(ports = opts.ports)
-            
-        profile = STLProfile.load_pcap(opts.file[0],
-                                       opts.ipg_usec,
-                                       opts.speedup,
-                                       opts.count)
+        if opts.remote:
+            self.push_remote(opts.file[0],
+                             ports     = opts.ports,
+                             ipg_usec  = opts.ipg_usec,
+                             speedup   = opts.speedup,
+                             count     = opts.count)
 
-        id_list = self.add_streams(profile.get_streams(), opts.ports)
-        self.start(ports = opts.ports, duration = opts.duration, force = opts.force)
+        else:
+            self.remove_all_streams(ports = opts.ports)
+            
+            profile = STLProfile.load_pcap(opts.file[0],
+                                           opts.ipg_usec,
+                                           opts.speedup,
+                                           opts.count)
+
+            id_list = self.add_streams(profile.get_streams(), opts.ports)
+            self.start(ports = opts.ports, duration = opts.duration, force = opts.force)
 
         return True
 

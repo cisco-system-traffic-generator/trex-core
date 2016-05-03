@@ -3645,78 +3645,90 @@ int CNodeGenerator::flush_file(dsec_t max_time,
         uint8_t type=node->m_type;
 
         if ( type == CGenNode::STATELESS_PKT ) {
-             m_p_queue.pop();
-             CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
+            m_p_queue.pop();
+            CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
 
-             /* if the stream has been deactivated - end */
-             if ( unlikely( node_sl->is_mask_for_free() ) ) {
-                 thread->free_node(node);
-             } else {
+            /* if the stream has been deactivated - end */
+            if ( unlikely( node_sl->is_mask_for_free() ) ) {
+                thread->free_node(node);
+            } else {
 
-                 /* count before handle - node might be destroyed */
-                 #ifdef TREX_SIM
-                 update_stl_stats(node_sl);
-                 #endif
+                /* count before handle - node might be destroyed */
+                #ifdef TREX_SIM
+                update_stl_stats(node_sl);
+                #endif
 
-                 node_sl->handle(thread);
+                node_sl->handle(thread);
 
-                 #ifdef TREX_SIM
-                 if (has_limit_reached()) {
-                     thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
-                 }
-                 #endif
+                #ifdef TREX_SIM
+                if (has_limit_reached()) {
+                    thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
+                }
+                #endif
 
-             }
+            }
          
             
-        }else{
-            if ( likely( type == CGenNode::FLOW_PKT ) ) {
-                /* PKT */
-                if ( !(node->is_repeat_flow()) || (always==false)) {
-                    flush_one_node_to_file(node);
-                    #ifdef _DEBUG
-                    update_stats(node);
-                    #endif
+        } else if ( likely( type == CGenNode::FLOW_PKT ) ) {
+            /* PKT */
+            if ( !(node->is_repeat_flow()) || (always==false)) {
+                flush_one_node_to_file(node);
+                #ifdef _DEBUG
+                update_stats(node);
+                #endif
+            }
+            m_p_queue.pop();
+            if ( node->is_last_in_flow() ) {
+                if ((node->is_repeat_flow()) && (always==false)) {
+                    /* Flow is repeated, reschedule it */
+                    thread->reschedule_flow( node);
+                } else {
+                    /* Flow will not be repeated, so free node */
+                    thread->free_last_flow_node( node);
                 }
-                m_p_queue.pop();
-                if ( node->is_last_in_flow() ) {
-                    if ((node->is_repeat_flow()) && (always==false)) {
-                        /* Flow is repeated, reschedule it */
-                        thread->reschedule_flow( node);
-                    }else{
-                        /* Flow will not be repeated, so free node */
-                        thread->free_last_flow_node( node);
-                    }
-                }else{
-                    node->update_next_pkt_in_flow();
+            } else {
+                node->update_next_pkt_in_flow();
+                m_p_queue.push(node);
+            }
+        } else if ((type == CGenNode::FLOW_FIF)) {
+            /* callback to our method */
+            m_p_queue.pop();
+            if ( always == false) {
+                thread->m_cur_time_sec = node->m_time ;
+
+                if ( thread->generate_flows_roundrobin(&done) <0){
+                    break;
+                }
+                if (!done) {
+                    node->m_time +=d_time;
                     m_p_queue.push(node);
+                } else {
+                    thread->free_node(node);
                 }
-            }else{
-                if ((type == CGenNode::FLOW_FIF)) {
-                   /* callback to our method */
-                    m_p_queue.pop();
-                    if ( always == false) {
-                        thread->m_cur_time_sec = node->m_time ;
+            } else {
+                thread->free_node(node);
+            }
 
-                        if ( thread->generate_flows_roundrobin(&done) <0){
-                            break;
-                        }
-                        if (!done) {
-                            node->m_time +=d_time;
-                            m_p_queue.push(node);
-                        }else{
-                            thread->free_node(node);
-                        }
-                    }else{
-                        thread->free_node(node);
-                    }
+        } else if (type == CGenNode::PCAP_PKT) {
+            m_p_queue.pop();
 
-                }else{
-                    bool exit_sccheduler = handle_slow_messages(type,node,thread,always);
-                    if (exit_sccheduler) {
-                        break;
-                    }
-                }
+            CGenNodePCAP *node_pcap = (CGenNodePCAP *)node;
+            node_pcap->handle(thread);
+            
+            if (node_pcap->has_next()) {
+                node_pcap->next();
+                node_pcap->m_time += node_pcap->get_ipg();
+                m_p_queue.push(node);              
+            } else {
+                thread->free_node(node);
+                thread->m_stateless_dp_info.stop_traffic(node_pcap->get_port_id(), false, 0);
+
+            }
+                        
+        } else {
+            bool exit_sccheduler = handle_slow_messages(type,node,thread,always);
+            if (exit_sccheduler) {
+                break;
             }
         }
     }
@@ -6212,10 +6224,18 @@ void CGenNodeBase::free_base(){
          CGenNodeStateless* p=(CGenNodeStateless*)this;
          p->free_stl_node();
         return;
+    }
+
+    if (m_type == PCAP_PKT) {
+        CGenNodePCAP *p = (CGenNodePCAP *)this;
+        p->destroy();
+        return;
     } 
+
     if ( m_type == COMMAND ) {
          CGenNodeCommand* p=(CGenNodeCommand*)this;
          p->free_command();
     }
 
 }
+

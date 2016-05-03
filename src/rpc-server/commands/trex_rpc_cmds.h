@@ -130,5 +130,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdUpdateTraffic, "update_traffic", 3, true, APIClass
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdValidate, "validate", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
+TREX_RPC_CMD_DEFINE(TrexRpcCmdPushRemote, "push_remote", 5, true, APIClass::API_CLASS_TYPE_CORE);
+
 #endif /* __TREX_RPC_CMD_H__ */
 

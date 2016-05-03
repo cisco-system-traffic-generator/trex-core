@@ -262,6 +262,36 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
     return (true);
 }
 
+bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id, const std::string &pcap_filename){
+
+    /* push pcap can only happen on an idle port from the core prespective */
+    assert(m_state == TrexStatelessDpPerPort::ppSTATE_IDLE);
+
+    CGenNodePCAP *pcap_node = m_core->allocate_pcap_node();
+    if (!pcap_node) {
+        return (false);
+    }
+
+    pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(port_id);
+
+    uint8_t mac_addr[12];
+    m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, mac_addr);
+
+    bool rc = pcap_node->create(port_id, pcap_filename, dir, mac_addr);
+    if (!rc) {
+        m_core->free_node((CGenNode *)pcap_node);
+        return (false);
+    }
+
+    /* schedule the node for now */
+    pcap_node->m_time = m_core->m_cur_time_sec;
+    m_core->m_node_gen.add_node((CGenNode *)pcap_node);
+
+    m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+
+    return (true);
+}
+
 
 bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
                                           bool     stop_on_id, 
@@ -305,7 +335,6 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
 void TrexStatelessDpPerPort::create(CFlowGenListPerThread   *  core){
     m_core=core;
     m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
-    m_port_id=0;
     m_active_streams=0;
     m_active_nodes.clear();
 }
@@ -579,6 +608,7 @@ void
 TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
                                 TrexStream * stream,
                                 TrexStreamsCompiledObj *comp) {
+
     CGenNodeStateless *node = m_core->create_node_sl();
 
     /* add periodic */
@@ -834,6 +864,37 @@ TrexStatelessDpCore::pause_traffic(uint8_t port_id){
     lp_port->pause_traffic(port_id);
 }
 
+
+void 
+TrexStatelessDpCore::push_pcap(uint8_t port_id, int event_id, const std::string &pcap_filename) {
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+
+    lp_port->set_event_id(event_id);
+
+    /* delegate the command to the port */
+    bool rc = lp_port->push_pcap(port_id, pcap_filename);
+    if (!rc) {
+        /* report back that we stopped */
+        CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
+        TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
+                                                                       port_id,
+                                                                       event_id,
+                                                                       false);
+        ring->Enqueue((CGenNode *)event_msg);
+        return;
+    }
+
+    m_state = TrexStatelessDpCore::STATE_TRANSMITTING;
+
+    #if 0
+    if ( duration > 0.0 ){
+        add_port_duration(duration, port_id, event_id);
+    }
+    #endif
+}
+
+
 void 
 TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
 
@@ -895,3 +956,60 @@ TrexStatelessDpCore::barrier(uint8_t port_id, int event_id) {
                                                                    event_id);
     ring->Enqueue((CGenNode *)event_msg);
 }
+
+
+/**
+ * PCAP node
+ */
+bool CGenNodePCAP::create(uint8_t port_id, const std::string &pcap_filename, pkt_dir_t dir, const uint8_t *mac_addr) {
+    std::stringstream ss;
+
+    m_type       = CGenNode::PCAP_PKT;
+    m_flags      = 0;
+    m_src_port   = 0;
+    m_port_id    = port_id;
+
+    /* copy MAC addr info */
+    memcpy(m_mac_addr, mac_addr, 12);
+
+    /* set the dir */
+    set_mbuf_dir(dir);
+
+    /* create the PCAP reader */
+    m_reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
+    if (!m_reader) {
+        return false;
+    }
+
+    m_raw_packet = new CCapPktRaw();
+    if ( m_reader->ReadPacket(m_raw_packet) == false ){
+        /* handle error */
+        delete m_reader;
+        return (false);
+    }
+
+    /* this is the reference time */
+    //m_base_time = m_raw_packet->get_time();
+    m_last_pkt_time = m_raw_packet->get_time();
+
+    /* ready */
+    m_state = PCAP_ACTIVE;
+
+    return true;
+}
+
+void CGenNodePCAP::destroy() {
+
+    if (m_raw_packet) {
+        delete m_raw_packet;
+        m_raw_packet = NULL;
+    }
+
+    if (m_reader) {
+        delete m_reader;
+        m_reader = NULL;
+    }
+
+    m_state = PCAP_INVALID;
+}
+

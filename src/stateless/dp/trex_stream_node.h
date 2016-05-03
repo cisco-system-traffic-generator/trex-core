@@ -26,6 +26,8 @@ limitations under the License.
 #include <stdio.h>
 
 class TrexStatelessDpCore;
+class TrexStatelessDpPerPort;
+
 #include <trex_stream.h>
 
 class TrexStatelessCpToDpMsgBase;
@@ -387,6 +389,133 @@ private:
 static_assert(sizeof(CGenNodeStateless) == sizeof(CGenNode), "sizeof(CGenNodeStateless) != sizeof(CGenNode)" );
 
 
+/* this is a event for PCAP transmitting */
+struct CGenNodePCAP : public CGenNodeBase  {
+friend class TrexStatelessDpPerPort;
 
+public:
+
+    /**
+     * creates a node from a PCAP file 
+     */
+    bool create(uint8_t port_id, const std::string &pcap_filename, pkt_dir_t dir, const uint8_t *mac_addr);
+    void destroy();
+ 
+    /**
+     * advance - will read the next packet
+     * 
+     * @author imarom (03-May-16)
+     */
+    void next() {
+        assert(m_state == PCAP_ACTIVE);
+
+        /* save the previous packet time */
+        m_last_pkt_time = m_raw_packet->get_time();
+
+        /* advance */
+        if ( m_reader->ReadPacket(m_raw_packet) == false ){
+            m_state = PCAP_EOF;
+            return;
+        }
+
+    }
+
+    /**
+     * return true if the PCAP has next packet
+     * 
+     */
+    bool has_next() {
+        assert(m_state != PCAP_INVALID);
+        return (m_state == PCAP_ACTIVE);
+    }
+
+    /**
+     * return the time for the next scheduling for a packet
+     * 
+     */
+    inline double get_ipg() {
+        assert(m_state != PCAP_INVALID);
+        return m_raw_packet->get_time() - m_last_pkt_time;
+        //return 0.00001;
+    }
+
+    /**
+     * get the current packet as MBUF
+     * 
+     */
+    inline rte_mbuf_t *get_pkt() {
+        assert(m_state != PCAP_INVALID);
+
+        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc( get_socket_id(), m_raw_packet->getTotalLen());
+        assert(m);
+
+        char *p = rte_pktmbuf_append(m, m_raw_packet->getTotalLen());
+        assert(p);
+
+        /* copy the packet */
+        memcpy(p, m_raw_packet->raw, m_raw_packet->getTotalLen());
+
+        /* fix the MAC */
+        memcpy(p, m_mac_addr, 12);
+
+        return (m);
+    }
+
+
+    inline void handle(CFlowGenListPerThread *thread) {
+        assert(m_state != PCAP_INVALID);
+        thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
+    }
+
+    void set_mbuf_dir(pkt_dir_t dir) {
+        if (dir) {
+            m_flags |=NODE_FLAGS_DIR;
+        }else{
+            m_flags &=~NODE_FLAGS_DIR;
+        }
+    }
+
+    inline pkt_dir_t get_mbuf_dir(){
+        return ((pkt_dir_t)( m_flags &1));
+    }
+
+    uint8_t get_port_id() {
+        return m_port_id;
+    }
+
+private:
+
+    enum {
+        PCAP_INVALID = 0,
+        PCAP_ACTIVE,
+        PCAP_EOF
+    };
+
+    /* cache line 0 */
+    /* important stuff here */
+    uint8_t             m_mac_addr[12];
+    uint8_t             m_state;
+
+    //double              m_base_time;
+    //double              m_current_pkt_time;
+    double              m_last_pkt_time;
+
+    void *              m_cache_mbuf;
+
+    double              m_next_time_offset; /* in sec */
+
+    CCapReaderBase      *m_reader;
+    CCapPktRaw          *m_raw_packet;
+    
+    uint8_t             m_port_id;
+
+    /* pad to match the size of CGenNode */
+    uint8_t             m_pad_end[25];
+
+} __rte_cache_aligned;
+
+
+static_assert(sizeof(CGenNodePCAP) == sizeof(CGenNode), "sizeof(CGenNodePCAP) != sizeof(CGenNode)" );
 
 #endif /* __TREX_STREAM_NODE_H__ */
+

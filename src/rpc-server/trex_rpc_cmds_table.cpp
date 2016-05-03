@@ -65,6 +65,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdRemoveRXFilters());
 
     register_command(new TrexRpcCmdValidate());
+    register_command(new TrexRpcCmdPushRemote());
 }
 
 

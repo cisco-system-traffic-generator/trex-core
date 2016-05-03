@@ -1773,6 +1773,8 @@ protected:
 class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node(CGenNode * node);
+protected:
+    int send_pcap_node(CGenNodePCAP *pcap_node);
 };
 
 bool CCoreEthIF::Create(uint8_t             core_id,
@@ -1998,7 +2000,13 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 
 
 
-int CCoreEthIFStateless::send_node(CGenNode * no){
+int CCoreEthIFStateless::send_node(CGenNode * no) {
+
+    /* slow path - PCAP nodes */
+    if (no->m_type == CGenNode::PCAP_PKT) {
+        return send_pcap_node((CGenNodePCAP *)no);
+    }
+
     CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
     /* check that we have mbuf  */
     rte_mbuf_t *    m=node_sl->get_cache_mbuf();
@@ -2027,6 +2035,20 @@ int CCoreEthIFStateless::send_node(CGenNode * no){
     return (0);
 };
 
+int CCoreEthIFStateless::send_pcap_node(CGenNodePCAP *pcap_node) {
+    rte_mbuf_t *m = pcap_node->get_pkt();
+    if (!m) {
+        return (-1);
+    }
+
+    pkt_dir_t dir = (pkt_dir_t)pcap_node->get_mbuf_dir();
+    CCorePerPort *lp_port=&m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+
+    send_pkt(lp_port, m, lp_stats);
+
+    return (0);
+}
 
 
 int CCoreEthIF::send_node(CGenNode * node){

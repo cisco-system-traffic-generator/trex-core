@@ -61,6 +61,8 @@ limitations under the License.
 
 #include <trex_stateless_dp_core.h>
 
+class CGenNodePCAP;
+
 #undef NAT_TRACE_
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
@@ -1419,7 +1421,9 @@ public:
         EXIT_SCHED              =6,
         COMMAND                 =7,
 
-        EXIT_PORT_SCHED         =8
+        EXIT_PORT_SCHED         =8,
+
+        PCAP_PKT                =9,
 
 
     };
@@ -3558,10 +3562,14 @@ public :
 
 
     inline CGenNode * create_node(void);
+
     inline CGenNodeStateless * create_node_sl(void){
         return ((CGenNodeStateless*)create_node() );
     }
 
+    inline CGenNodePCAP * allocate_pcap_node(void) {
+        return ((CGenNodePCAP*)create_node());
+    }
 
     inline void free_node(CGenNode *p);
     inline void free_last_flow_node(CGenNode *p);
@@ -3582,7 +3590,6 @@ public:
     /* return true if we need to shedule next_stream,  */
     bool  set_stateless_next_node( CGenNodeStateless * cur_node,
                                    CGenNodeStateless * next_node);
-
 
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);

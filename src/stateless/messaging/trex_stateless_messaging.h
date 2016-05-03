@@ -246,6 +246,29 @@ private:
     double   m_factor;
 };
 
+
+/**
+ * psuh a PCAP message
+ */
+class TrexStatelessDpPushPCAP : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpPushPCAP(uint8_t port_id, int event_id, const std::string &pcap_filename) : m_pcap_filename(pcap_filename)  {
+        m_port_id  = port_id;
+        m_event_id = event_id;
+    }
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
+
+private:
+    std::string  m_pcap_filename;
+    uint8_t      m_port_id;
+    int          m_event_id;
+};
+
+
 /**
  * barrier message for DP core
  *
@@ -266,6 +289,7 @@ private:
     uint8_t m_port_id;
     int     m_event_id;
 };
+
 
 /************************* messages from DP to CP **********************/
 
@@ -303,10 +327,11 @@ public:
 class TrexDpPortEventMsg : public TrexStatelessDpToCpMsgBase {
 public:
 
-    TrexDpPortEventMsg(int thread_id, uint8_t port_id, int event_id) {
-        m_thread_id  = thread_id;
-        m_port_id    = port_id;
-        m_event_id   = event_id;
+    TrexDpPortEventMsg(int thread_id, uint8_t port_id, int event_id, bool status = true) {
+        m_thread_id     = thread_id;
+        m_port_id       = port_id;
+        m_event_id      = event_id;
+        m_status        = status;
     }
 
     virtual bool handle();
@@ -323,10 +348,15 @@ public:
         return m_event_id;
     }
 
+    bool get_status() {
+        return m_status;
+    }
+
 private:
     int                         m_thread_id;
     uint8_t                     m_port_id;
     int                         m_event_id;
+    bool                        m_status;
 
 };
 

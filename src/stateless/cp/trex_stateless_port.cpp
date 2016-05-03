@@ -24,6 +24,7 @@ limitations under the License.
 #include <trex_stateless_messaging.h>
 #include <trex_streams_compiler.h>
 #include <common/basic_utils.h>
+#include <common/captureFile.h>
 
 #include <string>
 
@@ -69,6 +70,20 @@ protected:
 
         assert(get_port()->m_pending_async_stop_event != TrexDpPortEvents::INVALID_ID);
         get_port()->m_pending_async_stop_event = TrexDpPortEvents::INVALID_ID;
+    }
+
+    /**
+     * when a DP core encountered an error
+     * 
+     * @author imarom (20-Apr-16)
+     */
+    virtual void on_error(int thread_id) {
+        Json::Value data;
+
+        data["port_id"]   = get_port()->get_port_id();
+        data["thread_id"] = thread_id;
+
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_ERROR, data);
     }
 };
 
@@ -393,6 +408,46 @@ TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
 
     m_factor *= factor;
 
+}
+
+void
+TrexStatelessPort::push_remote(const std::string &pcap_filename, double ipg_usec, double speedup, uint32_t count) {
+    /* command allowed only on state stream */
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+
+    /* check that file exists */
+    CCapReaderBase *reader;
+    std::stringstream ss;
+    reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
+    if (!reader) {
+        throw TrexException(ss.str());
+    }
+    delete reader;
+
+    /* only one core gets to play */
+    int tx_core = m_cores_id_list[0];
+
+    /* create async event */
+    assert(m_pending_async_stop_event == TrexDpPortEvents::INVALID_ID);
+    m_pending_async_stop_event = m_dp_events.create_event(new AsyncStopEvent());
+
+    /* mark all other cores as done */
+    for (int index = 1; index < m_cores_id_list.size(); index++) {
+        /* mimic an end event */
+        m_dp_events.on_core_reporting_in(m_pending_async_stop_event, m_cores_id_list[index]);
+    }
+
+    /* send a message to core */
+    change_state(PORT_STATE_TX);
+    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(m_port_id,
+                                                                       m_pending_async_stop_event,
+                                                                       pcap_filename);
+    send_message_to_dp(tx_core, push_msg);
+
+    /* update subscribers */    
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
 }
 
 std::string 

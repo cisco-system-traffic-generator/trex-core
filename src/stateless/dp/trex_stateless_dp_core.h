@@ -70,6 +70,8 @@ public:
 
     bool update_traffic(uint8_t port_id, double factor);
 
+    bool push_pcap(uint8_t port_id, const std::string &pcap_filename);
+
     bool stop_traffic(uint8_t port_id,
                       bool stop_on_id, 
                       int event_id);
@@ -91,7 +93,6 @@ public:
 public:
 
     state_e                   m_state;
-    uint8_t                   m_port_id;
 
     uint32_t                  m_active_streams; /* how many active streams on this port  */
                                                 
@@ -149,7 +150,7 @@ public:
      */
     void start_traffic(TrexStreamsCompiledObj *obj, 
                        double duration,
-                       int m_event_id);
+                       int event_id);
 
 
     /* pause the streams, work only if all are continues  */
@@ -158,6 +159,13 @@ public:
 
 
     void resume_traffic(uint8_t port_id);
+
+
+    /**
+     * push a PCAP file on port
+     * 
+     */
+    void push_pcap(uint8_t port_id, int event_id, const std::string &pcap_filename);
 
 
     /**

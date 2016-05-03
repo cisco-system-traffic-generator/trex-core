@@ -7,6 +7,7 @@ from .trex_stl_packet_builder_scapy import STLPktBuilder, Ether, IP, UDP, TCP, R
 from collections import OrderedDict, namedtuple
 
 from scapy.utils import ltoa
+from scapy.error import Scapy_Exception
 import random
 import yaml
 import base64
@@ -967,7 +968,11 @@ class STLProfile(object):
         streams = []
         last_ts_usec = 0
 
-        pkts = RawPcapReader(pcap_file).read_all()
+        try:
+            pkts = RawPcapReader(pcap_file).read_all()
+        except Scapy_Exception as e:
+            raise STLError("failed to open PCAP file '{0}'".format(pcap_file))
+
         
         for i, (cap, meta) in enumerate(pkts, start = 1):
             # IPG - if not provided, take from cap

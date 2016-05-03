@@ -78,6 +78,9 @@ protected:
     virtual void on_event() {
         /* do nothing */
     }
+    virtual void on_error(int thread_id) {
+        /* do nothing */
+    }
 };
 
 void
@@ -105,14 +108,14 @@ TrexDpPortEvents::barrier() {
  * 
  */
 void 
-TrexDpPortEvents::on_core_reporting_in(int event_id, int thread_id) {
+TrexDpPortEvents::on_core_reporting_in(int event_id, int thread_id, bool status) {
     TrexDpPortEvent *event = lookup(event_id);
     /* event might have been deleted */
     if (!event) {
         return;
     }
 
-    bool done = event->on_core_reporting_in(thread_id);
+    bool done = event->on_core_reporting_in(thread_id, status);
 
     if (done) {
         destroy_event(event_id);
@@ -150,7 +153,7 @@ TrexDpPortEvent::init(TrexStatelessPort *port, int event_id, int timeout_ms) {
 }
 
 bool
-TrexDpPortEvent::on_core_reporting_in(int thread_id) {
+TrexDpPortEvent::on_core_reporting_in(int thread_id, bool status) {
     /* mark sure no double signal */
     if (m_signal.at(thread_id)) {
         std::stringstream err;
@@ -162,6 +165,11 @@ TrexDpPortEvent::on_core_reporting_in(int thread_id) {
     /* mark */
     m_signal.at(thread_id) = true;
     m_pending_cnt--;
+
+    /* if any core reported an error - mark as a failure */
+    if (!status) {
+        on_error(thread_id);
+    }
 
     /* event occured */
     if (m_pending_cnt == 0) {

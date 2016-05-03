@@ -212,6 +212,12 @@ public:
     void update_traffic(const TrexPortMultiplier &mul, bool force);
 
     /**
+     * push a PCAP file onto the port
+     * 
+     */
+    void push_remote(const std::string &pcap_filename, double ipg_usec, double speedup, uint32_t count);
+
+    /**
      * get the port state
      *
      */

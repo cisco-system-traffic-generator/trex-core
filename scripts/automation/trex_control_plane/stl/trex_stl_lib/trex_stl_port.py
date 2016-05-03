@@ -148,6 +148,7 @@ class Port(object):
             return self.owner
 
     def sync(self):
+
         params = {"port_id": self.port_id}
 
         rc = self.transmit("get_port_status", params)
@@ -550,6 +551,28 @@ class Port(object):
 
         self.attr.update(attr_dict)
 
+        return self.ok()
+
+
+    def push_remote (self, pcap_filename, ipg_usec, speedup, count):
+        if not self.is_acquired():
+            return self.err("port is not owned")
+
+        if (self.state == self.STATE_DOWN):
+            return self.err("port is down")
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id,
+                  "pcap_filename": pcap_filename,
+                  "ipg_usec": ipg_usec if ipg_usec is not None else -1,
+                  "speedup": speedup,
+                  "count": count}
+
+        rc = self.transmit("push_remote", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        self.state = self.STATE_TX
         return self.ok()
 
 

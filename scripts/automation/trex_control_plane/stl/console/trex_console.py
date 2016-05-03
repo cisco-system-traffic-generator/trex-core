@@ -319,8 +319,12 @@ class TRexConsole(TRexGeneralCmd):
         return self.do_history(line)
 
     def do_push (self, line):
-        '''Push a PCAP file\n'''
+        '''Push a local PCAP file\n'''
         return self.stateless_client.push_line(line)
+
+    #def do_push_remote (self, line):
+    #    '''Push a remote accessible PCAP file\n'''
+    #    return self.stateless_client.push_remote_line(line)
 
     def help_push (self):
         return self.do_push("-h")
