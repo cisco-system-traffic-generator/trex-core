@@ -24,39 +24,39 @@ nat_dict: &nat_dict
 test_jumbo:
     multiplier          : 2.8
     cores               : 1
-    bw_per_core         : 67030
+    bw_per_core         : 67.030
 
 
 test_routing_imix:
     multiplier          : 1
     cores               : 1
-    bw_per_core         : 3979
+    bw_per_core         : 3.979
 
 
 test_routing_imix_64:
     multiplier          : 150
     cores               : 4
-    bw_per_core         : 681
+    bw_per_core         : .681
 
 
 test_static_routing_imix:
     stat_route_dict     : *stat_route_dict
     multiplier          : 0.7
     cores               : 1
-    bw_per_core         : 3837
+    bw_per_core         : 3.837
 
 
 test_static_routing_imix_asymmetric:
     stat_route_dict     : *stat_route_dict
     multiplier          : 0.8
     cores               : 1
-    bw_per_core         : 3939
+    bw_per_core         : 3.939
 
 
 test_ipv6_simple:
     multiplier          : 1.5
     cores               : 2
-    bw_per_core         : 4719
+    bw_per_core         : 4.719
 
 
 test_nat_simple_mode1: &test_nat_simple
@@ -65,20 +65,20 @@ test_nat_simple_mode1: &test_nat_simple
     multiplier          : 550
     cores               : 1
     allow_timeout_dev   : True
-    bw_per_core         : 7465
+    bw_per_core         : 7.465
 
 test_nat_simple_mode2: *test_nat_simple
 
 test_nat_learning:
     <<                  : *test_nat_simple
-    bw_per_core         : 7377
+    bw_per_core         : 7.377
     nat_opened          : 40000
 
 
 test_nbar_simple:
     multiplier          : 1.5
     cores               : 2
-    bw_per_core         : 4465
+    bw_per_core         : 4.465
     nbar_classification:
         http            : 30.3
         rtp_audio       : 21.06
@@ -100,28 +100,28 @@ test_rx_check_http: &rx_http
     multiplier          : 2200
     cores               : 1
     rx_sample_rate      : 16
-    bw_per_core         : 8142
+    bw_per_core         : 8.142
 
 test_rx_check_http_ipv6:
     <<                  : *rx_http
-    bw_per_core         : 8591
+    bw_per_core         : 8.591
 
 test_rx_check_http_negative:
     <<                  : *rx_http
     stat_route_dict     : *stat_route_dict
     nat_dict            : *nat_dict
-    bw_per_core         : 8037
+    bw_per_core         : 8.037
 
 
 test_rx_check_sfr: &rx_sfr
     multiplier          : 1.7
     cores               : 2
     rx_sample_rate      : 16
-    bw_per_core         : 4473
+    bw_per_core         : 4.473
 
 test_rx_check_sfr_ipv6:
     <<                  : *rx_sfr
-    bw_per_core         : 4773
+    bw_per_core         : 4.773
 
 
 

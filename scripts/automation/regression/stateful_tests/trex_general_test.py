@@ -150,13 +150,9 @@ class CTRexGeneral_Test(unittest.TestCase):
                 if cpu_util < minimal_cpu:
                     self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
-            cores = self.get_benchmark_param('cores')
-            ports_count = trex_res.get_ports_count()
-            trex_tx_bps  = sum(trex_res.get_value_list("trex-global.data.m_tx_bps")[-4:-1]) / 3.0
-            # x2 because each thread uses 2 ports and another x2 because each core can use 2 threads
-            test_norm_cpu = 2 * 2 * (100.0 / cpu_util) * trex_tx_bps / (ports_count * cores * 1e6)
+            test_norm_cpu  = sum(trex_res.get_value_list("trex-global.data.m_bw_per_core")[-4:-1]) / 3.0
 
-            print("TRex CPU utilization: %g%%, norm_cpu is : %g Mb/core" % (round(cpu_util, 2), round(test_norm_cpu)))
+            print("TRex CPU utilization: %g%%, norm_cpu is : %g Gb/core" % (round(cpu_util, 2), round(test_norm_cpu)))
 
             expected_norm_cpu = self.get_benchmark_param('bw_per_core')
             if not expected_norm_cpu:
@@ -164,13 +160,14 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
             print('Err percent: %s' % calc_error_precent)
-            if calc_error_precent > err:
+            if calc_error_precent > err and cpu_util > 10:
                 self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
 
             # report benchmarks
             if self.GAManager:
-                self.GAManager.gaAddAction(Event = 'stateful_test', action = self.get_name(), label = 'bw_per_core', value = int(test_norm_cpu))
-                self.GAManager.gaAddAction(Event = 'stateful_test', action = self.get_name(), label = 'bw_per_core_exp', value = int(expected_norm_cpu))
+                setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
                 self.GAManager.emptyAndReportQ()
 
     def check_results_gt (self, res, name, val):

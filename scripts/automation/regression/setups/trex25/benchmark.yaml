@@ -24,26 +24,26 @@ nat_dict: &nat_dict
 test_jumbo:
     multiplier          : 6
     cores               : 1
-    bw_per_core         : 443970
+    bw_per_core         : 443.970
 
 
 test_routing_imix:
     multiplier          : 4
     cores               : 1
-    bw_per_core         : 26509
+    bw_per_core         : 26.509
 
 
 test_routing_imix_64:
     multiplier          : 600
     cores               : 1
-    bw_per_core         : 6391
+    bw_per_core         : 6.391
 
 
 test_static_routing_imix:
     stat_route_dict     : *stat_route_dict
     multiplier          : 2.8
     cores               : 1
-    bw_per_core         : 24510
+    bw_per_core         : 24.510
 
 
 
@@ -51,13 +51,13 @@ test_static_routing_imix_asymmetric:
     stat_route_dict     : *stat_route_dict
     multiplier          : 3.2
     cores               : 1
-    bw_per_core         : 28229
+    bw_per_core         : 28.229
 
 
 test_ipv6_simple:
     multiplier          : 6
     cores               : 1
-    bw_per_core         : 19185
+    bw_per_core         : 19.185
 
 
 test_nat_simple_mode1: &test_nat_simple
@@ -66,7 +66,7 @@ test_nat_simple_mode1: &test_nat_simple
     multiplier          : 2200
     cores               : 1
     allow_timeout_dev   : True
-    bw_per_core         : 32171
+    bw_per_core         : 32.171
 
 test_nat_simple_mode2: *test_nat_simple
 
@@ -78,7 +78,7 @@ test_nat_learning:
 test_nbar_simple:
     multiplier          : 6
     cores               : 1
-    bw_per_core         : 16645
+    bw_per_core         : 16.645
     nbar_classification:
         http            : 24.55
         rtp             : 19.15
@@ -101,11 +101,11 @@ test_rx_check_http: &rx_http
     multiplier          : 8800
     cores               : 1
     rx_sample_rate      : 16
-    bw_per_core         : 31389
+    bw_per_core         : 31.389
 
 test_rx_check_http_ipv6:
     <<                  : *rx_http
-    bw_per_core         : 37114
+    bw_per_core         : 37.114
 
 test_rx_check_http_negative:
     <<                  : *rx_http
@@ -117,11 +117,11 @@ test_rx_check_sfr: &rx_sfr
     multiplier          : 6.8
     cores               : 1
     rx_sample_rate      : 16
-    bw_per_core         : 16063
+    bw_per_core         : 16.063
 
 test_rx_check_sfr_ipv6:
     <<                  : *rx_sfr
-    bw_per_core         : 19663
+    bw_per_core         : 19.663
 
 
 ### stateless ###

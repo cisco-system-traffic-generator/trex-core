@@ -24,26 +24,26 @@ nat_dict: &nat_dict
 test_jumbo:
     multiplier          : 17
     cores               : 1
-    bw_per_core         : 543232
+    bw_per_core         : 543.232
 
 
 test_routing_imix:
     multiplier          : 10
     cores               : 1
-    bw_per_core         : 34128
+    bw_per_core         : 34.128
 
 
 test_routing_imix_64:
     multiplier          : 430
     cores               : 1
-    bw_per_core         : 5893
+    bw_per_core         : 5.893
 
 
 test_static_routing_imix: &test_static_routing_imix
     stat_route_dict     : *stat_route_dict
     multiplier          : 8
     cores               : 1
-    bw_per_core         : 34339
+    bw_per_core         : 34.339
 
 test_static_routing_imix_asymmetric: *test_static_routing_imix
 
@@ -51,7 +51,7 @@ test_static_routing_imix_asymmetric: *test_static_routing_imix
 test_ipv6_simple:
     multiplier          : 9
     cores               : 2
-    bw_per_core         : 19064
+    bw_per_core         : 19.064
 
 
 test_nat_simple_mode1: &test_nat_simple
@@ -61,7 +61,7 @@ test_nat_simple_mode1: &test_nat_simple
     cores               : 1
     nat_opened          : 40000
     allow_timeout_dev   : True
-    bw_per_core         : 44445
+    bw_per_core         : 44.445
 
 test_nat_simple_mode2: *test_nat_simple
 
@@ -73,7 +73,7 @@ test_nat_learning:
 test_nbar_simple:
     multiplier          : 7.5
     cores               : 2
-    bw_per_core         : 17174
+    bw_per_core         : 17.174
     nbar_classification:
         http            : 32.58
         rtp-audio       : 21.21
@@ -95,11 +95,11 @@ test_rx_check_http: &rx_http
     multiplier          : 15000
     cores               : 1
     rx_sample_rate      : 16
-    bw_per_core         : 39560
+    bw_per_core         : 39.560
 
 test_rx_check_http_ipv6:
     <<                  : *rx_http
-    bw_per_core         : 49237
+    bw_per_core         : 49.237
 
 test_rx_check_http_negative:
     <<                  : *rx_http
@@ -111,11 +111,11 @@ test_rx_check_sfr: &rx_sfr
     multiplier          : 10
     cores               : 3
     rx_sample_rate      : 16
-    bw_per_core         : 16082
+    bw_per_core         : 16.082
 
 test_rx_check_sfr_ipv6:
     <<                  : *rx_sfr
-    bw_per_core         : 19198
+    bw_per_core         : 19.198
 
 
 

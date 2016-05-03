@@ -7,53 +7,53 @@
 test_jumbo:
     multiplier          : 14
     cores               : 1
-    bw_per_core         : 689664
+    bw_per_core         : 689.664
 
 
 test_routing_imix:
     multiplier          : 8
     cores               : 1
-    bw_per_core         : 45422
+    bw_per_core         : 45.422
 
 
 test_routing_imix_64:
     multiplier          : 2200
     cores               : 1
-    bw_per_core         : 11655
+    bw_per_core         : 11.655
 
 
 test_static_routing_imix_asymmetric:
     multiplier          : 4
     cores               : 1
-    bw_per_core         : 45294
+    bw_per_core         : 45.294
 
 
 test_ipv6_simple:
     multiplier          : 8
     cores               : 1
-    bw_per_core         : 29332
+    bw_per_core         : 29.332
 
 
 test_rx_check_http: &rx_http
     multiplier          : 11000
     cores               : 1
     rx_sample_rate      : 16
-    bw_per_core         : 47813
+    bw_per_core         : 47.813
 
 test_rx_check_http_ipv6:
     <<                  : *rx_http
-    bw_per_core         : 55607
+    bw_per_core         : 55.607
 
 
 test_rx_check_sfr: &rx_sfr
     multiplier          : 8
     cores               : 1
     rx_sample_rate      : 16
-    bw_per_core         : 24203
+    bw_per_core         : 24.203
 
 test_rx_check_sfr_ipv6:
     <<                  : *rx_sfr
-    bw_per_core         : 28867
+    bw_per_core         : 28.867
 
 
 ### stateless ###

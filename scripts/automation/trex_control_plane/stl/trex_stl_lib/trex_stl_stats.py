@@ -212,7 +212,7 @@ class CTRexInfoGenerator(object):
         if ratio <= 0.1875:
             return u'\u2581'    # 1/8
         if ratio <= 0.3125:
-            return u'\u2582'    # 2/4
+            return u'\u2582'    # 2/8
         if ratio <= 0.4375:
             return u'\u2583'    # 3/8
         if ratio <= 0.5625:
@@ -594,6 +594,7 @@ class CGlobalStats(CTRexStats):
         # absolute
         stats['cpu_util']    = self.get("m_cpu_util")
         stats['rx_cpu_util'] = self.get("m_rx_cpu_util")
+        stats['bw_per_core']    = self.get("m_bw_per_core")
 
         stats['tx_bps'] = self.get("m_tx_bps")
         stats['tx_pps'] = self.get("m_tx_pps")
