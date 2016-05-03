@@ -54,16 +54,18 @@ public:
         m_is_free = true;
         m_owner_name = "";
         m_handler = "";
+        m_session_id = 0;
     }
 
     bool is_owned_by(const std::string &user) {
         return ( !m_is_free && (m_owner_name == user) );
     }
 
-    void own(const std::string &owner_name) {
+    void own(const std::string &owner_name, uint32_t session_id) {
 
         /* save user data */
         m_owner_name = owner_name;
+        m_session_id = session_id;
 
         /* internal data */
         m_handler = utl_generate_random_str(m_seed, 8);
@@ -82,6 +84,9 @@ public:
         return (!m_is_free ? m_handler : g_unowned_handler);
     }
 
+    const uint32_t get_session_id() {
+        return m_session_id;
+    }
 
 private:
 
@@ -90,6 +95,9 @@ private:
 
     /* user provided info */
     std::string  m_owner_name;
+
+    /* which session of the user holds this port*/
+    uint32_t     m_session_id;
 
     /* handler genereated internally */
     std::string  m_handler;

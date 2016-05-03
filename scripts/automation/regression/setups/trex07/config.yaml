@@ -34,30 +34,29 @@
 # expected_bw    - the "golden" bandwidth (in Gbps) results planned on receiving from the test
 
 trex:
-  hostname       : csi-trex-14
+  hostname       : csi-trex-07
   cores          : 4
-  modes          : []
 
 router:
   model          : ASR1001x
   hostname       : csi-asr-01
-  ip_address     : 10.56.216.103
-  image          : asr1001x-universalk9.03.17.00.S.156-1.S-std.SPA.bin
+  ip_address     : 10.56.216.120
+  image          : asr1001x-universalk9.03.13.02.S.154-3.S2-ext.SPA.bin
   line_password  : cisco
   en_password    : cisco
   mgmt_interface : GigabitEthernet0
-  clean_config   : /Configurations/danklei/asr1001_TRex_clean_config.cfg
+  clean_config   : clean_config.cfg
   intf_masking   : 255.255.255.0
   ipv6_mask      : 64
   interfaces     :
     - client : 
         name          : Te0/0/0
-        src_mac_addr  : 0000.0001.0000
-        dest_mac_addr : 0000.0001.0000
+        src_mac_addr  : 0000.0001.0002
+        dest_mac_addr : 0000.0001.0001
       server : 
         name          : Te0/0/1
-        src_mac_addr  : 0000.0001.0000
-        dest_mac_addr : 0000.0001.0000
+        src_mac_addr  : 0000.0002.0002
+        dest_mac_addr : 0000.0002.0001
       vrf_name      : null    
 
 tftp:

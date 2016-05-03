@@ -2258,11 +2258,11 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                 }
 
             }else{
-                fprintf(stderr, "ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
+                fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
                 return kPktNotSupp;
             }
         }else{
-            fprintf(stderr, "ERROR packet %d is not supported, should be IP(0x0800)/TCP/UDP format try to convert it using Wireshark !\n",cnt);
+            fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
             return kPktProcessFail;
         }
     }

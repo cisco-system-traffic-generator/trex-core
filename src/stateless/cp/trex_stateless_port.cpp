@@ -119,23 +119,10 @@ TrexStatelessPort::~TrexStatelessPort() {
 void 
 TrexStatelessPort::acquire(const std::string &user, uint32_t session_id, bool force) {
 
-    /* if port is free - just take it */
-    if (get_owner().is_free()) {
-        get_owner().own(user);
-        return;
-    }
+    bool used_force = !get_owner().is_free() && force;
 
-    if (force) {
-        get_owner().own(user);
-
-        /* inform the other client of the steal... */
-        Json::Value data;
-
-        data["port_id"] = m_port_id;
-        data["who"] = user;
-        data["session_id"] = session_id;
-
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FORCE_ACQUIRED, data);
+    if (get_owner().is_free() || force) {
+        get_owner().own(user, session_id);
 
     } else {
         /* not same user or session id and not force - report error */
@@ -146,11 +133,30 @@ TrexStatelessPort::acquire(const std::string &user, uint32_t session_id, bool fo
         }
     }
 
+    Json::Value data;
+
+    data["port_id"]    = m_port_id;
+    data["who"]        = user;
+    data["session_id"] = session_id;
+    data["force"]      = used_force;
+
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_ACQUIRED, data);
+
 }
 
 void
 TrexStatelessPort::release(void) {
+    
+
+    Json::Value data;
+
+    data["port_id"]    = m_port_id;
+    data["who"]        = get_owner().get_name();
+    data["session_id"] = get_owner().get_session_id();
+
     get_owner().release();
+
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_RELEASED, data);
 }
 
 /**
@@ -776,6 +782,7 @@ TrexStatelessPort::remove_and_delete_all_streams() {
 
 TrexPortOwner::TrexPortOwner() {
     m_is_free = true;
+    m_session_id = 0;
 
     /* for handlers random generation */
     m_seed = time(NULL);

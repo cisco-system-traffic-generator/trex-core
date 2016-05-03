@@ -725,7 +725,59 @@ class CTRexClient(object):
             raise
         finally:
             self.prompt_verbose_data()
-    
+
+    def get_files_list (self, path):
+        """
+        Gets a list of dirs and files either from /tmp/trex_files or path relative to TRex server.
+
+        :parameters:
+            path : str
+                a path to directory to read.
+
+        :return: 
+            Tuple: list of dirs and list of files in given path
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying to cancel the reservation.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        
+        try:
+            return self.server.get_files_list(path)
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
+    def get_file(self, filepath):
+        """
+        Gets content of file as bytes string from /tmp/trex_files or TRex server directory.
+
+        :parameters:
+            filepath : str
+                a path to a file at server.
+                it can be either relative to TRex server or absolute path starting with /tmp/trex_files
+
+        :return: 
+            Content of the file
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying to cancel the reservation.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+        """
+
+        try:
+            return binascii.a2b_base64(self.server.get_file(filepath))
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
     def push_files (self, filepaths):
         """
         Pushes a file (or a list of files) to store locally on server. 
@@ -761,7 +813,7 @@ class CTRexClient(object):
                     filename = os.path.basename(filepath)
                     with open(filepath, 'rb') as f:
                         file_content = f.read()
-                        self.server.push_file(filename, binascii.b2a_base64(file_content))
+                        self.server.push_file(filename, binascii.b2a_base64(file_content).decode())
             finally:
                 self.prompt_verbose_data()
         return True
@@ -1042,7 +1094,7 @@ class CTRexResult(object):
         if not self.is_valid_hist():
             return None
         else:
-            return CTRexResult.__get_value_by_path(self._history[len(self._history)-1], tree_path_to_key, regex)
+            return CTRexResult.__get_value_by_path(self._history[-1], tree_path_to_key, regex)
 
     def get_value_list (self, tree_path_to_key, regex = None, filter_none = True):
         """
@@ -1093,11 +1145,23 @@ class CTRexResult(object):
             + an empty dictionary if history is empty.
 
         """
-        history_size = len(self._history)
-        if history_size != 0:
-            return self._history[len(self._history) - 1]
-        else:
-            return {}
+        if len(self._history):
+            return self._history[-1]
+        return {}
+
+    def get_ports_count(self):
+        """
+        Returns number of ports based on TRex result
+
+        :return: 
+            + number of ports in TRex result
+            + -1 if history is empty.
+        """
+
+        if not len(self._history):
+            return -1
+        return len(self.__get_value_by_path(self._history[-1], 'trex-global.data', 'opackets-\d+'))
+
 
     def update_result_data (self, latest_dump):
         """
@@ -1225,23 +1289,22 @@ class CTRexResult(object):
     def __get_filtered_max_latency (src_dict, filtered_latency_amount = 0.001):
         result = {}
         for port, data in src_dict.items():
-            if port.startswith('port-'):
-                max_port = 'max-%s' % port[5:]
-                res = data['hist']
-                if not len(res['histogram']):
-                    result[max_port] = 0
-                    continue
-                hist_last_keys = deque([res['histogram'][-1]['key']], maxlen = 2)
-                sum_high = 0.0
-                for elem in reversed(res['histogram']):
-                    sum_high += elem['val']
-                    hist_last_keys.append(elem['key'])
-                    if sum_high / res['cnt'] >= filtered_latency_amount:
-                        break
-                result[max_port] = (hist_last_keys[0] + hist_last_keys[-1]) / 2
-            else:
-                return {}
+            if not port.startswith('port-'):
+                continue
+            max_port = 'max-%s' % port[5:]
+            res = data['hist']
+            if not len(res['histogram']):
+                result[max_port] = 0
+                continue
+            result[max_port] = 5 # if sum below will not get to filtered amount, use this value
+            sum_high = 0.0
+            for elem in reversed(res['histogram']):
+                sum_high += elem['val']
+                if sum_high >= filtered_latency_amount * res['cnt']:
+                    result[max_port] = elem['key'] + int('5' + repr(elem['key'])[2:])
+                    break
         return result
+
 
 
 

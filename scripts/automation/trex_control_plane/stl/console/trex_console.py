@@ -289,7 +289,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_ping (self, line):
         '''Ping the server\n'''
-        self.stateless_client.ping()
+        self.stateless_client.ping_line(line)
 
 
     # set verbose on / off
@@ -421,12 +421,18 @@ class TRexConsole(TRexGeneralCmd):
         '''Release ports\n'''
         self.stateless_client.release_line(line)
 
+    def do_reacquire (self, line):
+        '''reacquire all the ports under your logged user name'''
+        self.stateless_client.reacquire_line(line)
 
     def help_acquire (self):
         self.do_acquire("-h")
 
     def help_release (self):
         self.do_release("-h")
+
+    def help_reacquire (self):
+        self.do_reacquire("-h")
 
     ############### start
 
@@ -571,7 +577,7 @@ class TRexConsole(TRexGeneralCmd):
             info = self.stateless_client.get_connection_info()
 
             exe = './trex-console --top -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
-            cmd = ['/usr/bin/xterm', '-geometry', '111x48', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+            cmd = ['/usr/bin/xterm', '-geometry', '111x49', '-sl', '0', '-title', 'trex_tui', '-e', exe]
 
             # detach child
             self.terminal = subprocess.Popen(cmd, preexec_fn = os.setpgrp)
@@ -774,7 +780,29 @@ def setParserOptions():
 
     return parser
 
-    
+# a simple info printed on log on
+def show_intro (logger, c):
+    x   = c.get_server_system_info()
+    ver = c.get_server_version().get('version', 'N/A')
+
+    # find out which NICs the server has
+    port_types = {}
+    for port in x['ports']:
+        key = (port['speed'], port['driver'])
+        if not key in port_types:
+            port_types[key] = 0
+        port_types[key] += 1
+
+    port_line = ''
+    for k, v in port_types.items():
+        port_line += "{0} x {1}Gbps @ {2}".format(v, k[0], k[1])
+
+    logger.log(format_text("\nServer Info:\n", 'underline'))
+    logger.log("Server version:   {:>}".format(format_text(ver, 'bold')))
+    logger.log("Server CPU:       {:>}".format(format_text("{:>} x {:>}".format(x.get('dp_core_count'), x.get('core_type')), 'bold')))
+    logger.log("Ports count:      {:>}".format(format_text(port_line, 'bold')))
+
+
 def main():
     parser = setParserOptions()
     options = parser.parse_args()
@@ -823,6 +851,9 @@ def main():
 
     if options.readonly:
         logger.log(format_text("\nRead only mode - only few commands will be available", 'bold'))
+
+    show_intro(logger, stateless_client)
+    
 
     # a script mode
     if options.batch:

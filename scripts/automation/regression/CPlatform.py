@@ -73,7 +73,8 @@ class CPlatform(object):
                 if i < 4:
                     continue
                 raise Exception('Could not load clean config, response: %s' % res)
-            return
+            if i > 0: # were errors, better to wait
+                time.sleep(2)
 
     def config_pbr (self, mode = 'config'):
         idx = 1
@@ -174,7 +175,8 @@ class CPlatform(object):
 
         # finish handling pre-config cache
         pre_commit_set = list(pre_commit_set)
-#       pre_commit_set.append('exit')
+        if len(pre_commit_set):
+            pre_commit_set.append('exit')
         pre_commit_cache.add('CONF', pre_commit_set )
         # deploy the configs (order is important!)
         self.cmd_link.run_command( [pre_commit_cache, cache] )
@@ -227,7 +229,7 @@ class CPlatform(object):
 
                 # define the relevant VRF name
                 pre_commit_set.add('{mode}ip vrf {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
-                
+
                 # assign VRF to interfaces, config interfaces with relevant route-map
                 client_if_command_set.append ('{mode}ip vrf forwarding {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
                 server_if_command_set.append ('{mode}ip vrf forwarding {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
@@ -290,7 +292,8 @@ class CPlatform(object):
 
         # finish handling pre-config cache
         pre_commit_set = list(pre_commit_set)
-#       pre_commit_set.append('exit')
+        if len(pre_commit_set):
+            pre_commit_set.append('exit')
         pre_commit_cache.add('CONF', pre_commit_set )
         # assign generated config list to cache
         cache.add('CONF', conf_t_command_set)
@@ -618,8 +621,8 @@ class CPlatform(object):
         """
 
         pre_commit_cache = CCommandCache()
-        pre_commit_cache.add('EXEC', ['clear counters','\r'] )
-        self.cmd_link.run_single_command( pre_commit_cache )
+        pre_commit_cache.add('EXEC', ['clear counters', '\r'] )
+        self.cmd_link.run_single_command( pre_commit_cache , read_until = ['#', '\[confirm\]'])
 
     def clear_nbar_stats(self):
         """ clear_nbar_stats(self) -> None
@@ -725,7 +728,7 @@ class CPlatform(object):
                 progress_thread = CProgressDisp.ProgressThread(notifyMessage = "Copying image via tftp, this may take a while...\n")
                 progress_thread.start()
 
-                response = self.cmd_link.run_single_command(cache, timeout = 900, read_until = ['\?', '\#'])
+                response = self.cmd_link.run_single_command(cache, timeout = 900, read_until = ['\?', '#'])
                 print("RESPONSE:")
                 print(response)
                 progress_thread.join()

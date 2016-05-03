@@ -201,6 +201,10 @@ class CTRexInfoGenerator(object):
     def _get_rational_block_char(value, range_start, interval):
         # in Konsole, utf-8 is sometimes printed with artifacts, return ascii for now
         #return 'X' if value >= range_start + float(interval) / 2 else ' '
+
+        if sys.__stdout__.encoding != 'UTF-8':
+            return 'X' if value >= range_start + float(interval) / 2 else ' '
+
         value -= range_start
         ratio = float(value) / interval
         if ratio <= 0.0625:
@@ -208,7 +212,7 @@ class CTRexInfoGenerator(object):
         if ratio <= 0.1875:
             return u'\u2581'    # 1/8
         if ratio <= 0.3125:
-            return u'\u2582'    # 2/4
+            return u'\u2582'    # 2/8
         if ratio <= 0.4375:
             return u'\u2583'    # 3/8
         if ratio <= 0.5625:
@@ -247,6 +251,7 @@ class CTRexInfoGenerator(object):
         return_stats_data = {}
         per_field_stats = OrderedDict([("owner", []),
                                        ("state", []),
+                                       ("speed", []),
                                        ("--", []),
                                        ("Tx bps L2", []),
                                        ("Tx bps L1", []),
@@ -532,7 +537,12 @@ class CTRexStats(object):
         v = self.get_trend(field, use_raw)
 
         value = abs(v)
-        arrow = u'\u25b2' if v > 0 else u'\u25bc'
+
+        # use arrows if utf-8 is supported
+        if sys.__stdout__.encoding == 'UTF-8':
+            arrow = u'\u25b2' if v > 0 else u'\u25bc'
+        else:
+            arrow = ''
 
         if sys.version_info < (3,0):
             arrow = arrow.encode('utf-8')
@@ -584,6 +594,7 @@ class CGlobalStats(CTRexStats):
         # absolute
         stats['cpu_util']    = self.get("m_cpu_util")
         stats['rx_cpu_util'] = self.get("m_rx_cpu_util")
+        stats['bw_per_core']    = self.get("m_bw_per_core")
 
         stats['tx_bps'] = self.get("m_tx_bps")
         stats['tx_pps'] = self.get("m_tx_pps")
@@ -688,12 +699,13 @@ class CPortStats(CTRexStats):
             else:
                 self.__merge_dicts(self.reference_stats, x.reference_stats)
 
-        # history
-        if not self.history:
-            self.history = copy.deepcopy(x.history)
-        else:
-            for h1, h2 in zip(self.history, x.history):
-                self.__merge_dicts(h1, h2)
+        # history - should be traverse with a lock
+        with self.lock, x.lock:
+            if not self.history:
+                self.history = copy.deepcopy(x.history)
+            else:
+                for h1, h2 in zip(self.history, x.history):
+                    self.__merge_dicts(h1, h2)
 
         return self
 
@@ -758,9 +770,17 @@ class CPortStats(CTRexStats):
         else:
             state = format_text(state, 'bold')
 
+        # mark owned ports by color
+        if self._port_obj:
+            owner = self._port_obj.get_owner()
+            if self._port_obj.is_acquired():
+                owner = format_text(owner, 'green')
+        else:
+            owner = ''
 
-        return {"owner": self._port_obj.get_owner() if self._port_obj else "",
+        return {"owner": owner,
                 "state": "{0}".format(state),
+                "speed": self._port_obj.get_formatted_speed() if self._port_obj else '',
 
                 "--": " ",
                 "---": " ",

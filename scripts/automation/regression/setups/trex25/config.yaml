@@ -5,12 +5,11 @@
 
 ### T-Rex configuration:
 # hostname        - can be DNS name or IP for the TRex machine for ssh to the box
-# password        - root password for TRex machine
 # is_dual         - should the TRex inject with -p ?
 # version_path    - path to the t-rex version and executable
 # cores           - how many cores should be used
 # latency         - rate of latency packets injected by the TRex
-# modes           - list of modes (tagging) of this setup (loopback etc.)
+# modes           - list of modes (tagging) of this setup (loopback, virtual etc.)
 # 	  * loopback  - Trex works via loopback. Router and TFTP configurations may be skipped.
 #     * VM        - Virtual OS (accept low CPU utilization in tests, latency can get spikes)
 #     * virt_nics - NICs are virtual (VMXNET3 etc.)
@@ -34,34 +33,61 @@
 # expected_bw    - the "golden" bandwidth (in Gbps) results planned on receiving from the test
 
 trex:
-  hostname       : csi-trex-14
-  cores          : 4
-  modes          : []
+  hostname       : csi-trex-25
+  cores          : 2
+  modes          : ['1G']
 
 router:
-  model          : ASR1001x
-  hostname       : csi-asr-01
-  ip_address     : 10.56.216.103
-  image          : asr1001x-universalk9.03.17.00.S.156-1.S-std.SPA.bin
+  model          : ASR1004(RP2)
+  hostname       : csi-mcp-asr1k-4ru-12
+  ip_address     : 10.56.217.181
+  image          : asr1000rp2-adventerprisek9.BLD_V151_1_S_XE32_THROTTLE_LATEST_20100926_034325_2.bin
   line_password  : cisco
   en_password    : cisco
-  mgmt_interface : GigabitEthernet0
-  clean_config   : /Configurations/danklei/asr1001_TRex_clean_config.cfg
+  mgmt_interface : GigabitEthernet0/0/0
+  clean_config   : clean_config.cfg
   intf_masking   : 255.255.255.0
   ipv6_mask      : 64
   interfaces     :
     - client : 
-        name          : Te0/0/0
+        name          : GigabitEthernet0/1/0
         src_mac_addr  : 0000.0001.0000
         dest_mac_addr : 0000.0001.0000
       server : 
-        name          : Te0/0/1
+        name          : GigabitEthernet0/1/1
         src_mac_addr  : 0000.0001.0000
         dest_mac_addr : 0000.0001.0000
-      vrf_name      : null    
+      vrf_name        : 
+    - client :
+        name          : GigabitEthernet0/1/2
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      server :
+        name          : GigabitEthernet0/1/4
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      vrf_name        :
+    - client :
+        name          : GigabitEthernet0/1/5
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      server :
+        name          : GigabitEthernet0/1/3
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      vrf_name        :
+    - client :
+        name          : GigabitEthernet0/1/6
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      server :
+        name          : GigabitEthernet0/1/7
+        src_mac_addr  : 0000.0001.0000
+        dest_mac_addr : 0000.0001.0000
+      vrf_name      :
 
 tftp:
   hostname       : ats-asr-srv-1
-  ip_address     : 10.56.217.7
-  root_dir       : /scratch/tftp/
-  images_path    : /asr1001x/
+  ip_address     : 10.56.128.23
+  root_dir       : /auto/avc-devtest/
+  images_path    : /images/1RU/

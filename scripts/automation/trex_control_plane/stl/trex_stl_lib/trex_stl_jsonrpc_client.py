@@ -47,7 +47,7 @@ class JsonRpcClient(object):
     MSG_COMPRESS_HEADER_MAGIC = 0xABE85CEA
 
     def __init__ (self, default_server, default_port, client):
-        self.client = client
+        self.client_api = client.api_h
         self.logger = client.logger
         self.connected = False
 
@@ -104,7 +104,7 @@ class JsonRpcClient(object):
 
         # if this RPC has an API class - add it's handler
         if api_class:
-            msg["params"]["api_h"] = self.client.api_h[api_class]
+            msg["params"]["api_h"] = self.client_api[api_class]
         
 
         if encode:

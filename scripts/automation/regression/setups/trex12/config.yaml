@@ -35,34 +35,6 @@
 
 trex:
   hostname       : csi-trex-12
-#  version_path   : /auto/proj-pcube-b/apps/PL-b/tools/bp_sim2/v1.57/ #/auto/srg-sce-swinfra-usr/emb/users/danklei/Work/asr1k/emb/private/bpsim/main/scripts
   cores          : 1
-  modes          : [VM]
+  modes          : ['loopback', '1G']
 
-router:
-  model          : ASR1001x
-  hostname       : csi-asr-01
-  ip_address     : 10.56.216.103
-  image          : asr1001x-universalk9_npe.BLD_V155_2_S_XE315_THROTTLE_LATEST_20151121_110441-std_2.SSA.bin
-  line_password  : cisco
-  en_password    : cisco
-  mgmt_interface : GigabitEthernet0
-  clean_config   : /Configurations/danklei/asr1001_TRex_clean_config.cfg
-  intf_masking   : 255.255.255.0
-  ipv6_mask      : 64
-  interfaces     :
-    - client : 
-        name          : Te0/0/0
-        src_mac_addr  : 0000.0001.0000
-        dest_mac_addr : 0000.0001.0000
-      server : 
-        name          : Te0/0/1
-        src_mac_addr  : 0000.0001.0000
-        dest_mac_addr : 0000.0001.0000
-      vrf_name      : null    
-
-tftp:
-  hostname       : ats-asr-srv-1
-  ip_address     : 10.56.128.23
-  root_dir       : /auto/avc-devtest/
-  images_path    : /images/RP2/

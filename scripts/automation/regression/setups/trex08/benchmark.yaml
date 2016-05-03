@@ -2,58 +2,174 @@
 ####           TRex benchmark configuration file           ####
 ###############################################################
 
-test_routing_imix_64    :
-  multiplier        : 8000
-  cores             : 7
-  cpu_to_core_ratio : 280
-  exp_latency       : 1
+### stateful ###
 
-test_routing_imix   :
-  multiplier        : 80
-  cores             : 4
-  cpu_to_core_ratio : 1800
-  exp_latency       : 1
+test_jumbo:
+    multiplier          : 150
+    cores               : 2
+    bw_per_core         : 962.464
+
+
+test_routing_imix:
+    multiplier          : 80
+    cores               : 4
+    bw_per_core         : 55.130
+
+
+test_routing_imix_64:
+    multiplier          : 8000
+    cores               : 7
+    bw_per_core         : 11.699
+
 
 test_static_routing_imix_asymmetric:
-  stat_route_dict :
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
-  multiplier        : 70
-  cores             : 3
-  cpu_to_core_ratio : 1800
-  exp_latency       : 1
+    multiplier          : 70
+    cores               : 3
+    bw_per_core         : 50.561
 
-test_ipv6_simple    :
-  multiplier        : 80
-  cores             : 7
-  cpu_to_core_ratio : 30070000
-  cpu2core_custom_dev: YES
-  cpu2core_dev : 0.07
+
+test_ipv6_simple:
+    multiplier          : 80
+    cores               : 7
+    bw_per_core         : 25.948
+
+
+test_rx_check_http:
+    multiplier          : 99000
+    cores               : 3
+    rx_sample_rate      : 128
+    bw_per_core         : 49.464
 
 
 test_rx_check_sfr:
-    multiplier        : 80
-    cores             : 7
-    rx_sample_rate    : 128
+    multiplier          : 80
+    cores               : 7
+    rx_sample_rate      : 128
+    bw_per_core         : 20.871
 
-test_rx_check_sfr_ipv6_disabled:
-    multiplier        : 80
-    cores             : 7
-    rx_sample_rate    : 128
 
-test_rx_check_http:
-    multiplier        : 99000
-    cores             : 3
-    rx_sample_rate    : 128
 
-test_rx_check_http_ipv6_disabled:
-    multiplier        : 99000
-    cores             : 3
-    rx_sample_rate    : 128
+### stateless ###
 
-test_jumbo:
-    multiplier        : 150
-    cores             : 2
+test_CPU_benchmark:
+    profiles:
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 64}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 64, packet_count: 10}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 64, packet_count: 100}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+# causes queue full
+#      - name            : stl/udp_1pkt_simple.py
+#        kwargs          : {packet_len: 64, packet_count: 1000}
+#        cpu_util        : 1
+#        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 128}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 256}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 512}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 1500}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 4000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 9000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 9000, packet_count: 10}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_simple.py
+        kwargs          : {packet_len: 9000, packet_count: 100}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+# not enough memory + queue full if memory increase
+#      - name            : stl/udp_1pkt_simple.py
+#        kwargs          : {packet_len: 9000, packet_count: 1000}
+#        cpu_util        : 1
+#        bw_per_core     : 1
+
+      - name            : stl/imix.py
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 64}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 128}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 256}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 512}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 1500}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 4000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 9000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/pcap.py
+        kwargs          : {ipg_usec: 2, loop_count: 0}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_rand_len_9k.py
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/hlt/hlt_udp_rand_len_9k.py
+        cpu_util        : 1
+        bw_per_core     : 1
+
+

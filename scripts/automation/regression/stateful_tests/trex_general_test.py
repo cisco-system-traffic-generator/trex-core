@@ -48,6 +48,7 @@ def tearDownModule(module):
 class CTRexGeneral_Test(unittest.TestCase):
     """This class defines the general stateful testcase of the T-Rex traffic generator"""
     def __init__ (self, *args, **kwargs):
+        sys.stdout.flush()
         unittest.TestCase.__init__(self, *args, **kwargs)
         if CTRexScenario.is_test_list:
             return
@@ -57,6 +58,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.trex                  = CTRexScenario.trex
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
+        self.GAManager             = CTRexScenario.GAManager
         self.skipping              = False
         self.fail_reasons          = []
         if not hasattr(self, 'unsupported_modes'):
@@ -135,15 +137,12 @@ class CTRexGeneral_Test(unittest.TestCase):
         if res[name] != float(val):
             self.fail('TRex results[%s]==%f and not as expected %f ' % (name, res[name], val))
 
-    def check_CPU_benchmark (self, trex_res, err = 10, minimal_cpu = None, maximal_cpu = 85):
+    def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 30, maximal_cpu = 85):
             #cpu_util = float(trex_res.get_last_value("trex-global.data.m_cpu_util"))
-            cpu_util = sum([float(x) for x in trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]]) / 3 # mean of 3 values before last
+            cpu_util = sum(trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]) / 3.0 # mean of 3 values before last
 
-            if minimal_cpu is None:
-                if '1G' in self.modes:
-                    minimal_cpu = 1
-                else:
-                    minimal_cpu = 30
+            if '1G' in self.modes:
+                minimal_cpu /= 10.0
 
             if not self.is_virt_nics:
                 if cpu_util > maximal_cpu:
@@ -151,23 +150,25 @@ class CTRexGeneral_Test(unittest.TestCase):
                 if cpu_util < minimal_cpu:
                     self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
-            cores = self.get_benchmark_param('cores')
-            trex_tx_bps  = trex_res.get_last_value("trex-global.data.m_total_tx_bytes")
-            test_norm_cpu = 100.0*(trex_tx_bps/(cores*cpu_util))/1e6
+            test_norm_cpu  = sum(trex_res.get_value_list("trex-global.data.m_bw_per_core")[-4:-1]) / 3.0
 
-            print("TRex CPU utilization: %g%%, norm_cpu is : %d Mb/core" % (round(cpu_util), int(test_norm_cpu)))
+            print("TRex CPU utilization: %g%%, norm_cpu is : %g Gb/core" % (round(cpu_util, 2), round(test_norm_cpu)))
 
-            #expected_norm_cpu = self.get_benchmark_param('cpu_to_core_ratio')
+            expected_norm_cpu = self.get_benchmark_param('bw_per_core')
+            if not expected_norm_cpu:
+                expected_norm_cpu = 1
 
-            #calc_error_precent = abs(100.0*(test_norm_cpu/expected_norm_cpu)-100.0) 
+            calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
+            print('Err percent: %s' % calc_error_precent)
+            if calc_error_precent > err and cpu_util > 10:
+                self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
 
-#           if calc_error_precent > err:
-#               msg ='Normalized bandwidth to CPU utilization ratio is %2.0f Mb/core expected %2.0f Mb/core more than %2.0f %% - ERROR' % (test_norm_cpu, expected_norm_cpu, err)
-#               raise AbnormalResultError(msg)
-#           else:
-#               msg ='Normalized bandwidth to CPU utilization ratio is %2.0f Mb/core expected %2.0f Mb/core less than %2.0f %% - OK' % (test_norm_cpu, expected_norm_cpu, err)
-#               print msg
-
+            # report benchmarks
+            if self.GAManager:
+                setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
+                self.GAManager.emptyAndReportQ()
 
     def check_results_gt (self, res, name, val):
         if res is None:
@@ -341,7 +342,9 @@ class CTRexGeneral_Test(unittest.TestCase):
                 except Exception as e:
                     print("Can't get TRex log:", e)
             if len(self.fail_reasons):
+                sys.stdout.flush()
                 raise Exception('The test is failed, reasons:\n%s' % '\n'.join(self.fail_reasons))
+        sys.stdout.flush()
 
     def check_for_trex_crash(self):
         pass

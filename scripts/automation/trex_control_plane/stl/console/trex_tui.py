@@ -13,6 +13,7 @@ else:
 from trex_stl_lib.utils.text_opts import *
 from trex_stl_lib.utils import text_tables
 from trex_stl_lib import trex_stl_stats
+from trex_stl_lib.utils.filters import ToggleFilter
 
 # for STL exceptions
 from trex_stl_lib.api import *
@@ -62,31 +63,37 @@ class TrexTUIDashBoard(TrexTUIPanel):
     def __init__ (self, mng):
         super(TrexTUIDashBoard, self).__init__(mng, "dashboard")
 
+        self.ports = self.stateless_client.get_all_ports()
+
         self.key_actions = OrderedDict()
 
         self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
-        self.key_actions['p'] = {'action': self.action_pause,  'legend': 'pause', 'show': True}
-        self.key_actions['r'] = {'action': self.action_resume, 'legend': 'resume', 'show': True}
-        self.key_actions['+'] = {'action': self.action_raise,  'legend': 'up 5%', 'show': True}
-        self.key_actions['-'] = {'action': self.action_lower,  'legend': 'low 5%', 'show': True}
+        self.key_actions['p'] = {'action': self.action_pause,  'legend': 'pause', 'show': True, 'color': 'red'}
+        self.key_actions['r'] = {'action': self.action_resume, 'legend': 'resume', 'show': True, 'color': 'blue'}
 
         self.key_actions['o'] = {'action': self.action_show_owned,  'legend': 'owned ports', 'show': True}
+        self.key_actions['n'] = {'action': self.action_reset_view,  'legend': 'reset view', 'show': True}
         self.key_actions['a'] = {'action': self.action_show_all,  'legend': 'all ports', 'show': True}
 
-        self.ports_filter = self.FILTER_ALL
+        # register all the ports to the toggle action
+        for port_id in self.ports:
+            self.key_actions[str(port_id)] = {'action': self.action_toggle_port(port_id), 'legend': 'port {0}'.format(port_id), 'show': False}
 
 
-    def get_ports (self):
-        if self.ports_filter == self.FILTER_ACQUIRED:
-            return self.stateless_client.get_acquired_ports()
+        self.toggle_filter = ToggleFilter(self.ports)
 
-        elif self.ports_filter == self.FILTER_ALL:
-            return self.stateless_client.get_all_ports()
+        if self.stateless_client.get_acquired_ports():
+            self.action_show_owned()
+        else:
+            self.action_show_all()
 
-        assert(0)
+
+    def get_showed_ports (self):
+        return self.toggle_filter.filter_items()
+
 
     def show (self):
-        stats = self.stateless_client._get_formatted_stats(self.get_ports())
+        stats = self.stateless_client._get_formatted_stats(self.get_showed_ports())
         # print stats to screen
         for stat_type, stat_data in stats.items():
             text_tables.print_table_with_header(stat_data.text_table, stat_type)
@@ -95,21 +102,29 @@ class TrexTUIDashBoard(TrexTUIPanel):
     def get_key_actions (self):
         allowed = OrderedDict()
 
-        allowed['c'] = self.key_actions['c']
+
+        allowed['n'] = self.key_actions['n']
         allowed['o'] = self.key_actions['o']
         allowed['a'] = self.key_actions['a']
+        for i in self.ports:
+            allowed[str(i)] = self.key_actions[str(i)]
 
-        if self.ports_filter == self.FILTER_ALL:
+
+        if self.get_showed_ports():
+            allowed['c'] = self.key_actions['c']
+
+        # if not all ports are acquired - no operations
+        if not (set(self.get_showed_ports()) <= set(self.stateless_client.get_acquired_ports())):
             return allowed
 
-        if len(self.stateless_client.get_transmitting_ports()) > 0:
-            allowed['p'] = self.key_actions['p']
-            allowed['+'] = self.key_actions['+']
-            allowed['-'] = self.key_actions['-']
-
-
-        if len(self.stateless_client.get_paused_ports()) > 0:
+        # if any/some ports can be resumed
+        if set(self.get_showed_ports()) & set(self.stateless_client.get_paused_ports()):
             allowed['r'] = self.key_actions['r']
+
+        # if any/some ports are transmitting - support those actions
+        if set(self.get_showed_ports()) & set(self.stateless_client.get_transmitting_ports()):
+            allowed['p'] = self.key_actions['p']
+
 
         return allowed
 
@@ -117,7 +132,7 @@ class TrexTUIDashBoard(TrexTUIPanel):
     ######### actions
     def action_pause (self):
         try:
-            rc = self.stateless_client.pause(ports = self.mng.ports)
+            rc = self.stateless_client.pause(ports = self.get_showed_ports())
         except STLError:
             pass
 
@@ -127,142 +142,38 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     def action_resume (self):
         try:
-            self.stateless_client.resume(ports = self.mng.ports)
+            self.stateless_client.resume(ports = self.get_showed_ports())
         except STLError:
             pass
 
         return ""
 
 
-    def action_raise (self):
-        try:
-            self.stateless_client.update(mult = "5%+", ports = self.mng.ports)
-        except STLError:
-            pass
-
+    def action_reset_view (self):
+        self.toggle_filter.reset()
         return ""
-
-
-    def action_lower (self):
-        try:
-            self.stateless_client.update(mult = "5%-", ports = self.mng.ports)
-        except STLError:
-            pass
-
-        return ""
-
 
     def action_show_owned (self):
-        self.ports_filter = self.FILTER_ACQUIRED
+        self.toggle_filter.reset()
+        self.toggle_filter.toggle_items(*self.stateless_client.get_acquired_ports())
         return ""
 
     def action_show_all (self):
-        self.ports_filter = self.FILTER_ALL
+        self.toggle_filter.reset()
+        self.toggle_filter.toggle_items(*self.stateless_client.get_all_ports())
         return ""
 
     def action_clear (self):
-        self.stateless_client.clear_stats(self.mng.ports)
+        self.stateless_client.clear_stats(self.toggle_filter.filter_items())
         return "cleared all stats"
 
 
-# port panel
-class TrexTUIPort(TrexTUIPanel):
-    def __init__ (self, mng, port_id):
-        super(TrexTUIPort, self).__init__(mng, "port {0}".format(port_id))
+    def action_toggle_port(self, port_id):
+        def action_toggle_port_x():
+            self.toggle_filter.toggle_item(port_id)
+            return ""
 
-        self.port_id = port_id
-        self.port = self.mng.stateless_client.get_port(port_id)
-
-        self.key_actions = OrderedDict()
-
-        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
-        self.key_actions['p'] = {'action': self.action_pause, 'legend': 'pause', 'show': True}
-        self.key_actions['r'] = {'action': self.action_resume, 'legend': 'resume', 'show': True}
-        self.key_actions['+'] = {'action': self.action_raise, 'legend': 'up 5%', 'show': True}
-        self.key_actions['-'] = {'action': self.action_lower, 'legend': 'low 5%', 'show': True}
-        self.key_actions['t'] = {'action': self.action_toggle_graph, 'legend': 'toggle graph', 'show': True}
-
-
-    def show (self):
-        if self.mng.tui.is_graph is False:
-            stats = self.stateless_client._get_formatted_stats([self.port_id])
-            # print stats to screen
-            for stat_type, stat_data in stats.items():
-                text_tables.print_table_with_header(stat_data.text_table, stat_type)
-        else:
-            stats = self.stateless_client._get_formatted_stats([self.port_id], stats_mask = trex_stl_stats.GRAPH_PORT_COMPACT)
-            for stat_type, stat_data in stats.items():
-                text_tables.print_table_with_header(stat_data.text_table, stat_type)
-
-    def get_key_actions (self):
-
-        allowed = OrderedDict()
-
-        allowed['c'] = self.key_actions['c']
-        allowed['t'] = self.key_actions['t']
-
-        if self.stateless_client.is_all_ports_acquired():
-            return allowed
-
-        if self.port.state == self.port.STATE_TX:
-            allowed['p'] = self.key_actions['p']
-            allowed['+'] = self.key_actions['+']
-            allowed['-'] = self.key_actions['-']
-
-        elif self.port.state == self.port.STATE_PAUSE:
-            allowed['r'] = self.key_actions['r']
-
-
-        return allowed
-
-    def action_toggle_graph(self):
-        try:
-            self.mng.tui.is_graph = not self.mng.tui.is_graph
-        except Exception:
-            pass
-
-        return ""
-
-    def action_pause (self):
-        try:
-            self.stateless_client.pause(ports = [self.port_id])
-        except STLError:
-            pass
-
-        return ""
-
-    def action_resume (self):
-        try:
-            self.stateless_client.resume(ports = [self.port_id])
-        except STLError:
-            pass
-
-        return ""
-
-
-    def action_raise (self):
-        mult = {'type': 'percentage', 'value': 5, 'op': 'add'}
-
-        try:
-            self.stateless_client.update(mult = mult, ports = [self.port_id])
-        except STLError:
-            pass
-
-        return ""
-
-    def action_lower (self):
-        mult = {'type': 'percentage', 'value': 5, 'op': 'sub'}
-
-        try:
-            self.stateless_client.update(mult = mult, ports = [self.port_id])
-        except STLError:
-            pass
-
-        return ""
-
-    def action_clear (self):
-        self.stateless_client.clear_stats([self.port_id])
-        return "port {0}: cleared stats".format(self.port_id)
+        return action_toggle_port_x
 
 
 
@@ -330,10 +241,6 @@ class TrexTUIPanelManager():
         self.key_actions['g'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
         self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams stats', 'show': True}
 
-        for port_id in self.ports:
-            self.key_actions[str(port_id)] = {'action': self.action_show_port(port_id), 'legend': 'port {0}'.format(port_id), 'show': False}
-            self.panels['port {0}'.format(port_id)] = TrexTUIPort(self, port_id)
-
         # start with dashboard
         self.main_panel = self.panels['dashboard']
 
@@ -346,23 +253,31 @@ class TrexTUIPanelManager():
         self.dis_bar =  SimpleBar('status: ', ['X', ' '])
         self.show_log = False
 
+        
 
     def generate_legend (self):
+
         self.legend = "\n{:<12}".format("browse:")
 
         for k, v in self.key_actions.items():
             if v['show']:
                 x = "'{0}' - {1}, ".format(k, v['legend'])
-                self.legend += "{:}".format(x)
-
-        self.legend += "'0-{0}' - port display".format(len(self.ports) - 1)
+                if v.get('color'):
+                    self.legend += "{:}".format(format_text(x, v.get('color')))
+                else:
+                    self.legend += "{:}".format(x)
 
 
         self.legend += "\n{:<12}".format(self.main_panel.get_name() + ":")
+
         for k, v in self.main_panel.get_key_actions().items():
             if v['show']:
                 x = "'{0}' - {1}, ".format(k, v['legend'])
-                self.legend += "{:}".format(x)
+
+                if v.get('color'):
+                    self.legend += "{:}".format(format_text(x, v.get('color')))
+                else:
+                    self.legend += "{:}".format(x)
 
 
     def print_connection_status (self):
@@ -428,6 +343,7 @@ class TrexTUIPanelManager():
             return ""
 
         return action_show_port_x
+
 
 
     def action_show_sstats (self):
@@ -535,7 +451,9 @@ class TrexTUI():
             sys.stdout = old_stdout
 
             self.clear_screen()
+
             print(mystdout.getvalue())
+
             sys.stdout.flush()
 
             self.draw_policer = 0

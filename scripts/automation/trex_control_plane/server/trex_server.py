@@ -84,10 +84,10 @@ class CTRexServer(object):
     def push_file (self, filename, bin_data):
         logger.info("Processing push_file() command.")
         try:
-            filepath = os.path.abspath(os.path.join(self.trex_files_path, filename))
+            filepath = os.path.join(self.trex_files_path, os.path.basename(filename))
             with open(filepath, 'wb') as f:
                 f.write(binascii.a2b_base64(bin_data))
-            logger.info("push_file() command finished. `{name}` was saved at {fpath}".format( name = filename, fpath = self.trex_files_path))
+            logger.info("push_file() command finished. File is saved as %s" % filepath)
             return True
         except IOError as inst:
             logger.error("push_file method failed. " + str(inst))
@@ -125,28 +125,32 @@ class CTRexServer(object):
         # set further functionality and peripherals to server instance 
         try:
             self.server.register_function(self.add)
-            self.server.register_function(self.get_trex_log)
-            self.server.register_function(self.get_trex_daemon_log)
-            self.server.register_function(self.get_trex_version)
+            self.server.register_function(self.cancel_reservation)
             self.server.register_function(self.connectivity_check)
+            self.server.register_function(self.force_trex_kill)
+            self.server.register_function(self.get_file)
+            self.server.register_function(self.get_files_list)
+            self.server.register_function(self.get_files_path)
+            self.server.register_function(self.get_running_info)
+            self.server.register_function(self.get_running_status)
+            self.server.register_function(self.get_trex_daemon_log)
+            self.server.register_function(self.get_trex_log)
+            self.server.register_function(self.get_trex_version)
+            self.server.register_function(self.is_reserved)
+            self.server.register_function(self.is_running)
+            self.server.register_function(self.push_file)
+            self.server.register_function(self.reserve_trex)
             self.server.register_function(self.start_trex)
             self.server.register_function(self.stop_trex)
             self.server.register_function(self.wait_until_kickoff_finish)
-            self.server.register_function(self.get_running_status)
-            self.server.register_function(self.is_running)
-            self.server.register_function(self.get_running_info)
-            self.server.register_function(self.is_reserved)
-            self.server.register_function(self.get_files_path)
-            self.server.register_function(self.push_file)
-            self.server.register_function(self.reserve_trex)
-            self.server.register_function(self.cancel_reservation)
-            self.server.register_function(self.force_trex_kill)
             signal.signal(signal.SIGTSTP, self.stop_handler)
             signal.signal(signal.SIGTERM, self.stop_handler)
             self.zmq_monitor.start()
             self.server.serve_forever()
         except KeyboardInterrupt:
             logger.info("Daemon shutdown request detected." )
+        except Exception as e:
+            logger.error(e)
         finally:
             self.zmq_monitor.join()            # close ZMQ monitor thread resources
             self.server.shutdown()
@@ -160,8 +164,40 @@ class CTRexServer(object):
                 file_content = f.read()
                 return binascii.b2a_base64(file_content)
         except Exception as e:
-            err_str = "Can't get requested file: {0}, possibly due to TRex that did not run".format(filepath)
-            logger.error('{0}, error: {1}'.format(err_str, e))
+            err_str = "Can't get requested file %s: %s" % (filepath, e)
+            logger.error(err_str)
+            return Fault(-33, err_str)
+
+    # returns True if given path is under TRex package or under /tmp/trex_files
+    def _check_path_under_TRex_or_temp(self, path):
+        if not os.path.relpath(path, self.trex_files_path).startswith(os.pardir):
+            return True
+        if not os.path.relpath(path, self.TREX_PATH).startswith(os.pardir):
+            return True
+        return False
+
+    # gets the file content encoded base64 either from /tmp/trex_files or TRex server dir
+    def get_file(self, filepath):
+        try:
+            logger.info("Processing get_file() command.")
+            if not self._check_path_under_TRex_or_temp(filepath):
+                raise Exception('Given path should be under current TRex package or /tmp/trex_files')
+            return self._pull_file(filepath)
+        except Exception as e:
+            err_str = "Can't get requested file %s: %s" % (filepath, e)
+            logger.error(err_str)
+            return Fault(-33, err_str)
+
+    # get tuple (dirs, files) with directories and files lists from given path (limited under TRex package or /tmp/trex_files)
+    def get_files_list(self, path):
+        try:
+            logger.info("Processing get_files_list() command, given path: %s" % path)
+            if not self._check_path_under_TRex_or_temp(path):
+                raise Exception('Given path should be under current TRex package or /tmp/trex_files')
+            return os.walk(path).next()[1:3]
+        except Exception as e:
+            err_str = "Error processing get_files_list(): %s" % e
+            logger.error(err_str)
             return Fault(-33, err_str)
 
     # get Trex log /tmp/trex.txt
