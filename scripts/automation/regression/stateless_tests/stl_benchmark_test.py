@@ -51,15 +51,18 @@ class STLBenchmark_Test(CStlGeneral_Test):
 
             # report benchmarks
             if self.GAManager:
-                profile_repr = '%s.%s %s' % (CTRexScenario.setup_name,
-                                             os.path.basename(profile_bench['name']),
-                                             repr(kwargs).replace("'", ''))
-                self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr,
-                                           label = 'bw_per_core', value = int(agv_bw_per_core))
-                # TODO: report expected once acquired
-                #self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr,
-                #                           label = 'bw_per_core_exp', value = int(expected_norm_cpu))
-                self.GAManager.emptyAndReportQ()
+                try:
+                    profile_repr = '%s.%s %s' % (CTRexScenario.setup_name,
+                                                os.path.basename(profile_bench['name']),
+                                                repr(kwargs).replace("'", ''))
+                    self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr,
+                                            label = 'bw_per_core', value = int(agv_bw_per_core))
+                    # TODO: report expected once acquired
+                    #self.GAManager.gaAddAction(Event = 'stateless_test', action = profile_repr,
+                    #                           label = 'bw_per_core_exp', value = int(expected_norm_cpu))
+                    self.GAManager.emptyAndReportQ()
+                except Exception as e:
+                    print('Sending GA failed: %s' % e)
 
     def tearDown(self):
         self.stl_trex.reset()
