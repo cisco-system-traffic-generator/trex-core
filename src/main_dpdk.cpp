@@ -1784,7 +1784,8 @@ protected:
 
 class CCoreEthIFStateless : public CCoreEthIF {
 public:
-    virtual int send_node_flow_stat(CGenNodeStateless * node_sl);
+    virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
+                                    , CVirtualIFPerSideStats  * lp_stats);
     virtual int send_node(CGenNode * node);
 protected:
     int handle_slow_path_node(CGenNode *node);
@@ -2005,9 +2006,89 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
     }
 }
 
-/// ??? need better implementation. Maybe implement as template of send_node.
+int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
+                                             , CVirtualIFPerSideStats  * lp_stats) {
+    //??? remove
+# if 0
+    static int temp=1;
+    temp++;
+#endif
+
+    uint16_t hw_id = node_sl->get_stat_hw_id();
+    rte_mbuf *m_lat, *mi;
+
+    if (hw_id >= MAX_FLOW_STATS) {
+        // payload rule hw_ids are in the range right above ip id rules
+        uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
+        if (hw_id_payload > max_stat_hw_id_seen_payload) {
+            max_stat_hw_id_seen_payload = hw_id_payload;
+        }
+        // alloc mbuf just for the latency header
+        m_lat = CGlobalInfo::pktmbuf_alloc( get_socket_id(), sizeof(struct flow_stat_payload_header));
+        if ( unlikely(m_lat == 0)) {
+            return -1;
+        }
+        char *p = rte_pktmbuf_append(m_lat, sizeof(struct flow_stat_payload_header));
+        struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)p;
+        fsp_head->seq = lp_stats->m_seq_num[hw_id_payload];
+        fsp_head->time_stamp = os_get_hr_tick_64();
+        // ??? maybe following two lines can be done offline
+        fsp_head->hw_id = hw_id_payload;
+        fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+
+        lp_stats->m_seq_num[hw_id_payload]++;
+
+        //??? remove
+#if 0
+        if (temp % 10 == 0) {
+            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload]++;
+        }
+
+        if ((temp - 1) % 100 == 0) {
+            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 4;
+            //            lp_stats->m_seq_num[hw_id_payload]--;
+        }
+#endif
+
+
+
+        if (rte_pktmbuf_is_contiguous(m)) {
+            // We have only the const mbuf
+            mi = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+            assert(mi);
+            rte_pktmbuf_attach(mi, m);
+            rte_pktmbuf_trim(mi, sizeof(struct flow_stat_payload_header));
+            utl_rte_pktmbuf_add_after2(mi, m_lat);
+        } else {
+            // Field engine (vm) case.
+            rte_pktmbuf_trim(m, sizeof(struct flow_stat_payload_header));
+            utl_rte_pktmbuf_add_last(m, m_lat);
+            mi = m;
+        }
+
+    } else {
+        // ip id rule
+        if (hw_id > max_stat_hw_id_seen) {
+            max_stat_hw_id_seen = hw_id;
+        }
+        mi = m;
+    }
+    tx_per_flow_t *lp_s = &lp_stats->m_tx_per_flow[hw_id];
+    lp_s->add_pkts(1);
+    lp_s->add_bytes(mi->pkt_len);
+
+    send_pkt(lp_port, mi, lp_stats);
+    return 0;
+}
+
+#if 0
+//??? remove
 // Maybe make it part of send_node somehow
 int CCoreEthIFStateless::send_node_flow_stat(CGenNodeStateless * node_sl) {
+    //??? remove
+    static int temp=1;
+    temp++;
+
     uint16_t hw_id = node_sl->get_stat_hw_id();
     tx_per_flow_t *lp_s;
     /* check that we have mbuf  */
@@ -2041,14 +2122,14 @@ int CCoreEthIFStateless::send_node_flow_stat(CGenNodeStateless * node_sl) {
         fsp_head->time_stamp = os_get_hr_tick_64();
         lp_stats->m_seq_num[hw_id_payload]++;
         // remove ???
-#if 0
-        if (temp % 11 == 0) {
+
+        if (temp % 10 == 0) {
             fsp_head->seq = lp_stats->m_seq_num[hw_id_payload]++;
         }
-
-        if ((temp -1) % 100 == 0) {
-            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 3;
-            lp_stats->m_seq_num[hw_id_payload]--;
+#if 1
+        if ((temp - 1) % 100 == 0) {
+            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 4;
+            //            lp_stats->m_seq_num[hw_id_payload]--;
         }
 #endif
     } else {
@@ -2064,19 +2145,15 @@ int CCoreEthIFStateless::send_node_flow_stat(CGenNodeStateless * node_sl) {
     send_pkt(lp_port,m,lp_stats);
     return 0;
 }
+#endif
 
 int CCoreEthIFStateless::send_node(CGenNode * no) {
-
     /* if a node is marked as slow path - single IF to redirect it to slow path */
     if (no->get_is_slow_path()) {
         return handle_slow_path_node(no);
     }
 
     CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
-
-    if (unlikely(node_sl->is_stat_needed())) {
-        return send_node_flow_stat(node_sl);
-    }
 
     /* check that we have mbuf  */
     rte_mbuf_t *    m;
@@ -2098,7 +2175,11 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
         }
     }
 
-    send_pkt(lp_port,m,lp_stats);
+    if (unlikely(node_sl->is_stat_needed())) {
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats);
+    } else {
+        send_pkt(lp_port,m,lp_stats);
+    }
 
     return (0);
 };
@@ -3802,8 +3883,12 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     m_zmq_publisher.publish_json(json);
 
     if (get_is_stateless()) {
-        if (m_trex_stateless->m_rx_flow_stat.dump_json(json, baseline))
-            m_zmq_publisher.publish_json(json);
+        std::string stat_json;
+        std::string latency_json;
+        if (m_trex_stateless->m_rx_flow_stat.dump_json(stat_json, latency_json, baseline)) {
+            m_zmq_publisher.publish_json(stat_json);
+            m_zmq_publisher.publish_json(latency_json);
+        }
     }
 }
 

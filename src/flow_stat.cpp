@@ -164,11 +164,18 @@ void CFlowStatUserIdInfo::reset_hw_id() {
 
 /************** class CFlowStatUserIdInfoPayload ***************/
 void CFlowStatUserIdInfoPayload::add_stream(uint8_t proto) {
-    //??? add unit test
     throw TrexFStatEx("Can't have two streams with same packet group id for payload rules"
                       , TrexException::T_FLOW_STAT_DUP_PG_ID);
 }
 
+void CFlowStatUserIdInfoPayload::reset_hw_id() {
+    CFlowStatUserIdInfo::reset_hw_id();
+
+    m_seq_error_base += m_rfc2544_info.m_seq_error;
+    m_out_of_order_base += m_rfc2544_info.m_out_of_order;
+    m_rfc2544_info.m_seq_error = 0;
+    m_rfc2544_info.m_out_of_order = 0;
+}
 
 /************** class CFlowStatUserIdMap ***************/
 CFlowStatUserIdMap::CFlowStatUserIdMap() {
@@ -370,7 +377,7 @@ uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
         return UINT16_MAX;
     }
     uint16_t old_hw_id = c_user_id->get_hw_id();
-    c_user_id->reset_hw_id();//??? need to call reset of CFlowStatUserIdInfoPayload if needed
+    c_user_id->reset_hw_id();
 
     return old_hw_id;
 }
@@ -534,8 +541,6 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
     if (! m_api ) {
         create();
     }
-
-    //??? put back    assert(stream->m_rx_check.m_hw_id == HW_ID_INIT);
 
     TrexPlatformApi::driver_stat_cap_e rule_type = (TrexPlatformApi::driver_stat_cap_e)stream->m_rx_check.m_rule_type;
 
@@ -893,28 +898,36 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
 }
 
 // return false if no counters changed since last run. true otherwise
-bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
+// s_json - flow statistics json
+// l_json - latency data json
+// baseline - If true, send flow statistics fields even if they were not changed since last run
+bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, bool baseline) {
     rx_per_flow_t rx_stats[MAX_FLOW_STATS];
     rx_per_flow_t rx_stats_payload[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
     rfc2544_info_t rfc2544_info[MAX_FLOW_STATS_PAYLOAD];
     Json::FastWriter writer;
-    Json::Value root;
+    Json::Value s_root;
+    Json::Value l_root;
 
-    root["name"] = "flow_stats";
-    root["type"] = 0;
+    s_root["name"] = "flow_stats";
+    s_root["type"] = 0;
+    l_root["name"] = "latency_stats";
+    l_root["type"] = 0;
 
     if (baseline) {
-        root["baseline"] = true;
+        s_root["baseline"] = true;
     }
 
-    Json::Value &data_section = root["data"];
-    data_section["ts"]["value"] = Json::Value::UInt64(os_get_hr_tick_64());
-    data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
+    Json::Value &s_data_section = s_root["data"];
+    Json::Value &l_data_section = l_root["data"];
+    s_data_section["ts"]["value"] = Json::Value::UInt64(os_get_hr_tick_64());
+    s_data_section["ts"]["freq"] = Json::Value::UInt64(os_get_hr_freq());
 
     if (m_user_id_map.is_empty()) {
-        json = writer.write(root);
+        s_json = writer.write(s_root);
+        l_json = writer.write(l_root);
         return true;
     }
 
@@ -992,7 +1005,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
         uint32_t user_id = it->first;
         std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream() << user_id) )->str();
         if (! user_id_info->was_sent()) {
-            data_section[str_user_id]["first_time"] = true;
+            s_data_section[str_user_id]["first_time"] = true;
             user_id_info->set_was_sent(true);
             send_empty = false;
         }
@@ -1000,18 +1013,22 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
             if (user_id_info->need_to_send_rx(port) || baseline) {
                 user_id_info->set_no_need_to_send_rx(port);
-                data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_pkts());
+                s_data_section[str_user_id]["rx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_pkts());
                 if (m_cap & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT)
-                    //???put back                    data_section[str_user_id]["rx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_bytes());
+                    s_data_section[str_user_id]["rx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_bytes());
                 send_empty = false;
             }
             if (user_id_info->need_to_send_tx(port) || baseline) {
                 user_id_info->set_no_need_to_send_tx(port);
-                data_section[str_user_id]["tx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_cntr(port).get_pkts());
-                //??? pub back                data_section[str_user_id]["tx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_cntr(port).get_bytes());
+                s_data_section[str_user_id]["tx_pkts"][str_port] = Json::Value::UInt64(user_id_info->get_tx_cntr(port).get_pkts());
+                s_data_section[str_user_id]["tx_bytes"][str_port] = Json::Value::UInt64(user_id_info->get_tx_cntr(port).get_bytes());
                 send_empty = false;
             }
         }
+        if (send_empty) {
+            s_data_section[str_user_id] = Json::objectValue;
+        }
+
         if (user_id_info->rfc2544_support()) {
             CFlowStatUserIdInfoPayload *user_id_info_p = (CFlowStatUserIdInfoPayload *)user_id_info;
             // payload object. Send also latency, jitter...
@@ -1022,33 +1039,34 @@ bool CFlowStatRuleMgr::dump_json(std::string & json, bool baseline) {
                 rfc2544_info[hw_id].get_latency_json(json);
                 user_id_info_p->set_seq_err_cnt(rfc2544_info[hw_id].get_seq_err_cnt());
                 user_id_info_p->set_ooo_cnt(rfc2544_info[hw_id].get_ooo_cnt());
-                data_section[str_user_id]["rfc2544"][""] = json;
-                data_section[str_user_id]["rfc2544"]["jitter"] = rfc2544_info[hw_id].get_jitter();
+                l_data_section[str_user_id]["latency"] = json;
+                l_data_section[str_user_id]["jitter"] = rfc2544_info[hw_id].get_jitter();
             } else {
                 // Not mapped to hw_id. Get saved info.
                 user_id_info_p->get_latency_json(json);
-                data_section[str_user_id]["rfc2544"]["latency"] = json;
-                data_section[str_user_id]["rfc2544"]["jitter"] = user_id_info_p->get_jitter();
+                l_data_section[str_user_id]["latency"] = json;
+                l_data_section[str_user_id]["jitter"] = user_id_info_p->get_jitter();
             }
-            data_section[str_user_id]["rfc2544"]["err_cntrs"]["lost"]
+            ///????? add last 10 samples
+            l_data_section[str_user_id]["err_cntrs"]["lost"]
                 = Json::Value::UInt64(user_id_info_p->get_seq_err_cnt());
-            data_section[str_user_id]["rfc2544"]["err_cntrs"]["out_of_order"]
+            l_data_section[str_user_id]["err_cntrs"]["out_of_order"]
                 = Json::Value::UInt64(user_id_info_p->get_ooo_cnt());
 
             //??? temp - remove
-            data_section[str_user_id]["tx_bytes"]["0"]
+#if 0
+            s_data_section[str_user_id]["tx_bytes"]["0"]
                 = Json::Value::UInt64(user_id_info_p->get_seq_err_cnt());
-            data_section[str_user_id]["tx_bytes"]["1"] = 0;
-            data_section[str_user_id]["rx_bytes"]["0"]
+            s_data_section[str_user_id]["tx_bytes"]["1"] = 0;
+            s_data_section[str_user_id]["rx_bytes"]["0"]
                 = Json::Value::UInt64(user_id_info_p->get_ooo_cnt());
-            data_section[str_user_id]["rx_bytes"]["1"] = 0;
-        }
-        if (send_empty) {
-            data_section[str_user_id] = Json::objectValue;
+            s_data_section[str_user_id]["rx_bytes"]["1"] = 0;
+#endif
         }
     }
 
-    json = writer.write(root);
+    s_json = writer.write(s_root);
+    l_json = writer.write(l_root);
     // We always want to publish, even only the timestamp.
     return true;
 }

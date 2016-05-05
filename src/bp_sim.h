@@ -274,7 +274,7 @@ public:
     uint64_t   m_tx_queue_full;
     uint64_t   m_tx_alloc_error;
     tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD];
-    uint64_t   m_seq_num[MAX_FLOW_STATS_PAYLOAD]; // seq num to put in packet for payload rules
+    uint32_t   m_seq_num[MAX_FLOW_STATS_PAYLOAD]; // seq num to put in packet for payload rules
     CPerTxthreadTemplateInfo m_template;
 
 public:
@@ -297,6 +297,9 @@ public:
        m_tx_alloc_error=0;
        m_tx_queue_full=0;
        m_template.Clear();
+       for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
+           m_seq_num[i] = UINT32_MAX - 1; // catch wrap around issues early
+       }
     }
 
     inline void Dump(FILE *fd);

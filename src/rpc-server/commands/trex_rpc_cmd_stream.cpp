@@ -115,8 +115,12 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         }
 
         stream->m_rx_check.m_pg_id      = parse_int(rx, "stream_id", result);
-        stream->m_rx_check.m_seq_enabled  = parse_bool(rx, "seq_enabled", result);
-        stream->m_rx_check.m_latency      = parse_bool(rx, "latency_enabled", result);
+        std::string type = parse_string(rx, "rule_type", result);
+        if (type == "latency") {
+            stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+        } else {
+            stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
+        }
     }
 
     /* make sure this is a valid stream to add */

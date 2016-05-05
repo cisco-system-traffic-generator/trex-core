@@ -3729,6 +3729,7 @@ TEST_F(flow_stat, add_del_stream) {
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     TrexStream stream2(TrexStream::stSINGLE_BURST, 0, 0);
+    TrexStream stream3(TrexStream::stSINGLE_BURST, 0, 0);
     
     stream.m_rx_check.m_enabled = true;
 
@@ -3762,16 +3763,28 @@ TEST_F(flow_stat, add_del_stream) {
     test_pkt[27] = IPPROTO_UDP;
     int ret = rule_mgr.add_stream(&stream);
     assert (ret == 0);
+
+    stream3.m_rx_check.m_enabled = true;
+    stream3.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+    stream3.m_rx_check.m_pg_id = 5; // same as first stream
+    stream3.m_pkt.binary = (uint8_t *)test_pkt;
+    stream3.m_pkt.len = sizeof(test_pkt);
+    try {
+        ret = rule_mgr.add_stream(&stream3);
+    } catch (TrexFStatEx e) {
+        assert(e.type() == TrexException::T_FLOW_STAT_DUP_PG_ID);
+    }
+
     ret = rule_mgr.del_stream(&stream);
     assert (ret == 0);
 
+    stream2.m_rx_check.m_enabled = true;
     stream2.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
-    stream2.m_rx_check.m_pg_id = 5; // ??? same as first stream
+    stream2.m_rx_check.m_pg_id = 5; // same as first stream
     stream2.m_pkt.binary = (uint8_t *)test_pkt;
     stream2.m_pkt.len = sizeof(test_pkt);
     ret = rule_mgr.add_stream(&stream2);
     assert (ret == 0);
-
 
     ret = rule_mgr.del_stream(&stream2);
     assert (ret == 0);
@@ -3781,9 +3794,10 @@ TEST_F(flow_stat, add_del_stream) {
         assert(e.type() == TrexException::T_FLOW_STAT_DEL_NON_EXIST);
     } 
 
-    // do not want the constructor to try to free it
+    // do not want the destructor to try to free it
     stream.m_pkt.binary = NULL; 
     stream2.m_pkt.binary = NULL;
+    stream3.m_pkt.binary = NULL;
 }
 
 TEST_F(flow_stat, start_stop_stream) {

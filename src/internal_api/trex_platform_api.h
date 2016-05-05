@@ -234,6 +234,8 @@ public:
     virtual void publish_async_data_now(uint32_t key, bool baseline) const {
 
     }
+    int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
+                       , TrexPlatformApi::driver_stat_cap_e type) const {return 0;};
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const {return 0;};
     virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
     virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};

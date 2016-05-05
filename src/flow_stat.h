@@ -43,10 +43,10 @@ typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;
 class CRxCoreStateless;
 
 struct flow_stat_payload_header {
-    uint64_t time_stamp;
-    uint16_t hw_id;
     uint16_t magic;
+    uint16_t hw_id;
     uint32_t seq;
+    uint64_t time_stamp;
 };
 
 
@@ -246,7 +246,8 @@ class CFlowStatUserIdInfo {
     bool rfc2544_support() {return m_rfc2544_support;}
 
  protected:
-        bool m_rfc2544_support;
+    bool m_rfc2544_support;
+    uint16_t m_hw_id;     // Associated hw id. UINT16_MAX if no associated hw id.
 
  private:
     bool m_rx_changed[TREX_MAX_PORTS]; // Which RX counters changed since we last published
@@ -257,7 +258,6 @@ class CFlowStatUserIdInfo {
     tx_per_flow_t m_tx_cntr[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
     // How many packets transmitted with this user id, since stream creation, before stream start.
     tx_per_flow_t m_tx_cntr_base[TREX_MAX_PORTS];
-    uint16_t m_hw_id;     // Associated hw id. UINT16_MAX if no associated hw id.
     uint8_t m_proto;      // protocol (UDP, TCP, other), associated with this user id.
     uint8_t m_ref_count;  // How many streams with this user id exists
     uint8_t m_trans_ref_count;  // How many streams with this user id currently transmit
@@ -309,13 +309,7 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
         return m_rfc2544_info.m_out_of_order + m_out_of_order_base;
     }
 
-    inline void reset_hw_id() {
-        m_seq_error_base += m_rfc2544_info.m_seq_error;
-        m_out_of_order_base += m_rfc2544_info.m_out_of_order;
-        m_rfc2544_info.m_seq_error = 0;
-        m_rfc2544_info.m_out_of_order = 0;
-    }
-
+    inline void reset_hw_id();    
  private:
     rfc2544_info_t m_rfc2544_info;
     uint64_t m_seq_error_base;
@@ -377,7 +371,7 @@ class CFlowStatRuleMgr {
     int start_stream(TrexStream * stream);
     int stop_stream(TrexStream * stream);
     int get_active_pgids(flow_stat_active_t &result);
-    bool dump_json(std::string & json, bool baseline);
+    bool dump_json(std::string & s_json, std::string & l_json, bool baseline);
 
  private:
     void create();

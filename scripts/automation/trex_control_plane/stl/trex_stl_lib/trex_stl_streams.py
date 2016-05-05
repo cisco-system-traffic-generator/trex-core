@@ -210,25 +210,11 @@ STLStreamDstMAC_CFG_FILE=0
 STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
-# RX stats class
-class STLFlowStats(object):
-    """ Define per stream stats  
-
-        .. code-block:: python
-            :caption: STLFlowStats Example
-
-            flow_stats = STLFlowStats(pg_id = 7)
-
-    """
-
+class STLFlowStatsInterface(object):
     def __init__ (self, pg_id):
         self.fields = {}
-
         self.fields['enabled']         = True
         self.fields['stream_id']       = pg_id
-        self.fields['seq_enabled']     = False
-        self.fields['latency_enabled'] = False
-
 
     def to_json (self):
         """ Dump as json"""
@@ -237,6 +223,37 @@ class STLFlowStats(object):
     @staticmethod
     def defaults ():
         return {'enabled' : False}
+
+
+class STLFlowStats(STLFlowStatsInterface):
+    """ Define per stream basic stats
+
+    .. code-block:: python
+    :caption: STLFlowStats Example
+
+    flow_stats = STLFlowStats(pg_id = 7)
+
+    """
+
+    def __init__(self, pg_id):
+        super(STLFlowStats, self).__init__(pg_id)
+        self.fields['rule_type'] = 'stats'
+
+
+class STLFlowLatencyStats(STLFlowStatsInterface):
+    """ Define per stream basic stats + latency, jitter, packet reorder/loss
+
+    .. code-block:: python
+    :caption: STLFlowLatencyStats Example
+
+    flow_stats = STLFlowLatencyStats(pg_id = 7)
+
+    """
+
+    def __init__(self, pg_id):
+        super(STLFlowLatencyStats, self).__init__(pg_id)
+        self.fields['rule_type'] = 'latency'
+
 
 class STLStream(object):
     """ One stream object. Includes mode, Field Engine mode packet template and Rx stats  
@@ -320,6 +337,7 @@ class STLStream(object):
         # type checking
         validate_type('mode', mode, STLTXMode)
         validate_type('packet', packet, (type(None), CTrexPktBuilderInterface))
+        validate_type('flow_stats', flow_stats, (type(None), STLFlowStatsInterface))
         validate_type('enabled', enabled, bool)
         validate_type('self_start', self_start, bool)
         validate_type('isg', isg, (int, float))

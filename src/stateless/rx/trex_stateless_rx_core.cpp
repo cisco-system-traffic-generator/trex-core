@@ -30,7 +30,9 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
-        m_per_flow_seq[i] = 0;
+        // This is the seq num value we expect next packet to have.
+        // Init value should match m_seq_num in CVirtualIFPerSideStats
+        m_per_flow_seq[i] = UINT32_MAX - 1;  // catch wrap around issues early
         m_per_flow_hist[i].Reset();
         m_per_flow_jitter[i].reset();
         m_per_flow_seq_error[i] = 0;
@@ -133,7 +135,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
             if (is_flow_stat_id(ip_id)) {
                 uint16_t hw_id;
                 if (is_flow_stat_payload_id(ip_id)) {
-                    uint32_t seq; //??? handle seq wrap around
+                    uint32_t seq;
                     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
                     struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
                         (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
@@ -142,20 +144,34 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                         seq = fsp_head->seq;
                         if (unlikely(seq != m_per_flow_seq[hw_id])) {
                             if (seq < m_per_flow_seq[hw_id]) {
-                                if (seq ==  (m_per_flow_seq[hw_id] - 1)) {
-                                    m_per_flow_dup[hw_id] += 1;
-                                    printf("dup packets seq:%d %ld\n", seq, m_per_flow_seq[hw_id]);
+                                if (m_per_flow_seq[hw_id] - seq > 100000) {
+                                    // packet loss while we had wrap around
+                                    m_per_flow_seq_error[hw_id] += seq - m_per_flow_seq[hw_id];
+                                    m_per_flow_seq[hw_id] = seq + 1;
                                 } else {
-                                    m_per_flow_out_of_order[hw_id] += 1;
-                                    // We thought it was lost, but it was just out of order
-                                    m_per_flow_seq_error[hw_id] -= 1;
-                                    printf("ooo packets seq:%d %ld\n", seq, m_per_flow_seq[hw_id]);
+                                    if (seq == (m_per_flow_seq[hw_id] - 1)) {
+                                        m_per_flow_dup[hw_id] += 1;
+                                    } else {
+                                        m_per_flow_out_of_order[hw_id] += 1;
+                                        // We thought it was lost, but it was just out of order
+                                        m_per_flow_seq_error[hw_id] -= 1;
+                                    }
                                 }
                             } else {
-                                // seq > m_per_flow_seq[hw_id]
-                                printf("lost packets seq:%d %ld\n", seq, m_per_flow_seq[hw_id]);
-                                m_per_flow_seq_error[hw_id] += seq - m_per_flow_seq[hw_id];
-                                m_per_flow_seq[hw_id] = seq + 1;
+                                if (unlikely (m_per_flow_seq[hw_id] - seq > 100000)) {
+                                    // packet reorder while we had wrap around
+                                    if (seq == (m_per_flow_seq[hw_id] - 1)) {
+                                        m_per_flow_dup[hw_id] += 1;
+                                    } else {
+                                        m_per_flow_out_of_order[hw_id] += 1;
+                                        // We thought it was lost, but it was just out of order
+                                        m_per_flow_seq_error[hw_id] -= 1;
+                                    }
+                                } else {
+                                // seq > m_per_flow_seq[hw_id]. Assuming lost packets
+                                    m_per_flow_seq_error[hw_id] += seq - m_per_flow_seq[hw_id];
+                                    m_per_flow_seq[hw_id] = seq + 1;
+                                }
                             }
                         } else {
                             m_per_flow_seq[hw_id] = seq + 1;

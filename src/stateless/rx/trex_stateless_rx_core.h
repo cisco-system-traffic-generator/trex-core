@@ -101,7 +101,7 @@ class CRxCoreStateless {
     CCpuUtlCp m_cpu_cp_u;
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
-    uint64_t m_per_flow_seq[MAX_FLOW_STATS_PAYLOAD]; // expected next seq num
+    uint32_t m_per_flow_seq[MAX_FLOW_STATS_PAYLOAD]; // expected next seq num
     CTimeHistogram  m_per_flow_hist[MAX_FLOW_STATS_PAYLOAD]; /* latency info */
     CJitter         m_per_flow_jitter[MAX_FLOW_STATS_PAYLOAD];
     uint64_t m_per_flow_seq_error[MAX_FLOW_STATS_PAYLOAD]; // How many packet seq num gaps we saw (packets lost or out of order)

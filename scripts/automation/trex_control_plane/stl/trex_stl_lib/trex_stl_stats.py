@@ -942,7 +942,7 @@ class CRxStats(CTRexStats):
 
     def calculate_bw_for_pg (self, pg_current, pg_prev = None, diff_sec = 0.0):
         # no previous values
-        if (pg_prev == None) or not (diff_sec > 0):
+        if (not pg_prev) or not (diff_sec > 0):
             pg_current['tx_pps']        = {}
             pg_current['tx_bps']        = {}
             pg_current['tx_bps_L1']     = {}
