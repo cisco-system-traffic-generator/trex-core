@@ -1272,7 +1272,6 @@ The folowing figure presents the output.
 
 image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_interleaving_01.png"]
 
-// OBSOLETE: image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_inter.png"]
 
 *Discussion*:: 
 * Stream #1
