@@ -440,6 +440,7 @@ public:
         dp->m_num_bursts            =   m_num_bursts;
         dp->m_ibg_usec              =   m_ibg_usec;
         dp->m_flags                 =   m_flags;
+        dp->m_cache_size            =   m_cache_size;
         dp->m_action_count          =   m_action_count;
         dp->m_random_seed           =   m_random_seed;
 
@@ -514,8 +515,10 @@ public:
     uint8_t       m_type;
     uint8_t       m_port_id;
     uint16_t      m_flags;
+
     uint32_t      m_stream_id;              /* id from RPC can be anything */
     uint16_t      m_action_count;       
+    uint16_t      m_cache_size;
     uint32_t      m_random_seed;
     
 

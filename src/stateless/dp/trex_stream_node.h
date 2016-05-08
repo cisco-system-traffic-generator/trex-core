@@ -49,6 +49,15 @@ public:
 static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
 
 
+struct CGenNodeCacheMbuf {
+    rte_mbuf_t *  m_mbuf_const;
+    rte_mbuf_t *  m_array[0];
+public:
+    static uint32_t get_object_size(uint32_t size){
+        return ( sizeof(CGenNodeCacheMbuf) + sizeof(rte_mbuf_t *) * size );
+    }
+};
+
 /* this is a event for stateless */
 struct CGenNodeStateless : public CGenNodeBase  {
 friend class TrexStatelessDpCore;
@@ -61,10 +70,10 @@ public:
         SL_NODE_FLAGS_MBUF_CACHE           =2, //USED by master
 
         SL_NODE_CONST_MBUF                 =4,
-
-        SL_NODE_VAR_PKT_SIZE               =8,
-        SL_NODE_STATS_NEEDED               = 0x10
-
+                                             
+        SL_NODE_VAR_PKT_SIZE               = 8,
+        SL_NODE_STATS_NEEDED               = 0x10,
+        SL_NODE_CONST_MBUF_CACHE_ARRAY     = 0x20  /* array of mbuf - cache */
     };
 
     enum {                                          
@@ -77,15 +86,18 @@ public:
     static std::string get_stream_state_str(stream_state_t stream_state);
 
 private:
-    /* cache line 0 */
-    /* important stuff here */
-    void *              m_cache_mbuf;
+    /******************************/
+    /* cache line 0               */
+    /* important stuff here  R/W  */
+    /******************************/
+    void *              m_cache_mbuf; /* could be an array or a one mbuf */
 
     double              m_next_time_offset; /* in sec */
     uint16_t            m_action_counter;
     uint8_t             m_stat_hw_id; // hw id used to count rx and tx stats
     uint8_t             m_null_stream;
-    uint32_t            m_pad12;
+    uint16_t            m_cache_array_cnt;
+    uint16_t            m_pad12;
 
     stream_state_t      m_state;
     uint8_t             m_port_id;
@@ -97,7 +109,10 @@ private:
 
     uint32_t            m_multi_bursts; /* in case of multi_burst how many bursts */
 
-    /* cache line 1 */
+    /******************************/
+    /* cache line 1  
+      this cache line should be READONLY ! you can write only at init time */ 
+    /******************************/
     TrexStream *         m_ref_stream_info; /* the stream info */
     CGenNodeStateless  * m_next_stream;
 
@@ -107,8 +122,11 @@ private:
     uint8_t *            m_vm_flow_var; /* pointer to the vm flow var */
     uint8_t *            m_vm_program;  /* pointer to the program */
     uint16_t             m_vm_program_size; /* up to 64K op codes */
-    uint16_t             m_pad2;
-    uint32_t             m_pad3;
+    uint16_t             m_cache_size;   /*RO*/ /* the size of the mbuf array */
+    uint8_t              m_batch_size;   /*RO*/ /* the batch size */
+
+    uint8_t              m_pad4; 
+    uint16_t             m_pad5; 
 
     /* End Fast Field VM Section */
 
@@ -117,6 +135,8 @@ private:
 
 
 public:
+
+
 
     void set_random_seed(uint32_t seed){
         uint32_t *p=get_random_bss_seed_memory();
@@ -367,6 +387,36 @@ public:
     rte_mbuf_t   * alloc_node_with_vm();
 
     void free_stl_node();
+
+public:
+    void cache_mbuf_array_init();
+
+    inline bool is_cache_mbuf_array(){
+        return  ( m_flags & SL_NODE_CONST_MBUF_CACHE_ARRAY ? true:false );
+    }
+
+     rte_mbuf_t ** cache_mbuf_array_alloc(uint16_t size);
+
+     void cache_mbuf_array_free();
+
+     void cache_mbuf_array_set(uint16_t index,rte_mbuf_t * m);
+
+     void cache_mbuf_array_set_const_mbuf(rte_mbuf_t * m);
+
+     rte_mbuf_t * cache_mbuf_array_get_const_mbuf();
+
+     rte_mbuf_t * cache_mbuf_array_get(uint16_t index);
+
+     rte_mbuf_t * cache_mbuf_array_get_cur(void){
+            CGenNodeCacheMbuf *p =(CGenNodeCacheMbuf *) m_cache_mbuf;
+            rte_mbuf_t * m=p->m_array[m_cache_array_cnt];
+            assert(m);
+            m_cache_array_cnt++;
+            if (m_cache_array_cnt == m_cache_size) {
+                m_cache_array_cnt=0;
+            }
+            return m;
+     }
 
 public:
     /* debug functions */

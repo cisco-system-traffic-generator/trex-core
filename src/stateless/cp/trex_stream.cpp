@@ -121,7 +121,7 @@ void TrexStream::Dump(FILE *fd){
     fprintf(fd," bps L1      : %f\n", m_rate.get_bps_L1());
     fprintf(fd," bps L2      : %f\n", m_rate.get_bps_L2());
     fprintf(fd," percentage  : %f\n", m_rate.get_percentage());
-
+    fprintf(fd," cache_size  : %lu\n", (ulong)m_cache_size);
 }
 
  
@@ -134,6 +134,7 @@ TrexStream::TrexStream(uint8_t type,
     m_next_stream_id    = -1;
     m_enabled           = false;
     m_self_start        = false;
+    m_cache_size        = 0;
 
     m_mc_phase_pre_sec           = 0;
     m_mc_phase_post_sec          = 0;

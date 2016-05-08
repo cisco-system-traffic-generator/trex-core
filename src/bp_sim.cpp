@@ -3576,16 +3576,22 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                                CFlowGenListPerThread * thread,
                                double &old_offset){
     CGenNode * node;
+    #ifdef TREX_SIM
     dsec_t flush_time=now_sec(); 
+    #endif
     dsec_t offset=0.0;
+    #ifdef TREX_SIM
     dsec_t n_time;
+    #endif
     if (always) {
          offset=old_offset;
     }
+    #ifdef TREX_SIM
     uint32_t events=0;
+    #endif
     bool done=false;
 
-    thread->m_cpu_dp_u.start_work();
+    thread->m_cpu_dp_u.start_work1();
 
     /**
      * if a positive value was given to max time 
@@ -3602,18 +3608,25 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     while (true) {
 
         node = m_p_queue.top();
+        #ifdef TREX_SIM
         n_time = node->m_time + offset;
 
         events++;
+        #endif
 /*#ifdef VALG
         if (events > 1 ) {
             CALLGRIND_START_INSTRUMENTATION;
         }
 #endif*/
 
+        thread->m_cpu_dp_u.commit1();
+        thread->m_cpu_dp_u.start_work1();
+
+        #ifdef TREX_SIM
+
         if (  likely ( m_is_realtime ) ){
             dsec_t dt ;
-            thread->m_cpu_dp_u.commit();
+            thread->m_cpu_dp_u.commit1();
 
             while ( true ) {
                 dt = now_sec() - n_time ;
@@ -3624,7 +3637,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 
                 rte_pause();
             }
-            thread->m_cpu_dp_u.start_work();
+            thread->m_cpu_dp_u.start_work1();
 
             /* add offset in case of faliures more than 100usec */
             if ( unlikely( dt > 0.000100 ) ) {
@@ -3640,6 +3653,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                 flush_time=now_sec();
             }
         }
+        #endif
 
 
         uint8_t type=node->m_type;

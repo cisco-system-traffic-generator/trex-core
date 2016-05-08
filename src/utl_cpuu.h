@@ -32,6 +32,14 @@ public:
         m_total_cycles=0;
         m_data=0;
     }
+    inline void  start_work1(){
+        m_data=1;
+
+    }
+    inline void commit1(){
+        m_data=0;
+    }
+
     inline void start_work(){
         m_data=os_get_hr_tick_64();
     }
@@ -50,7 +58,7 @@ public:
 
 private:
     uint64_t m_total_cycles;
-    uint64_t m_data;
+    uint8_t m_data;
 
 } __rte_cache_aligned; 
 

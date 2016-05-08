@@ -140,6 +140,29 @@ class basic_vm  : public testing::Test {
 };
 
 
+TEST_F(basic_vm, cache_basic) {
+
+    CGenNodeStateless *node = new CGenNodeStateless();
+
+    node->cache_mbuf_array_init();
+    int i;
+    node->cache_mbuf_array_alloc(10);
+    for (i=0; i<10; i++) {
+        rte_mbuf_t * m =CGlobalInfo::pktmbuf_alloc_small(0);
+        m->data_off=i;
+        node->cache_mbuf_array_set(i,(rte_mbuf_t *) m);
+    }
+
+    for (i=0; i<10; i++) {
+      rte_mbuf_t * m =node->cache_mbuf_array_get_cur();
+      printf(" %d \n",m->data_off);
+      //rte_pktmbuf_refcnt_update(m,1); /* both */
+    }
+
+    node->cache_mbuf_array_free();
+
+    delete node;
+}
 
 
 TEST_F(basic_vm, pkt_size) {
@@ -3585,3 +3608,7 @@ TEST_F(rx_stat_pkt_parse, x710_parser) {
 
     parser.test();
 }
+
+
+
+

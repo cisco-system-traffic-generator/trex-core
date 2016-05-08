@@ -26,6 +26,75 @@ limitations under the License.
 #include "trex_stream_node.h"
 #include "trex_streams_compiler.h"
 
+
+
+
+void CGenNodeStateless::cache_mbuf_array_init(){
+    m_cache_size=0;
+    m_cache_array_cnt=0;
+}
+
+
+           
+rte_mbuf_t ** CGenNodeStateless::cache_mbuf_array_alloc(uint16_t size){
+
+    uint32_t buf_size = CGenNodeCacheMbuf::get_object_size(size);
+    /* TBD  replace with align, zero API */
+    m_cache_mbuf = (void *)malloc(buf_size);
+    assert(m_cache_mbuf);
+    memset(m_cache_mbuf,0,buf_size);
+
+    m_flags |= SL_NODE_CONST_MBUF_CACHE_ARRAY;
+    m_cache_size=size;
+    m_cache_array_cnt=0;
+    return ((rte_mbuf_t **)m_cache_mbuf);
+}
+
+void CGenNodeStateless::cache_mbuf_array_free(){
+
+    assert(m_cache_mbuf);
+    int i;
+    for (i=0; i<(int)m_cache_size; i++) {
+        rte_mbuf_t * m=cache_mbuf_array_get((uint16_t)i);
+        assert(m);
+        rte_pktmbuf_free(m); 
+    }
+
+    /* free the const */
+    rte_mbuf_t * m=cache_mbuf_array_get_const_mbuf() ;
+    if (m) {
+        rte_pktmbuf_free(m); 
+    }
+
+    free(m_cache_mbuf);
+    m_cache_mbuf=0;
+}
+
+
+rte_mbuf_t * CGenNodeStateless::cache_mbuf_array_get(uint16_t index){
+
+    CGenNodeCacheMbuf *p =(CGenNodeCacheMbuf *) m_cache_mbuf;
+    return (p->m_array[index]);
+}
+
+void CGenNodeStateless::cache_mbuf_array_set_const_mbuf(rte_mbuf_t * m){
+    CGenNodeCacheMbuf *p =(CGenNodeCacheMbuf *) m_cache_mbuf;
+    p->m_mbuf_const=m;
+}
+
+rte_mbuf_t * CGenNodeStateless::cache_mbuf_array_get_const_mbuf(){
+    CGenNodeCacheMbuf *p =(CGenNodeCacheMbuf *) m_cache_mbuf;
+    return (p->m_mbuf_const);
+}
+
+
+void CGenNodeStateless::cache_mbuf_array_set(uint16_t index,
+                                             rte_mbuf_t * m){
+    CGenNodeCacheMbuf *p =(CGenNodeCacheMbuf *) m_cache_mbuf;
+    p->m_array[index]=m;
+}
+
+
 void CDpOneStream::Delete(CFlowGenListPerThread   * core){
     assert(m_node->get_state() == CGenNodeStateless::ss_INACTIVE);
     core->free_node((CGenNode *)m_node);
@@ -188,18 +257,24 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
 
 
 void CGenNodeStateless::free_stl_node(){
-    /* if we have cache mbuf free it */
-    rte_mbuf_t * m=get_cache_mbuf();
-    if (m) {
-        rte_pktmbuf_free(m);
-        m_cache_mbuf=0;
+
+    if ( is_cache_mbuf_array() ){
+        /* do we have cache of mbuf pre allocated */
+        cache_mbuf_array_free();
     }else{
-        /* non cache - must have an header */
-         m=get_const_mbuf();
-         if (m) {
-             rte_pktmbuf_free(m); /* reduce the ref counter */
-         }
-         free_prefix_header();
+        /* if we have cache mbuf free it */
+        rte_mbuf_t * m=get_cache_mbuf();
+        if (m) {
+                rte_pktmbuf_free(m);
+                m_cache_mbuf=0;
+        }else{
+            /* non cache - must have an header */
+             m=get_const_mbuf();
+             if (m) {
+                 rte_pktmbuf_free(m); /* reduce the ref counter */
+             }
+             free_prefix_header();
+        }
     }
     if (m_vm_flow_var) {
         /* free flow var */

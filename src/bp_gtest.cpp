@@ -1134,6 +1134,7 @@ TEST_F(basic, http1_ipv6) {
 
 void delay(int msec);
 
+#if 0
 
 TEST_F(cpu, cpu1) {
     CCpuUtlDp cpu_dp;
@@ -1176,6 +1177,7 @@ TEST_F(cpu, cpu2) {
 
     cpu_cp.Delete();
 }
+#endif
 
 #if 0
 TEST_F(cpu, cpu3) {
