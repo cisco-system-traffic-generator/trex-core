@@ -2008,8 +2008,8 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 
 int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats) {
-    //??? remove
-# if 0
+    // Defining this makes 10% percent packet loss. 1% packet reorder.
+# ifdef ERR_CNTRS_TEST
     static int temp=1;
     temp++;
 #endif
@@ -2038,19 +2038,14 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
 
         lp_stats->m_seq_num[hw_id_payload]++;
 
-        //??? remove
-#if 0
+#ifdef ERR_CNTRS_TEST
         if (temp % 10 == 0) {
             fsp_head->seq = lp_stats->m_seq_num[hw_id_payload]++;
         }
-
         if ((temp - 1) % 100 == 0) {
             fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 4;
-            //            lp_stats->m_seq_num[hw_id_payload]--;
         }
 #endif
-
-
 
         if (rte_pktmbuf_is_contiguous(m)) {
             // We have only the const mbuf
@@ -2080,72 +2075,6 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     send_pkt(lp_port, mi, lp_stats);
     return 0;
 }
-
-#if 0
-//??? remove
-// Maybe make it part of send_node somehow
-int CCoreEthIFStateless::send_node_flow_stat(CGenNodeStateless * node_sl) {
-    //??? remove
-    static int temp=1;
-    temp++;
-
-    uint16_t hw_id = node_sl->get_stat_hw_id();
-    tx_per_flow_t *lp_s;
-    /* check that we have mbuf  */
-    rte_mbuf_t *temp_m = node_sl->get_cache_mbuf();
-    rte_mbuf_t *m;
-
-    if (temp_m) {
-        /* cache case */
-        m = node_sl->alloc_flow_stat_mbuf(temp_m);
-    }else{
-        temp_m = node_sl->alloc_node_with_vm();
-        assert(temp_m);
-        m = node_sl->alloc_flow_stat_mbuf(temp_m);
-        rte_pktmbuf_free(temp_m);
-    }
-
-    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
-    CCorePerPort *  lp_port=&m_ports[dir];
-    CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
-
-    if (hw_id >= MAX_FLOW_STATS) {
-        // payload rule hw_ids are in the range right above ip id rules
-        uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
-        if (hw_id_payload > max_stat_hw_id_seen_payload) {
-            max_stat_hw_id_seen_payload = hw_id_payload;
-        }
-        uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
-        struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
-            (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
-        fsp_head->seq = lp_stats->m_seq_num[hw_id_payload];
-        fsp_head->time_stamp = os_get_hr_tick_64();
-        lp_stats->m_seq_num[hw_id_payload]++;
-        // remove ???
-
-        if (temp % 10 == 0) {
-            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload]++;
-        }
-#if 1
-        if ((temp - 1) % 100 == 0) {
-            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 4;
-            //            lp_stats->m_seq_num[hw_id_payload]--;
-        }
-#endif
-    } else {
-        // ip id rule
-        if (hw_id > max_stat_hw_id_seen) {
-            max_stat_hw_id_seen = hw_id;
-        }
-    }
-    lp_s = &lp_stats->m_tx_per_flow[hw_id];
-    lp_s->add_pkts(1);
-    lp_s->add_bytes(m->pkt_len);
-
-    send_pkt(lp_port,m,lp_stats);
-    return 0;
-}
-#endif
 
 int CCoreEthIFStateless::send_node(CGenNode * no) {
     /* if a node is marked as slow path - single IF to redirect it to slow path */

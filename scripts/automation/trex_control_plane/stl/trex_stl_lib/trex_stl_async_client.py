@@ -293,6 +293,9 @@ class CTRexAsyncClient():
         elif name == "flow_stats":
             self.event_handler.on_async_rx_stats_event(data, baseline)
 
+        elif name == "latency_stats":
+            self.event_handler.on_async_latency_stats_event(data, baseline)
+
         else:
             pass
 

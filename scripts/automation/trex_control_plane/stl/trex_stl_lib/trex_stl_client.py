@@ -187,6 +187,8 @@ class EventsHandler(object):
     def on_async_rx_stats_event (self, data, baseline):
         self.client.flow_stats.update(data, baseline)
 
+    def on_async_latency_stats_event (self, data, baseline):
+        self.client.latency_stats.update(data, baseline)
 
     # handles an async stats update from the subscriber
     def on_async_stats_update(self, dump_data, baseline):
@@ -551,6 +553,8 @@ class STLClient(object):
 
         self.flow_stats = trex_stl_stats.CRxStats(self.ports)
 
+        self.latency_stats = trex_stl_stats.CLatencyStats(self.ports)
+
         self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
                                                                  self.ports,
                                                                  self.flow_stats)
@@ -891,6 +895,7 @@ class STLClient(object):
         stats['total'] = total
 
         stats['flow_stats'] = self.flow_stats.get_stats()
+        stats['latency'] = self.latency_stats.get_stats()
 
         return stats
 

@@ -831,6 +831,37 @@ class CPortStats(CTRexStats):
                 }
 
 
+class CLatencyStats(CTRexStats):
+    def __init__(self, ports):
+        super(CLatencyStats, self).__init__()
+
+    # for API
+    def get_stats (self):
+        return self.latest_stats
+
+    def process_snapshot (self, current):
+        output = {}
+
+        # we care only about the current active keys
+        pg_ids = list(filter(is_intable, current.keys()))
+
+        for pg_id in pg_ids:
+            current_pg = current.get(pg_id)
+            int_pg_id = int(pg_id)
+            output[int_pg_id] = {}
+            for field in ['err_cntrs', 'jitter', 'latency']:
+                output[int_pg_id][field] = current_pg[field]
+        return output
+
+    def update (self, snapshot, baseline):
+        # generate a new snapshot
+        if (snapshot is not None):
+            new_snapshot = self.process_snapshot(snapshot)
+        else:
+            return
+
+        self.latest_stats = new_snapshot
+        return True
 
 
 # RX stats objects - COMPLEX :-(

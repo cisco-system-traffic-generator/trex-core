@@ -1048,20 +1048,10 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                 l_data_section[str_user_id]["jitter"] = user_id_info_p->get_jitter();
             }
             ///????? add last 10 samples
-            l_data_section[str_user_id]["err_cntrs"]["lost"]
+            l_data_section[str_user_id]["err_cntrs"]["dropped"]
                 = Json::Value::UInt64(user_id_info_p->get_seq_err_cnt());
             l_data_section[str_user_id]["err_cntrs"]["out_of_order"]
                 = Json::Value::UInt64(user_id_info_p->get_ooo_cnt());
-
-            //??? temp - remove
-#if 0
-            s_data_section[str_user_id]["tx_bytes"]["0"]
-                = Json::Value::UInt64(user_id_info_p->get_seq_err_cnt());
-            s_data_section[str_user_id]["tx_bytes"]["1"] = 0;
-            s_data_section[str_user_id]["rx_bytes"]["0"]
-                = Json::Value::UInt64(user_id_info_p->get_ooo_cnt());
-            s_data_section[str_user_id]["rx_bytes"]["1"] = 0;
-#endif
         }
     }
 
