@@ -114,6 +114,7 @@ A JSON-RPC2 thread in the TRex control plane core provides support for interacti
 // RPC = Remote Procedure Call, alternative to REST? --YES, no change
 
 image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+
 // OBSOLETE: image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
 // Is there a big picture that would help to make the next 11 bullet points flow with clear logic? --explanation of the figure
@@ -1267,9 +1268,10 @@ The following example demonstrates 3 streams with different rates (10, 20, 40 PP
 
 
 *Output*::
-The folowing figure present the output 
+The folowing figure presents the output.
 
 image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_interleaving_01.png"]
+
 // OBSOLETE: image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_inter.png"]
 
 *Discussion*:: 
