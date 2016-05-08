@@ -11,11 +11,13 @@ TRex Stateless support
 :github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
 :toclevels: 6
 
+// PDF version - image width variable
 ifdef::backend-docbook[]
 :p_width: 450
 :p_width_1: 200
 endif::backend-docbook[]
 
+// HTML version - image width variable
 ifdef::backend-xhtml11[]
 :p_width: 800
 :p_width_1: 400
@@ -111,7 +113,8 @@ A JSON-RPC2 thread in the TRex control plane core provides support for interacti
 
 // RPC = Remote Procedure Call, alternative to REST? --YES, no change
 
-image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
+image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+// OBSOLETE: image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
 // Is there a big picture that would help to make the next 11 bullet points flow with clear logic? --explanation of the figure
 
@@ -142,7 +145,7 @@ image::images/trex_2_stateless.png[title="RPC Server Components",align="left",wi
 * A client syncs with the TRex server to get the state in connection time, and caches the server information locally after the state has changed. 
 * If a client crashes or exits, it syncs again after reconnecting. 
 
-image::images/trex_stateless_multi_user.png[title="Multiple users, per interface",align="left",width={p_width}, link="images/trex_stateless_multi_user.png"]
+image::images/trex_stateless_multi_user.png[title="Multiple users, per interface",align="left",width={p_width}, link="images/trex_stateless_multi_user_02.png"]
 
 For details about the TRex RPC server, see the link:trex_rpc_server_spec.html[RPC specification].  
 
@@ -158,7 +161,7 @@ This Architecture provides the following advantages:
 
 // maybe call it "Objects" in title and figure caption
 
-image::images/stateless_objects.png[title="TRex Objects",align="left",width={p_width_1}, link="images/stateless_objects.png"]
+image::images/stateless_objects.png[title="TRex Objects",align="left",width={p_width_1}, link="images/stateless_objects_02.png"]
 
 * *TRex*: Each TRex instance supports numerous interfaces. 
 // "one or more"?
@@ -640,7 +643,8 @@ Python API library: `automation/trex_control_plane/stl/trex_stl_lib`.
 
 The TRex console uses the Python API library to interact with the TRex server using the JSON-RPC2 protocol over ZMQ.
 
-image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
+image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+// OBSOLETE: image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
 *File*:: link:{github_stl_examples_path}/stl_bi_dir_flows.py[stl_bi_dir_flows.py]
 
@@ -1265,7 +1269,8 @@ The following example demonstrates 3 streams with different rates (10, 20, 40 PP
 *Output*::
 The folowing figure present the output 
 
-image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_inter.png"]
+image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_interleaving_01.png"]
+// OBSOLETE: image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_inter.png"]
 
 *Discussion*:: 
 * Stream #1
@@ -1396,7 +1401,8 @@ TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
 <2> Multi-burst of 5 bursts of 4 packets with an inter-burst gap of 1 second.
  
 
-image::images/stl_tut_4.png[title="Streams example",align="left",width={p_width}, link="images/stl_tut_4.png"]
+image::images/stl_tut_4.png[title="Example: Multiple Streams",align="left",width={p_width}, link="images/stl_multiple_streams_01.png"]
+// OBSOLETE: image::images/stl_tut_4.png[title="Example: Multiple Streams",align="left",width={p_width}, link="images/stl_tut_4.png"]
 
 
 ==== Tutorial: Loops of streams
@@ -1802,11 +1808,12 @@ class STLS1(object):
 For more information how to define headers see link:http://www.secdev.org/projects/scapy/doc/build_dissect.html[Adding new protocols] in the Scapy documentation.
 
 
-==== Tutorial: Field Engine, many clients 
+==== Tutorial: Field Engine, Multiple Clients 
 
 The following example generates traffic from many clients with different IP/MAC addresses to one server.
 
-image::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_tut_12.png"]
+image::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_multiple_clients_01.png"]
+// OBSOLETEimage::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_tut_12.png"]
 
 1. Send a gratuitous ARP from B->D with server IP/MAC (58.55.1.1).
 2. DUT learns the ARP of server IP/MAC (58.55.1.1).
@@ -2206,7 +2213,7 @@ The following example creates a stream with no packets. The example uses the int
 
 This method can create loops like the following:
 
-image::images/stl_null_stream.png[title="Null stream",align="left",width={p_width/2}, link="images/stl_null_stream.png"]
+image::images/stl_null_stream.png[title="Null stream",align="left",width={p_width/2}, link="images/stl_null_stream_02.png"]
  
 1. S1 - Sends a burst of packets, then proceed to stream NULL.
 2. NULL - Waits the inter-stream gap (ISG) time, then proceed to S1. 
@@ -2217,11 +2224,13 @@ Null stream configuration:
 2. Number of packets: 0
 
 
-==== Tutorial: Field Engine, Barrier stream (Split)
+==== Tutorial: Field Engine, Stream Barrier (Split)
 
 *(Future Feature - not yet implemented)*
 
-image::images/stl_barrier.png[title="Barrier Stream",align="left",width={p_width}, link="images/stl_barrier.png"]
+image::images/stl_barrier.png[title="Stream Barrier",align="left",width={p_width}, link="images/stl_barrier_02.png"]
+
+image::images/stl_barrier.png[title="Stream Barrier",align="left",width={p_width}, link="images/stl_barrier_03.png"]
 
 In some cases there is a need to split the streams to thread in a way that specific stream will continue only after all the threads pass the same path. 
 In the above figure we would like to that stream S3 will start on all the thread after S2 was finished by all the threads 

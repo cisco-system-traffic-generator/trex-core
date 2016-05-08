@@ -363,10 +363,10 @@ Another option for loopback is to use link:http://www.fiberopticshare.com/tag/ci
 //[hh] it is not accurate beacuse with 1Gb/sec you can have this test 
 
 .Correct loopback
-image:images/loopback_right.png[title="rigt"] 
+image:images/loopback_right.png[title="Correct Loopback"] 
 
 .Wrong loopback
-image:images/loopback_wrong.png[title="rigt"] 
+image:images/loopback_wrong.png[title="Wrong Loopback"] 
 
 If you have a 1Gb/Sec Intel NIC (I350) or XL710/X710 NIC, you can do anything you like from the loopback perspective *but* first filter the management port - see xref:trex_config[TRex Configuration].
 
@@ -975,7 +975,7 @@ access-list 8 permit 17.0.0.0 0.0.0.255
 
 === Flow order/latency verification ( `--rx-check` )
 
-In normal mode (without this feature enabled), received traffic is not checked by software. Hardware (Intel NIC) testin for dropped packets occurs at the end of the test. The only exception is the Latency/Jitter packets.
+In normal mode (without this feature enabled), received traffic is not checked by software. Hardware (Intel NIC) testin for dropped packets occurs at the end of the test. The only exception is the Latency/Jitter packets. 
 This is one reason that with TRex, you *cannot* check features that terminate traffic (for example TCP Proxy).
 To enable this feature, add `--rx-check <sample>` to the command line options, where <sample> is the sample rate. 
 The number of flows that will be sent to the software for verification is (1/(sample_rate). For 40Gb/sec traffic you can use a sample rate of 1/128. Watch for Rx CPU% utilization.
@@ -1116,7 +1116,7 @@ Cpu Utilization : 0.1 %                                                         
 <8> Enable MAC address replacement by client IP.
 
 ==== Per template section 
-// clarify "per template" 
+// clarify "per template"  
 
 [source,python]
 ----
