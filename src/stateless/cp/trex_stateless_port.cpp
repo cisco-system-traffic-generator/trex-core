@@ -416,7 +416,12 @@ TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
 }
 
 void
-TrexStatelessPort::push_remote(const std::string &pcap_filename, double ipg_usec, double speedup, uint32_t count) {
+TrexStatelessPort::push_remote(const std::string &pcap_filename,
+                               double ipg_usec,
+                               double speedup,
+                               uint32_t count,
+                               double duration) {
+
     /* command allowed only on state stream */
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
 
@@ -449,7 +454,8 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename, double ipg_usec
                                                                        pcap_filename,
                                                                        ipg_usec,
                                                                        speedup,
-                                                                       count);
+                                                                       count,
+                                                                       duration);
     send_message_to_dp(tx_core, push_msg);
 
     /* update subscribers */    

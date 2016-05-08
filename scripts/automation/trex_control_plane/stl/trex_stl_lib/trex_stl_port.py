@@ -476,6 +476,9 @@ class Port(object):
     @owned
     def pause (self):
 
+        if (self.state == self.STATE_PCAP_TX) :
+            return self.err("pause is not supported during PCAP TX")
+
         if (self.state != self.STATE_TX) :
             return self.err("port is not transmitting")
 
@@ -511,6 +514,9 @@ class Port(object):
 
     @owned
     def update (self, mul, force):
+
+        if (self.state == self.STATE_PCAP_TX) :
+            return self.err("update is not supported during PCAP TX")
 
         if (self.state != self.STATE_TX) :
             return self.err("port is not transmitting")
@@ -561,14 +567,15 @@ class Port(object):
         return self.ok()
 
     @writeable
-    def push_remote (self, pcap_filename, ipg_usec, speedup, count):
+    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration):
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
                   "pcap_filename": pcap_filename,
                   "ipg_usec": ipg_usec if ipg_usec is not None else -1,
                   "speedup": speedup,
-                  "count": count}
+                  "count": count,
+                  "duration": duration}
 
         rc = self.transmit("push_remote", params)
         if rc.bad():

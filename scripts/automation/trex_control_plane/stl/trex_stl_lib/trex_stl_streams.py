@@ -959,8 +959,8 @@ class STLProfile(object):
             raise STLError("file '{0}' does not exists".format(pcap_file))
 
         # make sure IPG is not less than 1 usec
-        if ipg_usec is not None and ipg_usec < 1:
-            raise STLError("ipg_usec cannot be less than 1 usec: '{0}'".format(ipg_usec))
+        if ipg_usec is not None and ipg_usec < 0.001:
+            raise STLError("ipg_usec cannot be less than 0.001 usec: '{0}'".format(ipg_usec))
 
         if loop_count < 0:
             raise STLError("'loop_count' cannot be negative")
@@ -989,7 +989,6 @@ class STLProfile(object):
                 next = i + 1
                 action_count = 0
 
-            
             streams.append(STLStream(name = i,
                                      packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
                                      mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),

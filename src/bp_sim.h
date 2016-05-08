@@ -1440,7 +1440,9 @@ public:
         NODE_FLAGS_LATENCY              =0x20,   /* got NAT msg */
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE = 0x40,
         NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE     = 0x80,
-        NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100 /* init packet start from server side with server addr */
+        NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100, /* init packet start from server side with server addr */
+
+        NODE_FLAGS_SLOW_PATH = 0x200 /* used by the nodes to differ between fast path nodes and slow path nodes */
     };
 
 
@@ -1479,6 +1481,17 @@ public:
         return ( m_socket_id );
     }
 
+    inline void set_slow_path(bool enable) {
+        if (enable) {
+            m_flags |= NODE_FLAGS_SLOW_PATH;
+        } else {
+            m_flags &= ~NODE_FLAGS_SLOW_PATH;
+        }
+    }
+
+    inline bool get_is_slow_path() const {
+        return ( (m_flags & NODE_FLAGS_SLOW_PATH) ? true : false);
+    }
 
     void free_base();
 };
@@ -1581,6 +1594,7 @@ public:
         return (  (m_flags &NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE)?true:false );
     }
 
+  
 
     /* direction for ip addr */
     inline  pkt_dir_t cur_pkt_ip_addr_dir();

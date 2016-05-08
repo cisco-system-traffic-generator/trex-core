@@ -301,7 +301,7 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
     assert(m_active_pcap_node == NULL);
     m_active_pcap_node = pcap_node;
 
-    m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    m_state = TrexStatelessDpPerPort::ppSTATE_PCAP_TX;
     return (true);
 }
 
@@ -898,7 +898,8 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
                                const std::string &pcap_filename,
                                double ipg_usec,
                                double speedup,
-                               uint32_t count) {
+                               uint32_t count,
+                               double duration) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
@@ -917,13 +918,12 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
         return;
     }
 
-    m_state = TrexStatelessDpCore::STATE_TRANSMITTING;
 
-    #if 0
-    if ( duration > 0.0 ){
+    if (duration > 0.0) {
         add_port_duration(duration, port_id, event_id);
     }
-    #endif
+
+     m_state = TrexStatelessDpCore::STATE_PCAP_TX;
 }
 
 
@@ -1007,6 +1007,9 @@ bool CGenNodePCAP::create(uint8_t port_id,
     m_port_id    = port_id;
     m_count      = count;
     
+    /* mark this node as slow path */
+    set_slow_path(true);
+
     if (ipg_usec != -1) {
         /* fixed IPG */
         m_ipg_sec = usec_to_sec(ipg_usec / speedup);
@@ -1046,6 +1049,11 @@ bool CGenNodePCAP::create(uint8_t port_id,
     return true;
 }
 
+/**
+ * cleanup for PCAP node
+ * 
+ * @author imarom (08-May-16)
+ */
 void CGenNodePCAP::destroy() {
 
     if (m_raw_packet) {

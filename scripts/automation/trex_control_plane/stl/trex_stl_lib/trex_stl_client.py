@@ -722,13 +722,13 @@ class STLClient(object):
         return rc
 
 
-    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count):
+    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].push_remote(pcap_filename, ipg_usec, speedup, count))
+            rc.add(self.ports[port_id].push_remote(pcap_filename, ipg_usec, speedup, count, duration))
 
         return rc
 
@@ -1874,9 +1874,15 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def push_remote (self, pcap_filename, ports = None, ipg_usec = None, speedup = 1.0, count = 1):
+    def push_remote (self,
+                     pcap_filename,
+                     ports = None,
+                     ipg_usec = None,
+                     speedup = 1.0,
+                     count = 1,
+                     duration = -1):
         """
-            Push a remote reachable PCAP file
+            Push a remote server-reachable PCAP file
             the path must be fullpath accessible to the server
 
             :parameters:
@@ -1895,6 +1901,62 @@ class STLClient(object):
                 count: int
                     How many times to transmit the cap
 
+                duration: float
+                    Limit runtime by duration in seconds
+            :raises:
+                + :exc:`STLError`
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        validate_type('pcap_filename', pcap_filename, str)
+        validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
+        validate_type('speedup',  speedup, (float, int))
+        validate_type('count',  count, int)
+        validate_type('duration', duration, (float, int))
+
+        self.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(ports))
+        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
+    @__api_check(True)
+    def push_pcap (self,
+                   pcap_filename,
+                   ports = None,
+                   ipg_usec = None,
+                   speedup = 1.0,
+                   count = 1,
+                   duration = -1):
+        """
+            Push a local PCAP to the server
+            This is equivalent to loading a PCAP file to a profile
+            and attaching the profile to port(s)
+            
+            file size is limited to 1MB
+
+            :parameters:
+                pcap_filename : str
+                    PCAP filename (accessible locally)
+
+                ports : list
+                    Ports on which to execute the command
+
+                ipg_usec : float
+                    Inter-packet gap in microseconds
+
+                speedup : float
+                    A factor to adjust IPG. effectively IPG = IPG / speedup
+
+                count: int
+                    How many times to transmit the cap
+
+                duration: float
+                    Limit runtime by duration in seconds
 
             :raises:
                 + :exc:`STLError`
@@ -1905,19 +1967,29 @@ class STLClient(object):
 
         validate_type('pcap_filename', pcap_filename, str)
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
-        validate_type('speedup',  speedup, float)
+        validate_type('speedup',  speedup, (float, int))
         validate_type('count',  count, int)
+        validate_type('duration', duration, (float, int))
 
-        self.logger.pre_cmd("Pushing remote pcap on port(s) {0}:".format(ports))
-        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count)
-        self.logger.post_cmd(rc)
+        # no support for > 1MB PCAP - use push remote
+        if os.path.getsize(pcap_filename) > (1024 * 1024):
+            raise STLError("PCAP size of {:,} B is too big for local push - consider using remote push".format(os.path.getsize(pcap_filename)))
 
-        if not rc:
-            raise STLError(rc)
+        self.remove_all_streams(ports = ports)
+
+        profile = STLProfile.load_pcap(pcap_filename,
+                                       ipg_usec,
+                                       speedup,
+                                       count)
+
+
+        id_list = self.add_streams(profile.get_streams(), ports)
+
+        return self.start(ports = ports, duration = duration)
 
 
     @__api_check(True)
-    def validate (self, ports = None, mult = "1", duration = "-1", total = False):
+    def validate (self, ports = None, mult = "1", duration = -1, total = False):
         """
             Validate port(s) configuration
 
@@ -1964,6 +2036,8 @@ class STLClient(object):
         rc = self.__validate(ports)
         self.logger.post_cmd(rc)
 
+        if not rc:
+            raise STLError(rc)
 
         for port in ports:
             self.ports[port].print_profile(mult_obj, duration)
@@ -2606,24 +2680,24 @@ class STLClient(object):
             else:
                 self.stop(active_ports)
 
-        # pcap injection removes all previous streams from the ports
+
         if opts.remote:
             self.push_remote(opts.file[0],
                              ports     = opts.ports,
                              ipg_usec  = opts.ipg_usec,
                              speedup   = opts.speedup,
-                             count     = opts.count)
+                             count     = opts.count,
+                             duration  = opts.duration)
 
         else:
-            self.remove_all_streams(ports = opts.ports)
-            
-            profile = STLProfile.load_pcap(opts.file[0],
-                                           opts.ipg_usec,
-                                           opts.speedup,
-                                           opts.count)
+            self.push_pcap(opts.file[0],
+                           ports     = opts.ports,
+                           ipg_usec  = opts.ipg_usec,
+                           speedup   = opts.speedup,
+                           count     = opts.count,
+                           duration  = opts.duration)
 
-            id_list = self.add_streams(profile.get_streams(), opts.ports)
-            self.start(ports = opts.ports, duration = opts.duration, force = opts.force)
+        
 
         return True
 

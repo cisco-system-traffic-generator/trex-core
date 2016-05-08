@@ -187,7 +187,13 @@ TrexStatelessDpUpdate::clone() {
  ************************/
 bool
 TrexStatelessDpPushPCAP::handle(TrexStatelessDpCore *dp_core) {
-    dp_core->push_pcap(m_port_id, m_event_id, m_pcap_filename, m_ipg_usec, m_speedup, m_count);
+    dp_core->push_pcap(m_port_id,
+                       m_event_id,
+                       m_pcap_filename,
+                       m_ipg_usec,
+                       m_speedup,
+                       m_count,
+                       m_duration);
     return true;
 }
 
@@ -198,7 +204,8 @@ TrexStatelessDpPushPCAP::clone() {
                                                                       m_pcap_filename,
                                                                       m_ipg_usec,
                                                                       m_speedup,
-                                                                      m_count);
+                                                                      m_count,
+                                                                      m_duration);
 
     return new_msg;
 }

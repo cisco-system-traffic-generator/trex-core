@@ -216,7 +216,11 @@ public:
      * push a PCAP file onto the port
      * 
      */
-    void push_remote(const std::string &pcap_filename, double ipg_usec, double speedup, uint32_t count);
+    void push_remote(const std::string &pcap_filename,
+                     double ipg_usec,
+                     double speedup,
+                     uint32_t count,
+                     double duration);
 
     /**
      * get the port state

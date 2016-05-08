@@ -54,7 +54,8 @@ public:
     enum state_e {
         ppSTATE_IDLE,
         ppSTATE_TRANSMITTING,
-        ppSTATE_PAUSE
+        ppSTATE_PAUSE,
+        ppSTATE_PCAP_TX,
 
     };
 
@@ -117,6 +118,7 @@ public:
     enum state_e {
         STATE_IDLE,
         STATE_TRANSMITTING,
+        STATE_PCAP_TX,
         STATE_TERMINATE
 
     };
@@ -175,7 +177,8 @@ public:
                    const std::string &pcap_filename,
                    double ipg_usec,
                    double speedup,
-                   uint32_t count);
+                   uint32_t count,
+                   double duration);
 
 
     /**

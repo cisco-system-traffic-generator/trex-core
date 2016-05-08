@@ -406,6 +406,10 @@ public:
                 double speedup,
                 uint32_t count);
 
+    /**
+     * destroy the node cleaning up any data
+     * 
+     */
     void destroy();
  
     /**

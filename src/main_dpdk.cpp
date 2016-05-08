@@ -1774,6 +1774,7 @@ class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node(CGenNode * node);
 protected:
+    int handle_slow_path_node(CGenNode *node);
     int send_pcap_node(CGenNodePCAP *pcap_node);
 };
 
@@ -2002,10 +2003,11 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 
 int CCoreEthIFStateless::send_node(CGenNode * no) {
 
-    /* slow path - PCAP nodes */
-    if (no->m_type == CGenNode::PCAP_PKT) {
-        return send_pcap_node((CGenNodePCAP *)no);
+    /* if a node is marked as slow path - single IF to redirect it to slow path */
+    if (no->get_is_slow_path()) {
+        return handle_slow_path_node(no);
     }
+
 
     CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
     /* check that we have mbuf  */
@@ -2048,6 +2050,19 @@ int CCoreEthIFStateless::send_pcap_node(CGenNodePCAP *pcap_node) {
     send_pkt(lp_port, m, lp_stats);
 
     return (0);
+}
+
+/**
+ * slow path code goes here
+ * 
+ */
+int CCoreEthIFStateless::handle_slow_path_node(CGenNode * no) {
+
+    if (no->m_type == CGenNode::PCAP_PKT) {
+        return send_pcap_node((CGenNodePCAP *)no);
+    }
+
+    return (-1);
 }
 
 
