@@ -66,7 +66,7 @@ For information, see the link:trex_manual.html[manual], especially the material 
 
 The following example shows three streams configured for Continuous, Burst, and Multi-burst traffic.
 
-image::images/stl_streams_example.png[title="Stream example",align="left",width={p_width}, link="images/stl_streams_example.png"]
+image::images/stl_streams_example_02.png[title="Multiple stream example",align="left",width={p_width}, link="images/stl_streams_example_02.png"]
 
 ==== High level functionality - near future
 
@@ -113,7 +113,7 @@ A JSON-RPC2 thread in the TRex control plane core provides support for interacti
 
 // RPC = Remote Procedure Call, alternative to REST? --YES, no change
 
-image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+image::images/trex_architecture_01.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
 
 // OBSOLETE: image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
@@ -146,7 +146,7 @@ image::images/trex_2_stateless.png[title="RPC Server Components",align="left",wi
 * A client syncs with the TRex server to get the state in connection time, and caches the server information locally after the state has changed. 
 * If a client crashes or exits, it syncs again after reconnecting. 
 
-image::images/trex_stateless_multi_user.png[title="Multiple users, per interface",align="left",width={p_width}, link="images/trex_stateless_multi_user_02.png"]
+image::images/trex_stateless_multi_user_02.png[title="Multiple users, per interface",align="left",width={p_width}, link="images/trex_stateless_multi_user_02.png"]
 
 For details about the TRex RPC server, see the link:trex_rpc_server_spec.html[RPC specification].  
 
@@ -162,7 +162,7 @@ This Architecture provides the following advantages:
 
 // maybe call it "Objects" in title and figure caption
 
-image::images/stateless_objects.png[title="TRex Objects",align="left",width={p_width_1}, link="images/stateless_objects_02.png"]
+image::images/stateless_objects_02.png[title="TRex Objects",align="left",width={p_width_1}, link="images/stateless_objects_02.png"]
 
 * *TRex*: Each TRex instance supports numerous interfaces. 
 // "one or more"?
@@ -497,7 +497,7 @@ In this example all the packets will be routed to `TenGigabitEthernet0/1/0` port
 
         return [ STLStream( packet = pkt,mode = STLTXCont()) ]
 ----
-<1> This use of the `direction` flag here causes a different packet to be sent for each direction.
+<1> This use of the `direction` flag causes a different packet to be sent for each direction.
 
 
 ==== Tutorial: Connect from a remote server 
@@ -644,7 +644,8 @@ Python API library: `automation/trex_control_plane/stl/trex_stl_lib`.
 
 The TRex console uses the Python API library to interact with the TRex server using the JSON-RPC2 protocol over ZMQ.
 
-image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+image::images/trex_architecture_01.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+
 // OBSOLETE: image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
 *File*:: link:{github_stl_examples_path}/stl_bi_dir_flows.py[stl_bi_dir_flows.py]
@@ -1024,7 +1025,7 @@ $ ./stl-sim -f stl/udp_1pkt_simple.py -o b.pcap -l 10
 
 Contents of the output pcap file produced by the simulator in the previous step:
 
-image::images/stl_tut_1.png[title="TRex simulator output stored in pcap file",align="left",width={p_width}, link="images/stl_tut_1.png.png"]
+image::images/stl_tut_1.png[title="TRex simulator output stored in pcap file",align="left",width={p_width}, link="images/stl_tut_1.png"]
 
 Adding `--json` displays the details of the JSON command for adding a stream:
 
@@ -1266,12 +1267,11 @@ The following example demonstrates 3 streams with different rates (10, 20, 40 PP
 <3> Defines streams with rate of 20 PPS.
 <4> Defines streams with rate of 40 PPS.
 
-
 *Output*::
+
 The folowing figure presents the output.
 
-image::images/stl_inter.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_interleaving_01.png"]
-
+image::images/stl_interleaving_01.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_interleaving_01.png"]
 
 *Discussion*:: 
 * Stream #1
@@ -1402,8 +1402,10 @@ TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
 <2> Multi-burst of 5 bursts of 4 packets with an inter-burst gap of 1 second.
  
 
-image::images/stl_tut_4.png[title="Example: Multiple Streams",align="left",width={p_width}, link="images/stl_multiple_streams_01.png"]
-// OBSOLETE: image::images/stl_tut_4.png[title="Example: Multiple Streams",align="left",width={p_width}, link="images/stl_tut_4.png"]
+The following illustration does not fully match the Python example cited above. It has been simplified, such as using a 0.5 second ISG, for illustration purposes.
+
+image::images/stl_multiple_streams_01.png[title="Example of multiple streams",align="left",width={p_width}, link="images/stl_multiple_streams_01.png"]
+
 
 
 ==== Tutorial: Loops of streams
@@ -1813,7 +1815,8 @@ For more information how to define headers see link:http://www.secdev.org/projec
 
 The following example generates traffic from many clients with different IP/MAC addresses to one server.
 
-image::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_multiple_clients_01.png"]
+image::images/stl_multiple_clients_01.png[title="Multiple clients to single server",align="left",width={p_width}, link="images/stl_multiple_clients_01.png"]
+
 // OBSOLETEimage::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_tut_12.png"]
 
 1. Send a gratuitous ARP from B->D with server IP/MAC (58.55.1.1).
@@ -2214,7 +2217,7 @@ The following example creates a stream with no packets. The example uses the int
 
 This method can create loops like the following:
 
-image::images/stl_null_stream.png[title="Null stream",align="left",width={p_width/2}, link="images/stl_null_stream_02.png"]
+image::images/stl_null_stream_02.png[title="Null stream",align="left",width={p_width/2}, link="images/stl_null_stream_02.png"]
  
 1. S1 - Sends a burst of packets, then proceed to stream NULL.
 2. NULL - Waits the inter-stream gap (ISG) time, then proceed to S1. 
@@ -2229,13 +2232,9 @@ Null stream configuration:
 
 *(Future Feature - not yet implemented)*
 
-image::images/stl_barrier.png[title="Stream Barrier",align="left",width={p_width}, link="images/stl_barrier_02.png"]
+In some situations, it is necessary to split streams into threads in such a way that specific streams will continue only after all the threads have passed the same path. In the figure below, a barrier ensures that stream S3 starts only after all threads of S2 are complete. 
 
-image::images/stl_barrier.png[title="Stream Barrier",align="left",width={p_width}, link="images/stl_barrier_03.png"]
-
-In some cases there is a need to split the streams to thread in a way that specific stream will continue only after all the threads pass the same path. 
-In the above figure we would like to that stream S3 will start on all the thread after S2 was finished by all the threads 
-
+image::images/stl_barrier_03.png[title="Stream Barrier",align="left",width={p_width}, link="images/stl_barrier_03.png"]
 
 ==== Tutorial: Pcap file to one stream 
 
