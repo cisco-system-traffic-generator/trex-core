@@ -185,7 +185,7 @@ class STLScVmRaw(CTRexScriptsBase):
     """
     Raw instructions
     """
-    def __init__(self,list_of_commands=None,split_by_field=None):
+    def __init__(self,list_of_commands=None,split_by_field=None,cache_size=None):
         """
         Include a list of a basic instructions objects.
 
@@ -196,6 +196,8 @@ class STLScVmRaw(CTRexScriptsBase):
              split_by_field : string 
                 by which field to split to threads
 
+             cache_size     : uint16_t 
+                In case it is bigger than zero, FE results will be cached - this will speedup of the program at the cost of limiting the number of possible packets to the number of cache. The cache size is limited to the pool size
 
         The following example splits the generated traffic by "ip_src" variable.
 
@@ -218,13 +220,16 @@ class STLScVmRaw(CTRexScriptsBase):
     
                                STLVmFixIpv4(offset = "IP"), # fix checksum              
                               ]
-                             ,split_by_field = "ip_src"                                
+                             ,split_by_field = "ip_src",
+                             cache_size = 1000
                            )
 
         """
 
         super(STLScVmRaw, self).__init__()
         self.split_by_field = split_by_field
+        self.cache_size = cache_size
+
         if list_of_commands==None:
             self.commands =[]
         else:
@@ -339,6 +344,8 @@ class CTRexVmEngine(object):
             super(CTRexVmEngine, self).__init__()
             self.ins=[]
             self.split_by_var = ''
+            self.cache_size = 0
+
 
        # return as json
        def get_json (self):
@@ -347,7 +354,10 @@ class CTRexVmEngine(object):
            for obj in self.ins:
                inst_array.append(obj.__dict__);
 
-           return {'instructions': inst_array, 'split_by_var': self.split_by_var}
+           d={'instructions': inst_array, 'split_by_var': self.split_by_var};
+           if self.cache_size >0 :
+               d['cache']=self.cache_size
+           return d
 
        def add_ins (self,ins):
            #assert issubclass(ins, CTRexVmInsBase)
@@ -1422,10 +1432,13 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         # set split_by_var
         if obj.split_by_field :
             validate_type('obj.split_by_field', obj.split_by_field, str)
-            #if not vars.has_key(obj.split_by_field):
-            #    raise CTRexPacketBuildException(-11,("variable %s does not exists. change split_by_var args ") % (var_name) );
-
             self.vm_low_level.split_by_var = obj.split_by_field
+
+        #set cache size 
+        if obj.cache_size :
+            validate_type('obj.cache_size', obj.cache_size, int)
+            self.vm_low_level.cache_size = obj.cache_size
+
 
 
     # lazy packet build only on demand

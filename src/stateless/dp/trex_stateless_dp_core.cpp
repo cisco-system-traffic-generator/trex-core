@@ -25,6 +25,7 @@ limitations under the License.
 #include "trex_stream.h"
 #include "trex_stream_node.h"
 #include "trex_streams_compiler.h"
+#include "mbuf.h"
 
 
 
@@ -34,6 +35,18 @@ void CGenNodeStateless::cache_mbuf_array_init(){
     m_cache_array_cnt=0;
 }
 
+
+
+void CGenNodeStateless::cache_mbuf_array_copy(CGenNodeCacheMbuf *obj,
+                                              uint16_t size){
+
+    int i;
+    cache_mbuf_array_alloc(size);
+    for (i=0; i<size; i++) {
+        cache_mbuf_array_set(i,obj->m_array[i]);
+    }
+    cache_mbuf_array_set_const_mbuf(obj->m_mbuf_const);
+}
 
            
 rte_mbuf_t ** CGenNodeStateless::cache_mbuf_array_alloc(uint16_t size){
@@ -255,6 +268,25 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     return (m);
 }
 
+void CGenNodeStateless::free_stl_vm_buf(){
+        rte_mbuf_t * m ;
+         m=get_const_mbuf();
+         if (m) {
+             rte_pktmbuf_free(m); /* reduce the ref counter */
+             /* clear the const marker */
+             clear_const_mbuf();
+         }
+
+         free_prefix_header();
+
+         if (m_vm_flow_var) {
+             /* free flow var */
+             free(m_vm_flow_var);
+             m_vm_flow_var=0;
+         }
+}
+
+
 
 void CGenNodeStateless::free_stl_node(){
 
@@ -267,20 +299,9 @@ void CGenNodeStateless::free_stl_node(){
         if (m) {
                 rte_pktmbuf_free(m);
                 m_cache_mbuf=0;
-        }else{
-            /* non cache - must have an header */
-             m=get_const_mbuf();
-             if (m) {
-                 rte_pktmbuf_free(m); /* reduce the ref counter */
-             }
-             free_prefix_header();
         }
     }
-    if (m_vm_flow_var) {
-        /* free flow var */
-        free(m_vm_flow_var);
-        m_vm_flow_var=0;
-    }
+    free_stl_vm_buf();
 }
 
 
@@ -650,11 +671,51 @@ void TrexStatelessDpCore::update_mac_addr(TrexStream * stream,
 }
 
 
+void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream, 
+                                               CGenNodeStateless *node){
+
+    uint16_t      cache_size = stream->m_cache_size;
+    assert(cache_size>0);
+    rte_mbuf_t * m=0;
+
+    /* TBD do we have enough from this type of object , need to ask ! */
+
+    uint32_t buf_size = CGenNodeCacheMbuf::get_object_size(cache_size);
+    /* TBD  replace with align, zero API */
+    CGenNodeCacheMbuf * p = (CGenNodeCacheMbuf *)malloc(buf_size);
+    assert(p);
+    memset(p,0,buf_size);
+
+    int i;
+    for (i=0; i<cache_size; i++) {
+        p->m_array[i] =  node->alloc_node_with_vm();
+    }
+    /* save const */
+    m=node->get_const_mbuf();
+    if (m) {
+        p->m_mbuf_const=m;
+        rte_pktmbuf_refcnt_update(m,1);
+    }
+
+    /* free all VM and const mbuf */
+    node->free_stl_vm_buf();
+
+    /* copy to local node meory */
+    node->cache_mbuf_array_copy(p,cache_size);
+
+    /* free the memory */
+    free(p);
+}
+
+
 void
 TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
                                 TrexStream * stream,
                                 TrexStreamsCompiledObj *comp) {
     CGenNodeStateless *node = m_core->create_node_sl();
+
+    node->cache_mbuf_array_init();
+    node->m_batch_size=0;
 
     /* add periodic */
     node->m_cache_mbuf=0;
@@ -815,6 +876,11 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         memcpy(p,stream_pkt , header_size);
 
         update_mac_addr(stream,node,dir,(char *)p);
+
+        if (stream->m_cache_size > 0 ) {
+            /* we need to create cache of objects */
+            replay_vm_into_cache(stream, node);
+        }
     }
 
 

@@ -1943,13 +1943,6 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          CVirtualIFPerSideStats  * lp_stats
                          ){
 
-    //printf(" %lu \n",(ulong)rte_pktmbuf_pkt_len(m));
-    //rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
-
-    /* too expensive remove this for now */
-    //lp_stats->m_tx_pkt   +=1;
-    //lp_stats->m_tx_bytes += (rte_pktmbuf_pkt_len(m)+4);
-
     uint16_t len = lp_port->m_len;
     lp_port->m_table[len]=m;
     len++;
@@ -2001,16 +1994,23 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 int CCoreEthIFStateless::send_node(CGenNode * no){
     CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
     /* check that we have mbuf  */
-    rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+    rte_mbuf_t *    m;
+
     pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
     CCorePerPort *  lp_port=&m_ports[dir];
     CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
-    if (m) {
-        /* cache case */
-        rte_pktmbuf_refcnt_update(m,1);
+    if ( likely(node_sl->is_cache_mbuf_array()) ) {
+        m=node_sl->cache_mbuf_array_get_cur();
     }else{
-        m=node_sl->alloc_node_with_vm();
-        assert(m);
+        m=node_sl->get_cache_mbuf();
+
+        if (m) {
+            /* cache case */
+            rte_pktmbuf_refcnt_update(m,1);
+        }else{
+            m=node_sl->alloc_node_with_vm();
+            assert(m);
+        }
     }
 
     if (unlikely(node_sl->is_stat_needed())) {

@@ -396,6 +396,8 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
         }
         stream->m_vm.set_split_instruction(instr);
     }
+    stream->m_cache_size      = parse_uint16(vm, "cache", result,0); /* default is zero */
+
 }
 
 void

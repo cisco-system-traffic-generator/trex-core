@@ -182,6 +182,13 @@ static inline void utl_rte_pktmbuf_add_last(rte_mbuf_t *m,rte_mbuf_t *m_last){
 	}
 }
 
+static inline void rte_pktmbuf_refcnt_update(struct rte_mbuf *m, int16_t v)
+{
+	do {
+		rte_mbuf_refcnt_update(m, v);
+	} while ((m = m->next) != NULL);
+}
+
 
 
 

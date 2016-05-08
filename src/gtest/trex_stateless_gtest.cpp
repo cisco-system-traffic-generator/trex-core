@@ -156,7 +156,6 @@ TEST_F(basic_vm, cache_basic) {
     for (i=0; i<10; i++) {
       rte_mbuf_t * m =node->cache_mbuf_array_get_cur();
       printf(" %d \n",m->data_off);
-      //rte_pktmbuf_refcnt_update(m,1); /* both */
     }
 
     node->cache_mbuf_array_free();
@@ -2775,13 +2774,13 @@ TEST_F(basic_stl, multi_pkt1) {
 
 class CEnableVm {
 public:
-    void run(bool full_packet,double duration );
+    void run(bool full_packet,double duration,uint16_t cache );
 public:
     std::string    m_input_packet; //"cap2/udp_64B.pcap"
     std::string    m_out_file;     //"exp/stl_vm_enable0";
 };
 
-void CEnableVm::run(bool full_packet,double duration=10.0){
+void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
 
     CBasicStl t1;
     CParserOption * po =&CGlobalInfo::m_options;
@@ -2796,6 +2795,10 @@ void CEnableVm::run(bool full_packet,double duration=10.0){
      std::vector<TrexStream *> streams;
 
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+
+     if ( cache ){
+         stream1->m_cache_size=cache;
+     }
 
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      
@@ -2837,6 +2840,22 @@ void CEnableVm::run(bool full_packet,double duration=10.0){
      delete stream1 ;
 
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+TEST_F(basic_stl, vm_enable_cache_10) {
+
+    CEnableVm vm_test;
+    vm_test.m_out_file = "exp/stl_vm_enable0_cache_10";
+    vm_test.m_input_packet = "cap2/udp_64B.pcap";
+    vm_test.run(true,10.0,100);
+}
+
+TEST_F(basic_stl, vm_enable_cache_500) {
+    /* multi mbuf cache */
+    CEnableVm vm_test;
+    vm_test.m_out_file = "exp/stl_vm_enable1_cache_500";
+    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.run(false,20.0,19);
 }
 
 

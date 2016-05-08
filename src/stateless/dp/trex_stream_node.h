@@ -361,6 +361,10 @@ public:
         }
     }
 
+    void clear_const_mbuf(){
+        m_flags= ( m_flags & ~SL_NODE_CONST_MBUF );
+    }
+
     /* prefix header exits only in non cache mode size is 64/128/512  other are not possible right now */
     inline void alloc_prefix_header(uint16_t size){
          set_prefix_header_size(size);
@@ -371,6 +375,7 @@ public:
     inline void free_prefix_header(){
          if (m_original_packet_data_prefix) {
              free(m_original_packet_data_prefix);
+             m_original_packet_data_prefix=0;
          }
     }
 
@@ -388,12 +393,18 @@ public:
 
     void free_stl_node();
 
+protected:
+
+    void free_stl_vm_buf();
+
 public:
     void cache_mbuf_array_init();
 
     inline bool is_cache_mbuf_array(){
         return  ( m_flags & SL_NODE_CONST_MBUF_CACHE_ARRAY ? true:false );
     }
+
+    void cache_mbuf_array_copy(CGenNodeCacheMbuf *obj,uint16_t size);
 
      rte_mbuf_t ** cache_mbuf_array_alloc(uint16_t size);
 

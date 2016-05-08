@@ -281,6 +281,11 @@ private:
                     TrexStream * stream,
                     TrexStreamsCompiledObj *comp);
 
+
+    void replay_vm_into_cache(TrexStream * stream, 
+                              CGenNodeStateless *node);
+
+
     uint8_t              m_thread_id;
     uint8_t              m_local_port_offset;
 

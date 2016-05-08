@@ -4840,20 +4840,26 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
 
         pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
 
-        /* check that we have mbuf  */
-        rte_mbuf_t *    m=node_sl->get_cache_mbuf();
-        if (m) {
-            /* cache packet */
+        rte_mbuf_t *    m;
+        if ( likely(node_sl->is_cache_mbuf_array()) ) {
+            m=node_sl->cache_mbuf_array_get_cur();
             fill_raw_packet(m,_no_to_use,dir);
-            /* can't free the m, it is cached*/
         }else{
+            m=node_sl->get_cache_mbuf();
+            if (m) {
+                /* cache packet */
+                fill_raw_packet(m,_no_to_use,dir);
+                /* can't free the m, it is cached*/
+            }else{
 
-            m=node_sl->alloc_node_with_vm();
-            assert(m);
-            fill_raw_packet(m,_no_to_use,dir);
-            rte_pktmbuf_free(m);
+                m=node_sl->alloc_node_with_vm();
+                assert(m);
+                fill_raw_packet(m,_no_to_use,dir);
+                rte_pktmbuf_free(m);
 
+            }
         }
+        /* check that we have mbuf  */
 
         int rc = write_pkt(m_raw);
         BP_ASSERT(rc == 0);

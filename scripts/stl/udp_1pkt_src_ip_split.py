@@ -18,10 +18,11 @@ class STLS1(object):
                              
         vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
                                             max_value="10.0.0.255", size=4, step=1,op="inc"),
-                             STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ) # write ip to packet IP.src
-                             #STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                             STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                             STLVmFixIpv4(offset = "IP")                                # fix checksum
                                   ]
                               ,split_by_field = "ip_src"  # split to cores base on the tuple generator 
+                              ,cache_size =255 # the cache size
                               );
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,
