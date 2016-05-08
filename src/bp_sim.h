@@ -3591,6 +3591,10 @@ public:
     bool  set_stateless_next_node( CGenNodeStateless * cur_node,
                                    CGenNodeStateless * next_node);
 
+    void stop_stateless_traffic(uint8_t port_id) { 
+        m_stateless_dp_info.stop_traffic(port_id, false, 0);
+    }
+
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
     void DumpStats(FILE *fd);

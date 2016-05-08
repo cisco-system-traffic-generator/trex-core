@@ -255,6 +255,13 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
 }
 
 
+bool TrexStatelessPort::is_active() const {
+    return   (  (m_port_state == PORT_STATE_TX) 
+             || (m_port_state == PORT_STATE_PAUSE)
+             || (m_port_state == PORT_STATE_PCAP_TX)
+             );
+}
+
 /**
  * stop traffic on port
  * 
@@ -264,9 +271,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
  */
 void
 TrexStatelessPort::stop_traffic(void) {
-
-    if (!( (m_port_state == PORT_STATE_TX) 
-        || (m_port_state == PORT_STATE_PAUSE) )) {
+    if (!is_active()) {
         return;
     }
 
@@ -438,10 +443,13 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename, double ipg_usec
     }
 
     /* send a message to core */
-    change_state(PORT_STATE_TX);
+    change_state(PORT_STATE_PCAP_TX);
     TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(m_port_id,
                                                                        m_pending_async_stop_event,
-                                                                       pcap_filename);
+                                                                       pcap_filename,
+                                                                       ipg_usec,
+                                                                       speedup,
+                                                                       count);
     send_message_to_dp(tx_core, push_msg);
 
     /* update subscribers */    
@@ -468,6 +476,9 @@ TrexStatelessPort::get_state_as_string() const {
 
     case PORT_STATE_PAUSE:
         return "PAUSE";
+
+    case PORT_STATE_PCAP_TX:
+        return "PCAP_TX";
     }
 
     return "UNKNOWN";

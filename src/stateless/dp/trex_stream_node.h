@@ -398,7 +398,14 @@ public:
     /**
      * creates a node from a PCAP file 
      */
-    bool create(uint8_t port_id, const std::string &pcap_filename, pkt_dir_t dir, const uint8_t *mac_addr);
+    bool create(uint8_t port_id,
+                pkt_dir_t dir,
+                const uint8_t *mac_addr,
+                const std::string &pcap_filename,
+                double ipg_usec,
+                double speedup,
+                uint32_t count);
+
     void destroy();
  
     /**
@@ -407,26 +414,29 @@ public:
      * @author imarom (03-May-16)
      */
     void next() {
-        assert(m_state == PCAP_ACTIVE);
+        assert(is_active());
 
         /* save the previous packet time */
         m_last_pkt_time = m_raw_packet->get_time();
 
         /* advance */
         if ( m_reader->ReadPacket(m_raw_packet) == false ){
-            m_state = PCAP_EOF;
-            return;
+            m_count--;
+
+            /* if its the end - go home... */
+            if (m_count == 0) {
+                m_state = PCAP_INACTIVE;
+                return;
+            } 
+
+            /* rewind and load the first packet */
+            m_reader->Rewind();
+            if (!m_reader->ReadPacket(m_raw_packet)) {
+                m_state = PCAP_INACTIVE;
+                return;
+            }
         }
 
-    }
-
-    /**
-     * return true if the PCAP has next packet
-     * 
-     */
-    bool has_next() {
-        assert(m_state != PCAP_INVALID);
-        return (m_state == PCAP_ACTIVE);
     }
 
     /**
@@ -435,8 +445,13 @@ public:
      */
     inline double get_ipg() {
         assert(m_state != PCAP_INVALID);
-        return m_raw_packet->get_time() - m_last_pkt_time;
-        //return 0.00001;
+
+        /* fixed IPG */
+        if (m_ipg_sec != -1) {
+            return m_ipg_sec;
+        } else {
+            return ((m_raw_packet->get_time() - m_last_pkt_time) / m_speedup);
+        }
     }
 
     /**
@@ -465,6 +480,17 @@ public:
     inline void handle(CFlowGenListPerThread *thread) {
         assert(m_state != PCAP_INVALID);
         thread->m_node_gen.m_v_if->send_node( (CGenNode *)this);
+
+        // read the next packet
+        next();
+
+        if (is_active()) {
+            m_time += get_ipg();
+            thread->m_node_gen.m_p_queue.push((CGenNode *)this);  
+                            
+        } else {
+            thread->stop_stateless_traffic(get_port_id());
+        }
     }
 
     void set_mbuf_dir(pkt_dir_t dir) {
@@ -483,12 +509,25 @@ public:
         return m_port_id;
     }
 
+    void mark_for_free() {
+        m_state = PCAP_MARKED_FOR_FREE;
+    }
+
+    bool is_active() {
+        return (m_state == PCAP_ACTIVE);
+    }
+
+    bool is_marked_for_free() {
+        return (m_state == PCAP_MARKED_FOR_FREE);
+    }
+
 private:
 
     enum {
         PCAP_INVALID = 0,
         PCAP_ACTIVE,
-        PCAP_EOF
+        PCAP_INACTIVE,
+        PCAP_MARKED_FOR_FREE
     };
 
     /* cache line 0 */
@@ -496,11 +535,10 @@ private:
     uint8_t             m_mac_addr[12];
     uint8_t             m_state;
 
-    //double              m_base_time;
-    //double              m_current_pkt_time;
     double              m_last_pkt_time;
-
-    void *              m_cache_mbuf;
+    double              m_speedup;
+    double              m_ipg_sec;
+    uint32_t            m_count;
 
     double              m_next_time_offset; /* in sec */
 

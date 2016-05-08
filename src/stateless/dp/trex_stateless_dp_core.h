@@ -33,7 +33,7 @@ class CFlowGenListPerThread;
 class CGenNodeStateless;
 class TrexStreamsCompiledObj;
 class TrexStream;
-
+class CGenNodePCAP;
 
 class CDpOneStream  {
 public:
@@ -70,7 +70,11 @@ public:
 
     bool update_traffic(uint8_t port_id, double factor);
 
-    bool push_pcap(uint8_t port_id, const std::string &pcap_filename);
+    bool push_pcap(uint8_t port_id,
+                   const std::string &pcap_filename,
+                   double ipg_usec,
+                   double speedup,
+                   uint32_t count);
 
     bool stop_traffic(uint8_t port_id,
                       bool stop_on_id, 
@@ -97,6 +101,7 @@ public:
     uint32_t                  m_active_streams; /* how many active streams on this port  */
                                                 
     std::vector<CDpOneStream> m_active_nodes;   /* holds the current active nodes */
+    CGenNodePCAP              *m_active_pcap_node;
     CFlowGenListPerThread   *  m_core ;
     int                        m_event_id;
 };
@@ -165,7 +170,12 @@ public:
      * push a PCAP file on port
      * 
      */
-    void push_pcap(uint8_t port_id, int event_id, const std::string &pcap_filename);
+    void push_pcap(uint8_t port_id,
+                   int event_id,
+                   const std::string &pcap_filename,
+                   double ipg_usec,
+                   double speedup,
+                   uint32_t count);
 
 
     /**

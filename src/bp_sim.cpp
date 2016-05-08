@@ -3713,17 +3713,14 @@ int CNodeGenerator::flush_file(dsec_t max_time,
             m_p_queue.pop();
 
             CGenNodePCAP *node_pcap = (CGenNodePCAP *)node;
-            node_pcap->handle(thread);
-            
-            if (node_pcap->has_next()) {
-                node_pcap->next();
-                node_pcap->m_time += node_pcap->get_ipg();
-                m_p_queue.push(node);              
-            } else {
-                thread->free_node(node);
-                thread->m_stateless_dp_info.stop_traffic(node_pcap->get_port_id(), false, 0);
 
+            /* might have been marked for free */
+            if ( unlikely( node_pcap->is_marked_for_free() ) ) {
+                thread->free_node(node);
+            } else {
+                node_pcap->handle(thread);
             }
+
                         
         } else {
             bool exit_sccheduler = handle_slow_messages(type,node,thread,always);

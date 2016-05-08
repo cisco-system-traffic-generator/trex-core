@@ -2671,6 +2671,10 @@ public:
     }
     int run_in_rx_core();
     int run_in_master();
+
+    bool handle_fast_path();
+    bool handle_slow_path(bool &was_stopped);
+
     int stop_master();
     /* return the minimum number of dp cores needed to support the active ports
        this is for c==1 or  m_cores_mul==1
@@ -3715,6 +3719,121 @@ CGlobalTRex::publish_async_barrier(uint32_t key) {
     m_zmq_publisher.publish_barrier(key);
 }
 
+
+bool
+CGlobalTRex::handle_slow_path(bool &was_stopped) {
+    m_stats_cnt+=1;
+
+
+    if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ) {
+        if ( m_io_modes.handle_io_modes() ) {
+            was_stopped=true;
+            return false;
+        }
+    }
+
+    if ( sanity_check() ) {
+        printf(" Test was stopped \n");
+        was_stopped=true;
+        return false;
+    }
+    if (m_io_modes.m_g_mode != CTrexGlobalIoMode::gDISABLE ) {
+        fprintf(stdout,"\033[2J");
+        fprintf(stdout,"\033[2H");
+
+    } else {
+        if ( m_io_modes.m_g_disable_first  ) {
+            m_io_modes.m_g_disable_first=false;
+            fprintf(stdout,"\033[2J");
+            fprintf(stdout,"\033[2H");
+            printf("clean !!!\n");
+            fflush(stdout);
+        }
+    }
+
+
+    if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gHELP ) {
+        m_io_modes.DumpHelp(stdout);
+    }
+
+    dump_stats(stdout,CGlobalStats::dmpTABLE);
+
+    if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gNORMAL ) {
+        fprintf (stdout," current time    : %.1f sec  \n",now_sec());
+        float d= CGlobalInfo::m_options.m_duration - now_sec();
+        if (d<0) {
+            d=0;
+
+        }
+        fprintf (stdout," test duration   : %.1f sec  \n",d);
+    }
+
+    if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gMem) {
+
+        if ( m_stats_cnt%4==0) {
+            fprintf (stdout," %s \n",CGlobalInfo::dump_pool_as_json().c_str());
+        }
+    }
+
+
+    if ( CGlobalInfo::m_options.is_rx_enabled() ) {
+        m_mg.update();
+
+        if ( m_io_modes.m_g_mode ==  CTrexGlobalIoMode::gNORMAL ) {
+            switch (m_io_modes.m_l_mode) {
+            case CTrexGlobalIoMode::lDISABLE:
+                fprintf(stdout,"\n+Latency stats disabled \n");
+                break;
+            case CTrexGlobalIoMode::lENABLE:
+                fprintf(stdout,"\n-Latency stats enabled \n");
+                m_mg.DumpShort(stdout);
+                break;
+            case CTrexGlobalIoMode::lENABLE_Extended:
+                fprintf(stdout,"\n-Latency stats extended \n");
+                m_mg.Dump(stdout);
+                break;
+            }
+
+            if ( get_is_rx_check_mode() ) {
+
+                switch (m_io_modes.m_rc_mode) {
+                case CTrexGlobalIoMode::rcDISABLE:
+                    fprintf(stdout,"\n+Rx Check stats disabled \n");
+                    break;
+                case CTrexGlobalIoMode::rcENABLE:
+                    fprintf(stdout,"\n-Rx Check stats enabled \n");
+                    m_mg.DumpShortRxCheck(stdout);
+                    break;
+                case CTrexGlobalIoMode::rcENABLE_Extended:
+                    fprintf(stdout,"\n-Rx Check stats enhanced \n");
+                    m_mg.DumpRxCheck(stdout);
+                    break;
+                }
+
+            }
+
+        }
+    }
+
+    /* publish data */
+    publish_async_data(false);
+
+    return true;
+}
+
+
+bool
+CGlobalTRex::handle_fast_path() {
+    /* check from messages from DP */
+    check_for_dp_messages();
+
+    if ( is_all_cores_finished() ) {
+        return false;
+    }
+   
+    return true;
+}
+
 int CGlobalTRex::run_in_master() {
     bool was_stopped=false;
 
@@ -3725,115 +3844,25 @@ int CGlobalTRex::run_in_master() {
     /* exception and scope safe */
     std::unique_lock<std::mutex> cp_lock(m_cp_lock);
 
+    uint32_t slow_path_ms = 0;
+
     while ( true ) {
-        m_stats_cnt+=1;
 
-
-        if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ){
-            if ( m_io_modes.handle_io_modes() ){
-                was_stopped=true;
+        if (slow_path_ms >= 500) {
+            if (!handle_slow_path(was_stopped)) {
                 break;
             }
+            slow_path_ms = 0;
         }
-
-        if ( sanity_check() ){
-            printf(" Test was stopped \n");
-            was_stopped=true;
+        
+        if (!handle_fast_path()) {
             break;
         }
-        if (m_io_modes.m_g_mode != CTrexGlobalIoMode::gDISABLE ) {
-            fprintf(stdout,"\033[2J");
-            fprintf(stdout,"\033[2H");
-
-        }else{
-            if ( m_io_modes.m_g_disable_first  ){
-                m_io_modes.m_g_disable_first=false;
-                fprintf(stdout,"\033[2J");
-                fprintf(stdout,"\033[2H");
-                printf("clean !!!\n");
-                fflush(stdout);
-            }
-        }
-
-
-        if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gHELP ) {
-            m_io_modes.DumpHelp(stdout);
-        }
-
-        dump_stats(stdout,CGlobalStats::dmpTABLE);
-
-        if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gNORMAL ) {
-            fprintf (stdout," current time    : %.1f sec  \n",now_sec());
-            float d= CGlobalInfo::m_options.m_duration - now_sec();
-            if (d<0) {
-                d=0;
-
-            }
-            fprintf (stdout," test duration   : %.1f sec  \n",d);
-        }
-
-        if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gMem) {
-
-            if ( m_stats_cnt%4==0){
-                fprintf (stdout," %s \n",CGlobalInfo::dump_pool_as_json().c_str());
-            }
-        }
-
-
-        if ( CGlobalInfo::m_options.is_rx_enabled() ){
-            m_mg.update();
-
-            if ( m_io_modes.m_g_mode ==  CTrexGlobalIoMode::gNORMAL ){
-                switch (m_io_modes.m_l_mode) {
-                case CTrexGlobalIoMode::lDISABLE:
-                    fprintf(stdout,"\n+Latency stats disabled \n");
-                    break;
-                case CTrexGlobalIoMode::lENABLE:
-                    fprintf(stdout,"\n-Latency stats enabled \n");
-                    m_mg.DumpShort(stdout);
-                    break;
-                case CTrexGlobalIoMode::lENABLE_Extended:
-                    fprintf(stdout,"\n-Latency stats extended \n");
-                    m_mg.Dump(stdout);
-                    break;
-                }
-
-                if ( get_is_rx_check_mode() ) {
-
-                    switch (m_io_modes.m_rc_mode) {
-                    case CTrexGlobalIoMode::rcDISABLE:
-                        fprintf(stdout,"\n+Rx Check stats disabled \n");
-                        break;
-                    case CTrexGlobalIoMode::rcENABLE:
-                        fprintf(stdout,"\n-Rx Check stats enabled \n");
-                        m_mg.DumpShortRxCheck(stdout);
-                        break;
-                    case CTrexGlobalIoMode::rcENABLE_Extended:
-                        fprintf(stdout,"\n-Rx Check stats enhanced \n");
-                        m_mg.DumpRxCheck(stdout);
-                        break;
-                    }
-
-                }
-
-            }
-        }
-
-
-
-        /* publish data */
-        publish_async_data(false);
-
-        /* check from messages from DP */
-        check_for_dp_messages();
 
         cp_lock.unlock();
-        delay(500);
+        delay(20);
+        slow_path_ms += 20;
         cp_lock.lock();
-
-        if ( is_all_cores_finished() ) {
-            break;
-        }
     }
 
     /* on exit release the lock */

@@ -187,13 +187,18 @@ TrexStatelessDpUpdate::clone() {
  ************************/
 bool
 TrexStatelessDpPushPCAP::handle(TrexStatelessDpCore *dp_core) {
-    dp_core->push_pcap(m_port_id, m_event_id, m_pcap_filename);
+    dp_core->push_pcap(m_port_id, m_event_id, m_pcap_filename, m_ipg_usec, m_speedup, m_count);
     return true;
 }
 
 TrexStatelessCpToDpMsgBase *
 TrexStatelessDpPushPCAP::clone() {
-    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpPushPCAP(m_port_id, m_event_id, m_pcap_filename);
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpPushPCAP(m_port_id,
+                                                                      m_event_id,
+                                                                      m_pcap_filename,
+                                                                      m_ipg_usec,
+                                                                      m_speedup,
+                                                                      m_count);
 
     return new_msg;
 }

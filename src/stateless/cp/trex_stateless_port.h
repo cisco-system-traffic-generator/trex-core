@@ -129,11 +129,12 @@ public:
      * port state
      */
     enum port_state_e {
-        PORT_STATE_DOWN = 0x1,
-        PORT_STATE_IDLE = 0x2,
-        PORT_STATE_STREAMS = 0x4,
-        PORT_STATE_TX = 0x8,
-        PORT_STATE_PAUSE = 0x10,
+        PORT_STATE_DOWN     = 0x1,
+        PORT_STATE_IDLE     = 0x2,
+        PORT_STATE_STREAMS  = 0x4,
+        PORT_STATE_TX       = 0x8,
+        PORT_STATE_PAUSE    = 0x10,
+        PORT_STATE_PCAP_TX  = 0x20,
     };
 
     /**
@@ -224,6 +225,12 @@ public:
     port_state_e get_state() const {
         return m_port_state;
     }
+
+    /**
+     * return true if the port is active
+     * (paused is considered active)
+     */
+    bool is_active() const;
 
     /**
      * port state as string

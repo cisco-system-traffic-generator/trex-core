@@ -262,7 +262,11 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
     return (true);
 }
 
-bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id, const std::string &pcap_filename){
+bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
+                                       const std::string &pcap_filename,
+                                       double ipg_usec,
+                                       double speedup,
+                                       uint32_t count) {
 
     /* push pcap can only happen on an idle port from the core prespective */
     assert(m_state == TrexStatelessDpPerPort::ppSTATE_IDLE);
@@ -277,7 +281,13 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id, const std::string &pcap_
     uint8_t mac_addr[12];
     m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, mac_addr);
 
-    bool rc = pcap_node->create(port_id, pcap_filename, dir, mac_addr);
+    bool rc = pcap_node->create(port_id,
+                                dir,
+                                mac_addr,
+                                pcap_filename,
+                                ipg_usec,
+                                speedup,
+                                count);
     if (!rc) {
         m_core->free_node((CGenNode *)pcap_node);
         return (false);
@@ -287,8 +297,11 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id, const std::string &pcap_
     pcap_node->m_time = m_core->m_cur_time_sec;
     m_core->m_node_gen.add_node((CGenNode *)pcap_node);
 
-    m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    /* hold a pointer to the node */
+    assert(m_active_pcap_node == NULL);
+    m_active_pcap_node = pcap_node;
 
+    m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
     return (true);
 }
 
@@ -324,6 +337,19 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
         }
     }
 
+    /* check for active PCAP node */
+    if (m_active_pcap_node) {
+        /* when got async stop from outside or duration */
+        if (m_active_pcap_node->is_active()) {
+            m_active_pcap_node->mark_for_free();
+        } else {
+            /* graceful stop - node was put out by the scheduler */
+            m_core->free_node( (CGenNode *)m_active_pcap_node);
+        }
+
+        m_active_pcap_node = NULL;
+    }
+
     /* active stream should be zero */
     assert(m_active_streams==0);
     m_active_nodes.clear();
@@ -337,6 +363,7 @@ void TrexStatelessDpPerPort::create(CFlowGenListPerThread   *  core){
     m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
     m_active_streams=0;
     m_active_nodes.clear();
+    m_active_pcap_node = NULL;
 }
 
 
@@ -866,14 +893,19 @@ TrexStatelessDpCore::pause_traffic(uint8_t port_id){
 
 
 void 
-TrexStatelessDpCore::push_pcap(uint8_t port_id, int event_id, const std::string &pcap_filename) {
+TrexStatelessDpCore::push_pcap(uint8_t port_id,
+                               int event_id,
+                               const std::string &pcap_filename,
+                               double ipg_usec,
+                               double speedup,
+                               uint32_t count) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
     lp_port->set_event_id(event_id);
 
     /* delegate the command to the port */
-    bool rc = lp_port->push_pcap(port_id, pcap_filename);
+    bool rc = lp_port->push_pcap(port_id, pcap_filename, ipg_usec, speedup, count);
     if (!rc) {
         /* report back that we stopped */
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
@@ -913,7 +945,6 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
        the scheduler invokes it, it will be free */
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-
     if ( lp_port->stop_traffic(port_id,stop_on_id,event_id) == false){
         /* nothing to do ! already stopped */
         //printf(" skip .. %f\n",m_core->m_cur_time_sec);
@@ -961,13 +992,30 @@ TrexStatelessDpCore::barrier(uint8_t port_id, int event_id) {
 /**
  * PCAP node
  */
-bool CGenNodePCAP::create(uint8_t port_id, const std::string &pcap_filename, pkt_dir_t dir, const uint8_t *mac_addr) {
+bool CGenNodePCAP::create(uint8_t port_id,
+                          pkt_dir_t dir,
+                          const uint8_t *mac_addr,
+                          const std::string &pcap_filename,
+                          double ipg_usec,
+                          double speedup,
+                          uint32_t count) {
     std::stringstream ss;
 
     m_type       = CGenNode::PCAP_PKT;
     m_flags      = 0;
     m_src_port   = 0;
     m_port_id    = port_id;
+    m_count      = count;
+    
+    if (ipg_usec != -1) {
+        /* fixed IPG */
+        m_ipg_sec = usec_to_sec(ipg_usec / speedup);
+        m_speedup = 0;
+    } else {
+        /* packet IPG */
+        m_ipg_sec = -1;
+        m_speedup  = speedup;
+    }
 
     /* copy MAC addr info */
     memcpy(m_mac_addr, mac_addr, 12);

@@ -253,9 +253,17 @@ private:
 class TrexStatelessDpPushPCAP : public TrexStatelessCpToDpMsgBase {
 public:
 
-    TrexStatelessDpPushPCAP(uint8_t port_id, int event_id, const std::string &pcap_filename) : m_pcap_filename(pcap_filename)  {
+    TrexStatelessDpPushPCAP(uint8_t port_id,
+                            int event_id,
+                            const std::string &pcap_filename,
+                            double ipg_usec,
+                            double speedup,
+                            uint32_t count) : m_pcap_filename(pcap_filename)  {
         m_port_id  = port_id;
         m_event_id = event_id;
+        m_ipg_usec = ipg_usec;
+        m_speedup  = speedup;
+        m_count    = count;
     }
 
     virtual bool handle(TrexStatelessDpCore *dp_core);
@@ -264,8 +272,11 @@ public:
 
 private:
     std::string  m_pcap_filename;
-    uint8_t      m_port_id;
     int          m_event_id;
+    double       m_ipg_usec;
+    double       m_speedup;
+    uint32_t     m_count;
+    uint8_t      m_port_id;
 };
 
 

@@ -335,30 +335,37 @@ class EventsHandler(object):
 
     # private functions
 
+    # on rare cases events may come on a non existent prot
+    # (server was re-run with different config)
     def __async_event_port_job_done (self, port_id):
-        self.client.ports[port_id].async_event_port_job_done()
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_port_job_done()
 
     def __async_event_port_stopped (self, port_id):
-        self.client.ports[port_id].async_event_port_stopped()
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_port_stopped()
 
 
     def __async_event_port_started (self, port_id):
-        self.client.ports[port_id].async_event_port_started()
-
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_port_started()
 
     def __async_event_port_paused (self, port_id):
-        self.client.ports[port_id].async_event_port_paused()
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_port_paused()
 
 
     def __async_event_port_resumed (self, port_id):
-        self.client.ports[port_id].async_event_port_resumed()
-
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_port_resumed()
 
     def __async_event_port_acquired (self, port_id, who):
-        self.client.ports[port_id].async_event_acquired(who)
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_acquired(who)
 
     def __async_event_port_released (self, port_id):
-        self.client.ports[port_id].async_event_released()
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_released()
 
     def __async_event_server_stopped (self):
         self.client.connected = False

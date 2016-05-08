@@ -462,14 +462,14 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
     std::string pcap_filename = parse_string(params, "pcap_filename", result);
-    double ipg                = parse_double(params, "ipg", result);
+    double ipg_usec           = parse_double(params, "ipg_usec", result);
     double speedup            = parse_double(params, "speedup", result);
     uint32_t count            = parse_uint32(params, "count", result);
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     try {
-        port->push_remote(pcap_filename, ipg, speedup, count);
+        port->push_remote(pcap_filename, ipg_usec, speedup, count);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }

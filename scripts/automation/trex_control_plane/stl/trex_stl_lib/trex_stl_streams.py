@@ -939,7 +939,7 @@ class STLProfile(object):
                        Name of the pcap file 
 
                   ipg_usec   : float
-                       Inter packet gap in usec. If IPG=0, IPG is taken from pcap file
+                       Inter packet gap in usec. If IPG is None, IPG is taken from pcap file
 
                   speedup   : float 
                        When reading the pcap file, divide IPG by this "speedup" factor. Resulting IPG is sped up by this factor. 
