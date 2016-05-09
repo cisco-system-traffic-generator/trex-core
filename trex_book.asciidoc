@@ -149,8 +149,8 @@ WARNING: Intel X710 NIC for example FH X710DA4FHBLK will work *only* with Intel 
 [options="header",cols="1,1",width="70%"]
 |=================
 | QSFP+             | Example 
-| QSFP+ SR4 optics  |  APPROVED OPTICS For Intel NICS,  Cisco QSFP-40G-SR4-S does *not* work   link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
-| QSFP+ LR-4 Optics |   APPROVED OPTICS For Intel NICS , Cisco QSFP-40G-LR4-S does *not* work link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
+| QSFP+ SR4 optics  |  APPROVED OPTICS For Intel NICS,  Cisco QSFP-40G-SR4-S will work *only* with XL710 NIC vendors with Open Optic like Silicom   link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
+| QSFP+ LR-4 Optics |   APPROVED OPTICS For Intel NICS , Cisco QSFP-40G-LR4-S will work *only* with XL710 NIC vendors with Open Optic like Silicom link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
 | QSFP Active Optical Cables (AoC) |   QSFP-H40G-AOC  link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
 | QSFP+ Intel Ethernet Modular Optics | 
 | QSFP+ DA twin-ax cables |

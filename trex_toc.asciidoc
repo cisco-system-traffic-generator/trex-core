@@ -172,6 +172,7 @@ ifdef::backend-xhtml11[]
 <script>
 
       $(document).ready(function(){
+          var isOpen = true;
 
         // Initialize NavTree
         initializeNavTree();
@@ -243,7 +244,6 @@ ifdef::backend-xhtml11[]
 
 
         function toggleTOC(){
-          var isOpen = true;
           $( "#toggle" ).click(function() {
             if ( isOpen ) {
               // Close it
