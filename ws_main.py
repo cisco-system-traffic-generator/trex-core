@@ -12,10 +12,171 @@ APPNAME='wafdocs'
 import os, re, shutil
 import shlex
 import subprocess
+import json
+
 
 
 top = '.'
 out = 'build'
+
+from HTMLParser import HTMLParser
+
+class CTocNode:
+    def __init__ (self):
+        self.name="root"
+        self.level=1; # 1,2,3,4
+        self.link=None;
+        self.parent=None
+        self.childs=[]; # link to CTocNode
+
+    def get_link (self):
+        if self.link==None:
+            name=self.name
+            l=name.split('.');
+            l=l[-1].lower()
+            s='';
+            for c in l:
+                if c.isalpha() or c.isspace():
+                    s+=c
+    
+            return  '#_'+'_'.join(s.lower().split());
+        else:
+            return '#'+self.link
+
+
+
+    def add_new_child (self,name,level,link):
+        n=CTocNode();
+        n.name=name;
+        n.link=link
+        n.level=level;
+        n.parent=self;
+        self.childs.append(n);
+        return n
+
+    def to_json_childs (self):
+        l=[]
+        for obj in self.childs:
+            l.append(obj.to_json());
+        return (l);
+
+    def to_open (self):
+        if self.level <3:
+            return True
+        else:
+            return False
+
+
+    def to_json (self):
+        d={"text" : self.name,
+           "link" : self.get_link(),
+           "state"       : {
+                "opened"    : self.to_open()
+                }
+          }
+        if len(self.childs)>0 :
+            d["children"]= self.to_json_childs()
+        return d
+
+
+
+class TocHTMLParser(HTMLParser):
+
+    def __init__ (self):
+        HTMLParser.__init__(self);
+        self.state=0;
+        self.root=CTocNode()
+        self.root.parent=self.root
+        self.level=2;
+        self.attrs=None
+        self.d={};
+        self.last_level=1
+        self.set_level(1,self.root)
+
+
+    def set_level (self,level,node):
+        assert(node!=None);
+        assert(isinstance(node,CTocNode)==True); 
+        self.d[str(level)]=node
+
+        # in case we change from high to low level remove the higher level 
+        if level<self.last_level:
+            for l in range(level+1,self.last_level+1):
+                self.d.pop(str(l),None)
+
+
+
+    def _get_level (self,level):
+        k=str(level)
+        if self.d.has_key(k):
+            n=self.d[k]
+            assert(n!=None);
+            return n
+        else:
+            return None
+
+    def get_level (self,level):
+        for l in range(level,0,-1):
+            n=self._get_level(l)
+            if n != None:
+                return n
+        assert(0);
+
+
+    def is_header (self,tag):
+        if len(tag)==2 and tag[0]=='h' and tag[1].isdigit() and (int(tag[1])>1):
+            return (True);
+
+    def handle_starttag(self, tag, attrs):
+        if self.is_header (tag):
+            self.attrs=attrs
+            self.state=True;
+            self.level=int(tag[1]);
+
+    def handle_endtag(self, tag):
+        if self.is_header (tag):
+            self.state=False;
+
+    def get_id (self):
+        if self.attrs:
+            for obj in self.attrs:
+                if obj[0]=='id':
+                    return obj[1] 
+        else:
+            return None
+
+
+    def handle_data(self, data):
+        if self.state:
+            
+           level=self.level
+
+           cnode=self.get_level(level-1)
+
+           n=cnode.add_new_child(data,level,self.get_id());
+           assert(n!=None);
+           self.set_level(level,n) 
+           self.last_level=level
+
+    def dump_as_json (self):
+        return json.dumps(self.root.to_json_childs(), sort_keys=False, indent=4)
+
+
+
+
+def create_toc_json (input_file,output_file):
+    f = open (input_file)
+    l=f.readlines()
+    f.close();
+    html_input = ''.join(l)
+    parser = TocHTMLParser()
+    parser.feed(html_input);
+    f = open (output_file,'w')
+    f.write(parser.dump_as_json());
+    f.close();
+
+
+
 
 re_xi = re.compile('''^(include|image)::([^.]*.(asciidoc|\\{PIC\\}))\[''', re.M)
 def ascii_doc_scan(self):
@@ -93,14 +254,55 @@ def configure(conf):
 def convert_to_pdf(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
-    return (0)
+    return  os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
+
+
+
+def toc_fixup_file (input_file,
+                    out_file, 
+                    json_file_name
+                    ):
+
+    file = open(input_file)
+    contents = file.read()
+    replaced_contents = contents.replace('input_replace_me.json', json_file_name)
+    file = open(out_file,'w')
+    file.write(replaced_contents)
+    file.close();
+
+
+
+def convert_to_html_toc_book(task):
+
+    input_file = task.inputs[0].abspath()
+
+    json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
+    tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
+    json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
+
+    cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book -a max-width=55em  -o {2} {3}'.format(
+            task.env['ASCIIDOC'],
+            task.inputs[1].abspath(),
+            tmp,
+            task.inputs[0].abspath());
+
+    res= os.system( cmd )
+    if res !=0 :
+        return (1)
+
+    create_toc_json(tmp,json_out_file)
+
+    toc_fixup_file(tmp,task.outputs[0].abspath(),json_out_file_short);
+
+    return os.system('rm {0}'.format(tmp));
+
+
+
 
 def convert_to_pdf_book(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
-    return (0)
+    return os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
 
 
 def ensure_dir(f):
@@ -209,6 +411,14 @@ def build_cp(bld,dir,root,callback):
 
 
 
+
+
+
+
+
+
+
+
 def build(bld):
     bld(rule=my_copy, target='symbols.lang')
 
@@ -252,13 +462,6 @@ def build(bld):
     bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='release_notes.asciidoc waf.css', target='release_notes.html', scan=ascii_doc_scan)
                 
-
-    bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
-        source='trex_book.asciidoc waf.css', target='trex_manual.html', scan=ascii_doc_scan)
-
-    bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
-        source='trex_stateless.asciidoc waf.css', target='trex_stateless.html', scan=ascii_doc_scan)
-
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
 
@@ -277,17 +480,25 @@ def build(bld):
     
     bld(rule=convert_to_pdf_book, source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.pdf', scan=ascii_doc_scan)
 
-    bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
-        source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html', scan=ascii_doc_scan)
+    # with nice TOC 
+    bld(rule=convert_to_html_toc_book,
+        source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html',scan=ascii_doc_scan)
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_book.asciidoc waf.css', target='trex_manual.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html',scan=ascii_doc_scan);
+
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='vm_doc.asciidoc waf.css', target='vm_doc.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='packet_builder_yaml.asciidoc waf.css', target='packet_builder_yaml.html', scan=ascii_doc_scan)
-        
-    bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
-        source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.html', scan=ascii_doc_scan)
@@ -367,16 +578,24 @@ def release(bld):
 def publish(bld):
     # copy all the files to our web server 
     remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../doc/')
-    os.system('rsync -av --rsh=ssh build/ %s' % (remote_dir))
+    os.system('rsync -av --del --rsh=ssh build/ %s' % (remote_dir))
 
 
 def publish_ext(bld):
    from_ = 'build/'
-   os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/doc/' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ) )
+   os.system('rsync -avz --del -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/doc/' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ) )
    
 
+def publish_test(bld):
+    # copy all the files to our web server 
+    remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../test/')
+    os.system('rsync -av --del --rsh=ssh build/ %s' % (remote_dir))
 
 
+
+def publish_both(bld):
+    publish(bld)
+    publish_ext(bld)
 
          
                

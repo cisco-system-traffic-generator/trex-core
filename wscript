@@ -24,6 +24,9 @@ def configure(conf):
     ws_main.configure(conf)
 
 
+def create_toc (bld):
+    ws_main.create_toc(bld)
+
 def build(bld):
     ws_main.build(bld)
 
@@ -39,6 +42,9 @@ def release(bld):
 
 def publish(bld):
     ws_main.publish(bld)
+
+def publish_test(bld):
+    ws_main.publish_test(bld)
 
 def publish_ext(bld):
     ws_main.publish_ext(bld)
