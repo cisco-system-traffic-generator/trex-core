@@ -15,12 +15,16 @@ TRex Stateless support
 ifdef::backend-docbook[]
 :p_width: 450
 :p_width_1: 200
+:p_width_1a: 200
+:p_width_lge: 500
 endif::backend-docbook[]
 
 // HTML version - image width variable
 ifdef::backend-xhtml11[]
 :p_width: 800
 :p_width_1: 400
+:p_width_1a: 650
+:p_width_lge: 900
 endif::backend-xhtml11[]
 
 include::trex_ga.asciidoc[]
@@ -1406,7 +1410,7 @@ TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
 
 The following illustration does not fully match the Python example cited above. It has been simplified, such as using a 0.5 second ISG, for illustration purposes.
 
-image::images/stl_multiple_streams_01.png[title="Example of multiple streams",align="left",width={p_width}, link="images/stl_multiple_streams_01.png"]
+image::images/stl_multiple_streams_01.png[title="Example of multiple streams",align="left",width={p_width_lge}, link="images/stl_multiple_streams_01.png"]
 
 
 
@@ -1817,7 +1821,7 @@ For more information how to define headers see link:http://www.secdev.org/projec
 
 The following example generates traffic from many clients with different IP/MAC addresses to one server.
 
-image::images/stl_multiple_clients_01.png[title="Multiple clients to single server",align="left",width={p_width}, link="images/stl_multiple_clients_01.png"]
+image::images/stl_multiple_clients_01.png[title="Multiple clients to single server",align="left",width={p_width_1a}, link="images/stl_multiple_clients_01.png"]
 
 // OBSOLETEimage::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_tut_12.png"]
 
@@ -2219,7 +2223,7 @@ The following example creates a stream with no packets. The example uses the int
 
 This method can create loops like the following:
 
-image::images/stl_null_stream_02.png[title="Null stream",align="left",width={p_width/2}, link="images/stl_null_stream_02.png"]
+image::images/stl_null_stream_02.png[title="Null stream",align="left",width={p_width_1}, link="images/stl_null_stream_02.png"]
  
 1. S1 - Sends a burst of packets, then proceed to stream NULL.
 2. NULL - Waits the inter-stream gap (ISG) time, then proceed to S1. 
@@ -2293,7 +2297,7 @@ Assumption: The pcap file has one packet. If the pcap file has more than one pac
 <2> Loop count.
 <3> Input pcap file. 
 
-image::images/stl_loop_count_01.png[title="Streams, loop_count",align="left",width={p_width/2}, link="images/stl_loop_count_01.png"]
+image::images/stl_loop_count_01.png[title="Streams, loop_count",align="left",width={p_width_1a}, link="images/stl_loop_count_01.png"]
 
 The figure shows the streams for a pcap file with 3 packets, with a loop configured.
 
