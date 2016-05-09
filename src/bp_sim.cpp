@@ -4848,31 +4848,62 @@ int CErfIFStl::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
 }
 
 
+int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+
+    /* check that we have mbuf  */
+    rte_mbuf_t *    m=node_sl->get_cache_mbuf();
+    if (m) {
+        /* cache packet */
+        fill_raw_packet(m, (CGenNode*)node_sl, dir);
+        /* can't free the m, it is cached*/
+    }else{
+
+        m=node_sl->alloc_node_with_vm();
+        assert(m);
+        fill_raw_packet(m, (CGenNode*)node_sl, dir);
+        rte_pktmbuf_free(m);
+
+    }
+
+    int rc = write_pkt(m_raw);
+    BP_ASSERT(rc == 0);
+
+    return (rc);
+}
+
+
+int CErfIFStl::send_pcap_node(CGenNodePCAP *pcap_node) {
+    rte_mbuf_t *m = pcap_node->get_pkt();
+    if (!m) {
+        return (-1);
+    }
+
+    pkt_dir_t dir = (pkt_dir_t)pcap_node->get_mbuf_dir();
+    fill_raw_packet(m, (CGenNode*)pcap_node, dir);
+    rte_pktmbuf_free(m);
+
+    int rc = write_pkt(m_raw);
+    BP_ASSERT(rc == 0);
+
+    return (rc);
+}
+
 int CErfIFStl::send_node(CGenNode * _no_to_use){
 
-    if ( m_preview_mode->getFileWrite() ){
+    if ( m_preview_mode->getFileWrite() ) {
 
-        CGenNodeStateless * node_sl=(CGenNodeStateless *) _no_to_use;
+        switch (_no_to_use->m_type) {
+        case CGenNode::STATELESS_PKT:
+            return send_sl_node((CGenNodeStateless *) _no_to_use);
 
-        pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+        case CGenNode::PCAP_PKT:
+            return send_pcap_node((CGenNodePCAP *) _no_to_use);
 
-        /* check that we have mbuf  */
-        rte_mbuf_t *    m=node_sl->get_cache_mbuf();
-        if (m) {
-            /* cache packet */
-            fill_raw_packet(m,_no_to_use,dir);
-            /* can't free the m, it is cached*/
-        }else{
-
-            m=node_sl->alloc_node_with_vm();
-            assert(m);
-            fill_raw_packet(m,_no_to_use,dir);
-            rte_pktmbuf_free(m);
-
+        default:
+            assert(0);
         }
-
-        int rc = write_pkt(m_raw);
-        BP_ASSERT(rc == 0);
+      
     }
 
     return (0);

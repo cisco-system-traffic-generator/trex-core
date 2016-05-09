@@ -1887,6 +1887,9 @@ public:
 
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
 
+private:
+    int send_sl_node(CGenNodeStateless * node_sl);
+    int send_pcap_node(CGenNodePCAP * pcap_node);
 
 };
 

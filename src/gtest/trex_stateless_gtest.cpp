@@ -3569,6 +3569,70 @@ TEST_F(basic_stl, vm_split_client_var) {
 
 }
 
+TEST_F(basic_stl, pcap_remote_basic) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/pcap_remote_basic";
+
+    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                                       0,
+                                                                       "exp/remote_test.cap",
+                                                                       10,
+                                                                       1,
+                                                                       1,
+                                                                       -1);
+    t1.m_msg = push_msg;
+
+    bool res = t1.init();
+    EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+TEST_F(basic_stl, pcap_remote_loop) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/pcap_remote_loop";
+
+    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                                       0,
+                                                                       "exp/remote_test.cap",
+                                                                       1,
+                                                                       1,
+                                                                       3,
+                                                                       -1);
+    t1.m_msg = push_msg;
+
+    bool res = t1.init();
+    EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+TEST_F(basic_stl, pcap_remote_duration) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/pcap_remote_duration";
+
+    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                                       0,
+                                                                       "exp/remote_test.cap",
+                                                                       100000,
+                                                                       1,
+                                                                       0,
+                                                                       0.5);
+    t1.m_msg = push_msg;
+
+    bool res = t1.init();
+    EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
 /********************************************* Itay Tests End *************************************/
 class rx_stat_pkt_parse  : public testing::Test {
     protected:

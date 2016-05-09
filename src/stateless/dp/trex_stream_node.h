@@ -400,6 +400,7 @@ public:
      */
     bool create(uint8_t port_id,
                 pkt_dir_t dir,
+                socket_id_t socket_id,
                 const uint8_t *mac_addr,
                 const std::string &pcap_filename,
                 double ipg_usec,

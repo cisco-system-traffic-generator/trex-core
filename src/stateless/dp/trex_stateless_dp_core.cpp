@@ -276,13 +276,15 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
         return (false);
     }
 
-    pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(port_id);
+    pkt_dir_t dir          = m_core->m_node_gen.m_v_if->port_id_to_dir(port_id);
+    socket_id_t socket_id  = m_core->m_node_gen.m_socket_id;
 
     uint8_t mac_addr[12];
     m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, mac_addr);
 
     bool rc = pcap_node->create(port_id,
                                 dir,
+                                socket_id,
                                 mac_addr,
                                 pcap_filename,
                                 ipg_usec,
@@ -984,6 +986,7 @@ TrexStatelessDpCore::barrier(uint8_t port_id, int event_id) {
  */
 bool CGenNodePCAP::create(uint8_t port_id,
                           pkt_dir_t dir,
+                          socket_id_t socket_id,
                           const uint8_t *mac_addr,
                           const std::string &pcap_filename,
                           double ipg_usec,
@@ -1015,6 +1018,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
 
     /* set the dir */
     set_mbuf_dir(dir);
+    set_socket_id(socket_id);
 
     /* create the PCAP reader */
     m_reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
