@@ -60,7 +60,6 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_flags           = parse_int(section, "flags", result);
     stream->m_action_count    = parse_uint16(section, "action_count", result);
     stream->m_random_seed     = parse_uint32(section, "random_seed", result,0); /* default is zero */
-    stream->m_cache_size      = parse_uint16(section, "cache", result,0); /* default is zero */
 
     /* inter stream gap */
     stream->m_isg_usec  = parse_double(section, "isg", result);

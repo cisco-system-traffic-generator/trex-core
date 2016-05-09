@@ -678,10 +678,7 @@ void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream,
     assert(cache_size>0);
     rte_mbuf_t * m=0;
 
-    /* TBD do we have enough from this type of object , need to ask ! */
-
     uint32_t buf_size = CGenNodeCacheMbuf::get_object_size(cache_size);
-    /* TBD  replace with align, zero API */
     CGenNodeCacheMbuf * p = (CGenNodeCacheMbuf *)malloc(buf_size);
     assert(p);
     memset(p,0,buf_size);
