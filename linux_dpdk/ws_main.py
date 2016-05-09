@@ -943,7 +943,6 @@ def release(bld, custom_dir = None):
     if custom_dir:
         exec_p = custom_dir
     else:
-        fsafssa
         check_release_permission()
         exec_p = Env().get_release_path()
     print "copy images and libs"
