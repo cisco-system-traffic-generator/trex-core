@@ -3709,19 +3709,6 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                 thread->free_node(node);
             }
 
-        } else if (type == CGenNode::PCAP_PKT) {
-            m_p_queue.pop();
-
-            CGenNodePCAP *node_pcap = (CGenNodePCAP *)node;
-
-            /* might have been marked for free */
-            if ( unlikely( node_pcap->is_marked_for_free() ) ) {
-                thread->free_node(node);
-            } else {
-                node_pcap->handle(thread);
-            }
-
-                        
         } else {
             bool exit_sccheduler = handle_slow_messages(type,node,thread,always);
             if (exit_sccheduler) {
@@ -3743,6 +3730,87 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     return (0);
 }
 
+
+void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread) {
+
+    /*repeat and NAT is not supported */
+    if ( node->is_nat_first_state()  ) {
+        node->set_nat_wait_state();
+        flush_one_node_to_file(node);
+        #ifdef _DEBUG
+        update_stats(node);
+        #endif
+    } else {
+        if ( node->is_nat_wait_state() ) {
+            if (node->is_responder_pkt()) {
+                m_p_queue.pop();
+                /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
+                thread->terminate_nat_flows(node);
+                return;
+
+            } else {
+                flush_one_node_to_file(node);
+                #ifdef _DEBUG
+                update_stats(node);
+                #endif
+            }
+        } else {
+            assert(0);
+        }
+    }
+    m_p_queue.pop();
+    if ( node->is_last_in_flow() ) {
+        thread->free_last_flow_node( node);
+    } else {
+        node->update_next_pkt_in_flow();
+        m_p_queue.push(node);
+    }
+}
+
+void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
+    /* flow sync message is a sync point for time */
+    thread->m_cur_time_sec = node->m_time;
+
+    /* first pop the node */
+    m_p_queue.pop();
+
+    thread->check_msgs(); /* check messages */
+    m_v_if->flush_tx_queue(); /* flush pkt each timeout */
+
+    /* exit in case this is the last node*/
+    if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
+        thread->free_node(node);
+        exit_scheduler = true;
+    } else {
+        /* schedule for next maintenace */
+        node->m_time += SYNC_TIME_OUT;
+        m_p_queue.push(node);
+    }
+
+}
+
+void CNodeGenerator::handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
+    m_p_queue.pop();
+    CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
+    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
+    cmd->handle(&thread->m_stateless_dp_info);
+    exit_scheduler = cmd->is_quit();
+    thread->free_node((CGenNode *)node_cmd);/* free the node */
+}
+
+void CNodeGenerator::handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread) {
+    m_p_queue.pop();
+
+    CGenNodePCAP *node_pcap = (CGenNodePCAP *)node;
+
+    /* might have been marked for free */
+    if ( unlikely( node_pcap->is_marked_for_free() ) ) {
+        thread->free_node(node);
+    } else {
+        node_pcap->handle(thread);
+    }
+}
+
 bool
 CNodeGenerator::handle_slow_messages(uint8_t type,
                                      CGenNode * node,
@@ -3752,89 +3820,42 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
     /* should we continue after */
     bool exit_scheduler = false;
 
-    if (unlikely (type == CGenNode::FLOW_DEFER_PORT_RELEASE) ) {
+    switch (type) {
+    case CGenNode::PCAP_PKT:
+        handle_pcap_pkt(node, thread);
+        break;
+
+    case CGenNode::FLOW_DEFER_PORT_RELEASE:
         m_p_queue.pop();
         thread->handler_defer_job(node);
         thread->free_node(node);
+        break;
 
-    } else if (type == CGenNode::FLOW_PKT_NAT) {
-            /*repeat and NAT is not supported */
-            if ( node->is_nat_first_state()  ){
-                node->set_nat_wait_state();
-                flush_one_node_to_file(node);
-                #ifdef _DEBUG
-                update_stats(node);
-                #endif
-            }else{
-                if ( node->is_nat_wait_state() ) {
-                    if (node->is_responder_pkt()) {
-                        m_p_queue.pop();
-                        /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
-                        thread->terminate_nat_flows(node);
-                        return (exit_scheduler);
+    case CGenNode::FLOW_PKT_NAT:
+        handle_flow_pkt(node, thread);
+        break;
 
-                    }else{
-                        flush_one_node_to_file(node);
-                        #ifdef _DEBUG
-                        update_stats(node);
-                        #endif
-                    }
-                }else{
-                    assert(0);
-                }
-            }
-            m_p_queue.pop();
-            if ( node->is_last_in_flow() ) {
-                 thread->free_last_flow_node( node);
-            }else{
-                node->update_next_pkt_in_flow();
-                m_p_queue.push(node);
-            }
+    case CGenNode::FLOW_SYNC:
+        handle_flow_sync(node, thread, exit_scheduler);
+        break;
 
-        } else if ( type == CGenNode::FLOW_SYNC ) {
-
-            /* flow sync message is a sync point for time */
-            thread->m_cur_time_sec = node->m_time;
-
-            /* first pop the node */
-            m_p_queue.pop();
-
-            thread->check_msgs(); /* check messages */
-            m_v_if->flush_tx_queue(); /* flush pkt each timeout */
-
-            /* exit in case this is the last node*/
-            if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
-                thread->free_node(node);
-                exit_scheduler = true;
-            } else {
-                /* schedule for next maintenace */
-                node->m_time += SYNC_TIME_OUT;
-                m_p_queue.push(node);
-            }
+    case CGenNode::EXIT_SCHED:
+        m_p_queue.pop();
+        thread->free_node(node);
+        exit_scheduler = true;
+        break;
 
 
-        } else if ( type == CGenNode::EXIT_SCHED ) {
-            m_p_queue.pop();
-            thread->free_node(node);
-            exit_scheduler = true;
-            
-        } else {
-            if ( type == CGenNode::COMMAND) {
-                m_p_queue.pop();
-                CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
-                {
-                    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
-                    cmd->handle(&thread->m_stateless_dp_info);
-                    exit_scheduler = cmd->is_quit();
-                    thread->free_node((CGenNode *)node_cmd);/* free the node */
-                }
-            }else{
-                printf(" ERROR type is not valid %d \n",type);
-                assert(0);
-            }
-        }
+    case CGenNode::COMMAND:
+        handle_command(node, thread, exit_scheduler);
+        break;
 
-        return exit_scheduler;
+    default:
+        assert(0);
+    }
+
+    return (exit_scheduler);
+
 }
 
 

@@ -552,7 +552,7 @@ private:
     uint8_t             m_port_id;
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[25];
+    uint8_t             m_pad_end[33];
 
 } __rte_cache_aligned;
 

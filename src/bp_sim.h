@@ -2036,6 +2036,10 @@ private:
                                               CFlowGenListPerThread * thread,
                                               bool always);
 
+    void handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
+    void handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread);
+    void handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
+    void handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread);
 
 public:
     pqueue_t                  m_p_queue;

@@ -3859,24 +3859,30 @@ int CGlobalTRex::run_in_master() {
     /* exception and scope safe */
     std::unique_lock<std::mutex> cp_lock(m_cp_lock);
 
-    uint32_t slow_path_ms = 0;
+    uint32_t slow_path_counter = 0;
+
+    const int FASTPATH_DELAY_MS = 20;
+    const int SLOWPATH_DELAY_MS = 500;
 
     while ( true ) {
 
-        if (slow_path_ms >= 500) {
-            if (!handle_slow_path(was_stopped)) {
-                break;
-            }
-            slow_path_ms = 0;
-        }
-        
+        /* fast path */
         if (!handle_fast_path()) {
             break;
         }
 
+        /* slow path */
+        if (slow_path_counter >= SLOWPATH_DELAY_MS) {
+            if (!handle_slow_path(was_stopped)) {
+                break;
+            }
+            slow_path_counter = 0;
+        }
+        
+       
         cp_lock.unlock();
-        delay(20);
-        slow_path_ms += 20;
+        delay(FASTPATH_DELAY_MS);
+        slow_path_counter += FASTPATH_DELAY_MS;
         cp_lock.lock();
     }
 

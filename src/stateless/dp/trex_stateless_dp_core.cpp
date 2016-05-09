@@ -946,19 +946,9 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
     if ( lp_port->stop_traffic(port_id,stop_on_id,event_id) == false){
-        /* nothing to do ! already stopped */
-        //printf(" skip .. %f\n",m_core->m_cur_time_sec);
         return;
     }
  
-    /* inform the control plane we stopped - this might be a async stop
-       (streams ended)
-    */
-    #if 0
-    if ( are_all_ports_idle() ) {
-        /* just a place holder if we will need to do somthing in that case */
-    }
-    #endif
 
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
     TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
