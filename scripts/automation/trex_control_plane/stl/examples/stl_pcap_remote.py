@@ -13,8 +13,10 @@ def inject_pcap (c, pcap_file, port, loop_count, ipg_usec, duration):
     # assume 100 seconds is enough - but can be more
     c.wait_on_traffic(ports = [port], timeout = 100)
 
-    #stats = c.get_stats()
-    #opackets = stats[port]['opackets']
+    stats = c.get_stats()
+    opackets = stats[port]['opackets']
+
+    return opackets
     #print("{0} packets were Tx on port {1}\n".format(opackets, port))
 
     
@@ -102,8 +104,8 @@ def start (args):
         for i, cap in enumerate(caps, start = 1):
             before = time.time()
             print ("{:} CAP {:} @ {:} - ".format(i, cap, sizeof_fmt(os.path.getsize(cap)))),
-            inject_pcap(c, cap, options.port, options.loop_count, options.ipg, options.duration)
-            print("took {:.2f} seconds").format(time.time()-before)
+            injected = inject_pcap(c, cap, options.port, options.loop_count, options.ipg, options.duration)
+            print("took {:.2f} seconds for {:} packets").format(time.time() - before, injected)
 
     except STLError as e:
         print(e)

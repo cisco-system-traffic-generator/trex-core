@@ -37,7 +37,7 @@ scripts/stl/exportedFile.pcap
 scripts/exp/stl_multi_burst1-0.erf
 scripts/exp/stl_multi_pkt1-0.erf
 scripts/exp/stl_multi_pkt2-0.erf
-scripts/pcap_remote_basic-0.erf
+scripts/exp/pcap_remote_basic-0.erf
 scripts/exp/pcap_remote_duration-0.erf
 scripts/exp/pcap_remote_loop-0.erf
 scripts/exp/stl_single_pkt_burst1-0.erf

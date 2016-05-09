@@ -1931,7 +1931,8 @@ class STLClient(object):
                    ipg_usec = None,
                    speedup = 1.0,
                    count = 1,
-                   duration = -1):
+                   duration = -1,
+                   force = False):
         """
             Push a local PCAP to the server
             This is equivalent to loading a PCAP file to a profile
@@ -1958,6 +1959,9 @@ class STLClient(object):
                 duration: float
                     Limit runtime by duration in seconds
 
+                force: bool
+                    Ignore file size limit - push any file size to the server
+
             :raises:
                 + :exc:`STLError`
 
@@ -1972,8 +1976,8 @@ class STLClient(object):
         validate_type('duration', duration, (float, int))
 
         # no support for > 1MB PCAP - use push remote
-        if os.path.getsize(pcap_filename) > (1024 * 1024):
-            raise STLError("PCAP size of {:,} B is too big for local push - consider using remote push".format(os.path.getsize(pcap_filename)))
+        if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
+            raise STLError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
 
         self.remove_all_streams(ports = ports)
 
@@ -2695,7 +2699,8 @@ class STLClient(object):
                            ipg_usec  = opts.ipg_usec,
                            speedup   = opts.speedup,
                            count     = opts.count,
-                           duration  = opts.duration)
+                           duration  = opts.duration,
+                           force     = opts.force)
 
         
 
