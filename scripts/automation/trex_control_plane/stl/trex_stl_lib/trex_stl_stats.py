@@ -28,6 +28,9 @@ SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS]
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
+def round_float (f):
+    return float("%.2f" % f)
+
 # deep mrege of dicts dst = src + dst
 def deep_merge_dicts (dst, src):
     for k, v in src.items():
@@ -633,10 +636,10 @@ class CGlobalStats(CTRexStats):
                              ("version", "{ver}, UUID: {uuid}".format(ver=self.server_version.get("version", "N/A"),
                                                                       uuid="N/A")),
 
-                             ("cpu_util", "{0}% {1}".format( format_threshold(self.get("m_cpu_util"), [85, 100], [0, 85]),
+                             ("cpu_util", "{0}% {1}".format( format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85]),
                                                               self.get_trend_gui("m_cpu_util", use_raw = True))),
 
-                             ("rx_cpu_util", "{0}% {1}".format( format_threshold(self.get("m_rx_cpu_util"), [85, 100], [0, 85]),
+                             ("rx_cpu_util", "{0}% {1}".format( format_threshold(round_float(self.get("m_rx_cpu_util")), [85, 100], [0, 85]),
                                                                 self.get_trend_gui("m_rx_cpu_util", use_raw = True))),
 
                              (" ", ""),
