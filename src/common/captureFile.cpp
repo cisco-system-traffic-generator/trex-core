@@ -244,28 +244,23 @@ bool CErfCmp::compare(std::string f1, std::string f2 ){
     return (res);
 }
 
-
-
 /**
  * try to create type by type
  * @param name
  * 
  * @return CCapReaderBase*
  */
-CCapReaderBase * CCapReaderFactory::CreateReader(char * name, int loops)
+CCapReaderBase * CCapReaderFactory::CreateReader(char * name, int loops, std::ostream &err)
 {
-	if (name == NULL) {
-		printf("Got null file name\n");
-		return NULL;
-	}
+    assert(name);
 
     /* make sure we have a file */
     FILE * f = CAP_FOPEN_64(name, "rb");
     if (f == NULL) {
         if (errno == ENOENT) {
-            printf("\nERROR: Cap file not found %s\n\n",name);
+            err << "CAP file '" << name << "' not found";
         } else {
-            printf("\nERROR: Failed to open cap file '%s' with errno %d\n\n", name, errno);
+            err << "failed to open CAP file '" << name << "' with errno " << errno;
         }
         return NULL;
     }
@@ -281,8 +276,7 @@ CCapReaderBase * CCapReaderFactory::CreateReader(char * name, int loops)
 		delete next;
 	}
 
-    printf("\nERROR: file %s format not supported",name);
-    printf("\nERROR: formats supported are LIBPCAP and ERF. other formats are deprecated\n\n");
+    err << "unsupported CAP format (not PCAP or ERF): " << name << "\n";
 
 	return NULL;
 }

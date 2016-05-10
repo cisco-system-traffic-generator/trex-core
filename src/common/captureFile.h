@@ -24,6 +24,8 @@ limitations under the License.
 #include <math.h>
 #include <stdlib.h>
 #include <string>
+#include <iostream>
+
 #ifdef WIN32
 #pragma warning(disable:4786)
 #endif
@@ -201,11 +203,13 @@ public:
      * @param name - cature file name
      * @param loops - number of loops for the same capture. use 0
      *                for one time transmition
+     * @param err - IO stream to print error
+     *  
      * @return CCapReaderBase* - pointer to new instance (allocated
      *         by the function). the user should release the
      *         instance once it has no use any more.
 	 */
-	static CCapReaderBase * CreateReader(char * name, int loops = 0);
+	static CCapReaderBase * CreateReader(char * name, int loops = 0, std::ostream &err = std::cout);
 
 
 private:

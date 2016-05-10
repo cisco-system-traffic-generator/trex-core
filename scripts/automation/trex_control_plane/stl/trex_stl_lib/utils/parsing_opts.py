@@ -32,6 +32,7 @@ PROMISCUOUS = 19
 NO_PROMISCUOUS = 20
 PROMISCUOUS_SWITCH = 21
 TUNABLES = 22
+REMOTE_FILE = 23
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -289,6 +290,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {"action": "store_true",
                                          'default': False,
                                          'help': "Set if you want to stop active ports before appyling command."}),
+
+              REMOTE_FILE: ArgumentPack(['-r', '--remote'],
+                                        {"action": "store_true",
+                                         'default': False,
+                                         'help': "file path should be interpeted by the server (remote file)"}),
 
               FILE_PATH: ArgumentPack(['-f'],
                                       {'metavar': 'FILE',

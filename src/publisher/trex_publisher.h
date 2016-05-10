@@ -48,6 +48,7 @@ public:
         EVENT_PORT_FINISHED_TX      = 4,
         EVENT_PORT_ACQUIRED         = 5,
         EVENT_PORT_RELEASED         = 6,
+        EVENT_PORT_ERROR            = 7,
 
         EVENT_SERVER_STOPPED        = 100,
         

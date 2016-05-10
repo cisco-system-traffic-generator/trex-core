@@ -7,6 +7,7 @@ from .trex_stl_packet_builder_scapy import STLPktBuilder, Ether, IP, UDP, TCP, R
 from collections import OrderedDict, namedtuple
 
 from scapy.utils import ltoa
+from scapy.error import Scapy_Exception
 import random
 import yaml
 import base64
@@ -927,7 +928,7 @@ class STLProfile(object):
     
     # loop_count = 0 means loop forever
     @staticmethod
-    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None):
+    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None, packet_hook = None):
         """ Convert a pcap file with a number of packets to a list of connected streams.  
 
         packet1->packet2->packet3 etc 
@@ -938,7 +939,7 @@ class STLProfile(object):
                        Name of the pcap file 
 
                   ipg_usec   : float
-                       Inter packet gap in usec. If IPG=0, IPG is taken from pcap file
+                       Inter packet gap in usec. If IPG is None, IPG is taken from pcap file
 
                   speedup   : float 
                        When reading the pcap file, divide IPG by this "speedup" factor. Resulting IPG is sped up by this factor. 
@@ -949,6 +950,9 @@ class STLProfile(object):
                   vm        :  list 
                         List of Field engine instructions 
 
+                  packet_hook : Callable or function
+                        will be applied to every packet
+
                  :return: STLProfile
 
         """
@@ -958,8 +962,8 @@ class STLProfile(object):
             raise STLError("file '{0}' does not exists".format(pcap_file))
 
         # make sure IPG is not less than 1 usec
-        if ipg_usec is not None and ipg_usec < 1:
-            raise STLError("ipg_usec cannot be less than 1 usec: '{0}'".format(ipg_usec))
+        if ipg_usec is not None and ipg_usec < 0.001:
+            raise STLError("ipg_usec cannot be less than 0.001 usec: '{0}'".format(ipg_usec))
 
         if loop_count < 0:
             raise STLError("'loop_count' cannot be negative")
@@ -967,8 +971,15 @@ class STLProfile(object):
         streams = []
         last_ts_usec = 0
 
-        pkts = RawPcapReader(pcap_file).read_all()
-        
+        try:
+            pkts = RawPcapReader(pcap_file).read_all()
+        except Scapy_Exception as e:
+            raise STLError("failed to open PCAP file '{0}'".format(pcap_file))
+
+        if packet_hook:
+            pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
+
+
         for i, (cap, meta) in enumerate(pkts, start = 1):
             # IPG - if not provided, take from cap
             if ipg_usec == None:
@@ -984,7 +995,6 @@ class STLProfile(object):
                 next = i + 1
                 action_count = 0
 
-            
             streams.append(STLStream(name = i,
                                      packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
                                      mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),

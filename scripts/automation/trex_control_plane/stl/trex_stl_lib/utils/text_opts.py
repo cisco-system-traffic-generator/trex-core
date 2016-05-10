@@ -150,11 +150,15 @@ def format_text(text, *args):
 
 
 def format_threshold (value, red_zone, green_zone):
-    if value >= red_zone[0] and value <= red_zone[1]:
-        return format_text("{0}".format(value), 'red')
+    try:
+        if value >= red_zone[0] and value <= red_zone[1]:
+            return format_text("{0}".format(value), 'red')
 
-    if value >= green_zone[0] and value <= green_zone[1]:
-        return format_text("{0}".format(value), 'green')
+        if value >= green_zone[0] and value <= green_zone[1]:
+            return format_text("{0}".format(value), 'green')
+    except TypeError:
+        # if value is not comparable or not a number - skip this
+        pass
 
     return "{0}".format(value)
 

@@ -3858,186 +3858,85 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 
 
 
-#if 0
-int CNodeGenerator::flush_file(dsec_t max_time, 
-                               dsec_t d_time,
-                               bool always,
-                               CFlowGenListPerThread * thread,
-                               double &old_offset){
-    CGenNode * node;
-    #ifdef TREX_SIM
-    dsec_t flush_time=now_sec(); 
-    #endif
-    dsec_t offset=0.0;
-    #ifdef TREX_SIM
-    dsec_t n_time;
-    #endif
-    if (always) {
-         offset=old_offset;
-    }
-    #ifdef TREX_SIM
-    uint32_t events=0;
-    #endif
-    bool done=false;
+void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread) {
 
-    thread->m_cpu_dp_u.start_work1();
-
-    /**
-     * if a positive value was given to max time 
-     * schedule an exit node 
-     */
-    if ( (max_time > 0) && (!always) ) {
-        CGenNode *exit_node = thread->create_node();
-
-        exit_node->m_type = CGenNode::EXIT_SCHED;
-        exit_node->m_time = max_time;
-        add_node(exit_node);
-    }
-
-    while (true) {
-
-        node = m_p_queue.top();
-        #ifdef TREX_SIM
-        n_time = node->m_time + offset;
-
-        events++;
+    /*repeat and NAT is not supported */
+    if ( node->is_nat_first_state()  ) {
+        node->set_nat_wait_state();
+        flush_one_node_to_file(node);
+        #ifdef _DEBUG
+        update_stats(node);
         #endif
-/*#ifdef VALG
-        if (events > 1 ) {
-            CALLGRIND_START_INSTRUMENTATION;
-        }
-#endif*/
-
-        thread->m_cpu_dp_u.commit1();
-        thread->m_cpu_dp_u.start_work1();
-
-        #ifdef TREX_SIM
-
-        if (  likely ( m_is_realtime ) ){
-            dsec_t dt ;
-            thread->m_cpu_dp_u.commit1();
-
-            while ( true ) {
-                dt = now_sec() - n_time ;
-
-                if (dt> (-0.00003)) {
-                    break;
-                }
-
-                rte_pause();
-            }
-            thread->m_cpu_dp_u.start_work1();
-
-            /* add offset in case of faliures more than 100usec */
-            if ( unlikely( dt > 0.000100 ) ) {
-                offset += dt;
-            }
-            /* update histogram */
-            if ( unlikely( events % 16 ) ==0 ) {
-                 m_realtime_his.Add(dt);
-            }
-            /* flush evey 10 usec */
-            if ( now_sec() - flush_time > 0.00001 ){
-                m_v_if->flush_tx_queue();
-                flush_time=now_sec();
-            }
-        }
-        #endif
-
-
-        uint8_t type=node->m_type;
-
-        if ( type == CGenNode::STATELESS_PKT ) {
-             m_p_queue.pop();
-             CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
-
-             /* if the stream has been deactivated - end */
-             if ( unlikely( node_sl->is_mask_for_free() ) ) {
-                 thread->free_node(node);
-             } else {
-
-                 /* count before handle - node might be destroyed */
-                 #ifdef TREX_SIM
-                 update_stl_stats(node_sl);
-                 #endif
-
-                 node_sl->handle(thread);
-
-                 #ifdef TREX_SIM
-                 if (has_limit_reached()) {
-                     thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
-                 }
-                 #endif
-
-             }
-         
-            
-        }else{
-            if ( likely( type == CGenNode::FLOW_PKT ) ) {
-                /* PKT */
-                if ( !(node->is_repeat_flow()) || (always==false)) {
-                    flush_one_node_to_file(node);
-                    #ifdef _DEBUG
-                    update_stats(node);
-                    #endif
-                }
+    } else {
+        if ( node->is_nat_wait_state() ) {
+            if (node->is_responder_pkt()) {
                 m_p_queue.pop();
-                if ( node->is_last_in_flow() ) {
-                    if ((node->is_repeat_flow()) && (always==false)) {
-                        /* Flow is repeated, reschedule it */
-                        thread->reschedule_flow( node);
-                    }else{
-                        /* Flow will not be repeated, so free node */
-                        thread->free_last_flow_node( node);
-                    }
-                }else{
-                    node->update_next_pkt_in_flow();
-                    m_p_queue.push(node);
-                }
-            }else{
-                if ((type == CGenNode::FLOW_FIF)) {
-                   /* callback to our method */
-                    m_p_queue.pop();
-                    if ( always == false) {
-                        thread->m_cur_time_sec = node->m_time ;
+                /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
+                thread->terminate_nat_flows(node);
+                return;
 
-                        if ( thread->generate_flows_roundrobin(&done) <0){
-                            break;
-                        }
-                        if (!done) {
-                            node->m_time +=d_time;
-                            m_p_queue.push(node);
-                        }else{
-                            thread->free_node(node);
-                        }
-                    }else{
-                        thread->free_node(node);
-                    }
-
-                }else{
-                    bool exit_sccheduler = handle_slow_messages(type,node,thread,always);
-                    if (exit_sccheduler) {
-                        break;
-                    }
-                }
+            } else {
+                flush_one_node_to_file(node);
+                #ifdef _DEBUG
+                update_stats(node);
+                #endif
             }
+        } else {
+            assert(0);
         }
     }
-
-    if ( thread->is_terminated_by_master() ) {
-        return (0);
+    m_p_queue.pop();
+    if ( node->is_last_in_flow() ) {
+        thread->free_last_flow_node( node);
+    } else {
+        node->update_next_pkt_in_flow();
+        m_p_queue.push(node);
     }
-  
-    if (!always) {
-        old_offset =offset;
-    }else{
-        // free the left other
-        thread->handler_defer_job_flush();
-    }
-    return (0);
 }
 
-#endif
+void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
+    /* flow sync message is a sync point for time */
+    thread->m_cur_time_sec = node->m_time;
+
+    /* first pop the node */
+    m_p_queue.pop();
+
+    thread->check_msgs(); /* check messages */
+    m_v_if->flush_tx_queue(); /* flush pkt each timeout */
+
+    /* exit in case this is the last node*/
+    if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
+        thread->free_node(node);
+        exit_scheduler = true;
+    } else {
+        /* schedule for next maintenace */
+        node->m_time += SYNC_TIME_OUT;
+        m_p_queue.push(node);
+    }
+
+}
+
+void CNodeGenerator::handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
+    m_p_queue.pop();
+    CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
+    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
+    cmd->handle(&thread->m_stateless_dp_info);
+    exit_scheduler = cmd->is_quit();
+    thread->free_node((CGenNode *)node_cmd);/* free the node */
+}
+
+void CNodeGenerator::handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread) {
+    m_p_queue.pop();
+
+    CGenNodePCAP *node_pcap = (CGenNodePCAP *)node;
+
+    /* might have been marked for free */
+    if ( unlikely( node_pcap->is_marked_for_free() ) ) {
+        thread->free_node(node);
+    } else {
+        node_pcap->handle(thread);
+    }
+}
 
 bool
 CNodeGenerator::handle_slow_messages(uint8_t type,
@@ -4048,89 +3947,42 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
     /* should we continue after */
     bool exit_scheduler = false;
 
-    if (unlikely (type == CGenNode::FLOW_DEFER_PORT_RELEASE) ) {
+    switch (type) {
+    case CGenNode::PCAP_PKT:
+        handle_pcap_pkt(node, thread);
+        break;
+
+    case CGenNode::FLOW_DEFER_PORT_RELEASE:
         m_p_queue.pop();
         thread->handler_defer_job(node);
         thread->free_node(node);
+        break;
 
-    } else if (type == CGenNode::FLOW_PKT_NAT) {
-            /*repeat and NAT is not supported */
-            if ( node->is_nat_first_state()  ){
-                node->set_nat_wait_state();
-                flush_one_node_to_file(node);
-                #ifdef _DEBUG
-                update_stats(node);
-                #endif
-            }else{
-                if ( node->is_nat_wait_state() ) {
-                    if (node->is_responder_pkt()) {
-                        m_p_queue.pop();
-                        /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
-                        thread->terminate_nat_flows(node);
-                        return (exit_scheduler);
+    case CGenNode::FLOW_PKT_NAT:
+        handle_flow_pkt(node, thread);
+        break;
 
-                    }else{
-                        flush_one_node_to_file(node);
-                        #ifdef _DEBUG
-                        update_stats(node);
-                        #endif
-                    }
-                }else{
-                    assert(0);
-                }
-            }
-            m_p_queue.pop();
-            if ( node->is_last_in_flow() ) {
-                 thread->free_last_flow_node( node);
-            }else{
-                node->update_next_pkt_in_flow();
-                m_p_queue.push(node);
-            }
+    case CGenNode::FLOW_SYNC:
+        handle_flow_sync(node, thread, exit_scheduler);
+        break;
 
-        } else if ( type == CGenNode::FLOW_SYNC ) {
-
-            /* flow sync message is a sync point for time */
-            thread->m_cur_time_sec = node->m_time;
-
-            /* first pop the node */
-            m_p_queue.pop();
-
-            thread->check_msgs(); /* check messages */
-            m_v_if->flush_tx_queue(); /* flush pkt each timeout */
-
-            /* exit in case this is the last node*/
-            if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
-                thread->free_node(node);
-                exit_scheduler = true;
-            } else {
-                /* schedule for next maintenace */
-                node->m_time += SYNC_TIME_OUT;
-                m_p_queue.push(node);
-            }
+    case CGenNode::EXIT_SCHED:
+        m_p_queue.pop();
+        thread->free_node(node);
+        exit_scheduler = true;
+        break;
 
 
-        } else if ( type == CGenNode::EXIT_SCHED ) {
-            m_p_queue.pop();
-            thread->free_node(node);
-            exit_scheduler = true;
-            
-        } else {
-            if ( type == CGenNode::COMMAND) {
-                m_p_queue.pop();
-                CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
-                {
-                    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
-                    cmd->handle(&thread->m_stateless_dp_info);
-                    exit_scheduler = cmd->is_quit();
-                    thread->free_node((CGenNode *)node_cmd);/* free the node */
-                }
-            }else{
-                printf(" ERROR type is not valid %d \n",type);
-                assert(0);
-            }
-        }
+    case CGenNode::COMMAND:
+        handle_command(node, thread, exit_scheduler);
+        break;
 
-        return exit_scheduler;
+    default:
+        assert(0);
+    }
+
+    return (exit_scheduler);
+
 }
 
 
@@ -4407,8 +4259,6 @@ void CFlowGenListPerThread::check_msgs(void) {
         CGlobalInfo::free_node(node);
     }
 }
-
-//void delay(int msec);
 
 
 
@@ -5123,39 +4973,66 @@ int CErfIFStl::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
 }
 
 
-int CErfIFStl::send_node(CGenNode * _no_to_use){
+int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
 
-    if ( m_preview_mode->getFileWrite() ){
-
-        CGenNodeStateless * node_sl=(CGenNodeStateless *) _no_to_use;
-
-        pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
-
-        rte_mbuf_t *    m;
-        if ( likely(node_sl->is_cache_mbuf_array()) ) {
-            m=node_sl->cache_mbuf_array_get_cur();
-            fill_raw_packet(m,_no_to_use,dir);
+    rte_mbuf_t *    m;
+    if ( likely(node_sl->is_cache_mbuf_array()) ) {
+        m=node_sl->cache_mbuf_array_get_cur();
+        fill_raw_packet(m,(CGenNode *)node_sl,dir);
+    }else{
+        m=node_sl->get_cache_mbuf();
+        if (m) {
+            /* cache packet */
+            fill_raw_packet(m,(CGenNode *)node_sl,dir);
+            /* can't free the m, it is cached*/
         }else{
-            m=node_sl->get_cache_mbuf();
-            if (m) {
-                /* cache packet */
-                fill_raw_packet(m,_no_to_use,dir);
-                /* can't free the m, it is cached*/
-            }else{
 
-                m=node_sl->alloc_node_with_vm();
-                assert(m);
-                fill_raw_packet(m,_no_to_use,dir);
-                rte_pktmbuf_free(m);
-
-            }
+            m=node_sl->alloc_node_with_vm();
+            assert(m);
+            fill_raw_packet(m,(CGenNode *)node_sl,dir);
+            rte_pktmbuf_free(m);
         }
+    }
         /* check that we have mbuf  */
+    int rc = write_pkt(m_raw);
+    BP_ASSERT(rc == 0);
 
-        int rc = write_pkt(m_raw);
-        BP_ASSERT(rc == 0);
+    return (rc);
+}
+
+
+int CErfIFStl::send_pcap_node(CGenNodePCAP *pcap_node) {
+    rte_mbuf_t *m = pcap_node->get_pkt();
+    if (!m) {
+        return (-1);
     }
 
+    pkt_dir_t dir = (pkt_dir_t)pcap_node->get_mbuf_dir();
+    fill_raw_packet(m, (CGenNode*)pcap_node, dir);
+    rte_pktmbuf_free(m);
+
+    int rc = write_pkt(m_raw);
+    BP_ASSERT(rc == 0);
+
+    return (rc);
+}
+
+int CErfIFStl::send_node(CGenNode * _no_to_use){
+
+    if ( m_preview_mode->getFileWrite() ) {
+
+        switch (_no_to_use->m_type) {
+        case CGenNode::STATELESS_PKT:
+            return send_sl_node((CGenNodeStateless *) _no_to_use);
+
+        case CGenNode::PCAP_PKT:
+            return send_pcap_node((CGenNodePCAP *) _no_to_use);
+
+        default:
+            assert(0);
+        }
+    }
     return (0);
 }
 
@@ -6523,10 +6400,18 @@ void CGenNodeBase::free_base(){
          CGenNodeStateless* p=(CGenNodeStateless*)this;
          p->free_stl_node();
         return;
+    }
+
+    if (m_type == PCAP_PKT) {
+        CGenNodePCAP *p = (CGenNodePCAP *)this;
+        p->destroy();
+        return;
     } 
+
     if ( m_type == COMMAND ) {
          CGenNodeCommand* p=(CGenNodeCommand*)this;
          p->free_command();
     }
 
 }
+

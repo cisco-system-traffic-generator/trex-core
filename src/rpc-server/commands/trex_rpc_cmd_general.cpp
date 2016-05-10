@@ -451,3 +451,32 @@ TrexRpcPublishNow::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 
 }
+
+
+/**
+ * push a remote PCAP on a port
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+    std::string pcap_filename = parse_string(params, "pcap_filename", result);
+    double ipg_usec           = parse_double(params, "ipg_usec", result);
+    double speedup            = parse_double(params, "speedup", result);
+    uint32_t count            = parse_uint32(params, "count", result);
+    double duration           = parse_double(params, "duration", result);
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    try {
+        port->push_remote(pcap_filename, ipg_usec, speedup, count, duration);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+

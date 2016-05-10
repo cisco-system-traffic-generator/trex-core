@@ -48,13 +48,22 @@ protected:
      */
     virtual void on_event() = 0;
 
+    /**
+     * when a thread ID encounter an error
+     * 
+     * @author imarom (20-Apr-16)
+     * 
+     * @param thread_id 
+     */
+    virtual void on_error(int thread_id) = 0;
+
     TrexStatelessPort *get_port() {
         return m_port;
     }
 
 private:
     void init(TrexStatelessPort *port, int event_id, int timeout_ms);
-    bool on_core_reporting_in(int thread_id);
+    bool on_core_reporting_in(int thread_id, bool status = true);
 
     std::unordered_map<int, bool>  m_signal;
     int                            m_pending_cnt;
@@ -98,7 +107,7 @@ public:
     /**
      * a core has reached the event 
      */
-    void on_core_reporting_in(int event_id, int thread_id);
+    void on_core_reporting_in(int event_id, int thread_id, bool status = true);
 
 private:
     TrexDpPortEvent *lookup(int event_id);

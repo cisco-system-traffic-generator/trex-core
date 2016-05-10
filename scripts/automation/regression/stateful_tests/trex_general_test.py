@@ -165,10 +165,13 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             # report benchmarks
             if self.GAManager:
-                setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
-                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
-                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
-                self.GAManager.emptyAndReportQ()
+                try:
+                    setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
+                    self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
+                    self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
+                    self.GAManager.emptyAndReportQ()
+                except Exception as e:
+                    print('Sending GA failed: %s' % e)
 
     def check_results_gt (self, res, name, val):
         if res is None:

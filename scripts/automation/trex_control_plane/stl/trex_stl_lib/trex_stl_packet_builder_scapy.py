@@ -1492,4 +1492,27 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         pass;
 
 
+def STLIPRange (src = None,
+                dst = None,
+                fix_chksum = True):
+
+    vm = []
+
+    if src:
+        vm += [
+               STLVmFlowVar(name="src", min_value = src['start'], max_value = src['end'], size = 4, op = "inc", step = src['step']),
+               STLVmWrFlowVar(fv_name="src",pkt_offset= "IP.src")
+              ]
+
+    if dst:
+        vm += [
+                STLVmFlowVar(name="dst", min_value = dst['start'], max_value = dst['end'], size = 4, op = "inc", step = dst['step']),
+                STLVmWrFlowVar(fv_name="dst",pkt_offset= "IP.dst")
+              ]
+
+    if fix_chksum:
+        vm.append( STLVmFixIpv4(offset = "IP"))
+
+
+    return vm
 

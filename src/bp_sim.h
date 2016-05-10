@@ -61,6 +61,8 @@ limitations under the License.
 
 #include <trex_stateless_dp_core.h>
 
+class CGenNodePCAP;
+
 #undef NAT_TRACE_
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
@@ -1423,7 +1425,9 @@ public:
         EXIT_SCHED              =6,
         COMMAND                 =7,
 
-        EXIT_PORT_SCHED         =8
+        EXIT_PORT_SCHED         =8,
+
+        PCAP_PKT                =9,
 
 
     };
@@ -1441,6 +1445,7 @@ public:
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE = 0x40,
         NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE     = 0x80,
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100, /* init packet start from server side with server addr */
+        NODE_FLAGS_SLOW_PATH = 0x200 /* used by the nodes to differ between fast path nodes and slow path nodes */
     };
 
 
@@ -1479,6 +1484,17 @@ public:
         return ( m_socket_id );
     }
 
+    inline void set_slow_path(bool enable) {
+        if (enable) {
+            m_flags |= NODE_FLAGS_SLOW_PATH;
+        } else {
+            m_flags &= ~NODE_FLAGS_SLOW_PATH;
+        }
+    }
+
+    inline bool get_is_slow_path() const {
+        return ( (m_flags & NODE_FLAGS_SLOW_PATH) ? true : false);
+    }
 
     void free_base();
 };
@@ -1581,6 +1597,7 @@ public:
         return (  (m_flags &NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE)?true:false );
     }
 
+  
 
     /* direction for ip addr */
     inline  pkt_dir_t cur_pkt_ip_addr_dir();
@@ -1873,6 +1890,9 @@ public:
 
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
 
+private:
+    int send_sl_node(CGenNodeStateless * node_sl);
+    int send_pcap_node(CGenNodePCAP * pcap_node);
 
 };
 
@@ -2085,7 +2105,11 @@ private:
                             bool always,
                             CFlowGenListPerThread * thread,
                             double &old_offset);
-        
+private:        
+    void handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
+    void handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread);
+    void handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
+    void handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread);
 
 public:
     pqueue_t                  m_p_queue;
@@ -3628,10 +3652,14 @@ public :
 
 
     inline CGenNode * create_node(void);
+
     inline CGenNodeStateless * create_node_sl(void){
         return ((CGenNodeStateless*)create_node() );
     }
 
+    inline CGenNodePCAP * allocate_pcap_node(void) {
+        return ((CGenNodePCAP*)create_node());
+    }
 
     inline void free_node(CGenNode *p);
     inline void free_last_flow_node(CGenNode *p);
@@ -3653,6 +3681,9 @@ public:
     bool  set_stateless_next_node( CGenNodeStateless * cur_node,
                                    CGenNodeStateless * next_node);
 
+    void stop_stateless_traffic(uint8_t port_id) { 
+        m_stateless_dp_info.stop_traffic(port_id, false, 0);
+    }
 
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);

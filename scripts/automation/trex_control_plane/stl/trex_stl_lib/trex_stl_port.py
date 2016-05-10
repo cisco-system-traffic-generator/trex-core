@@ -29,17 +29,20 @@ def mult_to_factor (mult, max_bps_l2, max_pps, line_util):
 
 # describes a single port
 class Port(object):
-    STATE_DOWN       = 0
-    STATE_IDLE       = 1
-    STATE_STREAMS    = 2
-    STATE_TX         = 3
-    STATE_PAUSE      = 4
+    STATE_DOWN         = 0
+    STATE_IDLE         = 1
+    STATE_STREAMS      = 2
+    STATE_TX           = 3
+    STATE_PAUSE        = 4
+    STATE_PCAP_TX      = 5
+
     PortState = namedtuple('PortState', ['state_id', 'state_name'])
     STATES_MAP = {STATE_DOWN: "DOWN",
                   STATE_IDLE: "IDLE",
                   STATE_STREAMS: "IDLE",
                   STATE_TX: "ACTIVE",
-                  STATE_PAUSE: "PAUSE"}
+                  STATE_PAUSE: "PAUSE",
+                  STATE_PCAP_TX : "ACTIVE"}
 
 
     def __init__ (self, port_id, user, comm_link, session_id, info):
@@ -67,6 +70,54 @@ class Port(object):
         self.owner = ''
 
 
+    # decorator to verify port is up
+    def up(func):
+        def func_wrapper(*args):
+            port = args[0]
+
+            if not port.is_up():
+                return port.err("{0} - port is down".format(func.__name__))
+
+            return func(*args)
+
+        return func_wrapper
+
+    # owned
+    def owned(func):
+        def func_wrapper(*args):
+            port = args[0]
+
+            if not port.is_up():
+                return port.err("{0} - port is down".format(func.__name__))
+
+            if not port.is_acquired():
+                return port.err("{0} - port is not owned".format(func.__name__))
+
+            return func(*args)
+
+        return func_wrapper
+
+
+    # decorator to check server is readable (port not down and etc.)
+    def writeable(func):
+        def func_wrapper(*args):
+            port = args[0]
+
+            if not port.is_up():
+                return port.err("{0} - port is down".format(func.__name__))
+
+            if not port.is_acquired():
+                return port.err("{0} - port is not owned".format(func.__name__))
+
+            if not port.is_writeable():
+                return port.err("{0} - port is not in a writeable state".format(func.__name__))
+
+            return func(*args)
+
+        return func_wrapper
+
+
+
     def err(self, msg):
         return RC_ERR("port {0} : {1}\n".format(self.port_id, msg))
 
@@ -79,7 +130,39 @@ class Port(object):
     def get_formatted_speed (self):
         return "{0} Gbps".format(self.info['speed'])
 
+    def is_acquired(self):
+        return (self.handler != None)
+
+    def is_up (self):
+        return (self.state != self.STATE_DOWN)
+
+    def is_active(self):
+        return (self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE) or (self.state == self.STATE_PCAP_TX)
+
+    def is_transmitting (self):
+        return (self.state == self.STATE_TX) or (self.state == self.STATE_PCAP_TX)
+
+    def is_paused (self):
+        return (self.state == self.STATE_PAUSE)
+
+    def is_writeable (self):
+        # operations on port can be done on state idle or state streams
+        return ((self.state == self.STATE_IDLE) or (self.state == self.STATE_STREAMS))
+
+    def get_owner (self):
+        if self.is_acquired():
+            return self.user
+        else:
+            return self.owner
+
+    def __allocate_stream_id (self):
+        id = self.next_available_id
+        self.next_available_id += 1
+        return id
+
+
     # take the port
+    @up
     def acquire(self, force = False, sync_streams = True):
         params = {"port_id":     self.port_id,
                   "user":        self.user,
@@ -99,6 +182,7 @@ class Port(object):
 
       
     # sync all the streams with the server
+    @up
     def sync_streams (self):
         params = {"port_id": self.port_id}
 
@@ -114,6 +198,7 @@ class Port(object):
         return self.ok()
 
     # release the port
+    @up
     def release(self):
         params = {"port_id": self.port_id,
                   "handler": self.handler}
@@ -129,25 +214,11 @@ class Port(object):
         else:
             return self.err(rc.err())
 
-    def is_acquired(self):
-        return (self.handler != None)
+ 
 
-    def is_active(self):
-        return(self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE)
-
-    def is_transmitting (self):
-        return (self.state == self.STATE_TX)
-
-    def is_paused (self):
-        return (self.state == self.STATE_PAUSE)
-
-    def get_owner (self):
-        if self.is_acquired():
-            return self.user
-        else:
-            return self.owner
-
+    @up
     def sync(self):
+
         params = {"port_id": self.port_id}
 
         rc = self.transmit("get_port_status", params)
@@ -167,6 +238,8 @@ class Port(object):
             self.state = self.STATE_TX
         elif port_state == "PAUSE":
             self.state = self.STATE_PAUSE
+        elif port_state == "PCAP_TX":
+            self.state = self.STATE_PCAP_TX
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
@@ -181,26 +254,10 @@ class Port(object):
         return self.ok()
 
 
-    # return TRUE if write commands
-    def is_port_writable (self):
-        # operations on port can be done on state idle or state streams
-        return ((self.state == self.STATE_IDLE) or (self.state == self.STATE_STREAMS))
-
-
-    def __allocate_stream_id (self):
-        id = self.next_available_id
-        self.next_available_id += 1
-        return id
-
 
     # add streams
+    @writeable
     def add_streams (self, streams_list):
-
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        if not self.is_port_writable():
-            return self.err("Please stop port before attempting to add streams")
 
         # listify
         streams_list = streams_list if isinstance(streams_list, list) else [streams_list]
@@ -273,13 +330,8 @@ class Port(object):
 
 
     # remove stream from port
+    @writeable
     def remove_streams (self, stream_id_list):
-
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        if not self.is_port_writable():
-            return self.err("Please stop port before attempting to remove streams")
 
         # single element to list
         stream_id_list = stream_id_list if isinstance(stream_id_list, list) else [stream_id_list]
@@ -314,13 +366,8 @@ class Port(object):
 
 
     # remove all the streams
+    @writeable
     def remove_all_streams (self):
-
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        if not self.is_port_writable():
-            return self.err("Please stop port before attempting to remove streams")
 
         params = {"handler": self.handler,
                   "port_id": self.port_id}
@@ -348,19 +395,11 @@ class Port(object):
         return self.streams
 
 
-    # start traffic
+    @writeable
     def start (self, mul, duration, force):
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        if self.state == self.STATE_DOWN:
-            return self.err("Unable to start traffic - port is down")
 
         if self.state == self.STATE_IDLE:
-            return self.err("Unable to start traffic - no streams attached to port")
-
-        if self.state == self.STATE_TX:
-            return self.err("Unable to start traffic - port is already transmitting")
+            return self.err("unable to start traffic - no streams attached to port")
 
         params = {"handler":  self.handler,
                   "port_id":  self.port_id,
@@ -378,15 +417,12 @@ class Port(object):
 
     # stop traffic
     # with force ignores the cached state and sends the command
+    @owned
     def stop (self, force = False):
         
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        # port is already stopped
-        if not force:
-            if (self.state == self.STATE_IDLE) or (self.state == self.state == self.STATE_STREAMS):
-                return self.ok()
+        # if not is not active and not force - go back
+        if not self.is_active() and not force:
+            return self.ok()
 
         params = {"handler": self.handler,
                   "port_id": self.port_id}
@@ -420,18 +456,9 @@ class Port(object):
         return not self.tx_stopped_ts or (datetime.now() - self.tx_stopped_ts) > timedelta(milliseconds = rx_delay_ms)
 
 
-
+    @writeable
     def remove_rx_filters (self):
         assert(self.has_rx_enabled())
-
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        if self.state == self.STATE_DOWN:
-            return self.err("Unable to remove RX filters - port is down")
-
-        if self.state == self.STATE_TX:
-            return self.err("Unable to remove RX filters - port is transmitting")
 
         if self.state == self.STATE_IDLE:
             return self.ok()
@@ -446,11 +473,11 @@ class Port(object):
 
         return self.ok()
 
-
+    @owned
     def pause (self):
 
-        if not self.is_acquired():
-            return self.err("port is not owned")
+        if (self.state == self.STATE_PCAP_TX) :
+            return self.err("pause is not supported during PCAP TX")
 
         if (self.state != self.STATE_TX) :
             return self.err("port is not transmitting")
@@ -466,11 +493,8 @@ class Port(object):
 
         return self.ok()
 
-
+    @owned
     def resume (self):
-
-        if not self.is_acquired():
-            return self.err("port is not owned")
 
         if (self.state != self.STATE_PAUSE) :
             return self.err("port is not in pause mode")
@@ -488,11 +512,11 @@ class Port(object):
 
         return self.ok()
 
-
+    @owned
     def update (self, mul, force):
 
-        if not self.is_acquired():
-            return self.err("port is not owned")
+        if (self.state == self.STATE_PCAP_TX) :
+            return self.err("update is not supported during PCAP TX")
 
         if (self.state != self.STATE_TX) :
             return self.err("port is not transmitting")
@@ -508,14 +532,8 @@ class Port(object):
 
         return self.ok()
 
-
+    @owned
     def validate (self):
-
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        if (self.state == self.STATE_DOWN):
-            return self.err("port is down")
 
         if (self.state == self.STATE_IDLE):
             return self.err("no streams attached to port")
@@ -532,12 +550,8 @@ class Port(object):
         return self.ok()
 
 
+    @owned
     def set_attr (self, attr_dict):
-        if not self.is_acquired():
-            return self.err("port is not owned")
-
-        if (self.state == self.STATE_DOWN):
-            return self.err("port is down")
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -550,6 +564,24 @@ class Port(object):
 
         self.attr.update(attr_dict)
 
+        return self.ok()
+
+    @writeable
+    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration):
+
+        params = {"handler": self.handler,
+                  "port_id": self.port_id,
+                  "pcap_filename": pcap_filename,
+                  "ipg_usec": ipg_usec if ipg_usec is not None else -1,
+                  "speedup": speedup,
+                  "count": count,
+                  "duration": duration}
+
+        rc = self.transmit("push_remote", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        self.state = self.STATE_PCAP_TX
         return self.ok()
 
 
