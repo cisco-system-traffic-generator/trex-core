@@ -2141,6 +2141,11 @@ class STLClient(object):
 
         # wait while any of the required ports are active
         while set(self.get_active_ports()).intersection(ports):
+
+            # make sure ASYNC thread is still alive - otherwise we will be stuck forever
+            if not self.async_client.is_thread_alive():
+                raise STLError("subscriber thread is dead")
+
             time.sleep(0.01)
             if time.time() > expr:
                 raise STLTimeoutError(timeout)

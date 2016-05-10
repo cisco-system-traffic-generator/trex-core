@@ -194,11 +194,13 @@ class CTRexAsyncClient():
         if not self.connected:
             return
 
+        # mark for join
+        self.active = False
+
         # signal that the context was destroyed (exit the thread loop)
         self.context.term()
 
-        # mark for join and join
-        self.active = False
+        # join
         self.t.join()
 
         # done
@@ -239,6 +241,7 @@ class CTRexAsyncClient():
 
             except zmq.ContextTerminated:
                 # outside thread signaled us to exit
+                assert(not self.active)
                 break
 
             msg = json.loads(line)
@@ -256,6 +259,8 @@ class CTRexAsyncClient():
         # closing of socket must be from the same thread
         self.socket.close(linger = 0)
 
+    def is_thread_alive (self):
+        return self.t.is_alive()
 
     # did we get info for the last 3 seconds ?
     def is_alive (self):
