@@ -3570,6 +3570,295 @@ void CNodeGenerator::dump_json(std::string & json){
 }
 
 
+void CNodeGenerator::add_exit_node(CFlowGenListPerThread * thread,
+                                  dsec_t max_time){
+
+    if ( max_time > 0 ) {
+        CGenNode *exit_node = thread->create_node();
+        exit_node->m_type = CGenNode::EXIT_SCHED;
+        exit_node->m_time = max_time;
+        add_node(exit_node);
+    }
+}
+
+inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
+                                             CFlowGenListPerThread * thread){
+    uint8_t type=node->m_type;
+
+    if ( likely( type == CGenNode::STATELESS_PKT ) ) {
+       m_p_queue.pop();
+       CGenNodeStateless *node_sl = (CGenNodeStateless *)node;
+        /* if the stream has been deactivated - end */
+        if ( unlikely( node_sl->is_mask_for_free() ) ) {
+            thread->free_node(node);
+        } else {
+            /* count before handle - node might be destroyed */
+            #ifdef TREX_SIM
+            update_stl_stats(node_sl);
+            #endif
+
+            node_sl->handle(thread);
+
+            #ifdef TREX_SIM
+            if (has_limit_reached()) {
+                thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
+            }
+            #endif
+        }
+        return (true);
+    }
+    return(false);
+}
+
+
+inline bool CNodeGenerator::do_work_stl(CGenNode * node,
+                                              CFlowGenListPerThread * thread,
+                                              bool always){
+
+    if ( handle_stl_node(node,thread)){
+        return (false);
+    }else{
+        return (handle_slow_messages(node->m_type,node,thread,always));
+    }
+}
+
+inline bool CNodeGenerator::do_work_both(CGenNode * node,
+                                              CFlowGenListPerThread * thread,
+                                              dsec_t d_time,
+                                              bool always
+                                              ){
+
+    bool exit_scheduler=false;
+    uint8_t type=node->m_type;
+    bool done;
+
+    if ( handle_stl_node (node,thread) ){
+    }else{
+        if ( likely( type == CGenNode::FLOW_PKT ) ) {
+            /* PKT */
+            if ( !(node->is_repeat_flow()) || (always==false)) {
+                flush_one_node_to_file(node);
+                #ifdef _DEBUG
+                update_stats(node);
+                #endif
+            }
+            m_p_queue.pop();
+            if ( node->is_last_in_flow() ) {
+                if ((node->is_repeat_flow()) && (always==false)) {
+                    /* Flow is repeated, reschedule it */
+                    thread->reschedule_flow( node);
+                }else{
+                    /* Flow will not be repeated, so free node */
+                    thread->free_last_flow_node( node);
+                }
+            }else{
+                node->update_next_pkt_in_flow();
+                m_p_queue.push(node);
+            }
+        }else{
+            if ((type == CGenNode::FLOW_FIF)) {
+               /* callback to our method */
+                m_p_queue.pop();
+                if ( always == false) {
+                    thread->m_cur_time_sec = node->m_time ;
+
+                    thread->generate_flows_roundrobin(&done);
+
+                    if (!done) {
+                        node->m_time +=d_time;
+                        m_p_queue.push(node);
+                    }else{
+                        thread->free_node(node);
+                    }
+                }else{
+                    thread->free_node(node);
+                }
+
+            }else{
+                exit_scheduler = handle_slow_messages(type,node,thread,always);
+            }
+        }
+    }
+
+    return (exit_scheduler);
+}
+
+
+
+template<int SCH_MODE>
+inline bool CNodeGenerator::do_work(CGenNode * node,
+                                          CFlowGenListPerThread * thread,
+                                          dsec_t d_time,
+                                          bool always
+                                          ){
+    /* template filter in compile time */
+    if ( SCH_MODE == smSTATELESS  ) {
+        return ( do_work_stl(node,thread,always) );
+    }else{
+        /* smSTATEFUL */
+        return ( do_work_both(node,thread,d_time,always) );
+    }
+}
+
+
+inline void CNodeGenerator::do_sleep(dsec_t & cur_time,
+                                     CFlowGenListPerThread * thread,
+                                     dsec_t n_time){
+    thread->m_cpu_dp_u.commit1();
+    dsec_t dt;
+
+    /* TBD make this better using calculation, minimum now_sec() */
+    while ( true ) {
+        cur_time = now_sec();
+        dt = cur_time - n_time ;
+
+        if (dt> WAIT_WINDOW_SIZE ) {
+            break;
+        }
+
+        rte_pause();
+    }
+
+    thread->m_cpu_dp_u.start_work1();
+}
+
+
+inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
+                                           bool always,
+                                           double &old_offset,
+                                           double offset){
+        /* to do */
+    if ( thread->is_terminated_by_master() ) {
+        return (0);
+    }
+
+    if (!always) {
+        old_offset =offset;
+    }else{
+        // free the left other
+        thread->handler_defer_job_flush();
+    }
+    return (0);
+}
+                                           
+
+
+template<int SCH_MODE>
+inline int CNodeGenerator::flush_file_realtime(dsec_t max_time, 
+                                        dsec_t d_time,
+                                        bool always,
+                                        CFlowGenListPerThread * thread,
+                                        double &old_offset){
+    CGenNode * node;
+    dsec_t offset=0.0;
+    dsec_t cur_time;
+    dsec_t n_time;
+    if (always) {
+         offset=old_offset;
+    }else{
+        add_exit_node(thread,max_time);
+    }
+
+    thread->m_cpu_dp_u.start_work1();
+
+    sch_state_t state = scINIT;
+    node = m_p_queue.top();
+    n_time = node->m_time + offset; 
+    cur_time = now_sec();
+    
+    while (state!=scTERMINATE) {
+
+         switch (state) {
+         case scINIT:
+                cur_time = now_sec();
+                {
+                    dsec_t dt = cur_time - n_time ;
+                    if (dt>0) {
+                        state=scWORK;
+                        if (dt > BURST_OFFSET_DTIME) {
+                            offset += dt;
+                        }
+                    }else{
+                        state=scWAIT;
+                    }
+                } ;
+                break;
+         case scWORK:
+                 do {
+                     bool s=do_work<SCH_MODE>(node,thread,d_time,always);
+                     if (s) { // can we remove this IF ?
+                         state=scTERMINATE;
+                         break;
+                     }
+                     node = m_p_queue.top();
+                     n_time = node->m_time + offset; 
+
+                     if ((n_time-cur_time)>EAT_WINDOW_DTIME) {
+                       state=scINIT;
+                       break;
+                     }
+                 } while ( true  );
+                 break;
+
+         case scWAIT:
+                do_sleep(cur_time,thread,n_time); // estimate  loop 
+                state=scWORK;
+                break;
+         default:
+             assert(0);
+        } /* switch */
+    }/* while*/
+
+    return (teardown(thread,always,old_offset,offset));
+}
+
+FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time, 
+                                        dsec_t d_time,
+                                        bool always,
+                                        CFlowGenListPerThread * thread,
+                                        double &old_offset){
+    CGenNode * node;
+
+    if (!always) {
+        add_exit_node(thread,max_time);
+    }
+
+    while (true) {
+        node = m_p_queue.top();
+
+        bool do_exit;
+        if ( get_is_stateless() ) {
+            do_exit=do_work<smSTATELESS>(node,thread,d_time,always);
+        }else{
+            do_exit=do_work<smSTATEFUL>(node,thread,d_time,always);
+        }
+        if ( do_exit ){
+            break;
+        }
+    }
+    return (teardown(thread,always,old_offset,0));
+}
+
+int CNodeGenerator::flush_file(dsec_t max_time, 
+                               dsec_t d_time,
+                               bool always,
+                               CFlowGenListPerThread * thread,
+                               double &old_offset){
+    #ifdef TREX_SIM
+      return ( flush_file_sim(max_time, d_time,always,thread,old_offset) );
+    #else
+      if ( get_is_stateless() ) {
+          return ( flush_file_realtime<smSTATELESS>(max_time, d_time,always,thread,old_offset) );
+      }else{
+          return ( flush_file_realtime<smSTATEFUL>(max_time, d_time,always,thread,old_offset) );
+      }
+
+    #endif
+}
+
+
+
+#if 0
 int CNodeGenerator::flush_file(dsec_t max_time, 
                                dsec_t d_time,
                                bool always,
@@ -3747,6 +4036,8 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     }
     return (0);
 }
+
+#endif
 
 bool
 CNodeGenerator::handle_slow_messages(uint8_t type,

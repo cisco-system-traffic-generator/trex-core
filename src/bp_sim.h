@@ -64,6 +64,7 @@ limitations under the License.
 #undef NAT_TRACE_
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
+#define FORCE_INLINE __attribute__((always_inline))
 
 /* IP address, last 32-bits of IPv6 remaps IPv4 */
 typedef struct {
@@ -1402,6 +1403,9 @@ std::string double_to_human_str(double num,
 class CCapFileFlowInfo ;
 
 #define SYNC_TIME_OUT ( 1.0/1000)
+
+//#define SYNC_TIME_OUT ( 2000.0/1000)
+
 /* this is a simple struct, do not add constructor and destractor here!
    we are optimizing the allocation dealocation !!!
  */
@@ -1956,8 +1960,26 @@ public:
 };
 
 
+
+
+
 class CNodeGenerator {
 public:
+
+     typedef enum { scINIT = 0x17,
+                    scWORK ,
+                    scWAIT , 
+                    scTERMINATE 
+                   } sch_state_t;
+
+   typedef enum { smSTATELESS = 0x17,
+                  smSTATEFUL  ,
+                 } sch_mode_t;
+
+   #define BURST_OFFSET_DTIME    (100.0/1000000) 
+   #define EAT_WINDOW_DTIME      (15.0/1000000) 
+   #define WAIT_WINDOW_SIZE      (-1.0/1000000)
+
     bool  Create(CFlowGenListPerThread  *  parent);
     void  Delete();
 
@@ -2018,6 +2040,52 @@ private:
                                               CFlowGenListPerThread * thread,
                                               bool always);
 
+private:
+        void add_exit_node(CFlowGenListPerThread * thread,
+                                          dsec_t max_time);
+
+        inline bool handle_stl_node(CGenNode * node,
+                                    CFlowGenListPerThread * thread);
+
+
+        FORCE_INLINE bool do_work_stl(CGenNode * node,
+                                      CFlowGenListPerThread * thread,
+                                      bool always);
+        
+        FORCE_INLINE bool do_work_both(CGenNode * node,
+                                      CFlowGenListPerThread * thread,
+                                      dsec_t d_time,
+                                      bool always);
+        
+        template<int SCH_MODE>
+        FORCE_INLINE bool do_work(CGenNode * node,
+                                  CFlowGenListPerThread * thread,
+                                  dsec_t d_time,
+                                  bool always);
+        
+        FORCE_INLINE void do_sleep(dsec_t & cur_time,
+                                   CFlowGenListPerThread * thread,
+                                   dsec_t ntime);
+        
+        
+        FORCE_INLINE int teardown(CFlowGenListPerThread * thread,
+                                   bool always,
+                                   double &old_offset,
+                                   double offset);
+        
+        template<int SCH_MODE>
+        int flush_file_realtime(dsec_t max_time, 
+                                dsec_t d_time,
+                                bool always,
+                                CFlowGenListPerThread * thread,
+                                double &old_offset);
+        
+        int flush_file_sim(dsec_t max_time, 
+                            dsec_t d_time,
+                            bool always,
+                            CFlowGenListPerThread * thread,
+                            double &old_offset);
+        
 
 public:
     pqueue_t                  m_p_queue;
@@ -3512,6 +3580,8 @@ private:
 class CFlowGenListPerThread {
 
 public:
+
+
     friend class CNodeGenerator;
     friend class CPluginCallbackSimple;
     friend class CCapFileFlowInfo;

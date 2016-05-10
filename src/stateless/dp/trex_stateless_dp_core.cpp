@@ -904,6 +904,11 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     lp_port->m_active_streams = 0;
     lp_port->set_event_id(event_id);
 
+    /* update cur time */
+    if ( CGlobalInfo::is_realtime()  ){
+        m_core->m_cur_time_sec = now_sec() + SCHD_OFFSET_DTIME ;
+    }
+
     /* no nodes in the list */
     assert(lp_port->m_active_nodes.size()==0);
 
