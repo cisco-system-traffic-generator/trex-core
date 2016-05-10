@@ -854,6 +854,9 @@ class STLClient(object):
     # clear stats
     def __clear_stats(self, port_id_list, clear_global, clear_flow_stats):
 
+        # we must be sync with the server
+        self.async_client.barrier()
+
         for port_id in port_id_list:
             self.ports[port_id].clear_stats()
 

@@ -84,9 +84,6 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.clear_stats()
                 self.c.start(ports = [self.tx_port, self.rx_port])
 
-                assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
-                assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
-
                 self.c.wait_on_traffic(ports = [self.tx_port, self.rx_port])
                 stats = self.c.get_stats()
 
@@ -123,9 +120,6 @@ class STLClient_Test(CStlGeneral_Test):
 
                 self.c.clear_stats()
                 self.c.start(ports = [self.tx_port, self.rx_port])
-
-                assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
-                assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
 
                 self.c.wait_on_traffic(ports = [self.tx_port, self.rx_port])
                 stats = self.c.get_stats()
