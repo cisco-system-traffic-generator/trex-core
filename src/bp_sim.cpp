@@ -3727,6 +3727,9 @@ inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
                                            bool always,
                                            double &old_offset,
                                            double offset){
+
+    thread->m_cpu_dp_u.commit1();
+
         /* to do */
     if ( thread->is_terminated_by_master() ) {
         return (0);
@@ -4511,7 +4514,7 @@ double CFlowGenList::GetCpuUtil(){
 }
 
 
-void CFlowGenList::Update(){
+void CFlowGenList::UpdateFast(){
 
     int i;
     for (i=0; i<(int)m_threads_info.size(); i++) {

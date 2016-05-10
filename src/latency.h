@@ -356,6 +356,8 @@ public:
         return ( m_pkt_gen.get_payload_offset() );
     }
     void update();
+    void update_fast();
+
     void dump_json(std::string & json ); // dump to json 
     void dump_json_v2(std::string & json );
     void DumpRxCheckVerification(FILE *fd,uint64_t total_tx_rx_check);

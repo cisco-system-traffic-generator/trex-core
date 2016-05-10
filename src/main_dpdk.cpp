@@ -3424,7 +3424,6 @@ void CGlobalTRex::update_stats(){
         total_open_flows +=   lpt->m_stats.m_total_open_flows ;
     }
     m_last_total_cps = m_cps.add(total_open_flows);
-    m_fl.Update();
 
 }
 
@@ -3841,6 +3840,14 @@ bool
 CGlobalTRex::handle_fast_path() {
     /* check from messages from DP */
     check_for_dp_messages();
+    // update CPU%
+    m_fl.UpdateFast();
+    
+    if (get_is_stateless()) {
+        m_rx_sl.update_cpu_util();
+    }else{
+        m_mg.update_fast();
+    }
 
     if ( is_all_cores_finished() ) {
         return false;
@@ -3861,7 +3868,7 @@ int CGlobalTRex::run_in_master() {
 
     uint32_t slow_path_counter = 0;
 
-    const int FASTPATH_DELAY_MS = 20;
+    const int FASTPATH_DELAY_MS = 10;
     const int SLOWPATH_DELAY_MS = 500;
 
     while ( true ) {

@@ -689,17 +689,17 @@ void  CLatencyManager::try_rx(){
     for (i=0; i<m_max_ports; i++) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         rte_mbuf_t * m;
-        m_cpu_dp_u.start_work();
         /* try to read 64 packets clean up the queue */
         uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
         if (cnt_p) {
+            m_cpu_dp_u.start_work1();
             int j;
             for (j=0; j<cnt_p; j++) {
                 m=rx_pkts[j] ;
                 handle_rx_pkt(lp,m);
             }
             /* commit only if there was work to do ! */
-            m_cpu_dp_u.commit();
+            m_cpu_dp_u.commit1();
           }/* if work */
       }// all ports
 }
@@ -762,12 +762,12 @@ void  CLatencyManager::start(int iter) {
 
             break;
         case CGenNode::FLOW_PKT:
-            m_cpu_dp_u.start_work();
+            m_cpu_dp_u.start_work1();
             send_pkt_all_ports();
             m_p_queue.pop();
             node->m_time += m_delta_sec;
             m_p_queue.push(node);
-            m_cpu_dp_u.commit();
+            m_cpu_dp_u.commit1();
             break;
         }
 
@@ -911,8 +911,12 @@ void CLatencyManager::rx_check_dump_json(std::string & json){
     }
 }
 
-void CLatencyManager::update(){
+
+void CLatencyManager::update_fast(){
     m_cpu_cp_u.Update() ;
+}
+
+void CLatencyManager::update(){
     for (int i=0; i<m_max_ports; i++) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         lp->m_port.m_hist.update();

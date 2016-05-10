@@ -57,6 +57,8 @@ class CRxCoreStateless {
     bool is_working() const {return (m_ack_start_work_msg == true);}
     void set_working_msg_ack(bool val);
     double get_cpu_util();
+    void update_cpu_util();
+
 
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);

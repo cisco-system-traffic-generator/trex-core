@@ -3831,7 +3831,7 @@ public:
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
     void DumpPktSize();
-    void Update();
+    void UpdateFast();
     double GetCpuUtil();
 
 public:

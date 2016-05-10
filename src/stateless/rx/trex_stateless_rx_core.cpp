@@ -178,18 +178,18 @@ void CRxCoreStateless::flush_rx() {
     for (i = 0; i < m_max_ports; i++) {
         CLatencyManagerPerPort * lp = &m_ports[i];
         rte_mbuf_t * m;
-        m_cpu_dp_u.start_work();
         /* try to read 64 packets clean up the queue */
         uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
         total_pkts += cnt_p;
         if (cnt_p) {
+            m_cpu_dp_u.start_work1();
             int j;
             for (j = 0; j < cnt_p; j++) {
                 m = rx_pkts[j];
                 rte_pktmbuf_free(m);
             }
             /* commit only if there was work to do ! */
-            m_cpu_dp_u.commit();
+            m_cpu_dp_u.commit1();
         }/* if work */
     }// all ports
 }
@@ -200,11 +200,11 @@ int CRxCoreStateless::try_rx() {
     for (i = 0; i < m_max_ports; i++) {
         CLatencyManagerPerPort * lp = &m_ports[i];
         rte_mbuf_t * m;
-        m_cpu_dp_u.start_work();
         /* try to read 64 packets clean up the queue */
         uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
         total_pkts += cnt_p;
         if (cnt_p) {
+            m_cpu_dp_u.start_work1();
             int j;
             for (j = 0; j < cnt_p; j++) {
                 m = rx_pkts[j];
@@ -212,7 +212,7 @@ int CRxCoreStateless::try_rx() {
                 rte_pktmbuf_free(m);
             }
             /* commit only if there was work to do ! */
-            m_cpu_dp_u.commit();
+            m_cpu_dp_u.commit1();
         }/* if work */
     }// all ports
     return total_pkts;
@@ -249,7 +249,11 @@ void CRxCoreStateless::set_working_msg_ack(bool val) {
     sanb_smp_memory_barrier();
 }
 
-double CRxCoreStateless::get_cpu_util() {
+
+void CRxCoreStateless::update_cpu_util(){
     m_cpu_cp_u.Update();
+}
+
+double CRxCoreStateless::get_cpu_util() {
     return m_cpu_cp_u.GetVal();
 }

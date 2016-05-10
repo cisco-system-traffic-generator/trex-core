@@ -26,8 +26,8 @@ limitations under the License.
 void CCpuUtlCp::Create(CCpuUtlDp * cdp){
     m_dpcpu=cdp;
     m_cpu_util=0.0;
-    m_last_total_cycles=m_dpcpu->get_total_cycles();
-    m_last_work_cycles  =m_dpcpu->get_work_cycles();
+    m_ticks=0;
+    m_work=0;
 }
 
 void CCpuUtlCp::Delete(){
@@ -36,18 +36,18 @@ void CCpuUtlCp::Delete(){
 
 
 void CCpuUtlCp::Update(){
-    uint64_t t=m_dpcpu->get_total_cycles();
-    uint64_t w=m_dpcpu->get_work_cycles();
-    uint32_t acc_total_cycles = (uint32_t)(t - m_last_total_cycles);
-	uint32_t acc_work_cycles = (uint32_t)(w - m_last_work_cycles);
+    m_ticks++ ;
+    if ( m_dpcpu->sample_data() ) {
+        m_work++;
+    }
+    if (m_ticks==100) {
+        double window_cpu_u = ((double)m_work/(double)m_ticks);
+        /* LPF*/
+        m_cpu_util = (m_cpu_util*0.75)+(window_cpu_u*0.25);
+        m_ticks=0;
+        m_work=0;
 
-    m_last_total_cycles = t ; 
-    m_last_work_cycles  = w;
-
-    double window_cpu_u = ((double)acc_work_cycles/(double)acc_total_cycles);
-    
-    /* LPF*/
-    m_cpu_util = (m_cpu_util*0.75)+(window_cpu_u*0.25);
+    }
 }
 
 /* return cpu % */

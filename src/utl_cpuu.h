@@ -29,7 +29,6 @@ class CCpuUtlDp {
 
 public:
     CCpuUtlDp(){
-        m_total_cycles=0;
         m_data=0;
     }
     inline void  start_work1(){
@@ -40,26 +39,13 @@ public:
         m_data=0;
     }
 
-    inline void start_work(){
-        m_data=os_get_hr_tick_64();
-    }
-    inline void revert(){
-    }
-    inline void commit(){
-        m_total_cycles+=(os_get_hr_tick_64()-m_data);
-    }
-    inline uint64_t get_total_cycles(void){
-        return ( os_get_hr_tick_64());
+    inline uint8_t sample_data(){
+        return (m_data);
     }
 
-    inline uint64_t get_work_cycles(void){
-        return ( m_total_cycles );
-    }
 
 private:
-    uint64_t m_total_cycles;
     uint8_t m_data;
-
 } __rte_cache_aligned; 
 
 class CCpuUtlCp {
@@ -73,12 +59,10 @@ public:
 
 private:
     CCpuUtlDp * m_dpcpu;
+    uint16_t    m_ticks;
+    uint16_t    m_work;
+
     double      m_cpu_util;
-    uint64_t    m_last_total_cycles;
-    uint64_t    m_last_work_cycles;
-
-
-    // add filter 
 };
 
 #endif
