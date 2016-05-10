@@ -928,7 +928,7 @@ class STLProfile(object):
     
     # loop_count = 0 means loop forever
     @staticmethod
-    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None):
+    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None, packet_hook = None):
         """ Convert a pcap file with a number of packets to a list of connected streams.  
 
         packet1->packet2->packet3 etc 
@@ -949,6 +949,9 @@ class STLProfile(object):
                     
                   vm        :  list 
                         List of Field engine instructions 
+
+                  packet_hook : Callable or function
+                        will be applied to every packet
 
                  :return: STLProfile
 
@@ -973,7 +976,10 @@ class STLProfile(object):
         except Scapy_Exception as e:
             raise STLError("failed to open PCAP file '{0}'".format(pcap_file))
 
-        
+        if packet_hook:
+            pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
+
+
         for i, (cap, meta) in enumerate(pkts, start = 1):
             # IPG - if not provided, take from cap
             if ipg_usec == None:

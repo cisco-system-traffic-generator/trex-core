@@ -3,62 +3,52 @@ from trex_stl_lib.api import *
 import argparse
 import sys
 
-def create_vm (ip_start, ip_end):
-     vm =[
 
-            # dest
-            STLVmFlowVar(name="dst", min_value = ip_start, max_value = ip_end, size = 4, op = "inc"),
-            STLVmWrFlowVar(fv_name="dst",pkt_offset= "IP.dst"),
+def packet_hook_generator (remove_fcs, vlan_id):
 
-            # checksum
-            STLVmFixIpv4(offset = "IP")
+    def packet_hook (packet):
+        packet = Ether(packet)
 
-            ]
-
-     return vm
-
-# warning: might make test slow
-def alter_streams(streams, remove_fcs, vlan_id):
-    for stream in streams:
-        packet = Ether(stream.pkt)
         if vlan_id >= 0 and vlan_id <= 4096:
             packet_l3 = packet.payload
             packet = Ether() / Dot1Q(vlan = vlan_id) / packet_l3
+
         if remove_fcs and packet.lastlayer().name == 'Padding':
             packet.lastlayer().underlayer.remove_payload()
-        packet = STLPktBuilder(packet)
-        stream.fields['packet'] = packet.dump_pkt()
-        stream.pkt = base64.b64decode(stream.fields['packet']['binary'])
+
+        return str(packet)
+
+    return packet_hook
+
 
 def inject_pcap (pcap_file, server, port, loop_count, ipg_usec, use_vm, remove_fcs, vlan_id):
 
     # create client
     c = STLClient(server = server)
-    
+
+    if remove_fcs or vlan_id:
+        packet_hook = packet_hook_generator(remove_fcs, vlan_id)
+    else:
+        packet_hook = None
+
     try:
-        if use_vm:
-            vm = create_vm("10.0.0.1", "10.0.0.254")
-        else:
-            vm = None
 
-        profile = STLProfile.load_pcap(pcap_file, ipg_usec = ipg_usec, loop_count = loop_count, vm = vm)
-
-        print("Loaded pcap {0} with {1} packets...\n".format(pcap_file, len(profile)))
-        streams = profile.get_streams()
-        if remove_fcs or (vlan_id >= 0 and vlan_id <= 4096):
-            alter_streams(streams, remove_fcs, vlan_id)
-
-        # uncomment this for simulator run
-        #STLSim().run(profile.get_streams(), outfile = '/auto/srg-sce-swinfra-usr/emb/users/ybrustin/out.pcap')
+        vm = STLIPRange(dst = {'start': '10.0.0.1', 'end': '10.0.0.254', 'step' : 1}) if use_vm else None
 
         c.connect()
         c.reset(ports = [port])
-        stream_ids = c.add_streams(streams, ports = [port])
 
         c.clear_stats()
+        d = c.push_pcap(pcap_file,
+                        ipg_usec = ipg_usec,
+                        count = loop_count,
+                        vm = vm,
+                        packet_hook = packet_hook)
 
-        c.start()
-        c.wait_on_traffic(ports = [port])
+        STLSim().run(d, outfile = 'test.cap')
+
+        c.wait_on_traffic()
+
 
         stats = c.get_stats()
         opackets = stats[port]['opackets']

@@ -1935,7 +1935,9 @@ class STLClient(object):
                    speedup = 1.0,
                    count = 1,
                    duration = -1,
-                   force = False):
+                   force = False,
+                   vm = None,
+                   packet_hook = None):
         """
             Push a local PCAP to the server
             This is equivalent to loading a PCAP file to a profile
@@ -1965,6 +1967,12 @@ class STLClient(object):
                 force: bool
                     Ignore file size limit - push any file size to the server
 
+                vm: list of VM instructions
+                    VM instructions to apply for every packet
+
+                packet_hook : Callable or function
+                    Will be applied to every packet
+
             :raises:
                 + :exc:`STLError`
 
@@ -1977,7 +1985,8 @@ class STLClient(object):
         validate_type('speedup',  speedup, (float, int))
         validate_type('count',  count, int)
         validate_type('duration', duration, (float, int))
-
+        validate_type('vm', vm, (list, type(None)))
+        
         # no support for > 1MB PCAP - use push remote
         if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
             raise STLError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
@@ -1987,8 +1996,9 @@ class STLClient(object):
         profile = STLProfile.load_pcap(pcap_filename,
                                        ipg_usec,
                                        speedup,
-                                       count)
-
+                                       count,
+                                       vm = vm,
+                                       packet_hook = packet_hook)
 
         id_list = self.add_streams(profile.get_streams(), ports)
 
@@ -2076,7 +2086,6 @@ class STLClient(object):
         # verify clear global
         if not type(clear_global) is bool:
             raise STLArgumentError('clear_global', clear_global)
-
 
         rc = self.__clear_stats(ports, clear_global, clear_flow_stats)
         if not rc:
