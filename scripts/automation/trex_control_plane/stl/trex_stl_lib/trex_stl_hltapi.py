@@ -23,7 +23,9 @@ traffic_config_kwargs = {
     'split_by_cores': 'split',              # ( split | duplicate | single ) TRex extention: split = split traffic by cores, duplicate = duplicate traffic for all cores, single = run only with sinle core (not implemented yet)
     'load_profile': None,                   # TRex extention: path to filename with stream profile (stream builder parameters will be ignored, limitation: modify)
     'consistent_random': False,             # TRex extention: False (default) = random sequence will be different every run, True = random sequence will be same every run
-    'ignore_macs': False,                   # TRex extention: True = use MACs from server configuration , no MAC VM (workaround on lack of ARP)
+    'ignore_macs': False,                   # TRex extention: True = use MACs from server configuration, no MAC VM (workaround on lack of ARP)
+    'disable_flow_stats': False,            # TRex extention: True = don't use flow stats for this stream, (workaround for limitation on type of packet for flow_stats)
+    'flow_stats_id': None,                  # TRex extention: uint, for use of STLHltStream, specifies id for flow stats (see stateless manual for flow_stats details)
     'port_handle': None,
     'port_handle2': None,
     'bidirectional': False,
@@ -446,7 +448,7 @@ class CTRexHltApi(object):
         kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
         stream_id = kwargs['stream_id']
         mode = kwargs['mode']
-        pg_id = None
+        pg_id = kwargs['flow_stats_id']
         port_handle = port_list = self._parse_port_list(kwargs['port_handle'])
 
         ALLOWED_MODES = ['create', 'modify', 'remove', 'enable', 'disable', 'reset']
@@ -864,7 +866,10 @@ def STLHltStream(**user_kwargs):
         raise STLError('Could not create transmit_mode object %s: %s' % (transmit_mode, e if isinstance(e, STLError) else traceback.format_exc()))
 
     try:
-        pg_id = kwargs.get('pg_id')
+        if kwargs['l3_protocol'] == 'ipv4' and not kwargs['disable_flow_stats']:
+            pg_id = kwargs.get('pg_id', kwargs.get('flow_stats_id'))
+        else:
+            pg_id = None
         stream = STLStream(packet = packet,
                            random_seed = 1 if is_true(kwargs['consistent_random']) else 0,
                            #enabled = True,
