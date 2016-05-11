@@ -58,7 +58,9 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.trex                  = CTRexScenario.trex
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
-        self.GAManager             = CTRexScenario.GAManager
+        #self.GAManager             = CTRexScenario.GAManager
+        self.GAManager             = None     # remove GA for now 
+        #CTRexScenario.GAManager
         self.skipping              = False
         self.fail_reasons          = []
         if not hasattr(self, 'unsupported_modes'):
