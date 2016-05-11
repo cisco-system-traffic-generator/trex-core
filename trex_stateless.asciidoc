@@ -1814,7 +1814,7 @@ Usually this is done with small packets (64bytes) where performance is an issue.
 This FE program will run *x2-5 faster* compared to native (without cache). 
 In this specific example the output will be *exactly* the same.
 
-Again the limitation of this method:
+Again the limitations of this method are:
 
 1. The total number of cache packets for all the streams all the ports in limited by the memory pool (range of ~10-40K)
 2. There could be cases that the cache options won't be exactly the same as the normal program, for example, in case of a program that step in prime numbers or with a random variable
