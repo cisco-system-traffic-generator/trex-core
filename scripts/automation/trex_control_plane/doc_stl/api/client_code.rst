@@ -42,6 +42,11 @@ Example 1 - Typical Python API::
 
         # block until done
         c.wait_on_traffic(ports = [0, 1])
+        
+        # check for any warnings
+        if c.get_warnings():
+          # handle warnings here
+          pass
 
     finally:
         c.disconnect()
