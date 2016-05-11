@@ -97,7 +97,7 @@ char *rte_pktmbuf_append(rte_mbuf_t *m, uint16_t len);
 char *rte_pktmbuf_adj(struct rte_mbuf *m, uint16_t len);
 
 int rte_pktmbuf_trim(rte_mbuf_t *m, uint16_t len);
-
+int rte_pktmbuf_is_contiguous(const struct rte_mbuf *m);
 void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *md);
 
 

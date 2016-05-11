@@ -1166,7 +1166,7 @@ public:
 
 
 /* this object is per core / per port / per queue
-   each core will have 2 ports to send too
+   each core will have 2 ports to send to
 
 
    port0                                port1
@@ -1733,7 +1733,9 @@ public:
     virtual int close_file(void){
         return (flush_tx_queue());
     }
-    __attribute__ ((noinline)) void send_node_flow_stat(CGenNode * node);
+    __attribute__ ((noinline)) int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl
+                                                       , CCorePerPort *  lp_port
+                                                       , CVirtualIFPerSideStats  * lp_stats, bool is_const);
     virtual int send_node(CGenNode * node);
     virtual void send_one_pkt(pkt_dir_t       dir, rte_mbuf_t      *m);
 
@@ -1785,7 +1787,7 @@ protected:
 class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
-                                    , CVirtualIFPerSideStats  * lp_stats);
+                                    , CVirtualIFPerSideStats  * lp_stats, bool is_const);
     virtual int send_node(CGenNode * node);
 protected:
     int handle_slow_path_node(CGenNode *node);
@@ -2007,7 +2009,7 @@ void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
 }
 
 int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
-                                             , CVirtualIFPerSideStats  * lp_stats) {
+                                             , CVirtualIFPerSideStats  * lp_stats, bool is_const) {
     // Defining this makes 10% percent packet loss. 1% packet reorder.
 # ifdef ERR_CNTRS_TEST
     static int temp=1;
@@ -2015,29 +2017,23 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
 #endif
 
     uint16_t hw_id = node_sl->get_stat_hw_id();
-    rte_mbuf *m_lat, *mi;
+    rte_mbuf *mi;
+    struct flow_stat_payload_header *fsp_head = NULL;
 
     if (hw_id >= MAX_FLOW_STATS) {
+        flush_tx_queue();
         // payload rule hw_ids are in the range right above ip id rules
         uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
         if (hw_id_payload > max_stat_hw_id_seen_payload) {
             max_stat_hw_id_seen_payload = hw_id_payload;
         }
-        // alloc mbuf just for the latency header
-        m_lat = CGlobalInfo::pktmbuf_alloc( get_socket_id(), sizeof(struct flow_stat_payload_header));
-        if ( unlikely(m_lat == 0)) {
-            return -1;
-        }
-        char *p = rte_pktmbuf_append(m_lat, sizeof(struct flow_stat_payload_header));
-        struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)p;
+
+        mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
         fsp_head->seq = lp_stats->m_seq_num[hw_id_payload];
-        fsp_head->time_stamp = os_get_hr_tick_64();
-        // ??? maybe following two lines can be done offline
         fsp_head->hw_id = hw_id_payload;
         fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
 
         lp_stats->m_seq_num[hw_id_payload]++;
-
 #ifdef ERR_CNTRS_TEST
         if (temp % 10 == 0) {
             fsp_head->seq = lp_stats->m_seq_num[hw_id_payload]++;
@@ -2046,21 +2042,6 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
             fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 4;
         }
 #endif
-
-        if (rte_pktmbuf_is_contiguous(m)) {
-            // We have only the const mbuf
-            mi = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
-            assert(mi);
-            rte_pktmbuf_attach(mi, m);
-            rte_pktmbuf_trim(mi, sizeof(struct flow_stat_payload_header));
-            utl_rte_pktmbuf_add_after2(mi, m_lat);
-        } else {
-            // Field engine (vm) case.
-            rte_pktmbuf_trim(m, sizeof(struct flow_stat_payload_header));
-            utl_rte_pktmbuf_add_last(m, m_lat);
-            mi = m;
-        }
-
     } else {
         // ip id rule
         if (hw_id > max_stat_hw_id_seen) {
@@ -2072,7 +2053,13 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     lp_s->add_pkts(1);
     lp_s->add_bytes(mi->pkt_len);
 
-    send_pkt(lp_port, mi, lp_stats);
+    if (hw_id >= MAX_FLOW_STATS) {
+        fsp_head->time_stamp = os_get_hr_tick_64();
+        send_pkt(lp_port, mi, lp_stats);
+        flush_tx_queue();
+    } else {
+        send_pkt(lp_port, mi, lp_stats);
+    }
     return 0;
 }
 
@@ -2105,7 +2092,7 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
     }
 
     if (unlikely(node_sl->is_stat_needed())) {
-        return send_node_flow_stat(m, node_sl, lp_port, lp_stats);
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, node_sl->get_cache_mbuf() ? true:false);
     } else {
         send_pkt(lp_port,m,lp_stats);
     }

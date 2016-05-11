@@ -387,6 +387,10 @@ CFlowStatHwIdMap::CFlowStatHwIdMap() {
     m_map = NULL;
 }
 
+CFlowStatHwIdMap::~CFlowStatHwIdMap() {
+    delete[] m_map;
+}
+
 void CFlowStatHwIdMap::create(uint16_t size) {
     m_map = new uint32_t[size];
     assert (m_map != NULL);
@@ -457,8 +461,7 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
 }
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {
-    if (m_parser)
-        delete m_parser;
+    delete m_parser;
 }
 
 void CFlowStatRuleMgr::create() {
@@ -498,7 +501,7 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
     if (parser->parse(stream->m_pkt.binary, stream->m_pkt.len) != 0) {
         // if we could not parse the packet, but no stat count needed, it is probably OK.
         if (stream->m_rx_check.m_enabled) {
-            throw TrexFStatEx("Failed parsing given packet for flow stat. Probably bad packet format."
+            throw TrexFStatEx("Failed parsing given packet for flow stat. Please consult the manual for supported packet types for flow stat."
                               , TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
         } else {
             return 0;

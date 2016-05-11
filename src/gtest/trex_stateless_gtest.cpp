@@ -100,7 +100,7 @@ void CPcapLoader::update_ip_src(uint32_t ip_addr){
         m_pkt_indication.l3.m_ipv4->setSourceIp(ip_addr);
         m_pkt_indication.l3.m_ipv4->updateCheckSum();
     }
-}           
+}
 
 void CPcapLoader::clone_packet_into_stream(TrexStream * stream){
 
@@ -186,7 +186,7 @@ TEST_F(basic_vm, vm0) {
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(20) );
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",8,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 )
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",14, 0,true)
                         );
@@ -199,7 +199,7 @@ TEST_F(basic_vm, vm1) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 )
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
@@ -222,7 +222,7 @@ TEST_F(basic_vm, vm2) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 )
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
@@ -238,7 +238,7 @@ TEST_F(basic_vm, vm2) {
 
     vm.Dump(stdout);
 
-    uint8_t test_udp_pkt[14+20+4+4]={ 
+    uint8_t test_udp_pkt[14+20+4+4]={
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x08,0x00,
@@ -260,32 +260,32 @@ TEST_F(basic_vm, vm2) {
 
     StreamDPVmInstructionsRunner runner;
 
-    uint8_t ex[]={5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3}; 
+    uint8_t ex[]={5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3};
 
     uint32_t random_per_thread=0;
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -300,7 +300,7 @@ TEST_F(basic_vm, vm3) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 )
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
@@ -317,7 +317,7 @@ TEST_F(basic_vm, vm3) {
     vm.Dump(stdout);
 
     #define PKT_TEST_SIZE (14+20+4+4)
-    uint8_t test_udp_pkt[PKT_TEST_SIZE]={ 
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x08,0x00,
@@ -339,33 +339,33 @@ TEST_F(basic_vm, vm3) {
 
     StreamDPVmInstructionsRunner runner;
 
-    uint8_t ex[]={5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3}; 
+    uint8_t ex[]={5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3};
 
     uint32_t random_per_thread=0;
 
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -386,7 +386,7 @@ TEST_F(basic_vm, vm4) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1", 8 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 )
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,false)
                         );
@@ -403,7 +403,7 @@ TEST_F(basic_vm, vm4) {
     vm.Dump(stdout);
 
     #define PKT_TEST_SIZE (14+20+4+4)
-    uint8_t test_udp_pkt[PKT_TEST_SIZE]={ 
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x08,0x00,
@@ -425,33 +425,33 @@ TEST_F(basic_vm, vm4) {
 
     StreamDPVmInstructionsRunner runner;
 
-    uint8_t ex[]={5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3}; 
+    uint8_t ex[]={5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3};
 
     uint32_t random_per_thread=0;
 
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -478,7 +478,7 @@ TEST_F(basic_vm, vm5) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 ) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,5,1,7 )
                         );
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
@@ -505,7 +505,7 @@ TEST_F(basic_vm, vm5) {
     vm.Dump(stdout);
 
     #define PKT_TEST_SIZE (14+20+4+4)
-    uint8_t test_udp_pkt[PKT_TEST_SIZE]={ 
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x00,0x00,0x00,0x01,0x00,0x00,
         0x08,0x00,
@@ -527,75 +527,75 @@ TEST_F(basic_vm, vm5) {
 
     StreamDPVmInstructionsRunner runner;
 
-    uint8_t ex[]={5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3, 
-                 4, 
-                 5, 
-                 6, 
-                 7, 
-                 1, 
-                 2, 
-                 3}; 
+    uint8_t ex[]={5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3,
+                 4,
+                 5,
+                 6,
+                 7,
+                 1,
+                 2,
+                 3};
 
-         uint8_t ex_tos[]={0x18, 
-                      0x17, 
-                      0x1b, 
-                      0x1a, 
-                      0x19, 
-                      0x18, 
-                      0x17, 
-                      0x1b, 
-                     0x1a, 
-                     0x19, 
-                     0x18, 
-                     0x17, 
-             0x1b, 
-            0x1a, 
-            0x19, 
-            0x18, 
-            0x17, 
-             0x1b, 
-            0x1a, 
-            0x19, 
-            0x18, 
-            0x17, 
+         uint8_t ex_tos[]={0x18,
+                      0x17,
+                      0x1b,
+                      0x1a,
+                      0x19,
+                      0x18,
+                      0x17,
+                      0x1b,
+                     0x1a,
+                     0x19,
+                     0x18,
+                     0x17,
+             0x1b,
+            0x1a,
+            0x19,
+            0x18,
+            0x17,
+             0x1b,
+            0x1a,
+            0x19,
+            0x18,
+            0x17,
 
-             0x1b, 
-            0x1a, 
-            0x19, 
-            0x18, 
-            0x17, 
+             0x1b,
+            0x1a,
+            0x19,
+            0x18,
+            0x17,
 
-             0x1b, 
-            0x1a, 
-            0x19, 
-            0x18, 
-            0x17, 
+             0x1b,
+            0x1a,
+            0x19,
+            0x18,
+            0x17,
 
-             0x1b, 
-            0x1a, 
-            0x19, 
-            0x18, 
-            0x17, 
-         }; 
+             0x1b,
+            0x1a,
+            0x19,
+            0x18,
+            0x17,
+         };
 
     uint32_t random_per_thread=0;
 
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    test_udp_pkt);
@@ -621,7 +621,7 @@ TEST_F(basic_vm, vm6) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0x10000001,0x10000001,0x100000fe) 
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0x10000001,0x10000001,0x100000fe)
                         );
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
@@ -650,7 +650,7 @@ TEST_F(basic_vm, vm6) {
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm6.pcap");
     assert(lpWriter);
@@ -663,7 +663,7 @@ TEST_F(basic_vm, vm6) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -718,7 +718,7 @@ TEST_F(basic_vm, vm7) {
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm7.pcap");
     assert(lpWriter);
@@ -731,7 +731,7 @@ TEST_F(basic_vm, vm7) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -793,7 +793,7 @@ TEST_F(basic_vm, vm_mask1) {
 
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask1.pcap");
     assert(lpWriter);
@@ -806,7 +806,7 @@ TEST_F(basic_vm, vm_mask1) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -847,7 +847,7 @@ TEST_F(basic_vm, vm_mask2) {
 
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask2.pcap");
     assert(lpWriter);
@@ -860,7 +860,7 @@ TEST_F(basic_vm, vm_mask2) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -900,7 +900,7 @@ TEST_F(basic_vm, vm_mask3) {
 
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask3.pcap");
     assert(lpWriter);
@@ -913,7 +913,7 @@ TEST_F(basic_vm, vm_mask3) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -953,7 +953,7 @@ TEST_F(basic_vm, vm_mask4) {
 
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask4.pcap");
     assert(lpWriter);
@@ -966,7 +966,7 @@ TEST_F(basic_vm, vm_mask4) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1006,7 +1006,7 @@ TEST_F(basic_vm, vm_mask5) {
 
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask5.pcap");
     assert(lpWriter);
@@ -1019,7 +1019,7 @@ TEST_F(basic_vm, vm_mask5) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1060,7 +1060,7 @@ TEST_F(basic_vm, vm_mask6) {
 
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask6.pcap");
     assert(lpWriter);
@@ -1073,7 +1073,7 @@ TEST_F(basic_vm, vm_mask6) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1130,7 +1130,7 @@ TEST_F(basic_vm, vm8) {
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm8.pcap");
     assert(lpWriter);
@@ -1143,7 +1143,7 @@ TEST_F(basic_vm, vm8) {
     int i;
     for (i=0; i<20; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1208,7 +1208,7 @@ TEST_F(basic_vm, vm9) {
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
     assert(lpWriter);
@@ -1221,7 +1221,7 @@ TEST_F(basic_vm, vm9) {
     int i;
     for (i=0; i<30; i++) {
         runner.run(&random_per_thread,
-                   program_size, 
+                   program_size,
                    vm.get_dp_instruction_buffer()->get_program(),
                    vm.get_bss_ptr(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1263,7 +1263,7 @@ TEST_F(basic_vm, vm10) {
     CPcapLoader pcap;
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
     assert(lpWriter);
@@ -1275,9 +1275,9 @@ TEST_F(basic_vm, vm10) {
 
     int i;
     for (i=0; i<30; i++) {
-        
+
         runner.run(&random_per_thread,
-                   lpDpVm->get_program_size(), 
+                   lpDpVm->get_program_size(),
                    lpDpVm->get_program(),
                    lpDpVm->get_bss(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1364,7 +1364,7 @@ TEST_F(basic_vm, vm_syn_attack) {
     CPcapLoader pcap;
     pcap.load_pcap_file("stl/yaml/syn_packet.pcap",0);
 
-    
+
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/stl_syn_attack.pcap");
     assert(lpWriter);
@@ -1376,9 +1376,9 @@ TEST_F(basic_vm, vm_syn_attack) {
 
     int i;
     for (i=0; i<30; i++) {
-        
+
         runner.run(&random_per_thread,
-                   lpDpVm->get_program_size(), 
+                   lpDpVm->get_program_size(),
                    lpDpVm->get_program(),
                    lpDpVm->get_bss(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1431,7 +1431,7 @@ void run_vm_program( StreamVm & vm,
     for (i=0; i<num_pkts; i++) {
 
         runner.run(&random_per_thread,
-                   lpDpVm->get_program_size(), 
+                   lpDpVm->get_program_size(),
                    lpDpVm->get_program(),
                    lpDpVm->get_bss(),
                    (uint8_t*)pcap.m_raw.raw);
@@ -1468,7 +1468,7 @@ TEST_F(basic_vm, vm_inc_size_64_128) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
-                                                        2,                // size var  must be 16bit size 
+                                                        2,                // size var  must be 16bit size
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
                                                         127,
                                                         128,
@@ -1497,7 +1497,7 @@ TEST_F(basic_vm, vm_random_size_64_128) {
     srand(0x1234);
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
-                                                        2,                // size var  must be 16bit size 
+                                                        2,                // size var  must be 16bit size
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
                                                         0,
                                                         128,
@@ -1531,7 +1531,7 @@ TEST_F(basic_vm, vm_random_size_64_127_128) {
     srand(0x1234);
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
-                                                        2,                // size var  must be 16bit size 
+                                                        2,                // size var  must be 16bit size
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
                                                         127,
                                                         128,
@@ -1570,7 +1570,7 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
     srand(0x1234);
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
-                                                        2,                // size var  must be 16bit size 
+                                                        2,                // size var  must be 16bit size
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
                                                         0,
                                                         0,
@@ -1598,7 +1598,7 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
 
 //////////////////////////////////////////////////////
 
-                                           
+
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
 
@@ -1615,8 +1615,8 @@ public:
 
 
 /**
- * Queue of RPC msgs for test 
- * 
+ * Queue of RPC msgs for test
+ *
  * @author hhaim
  */
 
@@ -1652,7 +1652,7 @@ public:
 
         /* only if both port are idle we can exit */
     void add_command(CFlowGenListPerThread   * core,
-                     TrexStatelessCpToDpMsgBase * msg, 
+                     TrexStatelessCpToDpMsgBase * msg,
                      double time){
 
         CGenNodeCommand *node = (CGenNodeCommand *)core->create_node() ;
@@ -1686,7 +1686,7 @@ protected:
 
 
 class CBasicStlSink {
-    
+
 public:
     CBasicStlSink(){
         m_core=0;
@@ -1700,7 +1700,7 @@ public:
 
 /**
  * handler for DP to CP messages
- * 
+ *
  * @author imarom (19-Nov-15)
  */
 class DpToCpHandler {
@@ -1838,7 +1838,7 @@ public:
 
     TrexStatelessCpToDpMsgBase * m_msg;
     CNodeRing           *m_ring_from_cp;
-    CBasicStlMsgQueue    m_msg_queue;   
+    CBasicStlMsgQueue    m_msg_queue;
     CFlowGenList  fl;
 };
 
@@ -1899,7 +1899,7 @@ TEST_F(basic_stl, basic_pause_resume0) {
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -1909,10 +1909,10 @@ TEST_F(basic_stl, basic_pause_resume0) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
 
      std::vector<TrexStreamsCompiledObj *> objs;
      assert(compile.compile(port_id, streams, objs));
@@ -1975,7 +1975,7 @@ void CBBStartStopDelay2::call_after_init(CBasicStl * m_obj){
 
     streams.push_back(stream1);
 
-    // stream - clean 
+    // stream - clean
     std::vector<TrexStreamsCompiledObj *>objs;
     assert(compile.compile(port_id, streams, objs));
     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 1, objs[0], 10.0 /*sec */ );
@@ -2010,7 +2010,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay2) {
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -2020,10 +2020,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay2) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
      TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
@@ -2088,7 +2088,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay1) {
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -2098,10 +2098,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay1) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
      TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
@@ -2139,7 +2139,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop3) {
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -2149,10 +2149,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop3) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
      TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
@@ -2190,7 +2190,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop2) {
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -2200,10 +2200,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop2) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
      TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
@@ -2243,7 +2243,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop) {
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -2253,10 +2253,10 @@ TEST_F(basic_stl, single_pkt_bb_start_stop) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
      TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
@@ -2326,11 +2326,11 @@ TEST_F(basic_stl, simple_prog4) {
      stream2->m_isg_usec = 1000000; /*time betwean stream 1 to stream 2 */
      stream2->m_enabled = true;
      stream2->m_self_start = false;
-     stream2->set_multi_burst(5, 
+     stream2->set_multi_burst(5,
                               3,
                               2000000.0);
 
-     // next stream is 100 - loop 
+     // next stream is 100 - loop
      stream2->m_next_stream_id=100;
 
 
@@ -2395,11 +2395,11 @@ TEST_F(basic_stl, simple_prog3) {
      stream2->m_isg_usec = 1000000; /*time betwean stream 1 to stream 2 */
      stream2->m_enabled = true;
      stream2->m_self_start = false;
-     stream2->set_multi_burst(5, 
+     stream2->set_multi_burst(5,
                               3,
                               2000000.0);
 
-     // next stream is 100 - loop 
+     // next stream is 100 - loop
      stream2->m_next_stream_id=100;
 
 
@@ -2608,7 +2608,7 @@ TEST_F(basic_stl, single_pkt) {
      TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -2618,10 +2618,10 @@ TEST_F(basic_stl, single_pkt) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
 
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
@@ -2671,7 +2671,7 @@ void test_mac_replace(bool replace_src_by_pkt,
 
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
 
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
@@ -2775,18 +2775,22 @@ TEST_F(basic_stl, multi_pkt1) {
 class CEnableVm {
 public:
     void run(bool full_packet,double duration,uint16_t cache );
+    CEnableVm() {
+        m_pg_id = -1;
+    }
 public:
     std::string    m_input_packet; //"cap2/udp_64B.pcap"
     std::string    m_out_file;     //"exp/stl_vm_enable0";
+    int32_t        m_pg_id; // if >= 0, pg_id for flow stat testing
 };
 
 void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
-
+    CFlowStatRuleMgr rule_mgr;
     CBasicStl t1;
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file =m_out_file; 
+    po->out_file =m_out_file;
 
      TrexStreamsCompiler compile;
 
@@ -2801,7 +2805,7 @@ void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
      }
 
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -2814,18 +2818,26 @@ void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
      uint16_t pkt_size=pcap.m_raw.pkt_len;
 
      vm_build_program_seq(stream1->m_vm,pkt_size, false);
-     #if 0
+#if 0
      if ( full_packet ){
          EXPECT_EQ(stream1->m_vm_prefix_size,pkt_size);
      }else{
          EXPECT_EQ(stream1->m_vm_prefix_size,35);
      }
-     #endif
+#endif
 
-                                    
+     if (m_pg_id >= 0) {
+         stream1->m_rx_check.m_enabled = true;
+         stream1->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+         stream1->m_rx_check.m_pg_id = m_pg_id;
+         rule_mgr.init_stream(stream1); //different rule_mgr object, but we just want to init fields in stream
+     } else {
+         stream1->m_rx_check.m_enabled = false;
+     }
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
      std::vector<TrexStreamsCompiledObj *> objs;
 
      assert(compile.compile(port_id,streams, objs) );
@@ -2867,6 +2879,14 @@ TEST_F(basic_stl, vm_enable0) {
     vm_test.run(true);
 }
 
+TEST_F(basic_stl, vm_enable0_flow_stat) {
+
+    CEnableVm vm_test;
+    vm_test.m_out_file = "exp/stl_vm_enable0_flow_stat";
+    vm_test.m_input_packet = "cap2/udp_64B.pcap";
+    vm_test.m_pg_id = 5;
+    vm_test.run(true);
+}
 
 TEST_F(basic_stl, vm_enable1) {
 
@@ -2876,7 +2896,17 @@ TEST_F(basic_stl, vm_enable1) {
     vm_test.run(false);
 }
 
+#if 0
+//??? does not work. need to check
+TEST_F(basic_stl, vm_enable1_flow_stat) {
 
+    CEnableVm vm_test;
+    vm_test.m_out_file = "exp/stl_vm_enable1_flow_stat";
+    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.m_pg_id = 5;
+    vm_test.run(false);
+}
+#endif
 
 TEST_F(basic_stl, vm_enable2) {
 
@@ -2931,7 +2961,7 @@ TEST_F(basic_stl, multi_pkt2) {
      streams.push_back(stream2);
 
 
-     // stream - clean 
+     // stream - clean
      uint8_t port_id = 0;
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs, 1, 5.0));
@@ -2963,7 +2993,7 @@ TEST_F(basic_stl, multi_burst1) {
 
      TrexStream * stream1 = new TrexStream(TrexStream::stMULTI_BURST,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
-     stream1->set_multi_burst(5, 
+     stream1->set_multi_burst(5,
                               3,
                               2000000.0);
 
@@ -2995,8 +3025,8 @@ TEST_F(basic_stl, multi_burst1) {
 /********************************************* Itay Tests Start *************************************/
 
 /**
- * check that continous stream does not point to another stream 
- * (makes no sense) 
+ * check that continous stream does not point to another stream
+ * (makes no sense)
  */
 TEST_F(basic_stl, compile_bad_1) {
 
@@ -3020,7 +3050,7 @@ TEST_F(basic_stl, compile_bad_1) {
 
 /**
  * check for streams pointing to non exsistant streams
- * 
+ *
  * @author imarom (16-Nov-15)
  */
 TEST_F(basic_stl, compile_bad_2) {
@@ -3055,9 +3085,9 @@ TEST_F(basic_stl, compile_bad_2) {
 }
 
 /**
- * check for "dead streams" in the mesh 
- * a streams that cannot be reached 
- * 
+ * check for "dead streams" in the mesh
+ * a streams that cannot be reached
+ *
  * @author imarom (16-Nov-15)
  */
 TEST_F(basic_stl, compile_bad_3) {
@@ -3083,7 +3113,7 @@ TEST_F(basic_stl, compile_bad_3) {
      stream->m_next_stream_id = -1;
      stream->m_self_start = false;
      stream->set_rate(TrexStreamRate::RATE_PPS,52.0);
-     
+
      streams.push_back(stream);
 
      /* stream 3 */
@@ -3157,7 +3187,7 @@ TEST_F(basic_stl, compile_with_warnings) {
      stream->m_next_stream_id = 1928;
      stream->m_self_start = true;
      stream->set_rate(TrexStreamRate::RATE_PPS,52.0);
-     
+
      streams.push_back(stream);
 
      /* stream 3 */
@@ -3251,7 +3281,7 @@ public:
 
         EXPECT_TRUE(event->get_event_id() == m_event_id);
         EXPECT_TRUE(event->get_port_id() == 0);
-        
+
     }
 
 private:
@@ -3275,7 +3305,7 @@ TEST_F(basic_stl, dp_stop_event) {
      TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(100);
-     
+
      stream1->m_enabled = true;
      stream1->m_self_start = true;
      stream1->m_port_id= port_id;
@@ -3285,10 +3315,10 @@ TEST_F(basic_stl, dp_stop_event) {
      pcap.load_pcap_file("cap2/udp_64B.pcap",0);
      pcap.update_ip_src(0x10000001);
      pcap.clone_packet_into_stream(stream1);
-                                    
+
      streams.push_back(stream1);
 
-     // stream - clean 
+     // stream - clean
 
      std::vector<TrexStreamsCompiledObj *>objs;
      assert(compile.compile(port_id, streams, objs));
@@ -3305,7 +3335,7 @@ TEST_F(basic_stl, dp_stop_event) {
      EXPECT_EQ_UINT32(1, res?1:0);
 
      delete stream1 ;
-     
+
 }
 
 TEST_F(basic_stl, graph_generator1) {
@@ -3324,7 +3354,7 @@ TEST_F(basic_stl, graph_generator1) {
      stream->m_pkt.len = 512;
 
      stream->m_next_stream_id = 2;
-     
+
 
      streams.push_back(stream);
 
@@ -3362,7 +3392,7 @@ TEST_F(basic_stl, graph_generator1) {
      }
 
      delete obj;
-}   
+}
 
 
 TEST_F(basic_stl, graph_generator2) {
@@ -3374,7 +3404,7 @@ TEST_F(basic_stl, graph_generator2) {
     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 1);
     stream->m_enabled = true;
     stream->m_self_start = true;
-    
+
 
     stream->set_rate(TrexStreamRate::RATE_PPS,1000);
 
@@ -3407,7 +3437,7 @@ TEST_F(basic_stl, graph_generator2) {
     EXPECT_EQ(obj->get_max_pps(), 1000.0);
 
     EXPECT_EQ(obj->get_max_bps_l2(), (1000 * (128 + 4) * 8));
-    
+
 
     for (auto stream : streams) {
         delete stream;
@@ -3442,7 +3472,7 @@ public:
         m_stream = stream;
         m_stream->m_enabled = true;
         m_stream->m_self_start = true;
-        
+
         pcap.clone_packet_into_stream(stream);
     }
 
@@ -3576,7 +3606,7 @@ TEST_F(basic_stl, vm_split_flow_var_small_range) {
 
     split.set_stream(&stream);
     split.set_flow_var_as_split(StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, 0, 1, 0);
-    
+
     split.run(8, 4);
 
 }
@@ -3605,7 +3635,7 @@ TEST_F(basic_stl, vm_split_client_var) {
 
     split.set_stream(&stream);
     split.set_client_var_as_split(0x10000001, 0x100000fe, 5000, 5050);
-    
+
     split.run(8, 7);
 
 
@@ -3730,7 +3760,7 @@ TEST_F(flow_stat, add_del_stream) {
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     TrexStream stream2(TrexStream::stSINGLE_BURST, 0, 0);
     TrexStream stream3(TrexStream::stSINGLE_BURST, 0, 0);
-    
+
     stream.m_rx_check.m_enabled = true;
 
     stream.m_rx_check.m_rule_type = 7;
@@ -3745,7 +3775,7 @@ TEST_F(flow_stat, add_del_stream) {
     } catch (TrexFStatEx e) {
         assert(e.type() == TrexException::T_FLOW_STAT_NO_STREAMS_EXIST);
     }
-        
+
     try {
         rule_mgr.add_stream(&stream);
     } catch (TrexFStatEx e) {
@@ -3792,18 +3822,16 @@ TEST_F(flow_stat, add_del_stream) {
         rule_mgr.del_stream(&stream2);
     } catch (TrexFStatEx e) {
         assert(e.type() == TrexException::T_FLOW_STAT_DEL_NON_EXIST);
-    } 
+    }
 
     // do not want the destructor to try to free it
-    stream.m_pkt.binary = NULL; 
+    stream.m_pkt.binary = NULL;
     stream2.m_pkt.binary = NULL;
     stream3.m_pkt.binary = NULL;
 }
 
-TEST_F(flow_stat, start_stop_stream) {
-    // try starting with no add
-    // try starting  more than 128 streams
-    // check that ip_id is changed for streams with no flow stat
-    // check that ip_id is changed for streams with flow stat IP_ID, PAYLOAD
+TEST_F(flow_stat, alloc_mbuf_const) {
+     CGenNodeStateless cg;
 
+     cg.alloc_flow_stat_mbuf_test_const();
 }

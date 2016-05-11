@@ -255,7 +255,17 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         section["ports"][i]["pci_addr"]     = pci_addr;
         section["ports"][i]["numa"]         = numa;
 
-        section["ports"][i]["rx"]["caps"]      = port->get_rx_caps();
+        uint16_t caps = port->get_rx_caps();
+        section["ports"][i]["rx"]["caps"]      = Json::arrayValue;
+        if (caps & TrexPlatformApi::IF_STAT_IPV4_ID) {
+            section["ports"][i]["rx"]["caps"].append("flow_stats");
+        }
+        if (caps & TrexPlatformApi::IF_STAT_PAYLOAD) {
+            section["ports"][i]["rx"]["caps"].append("latency");
+        }
+        if (caps & TrexPlatformApi::IF_STAT_IPV4_ID) {
+            section["ports"][i]["rx"]["caps"].append("rx_bytes");
+        }
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();
 
 

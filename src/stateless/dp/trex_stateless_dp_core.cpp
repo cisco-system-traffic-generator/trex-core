@@ -177,7 +177,7 @@ void CGenNodeStateless::refresh(){
     m_state           = CGenNodeStateless::ss_ACTIVE;
 
     /* refresh init value */
-#if 0 
+#if 0
     /* TBD should add a JSON varible for that */
     refresh_vm_bss();
 #endif
@@ -185,7 +185,7 @@ void CGenNodeStateless::refresh(){
 
 
 void CGenNodeCommand::free_command(){
-    
+
     assert(m_cmd);
     m_cmd->on_node_remove();
     delete m_cmd;
@@ -211,16 +211,105 @@ std::string CGenNodeStateless::get_stream_state_str(stream_state_t stream_state)
     return(res);
 }
 
-rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m) {
-    //????????? temp implementation. Just copy the entire mbuf
-    rte_mbuf_t *m_new = CGlobalInfo::pktmbuf_alloc( get_socket_id(), m->data_len );
-    /* TBD remove this, should handle cases of error */
-    assert(m_new);
-    char *p = rte_pktmbuf_mtod(m, char*);
-    char *p_new = rte_pktmbuf_append(m_new, m->data_len);
-    memcpy(p_new , p, m->data_len);
+/*
+ * Allocate mbuf for flow stat (and latency) info sending
+ * m - Original mbuf (can be complicated mbuf data structure)
+ * fsp_head - return pointer in which the flow stat info should be filled
+ * is_const - is the given mbuf const
+ * return new mbuf structure in which the fsp_head can be written. If needed, orginal mbuf is freed.
+ */
+rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_stat_payload_header *&fsp_head
+                                                     , bool is_const) {
+    rte_mbuf_t *m_ret = NULL, *m_lat = NULL;
+    uint16_t fsp_head_size = sizeof(struct flow_stat_payload_header);
 
-    return m_new;
+    if (is_const) {
+        // const mbuf case
+        if (rte_pktmbuf_data_len(m) > 128) {
+            m_ret = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+            assert(m_ret);
+            // alloc mbuf just for the latency header
+            m_lat = CGlobalInfo::pktmbuf_alloc( get_socket_id(), fsp_head_size);
+            assert(m_lat);
+            fsp_head = (struct flow_stat_payload_header *)rte_pktmbuf_append(m_lat, fsp_head_size);
+            rte_pktmbuf_attach(m_ret, m);
+            rte_pktmbuf_trim(m_ret, sizeof(struct flow_stat_payload_header));
+            utl_rte_pktmbuf_add_after2(m_ret, m_lat);
+            return m_ret;
+        } else {
+            // Short packet. Just copy all bytes.
+            m_ret = CGlobalInfo::pktmbuf_alloc( get_socket_id(), rte_pktmbuf_data_len(m) );
+            assert(m_ret);
+            char *p = rte_pktmbuf_mtod(m, char*);
+            char *p_new = rte_pktmbuf_append(m_ret, rte_pktmbuf_data_len(m));
+            memcpy(p_new , p, rte_pktmbuf_data_len(m));
+            fsp_head = (struct flow_stat_payload_header *)(p_new + rte_pktmbuf_data_len(m) - fsp_head_size);
+            rte_pktmbuf_free(m);
+            return m_ret;
+        }
+    } else {
+        // Field engine (vm)
+        if (rte_pktmbuf_is_contiguous(m)) {
+            // one, r/w mbuf
+            char *p = rte_pktmbuf_mtod(m, char*);
+            fsp_head = (struct flow_stat_payload_header *)(p + rte_pktmbuf_data_len(m) - fsp_head_size);
+            return m;
+        } else {
+            // r/w --> read only. Should do something like:
+            // Alloc indirect,. make r/w->indirect point to read_only) -> new fsp_header
+            // for the mean time, just copy the entire packet.
+            m_ret = CGlobalInfo::pktmbuf_alloc( get_socket_id(), rte_pktmbuf_pkt_len(m) );
+            assert(m_ret);
+            char *p_new = rte_pktmbuf_append(m_ret, rte_pktmbuf_pkt_len(m));
+            rte_mbuf_t *m_free = m;
+            while (m != NULL) {
+                char *p = rte_pktmbuf_mtod(m, char*);
+                memcpy(p_new, p, m->data_len);
+                p_new += m->data_len;
+                m = m->next;
+            }
+            p_new = rte_pktmbuf_mtod(m_ret, char*);
+            fsp_head = (struct flow_stat_payload_header *)(p_new + rte_pktmbuf_data_len(m_ret) - fsp_head_size);
+            rte_pktmbuf_free(m_free);
+            return m_ret;
+        }
+    }
+}
+
+// test the const case of alloc_flow_stat_mbuf. The more complicated non const case is tested in the simulation.
+bool CGenNodeStateless::alloc_flow_stat_mbuf_test_const() {
+    rte_mbuf_t *m, *m_test;
+    uint16_t sizes[2] = {64, 500};
+    uint16_t size;
+    struct flow_stat_payload_header *fsp_head;
+    char *p;
+
+    set_socket_id(0);
+    for (int test_num = 0; test_num < sizeof(sizes)/sizeof(sizes[0]); test_num++) {
+        size = sizes[test_num];
+        m = CGlobalInfo::pktmbuf_alloc(get_socket_id(), size);
+        p = rte_pktmbuf_append(m, size);
+        for (int i = 0; i < size; i++) {
+            p[i] = (char)i;
+        }
+        m_test = alloc_flow_stat_mbuf(m, fsp_head, true);
+        p = rte_pktmbuf_mtod(m_test, char*);
+        assert(rte_pktmbuf_pkt_len(m_test) == size);
+        for (int i = 0; i < rte_pktmbuf_pkt_len(m_test) - sizeof(*fsp_head); i++) {
+            assert(p[i] == (char)i);
+        }
+        // verify fsp_head points correctly
+        if (size > 128) { // should match threshould in alloc_flow_stat_mbuf
+            assert(rte_pktmbuf_data_len(m_test) == size - sizeof(*fsp_head));
+            assert(rte_pktmbuf_data_len(m_test->next) == sizeof(*fsp_head));
+            assert((char *)fsp_head == rte_pktmbuf_mtod((m_test->next), char*));
+        } else {
+            assert(rte_pktmbuf_data_len(m_test) == size);
+            assert (((char *)fsp_head) + sizeof (*fsp_head) == p + rte_pktmbuf_data_len(m_test));
+        }
+        rte_pktmbuf_free(m_test);
+    }
+    return true;
 }
 
 rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
@@ -235,14 +324,14 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     /* TBD remove this, should handle cases of error */
     assert(m);
     char *p=rte_pktmbuf_append(m, prefix_size);
-    memcpy( p ,m_original_packet_data_prefix, prefix_size); 
+    memcpy( p ,m_original_packet_data_prefix, prefix_size);
 
 
     /* run the VM program */
     StreamDPVmInstructionsRunner runner;
 
     runner.run( (uint32_t*)m_vm_flow_var,
-                m_vm_program_size, 
+                m_vm_program_size,
                 m_vm_program,
                 m_vm_flow_var,
                 (uint8_t*)p);
@@ -330,7 +419,7 @@ bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
     assert(m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE);
 
     for (auto dp_stream : m_active_nodes) {
-        CGenNodeStateless * node =dp_stream.m_node; 
+        CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         assert(node->is_pause() == true);
         node->set_pause(false);
@@ -341,11 +430,11 @@ bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
 
 bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
 
-    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING || 
+    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
             (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
 
     for (auto dp_stream : m_active_nodes) {
-        CGenNodeStateless * node = dp_stream.m_node; 
+        CGenNodeStateless * node = dp_stream.m_node;
         assert(node->get_port_id() == port_id);
 
         node->update_rate(factor);
@@ -360,7 +449,7 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
     assert(m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING);
 
     for (auto dp_stream : m_active_nodes) {
-        CGenNodeStateless * node =dp_stream.m_node; 
+        CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         assert(node->is_pause() == false);
         node->set_pause(true);
@@ -416,7 +505,7 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
 
 
 bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
-                                          bool     stop_on_id, 
+                                          bool     stop_on_id,
                                           int      event_id){
 
 
@@ -434,7 +523,7 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
     }
 
     for (auto dp_stream : m_active_nodes) {
-        CGenNodeStateless * node =dp_stream.m_node; 
+        CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         if ( node->get_state() == CGenNodeStateless::ss_ACTIVE) {
             node->mark_for_free();
@@ -549,12 +638,12 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 
 
 /**
- * in idle state loop, the processor most of the time sleeps 
- * and periodically checks for messages 
- * 
+ * in idle state loop, the processor most of the time sleeps
+ * and periodically checks for messages
+ *
  * @author imarom (01-Nov-15)
  */
-void 
+void
 TrexStatelessDpCore::idle_state_loop() {
 
     const int SHORT_DELAY_MS    = 2;
@@ -578,7 +667,7 @@ TrexStatelessDpCore::idle_state_loop() {
         } else {
             delay(LONG_DELAY_MS);
         }
-        
+
     }
 }
 
@@ -592,10 +681,10 @@ void TrexStatelessDpCore::quit_main_loop(){
 
 
 /**
- * scehduler runs when traffic exists 
- * it will return when no more transmitting is done on this 
- * core 
- * 
+ * scehduler runs when traffic exists
+ * it will return when no more transmitting is done on this
+ * core
+ *
  * @author imarom (01-Nov-15)
  */
 void
@@ -616,7 +705,7 @@ TrexStatelessDpCore::start_scheduler() {
 }
 
 
-void 
+void
 TrexStatelessDpCore::run_once(){
 
     idle_state_loop();
@@ -644,7 +733,7 @@ TrexStatelessDpCore::start() {
 }
 
 /* only if both port are idle we can exit */
-void 
+void
 TrexStatelessDpCore::schedule_exit(){
 
     CGenNodeCommand *node = (CGenNodeCommand *)m_core->create_node() ;
@@ -660,7 +749,7 @@ TrexStatelessDpCore::schedule_exit(){
 }
 
 
-void 
+void
 TrexStatelessDpCore::add_global_duration(double duration){
     if (duration > 0.0) {
         CGenNode *node = m_core->create_node() ;
@@ -717,7 +806,7 @@ void TrexStatelessDpCore::update_mac_addr(TrexStream * stream,
     }
 
         /* take from cfg_file */
-    if ( (ov_src == false) && 
+    if ( (ov_src == false) &&
          (ov_dst == TrexStream::stCFG_FILE) ){
 
           m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,(uint8_t*)raw_pkt);
@@ -808,7 +897,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->m_time = m_core->m_cur_time_sec + stream->get_start_delay_sec();
 
     pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(stream->m_port_id);
-    node->m_flags = 0; 
+    node->m_flags = 0;
     node->m_src_port =0;
     node->m_original_packet_data_prefix = 0;
 
@@ -823,7 +912,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->set_socket_id(m_core->m_node_gen.m_socket_id);
 
     /* build a mbuf from a packet */
-    
+
     uint16_t pkt_size = stream->m_pkt.len;
     const uint8_t *stream_pkt = stream->m_pkt.binary;
 
@@ -874,14 +963,14 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
                 /* allocate const mbuf */
         rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
         assert(m);
-    
+
         char *p = rte_pktmbuf_append(m, pkt_size);
         assert(p);
         /* copy the packet */
         memcpy(p,stream_pkt,pkt_size);
-    
+
         update_mac_addr(stream,node,dir,p);
-    
+
         /* set the packet as a readonly */
         node->set_cache_mbuf(m);
 
@@ -924,7 +1013,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
 
         if ( lpDpVm->is_pkt_size_var() ) {
-            // mark the node as varible size 
+            // mark the node as varible size
             node->set_var_pkt_size();
         }
 
@@ -965,7 +1054,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 }
 
 void
-TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj, 
+TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
                                    double duration,
                                    int event_id) {
 
@@ -1030,7 +1119,7 @@ bool TrexStatelessDpCore::are_all_ports_idle(){
 }
 
 
-void 
+void
 TrexStatelessDpCore::resume_traffic(uint8_t port_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
@@ -1039,14 +1128,13 @@ TrexStatelessDpCore::resume_traffic(uint8_t port_id){
 }
 
 
-void 
+void
 TrexStatelessDpCore::pause_traffic(uint8_t port_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
     lp_port->pause_traffic(port_id);
 }
-
 
 void 
 TrexStatelessDpCore::push_pcap(uint8_t port_id,
@@ -1082,8 +1170,7 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
      m_state = TrexStatelessDpCore::STATE_PCAP_TX;
 }
 
-
-void 
+void
 TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
@@ -1094,7 +1181,7 @@ TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
 
 void
 TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
-                                  bool     stop_on_id, 
+                                  bool     stop_on_id,
                                   int      event_id) {
     /* we cannot remove nodes not from the top of the queue so
        for every active node - make sure next time
@@ -1104,7 +1191,6 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
     if ( lp_port->stop_traffic(port_id,stop_on_id,event_id) == false){
         return;
     }
- 
 
     /* flush the TX queue before sending done message to the CP */
     m_core->flush_tx_queue();
@@ -1119,9 +1205,9 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
 
 /**
  * handle a message from CP to DP
- * 
+ *
  */
-void 
+void
 TrexStatelessDpCore::handle_cp_msg(TrexStatelessCpToDpMsgBase *msg) {
     msg->handle(this);
     delete msg;

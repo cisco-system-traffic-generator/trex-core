@@ -121,13 +121,13 @@ bool CCapPktRaw::Compare(CCapPktRaw * obj,int dump,double dsec){
 
     if (pkt_len != obj->pkt_len) {
         if ( dump ){
-            printf(" ERROR len is not eq \n");
+            printf(" ERROR: len is not eq. First len is %d, second is %d \n", pkt_len, obj->pkt_len);
         }
         return (false);
     }
 
     if ( getInterface() != obj->getInterface() ){
-        printf(" ERROR original packet from if=%d and cur packet from if=%d \n",getInterface(),obj->getInterface());
+        printf(" ERROR: original packet from if=%d and cur packet from if=%d \n",getInterface(),obj->getInterface());
         return (false);
     }
 
@@ -135,7 +135,7 @@ bool CCapPktRaw::Compare(CCapPktRaw * obj,int dump,double dsec){
     CPktNsecTimeStamp t2(obj->time_sec,obj->time_nsec);
     if ( t1.diff(t2) > dsec ){
         if ( dump ){
-            printf(" ERROR diff of 1 msec in time  \n");
+            printf(" ERROR: diff of 1 msec in time  \n");
         }
         return (false);
     }
@@ -144,7 +144,7 @@ bool CCapPktRaw::Compare(CCapPktRaw * obj,int dump,double dsec){
         return (true);
     }else{
         if ( dump ){
-            fprintf(stdout," ERROR buffer not the same \n");
+            fprintf(stdout," ERROR: buffers not the same \n");
             fprintf(stdout," B1 \n");
             fprintf(stdout," ---------------\n");
             utl_DumpBuffer(stdout,raw,pkt_len,0);

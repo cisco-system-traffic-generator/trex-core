@@ -341,6 +341,7 @@ class CFlowStatUserIdMap {
 class CFlowStatHwIdMap {
  public:
     CFlowStatHwIdMap();
+    ~CFlowStatHwIdMap();
     void create(uint16_t size);
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatHwIdMap& cf);
     uint16_t find_free_hw_id();

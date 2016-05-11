@@ -24,7 +24,7 @@ limitations under the License.
 #include "utl_json.h"
 #include "utl_yaml.h"
 #include "msg_manager.h"
-#include <common/basic_utils.h> 
+#include <common/basic_utils.h>
 
 #include <trex_stream_node.h>
 #include <trex_stateless_messaging.h>
@@ -64,7 +64,7 @@ void CGlobalMemory::Dump(FILE *fd){
     uint32_t c_size=64;
     uint32_t c_total=0;
 
-    int i=0; 
+    int i=0;
     for (i=0; i<MBUF_ELM_SIZE; i++) {
         if ( (i>MBUF_9k) && (i<MBUF_DP_FLOWS)){
             continue;
@@ -118,7 +118,7 @@ bool CPlatformSocketInfoNoConfig::is_sockets_enable(socket_id_t socket){
     }
     return (false);
 }
-    
+
 socket_id_t CPlatformSocketInfoNoConfig::max_num_active_sockets(){
     return (1);
 }
@@ -222,7 +222,7 @@ bool CPlatformSocketInfoConfig::init(){
             m_sockets_enable[lp->m_socket]=true;
             m_sockets_enabled++;
         }
-        
+
         m_socket_per_dual_if[i]=lp->m_socket;
 
         /* learn how many threads per dual-if */
@@ -343,7 +343,7 @@ bool CPlatformSocketInfoConfig::is_sockets_enable(socket_id_t socket){
     assert(socket<MAX_SOCKETS_SUPPORTED);
     return ( m_sockets_enable[socket] );
 }
-    
+
 socket_id_t CPlatformSocketInfoConfig::max_num_active_sockets(){
     return  ((socket_id_t)m_sockets_enabled);
 }
@@ -435,7 +435,7 @@ void CPlatformSocketInfo::Delete(){
 bool CPlatformSocketInfo::is_sockets_enable(socket_id_t socket){
      return ( m_obj->is_sockets_enable(socket) );
 }
-    
+
 socket_id_t CPlatformSocketInfo::max_num_active_sockets(){
     return ( m_obj->max_num_active_sockets() );
 }
@@ -574,7 +574,7 @@ std::string CGlobalInfo::dump_pool_as_json(void){
 
 void CGlobalInfo::free_pools(){
     CPlatformSocketInfo * lpSocket =&m_socket;
-    CRteMemPool * lpmem;       
+    CRteMemPool * lpmem;
     int i;
     for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
         if (lpSocket->is_sockets_enable((socket_id_t)i)) {
@@ -583,10 +583,10 @@ void CGlobalInfo::free_pools(){
             utl_rte_mempool_delete(lpmem->m_mbuf_pool_128);
             utl_rte_mempool_delete(lpmem->m_mbuf_pool_256);
             utl_rte_mempool_delete(lpmem->m_mbuf_pool_512);
-            utl_rte_mempool_delete(lpmem->m_mbuf_pool_1024);  
-            utl_rte_mempool_delete(lpmem->m_mbuf_pool_2048);  
-            utl_rte_mempool_delete(lpmem->m_mbuf_pool_4096);  
-            utl_rte_mempool_delete(lpmem->m_mbuf_pool_9k);  
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_1024);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_2048);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_4096);
+            utl_rte_mempool_delete(lpmem->m_mbuf_pool_9k);
     }
     utl_rte_mempool_delete(m_mem_pool[0].m_mbuf_global_nodes);
   }
@@ -598,7 +598,7 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers){
     CGlobalMemory * lp=&CGlobalInfo::m_memory_cfg;
     CPlatformSocketInfo * lpSocket =&m_socket;
 
-   CRteMemPool * lpmem;       
+   CRteMemPool * lpmem;
 
     int i;
     for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
@@ -607,7 +607,7 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers){
             lpmem->m_pool_id=i;
 
 
-            /* this include the packet from 0-64 this is for small packets */  
+            /* this include the packet from 0-64 this is for small packets */
             lpmem->m_small_mbuf_pool =utl_rte_mempool_create("small-pkt-const",
                                                       lp->m_mbuf[MBUF_64],
                                                        CONST_SMALL_MBUF_SIZE,
@@ -615,7 +615,7 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers){
             assert(lpmem->m_small_mbuf_pool);
 
 
-            
+
 
             lpmem->m_mbuf_pool_128=utl_rte_mempool_create("_128-pkt-const",
                                                        lp->m_mbuf[MBUF_128],
@@ -736,7 +736,7 @@ std::string double_to_human_str(double num,
     if (num<0.0) {
         abs_num=-num;
     }
-    int i=0; 
+    int i=0;
     int max_cnt=sizeof(human_tbl)/sizeof(human_tbl[0]);
     double div =1.0;
     double f=1000.0;
@@ -880,8 +880,8 @@ void CFlowKey::Clean(){
     m_ipaddr2=0;
     m_port1=0;
     m_port2=0;
-    m_ip_proto=0; 
-    m_l2_proto=0; 
+    m_ip_proto=0;
+    m_l2_proto=0;
     m_vrfid=0;
 }
 
@@ -897,7 +897,7 @@ void CPacketDescriptor::Dump(FILE *fd){
     fprintf(fd," Isvalid : %d ",IsValidPkt()?1:0);
     fprintf(fd," IsRtt   : %d ",IsRtt()?1:0);
     fprintf(fd," IsLearn   : %d ",IsLearn()?1:0);
-    
+
     if (IsTcp() ) {
         fprintf(fd," TCP ");
     }else{
@@ -907,7 +907,7 @@ void CPacketDescriptor::Dump(FILE *fd){
     fprintf(fd," id           : %d \n",getId() );
 
     fprintf(fd," flow_ID      : %d , max_pkts : %u, max_aging: %d sec , pkt_id : %u, init: %d   ( dir:%d  dir_max :%d  ) bid:%d \n",getFlowId(),
-            GetMaxPktsPerFlow(), 
+            GetMaxPktsPerFlow(),
             GetMaxFlowTimeout() ,
             getFlowPktNum(),
             IsInitSide(),
@@ -934,7 +934,7 @@ void CPacketIndication::UpdatePacketPadding(){
 
 void CPacketIndication::RefreshPointers(){
 
-    char *pobase=getBasePtr();                       
+    char *pobase=getBasePtr();
 
     m_ether = (EthernetHeader *) (pobase + m_ether_offset);
     l3.m_ipv4  = (IPHeader       *) (pobase + m_ip_offset);
@@ -946,12 +946,12 @@ void CPacketIndication::RefreshPointers(){
     }
 }
 
-// copy ref assume pkt point to a fresh 
+// copy ref assume pkt point to a fresh
 void CPacketIndication::Clone(CPacketIndication * obj,CCapPktRaw * pkt){
     Clean();
     m_cap_ipg = obj->m_cap_ipg;
     m_packet  = pkt;
-    char *pobase=getBasePtr();                       
+    char *pobase=getBasePtr();
     m_flow = obj->m_flow;
 
     m_ether = (EthernetHeader *) (pobase + obj->getEtherOffset());
@@ -1105,7 +1105,7 @@ void CPacketParser::Delete(){
 }
 
 
-bool CPacketParser::ProcessPacket(CPacketIndication * pkt_indication, 
+bool CPacketParser::ProcessPacket(CPacketIndication * pkt_indication,
                                   CCapPktRaw * raw_packet){
     BP_ASSERT(pkt_indication);
     pkt_indication->ProcessPacket(this,raw_packet);
@@ -1129,7 +1129,7 @@ void CPacketIndication::SetKey(void){
     if (is_ipv6()){
         uint16_t ipv6_src[8];
         uint16_t ipv6_dst[8];
-        
+
         l3.m_ipv6->getSourceIpv6(&ipv6_src[0]);
         l3.m_ipv6->getDestIpv6(&ipv6_dst[0]);
         ip_src=(ipv6_src[6] << 16) | ipv6_src[7];
@@ -1143,7 +1143,7 @@ void CPacketIndication::SetKey(void){
 
     /* UDP/TCP has same place */
     uint16_t src_port = l4.m_udp->getSourcePort();
-    uint16_t dst_port = l4.m_udp->getDestPort(); 
+    uint16_t dst_port = l4.m_udp->getDestPort();
     if (ip_src > ip_dst ) {
        m_flow_key.m_ipaddr1 =ip_dst;
        m_flow_key.m_ipaddr2 =ip_src;
@@ -1167,7 +1167,7 @@ uint8_t CPacketIndication::ProcessIpPacketProtocol(CCPacketParserCounters *m_cnt
     TCPHeader * tcp=0;
     UDPHeader * udp=0;
     uint16_t tcp_header_len=0;
-    
+
     switch (protocol) {
     case IPHeader::Protocol::TCP :
         m_desc.SetIsTcp(true);
@@ -1176,50 +1176,50 @@ uint8_t CPacketIndication::ProcessIpPacketProtocol(CCPacketParserCounters *m_cnt
 
         tcp_header_len = tcp->getHeaderLength();
         if ( tcp_header_len  > (5*4) ){
-            // we have ip option 
-            m_cnt->m_tcp_header_options++; 
+            // we have ip option
+            m_cnt->m_tcp_header_options++;
         }
         *offset += tcp_header_len;
-        m_cnt->m_tcp++; 
+        m_cnt->m_tcp++;
         break;
     case IPHeader::Protocol::UDP :
         m_desc.SetIsUdp(true);
         udp =(UDPHeader *)(packetBase +*offset);
         l4.m_udp = udp;
         *offset += 8;
-        m_cnt->m_udp++; 
+        m_cnt->m_udp++;
         break;
     case         IPHeader::Protocol::AH:
-        m_cnt->m_non_tcp_udp_ah++; 
+        m_cnt->m_non_tcp_udp_ah++;
         return (1);
         break;
     case         IPHeader::Protocol::ESP:
-        m_cnt->m_non_tcp_udp_esp++; 
+        m_cnt->m_non_tcp_udp_esp++;
         return (1);
         break;
     case         IPHeader::Protocol::ICMP:
     case         IPHeader::Protocol::IPV6_ICMP:
-        m_cnt->m_non_tcp_udp_icmp++; 
+        m_cnt->m_non_tcp_udp_icmp++;
         return (1);
         break;
     case         IPHeader::Protocol::GRE:
-        m_cnt->m_non_tcp_udp_gre++; 
+        m_cnt->m_non_tcp_udp_gre++;
         return (1);
         break;
     case         IPHeader::Protocol::IP:
-        m_cnt->m_non_ip++; 
+        m_cnt->m_non_ip++;
         return (1);
         break;
 
     default:
-        m_cnt->m_non_tcp_udp++; 
+        m_cnt->m_non_tcp_udp++;
         return (1);
         break;
     }
 
     /* out of packet */
     if ( *offset > m_packet->getTotalLen() ) {
-        m_cnt->m_tcp_udp_pkt_length_error++; 
+        m_cnt->m_tcp_udp_pkt_length_error++;
         return (1);
     }
     return (0);
@@ -1245,7 +1245,7 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
     }
     // check the IP Length
     if( (uint32_t)(l3.m_ipv4->getTotalLength()+offset) > (uint32_t)( m_packet->getTotalLen())   ){
-        m_cnt->m_ip_length_error++; 
+        m_cnt->m_ip_length_error++;
         return;
     }
 
@@ -1253,26 +1253,26 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
     uint16_t ip_header_length = l3.m_ipv4->getHeaderLength();
 
     if ( ip_header_length >(5*4) ){
-        m_cnt->m_ip_header_options++; 
+        m_cnt->m_ip_header_options++;
     }
 
     if ( (uint32_t)(ip_header_length + offset) > (uint32_t)m_packet->getTotalLen() ) {
-        m_cnt->m_ip_length_error++; 
+        m_cnt->m_ip_length_error++;
         return;
     }
     offset += ip_header_length;
 
 
     if( l3.m_ipv4->getTimeToLive() ==0 ){
-        m_cnt->m_ip_ttl_is_zero_error++; 
+        m_cnt->m_ip_ttl_is_zero_error++;
         return;
     }
 
     if( l3.m_ipv4->isNotFirstFragment() ) {
-        m_cnt->m_ip_not_first_fragment_error++; 
+        m_cnt->m_ip_not_first_fragment_error++;
         return;
     }
-    
+
     protocol = l3.m_ipv4->getProtocol();
     if (ProcessIpPacketProtocol(m_cnt,protocol,&offset) != 0) {
         return;
@@ -1280,12 +1280,12 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
 
     uint16_t payload_offset_from_ip = offset-ip_offset;
     if ( payload_offset_from_ip >  l3.m_ipv4->getTotalLength() ) {
-        m_cnt->m_tcp_udp_pkt_length_error++; 
+        m_cnt->m_tcp_udp_pkt_length_error++;
         return;
     }
 
     if ( m_packet->pkt_len > MAX_PKT_SIZE ){
-        m_cnt->m_tcp_udp_pkt_length_error++; 
+        m_cnt->m_tcp_udp_pkt_length_error++;
         printf("ERROR packet is too big, not supported jumbo packets that larger than %d \n",MAX_PKT_SIZE);
         return;
     }
@@ -1294,7 +1294,7 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
     m_packet->pkt_len = l3.m_ipv4->getTotalLength() + getIpOffset();
     if (m_packet->pkt_len < 60) { m_packet->pkt_len = 60; }
 
-    m_cnt->m_valid_udp_tcp++; 
+    m_cnt->m_valid_udp_tcp++;
     m_payload_len = l3.m_ipv4->getTotalLength() - (payload_offset_from_ip);
     m_payload     = (uint8_t *)(packetBase +offset);
     UpdatePacketPadding();
@@ -1313,7 +1313,7 @@ void CPacketIndication::ProcessIpv6Packet(CPacketParser *parser,
     uint16_t idx;
     uint8_t protocol;
     BP_ASSERT(l3.m_ipv6);
-   
+
     parser->m_counter.m_pkt++;
 
     if ( l3.m_ipv6->getVersion() == 6 ){
@@ -1326,7 +1326,7 @@ void CPacketIndication::ProcessIpv6Packet(CPacketParser *parser,
      // Check length
     if ((uint32_t)(l3.m_ipv6->getPayloadLen()+offset+l3.m_ipv6->getHeaderLength()) >
         (uint32_t)( m_packet->getTotalLen())   ){
-        m_cnt->m_ipv6_length_error++; 
+        m_cnt->m_ipv6_length_error++;
         return;
     }
 
@@ -1348,7 +1348,7 @@ void CPacketIndication::ProcessIpv6Packet(CPacketParser *parser,
     m_packet->pkt_len = real_pkt_size;
     if (m_packet->pkt_len < 60) { m_packet->pkt_len = 60; }
 
-    m_cnt->m_valid_udp_tcp++; 
+    m_cnt->m_valid_udp_tcp++;
     m_payload_len = l3.m_ipv6->getPayloadLen();
     m_payload     = (uint8_t *)(packetBase +offset);
 
@@ -1382,12 +1382,12 @@ bool CPacketIndication::ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
     uint8_t l4_proto = ipv4->getProtocol();
     ipv6->setNextHdr(l4_proto);
     ipv6->setHopLimit(64);
-    
+
     // Update the least signficant 32-bits of ipv6 address
     //   using the ipv4 address
     ipv6->updateLSBIpv6Src(ipv4->getSourceIp());
     ipv6->updateLSBIpv6Dst(ipv4->getDestIp());
-    
+
     // Copy rest of packet
     uint16_t ipv4_offset = offset + ipv4->getHeaderLength();
     uint16_t ipv6_offset = offset + ipv6_hdrlen;
@@ -1479,10 +1479,10 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
         m_cnt->m_non_ip++;
         return; /* Non IP */
     }
-    
+
     if (is_ipv6() == false) {
         if( (14+20) > (uint32_t)( m_packet->getTotalLen())   ){
-            m_cnt->m_ip_length_error++; 
+            m_cnt->m_ip_length_error++;
             return;
         }
     }
@@ -1493,7 +1493,7 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
         fprintf(stderr,"ERROR  --ipv6 must be set to process ipv6 packets\n");
         exit(-1);
     }
-    
+
     // Convert to Ipv6 if requested and not already Ipv6
     if ((CGlobalInfo::is_ipv6_enable()) && (is_ipv6() == false )) {
         if (ConvertPacketToIpv6InPlace(pkt, offset) == false){
@@ -1577,7 +1577,7 @@ void CFlowTableMap::Delete(){
 }
 
 void CFlowTableMap::remove(const CFlowKey & key ) {
-    CFlow *lp=lookup(key); 
+    CFlow *lp=lookup(key);
     if ( lp ) {
         delete lp;
         m_stats.m_remove++;
@@ -1606,7 +1606,7 @@ CFlow * CFlowTableMap::add(const CFlowKey & key ) {
 }
 
 void CFlowTableMap::remove_all(){
-    if ( m_map.empty() ) 
+    if ( m_map.empty() )
         return;
     flow_map_iter_t it;
     for (it= m_map.begin(); it != m_map.end(); ++it) {
@@ -1620,7 +1620,7 @@ uint64_t CFlowTableMap::count(){
     return ( m_map.size());
 }
 
-    
+
 /*
  * This function will insert an IP option header containing metadata for the
  * rx-check feature.
@@ -1656,7 +1656,7 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
     uint16_t move_len = m->data_len - mp1_offset;
     uint16_t new_mbuf_size = move_len + opt_len;
     uint16_t mp2_offset = opt_len;
-    
+
     /* obtain a new mbuf */
     rte_mbuf_t * new_mbuf = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), new_mbuf_size);
     assert(new_mbuf);
@@ -1664,14 +1664,14 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
     char * move_to = mp2 + mp2_offset;
 
     /* move part of packet from first mbuf to new mbuf */
-    memmove(move_to, move_from, move_len); 
+    memmove(move_to, move_from, move_len);
 
     /* trim first mbuf and set pointer to option header*/
     CRx_check_header *rxhdr;
     uint16_t buf_adjust = move_len;
     rxhdr = (CRx_check_header *)mp2;
     m->data_len -= buf_adjust;
-        
+
     /* insert rx-check data as an IPv4 option header or IPv6 extension header*/
     CFlowPktInfo *  lp=node->m_pkt_info;
     CPacketDescriptor   * desc=&lp->m_pkt_indication.m_desc;
@@ -1683,7 +1683,7 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         uint8_t save_header= ipv6->getNextHdr();
         ipv6->setNextHdr(RX_CHECK_V6_OPT_TYPE);
         ipv6->setHopLimit(TTL_RESERVE_DUPLICATE);
-        ipv6->setPayloadLen( ipv6->getPayloadLen() + 
+        ipv6->setPayloadLen( ipv6->getPayloadLen() +
                                   sizeof(CRx_check_header));
         rxhdr->m_option_type = save_header;
         rxhdr->m_option_len = RX_CHECK_V6_OPT_LEN;
@@ -1705,7 +1705,7 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         rxhdr->m_time_stamp = os_get_hr_tick_32();
     }
     rxhdr->m_magic      = RX_CHECK_MAGIC;
-    rxhdr->m_flow_id     = node->m_flow_id | ( ( (uint64_t)(desc->getFlowId() & 0xf))<<52 ) ; // include thread_id, node->flow_id, sub_flow in case of multi-flow template 
+    rxhdr->m_flow_id     = node->m_flow_id | ( ( (uint64_t)(desc->getFlowId() & 0xf))<<52 ) ; // include thread_id, node->flow_id, sub_flow in case of multi-flow template
     rxhdr->m_flags       =  0;
     rxhdr->m_aging_sec   =  desc->GetMaxFlowTimeout();
     rxhdr->m_template_id    = (uint8_t)desc->getId();
@@ -1714,7 +1714,7 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
     if (single_port) {
         rxhdr->m_pkt_id     = desc->getFlowPktNum();
         rxhdr->m_flow_size  = desc->GetMaxPktsPerFlow();
-        
+
     }else{
         rxhdr->m_pkt_id     = desc->GetDirInfo()->GetPktNum();
         rxhdr->m_flow_size  = desc->GetDirInfo()->GetMaxPkts();
@@ -1727,7 +1727,7 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
     if (likely ( ! m_pkt_indication.is_ipv6()) ) {
         ipv4->updateCheckSum2((uint8_t *)ipv4, current_opt_len, (uint8_t *)rxhdr, opt_len);
     }
-    
+
     /* link new mbuf */
     new_mbuf->next = m->next;
     new_mbuf->nb_segs++;
@@ -1754,7 +1754,7 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
     uint16_t bytes_to_move= m_packet->pkt_len - ip_offset_to_move -bytes;
 
     /* move the start of ipv4 options */
-    memmove(p+bytes ,p, bytes_to_move); 
+    memmove(p+bytes ,p, bytes_to_move);
 
     /* fix all other stuff */
     if ( m_pkt_indication.m_udp_tcp_offset ){
@@ -1813,7 +1813,7 @@ char * CFlowPktInfo::push_ipv6_option_offline(uint8_t bytes){
     uint16_t bytes_to_move= m_packet->pkt_len - ip_offset_to_move -bytes;
 
     /* move the start of ipv4 options */
-    memmove(p+bytes ,p, bytes_to_move); 
+    memmove(p+bytes ,p, bytes_to_move);
 
     /* fix all other stuff */
     if ( m_pkt_indication.m_udp_tcp_offset ){
@@ -1912,7 +1912,7 @@ void CCapFileFlowInfo::save_to_erf(std::string cap_file_name,int pcap){
         file_type=LIBPCAP;
     }
 
-    
+
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(file_type,(char *)cap_file_name.c_str());
     if (lpWriter == NULL) {
         fprintf(stderr,"ERROR can't create cap file %s ",(char *)cap_file_name.c_str());
@@ -1953,7 +1953,7 @@ public:
     dsec_t    m_max_aging_sec;
     dsec_t    m_last_pkt;
 
-    CTmpFlowPerDirInfo  m_per_dir[CS_NUM]; 
+    CTmpFlowPerDirInfo  m_per_dir[CS_NUM];
 };
 
 typedef CTmpFlowInfo * flow_tmp_t;
@@ -2000,9 +2000,9 @@ bool CCapFileFlowInfo::is_valid_template_load_time(std::string & err){
 
 
 /**
- * update global info 
- * 1. maximum aging 
- * 2. per sub-flow pkt_num/max-pkt per dir and per global 
+ * update global info
+ * 1. maximum aging
+ * 2. per sub-flow pkt_num/max-pkt per dir and per global
  */
 void CCapFileFlowInfo::update_info(){
     flow_tmp_map_iter_t iter;
@@ -2011,16 +2011,16 @@ void CCapFileFlowInfo::update_info(){
     int i;
     dsec_t ctime=0.0;
 
-    // first iteration, lern all the info into a temp flow table 
+    // first iteration, lern all the info into a temp flow table
     for (i=0; i<Size(); i++) {
         CFlowPktInfo * lp= GetPacket((uint32_t)i);
         // extract flow_id
         CPacketDescriptor * desc=&lp->m_pkt_indication.m_desc;
         uint16_t flow_id = desc->getFlowId();
         CPacketDescriptorPerDir * lpCurPacket = desc->GetDirInfo();
-        pkt_dir_t dir=desc->IsInitSide()?CLIENT_SIDE:SERVER_SIDE; // with respect to the first sub-flow in the template 
+        pkt_dir_t dir=desc->IsInitSide()?CLIENT_SIDE:SERVER_SIDE; // with respect to the first sub-flow in the template
 
-        //update lpFlow 
+        //update lpFlow
         iter = ft.find(flow_id);
         if (iter != ft.end() ) {
             lpFlow=(*iter).second;
@@ -2032,7 +2032,7 @@ void CCapFileFlowInfo::update_info(){
 
         }
 
-        // main info 
+        // main info
         lpCurPacket->SetPktNum(lpFlow->m_per_dir[dir].m_pkt_id);
         lpFlow->m_max_pkts++;
         lpFlow->m_per_dir[dir].m_pkt_id++;
@@ -2042,7 +2042,7 @@ void CCapFileFlowInfo::update_info(){
         if (delta > lpFlow->m_max_aging_sec) {
             lpFlow->m_max_aging_sec = delta;
         }
-        // per direction info 
+        // per direction info
 
         if (i<Size()) {
              ctime += lp->m_pkt_indication.m_cap_ipg;
@@ -2056,13 +2056,13 @@ void CCapFileFlowInfo::update_info(){
         CPacketDescriptor * desc=&lp->m_pkt_indication.m_desc;
         uint16_t flow_id = desc->getFlowId();
         CPacketDescriptorPerDir * lpCurPacket = desc->GetDirInfo();
-        pkt_dir_t dir=desc->IsInitSide()?CLIENT_SIDE:SERVER_SIDE; // with respect to the first sub-flow in the template 
+        pkt_dir_t dir=desc->IsInitSide()?CLIENT_SIDE:SERVER_SIDE; // with respect to the first sub-flow in the template
 
         iter = ft.find(flow_id);
         assert( iter != ft.end() );
         lpFlow=(*iter).second;
 
-        if ( (lpFlow->m_per_dir[0].m_pkt_id >0) && 
+        if ( (lpFlow->m_per_dir[0].m_pkt_id >0) &&
              (lpFlow->m_per_dir[1].m_pkt_id >0) ) {
             /* we have both dir */
             lp->m_pkt_indication.m_desc.SetBiPluginEnable(true);
@@ -2085,7 +2085,7 @@ void CCapFileFlowInfo::update_info(){
         }
     }
 
-    if ( ft.empty() ) 
+    if ( ft.empty() )
         return;
 
     flow_tmp_map_iter_t it;
@@ -2164,7 +2164,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
                 /* check that we don't have reserve TTL for duplication  */
                 uint8_t ttl = pkt_indication.getTTL();
-                if ( (ttl == TTL_RESERVE_DUPLICATE) || 
+                if ( (ttl == TTL_RESERVE_DUPLICATE) ||
                      (ttl == (TTL_RESERVE_DUPLICATE-1)) ) {
                         pkt_indication.setTTL(TTL_RESERVE_DUPLICATE-4);
                 }
@@ -2227,7 +2227,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                     if ( multi_flow_enable ==false ){
 
                         if (lpflow == first_flow) {
-                            // add to 
+                            // add to
                             bool init_side=
                                 ((lpflow->is_fif_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
                             pkt_indication.m_desc.SetInitSide( init_side  );
@@ -2283,7 +2283,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
 
 
-        if ( lp->m_pkt_indication.m_desc.IsInitSide() != 
+        if ( lp->m_pkt_indication.m_desc.IsInitSide() !=
              lp_prev->m_pkt_indication.m_desc.IsInitSide()) {
             lp_prev->m_pkt_indication.m_desc.SetRtt(true);
         }
@@ -2439,7 +2439,7 @@ void CCapFileFlowInfo::RemoveAll(){
         lp->Delete();
         delete lp;
     }
-    // free all the pointers 
+    // free all the pointers
     m_flow_pkts.clear();
 }
 
@@ -2482,14 +2482,14 @@ void operator >> (const YAML::Node& node, CFlowYamlDpPkt & fi) {
 }
 
 void operator >> (const YAML::Node& node, CVlanYamlInfo & fi) {
-    
+
     uint32_t tmp;
     if ( node.FindValue("enable") ){
         node["enable"] >> tmp ;
         fi.m_enable=tmp;
         node["vlan0"] >>  tmp;
         fi.m_vlan_per_port[0] = tmp;
-        node["vlan1"] >>  tmp; 
+        node["vlan1"] >>  tmp;
         fi.m_vlan_per_port[1] = tmp;
     }
 }
@@ -2502,14 +2502,14 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
    if ( node.FindValue("client_pool") ){
        node["client_pool"] >> fi.m_client_pool_name;
    }else{
-       fi.m_client_pool_name = "default"; 
+       fi.m_client_pool_name = "default";
    }
    if ( node.FindValue("server_pool") ){
        node["server_pool"] >> fi.m_server_pool_name;
    }else{
-       fi.m_server_pool_name = "default"; 
+       fi.m_server_pool_name = "default";
    }
- 
+
    node["cps"] >>  fi.m_k_cps;
    fi.m_k_cps = fi.m_k_cps/1000.0;
    double t;
@@ -2553,7 +2553,7 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
 
    fi.m_one_app_server_was_set = false;
    fi.m_one_app_server = false;
-   if ( utl_yaml_read_ip_addr(node, 
+   if ( utl_yaml_read_ip_addr(node,
                          "server_addr",
                          fi.m_server_addr) ){
        try {
@@ -2606,7 +2606,7 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
    }else{
        flows_info.m_tuple_gen_was_set =false;
    }
-   
+
    // m_ipv6_set will be true if and only if both src_ipv6
    // and dst_ipv6 are provided.  These are used to set
    // the most significant 96-bits of the IPv6 address; the
@@ -2630,7 +2630,7 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
                const YAML::Node & node =src_ipv6_info;
                node[i]  >> fi;
                flows_info.m_src_ipv6.push_back(fi);
-           }  
+           }
        }
    }else{
        flows_info.m_ipv6_set=false;
@@ -2645,7 +2645,7 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
                const YAML::Node & node =dst_ipv6_info;
                node[i]  >> fi;
                flows_info.m_dst_ipv6.push_back(fi);
-           }  
+           }
        }
    }else{
        flows_info.m_ipv6_set=false;
@@ -2710,15 +2710,15 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
        const YAML::Node & node =mac_info;
        node[i]  >> fi;
        flows_info.m_mac_base.push_back(fi);
-   } 
+   }
 
    const YAML::Node& cap_info = node["cap_info"];
    for(unsigned i=0;i<cap_info.size();i++) {
        CFlowYamlInfo fi;
        cap_info[i] >> fi;
-       fi.m_client_pool_idx = 
+       fi.m_client_pool_idx =
            flows_info.m_tuple_gen.get_client_pool_id(fi.m_client_pool_name);
-       fi.m_server_pool_idx = 
+       fi.m_server_pool_idx =
            flows_info.m_tuple_gen.get_server_pool_id(fi.m_server_pool_name);
        flows_info.m_vec.push_back(fi);
    }
@@ -2795,19 +2795,19 @@ void CFlowsYamlInfo::Dump(FILE *fd){
 
 
 /*
- 
-example for YAML file 
- 
+
+example for YAML file
+
 - duration : 10.0
-  cap_info : 
+  cap_info :
      - name: hey1.pcap
        cps : 12.0
        ipg : 0.0001
      - name: hey2.pcap
        cps : 11.0
        ipg : 0.0001
- 
- 
+
+
 */
 
 bool CFlowsYamlInfo::verify_correctness(uint32_t num_threads) {
@@ -2937,7 +2937,7 @@ void CFlowStats::Clear(){
     m_bytes=0.0;
     m_cps=0.0;
     m_mb_sec=0.0;
-    m_mB_sec=0.0; 
+    m_mB_sec=0.0;
     m_c_flows=0.0;
     m_pps =0.0;
     m_total_Mbytes=00 ;
@@ -2986,7 +2986,7 @@ void CFlowStats::Dump(FILE *fd){
             (unsigned long long)m_flows);
 }
 
-bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen, 
+bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen,
                                         CFlowYamlInfo *         info,
                                         CFlowsYamlInfo *        yaml_flow_info,
                                         CCapFileFlowInfo *      flow_info,
@@ -2996,7 +2996,7 @@ bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen,
     BP_ASSERT(info);
     m_thread_id =thread_id ;
 
-    tuple_gen.Create(global_gen, info->m_client_pool_idx, 
+    tuple_gen.Create(global_gen, info->m_client_pool_idx,
                      info->m_server_pool_idx);
     CTupleGenYamlInfo * lpt;
     lpt = &yaml_flow_info->m_tuple_gen;
@@ -3008,7 +3008,7 @@ bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen,
                               );
 
     tuple_gen.SetW(info->m_w);
-    
+
 
 
     m_id   =_id;
@@ -3055,7 +3055,7 @@ void CFlowGeneratorRecPerThread::getFlowStats(CFlowStats * stats){
     }else{
         c_flow_windows_sec  = t_pkt * m_info->m_ipg_sec;
     }
-   
+
 
     double c_flows  = cps*c_flow_windows_sec*m_flow_info->get_total_flows();
     double pps =cps*t_pkt;
@@ -3137,9 +3137,9 @@ void CFlowGeneratorRec::fixup_ipg_if_needed(void){
         m_flow_info.update_pcap_mode();
     }
 
-    if ( (m_flows_info->m_cap_mode) && 
+    if ( (m_flows_info->m_cap_mode) &&
          (m_flows_info->m_cap_ipg_min_set) &&
-         (m_flows_info->m_cap_overide_ipg_set) 
+         (m_flows_info->m_cap_overide_ipg_set)
          ){
         m_flow_info.update_min_ipg(m_flows_info->m_cap_ipg_min,
                                    m_flows_info->m_cap_overide_ipg);
@@ -3171,7 +3171,7 @@ bool CFlowGeneratorRec::Create(CFlowYamlInfo * info,
             printf("\n ERROR template file is not valid  '%s' \n",err.c_str());
             return (false);
         }
-        m_flow_info.update_info(); 
+        m_flow_info.update_info();
         return (true);
     }else{
         return (false);
@@ -3255,7 +3255,7 @@ void CNodeGenerator::remove_all(CFlowGenListPerThread * thread){
     }
 }
 
-int CNodeGenerator::open_file(std::string file_name, 
+int CNodeGenerator::open_file(std::string file_name,
                               CPreviewMode * preview_mode){
     BP_ASSERT(m_v_if);
     m_preview_mode =*preview_mode;
@@ -3332,7 +3332,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     //printf(" create thread %d %s socket: %d \n",m_core_id,name,socket_id);
 
     m_node_pool = utl_rte_mempool_create_non_pkt(name,
-                                                 CGlobalInfo::m_memory_cfg.get_each_core_dp_flows(), 
+                                                 CGlobalInfo::m_memory_cfg.get_each_core_dp_flows(),
                                                  sizeof(CGenNode),
                                                  128,
                                                  0 ,
@@ -3376,7 +3376,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                         get_total_kcps(i,false)*1000,
                         tuple_gen->m_server_pool[i].m_is_bundling);
     }
- 
+
 
     init_from_global(portion);
 
@@ -3466,7 +3466,7 @@ void CFlowGenListPerThread::defer_client_port_free(CGenNode *p){
 void CFlowGenListPerThread::init_from_global(CIpPortion& portion){
     /* copy generator , it is the same */
     m_yaml_info =m_flow_list->m_yaml_info;
-    
+
     /* copy first the flow info */
     int i;
     for (i=0; i<(int)m_flow_list->m_cap_gen.size(); i++) {
@@ -3529,12 +3529,12 @@ static void free_map_flow_id_to_node(CGenNode *p){
 
 void CFlowGenListPerThread::Delete(){
 
-    // free all current maps 
+    // free all current maps
     m_flow_id_to_node_lookup.remove_all(free_map_flow_id_to_node);
     // free object
     m_flow_id_to_node_lookup.Delete();
 
-    m_smart_gen.Delete(); 
+    m_smart_gen.Delete();
     m_node_gen.Delete();
     Clean();
     m_cpu_cp_u.Delete();
@@ -3568,7 +3568,6 @@ void CNodeGenerator::dump_json(std::string & json){
     m_realtime_his.dump_json("realtime-hist",json);
     json+="\"unknown\":0}}" ;
 }
-
 
 void CNodeGenerator::add_exit_node(CFlowGenListPerThread * thread,
                                   dsec_t max_time){
@@ -3988,9 +3987,6 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
 
 }
 
-
-
-
 void CFlowGenListPerThread::Dump(FILE *fd){
     fprintf(fd,"yaml info ");
     m_yaml_info.Dump(fd);
@@ -4003,6 +3999,8 @@ void CFlowGenListPerThread::Dump(FILE *fd){
         lp->Dump(stdout);
     }
 }
+
+
 
 
 void CFlowGenListPerThread::DumpStats(FILE *fd){
@@ -4038,10 +4036,10 @@ double CFlowGenListPerThread::get_longest_flow(uint8_t pool_idx, bool is_client)
     double longest_flow = 0.0;
     for (i=0;i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRecPerThread * lp=m_cap_gen[i];
-        if (is_client && 
+        if (is_client &&
             lp->m_info->m_client_pool_idx != pool_idx)
             continue;
-        if (!is_client && 
+        if (!is_client &&
             lp->m_info->m_server_pool_idx != pool_idx)
             continue;
         double tmp_len;
@@ -4073,10 +4071,10 @@ double CFlowGenListPerThread::get_total_kcps(uint8_t pool_idx, bool is_client){
     double total=0.0;
     for (i=0; i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRecPerThread * lp=m_cap_gen[i];
-        if (is_client && 
+        if (is_client &&
             lp->m_info->m_client_pool_idx != pool_idx)
             continue;
-        if (!is_client && 
+        if (!is_client &&
             lp->m_info->m_server_pool_idx != pool_idx)
             continue;
         total +=lp->m_info->m_k_cps;
@@ -4109,10 +4107,10 @@ void CFlowGenListPerThread::inc_current_template(void){
 
 int CFlowGenListPerThread::generate_flows_roundrobin(bool *done){
     // round robin
-    
+
     CFlowGeneratorRecPerThread * cur;
     bool found=false;
-    // try current 
+    // try current
     int i;
     *done = true;
     for (i=0;i<(int)m_cap_gen.size();i++ ) {
@@ -4163,7 +4161,7 @@ void CFlowGenListPerThread::terminate_nat_flows(CGenNode *p){
     m_stats.m_nat_flow_timeout++;
     m_stats.m_nat_lookup_remove_flow_id++;
     m_flow_id_to_node_lookup.remove_no_lookup(p->get_short_fid());
-    free_last_flow_node( p); 
+    free_last_flow_node( p);
 }
 
 
@@ -4174,7 +4172,7 @@ void CFlowGenListPerThread::handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg)
     struct rte_mbuf * m;
     m=msg->m_pkt;
     rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
-    #endif 
+    #endif
 
     /* update timestamp */
     struct rte_mbuf * m;
@@ -4323,7 +4321,7 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     dsec_t c_stop_sec = m_cur_time_sec + m_yaml_info.m_duration_sec;
     m_stop_time_sec =c_stop_sec;
     m_cur_flow_id =1;
-    m_cur_template =(m_thread_id % m_cap_gen.size()); 
+    m_cur_template =(m_thread_id % m_cap_gen.size());
     m_stats.clear();
 
     fprintf(stdout," Generating erf file ...  \n");
@@ -4346,7 +4344,7 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         CGenNode::DumpHeader(stdout);
     }
     #endif
-    
+
     m_node_gen.flush_file(c_stop_sec,d_time_flow, false,this,old_offset);
 
 
@@ -4452,7 +4450,7 @@ int CFlowGenList::load_from_yaml(std::string file_name,
         printf(" mac addr is not valid \n");
         exit(0);
     }
-    
+
     if (m_yaml_info.m_ipv6_set == true) {
         // Copy the most significant 96-bits from yaml data
         for (idx=0; idx<6; idx++){
@@ -4546,7 +4544,7 @@ void CFlowGenList::DumpPktSize(){
     int i;
     for (i=0; i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRec * lp=m_cap_gen[i];
-        lp->m_flow_info.dump_pkt_sizes(); 
+        lp->m_flow_info.dump_pkt_sizes();
     }
 }
 
@@ -4688,7 +4686,7 @@ float CPPSMeasure::add(uint64_t pkts){
 CBwMeasure::CBwMeasure() {
     reset();
 }
-    
+
 void CBwMeasure::reset(void) {
    m_start=false;
    m_last_time_msec=0;
@@ -4735,8 +4733,8 @@ double CBwMeasure::add(uint64_t size) {
  */
 bool CParserOption::is_valid_opt_val(int val, int min, int max, const std::string &opt_name) {
     if (val < min || val > max) {
-	std::cerr << "Value " << val << " for option " << opt_name << " is out of range. Should be (" <<  min << "-" << max << ")." << std::endl;
-	return false;
+    std::cerr << "Value " << val << " for option " << opt_name << " is out of range. Should be (" <<  min << "-" << max << ")." << std::endl;
+    return false;
     }
 
     return true;
@@ -4798,7 +4796,7 @@ void CTupleGlobalGenerator::Delete(){
 
 #endif
 
-static uint32_t  get_rand_32(uint32_t MinimumRange , 
+static uint32_t  get_rand_32(uint32_t MinimumRange ,
                       uint32_t MaximumRange );
 
 
@@ -4834,7 +4832,7 @@ void CTupleTemplateGenerator::Dump(FILE  *fd){
 }
 
 
-bool CTupleTemplateGenerator::Create(CTupleGlobalGenerator * global_gen, 
+bool CTupleTemplateGenerator::Create(CTupleGlobalGenerator * global_gen,
                                      uint16_t w,
                                      uint16_t wlength,
                                      uint32_t _id,
@@ -4932,7 +4930,7 @@ static uint32_t get_rand_32(uint32_t MinimumRange,
 
     uint32_t Range;
     if ((Range = MaximumRange - MinimumRange) == 0xffffffff) {
-        return RandomNumber; 
+        return RandomNumber;
     }
     return (uint32_t)(((Range + 1) / TWO_POWER_32_BITS * RandomNumber) + MinimumRange );
 }
@@ -4945,7 +4943,7 @@ int CNullIF::send_node(CGenNode * node){
     rte_mbuf_t * buf=lp->generate_new_mbuf(node);
     //rte_pktmbuf_dump(buf, buf->pkt_len);
     //sending it ??
-    // free it here as if driver does 
+    // free it here as if driver does
     rte_pktmbuf_free(buf);
     #endif
     return (0);
@@ -4975,7 +4973,6 @@ int CErfIFStl::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
     return (0);
 }
 
-
 int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
     pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
 
@@ -4985,16 +4982,32 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
         fill_raw_packet(m,(CGenNode *)node_sl,dir);
     }else{
         m=node_sl->get_cache_mbuf();
+        bool is_const = false;
         if (m) {
-            /* cache packet */
-            fill_raw_packet(m,(CGenNode *)node_sl,dir);
-            /* can't free the m, it is cached*/
+            is_const = true;
         }else{
-
             m=node_sl->alloc_node_with_vm();
             assert(m);
+        }
+
+        if (node_sl->is_stat_needed()) {
+            uint16_t hw_id = node_sl->get_stat_hw_id();
+            if (hw_id >= MAX_FLOW_STATS) {
+                rte_mbuf_t *mi;
+                struct flow_stat_payload_header *fsp_head;
+                mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
+                fsp_head->seq = 0x12345678;
+                fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
+                fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+                fsp_head->time_stamp = 0x8899aabbccddeeff;
+                fill_raw_packet(m,(CGenNode *)node_sl,dir);
+                rte_pktmbuf_free(mi);
+            }
+        } else {
             fill_raw_packet(m,(CGenNode *)node_sl,dir);
-            rte_pktmbuf_free(m);
+            if (! is_const) {
+                rte_pktmbuf_free(m);
+            }
         }
     }
         /* check that we have mbuf  */
@@ -5003,7 +5016,6 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
 
     return (rc);
 }
-
 
 int CErfIFStl::send_pcap_node(CGenNodePCAP *pcap_node) {
     rte_mbuf_t *m = pcap_node->get_pkt();
@@ -5021,6 +5033,11 @@ int CErfIFStl::send_pcap_node(CGenNodePCAP *pcap_node) {
     return (rc);
 }
 
+/*
+ * This is the simulation stateless send_node.
+ * in simulation (bp-sim-64) it is called instead of CCoreEthIFStateless::send_node
+ * Purpose is to test the mbuf manipulation functions which are the same in simulation and "real" code
+ */
 int CErfIFStl::send_node(CGenNode * _no_to_use){
 
     if ( m_preview_mode->getFileWrite() ) {
@@ -5122,7 +5139,7 @@ void CTcpSeq::update(uint8_t *p, CFlowPktInfo *pkt_info, int16_t s_size){
 
 
 void on_node_first(uint8_t plugin_id,CGenNode *     node,
-                   CFlowYamlInfo *  template_info, 
+                   CFlowYamlInfo *  template_info,
                    CTupleTemplateGeneratorSmart * tuple_gen,
                    CFlowGenListPerThread  * flow_gen){
 
@@ -5157,7 +5174,7 @@ public:
 
 void CPluginCallbackSimple::on_node_first(uint8_t plugin_id,
                                           CGenNode *     node,
-                                          CFlowYamlInfo *  template_info, 
+                                          CFlowYamlInfo *  template_info,
                                           CTupleTemplateGeneratorSmart * tuple_gen,
                                           CFlowGenListPerThread  * flow_gen ){
     //printf(" on on_node_first callback  %d  node %x! \n",(int)plugin_id,node);
@@ -5199,7 +5216,7 @@ void CPluginCallbackSimple::on_node_last(uint8_t plugin_id,CGenNode *     node){
                                 node->m_template_info->m_client_pool_idx,node->m_tuple_gen);
         flow_gen->defer_client_port_free(is_tcp,node->m_src_idx,lpP->rtp_client_1,
                                 node->m_template_info->m_client_pool_idx,  node->m_tuple_gen);
- 
+
         assert(lpP);
         delete lpP;
         node->m_plugin_info=0;
@@ -5265,7 +5282,7 @@ rte_mbuf_t * CPluginCallbackSimple::http_plugin(uint8_t plugin_id,
             replace_cmd.m_add_pkt_len = (INET6_ADDRSTRLEN + 2) - 8;
 
             // Mark as IPv6 and set the upper 96-bits
-            replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+            replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
             for (uint8_t idx=0; idx<6; idx++){
                 replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
             }
@@ -5282,7 +5299,7 @@ rte_mbuf_t * CPluginCallbackSimple::http_plugin(uint8_t plugin_id,
 
         eop_cmd.m_cmd = VM_EOP;
 
-        program[0] = &replace_cmd; 
+        program[0] = &replace_cmd;
         program[1] = &eop_cmd;
 
         flow_info.vm_program = program;
@@ -5337,7 +5354,7 @@ rte_mbuf_t * CPluginCallbackSimple::dyn_pyload_plugin(uint8_t plugin_id,
             /* fast filter */
             for (i=0; i<lpt->m_num; i++) {
                 if (lpt->m_pkt_ids[i] == pkt_num ) {
-                     //add a program here 
+                     //add a program here
                     dyn_cmd.m_cmd     = VM_DYN_PYLOAD;
                     dyn_cmd.m_ptr= &lpt->m_program[i];
                     dyn_cmd.m_flags   = 0;
@@ -5345,14 +5362,14 @@ rte_mbuf_t * CPluginCallbackSimple::dyn_pyload_plugin(uint8_t plugin_id,
                     dyn_cmd.m_ip.v4=node->m_src_ip;
 
                     eop_cmd.m_cmd = VM_EOP;
-                    program[0] = &dyn_cmd; 
+                    program[0] = &dyn_cmd;
                     program[1] = &eop_cmd;
 
                     flow_info.vm_program = program;
                 }
             }
         }
-        // only for the first flow 
+        // only for the first flow
      }else{
          fprintf (stderr," only one flow is allowed for dynamic pyload change \n");
          exit(-1);
@@ -5413,7 +5430,7 @@ rte_mbuf_t * CPluginCallbackSimple::sip_voice_plugin(uint8_t plugin_id,CGenNode 
                          ((INET_PORTSTRLEN * 2) - 9);
 
                     // Mark as IPv6 and set the upper 96-bits
-                    via_replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    via_replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         via_replace_cmd.m_ip.v6[idx] = CGlobalInfo::m_options.m_src_ipv6[idx];
                         via_replace_cmd.m_ip_via.v6[idx] = CGlobalInfo::m_options.m_src_ipv6[idx];
@@ -5443,7 +5460,7 @@ rte_mbuf_t * CPluginCallbackSimple::sip_voice_plugin(uint8_t plugin_id,CGenNode 
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &via_replace_cmd; 
+                program[0] = &via_replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5468,7 +5485,7 @@ rte_mbuf_t * CPluginCallbackSimple::sip_voice_plugin(uint8_t plugin_id,CGenNode 
                          ((INET_PORTSTRLEN * 2) - 9);
 
                     // Mark as IPv6 and set the upper 96-bits
-                    via_replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    via_replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         via_replace_cmd.m_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                         via_replace_cmd.m_ip_via.v6[idx] = CGlobalInfo::m_options.m_src_ipv6[idx];
@@ -5499,7 +5516,7 @@ rte_mbuf_t * CPluginCallbackSimple::sip_voice_plugin(uint8_t plugin_id,CGenNode 
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &via_replace_cmd; 
+                program[0] = &via_replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5584,7 +5601,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                     replace_cmd.m_add_pkt_len = (INET6_ADDRSTRLEN + 2) - 9;
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5595,7 +5612,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_cmd; 
+                program[0] = &replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5616,7 +5633,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                     replace_cmd.m_add_pkt_len = (INET6_ADDRSTRLEN + 2) - 9;
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5627,7 +5644,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_cmd; 
+                program[0] = &replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5653,7 +5670,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                          ((INET_PORTSTRLEN * 2) - 8);
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_port_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_port_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_port_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5670,7 +5687,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_port_cmd; 
+                program[0] = &replace_port_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5699,7 +5716,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_port_cmd; 
+                program[0] = &replace_port_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5726,7 +5743,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                          ((INET_PORTSTRLEN * 2) - 8);
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_port_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_port_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_port_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5743,7 +5760,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_port_cmd; 
+                program[0] = &replace_port_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5773,7 +5790,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_port_cmd; 
+                program[0] = &replace_port_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5797,7 +5814,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                     replace_cmd.m_add_pkt_len = (INET6_ADDRSTRLEN + 2) - 9;
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5808,7 +5825,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_cmd; 
+                program[0] = &replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5832,7 +5849,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                     replace_cmd.m_add_pkt_len = (INET6_ADDRSTRLEN + 2) - 9;
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5843,7 +5860,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_cmd; 
+                program[0] = &replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5867,7 +5884,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                     replace_cmd.m_add_pkt_len = (INET6_ADDRSTRLEN + 2) - 9;
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5878,7 +5895,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_cmd; 
+                program[0] = &replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -5901,7 +5918,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
                     replace_cmd.m_add_pkt_len = (INET6_ADDRSTRLEN + 2) - 9;
 
                     // Mark as IPv6 and set the upper 96-bits
-                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;  
+                    replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
                     for (uint8_t idx=0; idx<6; idx++){
                         replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                     }
@@ -5912,7 +5929,7 @@ rte_mbuf_t * CPluginCallbackSimple::rtsp_plugin(uint8_t plugin_id,CGenNode *    
 
                 eop_cmd.m_cmd = VM_EOP;
 
-                program[0] = &replace_cmd; 
+                program[0] = &replace_cmd;
                 program[1] = &eop_cmd;
 
                 flow_info.vm_program = program;
@@ -6049,9 +6066,9 @@ inline int cp_pkt_len(char *to,char *from,uint16_t from_offset,uint16_t len){
     return (len);
 }
 
-/* not including the to_offset 
+/* not including the to_offset
 
- 0 1 
+ 0 1
  x
 
 */
@@ -6071,7 +6088,7 @@ int CMiniVM::mini_vm_dyn_payload( CMiniVMDynPyload * cmd){
     /* copy payload */
     memcpy(p,original_l7_ptr,len);
     if ( ( dyn->m_pyld_offset+ (dyn->m_len*4)) < ( len-4) ){
-        // we can change the packet 
+        // we can change the packet
         int i;
         uint32_t *l=(uint32_t *)(p+dyn->m_pyld_offset);
         for (i=0; i<dyn->m_len; i++) {
@@ -6337,7 +6354,7 @@ bool CSimplePacketParser::Parse(){
     m_option_offset=0;
 
     uint8_t protocol = 0;
-    
+
     // Retrieve the protocol type from the packet
     switch( m_ether->getNextProtocol() ) {
     case EthernetHeader::Protocol::IP :
@@ -6388,10 +6405,10 @@ bool CSimplePacketParser::Parse(){
 }
 
 
-/* free the right object. 
-   it is classic to use virtual function but we can't do it here and we don't even want to use callback function 
-   as we want to save space and in most cases there is nothing to free. 
-   this might be changed in the future  
+/* free the right object.
+   it is classic to use virtual function but we can't do it here and we don't even want to use callback function
+   as we want to save space and in most cases there is nothing to free.
+   this might be changed in the future
  */
 void CGenNodeBase::free_base(){
     if ( m_type == FLOW_PKT ) {
