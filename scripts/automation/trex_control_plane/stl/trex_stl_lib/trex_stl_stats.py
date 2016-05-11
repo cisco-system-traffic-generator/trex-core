@@ -588,8 +588,8 @@ class CGlobalStats(CTRexStats):
         self._ports_dict     = ports_dict_ref
         self.events_handler  = events_handler
 
-        self.watched_cpu_util    = WatchedField('CPU util.', '%', 85, 60, events_handler)
-        self.watched_rx_cpu_util = WatchedField('RX core util.', '%', 85, 60, events_handler)
+        self.watched_cpu_util    = WatchedField('CPU util.', '%', 95, 90, events_handler)
+        self.watched_rx_cpu_util = WatchedField('RX core util.', '%', 95, 90, events_handler)
 
     def get_stats (self):
         stats = {}
