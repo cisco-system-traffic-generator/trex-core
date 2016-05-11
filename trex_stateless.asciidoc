@@ -1765,6 +1765,61 @@ The following example demonstrates varies the packet size randomly, as follows:
 <4> Fixes udp.len to reflect the packet size.
 
 
+==== Tutorial: Field Engine, Significantly improve performance 
+
+The following example demonstrates a way to significantly improve Field Engine performance in case it is needed. 
+
+Field Engine has a cost of CPU instructions and CPU memory bandwidth. There is a way to significantly improve performance by caching the packets and run the Field Engine offline(before sending the packets). 
+The limitation is that you can have only a limited number of packets that can be cached (order or 10K depends how much memory you have).
+For example a program that change the src_ip to a random value can't be utilized this technique and still have random src_ip.  
+Usually this is done with small packets (64bytes) where performance is an issue. This method can improve long packets senario with a complex Field Engine program.
+
+*File*:: link:{github_stl_path}/udp_1pkt_src_ip_split.py[stl/udp_1pkt_src_ip_split.py]
+
+[source,python]
+----
+
+    def create_stream (self):
+        # create a base packet and pad it to size
+        size = self.fsize - 4; # no FCS
+
+        base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+        pad = max(0, size - len(base_pkt)) * 'x'
+                             
+        vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  
+                                            min_value="10.0.0.1",
+                                            max_value="10.0.0.255", 
+                                            size=4, step=1,op="inc"),
+                                            
+                             STLVmWrFlowVar (fv_name="ip_src", 
+                                             pkt_offset= "IP.src" ), 
+                                             
+                             STLVmFixIpv4(offset = "IP")                               
+                         ],
+                         split_by_field = "ip_src",  
+                         cache_size =255 # the cache size             <1>
+                        );
+
+        pkt = STLPktBuilder(pkt = base_pkt/pad,
+                            vm = vm)
+                            
+        stream = STLStream(packet = pkt,
+                         mode = STLTXCont())
+        return stream
+        
+----
+<1> Cache 255 packets. The range is the same as `ip_src` stream variable 
+
+This FE program will run *x2-5 faster* compared to native (without cache). 
+In this specific example the output will be *exactly* the same.
+
+Again the limitation of this method:
+
+1. The total number of cache packets for all the streams all the ports in limited by the memory pool (range of ~10-40K)
+2. There could be cases that the cache options won't be exactly the same as the normal program, for example, in case of a program that step in prime numbers or with a random variable
+
+
 ==== Tutorial: New Scapy header  
 
 The following example uses a header that is not supported by Scapy by default. The example demonstrates VXLAN support.
