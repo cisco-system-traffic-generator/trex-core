@@ -24,18 +24,25 @@ limitations under the License.
 #include <stdint.h>
 #include <time.h>
 
-typedef uint64_t   hr_time_t; // time in high res tick 
-typedef uint32_t   hr_time_32_t; // time in high res tick 
-typedef double     dsec_t;    //time in sec double
 
 uint32_t 	 os_get_time_msec();
 uint32_t 	 os_get_time_freq();
 
-static inline double
-usec_to_sec(double usec) {
+static inline double usec_to_sec(double usec) {
     return (usec / (1000 * 1000));
 }
 
+
+typedef uint64_t   hr_time_t; // time in high res tick 
+typedef uint32_t   hr_time_32_t; // time in high res tick 
+typedef double     dsec_t;    //time in sec double
+
+struct COsTimeGlobalData {
+
+    hr_time_t  m_start_time;
+    double     m_1_div_freq;
+    double     m_freq;
+} __attribute__((__aligned__(128)));
 
 
 #ifdef LINUX
@@ -111,26 +118,30 @@ hr_time_t    os_get_hr_freq(void);
 #endif
 
 
+
+extern  COsTimeGlobalData  timer_gd;
+
+static inline void time_init(){
+	timer_gd.m_start_time = os_get_hr_tick_64();
+    timer_gd.m_freq       = (double)os_get_hr_freq();
+    timer_gd.m_1_div_freq = 1.0/(double)os_get_hr_freq();
+}
+
+
 /* convert delta time */
 static inline hr_time_t ptime_convert_dsec_hr(dsec_t dsec){
-    return((hr_time_t)(dsec*(double)os_get_hr_freq()) );
+    return((hr_time_t)(dsec* timer_gd.m_freq) );
 }
 
 /* convert delta time */
 static inline dsec_t  ptime_convert_hr_dsec(hr_time_t hrt){
-    return ((dsec_t)((double)hrt/(double)os_get_hr_freq() ));
+    return ((dsec_t)((double)hrt * timer_gd.m_1_div_freq ));
 }
 
-
-extern  hr_time_t start_time;
-
-static inline void time_init(){
-	start_time=os_get_hr_tick_64();
-}
 
 /* should be fixed , need to move to high rez tick */
 static inline dsec_t now_sec(void){
-    hr_time_t d=os_get_hr_tick_64() - start_time;
+    hr_time_t d=os_get_hr_tick_64() - timer_gd.m_start_time;
 	return ( ptime_convert_hr_dsec(d) );
 }
 

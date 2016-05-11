@@ -22,69 +22,9 @@ limitations under the License.
 
 #include "os_time.h"
 #include <stdio.h>
-hr_time_t start_time;
 
-#ifdef WIN32
+COsTimeGlobalData  timer_gd;
 
-#include <windows.h>
-uint32_t os_get_time_msec(){
-    return (GetTickCount());
-}
-uint32_t os_get_time_freq(){
-    return (1000);
-}
-
-
-typedef union {
-		struct {
-		uint32_t low;
-		uint32_t high;
-		} h;
-		hr_time_t x;
-} timer_hl_t;
-
-//hr_time_t os_get_hr_freq(void);
-
-hr_time_t    os_get_hr_freq(void){
-	return (3000000000);
-}
-
-
-hr_time_t os_get_hr_tick_64(void) {
-	uint32_t _low,_high;
-	__asm {
-        mov ecx,0       ;select Counter0        
-        
-        _emit 0x0F      ;RDPMC - get beginning value of Counter0 to edx:eax
-        _emit 0x31
-        
-        mov _high,edx       ;save beginning value
-        mov _low,eax
-	}
-	
-    timer_hl_t x;
-
-    x.h.low  = _low;
-    x.h.high = _high;
-    
-	return x.x;
-}
-
-uint32_t os_get_hr_tick_32(void) {
-	uint32_t _low,_high;
-	__asm {
-        mov ecx,0       ;select Counter0        
-        
-        _emit 0x0F      ;RDPMC - get beginning value of Counter0 to edx:eax
-        _emit 0x31
-        
-        mov _high,edx       ;save beginning value
-        mov _low,eax
-	}
-	return _low;
-}
-
-#else
 
 
 #include <time.h>
@@ -120,6 +60,6 @@ uint32_t os_get_time_freq(){
 
 
 
-#endif 
+
 
 
