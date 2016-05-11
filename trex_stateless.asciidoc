@@ -43,7 +43,7 @@ For information, see the link:trex_manual.html[manual], especially the material 
 === High level functionality
 // maybe Feature overview
 
-* Large scale - Supports a line rate of 14 million packets per second (mpps) per core, scalable with the number of cores 
+* Large scale - Supports about 10-22 million packets per second (mpps) per core, scalable with the number of cores 
 * Support for 1, 10, 25, 40, and 100 Gb/sec interfaces
 * Support for multiple traffic profiles per interface
 * Profile can support multiple streams, scalable to 10K parallel streams 
@@ -96,7 +96,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 [cols="1^,3^,3^,5^", options="header"]
 |=================
 | Feature       |  IXExplorer  |TRex | Description 
-| Line rate       | Yes |Almost ~14MPPS/core|
+| Line rate       | Yes | 10-24MPPS/core, depends on the use case |
 | Multi stream    | 255 | [green]*Unlimited* |
 | Packet build flexibility | Limited | [green]*Scapy - Unlimited* | Example: GRE/VXLAN/NSH is supported. Can be extended to future protocols
 | Packet Field engine      | limited | [green]*Unlimited* |
