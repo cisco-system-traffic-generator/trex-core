@@ -147,8 +147,8 @@ class CTRexGeneral_Test(unittest.TestCase):
             if not self.is_virt_nics:
                 if cpu_util > maximal_cpu:
                     self.fail("CPU is too high (%s%%), probably queue full." % cpu_util )
-                if cpu_util < minimal_cpu:
-                    self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
+                #if cpu_util < minimal_cpu:
+                #    self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
             test_norm_cpu  = sum(trex_res.get_value_list("trex-global.data.m_bw_per_core")[-4:-1]) / 3.0
 
