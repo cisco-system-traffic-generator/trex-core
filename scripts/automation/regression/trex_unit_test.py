@@ -46,6 +46,7 @@ from pprint import pprint
 import subprocess
 import re
 import time
+from distutils.dir_util import mkpath
 
 def check_trex_path(trex_path):
     if os.path.isfile('%s/trex_daemon_server' % trex_path):
@@ -64,35 +65,6 @@ def get_trex_path():
         raise Exception('Could not determine trex_under_test folder, try setting env.var. TREX_UNDER_TEST')
     return latest_build_path
 
-STATEFUL_STOP_COMMAND = './trex_daemon_server stop; sleep 1; ./trex_daemon_server stop; sleep 1'
-STATEFUL_RUN_COMMAND = 'rm /var/log/trex/trex_daemon_server.log; ./trex_daemon_server start; sleep 2; ./trex_daemon_server show'
-TREX_FILES = ('_t-rex-64', '_t-rex-64-o', '_t-rex-64-debug', '_t-rex-64-debug-o')
-
-def trex_remote_command(trex_data, command, background = False, from_scripts = True, timeout = 20):
-    if from_scripts:
-        return misc_methods.run_remote_command(trex_data['trex_name'], ('cd %s; ' % CTRexScenario.scripts_path)+ command, background, timeout)
-    return misc_methods.run_remote_command(trex_data['trex_name'], command, background, timeout)
-
-# 1 = running, 0 - not running
-def check_trex_running(trex_data):
-    commands = []
-    for filename in TREX_FILES:
-        commands.append('ps -C %s > /dev/null' % filename)
-    return_code, _, _ = trex_remote_command(trex_data, ' || '.join(commands), from_scripts = False)
-    return not return_code
-
-def kill_trex_process(trex_data):
-    return_code, stdout, _ = trex_remote_command(trex_data, 'ps -u root --format comm,pid,cmd | grep _t-rex-64 | grep -v grep || true', from_scripts = False)
-    assert return_code == 0, 'last remote command failed'
-    if stdout:
-        for process in stdout.split('\n'):
-            try:
-                proc_name, pid, full_cmd = re.split('\s+', process, maxsplit=2)
-                if proc_name.find('t-rex-64') >= 0:
-                    print('Killing remote process: %s' % full_cmd)
-                    trex_remote_command(trex_data, 'kill %s' % pid, from_scripts = False)
-            except:
-                continue
 
 def address_to_ip(address):
     for i in range(10):
@@ -142,9 +114,6 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--pkg', action="store",
                             dest="pkg",
                             help="Run with given TRex package. Make sure the path available at server machine.")
-        parser.add_option('--no-ssh', '--no_ssh', action="store_true", default = False,
-                            dest="no_ssh",
-                            help="Flag to disable any ssh to server machine.")
         parser.add_option('--collect', action="store_true", default = False,
                             dest="collect",
                             help="Alias to --collect-only.")
@@ -157,6 +126,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--long', action="store_true", default = False,
                             dest="long",
                             help="Flag of long tests (stability).")
+        parser.add_option('--ga', action="store_true", default = False,
+                            dest="ga",
+                            help="Flag to send benchmarks to GA.")
 
     def configure(self, options, conf):
         self.collect_only = options.collect_only
@@ -166,7 +138,6 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.stateless      = options.stateless
         self.stateful       = options.stateful
         self.pkg            = options.pkg
-        self.no_ssh         = options.no_ssh
         self.json_verbose   = options.json_verbose
         self.telnet_verbose = options.telnet_verbose
         if self.functional and (not self.pkg or self.no_ssh):
@@ -193,43 +164,52 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
+        CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'],
+                                                  verbose   = self.json_verbose)
+        if options.ga and CTRexScenario.setup_name:
+            CTRexScenario.GAManager  = GAmanager(GoogleID       = 'UA-75220362-4',
+                                                 UserID         = CTRexScenario.setup_name,
+                                                 QueueSize      = 100,
+                                                 Timeout        = 5, # seconds
+                                                 UserPermission = 1,
+                                                 BlockingMode   = 1,
+                                                 appName        = 'TRex',
+                                                 appVer         = '1.11.232')
 
 
     def begin (self):
-        if self.pkg and not CTRexScenario.is_copied and not self.no_ssh:
-            new_path = '/tmp/trex-scripts'
-            rsync_template = 'rm -rf /tmp/trex-scripts; mkdir -p %s; rsync -Lc %s /tmp; tar -mxzf /tmp/%s -C %s; mv %s/v*.*/* %s'
-            rsync_command = rsync_template % (new_path, self.pkg, os.path.basename(self.pkg), new_path, new_path, new_path)
-            return_code, stdout, stderr = trex_remote_command(self.configuration.trex, rsync_command, from_scripts = False, timeout = 300)
-            if return_code:
-                print('Failed copying')
+        if self.pkg and self.kill_running and not CTRexScenario.is_copied:
+            if not CTRexScenario.trex.check_master_connectivity():
+                print('Could not connect to master daemon')
                 sys.exit(-1)
-            CTRexScenario.scripts_path = new_path
+            print('Updating TRex to %s' % self.pkg)
+            if not CTRexScenario.trex.master_daemon.update_trex(self.pkg):
+                print('Failed updating TRex')
+                sys.exit(-1)
+            else:
+                print('Updated')
+            CTRexScenario.scripts_path = '/tmp/trex-scripts'
             CTRexScenario.is_copied = True
         if self.functional or self.collect_only:
             return
+        res = CTRexScenario.trex.restart_trex_daemon()
+        if not res:
+            print('Could not restart TRex daemon server')
+            sys.exit(-1)
         # launch TRex daemon on relevant setup
-        if not self.no_ssh:
+        trex_cmds = CTRexScenario.trex.get_trex_cmds()
+        if trex_cmds:
             if self.kill_running:
-                if self.stateful:
-                    trex_remote_command(self.configuration.trex, STATEFUL_STOP_COMMAND)
-                kill_trex_process(self.configuration.trex)
-                time.sleep(1)
-            elif check_trex_running(self.configuration.trex):
+                CTRexScenario.trex.kill_all_trexes()
+            else:
                 print('TRex is already running')
                 sys.exit(-1)
 
-
-        if self.stateful:
-            if not self.no_ssh:
-                trex_remote_command(self.configuration.trex, STATEFUL_RUN_COMMAND)
-            CTRexScenario.trex = CTRexClient(trex_host = self.configuration.trex['trex_name'], verbose = self.json_verbose)
-        elif self.stateless:
-            if not self.no_ssh:
-                cores = self.configuration.trex.get('trex_cores', 1)
-                if 'virt_nics' in self.modes and cores > 1:
-                    raise Exception('Number of cores should be 1 with virtual NICs')
-                trex_remote_command(self.configuration.trex, './t-rex-64 -i -c %s' % cores, background = True)
+        if self.stateless:
+            cores = self.configuration.trex.get('trex_cores', 1)
+            if 'virt_nics' in self.modes and cores > 1:
+                raise Exception('Number of cores should be 1 with virtual NICs')
+            CTRexScenario.trex.start_stateless(c = cores)
             CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
                                                server = self.configuration.trex['trex_name'],
                                                verbose_level = self.json_verbose)
@@ -251,11 +231,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.stateful:
             CTRexScenario.trex = None
         if self.stateless:
-            CTRexScenario.trex_stl = None
-        if not self.no_ssh:
-            if self.stateful:
-                trex_remote_command(self.configuration.trex, STATEFUL_STOP_COMMAND)
-            kill_trex_process(self.configuration.trex)
+            CTRexScenario.trex.force_kill(False)
+            CTRexScenario.stl_trex = None
 
 
 def save_setup_info():
@@ -273,10 +250,6 @@ def save_setup_info():
     except Exception as err:
         print('Error saving setup info: %s ' % err)
 
-
-def set_report_dir (report_dir):
-    if not os.path.exists(report_dir):
-        os.mkdir(report_dir)
 
 if __name__ == "__main__":
 
@@ -305,10 +278,9 @@ if __name__ == "__main__":
         xml_name                     = 'unit_test.xml'
         if CTRexScenario.setup_dir:
             CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
-            CTRexScenario.GAManager  = GAmanager(GoogleID='UA-75220362-4', UserID=CTRexScenario.setup_name, QueueSize=100, Timeout=5, UserPermission=1, BlockingMode=1, appName='TRex', appVer='1.11.232') #timeout in seconds
             xml_name = 'report_%s.xml' % CTRexScenario.setup_name
         xml_arg= '--xunit-file=%s/%s' % (CTRexScenario.report_dir, xml_name)
-        set_report_dir(CTRexScenario.report_dir)
+        mkpath(CTRexScenario.report_dir)
 
     sys_args = sys.argv[:]
     for i, arg in enumerate(sys.argv):

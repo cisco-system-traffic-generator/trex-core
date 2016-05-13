@@ -1,25 +1,137 @@
 #!/usr/bin/python
 
-import os
-import sys
+import os, sys, getpass
+from time import time, sleep
+import subprocess, shlex, multiprocessing
+from argparse import ArgumentParser
+from distutils.dir_util import mkpath
 
-core = 0
+def fail(msg):
+    print(msg)
+    sys.exit(-1)
 
-if '--core' in sys.argv:
-    try:
-        idx = sys.argv.index('--core')
-        core = int(sys.argv[idx + 1])
-        if core > 31 or core < 0:
-            print "Error: please provide core argument between 0 to 31"
-            exit(-1)
-        del sys.argv[idx:idx+2]
-    except IndexError:
-        print "Error: please make sure core option provided with argument"
-        exit(-1)
-    except ValueError:
-        print "Error: please make sure core option provided with integer argument"
-        exit(-1)
+if getpass.getuser() != 'root':
+    fail('Please run this program as root/with sudo')
 
-str_argv = ' '.join(sys.argv[1:])
-cmd = "taskset -c {core} python automation/trex_control_plane/server/trex_daemon_server.py {argv}".format(core = core, argv = str_argv)
-os.system(cmd)
+sys.path.append(os.path.join('automation', 'trex_control_plane', 'server'))
+if 'start-live' not in sys.argv:
+    import CCustomLogger
+    CCustomLogger.setup_daemon_logger('TRexServer', '/var/log/trex/trex_daemon_server.log')
+import trex_server
+
+try:
+    from termstyle import termstyle
+except ImportError:
+    import termstyle
+
+
+def run_command(command, timeout = 10):
+    commmand = 'timeout %s %s' % (timeout, command)
+    proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd = os.getcwd())
+    stdout, stderr = proc.communicate()
+    return (proc.returncode, stdout.decode(errors = 'replace'), stderr.decode(errors = 'replace'))
+
+
+def get_daemon_pid():
+    return_code, stdout, stderr = run_command('netstat -tlnp')
+    if return_code:
+        fail('Failed to determine which program holds port %s, netstat error: %s' % (args.daemon_port, stderr))
+    for line in stdout.splitlines():
+        if '0.0.0.0:%s' % args.daemon_port in line:
+            line_arr = line.split()
+            if '/' not in line_arr[-1]:
+                fail('Expecting pid/program name in netstat line of using port %s, got: %s'(args.daemon_port, line_arr[-1]))
+            pid, program = line_arr[-1].split('/')
+            if 'python' not in program and 'trex_server' not in program and 'trex_daemon_server' not in program:
+                fail('Some other program holds port %s, not our daemon: %s. Please verify.' % (args.daemon_port, program))
+            return int(pid)
+    return None
+
+
+def show_daemon_status():
+    if get_daemon_pid():
+        print(termstyle.red('TRex server daemon is running'))
+    else:
+        print(termstyle.red('TRex server daemon is NOT running'))
+
+       
+def start_daemon():
+    if get_daemon_pid():
+        print(termstyle.red('TRex server daemon is already running'))
+        return
+    # Usual daemon will die with current process, detach it with double fork
+    # https://www.safaribooksonline.com/library/view/python-cookbook/0596001673/ch06s08.html
+    pid = os.fork()
+    if pid > 0:
+        for i in range(10):
+            if get_daemon_pid():
+                print(termstyle.green('TRex server daemon is started'))
+                os._exit(0)
+            sleep(0.1)
+        fail(termstyle.red('TRex server daemon failed to run'))
+    os.setsid()
+    pid = os.fork()
+    if pid > 0:
+        os._exit(0)
+    trex_server.do_main_program()
+
+
+def start_live():
+    if get_daemon_pid():
+        fail(termstyle.red('TRex server daemon is already running'))
+    trex_server.do_main_program()
+
+def restart_daemon():
+    if get_daemon_pid():
+        kill_daemon()
+    start_daemon()
+
+def kill_daemon():
+    pid = get_daemon_pid()
+    if not pid:
+        print(termstyle.red('TRex server daemon is NOT running'))
+        return True
+    return_code, stdout, stderr = run_command('kill %s' % pid) # usual kill
+    if return_code:
+        fail('Failed to kill trex_daemon, error: %s' % stderr)
+    for i in range(10):
+        if not get_daemon_pid():
+            print(termstyle.green('TRex server daemon is killed'))
+            return True
+        sleep(0.1)
+    return_code, stdout, stderr = run_command('kill -9 %s' % pid) # unconditional kill
+    if return_code:
+        fail('Failed to kill trex_daemon, error: %s' % stderr)
+    for i in range(10):
+        if not get_daemon_pid():
+            print(termstyle.green('TRex server daemon is killed'))
+            return True
+        sleep(0.1)
+    fail('Failed to kill trex_daemon, even with -9. Please review manually.') # should not happen
+
+### Main ###
+
+actions_help = '''Specify action command to be applied on server.
+    (*) start      : start the application in as a daemon process.
+    (*) show       : prompt an updated status of daemon process (running/ not running).
+    (*) stop       : exit the daemon process.
+    (*) restart    : stop, then start again the application as daemon process
+    (*) start-live : start the application in live mode (no daemon process).
+    '''
+action_funcs = {'start': start_daemon,
+                'show': show_daemon_status,
+                'stop': kill_daemon,
+                'restart': restart_daemon,
+                'start-live': start_live,
+                }
+trex_server.trex_parser.add_argument('action', choices=action_funcs.keys(),
+                        action='store', help=actions_help)
+trex_server.trex_parser.usage = None
+args = trex_server.trex_parser.parse_args()
+
+mkpath('/var/log/trex')
+mkpath('/var/run/trex')
+
+action_funcs[args.action]()
+
+

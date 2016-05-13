@@ -31,6 +31,10 @@ def setup_custom_logger(name, log_path = None):
 
 def setup_daemon_logger (name, log_path = None):
     # first make sure path availabe
+    try:
+        os.unlink(log_path)
+    except:
+        pass
     logging.basicConfig(level   = logging.INFO, 
                         format  = '%(asctime)s %(name)-10s %(module)-20s %(levelname)-8s %(message)s',
                         datefmt = '%m-%d %H:%M',

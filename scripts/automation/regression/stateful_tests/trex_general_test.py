@@ -56,11 +56,10 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.configuration         = CTRexScenario.configuration
         self.benchmark             = CTRexScenario.benchmark
         self.trex                  = CTRexScenario.trex
+        self.stl_trex              = CTRexScenario.stl_trex
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
-        #self.GAManager             = CTRexScenario.GAManager
-        self.GAManager             = None     # remove GA for now 
-        #CTRexScenario.GAManager
+        self.GAManager             = CTRexScenario.GAManager
         self.skipping              = False
         self.fail_reasons          = []
         if not hasattr(self, 'unsupported_modes'):
@@ -308,7 +307,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         test_setup_modes_conflict = self.modes & set(self.unsupported_modes)
         if test_setup_modes_conflict:
             self.skip("The test can't run with following modes of given setup: %s " % test_setup_modes_conflict)
-        if self.trex and not self.trex.is_idle():
+        if not self.stl_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at setUp, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
@@ -327,7 +326,7 @@ class CTRexGeneral_Test(unittest.TestCase):
 #   def test_isInitialized(self):
 #       assert CTRexScenario.is_init == True
     def tearDown(self):
-        if self.trex and not self.trex.is_idle():
+        if not self.stl_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at tearDown, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.skipping:

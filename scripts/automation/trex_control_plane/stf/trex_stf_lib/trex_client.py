@@ -39,7 +39,7 @@ class CTRexClient(object):
     This class defines the client side of the RESTfull interaction with TRex
     """
 
-    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, trex_zmq_port = 4500, verbose = False):
+    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False):
         """ 
         Instantiate a TRex client object, and connecting it to listening daemon-server
 
@@ -60,6 +60,10 @@ class CTRexClient(object):
                 the port number on which the trex-daemon server can be reached
 
                 default value: **8090**
+             master_daemon_port : int
+                the port number on which the master-daemon server can be reached
+
+                default value: **8091**
              trex_zmq_port : int
                 the port number on which trex's zmq module will interact with daemon server
 
@@ -78,19 +82,50 @@ class CTRexClient(object):
         except: # give it another try
             self.trex_host          = socket.gethostbyname(trex_host)
         self.trex_daemon_port   = trex_daemon_port
+        self.master_daemon_port = master_daemon_port
         self.trex_zmq_port      = trex_zmq_port
         self.seq                = None
+        self._last_sample       = time.time()
+        self.__default_user     = get_current_user()
         self.verbose            = verbose
         self.result_obj         = CTRexResult(max_history_size, filtered_latency_amount)
         self.decoder            = JSONDecoder()
-        self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
-        self.__verbose_print("Connecting to TRex @ {trex_path} ...".format( trex_path = self.trex_server_path ) )
         self.history            = jsonrpclib.history.History()
-        self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)
-        self.check_server_connectivity()
-        self.__verbose_print("Connection established successfully!")
-        self._last_sample       = time.time()
-        self.__default_user     = get_current_user()
+        self.master_daemon_path = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
+        self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
+        self.connect_master()
+        self.connect_server()
+
+
+    def connect_master(self):
+        '''
+        Connects to Master daemon via JsonRPC.
+        This daemon controls TRex daemon server.
+        '''
+        try:
+            print('Connecting to Master daemon @ %s ...' % self.master_daemon_path)
+            self.master_daemon      = jsonrpclib.Server(self.master_daemon_path, history = self.history)
+            print self.check_master_connectivity()
+            print('Connected to Master daemon.')
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def connect_server(self):
+        '''
+        Connects to TRex daemon server via JsonRPC.
+        This daemon controls TRex. (start/stop
+        '''
+        try:
+            print('Connecting to TRex daemon server @ %s ...' % self.trex_server_path)
+            self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)
+            self.check_server_connectivity()
+            print('Connected TRex server daemon.')
+            return True
+        except Exception as e:
+            print(e)
+            return False
 
 
     def add (self, x, y):
@@ -105,7 +140,7 @@ class CTRexClient(object):
 
     def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
         """
-        Request to start a TRex run on server.
+        Request to start a TRex run on server in stateful mode.
                 
         :parameters:  
             f : str
@@ -167,6 +202,53 @@ class CTRexClient(object):
             return True
         else:   # TRex is has been started by another user
             raise TRexInUseError('TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
+
+
+    def start_stateless(self, block_to_success = True, timeout = 40, user = None, **trex_cmd_options):
+        """
+        Request to start a TRex run on server in stateless mode.
+                
+        :parameters:  
+            block_to_success : bool
+                determine if this method blocks until TRex changes state from 'Starting' to either 'Idle' or 'Running'
+
+                default value : **True**
+            timeout : int
+                maximum time (in seconds) to wait in blocking state until TRex changes state from 'Starting' to either 'Idle' or 'Running'
+
+                default value: **40**
+            user : str
+                the identity of the the run issuer.
+            trex_cmd_options : key, val
+                sets desired TRex options using key=val syntax, separated by comma.
+                for keys with no value, state key=True
+
+        :return: 
+            **True** on success
+
+        :raises:
+            + :exc:`trex_exceptions.TRexError`, in case one of the trex_cmd_options raised an exception at server.
+            + :exc:`trex_exceptions.TRexInUseError`, in case TRex is already taken.
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying start TRex.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+        
+        """
+        try:
+            user = user or self.__default_user
+            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, True)
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
+        if retval!=0:   
+            self.seq = retval   # update seq num only on successful submission
+            return True
+        else:   # TRex is has been started by another user
+            raise TRexInUseError('TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
+
 
     def stop_trex (self):
         """
@@ -238,6 +320,40 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
+    def kill_all_trexes(self):
+        """
+        Kills running TRex processes (if exists) on the server, not only owned by current daemon.
+        Raises exception upon error killing.
+
+        :return: 
+            + **True** if any process killed 
+            + **False** otherwise.
+
+        """
+        try:
+            return self.server.kill_all_trexes()
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        finally:
+            self.prompt_verbose_data()
+
+
+    def get_trex_cmds(self):
+        """
+        Gets list of running TRex pids and command lines.
+        Can be used to verify if any TRex is running.
+
+        :return: 
+            List of tuples (pid, command) of running TRexes
+        """
+        try:
+            return self.server.get_trex_cmds()
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        finally:
+            self.prompt_verbose_data()
+
+
     def wait_until_kickoff_finish(self, timeout = 40):
         """
         Block the client application until TRex changes state from 'Starting' to either 'Idle' or 'Running'
@@ -306,8 +422,9 @@ class CTRexClient(object):
             raise
         except ProtocolError as err:
             raise
-        finally:
-            self.prompt_verbose_data()
+        #is printed by self.get_running_info()
+        #finally:
+        #    self.prompt_verbose_data()
 
     def is_idle (self):
         """
@@ -844,11 +961,11 @@ class CTRexClient(object):
             return method_to_call()
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                raise SocketError(errno.ECONNREFUSED, "Connection from TRex server was refused. Please make sure the server is up.")
+                raise SocketError(errno.ECONNREFUSED, "Connection to TRex daemon server was refused. Please make sure the server is up.")
 
     def check_server_connectivity (self):
         """
-        Checks for server valid connectivity.
+        Checks TRex daemon server for connectivity.
         """
         try:
             socket.gethostbyname(self.trex_host)
@@ -857,7 +974,86 @@ class CTRexClient(object):
             raise socket.gaierror(e.errno, "Could not resolve server hostname. Please make sure hostname entered correctly.")    
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                raise socket.error(errno.ECONNREFUSED, "Connection from TRex server was refused. Please make sure the server is up.")
+                raise socket.error(errno.ECONNREFUSED, "Connection to TRex daemon server was refused. Please make sure the server is up.")
+        finally:
+            self.prompt_verbose_data()
+
+
+    def master_add(self, x, y):
+        ''' Sanity check for Master daemon '''
+        try:
+            return self.master_daemon.add(x,y)
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        finally:
+            self.prompt_verbose_data()
+
+
+    def check_master_connectivity (self):
+        '''
+        Check Master daemon for connectivity.
+        Return True upon success
+        '''
+        try:
+            socket.gethostbyname(self.trex_host)
+            return self.master_daemon.check_connectivity()
+        except socket.gaierror as e:
+            raise socket.gaierror(e.errno, "Could not resolve server hostname. Please make sure hostname entered correctly.")    
+        except socket.error as e:
+            if e.errno == errno.ECONNREFUSED:
+                raise socket.error(errno.ECONNREFUSED, "Connection to Master daemon was refused. Please make sure the server is up.")
+        finally:
+            self.prompt_verbose_data()
+
+    def is_trex_daemon_running(self):
+        '''
+        Check if TRex server daemon is running.
+        Returns True/False
+        '''
+        try:
+            return self.master_daemon.is_trex_daemon_running()
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        finally:
+            self.prompt_verbose_data()
+
+    def restart_trex_daemon(self):
+        '''
+        Restart TRex server daemon. Useful after update.
+        Will not fail if daemon is initially stopped.
+        '''
+        try:
+            return self.master_daemon.restart_trex_daemon()
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        finally:
+            self.prompt_verbose_data()
+
+    def start_trex_daemon(self):
+        '''
+        Start TRex server daemon.
+        :return: 
+            + **True** if success.
+            + **False** if TRex server daemon already running.
+        '''
+        try:
+            return self.master_daemon.start_trex_daemon()
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        finally:
+            self.prompt_verbose_data()
+
+    def stop_trex_daemon(self):
+        '''
+        Stop TRex server daemon.
+        :return: 
+            + **True** if success.
+            + **False** if TRex server daemon already running.
+        '''
+        try:
+            return self.master_daemon.stop_trex_daemon()
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
         finally:
             self.prompt_verbose_data()
         
