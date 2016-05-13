@@ -1032,6 +1032,7 @@ class CTRexClient(object):
     def start_trex_daemon(self):
         '''
         Start TRex server daemon.
+
         :return: 
             + **True** if success.
             + **False** if TRex server daemon already running.
@@ -1046,6 +1047,7 @@ class CTRexClient(object):
     def stop_trex_daemon(self):
         '''
         Stop TRex server daemon.
+
         :return: 
             + **True** if success.
             + **False** if TRex server daemon already running.
