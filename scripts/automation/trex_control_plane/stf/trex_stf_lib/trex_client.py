@@ -105,7 +105,7 @@ class CTRexClient(object):
         try:
             print('Connecting to Master daemon @ %s ...' % self.master_daemon_path)
             self.master_daemon      = jsonrpclib.Server(self.master_daemon_path, history = self.history)
-            print self.check_master_connectivity()
+            self.check_master_connectivity()
             print('Connected to Master daemon.')
             return True
         except Exception as e:
