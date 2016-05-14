@@ -853,6 +853,7 @@ files_list=[
             'dpdk_setup_ports.py',
             'doc_process.py',
             'trex_daemon_server',
+            'master_daemon.py',
             'trex-console',
             'daemon_server'
             ];

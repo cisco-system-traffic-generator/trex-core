@@ -274,17 +274,9 @@ class CTRexGeneral_Test(unittest.TestCase):
         #     raise
 
     def unzip_client_package(self):
-        client_pkg_files = glob('%s/trex_client*.tar.gz' % CTRexScenario.scripts_path)
-        if not len(client_pkg_files):
-            raise Exception('Could not find client package')
-        if len(client_pkg_files) > 1:
-            raise Exception('Found more than one client packages')
-        client_pkg_name = os.path.basename(client_pkg_files[0])
         if not os.path.exists('%s/trex_client' % CTRexScenario.scripts_path):
             print('\nUnzipping package')
-            return_code, _, stderr = misc_methods.run_command("sh -ec 'cd %s; tar -xzf %s'" % (CTRexScenario.scripts_path, client_pkg_name))
-            if return_code:
-                raise Exception('Could not untar the client package: %s' % stderr)
+            CTRexScenario.trex.master_daemon.unpack_client()
         else:
             print('\nClient package is untarred')
 

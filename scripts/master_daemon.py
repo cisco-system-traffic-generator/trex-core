@@ -5,7 +5,6 @@ import argparse
 import socket
 from time import time, sleep
 import subprocess, shlex, shutil, multiprocessing
-from distutils.dir_util import mkpath
 from glob import glob
 import logging
 logging.basicConfig(level = logging.FATAL) # keep quiet
@@ -74,16 +73,16 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
             if os.path.exists(bu_dir):
                 shutil.rmtree(bu_dir)
             shutil.move(cur_dir, bu_dir)
-            mkpath(cur_dir)
+            os.makedirs(cur_dir)
         except Exception as e:
             raise Exception('Could not make backup of previous directory. Err: %s' % e)
         # getting new package
         if package_path.startswith('http://'):
             file_name = package_path.split('/')[-1]
-            ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, cur_dir), timeout = 600)
+            ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(cur_dir, file_name)), timeout = 600)
         elif os.path.normpath(package_path).startswith('/auto/') and package_path.endswith('.tar.gz'):
             file_name = os.path.basename(package_path)
-            ret_code, stdout, stderr = run_command('rsync -cL %s %s' % (package_path, cur_dir), timeout = 300)
+            ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(cur_dir, file_name)), timeout = 300)
         else:
             raise Exception('package_path should be http address or path starting with /auto')
         if ret_code:
@@ -133,7 +132,7 @@ def unpack_client():
         else:
             shutil.rmtree(client_new_path)
     # unpacking
-    ret_code, stdout, stderr = run_command('tar -mxzf %s -C %s' % (client_pkg_files[0], args.trex_dir))
+    ret_code, stdout, stderr = run_command('tar -xzf %s -C %s' % (os.path.join(args.trex_dir, client_pkg_files[0]), args.trex_dir))
     if ret_code:
         raise Exception('Could not untar the client package: %s' % stderr)
     return True
@@ -270,10 +269,12 @@ parser.add_argument('action', choices=action_funcs.keys(),
 parser.usage = None
 args = parser.parse_args()
 
-if not os.path.exists(args.trex_dir):
-    raise Exception("Given path '%s' does not exist" % args.trex_dir)
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
+if os.path.isfile(args.trex_dir):
+    raise Exception('Given path is a file')
+if not os.path.exists(args.trex_dir):
+    os.makedirs(args.trex_dir)
 
 trex_daemon_path = os.path.join(args.trex_dir, 'trex_daemon_server')
 action_funcs[args.action]()
