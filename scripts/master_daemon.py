@@ -44,7 +44,7 @@ def stop_trex_daemon():
     return_code, stdout, stderr = run_command('%s stop' % trex_daemon_path)
     if return_code:
         raise Exception('Could not stop trex_daemon_server, err: %s' % stderr)
-    for i in range(20):
+    for i in range(50):
         if not is_trex_daemon_running():
             return True
         sleep(0.1)
@@ -56,7 +56,7 @@ def start_trex_daemon():
     return_code, stdout, stderr = run_command('%s start' % trex_daemon_path)
     if return_code:
         raise Exception('Could not run trex_daemon_server, err: %s' % stderr)
-    for i in range(20):
+    for i in range(50):
         if is_trex_daemon_running():
             return True
         sleep(0.1)
@@ -65,45 +65,32 @@ def start_trex_daemon():
 def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not args.allow_update:
         raise Exception('Updading server not allowed')
+    # getting new package
+    if package_path.startswith('http://'):
+        file_name = package_path.split('/')[-1]
+        ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
+    else:
+        file_name = os.path.basename(package_path)
+        ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 300)
+    if ret_code:
+        raise Exception('Could not get requested package.\nStdout: %s\nStderr: %s' % (stdout, stderr))
+    # clean old unpacked dirs
+    unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
+    for unpacked_dir in unpacked_dirs:
+        shutil.rmtree(unpacked_dir)
+    # unpacking
+    ret_code, stdout, stderr = run_command('tar -xzf %s -C %s' % (os.path.join(tmp_dir, file_name), tmp_dir))
+    if ret_code:
+        raise Exception('Could not untar the package.\nStdout: %s\nStderr: %s' % (stdout, stderr))
+    unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
+    if not len(unpacked_dirs) or len(unpacked_dirs) > 1:
+        raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
     try:
+        # bu current dir
         cur_dir = args.trex_dir
         bu_dir = '%s_BU%i' % (cur_dir, int(time()))
-        # rename current dir for backup
-        try:
-            if os.path.exists(bu_dir):
-                shutil.rmtree(bu_dir)
-            shutil.move(cur_dir, bu_dir)
-            os.makedirs(cur_dir)
-        except Exception as e:
-            raise Exception('Could not make backup of previous directory. Err: %s' % e)
-        # getting new package
-        if package_path.startswith('http://'):
-            file_name = package_path.split('/')[-1]
-            ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(cur_dir, file_name)), timeout = 600)
-        elif os.path.normpath(package_path).startswith('/auto/') and package_path.endswith('.tar.gz'):
-            file_name = os.path.basename(package_path)
-            ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(cur_dir, file_name)), timeout = 300)
-        else:
-            raise Exception('package_path should be http address or path starting with /auto')
-        if ret_code:
-            raise Exception('Could not get requested package: %s' % stderr)
-        # unpacking
-        ret_code, stdout, stderr = run_command('tar -mxzf %s -C %s' % (os.path.join(cur_dir, file_name), cur_dir))
-        if ret_code:
-            raise Exception('Could not untar the package: %s' % stderr)
-        # version is the name of dir
-        dir_cont = glob(os.path.join(cur_dir, 'v[0-9].[0-9][0-9]'))
-        if not len(dir_cont):
-            raise Exception('Did not found directory with version name after unpacking.')
-        if len(dir_cont) > 1:
-            raise Exception('Found more than one directory with version name after unpacking.')
-        version = os.path.basename(dir_cont[0])
-        # moving files from dir with version one level up
-        for root, dirs, files in os.walk(os.path.join(cur_dir, version)):
-            for f in files:
-                shutil.move(os.path.join(root, f), os.path.join(cur_dir, f))
-            for d in dirs:
-                shutil.move(os.path.join(root, d), os.path.join(cur_dir, d))
+        shutil.move(cur_dir, bu_dir)
+        shutil.move(unpacked_dirs[0], cur_dir)
         # no errors, remove BU dir
         if os.path.exists(bu_dir):
             shutil.rmtree(bu_dir)
@@ -166,7 +153,7 @@ def start_master_daemon():
     server = multiprocessing.Process(target = start_master_daemon_func)
     server.daemon = True
     server.start()
-    for i in range(10):
+    for i in range(50):
         if get_master_daemon_pid():
             print(termstyle.green('Master daemon is started'))
             os._exit(0)
@@ -217,7 +204,7 @@ def kill_master_daemon():
     return_code, stdout, stderr = run_command('kill %s' % pid) # usual kill
     if return_code:
         fail('Failed to kill master daemon, error: %s' % stderr)
-    for i in range(10):
+    for i in range(50):
         if not get_master_daemon_pid():
             print(termstyle.green('Master daemon is killed'))
             return True
@@ -225,7 +212,7 @@ def kill_master_daemon():
     return_code, stdout, stderr = run_command('kill -9 %s' % pid) # unconditional kill
     if return_code:
         fail('Failed to kill trex_daemon, error: %s' % stderr)
-    for i in range(10):
+    for i in range(50):
         if not get_master_daemon_pid():
             print(termstyle.green('Master daemon is killed'))
             return True
@@ -269,12 +256,16 @@ parser.add_argument('action', choices=action_funcs.keys(),
 parser.usage = None
 args = parser.parse_args()
 
+tmp_dir = '/tmp/trex-tmp'
+
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
 if os.path.isfile(args.trex_dir):
     raise Exception('Given path is a file')
 if not os.path.exists(args.trex_dir):
     os.makedirs(args.trex_dir)
+if not os.path.exists(tmp_dir):
+    os.makedirs(tmp_dir)
 
 trex_daemon_path = os.path.join(args.trex_dir, 'trex_daemon_server')
 action_funcs[args.action]()
