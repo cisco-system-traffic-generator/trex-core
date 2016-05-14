@@ -40,7 +40,7 @@ def get_daemon_pid():
         if '0.0.0.0:%s' % args.daemon_port in line:
             line_arr = line.split()
             if '/' not in line_arr[-1]:
-                fail('Expecting pid/program name in netstat line of using port %s, got: %s'(args.daemon_port, line_arr[-1]))
+                fail('Expecting pid/program name in netstat line of using port %s, got: %s' % (args.daemon_port, line_arr[-1]))
             pid, program = line_arr[-1].split('/')
             if 'python' not in program and 'trex_server' not in program and 'trex_daemon_server' not in program:
                 fail('Some other program holds port %s, not our daemon: %s. Please verify.' % (args.daemon_port, program))
@@ -54,7 +54,7 @@ def show_daemon_status():
     else:
         print(termstyle.red('TRex server daemon is NOT running'))
 
-       
+
 def start_daemon():
     if get_daemon_pid():
         print(termstyle.red('TRex server daemon is already running'))
@@ -63,7 +63,7 @@ def start_daemon():
     # https://www.safaribooksonline.com/library/view/python-cookbook/0596001673/ch06s08.html
     pid = os.fork()
     if pid > 0:
-        for i in range(10):
+        for i in range(50):
             if get_daemon_pid():
                 print(termstyle.green('TRex server daemon is started'))
                 os._exit(0)
@@ -94,7 +94,7 @@ def kill_daemon():
     return_code, stdout, stderr = run_command('kill %s' % pid) # usual kill
     if return_code:
         fail('Failed to kill trex_daemon, error: %s' % stderr)
-    for i in range(10):
+    for i in range(50):
         if not get_daemon_pid():
             print(termstyle.green('TRex server daemon is killed'))
             return True
@@ -102,7 +102,7 @@ def kill_daemon():
     return_code, stdout, stderr = run_command('kill -9 %s' % pid) # unconditional kill
     if return_code:
         fail('Failed to kill trex_daemon, error: %s' % stderr)
-    for i in range(10):
+    for i in range(50):
         if not get_daemon_pid():
             print(termstyle.green('TRex server daemon is killed'))
             return True
