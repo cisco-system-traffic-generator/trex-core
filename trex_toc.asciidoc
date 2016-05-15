@@ -166,29 +166,6 @@ ifdef::backend-xhtml11[]
       }
 
 
-      html{
-        overflow: hidden;
-      }
-
-      body{
-        margin-right: 0px !important;
-        margin-top: 0px !important;
-        margin-bottom: 0px !important;
-      }
-
-      #toc-section{
-        position: absolute;
-        z-index: 200;
-      }
-
-      #content-section{
-        overflow: auto;
-      }
-
-      #content-section-inner{
-        max-width: 50em;
-     }
-
  </style>
 
 
