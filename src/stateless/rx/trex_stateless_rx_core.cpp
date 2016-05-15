@@ -33,7 +33,7 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
         // This is the seq num value we expect next packet to have.
         // Init value should match m_seq_num in CVirtualIFPerSideStats
         m_per_flow_seq[i] = UINT32_MAX - 1;  // catch wrap around issues early
-        m_per_flow_hist[i].Reset();
+        m_per_flow_hist[i].Create();
         m_per_flow_jitter[i].reset();
         m_per_flow_seq_error[i] = 0;
         m_per_flow_out_of_order[i] = 0;
@@ -101,13 +101,9 @@ void CRxCoreStateless::start() {
     while (true) {
         if (m_state == STATE_WORKING) {
             i++;
-            if (i == 100) {
+            //??? need to calculate value for 10msec instead of 1000
+            if (i == 1000) {
                 i = 0;
-                // if no packets in 100 cycles, sleep for a while to spare the cpu
-                if (count == 0) {
-                    delay(1);
-                }
-                count = 0;
                 periodic_check_for_cp_messages(); // m_state might change in here
             }
         } else {
@@ -124,6 +120,7 @@ void CRxCoreStateless::start() {
         }
         count += try_rx();
     }
+    rte_pause();
 }
 
 void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *m) {
@@ -181,6 +178,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                         uint64_t d = (os_get_hr_tick_64() - fsp_head->time_stamp );
                         dsec_t ctime = ptime_convert_hr_dsec(d);
                         m_per_flow_hist[hw_id].Add(ctime);
+                        m_per_flow_last_max[hw_id].update(ctime);
                         m_per_flow_jitter[hw_id].calc(ctime);
                     }
                 } else {
@@ -336,6 +334,7 @@ int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, in
         m_per_flow_hist[hw_id].update();
         m_per_flow_hist[hw_id].dump_json("", json);
         rfc2544_info[hw_id - min].set_latency_json(json);
+        rfc2544_info[hw_id - min].set_last_max(m_per_flow_last_max[hw_id].switchMax());
 
         if (reset) {
             m_per_flow_seq_error[hw_id] = 0;

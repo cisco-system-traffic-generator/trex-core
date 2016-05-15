@@ -94,6 +94,14 @@ class rfc2544_info_t_ {
         m_jitter = jitter;
     }
 
+    inline void set_last_max(dsec_t val) {
+        m_last_max_latency = val;
+    }
+
+    inline dsec_t get_last_max() {
+        return m_last_max_latency;
+    }
+
     inline void clear() {
         m_seq_error = 0;
         m_out_of_order = 0;
@@ -137,6 +145,7 @@ class rfc2544_info_t_ {
     uint64_t m_seq_error;
     uint64_t m_out_of_order;
     double   m_jitter;
+    dsec_t   m_last_max_latency;
     // json string of latency. In case of stop/start, we calculate latency graph from scratch,
     // so when stopping, we just "freeze" state for reporting by saving the json string
     std::string m_latency;

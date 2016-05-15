@@ -164,7 +164,7 @@ void CFlowStatUserIdInfo::reset_hw_id() {
 
 /************** class CFlowStatUserIdInfoPayload ***************/
 void CFlowStatUserIdInfoPayload::add_stream(uint8_t proto) {
-    throw TrexFStatEx("Can't have two streams with same packet group id for payload rules"
+    throw TrexFStatEx("For payload rules: Can't have two streams with same pg_id, or same stream on more than one port"
                       , TrexException::T_FLOW_STAT_DUP_PG_ID);
 }
 
@@ -919,6 +919,14 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     l_root["name"] = "latency_stats";
     l_root["type"] = 0;
 
+    //??? temp - just to be able to print in python
+    static int temp = 0;
+    temp++;
+    if (temp == 10) {
+        l_root["type"] = 1;
+        temp = 0;
+    }
+    
     if (baseline) {
         s_root["baseline"] = true;
     }
@@ -1035,19 +1043,21 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
         if (user_id_info->rfc2544_support()) {
             CFlowStatUserIdInfoPayload *user_id_info_p = (CFlowStatUserIdInfoPayload *)user_id_info;
             // payload object. Send also latency, jitter...
-            std::string json;
+            std::string lat_hist;
             if (user_id_info->is_hw_id()) {
                 // if mapped to hw_id, take info from what we just got from rx core
                 uint16_t hw_id = user_id_info->get_hw_id();
-                rfc2544_info[hw_id].get_latency_json(json);
+                rfc2544_info[hw_id].get_latency_json(lat_hist);
                 user_id_info_p->set_seq_err_cnt(rfc2544_info[hw_id].get_seq_err_cnt());
                 user_id_info_p->set_ooo_cnt(rfc2544_info[hw_id].get_ooo_cnt());
-                l_data_section[str_user_id]["latency"] = json;
+                l_data_section[str_user_id]["latency"]["histogram"] = lat_hist;
+                l_data_section[str_user_id]["latency"]["last_max"] = rfc2544_info[hw_id].get_last_max();
                 l_data_section[str_user_id]["jitter"] = rfc2544_info[hw_id].get_jitter();
             } else {
                 // Not mapped to hw_id. Get saved info.
-                user_id_info_p->get_latency_json(json);
-                l_data_section[str_user_id]["latency"] = json;
+                user_id_info_p->get_latency_json(lat_hist);
+                l_data_section[str_user_id]["latency"]["histogram"] = lat_hist;
+                l_data_section[str_user_id]["latency"]["last_max"] = 0;
                 l_data_section[str_user_id]["jitter"] = user_id_info_p->get_jitter();
             }
             ///????? add last 10 samples

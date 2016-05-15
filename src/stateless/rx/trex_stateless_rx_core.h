@@ -22,9 +22,64 @@
 #define __TREX_STATELESS_RX_CORE_H__
 #include <stdint.h>
 #include "latency.h"
+#include "os_time.h"
+#include "pal/linux/sanb_atomic.h"
 #include "utl_cpuu.h"
 
 class TrexStatelessCpToRxMsgBase;
+
+class CLastMax {
+ public:
+    CLastMax() {
+        m_max1 = 0;
+        m_max1 = 1;
+        m_choose = true;
+    }
+
+    void update(dsec_t val) {
+        if (m_choose) {
+            if (val > m_max1) {
+                m_max1 = val;
+                sanb_smp_memory_barrier();
+            }
+        } else {
+            if (val > m_max2) {
+                m_max2 = val;
+                sanb_smp_memory_barrier();
+            }
+        }
+    }
+
+    dsec_t getMax() {
+        if (m_choose)
+            return m_max1;
+        else
+            return m_max2;
+    }
+
+    dsec_t switchMax() {
+        dsec_t ret;
+        if (m_choose) {
+            m_choose = false;
+            sanb_smp_memory_barrier();
+            ret = m_max1;
+            m_max1 = 0;
+        }
+        else {
+            m_choose = true;
+            sanb_smp_memory_barrier();
+            ret = m_max2;
+            m_max2 = 0;
+        }
+        return ret;
+    }
+
+ private:
+    dsec_t m_max1;
+    dsec_t m_max2;
+    bool m_choose;
+};
+
 
 class CCPortLatencyStl {
  public:
@@ -107,5 +162,6 @@ class CRxCoreStateless {
     uint64_t m_per_flow_seq_error[MAX_FLOW_STATS_PAYLOAD]; // How many packet seq num gaps we saw (packets lost or out of order)
     uint64_t m_per_flow_out_of_order[MAX_FLOW_STATS_PAYLOAD]; // Packets we got with seq num lower than expected
     uint64_t m_per_flow_dup[MAX_FLOW_STATS_PAYLOAD]; // Packets we got with same seq num
+    CLastMax m_per_flow_last_max[MAX_FLOW_STATS_PAYLOAD];
 };
 #endif

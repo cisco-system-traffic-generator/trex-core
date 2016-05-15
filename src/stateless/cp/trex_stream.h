@@ -36,7 +36,7 @@ limitations under the License.
 #include "trex_stream_vm.h"
 #include <common/captureFile.h>
 #include <common/bitMan.h> 
-
+#include "internal_api/trex_platform_api.h"
 
 
 class TrexRpcCmdAddStream;
@@ -376,6 +376,10 @@ public:
     /* can this stream be split ? */
     bool is_splitable(uint8_t dp_core_count) const {
 
+        if (m_rx_check.m_enabled && (m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD)) {
+            // because of sequence number, can't split streams with payload rule to different cores
+            return false;
+        }
         /* cont stream is always splitable */
         if (m_type == stCONTINUOUS) {
             return true;
