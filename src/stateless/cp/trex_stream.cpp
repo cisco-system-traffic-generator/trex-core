@@ -155,11 +155,13 @@ TrexStream::TrexStream(uint8_t type,
 }
 
 TrexStream::~TrexStream() {
+#if 0
     if (m_rx_check.m_enabled) {
         try {
             get_stateless_obj()->m_rx_flow_stat.del_stream(this);
         } catch (TrexFStatEx) {}
     }
+#endif
     if (m_pkt.binary) {
         delete [] m_pkt.binary;
     }
