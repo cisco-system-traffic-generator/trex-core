@@ -165,7 +165,31 @@ ifdef::backend-xhtml11[]
         position: relative;
       }
 
-    </style>
+
+      html{
+        overflow: hidden;
+      }
+
+      body{
+        margin-right: 0px !important;
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+      }
+
+      #toc-section{
+        position: absolute;
+        z-index: 200;
+      }
+
+      #content-section{
+        overflow: auto;
+      }
+
+      #content-section-inner{
+        max-width: 50em;
+     }
+
+ </style>
 
 
 
@@ -202,8 +226,12 @@ ifdef::backend-xhtml11[]
           };
 
           $('#nav-tree').jstree(toc_tree_options)
+          .on('loaded.jstree', function() {
+              toc_tree.jstree('open_all');
+           });
 
-          $('#nav-tree').on("changed.jstree", function (e, data) {
+
+          toc_tree.on("changed.jstree", function (e, data) {
             window.location.href = data.instance.get_selected(true)[0].original.link;
           });
         }
@@ -222,24 +250,33 @@ ifdef::backend-xhtml11[]
           
         // On zoom changed
           $(window).resize(function() {
-            resized();
+            if(isOpen){
+                resized();
+            }
           });
 
-       
-          // Do it for the first time
-          var tocWidth = $(toc).outerWidth();
-          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"}); 
-          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"}); 
 
+         // Do it for the first time
+            var tocWidth = $(toc).outerWidth();
+            var windowHeight = $(window).height();
+            $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
+            $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
+            $("#toc-section").css({"height":windowHeight + "px"});
+            $("#content-section").css({"height":windowHeight + "px"});
+       
         }
 
         function resized(){
           var body = $("body");
           var tocWidth = $(toc).outerWidth();
+          var windowHeight = $(window).height();
+
+          body.css({"marginLeft":parseInt(tocWidth)+20+"px"});
+          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
+          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
+          $("#toc-section").css({"height":windowHeight + "px"});
+          $("#content-section").css({"height":windowHeight + "px"});
           
-          body.css({"marginLeft":parseInt(tocWidth)+20+"px"}); 
-          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"}); 
-          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"}); 
         }
 
 
@@ -262,6 +299,7 @@ ifdef::backend-xhtml11[]
         function checkMobile(){
           if(isMobileDevice()){
             closTOC();
+            $(".ui-resizable-e").hide();
           }
         }
 
@@ -288,7 +326,9 @@ ifdef::backend-xhtml11[]
         function closTOC(){
             $("#toc").hide("slide", 500);
             $("#toctitle").hide("slide", 500);
-            $(".ui-resizable-e").hide("slide", 500);
+            if(!isMobileDevice){
+                $(".ui-resizable-e").hide("slide", 500);
+            }
             // Show the show/hide button
             $("#toggle").css("right", "-40px");
             // Fil width
@@ -299,7 +339,9 @@ ifdef::backend-xhtml11[]
         function openTOC(){
             $("#toc").show("slide", 500);
             $("#toctitle").show("slide", 500);
-            $(".ui-resizable-e").show("slide", 500);
+            if(!isMobileDevice){
+              $(".ui-resizable-e").show("slide", 500);
+            }
             // Show the show/hide button
             $("#toggle").css("right", "15px");
             // Minimize page width
