@@ -354,6 +354,18 @@ class CTRexClient(object):
             self.prompt_verbose_data()
 
 
+    def get_trex_path(self):
+        '''
+        Returns TRex path on server
+        '''
+        try:
+            return self.master_daemon.get_trex_path()
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        finally:
+            self.prompt_verbose_data()
+        
+
     def wait_until_kickoff_finish(self, timeout = 40):
         """
         Block the client application until TRex changes state from 'Starting' to either 'Idle' or 'Running'

@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os, sys, getpass
+import tempfile
 from time import time, sleep
 import subprocess, shlex, multiprocessing
 from argparse import ArgumentParser
@@ -27,25 +28,36 @@ except ImportError:
 
 def run_command(command, timeout = 10):
     commmand = 'timeout %s %s' % (timeout, command)
-    proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd = os.getcwd())
-    stdout, stderr = proc.communicate()
-    return (proc.returncode, stdout.decode(errors = 'replace'), stderr.decode(errors = 'replace'))
+    # pipes might stuck, even with timeout
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        proc = subprocess.Popen(shlex.split(command), stdout = stdout_file, stderr = stderr_file, cwd = daemon_dir)
+        proc.wait()
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+        return (proc.returncode, stdout_file.read().decode(errors = 'replace'), stderr_file.read().decode(errors = 'replace'))
 
 
 def get_daemon_pid():
-    return_code, stdout, stderr = run_command('netstat -tlnp')
-    if return_code:
-        fail('Failed to determine which program holds port %s, netstat error: %s' % (args.daemon_port, stderr))
-    for line in stdout.splitlines():
-        if '0.0.0.0:%s' % args.daemon_port in line:
-            line_arr = line.split()
-            if '/' not in line_arr[-1]:
-                fail('Expecting pid/program name in netstat line of using port %s, got: %s' % (args.daemon_port, line_arr[-1]))
-            pid, program = line_arr[-1].split('/')
-            if 'python' not in program and 'trex_server' not in program and 'trex_daemon_server' not in program:
-                fail('Some other program holds port %s, not our daemon: %s. Please verify.' % (args.daemon_port, program))
-            return int(pid)
-    return None
+    err = None
+    for i in range(5):
+        try:
+            return_code, stdout, stderr = run_command('netstat -tlnp')
+            if return_code:
+                raise Exception('Failed to run netstat.\nStdout: %s\nStderr: %s' % (stdout, stderr))
+            for line in stdout.splitlines():
+                if '0.0.0.0:%s' % args.daemon_port in line:
+                    line_arr = line.split()
+                    if '/' not in line_arr[-1]:
+                        raise Exception('Expecting pid/program name in netstat line of using port %s, got: %s' % (args.daemon_port, line))
+                    pid, program = line_arr[-1].split('/')
+                    if 'python' not in program and 'trex_server' not in program and 'trex_daemon_server' not in program:
+                        raise Exception('Some other program holds port %s, not our daemon: %s. Please verify.' % (args.daemon_port, program))
+                    return int(pid)
+            return None
+        except Exception as e:
+            err = e
+            sleep(0.1)
+    fail('Could not determine daemon pid, err: %s' % err)
 
 
 def show_daemon_status():
@@ -92,22 +104,23 @@ def kill_daemon():
         print(termstyle.red('TRex server daemon is NOT running'))
         return True
     return_code, stdout, stderr = run_command('kill %s' % pid) # usual kill
-    if return_code:
-        fail('Failed to kill trex_daemon, error: %s' % stderr)
+    #if return_code:
+    #    fail('Failed to kill trex_daemon, error: %s' % stderr)
     for i in range(50):
         if not get_daemon_pid():
             print(termstyle.green('TRex server daemon is killed'))
             return True
         sleep(0.1)
     return_code, stdout, stderr = run_command('kill -9 %s' % pid) # unconditional kill
-    if return_code:
-        fail('Failed to kill trex_daemon, error: %s' % stderr)
+    #if return_code:
+    #    fail('Failed to kill trex_daemon, error: %s' % stderr)
     for i in range(50):
         if not get_daemon_pid():
             print(termstyle.green('TRex server daemon is killed'))
             return True
         sleep(0.1)
-    fail('Failed to kill trex_daemon, even with -9. Please review manually.') # should not happen
+    fail('Failed to kill trex_daemon, even with -9. Please review manually.\n' \
+         'Return code: %s\nStdout: %s\nStderr: %s' % return_code, stdout, stderr) # should not happen
 
 ### Main ###
 
@@ -129,6 +142,7 @@ trex_server.trex_parser.add_argument('action', choices=action_funcs.keys(),
 trex_server.trex_parser.usage = None
 args = trex_server.trex_parser.parse_args()
 
+daemon_dir = os.path.dirname(os.path.realpath(__file__))
 mkpath('/var/log/trex')
 mkpath('/var/run/trex')
 

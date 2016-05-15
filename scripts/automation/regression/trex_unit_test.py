@@ -166,6 +166,10 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.server_logs   = self.server_logs
         CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'],
                                                   verbose   = self.json_verbose)
+        if not CTRexScenario.trex.check_master_connectivity():
+            print('Could not connect to master daemon')
+            sys.exit(-1)
+        CTRexScenario.scripts_path = CTRexScenario.trex.get_trex_path()
         if options.ga and CTRexScenario.setup_name:
             CTRexScenario.GAManager  = GAmanager(GoogleID       = 'UA-75220362-4',
                                                  UserID         = CTRexScenario.setup_name,
@@ -179,24 +183,21 @@ class CTRexTestConfiguringPlugin(Plugin):
 
     def begin (self):
         if self.pkg and self.kill_running and not CTRexScenario.is_copied:
-            if not CTRexScenario.trex.check_master_connectivity():
-                print('Could not connect to master daemon')
-                sys.exit(-1)
             print('Updating TRex to %s' % self.pkg)
             if not CTRexScenario.trex.master_daemon.update_trex(self.pkg):
                 print('Failed updating TRex')
                 sys.exit(-1)
             else:
                 print('Updated')
-            CTRexScenario.scripts_path = '/tmp/trex-scripts'
             CTRexScenario.is_copied = True
         if self.functional or self.collect_only:
             return
+        print('Restarting TRex daemon server')
         res = CTRexScenario.trex.restart_trex_daemon()
         if not res:
             print('Could not restart TRex daemon server')
             sys.exit(-1)
-        # launch TRex daemon on relevant setup
+
         trex_cmds = CTRexScenario.trex.get_trex_cmds()
         if trex_cmds:
             if self.kill_running:

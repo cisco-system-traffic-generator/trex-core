@@ -24,6 +24,9 @@ def check_connectivity():
 def add(a, b): # for sanity checks
     return a + b
 
+def get_trex_path():
+    return args.trex_dir
+
 def is_trex_daemon_running():
     ret_code, stdout, stderr = run_command('ps -u root --format comm')
     if ret_code:
@@ -43,7 +46,7 @@ def stop_trex_daemon():
         return False
     return_code, stdout, stderr = run_command('%s stop' % trex_daemon_path)
     if return_code:
-        raise Exception('Could not stop trex_daemon_server, err: %s' % stderr)
+        raise Exception('Could not stop trex_daemon_server, %s' % [return_code, stdout, stderr])
     for i in range(50):
         if not is_trex_daemon_running():
             return True
@@ -134,7 +137,7 @@ def run_command(command, timeout = 15):
     command = 'timeout %s %s' % (timeout, command)
     # pipes might stuck, even with timeout
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-        proc = subprocess.Popen(shlex.split(command), stdout=stdout_file, stderr=stderr_file)
+        proc = subprocess.Popen(shlex.split(command), stdout = stdout_file, stderr = stderr_file, cwd = args.trex_dir)
         proc.wait()
         stdout_file.seek(0)
         stderr_file.seek(0)
@@ -170,6 +173,7 @@ def start_master_daemon_func():
     print('Started master daemon (port %s)' % args.daemon_port)
     server.register_function(add)
     server.register_function(check_connectivity)
+    server.register_function(get_trex_path)
     server.register_function(is_trex_daemon_running)
     server.register_function(restart_trex_daemon)
     server.register_function(start_trex_daemon)
@@ -264,6 +268,7 @@ if os.path.isfile(args.trex_dir):
     raise Exception('Given path is a file')
 if not os.path.exists(args.trex_dir):
     os.makedirs(args.trex_dir)
+os.chmod(args.trex_dir, 0o777)
 if not os.path.exists(tmp_dir):
     os.makedirs(tmp_dir)
 
