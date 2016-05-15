@@ -225,11 +225,7 @@ ifdef::backend-xhtml11[]
             "plugins" : [ "wholerow" ]
           };
 
-          $('#nav-tree').jstree(toc_tree_options)
-          .on('loaded.jstree', function() {
-              toc_tree.jstree('open_all');
-           });
-
+          $('#nav-tree').jstree(toc_tree_options) ;
 
           toc_tree.on("changed.jstree", function (e, data) {
             window.location.href = data.instance.get_selected(true)[0].original.link;
@@ -326,7 +322,7 @@ ifdef::backend-xhtml11[]
         function closTOC(){
             $("#toc").hide("slide", 500);
             $("#toctitle").hide("slide", 500);
-            if(!isMobileDevice){
+            if(!isMobileDevice()){
                 $(".ui-resizable-e").hide("slide", 500);
             }
             // Show the show/hide button
@@ -339,7 +335,7 @@ ifdef::backend-xhtml11[]
         function openTOC(){
             $("#toc").show("slide", 500);
             $("#toctitle").show("slide", 500);
-            if(!isMobileDevice){
+            if(!isMobileDevice()){
               $(".ui-resizable-e").show("slide", 500);
             }
             // Show the show/hide button
