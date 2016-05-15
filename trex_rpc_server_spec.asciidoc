@@ -7,7 +7,7 @@ The TRex RPC Server
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
-:toclevels: 4
+:toclevels: 7
 
 include::trex_ga.asciidoc[]
 include::trex_toc.asciidoc[]
@@ -557,6 +557,7 @@ Example:
 
 
 === Add Stream
+
 * *Name* - 'add_stream'
 * *API Class* - 'core'
 * *Valid States* - 'owned'
@@ -568,7 +569,8 @@ Example:
 ** *stream* - object of type xref:stream_obj['stream']
 * *Result* ['object'] - {}
 
-==== Object type 'stream' anchor:stream_obj[]
+
+The object type 'stream' anchor:stream_obj[]
 
 Add_stream gets a single parameter of type object.
 
@@ -591,7 +593,10 @@ The format of that object is as follows:
 | rx_stats        | object  | object of type xref:rx_stats_obj['rx_stats']
 |=================
 
-===== Object type 'packet' anchor:packet_obj[]
+==== packet
+
+anchor:packet_obj[]
+
 packet contains binary and meta data
 
 .Object type 'packet'
@@ -602,7 +607,10 @@ packet contains binary and meta data
 | meta        | string      | meta data object. opaque to the RPC server. will be passed on queries
 |=================
 
-===== Object type 'mode' anchor:mode_obj[]
+==== mode
+
+anchor:mode_obj[]
+
 mode object can be 'one' of the following objects:
 
 .Object type 'rate' 
@@ -644,9 +652,9 @@ mode object can be 'one' of the following objects:
 | count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
 |=================
 
-===== Object type 'vm' anchor:vm_obj[]
+==== vm
 
-an Object that include instructions array and properties of the field engine program 
+an Object that include instructions array and properties of the field engine program  anchor:vm_obj[]
 
 .Object type 'packet'
 [options="header",cols="1,1,3"]
@@ -661,6 +669,8 @@ an Object that include instructions array and properties of the field engine pro
 Array of VM instruction objects to be used with this stream
 Any element in the array can be one of the following object types:
 
+===== fix_checksum_ipv4
+
 .Object type 'vm - fix_checksum_ipv4'
 [options="header",cols="1,1,3"]
 |=================
@@ -668,6 +678,8 @@ Any element in the array can be one of the following object types:
 | type        | string      | ''fix_checksum_ipv4''
 | pkt_offset  | uint16      | offset of the field to fix 
 |=================
+
+===== flow_var
 
 .Object type 'vm - flow_var'
 [options="header",cols="1,1,3"]
@@ -683,6 +695,8 @@ Any element in the array can be one of the following object types:
 | step        | uint64_t as string          | step, how much to inc or dec. 1 is the default (in case of 'random' this field is not used) 
 |=================
 
+===== write_flow_var
+
 .Object type 'vm - write_flow_var'
 [options="header",cols="1,1,3"]
 |=================
@@ -694,6 +708,8 @@ Any element in the array can be one of the following object types:
 | is_big_endian | boolean     | should write as big endian or little 
 |=================
 
+===== trim_pkt_size
+
 .Object type 'vm - trim_pkt_size'
 [options="header",cols="1,1,3"]
 |=================
@@ -701,6 +717,9 @@ Any element in the array can be one of the following object types:
 | type          | string      | ''trim_pkt_size''
 | name          | string      | flow var name to take the new trim packet size from. The var size should be valid packet size and less than template packet size. see `stl/udp_rand_size.yaml` for an example
 |=================
+
+
+===== tuple_flow_var
 
 .Object type 'vm - tuple_flow_var'
 [options="header",cols="1,1,3"]
@@ -746,6 +765,7 @@ an example of tuple_flow_var variable
 
 The variable name.port and name.ip could be written to any offset in the packet (usualy to src_ip and src_port as client) 
 
+===== write_mask_flow_var
 
 .Object type 'vm - write_mask_flow_var'
 [options="header",cols="1,1,3"]
@@ -806,11 +826,13 @@ an example of tuple_flow_var variable
 The use cases of this instruction is to write to a bit field (valn/mpls)
 
 
-
 TIP: For more information and examples on VM objects please refer to:
 link:vm_doc.html[VM examples]
 
-===== Object type 'rx_stats' anchor:rx_stats_obj[]
+==== rx_stats
+
+anchor:rx_stats_obj[]
+
 Describes rx stats for the stream
 
 {zwsp} +
@@ -818,11 +840,11 @@ Describes rx stats for the stream
 IMPORTANT: In case rx_stats is enabled, meta data will be written in the end of the packet.
 please also consider the following constraints:
 
-==== Constrains
+===== Constrains
 * *performance* - this will have performance impact as rx packets will be examined
 * *override* - up to 10 bytes at the end of the packet will be overidden by the meta data required
 
-==== The bytes needed for activating 'rx_stats':
+===== The bytes needed for activating 'rx_stats':
 
 * *stream_id* consumes 2 bytes
 * *seq_enabled* consumes 4 bytes
@@ -907,6 +929,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 
 === Remove Stream
+
 * *Name* - 'remove_stream'
 * *API Class* - 'core'
 * *Valid States* - 'owned'

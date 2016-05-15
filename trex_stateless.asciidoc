@@ -106,10 +106,10 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Automation speed sec| 30 sec | [green]*1 msec* | Test of load/start/stop/get counters 
 | HLTAPI | Full support. 2000 pages of documentation |  Limited. 20 pages of documentation|
 | Per Stream statistics | 255  streams with 4 global masks | 128 rules for XL710/X710 hardware and software impl for 82599/I350/X550| Some packet type restrictions apply to XL710/X710.
-| Latency Jitter |  Yes | Yes |
+| Latency Jitter |  Yes,Resolution of nsec (hardware) | Yes,Resolution of usec (software)  |
 | Multi-user support | Yes | Yes |
-| GUI  | very good | WIP, packet build is scapy-based. Not the same as IXIA. |
-| Cisco pyATS support | Yes | Yes - Python 2.7, Python 64-bit, WIP to port it to Python 3.0|    
+| GUI  | very good | WIP, packet build is scapy-based. Not the same as IXIA. Done by Exalt |
+| Cisco pyATS support | Yes | Yes - Python 2.7/Python 3.4 |    
 | Emulation | Yes | Not yet |
 | Port IDs  | Based on IXIA numebrs  | Depends on PCI enumeration  
 |=================
