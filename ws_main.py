@@ -509,6 +509,9 @@ def build(bld):
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='trex_console.asciidoc waf.css', target='trex_console.html', scan=ascii_doc_scan)
 
+    bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true  -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+        source='trex_index.asciidoc waf.css', target='index.html', scan=ascii_doc_scan)
+
     build_cp(bld,'cp_docs','doc',build_cp_docs)
 
     build_cp(bld,'cp_stl_docs','doc_stl',build_stl_cp_docs)

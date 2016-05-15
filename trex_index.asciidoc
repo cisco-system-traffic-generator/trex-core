@@ -1,0 +1,78 @@
+TRex Documentation
+==================
+:author: TRex dev team
+:email: trex.tgen@gmail.com 
+:revnumber: 0.1
+:quotes.++:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Presentations
+
+[options="header",cols="<4,a"]
+|=================
+| Description  |    Name 
+| Stateful rather old    | 
+link:trex_preso.html[Old Stateful] 
+| Stateful DPDK summit    | 
+link:http://www.slideshare.net/harryvanhaaren/trex-traffig-gen-hanoch-haim[DPDK summit] 
+|=================
+
+
+== User Guides
+
+[options="header",cols="<4,a"]
+|=================
+| Description  |    Name 
+| Index     |  
+link:index.html[index.html] 
+| Release Notes     |  
+link:release_notes.html[release_notes.html] 
+| Stateful  Manual and Getting Started     |  
+link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf] 
+| Stateless Manual    | 
+link:trex_stateless.html[trex_stateless.html] link:trex_stateless.pdf[trex_stateless.pdf]
+| Tutorial TRex on VirtualBox    | 
+link:trex_vm_manual.html[trex_vm_manual.html] link:trex_vm_manual.pdf[trex_vm_manual.pdf]
+|=================
+
+== Python Automation API 
+
+[options="header",cols="<4,a"]
+|=================
+| Description  |    Name 
+| Stateless Python automation API    | 
+link:cp_stl_docs/index.html[stateless_sdk] 
+| Stateful  Python automation API    | 
+link:cp_docs/index.html[statelful_sdk] 
+| Stateful API tutorial              | 
+link:trex_control_plane_peek.html[Peek]
+|=================
+
+== Miscellaneous 
+
+[options="header",cols="<4,a"]
+|=================
+| Description  |    Name 
+| GitHub    | 
+link:https://github.com/cisco-system-traffic-generator/trex-core[GitHub]
+| Wiki    | 
+link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
+| How to build    | 
+link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
+| Defect manager    | 
+link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
+|=================
+
+== For Developers
+
+[options="header",cols="<4,a"]
+|=================
+| Description  |    Name 
+| Stateless server RPC specification    | 
+link:trex_rpc_server_spec.html[server.html] 
+|=================
+
