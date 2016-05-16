@@ -408,12 +408,15 @@ class Port(object):
                   "force":    force}
         
         rc = self.transmit("start_traffic", params)
+
+        # must set this before to avoid race with the async response
+        self.state = self.STATE_TX
         if rc.bad():
+            self.state = self.STATE_IDLE
             return self.err(rc.err())
 
-        self.state = self.STATE_TX
-
         return self.ok()
+
 
     # stop traffic
     # with force ignores the cached state and sends the command
