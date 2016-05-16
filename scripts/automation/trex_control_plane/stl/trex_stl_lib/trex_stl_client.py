@@ -557,7 +557,8 @@ class STLClient(object):
 
         self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
                                                                  self.ports,
-                                                                 self.flow_stats)
+                                                                 self.flow_stats,
+                                                                 self.latency_stats)
 
 
        

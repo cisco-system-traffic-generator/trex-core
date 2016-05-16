@@ -204,6 +204,27 @@ class TrexTUIStreamsStats(TrexTUIPanel):
          return ""
 
 
+# latency stats
+class TrexTUILatencyStats(TrexTUIPanel):
+    def __init__ (self, mng):
+        super(TrexTUILatencyStats, self).__init__(mng, "lstats")
+        self.key_actions = OrderedDict()
+        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
+
+
+    def show (self):
+        stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LS_COMPAT)
+        # print stats to screen
+        for stat_type, stat_data in stats.items():
+            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+
+    def get_key_actions (self):
+        return self.key_actions 
+
+    def action_clear (self):
+         self.stateless_client.latency_stats.clear_stats()
+         return ""
+
 # log
 class TrexTUILog():
     def __init__ (self):
@@ -235,11 +256,13 @@ class TrexTUIPanelManager():
         self.panels = {}
         self.panels['dashboard'] = TrexTUIDashBoard(self)
         self.panels['sstats']    = TrexTUIStreamsStats(self)
+        self.panels['lstats']    = TrexTUILatencyStats(self)
 
         self.key_actions = OrderedDict()
         self.key_actions['q'] = {'action': self.action_quit, 'legend': 'quit', 'show': True}
-        self.key_actions['g'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
-        self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams stats', 'show': True}
+        self.key_actions['d'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
+        self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
+        self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
 
         # start with dashboard
         self.main_panel = self.panels['dashboard']
@@ -345,9 +368,14 @@ class TrexTUIPanelManager():
         return action_show_port_x
 
 
-
     def action_show_sstats (self):
         self.main_panel = self.panels['sstats']
+        self.init(self.show_log)
+        return ""
+
+
+    def action_show_lstats (self):
+        self.main_panel = self.panels['lstats']
         self.init(self.show_log)
         return ""
 

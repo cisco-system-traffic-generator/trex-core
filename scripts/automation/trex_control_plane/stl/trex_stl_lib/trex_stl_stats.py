@@ -20,11 +20,13 @@ PORT_STATS = 'p'
 PORT_GRAPH = 'pg'
 PORT_STATUS = 'ps'
 STREAMS_STATS = 's'
+LATENCY_STATS = 'l'
 
-ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, PORT_GRAPH]
+ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH]
 COMPACT = [GLOBAL_STATS, PORT_STATS]
 GRAPH_PORT_COMPACT = [GLOBAL_STATS, PORT_GRAPH]
-SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS]
+SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS] # stream stats
+LS_COMPAT = [GLOBAL_STATS, LATENCY_STATS] # latency stats
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
@@ -128,10 +130,11 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
         self._rx_stats_ref = rx_stats_ref
+        self._latency_stats_ref = latency_stats_ref
 
     def generate_single_statistic(self, port_id_list, statistic_type):
         if statistic_type == GLOBAL_STATS:
@@ -148,6 +151,9 @@ class CTRexInfoGenerator(object):
 
         elif statistic_type == STREAMS_STATS:
             return self._generate_streams_stats()
+
+        elif statistic_type == LATENCY_STATS:
+            return self._generate_latency_stats()
 
         else:
             # ignore by returning empty object
@@ -199,6 +205,23 @@ class CTRexInfoGenerator(object):
         stats_table.header(header)
 
         return {"streams_statistics": ExportableStats(sstats_data, stats_table)}
+
+    def _generate_latency_stats (self):
+        streams_keys, lstats_data = self._latency_stats_ref.generate_stats()
+        stream_count = len(streams_keys)
+
+        stats_table = text_tables.TRexTextTable()
+        stats_table.set_cols_align(["l"] + ["r"] * stream_count)
+        stats_table.set_cols_width([12] + [14]   * stream_count)
+        stats_table.set_cols_dtype(['t'] + ['t'] * stream_count)
+        stats_table.add_rows([[k] + v
+                              for k, v in lstats_data.items()],
+                              header=False)
+
+        header = ["PG ID"] + [key for key in streams_keys]
+        stats_table.header(header)
+
+        return {"latency_statistics": ExportableStats(lstats_data, stats_table)}
 
     @staticmethod
     def _get_rational_block_char(value, range_start, interval):
@@ -422,8 +445,8 @@ class CTRexStats(object):
         self.reference_stats = {}
         self.latest_stats = {}
         self.last_update_ts = time.time()
-        self.history = deque(maxlen = 47)
-        self.lock = threading.Lock()
+        self.__history = deque(maxlen = 47)
+        self.lock = threading.RLock()
         self.has_baseline = False
 
     ######## abstract methods ##########
@@ -460,13 +483,24 @@ class CTRexStats(object):
             self.has_baseline = True
 
         # save history
+        self.history.append(self.latest_stats)
+
+
+    @property
+    def history(self):
         with self.lock:
-            self.history.append(self.latest_stats)
+            return self.__history
+
+    @history.setter
+    def history(self, val):
+        with self.lock:
+            self.__history = val
 
 
     def clear_stats(self):
         self.reference_stats = copy.deepcopy(self.latest_stats)
         self.history.clear()
+        self.history.append(self.latest_stats)
 
 
     def invalidate (self):
@@ -527,8 +561,7 @@ class CTRexStats(object):
             return 0
         
         # must lock, deque is not thread-safe for iteration
-        with self.lock:
-            field_samples = [sample[field] for sample in list(self.history)[-5:]]
+        field_samples = [sample[field] for sample in list(self.history)[-5:]]
 
         if use_raw:
             return calculate_diff_raw(field_samples)
@@ -702,13 +735,11 @@ class CPortStats(CTRexStats):
             else:
                 self.__merge_dicts(self.reference_stats, x.reference_stats)
 
-        # history - should be traverse with a lock
-        with self.lock, x.lock:
-            if not self.history:
-                self.history = copy.deepcopy(x.history)
-            else:
-                for h1, h2 in zip(self.history, x.history):
-                    self.__merge_dicts(h1, h2)
+        if not self.history:
+            self.history = copy.deepcopy(x.history)
+        else:
+            for h1, h2 in zip(self.history, x.history):
+                self.__merge_dicts(h1, h2)
 
         return self
 
@@ -839,29 +870,68 @@ class CLatencyStats(CTRexStats):
     def get_stats (self):
         return self.latest_stats
 
-    def process_snapshot (self, current):
+
+    def _update(self, snapshot):
+        if not snapshot:
+            return
         output = {}
+        #print snapshot
 
         # we care only about the current active keys
-        pg_ids = list(filter(is_intable, current.keys()))
+        pg_ids = list(filter(is_intable, snapshot.keys()))
 
         for pg_id in pg_ids:
-            current_pg = current.get(pg_id)
+            current_pg = snapshot.get(pg_id)
             int_pg_id = int(pg_id)
             output[int_pg_id] = {}
             for field in ['err_cntrs', 'jitter', 'latency']:
                 output[int_pg_id][field] = current_pg[field]
-        return output
 
-    def update (self, snapshot, baseline):
-        # generate a new snapshot
-        if (snapshot is not None):
-            new_snapshot = self.process_snapshot(snapshot)
-        else:
-            return
-
-        self.latest_stats = new_snapshot
+        self.latest_stats = output
         return True
+
+
+    def generate_stats (self):
+        latency_window_size = 10
+
+        # for TUI - maximum 5 
+        pg_ids = list(filter(is_intable, self.latest_stats.keys()))[:5]
+        cnt = len(pg_ids)
+        formatted_stats = OrderedDict([
+                                       ('Max latency',   []),
+                                       ('Avg latency',   []),
+                                       ('Min latency',   []),
+                                       ('Last 0.5s',     []),
+                                      ] + [
+                                       ('Last-%s' % i, []) for i in range(1, latency_window_size)
+                                      ] + [
+                                       ('---',  [''] * cnt),
+                                       ('Jitter',        []),
+                                       ('----', [''] * cnt),
+                                       ('Out of order',  []),
+                                      ])
+
+        history = self.history # get it once with the lock, not per each index
+        for pg_id in pg_ids:
+            latency_dict = self.get([pg_id, 'latency'])
+
+            formatted_stats['Max latency'].append('%s usec' % self.get([pg_id, 'latency', 'max_usec']))
+            formatted_stats['Avg latency'].append('%s usec' % self.get([pg_id, 'latency', 's_avg']))
+            formatted_stats['Min latency'].append('%s usec' % self.get([pg_id, 'latency', 'min_usec']))
+            formatted_stats['Last 0.5s'].append('%s usec' % int(self.get([pg_id, 'latency', 'last_max'])))
+            for i in range(1, latency_window_size):
+                val = '%s usec' % int(history[-i - 1][pg_id]['latency']['last_max']) if len(history) > i else ''
+                formatted_stats['Last-%s' % i].append(val)
+            formatted_stats['Jitter'].append('%g usec' % round(self.get([pg_id, 'jitter']), 1))
+
+            #formatted_stats['Dropped'].append(format_num(self.get([pg_id, 'err_cntrs', 'dropped'], format = True, suffix = "pkts"))
+                                            #compact = False,
+                                            #opts = 'green' if self.get([pg_id, 'err_cntrs', 'dropped']) == 0 else 'red')
+                                            #)
+            formatted_stats['Out of order'].append(self.get([pg_id, 'err_cntrs', 'out_of_order'], format = True, suffix = "pkts"))
+
+        return pg_ids, formatted_stats
+
 
 
 # RX stats objects - COMPLEX :-(
