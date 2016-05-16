@@ -858,7 +858,7 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
                 m_hw_id_map.unmap(hw_id);
             } else {
                 CFlowStatUserIdInfoPayload *p_user_id_p = (CFlowStatUserIdInfoPayload *)p_user_id;
-                std::string json;
+                Json::Value json;
                 m_api->get_rfc2544_info(&rfc2544_info, hw_id, hw_id, true);
                 p_user_id_p->set_jitter(rfc2544_info.get_jitter());
                 rfc2544_info.get_latency_json(json);
@@ -1043,14 +1043,14 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
         if (user_id_info->rfc2544_support()) {
             CFlowStatUserIdInfoPayload *user_id_info_p = (CFlowStatUserIdInfoPayload *)user_id_info;
             // payload object. Send also latency, jitter...
-            std::string lat_hist;
+            Json::Value lat_hist;
             if (user_id_info->is_hw_id()) {
                 // if mapped to hw_id, take info from what we just got from rx core
                 uint16_t hw_id = user_id_info->get_hw_id();
                 rfc2544_info[hw_id].get_latency_json(lat_hist);
                 user_id_info_p->set_seq_err_cnt(rfc2544_info[hw_id].get_seq_err_cnt());
                 user_id_info_p->set_ooo_cnt(rfc2544_info[hw_id].get_ooo_cnt());
-                l_data_section[str_user_id]["latency"]["histogram"] = lat_hist;
+                l_data_section[str_user_id]["latency"] = lat_hist;
                 l_data_section[str_user_id]["latency"]["last_max"] = rfc2544_info[hw_id].get_last_max();
                 l_data_section[str_user_id]["jitter"] = rfc2544_info[hw_id].get_jitter();
             } else {

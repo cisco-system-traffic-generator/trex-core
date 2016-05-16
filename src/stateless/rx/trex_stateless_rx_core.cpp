@@ -101,8 +101,7 @@ void CRxCoreStateless::start() {
     while (true) {
         if (m_state == STATE_WORKING) {
             i++;
-            //??? need to calculate value for 10msec instead of 1000
-            if (i == 1000) {
+            if (i == 100000) { // approx 10msec
                 i = 0;
                 periodic_check_for_cp_messages(); // m_state might change in here
             }
@@ -327,12 +326,17 @@ int CRxCoreStateless::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int
 }
 
 int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset) {
-    std::string json;
+    std::string json_str;
+    Json::Value json;
+    Json::Reader reader;
+
     for (int hw_id = min; hw_id <= max; hw_id++) {
         rfc2544_info[hw_id - min].set_err_cntrs(m_per_flow_seq_error[hw_id], m_per_flow_out_of_order[hw_id]);
         rfc2544_info[hw_id - min].set_jitter(m_per_flow_jitter[hw_id].get_jitter());
         m_per_flow_hist[hw_id].update();
-        m_per_flow_hist[hw_id].dump_json("", json);
+        m_per_flow_hist[hw_id].dump_json("", json_str);
+        // This is a hack. We need to make the dump_json return json object.
+        reader.parse( json_str.c_str(), json);
         rfc2544_info[hw_id - min].set_latency_json(json);
         rfc2544_info[hw_id - min].set_last_max(m_per_flow_last_max[hw_id].switchMax());
 

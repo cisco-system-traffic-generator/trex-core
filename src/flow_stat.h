@@ -65,11 +65,11 @@ class rfc2544_info_t_ {
         clear();
     }
 
-    inline void get_latency_json(std::string & json) const {
+    inline void get_latency_json(Json::Value & json) const {
         json = m_latency;
     }
 
-    inline void set_latency_json(std::string json) {
+    inline void set_latency_json(Json::Value json) {
         m_latency = json;
     }
 
@@ -106,7 +106,7 @@ class rfc2544_info_t_ {
         m_seq_error = 0;
         m_out_of_order = 0;
         m_jitter = 0;
-        m_latency = "";
+        m_latency = Json::Value("");
     }
 
     inline rfc2544_info_t_ operator+ (const rfc2544_info_t_ &t_in) {
@@ -146,9 +146,9 @@ class rfc2544_info_t_ {
     uint64_t m_out_of_order;
     double   m_jitter;
     dsec_t   m_last_max_latency;
-    // json string of latency. In case of stop/start, we calculate latency graph from scratch,
+    // json latency object. In case of stop/start, we calculate latency graph from scratch,
     // so when stopping, we just "freeze" state for reporting by saving the json string
-    std::string m_latency;
+    Json::Value m_latency;
 };
 
 class tx_per_flow_t_ {
@@ -286,11 +286,11 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
         m_seq_error_base = 0;
         m_out_of_order_base = 0;
     }
-    inline void get_latency_json(std::string & json) const {
+    inline void get_latency_json(Json::Value & json) const {
         json = m_rfc2544_info.m_latency;
     }
 
-    inline void set_latency_json(std::string json) {
+    inline void set_latency_json(Json::Value json) {
         m_rfc2544_info.m_latency = json;
     }
 
