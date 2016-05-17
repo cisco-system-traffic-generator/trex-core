@@ -11,6 +11,8 @@ TRex Stateless support
 :github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
 :toclevels: 6
 
+include::trex_ga.asciidoc[]
+
 // PDF version - image width variable
 ifdef::backend-docbook[]
 :p_width: 450
@@ -29,8 +31,6 @@ ifdef::backend-xhtml11[]
 :p_width_lge: 900
 endif::backend-xhtml11[]
 
-include::trex_ga.asciidoc[]
-include::trex_toc.asciidoc[]
 
 
 == Audience 

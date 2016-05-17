@@ -8,8 +8,6 @@ TRex Virtual Machine setup and basic usage
 
 
 include::trex_ga.asciidoc[]
-include::trex_toc.asciidoc[]
-
 
 
 == Introduction

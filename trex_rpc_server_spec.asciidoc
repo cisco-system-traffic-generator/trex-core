@@ -10,8 +10,6 @@ The TRex RPC Server
 :toclevels: 7
 
 include::trex_ga.asciidoc[]
-include::trex_toc.asciidoc[]
-
 
 == Change log
 

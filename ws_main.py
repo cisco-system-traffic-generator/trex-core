@@ -257,6 +257,376 @@ def convert_to_pdf(task):
     return  os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
 
 
+TOC_HEAD = """
+
+<body class="book">
+<div id="toc-section">
+        <div id="toctitle">
+            <img class="trex_logo" src="images/trex_logo_toc.png"/>
+            Table of Contents
+        </div>
+
+        <div id="toggle">
+          <img src="images/icons/toggle.png" title="click to toggle table of contents"/>
+        </div>
+        
+        <div id="toc">
+          <div id="nav-tree">
+          
+          </div>
+        </div>
+</div>
+
+<div id="content-section">
+  <div id="content-section-inner">
+
+"""
+
+TOC_END = """
+
+  </div>
+  <!-- End Of Inner Content Section -->
+</div>
+<!-- End of Content Section -->
+
+</body>
+
+<!-- load the theme CSS file -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" rel="stylesheet"/>
+
+<link href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
+
+<!-- include the jQuery library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.1/jquery.min.js">
+</script>
+
+<!-- include the jQuery UI library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js">
+</script>
+
+<!-- include the minified jstree source -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/jstree.min.js">
+</script>
+
+<style type="text/css">
+    #toc {
+      margin-bottom: 2.5em;
+    }
+    
+    #toctitle {
+      color: #527bbd;
+      font-size: 1.1em;
+      font-weight: bold;
+      margin-top: 1.0em;
+      margin-bottom: 0.1em;
+    }
+
+    @media screen {
+      body {
+        margin-left: 20em;
+      }
+    
+      #toc {
+        position: fixed;
+        top: 51px;
+        left: 0;
+        bottom: 0;
+        width: 18em;
+        padding-bottom: 1.5em;
+        margin: 0;
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        border-right: solid 2px #cfcfcf;
+        background-color: #FAFAFA;
+        white-space: nowrap;
+      }
+    
+      #toctitle {
+        font-size: 17px !important;
+        color: #4d4d4d !important;
+        margin-top: 0px;
+        height: 36px;
+        line-height: 36px;
+        background-color: #e4e2e2;
+        padding: 8px 0px 7px 45px;
+        white-space: nowrap;
+        left: 0px;
+        display: block;
+        position: fixed;
+        z-index: 100;
+        width: 245px;
+        top: 0px;
+        overflow: hidden;
+      }
+      
+      #toc .toclevel1 {
+        margin-top: 0.5em;
+      }
+    
+      #toc .toclevel2 {
+        margin-top: 0.25em;
+        display: list-item;
+        color: #aaaaaa;
+      }
+    
+    }
+
+
+  /* Custom for Nave Tree */
+  #nav-tree{
+    margin-left: 10px !important;
+  }
+  
+  #nav-tree ul > li {
+    color: #000 !important;
+  }
+  
+  .jstree-wholerow.jstree-wholerow-clicked {
+    background-image: url('images/icons/selected_tab_bg.png');
+    background-repeat: repeat-x;
+    color: #fff !important;
+    text-shadow: 0px 1px 1px rgba(0, 0, 0, 1.0);
+  }
+
+        /* For side bar */
+  .ui-resizable-e{
+    height: 100%;
+    width: 4px !important;
+    position: fixed !important;
+    top: 0px !important;
+    cursor: e-resize !important;
+    background: url('images/splitbar.png') repeat scroll right center transparent !important;
+  }
+
+  .jstree-default .jstree-themeicon{
+    display: none !important;
+  }
+
+
+  .jstree-anchor {
+    font-size: 12px !important;
+    color: #91A501 !important;
+  }
+
+
+  .jstree-clicked{
+    color: green !important;
+  }
+  
+
+  #toggle {
+    position: fixed;
+    top: 14px;
+    left: 10px;
+    z-index: 210;
+    width: 24px;
+  }
+
+  #toggle img {
+    opacity:0.3;
+  }
+
+  #toggle img:hover {
+    opacity:0.9;
+  }
+
+  .trex_logo{
+    top: 6px;
+    position: relative;
+  }
+
+   html{
+    overflow: hidden;
+  }
+
+  body{
+    margin-right: 0px !important;
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+  }
+
+  #toc-section{
+    position: absolute;
+    z-index: 200;
+  }
+
+  #content-section{
+    overflow: auto;
+  }
+
+  #content-section-inner{
+    max-width: 50em;
+  }
+
+
+ </style>
+
+
+
+<script>
+
+      $(document).ready(function(){
+          var isOpen = true;
+
+        // Initialize NavTree
+        initializeNavTree();
+        // Drag TOC left and right
+        initResizable();
+        // Toggle TOC whe clicking on the menu icon
+        toggleTOC();
+        // Handle Mobile - close TOC
+        checkMobile();
+
+        function initializeNavTree() {
+
+          // TOC tree options
+          var toc_tree = $('#nav-tree');        
+
+          var toc_tree_options = {
+            'core' : {
+              "animation" :false,
+              "themes" : { "stripes" : false },
+              'data' : {
+                "url" : "./input_replace_me.json",  
+                "dataType" : "json" // needed only if you do not supply JSON headers
+              }
+            }
+            ,
+            "plugins" : [ "wholerow" ]
+          };
+
+          $('#nav-tree').jstree(toc_tree_options) ;
+
+          toc_tree.on("changed.jstree", function (e, data) {
+            window.location.href = data.instance.get_selected(true)[0].original.link;
+          });
+        }
+        
+        function initResizable() {
+          var toc = $("#toc");
+          var body = $("body");
+
+          // On resize
+          $("#toc").resizable({
+              resize: function(e, ui) {
+                  resized();
+              },
+              handles: 'e'
+          });
+          
+        // On zoom changed
+          $(window).resize(function() {
+            if(isOpen){
+                resized();
+            }
+          });
+
+
+         // Do it for the first time
+            var tocWidth = $(toc).outerWidth();
+            var windowHeight = $(window).height();
+            $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
+            $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
+            $("#toc-section").css({"height":windowHeight + "px"});
+            $("#content-section").css({"height":windowHeight + "px"});
+       
+        }
+
+        function resized(){
+          var body = $("body");
+          var tocWidth = $(toc).outerWidth();
+          var windowHeight = $(window).height();
+
+          body.css({"marginLeft":parseInt(tocWidth)+20+"px"});
+          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
+          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
+          $("#toc-section").css({"height":windowHeight + "px"});
+          $("#content-section").css({"height":windowHeight + "px"});
+          
+        }
+
+
+        function toggleTOC(){
+          $( "#toggle" ).click(function() {
+            if ( isOpen ) {
+              // Close it
+               closTOC();
+            } else {
+              // Open it
+              openTOC();
+            }
+            // Toggle status
+            isOpen = !isOpen;
+          });
+        }
+
+
+        // Close TOC by default if it is mobile
+        function checkMobile(){
+          if(isMobileDevice()){
+            closTOC();
+            $(".ui-resizable-e").hide();
+          }
+        }
+
+        // Check it it it is running on mobile device
+        function isMobileDevice() {
+            if(
+                navigator.userAgent.match(/Android/i) ||
+                navigator.userAgent.match(/BlackBerry/i) ||
+                navigator.userAgent.match(/iPhone|iPad|iPod/i) ||
+                navigator.userAgent.match(/Opera Mini/i) ||
+                navigator.userAgent.match(/IEMobile/i) || 
+                navigator.userAgent.match(/iPhone|iPad|iPod/i)
+              )
+            {
+              return true;
+            }
+            else
+            {
+              return false;
+            }
+        }
+
+        // Close TOC
+        function closTOC(){
+            $("#toc").hide("slide", 500);
+            $("#toctitle").hide("slide", 500);
+            if(!isMobileDevice()){
+                $(".ui-resizable-e").hide("slide", 500);
+            }
+            // Show the show/hide button
+            $("#toggle").css("right", "-40px");
+            // Fil width
+            $("body").animate({"margin-left": "50px"}, 500);
+        }
+
+        // Open TOC
+        function openTOC(){
+            $("#toc").show("slide", 500);
+            $("#toctitle").show("slide", 500);
+            if(!isMobileDevice()){
+              $(".ui-resizable-e").show("slide", 500);
+            }
+            // Show the show/hide button
+            $("#toggle").css("right", "15px");
+            // Minimize page width
+            $("body").animate({"margin-left": $(toc).outerWidth()+20+"px"}, 500);
+        }
+
+      });
+
+</script>
+
+"""
+
+def do_replace (input_file,contents,look,str_replaced):
+    if contents.count(look)!=1 :
+        raise Exception('Cannot find {0} in file {1} '.format(look,input_file))
+
+    return  contents.replace(look, str_replaced)
+
+
 
 def toc_fixup_file (input_file,
                     out_file, 
@@ -265,9 +635,13 @@ def toc_fixup_file (input_file,
 
     file = open(input_file)
     contents = file.read()
-    replaced_contents = contents.replace('input_replace_me.json', json_file_name)
+
+    contents = do_replace(input_file,contents,'<body class="book">', TOC_HEAD);
+    contents = do_replace(input_file,contents,'</body>', TOC_END)
+    contents = do_replace(input_file,contents,'input_replace_me.json', json_file_name)
+
     file = open(out_file,'w')
-    file.write(replaced_contents)
+    file.write(contents)
     file.close();
 
 
@@ -280,7 +654,7 @@ def convert_to_html_toc_book(task):
     tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
     json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
 
-    cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book -a max-width=55em  -o {2} {3}'.format(
+    cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book  -o {2} {3}'.format(
             task.env['ASCIIDOC'],
             task.inputs[1].abspath(),
             tmp,
@@ -601,5 +975,10 @@ def publish_both(bld):
     publish_ext(bld)
 
          
-               
+def test(bld):
+    # copy all the files to our web server 
+    toc_fixup_file ('build/trex_stateless.tmp',
+                    'build/trex_stateless.html',
+                    'trex_stateless.json')
+
 

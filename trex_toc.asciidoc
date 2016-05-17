@@ -1,7 +1,7 @@
 
 ifdef::backend-xhtml11[]
 ++++
-
+<div id="toc-section">
         <div id="toctitle">
             <img class="trex_logo" src="images\trex_logo_toc.png"/>
             Table of Contents
@@ -17,6 +17,8 @@ ifdef::backend-xhtml11[]
           
           </div>
         </div>
+</div>
+
 
 
     <!-- load the theme CSS file -->
