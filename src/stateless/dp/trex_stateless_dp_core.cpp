@@ -1095,6 +1095,9 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
     }
  
 
+    /* flush the TX queue before sending done message to the CP */
+    m_core->flush_tx_queue();
+
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
     TrexStatelessDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                                    port_id,

@@ -1003,7 +1003,11 @@ class STLClient(object):
                 if connected and not client.is_connected():
                     raise STLStateError(func_name, 'disconnected')
 
-                ret = f(*args, **kwargs)
+                try:
+                    ret = f(*args, **kwargs)
+                except KeyboardInterrupt as e:
+                    raise STLError("Test was interrupted by a keyboard signal (probably ctrl + c)")
+
                 return ret
             return wrap2
 

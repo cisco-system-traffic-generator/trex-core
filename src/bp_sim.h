@@ -3629,6 +3629,10 @@ public:
         m_node_gen.set_vif(v_if);
     }
 
+    void flush_tx_queue() {
+        m_node_gen.m_v_if->flush_tx_queue();
+    }
+
     /* return the dual port ID this thread is attached to in 4 ports configuration
        there are 2 dual-ports
 

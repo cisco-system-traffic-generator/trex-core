@@ -1,5 +1,6 @@
 import os
 import sys
+import linecache
 
 from .utils.text_opts import *
 
@@ -15,9 +16,14 @@ class STLError(Exception):
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
 
 
+        src_line = str(linecache.getline(fname, exc_tb.tb_lineno))
+
+
         s = "\n******\n"
-        s += "Error at {0}:{1}\n\n".format(format_text(fname, 'bold'), format_text(exc_tb.tb_lineno), 'bold')
+        s += "Error at {0}:{1} - '{2}'\n\n".format(format_text(fname, 'bold'), format_text(exc_tb.tb_lineno, 'bold'), format_text(src_line.strip(), 'bold'))
         s += "specific error:\n\n{0}\n".format(format_text(self.msg, 'bold'))
+
+        
 
         return s
 
