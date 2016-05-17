@@ -884,7 +884,7 @@ class CLatencyStats(CTRexStats):
             current_pg = snapshot.get(pg_id)
             int_pg_id = int(pg_id)
             output[int_pg_id] = {}
-            for field in ['err_cntrs', 'jitter', 'latency']:
+            for field in ['err_cntrs', 'latency']:
                 output[int_pg_id][field] = current_pg[field]
 
         self.latest_stats = output
@@ -922,7 +922,7 @@ class CLatencyStats(CTRexStats):
             for i in range(1, latency_window_size):
                 val = '%s usec' % int(history[-i - 1][pg_id]['latency']['last_max']) if len(history) > i else ''
                 formatted_stats['Last-%s' % i].append(val)
-            formatted_stats['Jitter'].append('%g usec' % round(self.get([pg_id, 'jitter']), 1))
+            formatted_stats['Jitter'].append('%g usec' % round(self.get([pg_id, 'latency', 'jitter']), 1))
 
             #formatted_stats['Dropped'].append(format_num(self.get([pg_id, 'err_cntrs', 'dropped'], format = True, suffix = "pkts"))
                                             #compact = False,
