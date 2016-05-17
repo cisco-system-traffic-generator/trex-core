@@ -241,7 +241,7 @@ If you are confused you probably need Stateless. :-)
 
 === Tutorials
 
-The tutorials in this section demonstrate basic TRex *stateless* use cases. The examples include common and moderately advanced TRex concepts.
+The tutorials in this section demonstrate basic TRex *stateless* use cases. Examples include common and moderately advanced TRex concepts.
 
 ==== Tutorial: Simple IPv4/UDP packet - TRex 
 
@@ -452,7 +452,7 @@ Port Statistics
 
 *Discussion*::
 
-In this example TRex sends the *same* packet from all ports. If your setup is connected with loopback, you will see Tx packets from port 0 in Rx port 1 and vice versa.  If you are having DUT with a static route, you might see all the packets going to a specific port.
+In this example TRex sends the *same* packet from all ports. If your setup is connected with loopback, you will see Tx packets from port 0 in Rx port 1 and vice versa.  If you have DUT with static route, you might see all the packets going to specific port.
 
 .Static route
 [source,bash]
@@ -510,11 +510,11 @@ In this example all the packets will be routed to `TenGigabitEthernet0/1/0` port
 
 ==== Tutorial: Connect from a remote server 
 
-*Goal*:: Connect by console from a remote machine to a TRex server 
+*Goal*:: Connect by console from remote machine to a TRex server 
 
 *Check that TRex server is operational*::
 
-Ensure that the TRex server is running. If not, then run TRex in interactive mode.
+Ensure that the TRex server is running. If not, run TRex in interactive mode.
 // again, this is a bit vague. the tutorial should provide simple steps for using interactive mode or not. too many conditions.
 
 [source,bash]
@@ -582,7 +582,7 @@ Ether(dst="00:bb:12:34:56:01"),trex_cfg(src),"00:bb:12:34:56:01"
 
 [IMPORTANT]
 =====================================
-A TRex port will receive a packet only if the packet's destination MAC matches the HW Src MAC defined for that port in the `/etc/trex_cfg.yaml` configuration file. Alternatively, a port can be put into link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous mode], allowing the port to receive all packets on the line. The port can be configured to promiscuous mode by API or by the following command at the console: `portattr -a --prom`.
+TRex port will receive a packet only if the packet's destination MAC matches the HW Src MAC defined for that port in the `/etc/trex_cfg.yaml` configuration file. Alternatively, a port can be put into link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous mode], allowing the port to receive all packets on the line. The port can be configured to promiscuous mode by API or by the following command at the console: `portattr -a --prom`.
 =====================================
 
 To set ports to link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous mode] and show the port status:
@@ -801,7 +801,7 @@ See link:cp_stl_docs/index.html[TRex Stateless Python API] for details about usi
 ==== Tutorial: HLT Python API 
 
 HLT Python API is a layer on top of the native layer. It supports the standard Cisco traffic generator API. For more information, see Cisco/IXIA/Spirent documentation.
-TRex supports a limited number of HLTAPI arguments and the recommendation is to use the native API due to the flexibility and simplicity.
+TRex supports limited number of HLTAPI arguments and the recommendation is to use the native API due to the flexibility and simplicity.
 
 Supported HLT Python API classes:
 
@@ -1955,8 +1955,8 @@ class STLS1(object):
 ==== Tutorial: Field Engine, many clients with ARP
 
 In the following example, there are two Switchs SW1 and SW2. 
-The TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2.
-There are 253 hosts connected to SW1 and SW2 with two networks ports. 
+TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2.
+There are 253 hosts connected to SW1 and SW2 with two network ports. 
 
 .Client side the network of the hosts
 [cols="3<,3<", options="header",width="50%"]
@@ -1982,9 +1982,9 @@ There are 253 hosts connected to SW1 and SW2 with two networks ports.
 image::images/stl_arp.png[title="arp/nd",align="left",width={p_width}, link="images/stl_arp.png"]
 
 In the following example, there are two Switchs SW1 and SW2. 
-The TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2
-In this example, because there are many hosts connected to the same network using SW1 and not as a next hope we would like to teach SW1 the MAC addresses of the hosts and not to send the traffic directly to the hosts MAC (as it in any case known)
-For that we would send an ARP to all the hosts (16.0.0.2-16.0.0.254) from TRex port 0 and Gratius ARP from server side (48.0.0.1) TRex port 1 as the first stage of the test
+TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2
+In this example, because there are many hosts connected to the same network using SW1 and not as a next hope, we would like to teach SW1 the MAC addresses of the hosts and not to send the traffic directly to the hosts MAC (as it is unknown)
+For that we would send an ARP to all the hosts (16.0.0.2-16.0.0.254) from TRex port 0 and gratuitous ARP from server side (48.0.0.1) TRex port 1 as the first stage of the test
 
 So the step would be like that:
 
@@ -2030,7 +2030,7 @@ This principal can be done for IPv6 too. ARP could be replaced with Neighbor Sol
  
 ==== Tutorial: Field Engine, split to core 
 
-The following example splits generated traffic into a number of threads. You can specify the field to use for determining how to split the traffic into threads. Without this feature, the traffic is duplicated and all the threads transmit the same traffic. (See the results tables in the examples below in this tutorial.)
+The following example splits generated traffic into a number of threads. You can specify the field to use for determining how to split the traffic into threads. Without this feature, traffic is duplicated and all threads transmit the same traffic. (See the results tables in the examples below in this tutorial.)
 
 *Without Split*::
 
@@ -2059,8 +2059,8 @@ Scenario: 2 transmitters, DP threads
                        )
 
 ----
-<1> Stream variable.
-<2> Write it to `IPv4.src`.
+<1> Define stream variable ip_src
+<2> Write stream variable we defined to `IPv4.src`.
 
 
 .Variable per thread 
@@ -2305,7 +2305,7 @@ image::images/stl_barrier_03.png[title="Stream Barrier",align="left",width={p_wi
 
 *Goal*:: Load a stream template packet from a pcap file instead of Scapy.
 
-Assumption: The pcap file has one packet. If the pcap file has more than one packet, this procedure loads only the first packet.
+Assumption: The pcap file contains only one packet. If the pcap file contains more than one packet, this procedure loads only the first packet.
 
 *File*:: link:{github_stl_path}/udp_1pkt_pcap.py[stl/udp_1pkt_pcap.py]
 
@@ -2318,7 +2318,7 @@ Assumption: The pcap file has one packet. If the pcap file has more than one pac
                            mode = STLTXCont(pps=10)) ] 
 
 ----
-<1> Takes the packet from the pcap file, relative to current directory (pwd) in which you are running the script.
+<1> Takes the packet from the pcap file, relative to the directory in which you are running the script.
 
 
 *File*:: link:{github_stl_path}/udp_1pkt_pcap_relative_path.py[udp_1pkt_pcap_relative_path.py]
@@ -2333,7 +2333,7 @@ Assumption: The pcap file has one packet. If the pcap file has more than one pac
                          mode = STLTXCont(pps=10)) ] 
 
 ----
-<1> Takes the packet from the pcap file, relative to directory of the *profile* file location.
+<1> Takes the packet from the pcap file, relative to the directory of the *profile* file location.
 
 
 ==== Tutorial: pcap file conversion to many streams
@@ -2364,7 +2364,7 @@ image::images/stl_loop_count_01b.png[title="Example of multiple streams",align="
 
 The figure shows the streams for a pcap file with 3 packets, with a loop configured.
 
-* Each stream is configured to Burst mode, with 1 packet 
+* Each stream is configured to Burst mode with 1 packet.
 * Each stream triggers the next stream. 
 * The last stream triggers the first with `action_loop=loop_count` if `loop_count` > 1.
 
@@ -2485,7 +2485,7 @@ $./stl-sim -f stl/pcap.py --yaml
 
 ==== Tutorial: pcap file to many streams and Field Engine 
 
-The following example loads a pcap file to many streams, and attaches a Field Engine program to each stream. For example, the Field Engine can change the `IP.src` of all the streams to a random IP address.
+The following example loads a pcap file to many streams, and attaches Field Engine program to each stream. For example, the Field Engine can change the `IP.src` of all the streams to a random IP address.
  
 *File*:: link:{github_stl_path}/pcap_with_vm.py[stl/pcap_with_vm.py]
 
@@ -2940,7 +2940,7 @@ trex>
 * Per stream statistics are implemented using hardware assist when possible (examples: Intel X710/XL710 NIC flow director rules).
 * With other NICs (examples: Intel I350, 82599), per stream statistics are implemented in software.
 * Implementation:
-** User chooses 32-bit packet group ID (pg_id).
+** User chooses 32-bit packet group ID (pg_id) for each stream that need statistic reporting. Same pg_id can be used for more than one stream. In this case, statistics for all streams with the same pg_id will be combined. 
 ** The IPv4 identification field of the stream is changed to a value within a reserved range (0xff00 to 0xffff). Note that if a stream for which no statistics are needed has an IPv4 Identification in the reserved range, it is changed (the left bit becomes 0).
 ** Software implementation: Hardware rules are used to direct packets from relevant streams to rx thread, where they are counted. 
 ** Hardware implementation: Hardware rules are inserted to count packets from relevant streams.
@@ -2951,7 +2951,7 @@ trex>
 * The feature supports 2 packet types:
 ** IPv4 over Ethernet
 ** IPv4 with one VLAN tag
-* Maximum number of concurrent streams on which statistics may be collected: 128
+* Maximum number of concurrent streams (with different pg_id) on which statistics may be collected: 127
 
 Two examples follow, one using the console and the other using the Python API.
 // immediately below is the console example; where's the Python API example?
@@ -3075,7 +3075,7 @@ def rx_example (tx_port, rx_port, burst_size):
 
 ==== Tutorial: flow_stats object structure
 
-The flow_stats object is a dictionary whose keys are the configured PG IDs. The next level is a dictionary that contains 'tx_pkts', 'tx_bytes', and 'rx_pkts'. Each of these keys contains a dictionary of per port values.
+The flow_stats object is a dictionary whose keys are the configured PG IDs. The next level is a dictionary containing 'tx_pkts', 'tx_bytes', 'rx_pkts', and 'rx_bytes' (on supported HW). Each of these keys contains a dictionary of per port values.
 
 The following shows a flow_stats object for 3 PG IDs after a specific run:
 
@@ -3097,7 +3097,7 @@ The following shows a flow_stats object for 3 PG IDs after a specific run:
 ----
 
 
-==== Tutorial: Per stream latency/Jitter 
+==== Tutorial: Per stream latency/jitter 
 
 // [TODO]
 
@@ -3121,7 +3121,7 @@ For limitations see xref:altapi-support[here].
 
 class STLS1(object):
     '''
-    Create 2 Eth/IP/UDP steams with different packet size:
+    Create 2 Eth/IP/UDP streams with different packet size:
     First stream will start from 64 bytes (default) and will increase until max_size (9,216)
     Seconds stream will decrease the packet size in reverse way
     '''
