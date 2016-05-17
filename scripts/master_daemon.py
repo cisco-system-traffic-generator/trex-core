@@ -82,9 +82,9 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     for unpacked_dir in unpacked_dirs:
         shutil.rmtree(unpacked_dir)
     # unpacking
-    ret_code, stdout, stderr = run_command('tar -xzf %s -C %s' % (os.path.join(tmp_dir, file_name), tmp_dir))
+    ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 60, cwd = tmp_dir)
     if ret_code:
-        raise Exception('Could not untar the package.\nStdout: %s\nStderr: %s' % (stdout, stderr))
+        raise Exception('Could not untar the package. %s' % [ret_code, stdout, stderr])
     unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
     if not len(unpacked_dirs) or len(unpacked_dirs) > 1:
         raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
@@ -104,40 +104,20 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
         shutil.move(bu_dir, cur_dir)
         raise
 
-
-def unpack_client():
-    if not args.allow_update:
-        raise Exception('Unpacking of client not allowed')
-    # determining client archive
-    client_pkg_files = glob(os.path.join(args.trex_dir, 'trex_client*.tar.gz'))
-    if not len(client_pkg_files):
-        raise Exception('Could not find client package')
-    if len(client_pkg_files) > 1:
-        raise Exception('Found more than one client packages')
-    client_pkg_name = os.path.basename(client_pkg_files[0])
-    client_new_path = os.path.join(args.trex_dir, 'trex_client')
-    if os.path.exists(client_new_path):
-        if os.path.islink(client_new_path) or os.path.isfile(client_new_path):
-            os.unlink(client_new_path)
-        else:
-            shutil.rmtree(client_new_path)
-    # unpacking
-    ret_code, stdout, stderr = run_command('tar -xzf %s -C %s' % (os.path.join(args.trex_dir, client_pkg_files[0]), args.trex_dir))
-    if ret_code:
-        raise Exception('Could not untar the client package: %s' % stderr)
-    return True
-
 ### /Server functions ###
 
 def fail(msg):
     print(msg)
     sys.exit(-1)
 
-def run_command(command, timeout = 15):
-    command = 'timeout %s %s' % (timeout, command)
+def run_command(command, timeout = 15, cwd = None):
+    if timeout:
+        command = 'timeout %s %s' % (timeout, command)
+    if not cwd:
+        cwd = args.trex_dir
     # pipes might stuck, even with timeout
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-        proc = subprocess.Popen(shlex.split(command), stdout = stdout_file, stderr = stderr_file, cwd = args.trex_dir)
+        proc = subprocess.Popen(shlex.split(command), stdout = stdout_file, stderr = stderr_file, cwd = cwd)
         proc.wait()
         stdout_file.seek(0)
         stderr_file.seek(0)
@@ -178,7 +158,6 @@ def start_master_daemon_func():
     server.register_function(restart_trex_daemon)
     server.register_function(start_trex_daemon)
     server.register_function(stop_trex_daemon)
-    server.register_function(unpack_client)
     server.register_function(update_trex)
     server.serve_forever()
 
