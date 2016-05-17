@@ -406,13 +406,15 @@ class Port(object):
                   "mul":      mul,
                   "duration": duration,
                   "force":    force}
-        
+   
+        # must set this before to avoid race with the async response
+        last_state = self.state
+        self.state = self.STATE_TX
+
         rc = self.transmit("start_traffic", params)
 
-        # must set this before to avoid race with the async response
-        self.state = self.STATE_TX
         if rc.bad():
-            self.state = self.STATE_IDLE
+            self.state = last_state
             return self.err(rc.err())
 
         return self.ok()
