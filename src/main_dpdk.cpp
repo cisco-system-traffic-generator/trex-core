@@ -2079,6 +2079,7 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
     CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
     if ( likely(node_sl->is_cache_mbuf_array()) ) {
         m=node_sl->cache_mbuf_array_get_cur();
+        rte_pktmbuf_refcnt_update(m,1);
     }else{
         m=node_sl->get_cache_mbuf();
 
