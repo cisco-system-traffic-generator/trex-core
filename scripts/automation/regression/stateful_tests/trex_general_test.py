@@ -60,6 +60,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
         self.GAManager             = CTRexScenario.GAManager
+        self.no_daemon             = CTRexScenario.no_daemon
         self.skipping              = False
         self.fail_reasons          = []
         if not hasattr(self, 'unsupported_modes'):
@@ -69,7 +70,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.is_VM                 = True if 'VM' in self.modes else False
 
         if not CTRexScenario.is_init:
-            if self.trex: # stateful
+            if self.trex and not self.no_daemon: # stateful
                 CTRexScenario.trex_version = self.trex.get_trex_version()
             if not self.is_loopback:
                 # initilize the scenario based on received configuration, once per entire testing session
@@ -330,7 +331,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             self.trex.force_kill(confirm = False)
         if not self.skipping:
             # print server logs of test run
-            if self.trex and CTRexScenario.server_logs:
+            if self.trex and CTRexScenario.server_logs and not self.no_daemon:
                 try:
                     print(termstyle.green('\n>>>>>>>>>>>>>>> Daemon log <<<<<<<<<<<<<<<'))
                     daemon_log = self.trex.get_trex_daemon_log()

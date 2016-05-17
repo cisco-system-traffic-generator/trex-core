@@ -129,18 +129,21 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--ga', action="store_true", default = False,
                             dest="ga",
                             help="Flag to send benchmarks to GA.")
+        parser.add_option('--no-daemon', action="store_true", default = False,
+                            dest="no_daemon",
+                            help="Flag that specifies to use running stl server, no need daemons.")
+
 
     def configure(self, options, conf):
-        self.collect_only = options.collect_only
-        if self.collect_only:
-            return
+        self.collect_only   = options.collect_only
         self.functional     = options.functional
         self.stateless      = options.stateless
         self.stateful       = options.stateful
         self.pkg            = options.pkg
         self.json_verbose   = options.json_verbose
         self.telnet_verbose = options.telnet_verbose
-        if self.functional and (not self.pkg or self.no_ssh):
+        self.no_daemon      = options.no_daemon
+        if self.collect_only or self.functional:
             return
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
@@ -161,15 +164,17 @@ class CTRexTestConfiguringPlugin(Plugin):
             self.loggerPath = options.log_path
         # initialize CTRexScenario global testing class, to be used by all tests
         CTRexScenario.configuration = self.configuration
+        CTRexScenario.no_daemon     = self.no_daemon
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
         CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'],
                                                   verbose   = self.json_verbose)
-        if not CTRexScenario.trex.check_master_connectivity():
+        if not self.no_daemon and not CTRexScenario.trex.check_master_connectivity():
             print('Could not connect to master daemon')
             sys.exit(-1)
-        CTRexScenario.scripts_path = CTRexScenario.trex.get_trex_path()
+        if not self.no_daemon:
+            CTRexScenario.scripts_path = CTRexScenario.trex.get_trex_path()
         if options.ga and CTRexScenario.setup_name:
             CTRexScenario.GAManager  = GAmanager(GoogleID       = 'UA-75220362-4',
                                                  UserID         = CTRexScenario.setup_name,
@@ -192,25 +197,27 @@ class CTRexTestConfiguringPlugin(Plugin):
             CTRexScenario.is_copied = True
         if self.functional or self.collect_only:
             return
-        print('Restarting TRex daemon server')
-        res = CTRexScenario.trex.restart_trex_daemon()
-        if not res:
-            print('Could not restart TRex daemon server')
-            sys.exit(-1)
-
-        trex_cmds = CTRexScenario.trex.get_trex_cmds()
-        if trex_cmds:
-            if self.kill_running:
-                CTRexScenario.trex.kill_all_trexes()
-            else:
-                print('TRex is already running')
+        if not self.no_daemon:
+            print('Restarting TRex daemon server')
+            res = CTRexScenario.trex.restart_trex_daemon()
+            if not res:
+                print('Could not restart TRex daemon server')
                 sys.exit(-1)
+
+            trex_cmds = CTRexScenario.trex.get_trex_cmds()
+            if trex_cmds:
+                if self.kill_running:
+                    CTRexScenario.trex.kill_all_trexes()
+                else:
+                    print('TRex is already running')
+                    sys.exit(-1)
 
         if self.stateless:
             cores = self.configuration.trex.get('trex_cores', 1)
             if 'virt_nics' in self.modes and cores > 1:
                 raise Exception('Number of cores should be 1 with virtual NICs')
-            CTRexScenario.trex.start_stateless(c = cores)
+            if not self.no_daemon:
+                CTRexScenario.trex.start_stateless(c = cores)
             CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
                                                server = self.configuration.trex['trex_name'],
                                                verbose_level = self.json_verbose)
@@ -232,7 +239,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.stateful:
             CTRexScenario.trex = None
         if self.stateless:
-            CTRexScenario.trex.force_kill(False)
+            if not self.no_daemon:
+                CTRexScenario.trex.force_kill(False)
             CTRexScenario.stl_trex = None
 
 

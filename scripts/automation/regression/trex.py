@@ -37,6 +37,7 @@ class CTRexScenario:
     test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': []}
     is_copied        = False
     GAManager        = None
+    no_daemon        = False
 
 class CTRexRunner:
     """This is an instance for generating a CTRexRunner"""

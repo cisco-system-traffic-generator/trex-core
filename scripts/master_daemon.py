@@ -268,7 +268,10 @@ if os.path.isfile(args.trex_dir):
     raise Exception('Given path is a file')
 if not os.path.exists(args.trex_dir):
     os.makedirs(args.trex_dir)
-os.chmod(args.trex_dir, 0o777)
+    os.chmod(args.trex_dir, 0o777)
+elif args.allow_update:
+    os.chmod(args.trex_dir, 0o777)
+
 if not os.path.exists(tmp_dir):
     os.makedirs(tmp_dir)
 
