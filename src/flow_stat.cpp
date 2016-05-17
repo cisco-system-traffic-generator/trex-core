@@ -171,10 +171,16 @@ void CFlowStatUserIdInfoPayload::add_stream(uint8_t proto) {
 void CFlowStatUserIdInfoPayload::reset_hw_id() {
     CFlowStatUserIdInfo::reset_hw_id();
 
-    m_seq_error_base += m_rfc2544_info.m_seq_error;
+    m_seq_err_base += m_rfc2544_info.m_seq_err;
     m_out_of_order_base += m_rfc2544_info.m_out_of_order;
-    m_rfc2544_info.m_seq_error = 0;
+    m_dup_base += m_rfc2544_info.m_dup;
+    m_seq_err_ev_big_base += m_rfc2544_info.m_seq_err_ev_big;
+    m_seq_err_ev_low_base += m_rfc2544_info.m_seq_err_ev_low;
+    m_rfc2544_info.m_seq_err = 0;
     m_rfc2544_info.m_out_of_order = 0;
+    m_rfc2544_info.m_dup = 0;
+    m_rfc2544_info.m_seq_err_ev_big = 0;
+    m_rfc2544_info.m_seq_err_ev_low = 0;
 }
 
 /************** class CFlowStatUserIdMap ***************/
@@ -919,16 +925,9 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     l_root["name"] = "latency_stats";
     l_root["type"] = 0;
 
-    //??? temp - just to be able to print in python
-    static int temp = 0;
-    temp++;
-    if (temp == 10) {
-        l_root["type"] = 1;
-        temp = 0;
-    }
-    
     if (baseline) {
         s_root["baseline"] = true;
+        l_root["baseline"] = true;
     }
 
     Json::Value &s_data_section = s_root["data"];
@@ -1051,20 +1050,26 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                 user_id_info_p->set_seq_err_cnt(rfc2544_info[hw_id].get_seq_err_cnt());
                 user_id_info_p->set_ooo_cnt(rfc2544_info[hw_id].get_ooo_cnt());
                 l_data_section[str_user_id]["latency"] = lat_hist;
-                l_data_section[str_user_id]["latency"]["last_max"] = rfc2544_info[hw_id].get_last_max();
-                l_data_section[str_user_id]["jitter"] = rfc2544_info[hw_id].get_jitter();
+                l_data_section[str_user_id]["latency"]["last_max"] = rfc2544_info[hw_id].get_last_max_usec();
+                l_data_section[str_user_id]["jitter"] = rfc2544_info[hw_id].get_jitter_usec();
             } else {
                 // Not mapped to hw_id. Get saved info.
                 user_id_info_p->get_latency_json(lat_hist);
                 l_data_section[str_user_id]["latency"]["histogram"] = lat_hist;
                 l_data_section[str_user_id]["latency"]["last_max"] = 0;
-                l_data_section[str_user_id]["jitter"] = user_id_info_p->get_jitter();
+                l_data_section[str_user_id]["jitter"] = user_id_info_p->get_jitter_usec();
             }
-            ///????? add last 10 samples
+            //todo: add last 10 samples
             l_data_section[str_user_id]["err_cntrs"]["dropped"]
                 = Json::Value::UInt64(user_id_info_p->get_seq_err_cnt());
             l_data_section[str_user_id]["err_cntrs"]["out_of_order"]
                 = Json::Value::UInt64(user_id_info_p->get_ooo_cnt());
+            l_data_section[str_user_id]["err_cntrs"]["dup"]
+                = Json::Value::UInt64(user_id_info_p->get_dup_cnt());
+            l_data_section[str_user_id]["err_cntrs"]["seq_too_high"]
+                = Json::Value::UInt64(user_id_info_p->get_seq_err_big_cnt());
+            l_data_section[str_user_id]["err_cntrs"]["seq_too_low"]
+                = Json::Value::UInt64(user_id_info_p->get_seq_err_low_cnt());
         }
     }
 

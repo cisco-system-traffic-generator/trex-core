@@ -2880,7 +2880,7 @@ TEST_F(basic_stl, vm_enable0) {
 }
 
 #if 0
-// does not work with valgrind, because we need to free the dp->rx message queue in simulation mode
+// todo: does not work with valgrind, because we need to free the dp->rx message queue in simulation mode
 TEST_F(basic_stl, vm_enable0_flow_stat) {
 
     CEnableVm vm_test;
@@ -2900,7 +2900,7 @@ TEST_F(basic_stl, vm_enable1) {
 }
 
 #if 0
-//??? does not work. need to check
+//todo: does not work. need to check
 TEST_F(basic_stl, vm_enable1_flow_stat) {
 
     CEnableVm vm_test;

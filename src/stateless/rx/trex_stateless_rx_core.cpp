@@ -32,12 +32,14 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         // This is the seq num value we expect next packet to have.
         // Init value should match m_seq_num in CVirtualIFPerSideStats
-        m_per_flow_seq[i] = UINT32_MAX - 1;  // catch wrap around issues early
-        m_per_flow_hist[i].Create();
-        m_per_flow_jitter[i].reset();
-        m_per_flow_seq_error[i] = 0;
-        m_per_flow_out_of_order[i] = 0;
-        m_per_flow_dup[i] = 0;
+        m_rfc2544[i].seq = UINT32_MAX - 1;  // catch wrap around issues early
+        m_rfc2544[i].latency.Create();
+        m_rfc2544[i].jitter.reset();
+        m_rfc2544[i].seq_err = 0;
+        m_rfc2544[i].seq_err_events_too_big = 0;
+        m_rfc2544[i].seq_err_events_too_low = 0;
+        m_rfc2544[i].out_of_order = 0;
+        m_rfc2544[i].dup = 0;
     }
 }
 
@@ -138,47 +140,51 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                     if (fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC) {
                         hw_id = fsp_head->hw_id;
                         seq = fsp_head->seq;
-                        if (unlikely(seq != m_per_flow_seq[hw_id])) {
-                            if (seq < m_per_flow_seq[hw_id]) {
-                                if (m_per_flow_seq[hw_id] - seq > 100000) {
+                        if (unlikely(seq != m_rfc2544[hw_id].seq)) {
+                            if (seq < m_rfc2544[hw_id].seq) {
+                                if (m_rfc2544[hw_id].seq - seq > 100000) {
                                     // packet loss while we had wrap around
-                                    m_per_flow_seq_error[hw_id] += seq - m_per_flow_seq[hw_id];
-                                    m_per_flow_seq[hw_id] = seq + 1;
+                                    m_rfc2544[hw_id].seq_err += seq - m_rfc2544[hw_id].seq;
+                                    m_rfc2544[hw_id].seq_err_events_too_big++;
+                                    m_rfc2544[hw_id].seq = seq + 1;
                                 } else {
-                                    if (seq == (m_per_flow_seq[hw_id] - 1)) {
-                                        m_per_flow_dup[hw_id] += 1;
+                                    if (seq == (m_rfc2544[hw_id].seq - 1)) {
+                                        m_rfc2544[hw_id].dup += 1;
                                     } else {
-                                        m_per_flow_out_of_order[hw_id] += 1;
+                                         m_rfc2544[hw_id].out_of_order += 1;
                                         // We thought it was lost, but it was just out of order
-                                        m_per_flow_seq_error[hw_id] -= 1;
+                                        m_rfc2544[hw_id].seq_err -= 1;
+                                        m_rfc2544[hw_id].seq_err_events_too_low++;
                                     }
                                 }
                             } else {
-                                if (unlikely (m_per_flow_seq[hw_id] - seq > 100000)) {
+                                if (unlikely (m_rfc2544[hw_id].seq - seq > 100000)) {
                                     // packet reorder while we had wrap around
-                                    if (seq == (m_per_flow_seq[hw_id] - 1)) {
-                                        m_per_flow_dup[hw_id] += 1;
+                                    if (seq == (m_rfc2544[hw_id].seq - 1)) {
+                                        m_rfc2544[hw_id].dup += 1;
                                     } else {
-                                        m_per_flow_out_of_order[hw_id] += 1;
+                                         m_rfc2544[hw_id].out_of_order += 1;
                                         // We thought it was lost, but it was just out of order
-                                        m_per_flow_seq_error[hw_id] -= 1;
+                                        m_rfc2544[hw_id].seq_err -= 1;
+                                        m_rfc2544[hw_id].seq_err_events_too_low++;
                                     }
                                 } else {
-                                // seq > m_per_flow_seq[hw_id]. Assuming lost packets
-                                    m_per_flow_seq_error[hw_id] += seq - m_per_flow_seq[hw_id];
-                                    m_per_flow_seq[hw_id] = seq + 1;
+                                // seq > m_rfc2544[hw_id].seq. Assuming lost packets
+                                    m_rfc2544[hw_id].seq_err += seq - m_rfc2544[hw_id].seq;
+                                    m_rfc2544[hw_id].seq_err_events_too_big++;
+                                    m_rfc2544[hw_id].seq = seq + 1;
                                 }
                             }
                         } else {
-                            m_per_flow_seq[hw_id] = seq + 1;
+                            m_rfc2544[hw_id].seq = seq + 1;
                         }
                         lp->m_port.m_rx_pg_stat_payload[hw_id].add_pkts(1);
                         lp->m_port.m_rx_pg_stat_payload[hw_id].add_bytes(m->pkt_len);
                         uint64_t d = (os_get_hr_tick_64() - fsp_head->time_stamp );
                         dsec_t ctime = ptime_convert_hr_dsec(d);
-                        m_per_flow_hist[hw_id].Add(ctime);
-                        m_per_flow_last_max[hw_id].update(ctime);
-                        m_per_flow_jitter[hw_id].calc(ctime);
+                        m_rfc2544[hw_id].latency.Add(ctime);
+                        m_rfc2544[hw_id].last_max.update(ctime);
+                        m_rfc2544[hw_id].jitter.calc(ctime);
                     }
                 } else {
                     hw_id = get_hw_id(ip_id);
@@ -331,20 +337,24 @@ int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, in
     Json::Reader reader;
 
     for (int hw_id = min; hw_id <= max; hw_id++) {
-        rfc2544_info[hw_id - min].set_err_cntrs(m_per_flow_seq_error[hw_id], m_per_flow_out_of_order[hw_id]);
-        rfc2544_info[hw_id - min].set_jitter(m_per_flow_jitter[hw_id].get_jitter());
-        m_per_flow_hist[hw_id].update();
-        m_per_flow_hist[hw_id].dump_json("", json_str);
+        rfc2544_info[hw_id - min].set_err_cntrs(m_rfc2544[hw_id].seq_err, m_rfc2544[hw_id].out_of_order
+                                                , m_rfc2544[hw_id].dup, m_rfc2544[hw_id].seq_err_events_too_big
+                                                , m_rfc2544[hw_id].seq_err_events_too_low);
+        rfc2544_info[hw_id - min].set_jitter(m_rfc2544[hw_id].jitter.get_jitter());
+        m_rfc2544[hw_id].latency.update();
+        m_rfc2544[hw_id].latency.dump_json("", json_str);
         // This is a hack. We need to make the dump_json return json object.
         reader.parse( json_str.c_str(), json);
         rfc2544_info[hw_id - min].set_latency_json(json);
-        rfc2544_info[hw_id - min].set_last_max(m_per_flow_last_max[hw_id].switchMax());
+        rfc2544_info[hw_id - min].set_last_max(m_rfc2544[hw_id].last_max.switchMax());
 
         if (reset) {
-            m_per_flow_seq_error[hw_id] = 0;
-            m_per_flow_out_of_order[hw_id] = 0;
-            m_per_flow_hist[hw_id].Reset();
-            m_per_flow_jitter[hw_id].reset();
+            m_rfc2544[hw_id].seq_err = 0;
+            m_rfc2544[hw_id].seq_err_events_too_big = 0;
+            m_rfc2544[hw_id].seq_err_events_too_low = 0;
+            m_rfc2544[hw_id].out_of_order = 0;
+            m_rfc2544[hw_id].latency.Reset();
+            m_rfc2544[hw_id].jitter.reset();
         }
     }
     return 0;

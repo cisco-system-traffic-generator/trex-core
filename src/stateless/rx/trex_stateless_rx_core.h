@@ -109,6 +109,18 @@ class CRxSlCfg {
     CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
 };
 
+struct per_flow_rfc2544_info {
+    uint32_t seq; // expected next seq num
+    CTimeHistogram  latency; // latency info
+    CJitter         jitter; 
+    uint64_t seq_err; // How many packet seq num gaps we saw (packets lost or out of order)
+    uint64_t seq_err_events_too_big; // How many packet seq num greater than expected events we had
+    uint64_t seq_err_events_too_low; // How many packet seq num lower than expected events we had
+    uint64_t out_of_order; // Packets we got with seq num lower than expected
+    uint64_t dup; // Packets we got with same seq num
+    CLastMax last_max; // maximum for last measurement period (reset whenever we read it).
+};
+
 class CRxCoreStateless {
     enum state_e {
         STATE_IDLE,
@@ -156,12 +168,6 @@ class CRxCoreStateless {
     CCpuUtlCp m_cpu_cp_u;
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
-    uint32_t m_per_flow_seq[MAX_FLOW_STATS_PAYLOAD]; // expected next seq num
-    CTimeHistogram  m_per_flow_hist[MAX_FLOW_STATS_PAYLOAD]; /* latency info */
-    CJitter         m_per_flow_jitter[MAX_FLOW_STATS_PAYLOAD];
-    uint64_t m_per_flow_seq_error[MAX_FLOW_STATS_PAYLOAD]; // How many packet seq num gaps we saw (packets lost or out of order)
-    uint64_t m_per_flow_out_of_order[MAX_FLOW_STATS_PAYLOAD]; // Packets we got with seq num lower than expected
-    uint64_t m_per_flow_dup[MAX_FLOW_STATS_PAYLOAD]; // Packets we got with same seq num
-    CLastMax m_per_flow_last_max[MAX_FLOW_STATS_PAYLOAD];
+    struct per_flow_rfc2544_info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 };
 #endif

@@ -73,17 +73,32 @@ class rfc2544_info_t_ {
         m_latency = json;
     }
 
-    inline void set_err_cntrs(uint64_t seq, uint64_t ooo) {
-        m_seq_error = seq;
+    inline void set_err_cntrs(uint64_t seq, uint64_t ooo, uint64_t dup, uint64_t seq_big, uint64_t seq_low) {
+        m_seq_err = seq;
         m_out_of_order = ooo;
+        m_dup = dup;
+        m_seq_err_ev_big = seq_big;
+        m_seq_err_ev_low = seq_low;
     }
 
     inline uint64_t get_seq_err_cnt() {
-        return m_seq_error;
+        return m_seq_err;
     }
 
     inline uint64_t get_ooo_cnt() {
         return m_out_of_order;
+    }
+
+    inline uint64_t get_dup_cnt() {
+        return m_dup;
+    }
+
+    inline uint64_t get_seq_err_ev_big() {
+        return m_seq_err_ev_big;
+    }
+
+    inline uint64_t get_seq_err_ev_low() {
+        return m_seq_err_ev_low;
     }
 
     inline double get_jitter() const {
@@ -94,6 +109,10 @@ class rfc2544_info_t_ {
         m_jitter = jitter;
     }
 
+    uint32_t get_jitter_usec(){
+        return (uint32_t)(m_jitter * 1000000.0);
+    }
+
     inline void set_last_max(dsec_t val) {
         m_last_max_latency = val;
     }
@@ -102,48 +121,70 @@ class rfc2544_info_t_ {
         return m_last_max_latency;
     }
 
+    inline uint32_t get_last_max_usec() {
+        return (uint32_t)(m_last_max_latency * 1000000.0);
+    }
+
     inline void clear() {
-        m_seq_error = 0;
+        m_seq_err = 0;
         m_out_of_order = 0;
+        m_dup = 0;
+        m_seq_err_ev_big = 0;
+        m_seq_err_ev_low = 0;
         m_jitter = 0;
         m_latency = Json::Value("");
     }
 
     inline rfc2544_info_t_ operator+ (const rfc2544_info_t_ &t_in) {
         rfc2544_info_t_ t_out;
-        t_out.m_seq_error = this->m_seq_error + t_in.m_seq_error;
+        t_out.m_seq_err = this->m_seq_err + t_in.m_seq_err;
         t_out.m_out_of_order = this->m_out_of_order + t_in.m_out_of_order;
+        t_out.m_dup = this->m_dup + t_in.m_dup;
+        t_out.m_seq_err_ev_big = this->m_seq_err_ev_big + t_in.m_seq_err_ev_big;
+        t_out.m_seq_err_ev_low = this->m_seq_err_ev_low + t_in.m_seq_err_ev_low;
         return t_out;
     }
 
     inline rfc2544_info_t_ operator- (const rfc2544_info_t_ &t_in) {
         rfc2544_info_t_ t_out;
-        t_out.m_seq_error = this->m_seq_error - t_in.m_seq_error;
+        t_out.m_seq_err = this->m_seq_err - t_in.m_seq_err;
         t_out.m_out_of_order = this->m_out_of_order - t_in.m_out_of_order;
+        t_out.m_dup = this->m_dup - t_in.m_dup;
+        t_out.m_seq_err_ev_big = this->m_seq_err_ev_big - t_in.m_seq_err_ev_big;
+        t_out.m_seq_err_ev_low = this->m_seq_err_ev_low - t_in.m_seq_err_ev_low;
         return t_out;
     }
 
     inline rfc2544_info_t_ operator+= (const rfc2544_info_t_ &t_in) {
-        m_seq_error += t_in.m_seq_error;
+        m_seq_err += t_in.m_seq_err;
         m_out_of_order += t_in.m_out_of_order;
+        m_dup += t_in.m_dup;
+        m_seq_err_ev_big += t_in.m_seq_err_ev_big;
+        m_seq_err_ev_low += t_in.m_seq_err_ev_low;
         return *this;
     }
 
     inline bool operator!= (const rfc2544_info_t_ &t_in) {
-        if ((m_jitter != t_in.m_jitter) || (m_seq_error != t_in.m_seq_error) || (m_out_of_order != t_in.m_out_of_order))
+        if ((m_jitter != t_in.m_jitter) || (m_seq_err != t_in.m_seq_err)
+            || (m_out_of_order != t_in.m_out_of_order) || (m_dup != t_in.m_dup)
+            || (m_seq_err_ev_big != t_in.m_seq_err_ev_big) || (m_seq_err_ev_low != t_in.m_seq_err_ev_low))
             return true;
         return false;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const rfc2544_info_t_ &t) {
         os  << "jitter:" << t.m_jitter << " errors(seq:"
-            << t.m_seq_error << " out of order:" << t.m_out_of_order << ")";
+            << t.m_seq_err << " out of order:" << t.m_out_of_order
+            << " dup:" << t.m_dup << ")";
         return os;
     }
 
  private:
-    uint64_t m_seq_error;
+    uint64_t m_seq_err;
     uint64_t m_out_of_order;
+    uint64_t m_dup;
+    uint64_t m_seq_err_ev_big;
+    uint64_t m_seq_err_ev_low;
     double   m_jitter;
     dsec_t   m_last_max_latency;
     // json latency object. In case of stop/start, we calculate latency graph from scratch,
@@ -212,9 +253,6 @@ class tx_per_flow_t_ {
  private:
     uint64_t m_bytes;
     uint64_t m_pkts;
-    uint64_t m_seq_error_base;
-    uint64_t m_out_of_order_base;
-
 };
 
 typedef class rfc2544_info_t_ rfc2544_info_t;
@@ -283,8 +321,11 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
 
     void clear() {
         m_rfc2544_info.clear();
-        m_seq_error_base = 0;
+        m_seq_err_base = 0;
         m_out_of_order_base = 0;
+        m_dup_base = 0;
+        m_seq_err_ev_big_base = 0;
+        m_seq_err_ev_low_base = 0;
     }
     inline void get_latency_json(Json::Value & json) const {
         json = m_rfc2544_info.m_latency;
@@ -295,19 +336,23 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
     }
 
     inline double get_jitter() const {
-        return m_rfc2544_info.m_jitter;
+        return m_rfc2544_info.get_jitter();
     }
 
     inline void set_jitter(double jitter) {
-        m_rfc2544_info.m_jitter = jitter;
+        m_rfc2544_info.set_jitter(jitter);
+    }
+
+    uint32_t get_jitter_usec(){
+        return m_rfc2544_info.get_jitter_usec();
     }
 
     inline void set_seq_err_cnt(uint64_t cnt) {
-        m_rfc2544_info.m_seq_error = cnt;
+        m_rfc2544_info.m_seq_err = cnt;
     }
 
     inline uint64_t get_seq_err_cnt() const {
-        return m_rfc2544_info.m_seq_error + m_seq_error_base;
+        return m_rfc2544_info.m_seq_err + m_seq_err_base;
     }
 
     inline void set_ooo_cnt(uint64_t cnt) {
@@ -318,11 +363,38 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
         return m_rfc2544_info.m_out_of_order + m_out_of_order_base;
     }
 
-    inline void reset_hw_id();    
+    inline void set_dup_cnt(uint64_t cnt) {
+        m_rfc2544_info.m_dup = cnt;
+    }
+
+    inline uint64_t get_dup_cnt() const {
+        return m_rfc2544_info.m_dup + m_dup_base;
+    }
+
+    inline void set_seq_err_big_cnt(uint64_t cnt) {
+        m_rfc2544_info.m_seq_err_ev_big = cnt;
+    }
+
+    inline uint64_t get_seq_err_big_cnt() const {
+        return m_rfc2544_info.m_seq_err_ev_big + m_seq_err_ev_big_base;
+    }
+
+    inline void set_seq_err_low_cnt(uint64_t cnt) {
+        m_rfc2544_info.m_seq_err_ev_low = cnt;
+    }
+
+    inline uint64_t get_seq_err_low_cnt() const {
+        return m_rfc2544_info.m_seq_err_ev_low + m_seq_err_ev_low_base;
+    }
+
+    inline void reset_hw_id();
  private:
     rfc2544_info_t m_rfc2544_info;
-    uint64_t m_seq_error_base;
+    uint64_t m_seq_err_base;
     uint64_t m_out_of_order_base;
+    uint64_t m_dup_base;
+    uint64_t m_seq_err_ev_big_base;
+    uint64_t m_seq_err_ev_low_base;
 };
 
 class CFlowStatUserIdMap {
