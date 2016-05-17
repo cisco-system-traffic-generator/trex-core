@@ -607,8 +607,9 @@ include::trex_book_basic.asciidoc[]
 
 == Advanced features
 
+=== VLAN Trunk support 
 
-=== VLAN Trunk support anchor:trex_valn[]
+anchor:trex_valn[]
 
 The VLAN Trunk TRex feature attempts to solve the router port bandwidth limitation when the traffic profile is asymmetric. Example: Asymmetric SFR profile.
 This feature converts asymmetric traffic to symmetric, from the port perspective, using router sub-interfaces.
@@ -740,7 +741,7 @@ With this feature, TRex replaces the source MAC address with the client IP addre
 <1> In this case, the client side MAC address looks like this:
 SRC_MAC = IPV4(IP) + 00:00  
 
-=== IPv6 support (`--ipv6`)
+=== IPv6 support 
 
 Support for IPv6 includes:
 
@@ -839,7 +840,9 @@ $sudo ./t-rex-64 -f cap2/sfr_delay_10_1g.yaml -c 4  -l 100 -d 100000 -m 30  --ma
 
 . It is assumed that most clients have a MAC address. At least 90% of IPs should have MAC address mapping.
 
-=== Destination MAC address spreading anchor:mac_spread[] 
+=== Destination MAC address spreading 
+
+anchor:mac_spread[] 
 
 Using this option, one can send traffic to few destination devices. In normal mode, all packets are sent to the port destination MAC address.
 To enable this option, add `--mac-spread` to the command line.
@@ -973,7 +976,7 @@ access-list 8 permit 17.0.0.0 0.0.0.255
 * If the router is configured without NAT, it will verify that the inside_ip==outside_ip and inside_port==outside_port.
 =====================================================================
 
-=== Flow order/latency verification ( `--rx-check` )
+=== Flow order/latency verification 
 
 In normal mode (without this feature enabled), received traffic is not checked by software. Hardware (Intel NIC) testin for dropped packets occurs at the end of the test. The only exception is the Latency/Jitter packets. 
 This is one reason that with TRex, you *cannot* check features that terminate traffic (for example TCP Proxy).
@@ -1139,7 +1142,9 @@ Cpu Utilization : 0.1 %                                                         
 
 
 
-=== Configuration YAML anchor:trex_config[]
+=== Configuration YAML 
+
+anchor:trex_config[]
 
 The configuration file, in YAML format, configures TRex behavior, including:
 
@@ -1320,7 +1325,9 @@ We added configuration to the /etc/trex_cfg.yaml:
 
 This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *~21%*! (40% with c=4)
 
-=== Command line options anchor:cml-line[]
+=== Command line options 
+
+anchor:cml-line[]
 
 *-f=TRAFIC_YAML_FILE*:: 
        Traffic YAML configuration file.
@@ -1489,7 +1496,8 @@ $./bp-sim-64-debug -f avl/sfr_delay_10_1g.yaml -v 1
 <2> CSV for all the templates 
 
 
-=== firmware update to XL710/X710 anchor:xl710-firmware[]
+=== firmware update to XL710/X710 
+anchor:xl710-firmware[]
  
 To upgrade the firmware  follow  this
 

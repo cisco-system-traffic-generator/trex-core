@@ -842,7 +842,7 @@ please also consider the following constraints:
 * *performance* - this will have performance impact as rx packets will be examined
 * *override* - up to 10 bytes at the end of the packet will be overidden by the meta data required
 
-===== The bytes needed for activating 'rx_stats':
+===== The bytes needed for activating rx_stats
 
 * *stream_id* consumes 2 bytes
 * *seq_enabled* consumes 4 bytes
@@ -1323,7 +1323,7 @@ over the server and preparing to perform work
 * *get_stream_list* - for every port, get the list and sync the GUI
 * *get_stream* - for every stream in a port list, get the stream info and sync the GUI
 
-=== Simple Traffic With Adding / Editing Streams
+=== Simple Traffic With Adding/Editing Streams
 
 describes a simple scenario where a user wants to
 add or edit one or more streams to one or more ports
