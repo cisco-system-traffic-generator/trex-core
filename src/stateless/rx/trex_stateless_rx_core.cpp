@@ -154,8 +154,8 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                                          m_rfc2544[hw_id].out_of_order += 1;
                                         // We thought it was lost, but it was just out of order
                                         m_rfc2544[hw_id].seq_err -= 1;
-                                        m_rfc2544[hw_id].seq_err_events_too_low++;
                                     }
+                                    m_rfc2544[hw_id].seq_err_events_too_low++;
                                 }
                             } else {
                                 if (unlikely (m_rfc2544[hw_id].seq - seq > 100000)) {
@@ -166,8 +166,8 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                                          m_rfc2544[hw_id].out_of_order += 1;
                                         // We thought it was lost, but it was just out of order
                                         m_rfc2544[hw_id].seq_err -= 1;
-                                        m_rfc2544[hw_id].seq_err_events_too_low++;
                                     }
+                                    m_rfc2544[hw_id].seq_err_events_too_low++;
                                 } else {
                                 // seq > m_rfc2544[hw_id].seq. Assuming lost packets
                                     m_rfc2544[hw_id].seq_err += seq - m_rfc2544[hw_id].seq;
