@@ -688,6 +688,13 @@ TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
 void
 TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, TrexStream *stream) {
 
+    /* for fixed rate streams such as latency - simply add a fix rate addition */
+    if (stream->is_fixed_rate_stream()) {
+        BW bw(stream->get_pps(), stream->get_bps_L2(), stream->get_bps_L1());
+        m_graph_obj->add_fixed_rate(bw);
+        return;
+    }
+
     switch (stream->get_type()) {
    
     case TrexStream::stCONTINUOUS:
@@ -716,10 +723,10 @@ TrexStreamsGraph::add_rate_events_for_stream_cont(double &offset_usec, TrexStrea
     /* for debug purposes */
     start_event.stream_id = stream->m_stream_id;
 
-    start_event.time = offset_usec + stream->m_isg_usec;
-    start_event.diff_pps    = stream->get_pps();
-    start_event.diff_bps_l2 = stream->get_bps_L2();
-    start_event.diff_bps_l1 = stream->get_bps_L1();
+    start_event.time         = offset_usec + stream->m_isg_usec;
+    start_event.diff_pps     = stream->get_pps();
+    start_event.diff_bps_l2  = stream->get_bps_L2();
+    start_event.diff_bps_l1  = stream->get_bps_L1();
     m_graph_obj->add_rate_event(start_event);
 
     /* no more events after this stream */
@@ -900,25 +907,21 @@ TrexStreamsGraph::generate(const std::vector<TrexStream *> &streams) {
  *************************************/
 void
 TrexStreamsGraphObj::find_max_rate() {
-    double max_rate_pps = 0;
-    double current_rate_pps = 0;
 
-    double max_rate_bps_l1 = 0;
-    double current_rate_bps_l1 = 0;
-
-    double max_rate_bps_l2 = 0;
-    double current_rate_bps_l2 = 0;
+    BW max_bw;
+    BW current_bw;
 
     /* now we simply walk the list and hold the max */
     for (auto &ev : m_rate_events) {
 
-        current_rate_pps += ev.diff_pps;
-        current_rate_bps_l2 += ev.diff_bps_l2;
-        current_rate_bps_l1 += ev.diff_bps_l1;
+        current_bw.m_pps     += ev.diff_pps;
+        current_bw.m_bps_l2  += ev.diff_bps_l2;
+        current_bw.m_bps_l1  += ev.diff_bps_l1;
 
-        max_rate_pps    = std::max(max_rate_pps, current_rate_pps);
-        max_rate_bps_l2 = std::max(max_rate_bps_l2, current_rate_bps_l2);
-        max_rate_bps_l1 = std::max(max_rate_bps_l1, current_rate_bps_l1);
+        max_bw.m_pps    = std::max(max_bw.m_pps,      current_bw.m_pps);
+        max_bw.m_bps_l2 = std::max(max_bw.m_bps_l2,   current_bw.m_bps_l2);
+        max_bw.m_bps_l1 = std::max(max_bw.m_bps_l1,   current_bw.m_bps_l1);
+
     }
 
     /* if not mark as inifite - get the last event time */
@@ -926,9 +929,11 @@ TrexStreamsGraphObj::find_max_rate() {
         m_expected_duration = m_rate_events.back().time;
     }
 
-    m_max_pps = max_rate_pps;
-    m_max_bps_l2 = max_rate_bps_l2;
-    m_max_bps_l1 = max_rate_bps_l1;
+    /* save it to the class member */
+    m_var = max_bw;
+
+    /* for total - max and fixed */
+    m_total = m_var + m_fixed;
 }
 
 static 

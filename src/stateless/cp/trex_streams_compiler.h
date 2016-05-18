@@ -26,6 +26,7 @@ limitations under the License.
 #include <list>
 #include <string>
 #include <unordered_map>
+#include "trex_exception.h"
 
 class TrexStreamsCompiler;
 class TrexStream;
@@ -163,6 +164,44 @@ private:
 
 class TrexStreamsGraph;
 
+/* describes a bandwidth point */
+class BW {
+public:
+
+    BW() {
+        m_pps    = 0;
+        m_bps_l2 = 0;
+        m_bps_l1 = 0;
+    }
+
+    BW(double pps, double bps_l2, double bps_l1) {
+        m_pps    = pps;
+        m_bps_l2 = bps_l2;
+        m_bps_l1 = bps_l1;
+
+    }
+
+    BW& operator+= (const BW &other) {
+        m_pps    += other.m_pps;
+        m_bps_l1 += other.m_bps_l1;
+        m_bps_l2 += other.m_bps_l2;
+
+        return *this;
+    }
+    
+  
+    double m_pps;
+    double m_bps_l1;
+    double m_bps_l2;
+
+};
+
+/* there are two temp copies here - it is known... */
+static inline BW operator+ (BW lhs, const BW &rhs) {
+    lhs += rhs;
+    return lhs;
+}
+
 /**************************************
  * streams graph object 
  *  
@@ -174,9 +213,6 @@ class TrexStreamsGraphObj {
 public:
 
     TrexStreamsGraphObj() {
-        m_max_pps           = 0;
-        m_max_bps_l1        = 0;
-        m_max_bps_l2        = 0;
         m_expected_duration = 0;
     }
 
@@ -188,23 +224,53 @@ public:
      * @author imarom (23-Nov-15)
      */
     struct rate_event_st {
-        double time;
-        double diff_pps;
-        double diff_bps_l1;
-        double diff_bps_l2;
+        double   time;
+        double   diff_pps;
+        double   diff_bps_l1;
+        double   diff_bps_l2;
         uint32_t stream_id;
     };
 
     double get_max_pps() const {
-        return m_max_pps;
+        return m_total.m_pps;
     }
 
     double get_max_bps_l1() const {
-        return m_max_bps_l1;
+        return m_total.m_bps_l1;
     }
 
     double get_max_bps_l2() const {
-        return m_max_bps_l2;
+        return m_total.m_bps_l2;
+    }
+
+    double get_factor_pps(double req_pps) const {
+        if ( (req_pps - m_fixed.m_pps) <= 0 )  {
+            std::stringstream ss;
+            ss << "current stream configuration enforces a minimum rate of '" << m_fixed.m_pps << "' pps";
+            throw TrexException(ss.str());
+        }
+
+        return ( (req_pps - m_fixed.m_pps) / m_var.m_pps );
+    }
+
+    double get_factor_bps_l1(double req_bps_l1) const {
+        if ( (req_bps_l1 - m_fixed.m_bps_l1) <= 0 )  {
+            std::stringstream ss;
+            ss << "current stream configuration enforces a minimum rate of '" << m_fixed.m_bps_l1 << "' BPS L1";
+            throw TrexException(ss.str());
+        }
+
+        return ( (req_bps_l1 - m_fixed.m_bps_l1) / m_var.m_bps_l1 );
+    }
+
+    double get_factor_bps_l2(double req_bps_l2) const {
+        if ( (req_bps_l2 - m_fixed.m_bps_l2) <= 0 )  {
+            std::stringstream ss;
+            ss << "current stream configuration enforces a minimum rate of '" << m_fixed.m_bps_l2 << "' BPS L2";
+            throw TrexException(ss.str());
+        }
+
+        return ( (req_bps_l2 - m_fixed.m_bps_l2) / m_var.m_bps_l2 );
     }
 
     int get_duration() const {
@@ -218,6 +284,7 @@ public:
 
 private:
 
+  
     void on_loop_detection() {
         m_expected_duration = -1;
     }
@@ -226,12 +293,22 @@ private:
         m_rate_events.push_back(ev);
     }
 
+    void add_fixed_rate(const BW &bw) {
+        m_fixed += bw;
+    }
+
     void generate();
     void find_max_rate();
 
-    double  m_max_pps;
-    double  m_max_bps_l1;
-    double  m_max_bps_l2;
+    /* max variable BW in the graph */
+    BW m_var;
+
+    /* graph might contain fixed rate traffic (DC traffic such as latency) */
+    BW m_fixed;
+
+    /* total consists of fixed rate + variable rate*/
+    BW m_total;
+
     int     m_expected_duration;
 
     /* list of rate events */

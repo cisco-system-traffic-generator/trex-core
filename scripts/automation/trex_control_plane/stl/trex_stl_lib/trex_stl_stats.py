@@ -31,7 +31,7 @@ LS_COMPAT = [GLOBAL_STATS, LATENCY_STATS] # latency stats
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
 def round_float (f):
-    return float("%.2f" % f)
+    return float("%.2f" % f) if type(f) is float else f
 
 # deep mrege of dicts dst = src + dst
 def deep_merge_dicts (dst, src):

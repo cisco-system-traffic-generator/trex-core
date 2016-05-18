@@ -626,17 +626,17 @@ TrexStatelessPort::calculate_effective_factor_internal(const TrexPortMultiplier 
         return (mul.m_value);
 
     case TrexPortMultiplier::MUL_BPS:
-        return (mul.m_value / m_graph_obj->get_max_bps_l2());
+        return m_graph_obj->get_factor_bps_l2(mul.m_value);
 
     case TrexPortMultiplier::MUL_PPS:
-         return (mul.m_value / m_graph_obj->get_max_pps());
+        return m_graph_obj->get_factor_pps(mul.m_value);
 
     case TrexPortMultiplier::MUL_PERCENTAGE:
         /* if abs percentage is from the line speed - otherwise its from the current speed */
 
         if (mul.m_op == TrexPortMultiplier::OP_ABS) {
             double required = (mul.m_value / 100.0) * get_port_speed_bps();
-            return (required / m_graph_obj->get_max_bps_l1());
+            return m_graph_obj->get_factor_bps_l1(required);
         } else {
             return (m_factor * (mul.m_value / 100.0));
         }

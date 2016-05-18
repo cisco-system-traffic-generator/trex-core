@@ -351,7 +351,10 @@ public:
     }
 
     void update_rate_factor(double factor) {
-        m_rate.update_factor(factor);
+        /* fixed rate streams cannot be updated in rate */
+        if (!is_fixed_rate_stream()) {
+            m_rate.update_factor(factor);
+        }
     }
 
     void set_type(uint8_t type){
@@ -366,20 +369,30 @@ public:
         return ( m_type );
     }
 
-    bool is_dp_next_stream(){
+    bool is_dp_next_stream() {
         if (m_next_stream_id<0) {
             return (false);
         }else{
             return (true);
         }
     }
+
+    bool is_latency_stream() const {
+        return (m_rx_check.m_enabled && (m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD));
+    }
+
+    bool is_fixed_rate_stream() const {
+        return is_latency_stream();
+    }
+
     /* can this stream be split ? */
     bool is_splitable(uint8_t dp_core_count) const {
 
-        if (m_rx_check.m_enabled && (m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD)) {
+        if (is_latency_stream()) {
             // because of sequence number, can't split streams with payload rule to different cores
             return false;
         }
+
         /* cont stream is always splitable */
         if (m_type == stCONTINUOUS) {
             return true;
