@@ -278,6 +278,51 @@ TOC_HEAD = """
 </div>
 
 <div id="content-section">
+
+    <!-- Hide TOC on mobile -->
+    <script>
+    
+      // Hide TOC when it is mobile
+      checkMobile();
+    
+      // Hide TOC by default if it is mobile
+      function checkMobile(){
+        if(isMobileDevice()){
+          hideTOC();
+        }
+      }
+    
+      // Check it it it is running on mobile device
+      function isMobileDevice() {
+          if(
+              navigator.userAgent.match(/Android/i) ||
+              navigator.userAgent.match(/BlackBerry/i) ||
+              navigator.userAgent.match(/iPhone|iPad|iPod/i) ||
+              navigator.userAgent.match(/Opera Mini/i) ||
+              navigator.userAgent.match(/IEMobile/i) ||
+              navigator.userAgent.match(/iPhone|iPad|iPod/i)
+            )
+          {
+            return true;
+          }
+          else
+          {
+            return false;
+          }
+      }
+    
+      // Hide TOC - for the first time in mobile
+      function hideTOC(){
+          $("#toc").hide();
+          $("#toctitle").hide();
+          // Show the show/hide button
+          $("#toggle").css("right", "-40px");
+          // Fil width
+          $("body").css("margin-left", "50px");
+      }
+    
+    </script>
+
   <div id="content-section-inner">
 
 """
@@ -410,7 +455,7 @@ TOC_END = """
 
 
   .jstree-clicked{
-    color: green !important;
+    color: white !important;
   }
   
 
@@ -564,7 +609,7 @@ TOC_END = """
         // Close TOC by default if it is mobile
         function checkMobile(){
           if(isMobileDevice()){
-            closTOC();
+            isOpen=false;
             $(".ui-resizable-e").hide();
           }
         }
