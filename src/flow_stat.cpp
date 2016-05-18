@@ -1049,13 +1049,13 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                 rfc2544_info[hw_id].get_latency_json(lat_hist);
                 user_id_info_p->set_seq_err_cnt(rfc2544_info[hw_id].get_seq_err_cnt());
                 user_id_info_p->set_ooo_cnt(rfc2544_info[hw_id].get_ooo_cnt());
-                l_data_section[str_user_id]["latency"] = lat_hist;
+                l_data_section[str_user_id]["latency"]["h"] = lat_hist;
                 l_data_section[str_user_id]["latency"]["last_max"] = rfc2544_info[hw_id].get_last_max_usec();
                 l_data_section[str_user_id]["latency"]["jitter"] = rfc2544_info[hw_id].get_jitter_usec();
             } else {
                 // Not mapped to hw_id. Get saved info.
                 user_id_info_p->get_latency_json(lat_hist);
-                l_data_section[str_user_id]["latency"]["histogram"] = lat_hist;
+                l_data_section[str_user_id]["latency"]["h"] = lat_hist;
                 l_data_section[str_user_id]["latency"]["last_max"] = 0;
                 l_data_section[str_user_id]["latency"]["jitter"] = user_id_info_p->get_jitter_usec();
             }

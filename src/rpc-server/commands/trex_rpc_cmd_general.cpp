@@ -263,7 +263,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         if (caps & TrexPlatformApi::IF_STAT_PAYLOAD) {
             section["ports"][i]["rx"]["caps"].append("latency");
         }
-        if (caps & TrexPlatformApi::IF_STAT_IPV4_ID) {
+        if (caps & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT) {
             section["ports"][i]["rx"]["caps"].append("rx_bytes");
         }
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();

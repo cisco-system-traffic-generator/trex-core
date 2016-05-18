@@ -153,7 +153,8 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                                     } else {
                                          m_rfc2544[hw_id].out_of_order += 1;
                                         // We thought it was lost, but it was just out of order
-                                        m_rfc2544[hw_id].seq_err -= 1;
+                                         if (m_rfc2544[hw_id].seq_err > 0)
+                                             m_rfc2544[hw_id].seq_err -= 1;
                                     }
                                     m_rfc2544[hw_id].seq_err_events_too_low++;
                                 }
@@ -165,7 +166,8 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                                     } else {
                                          m_rfc2544[hw_id].out_of_order += 1;
                                         // We thought it was lost, but it was just out of order
-                                        m_rfc2544[hw_id].seq_err -= 1;
+                                         if (m_rfc2544[hw_id].seq_err > 0)
+                                             m_rfc2544[hw_id].seq_err -= 1;
                                     }
                                     m_rfc2544[hw_id].seq_err_events_too_low++;
                                 } else {

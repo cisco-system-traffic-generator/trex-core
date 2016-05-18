@@ -868,7 +868,8 @@ class CLatencyStats(CTRexStats):
 
     # for API
     def get_stats (self):
-        return self.latest_stats
+        ret = copy.deepcopy(self.latest_stats)
+        return ret
 
 
     def _update(self, snapshot):
@@ -884,8 +885,17 @@ class CLatencyStats(CTRexStats):
             current_pg = snapshot.get(pg_id)
             int_pg_id = int(pg_id)
             output[int_pg_id] = {}
-            for field in ['err_cntrs', 'latency']:
-                output[int_pg_id][field] = current_pg[field]
+            output[int_pg_id]['err_cntrs'] = current_pg['err_cntrs']
+            output[int_pg_id]['latency'] = {}
+
+            output[int_pg_id]['latency']['last_max'] = current_pg['latency']['last_max']
+            output[int_pg_id]['latency']['jitter'] = current_pg['latency']['jitter']
+            if current_pg['latency']['h'] != "":
+                output[int_pg_id]['latency']['average'] = current_pg['latency']['h']['s_avg']
+                output[int_pg_id]['latency']['total_max'] = current_pg['latency']['h']['max_usec']
+                output[int_pg_id]['latency']['histogram'] = current_pg['latency']['h']['histogram']
+                zero_count = current_pg['latency']['h']['cnt'] - current_pg['latency']['h']['high_cnt']
+                output[int_pg_id]['latency']['histogram'].append({'key':0, 'val':zero_count})
 
         self.latest_stats = output
         return True
