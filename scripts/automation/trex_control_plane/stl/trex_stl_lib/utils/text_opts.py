@@ -36,18 +36,11 @@ def format_num (size, suffix = "", compact = True, opts = ()):
     u = ''
 
     if compact:
-        if 0 < abs(size) < 1:
-            for unit in ['m','u','n','p']:
-                size *= 1000
-                if abs(size) >= 1:
-                    u = unit
-                    break
-        else:
-            for unit in ['','K','M','G','T','P']:
-                if abs(size) < 1000.0:
-                    u = unit
-                    break
-                size /= 1000.0
+        for unit in ['','K','M','G','T','P']:
+            if abs(size) < 1000.0:
+                u = unit
+                break
+            size /= 1000.0
 
     if isinstance(size, float):
         txt = "%3.2f" % (size)

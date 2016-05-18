@@ -2,7 +2,7 @@
 
 from .utils import text_tables
 from .utils.text_opts import format_text, format_threshold, format_num
-from .trex_stl_types import StatNotAvailable
+from .trex_stl_types import StatNotAvailable, is_integer
 
 from collections import namedtuple, OrderedDict, deque
 import sys
@@ -32,6 +32,12 @@ ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
 def round_float (f):
     return float("%.2f" % f) if type(f) is float else f
+
+def try_int(i):
+    try:
+        return int(i)
+    except:
+        return i
 
 # deep mrege of dicts dst = src + dst
 def deep_merge_dicts (dst, src):
@@ -175,7 +181,53 @@ class CTRexInfoGenerator(object):
         return return_data
 
     def _generate_global_stats(self):
-        stats_data = self._global_stats.generate_stats()
+        global_stats = self._global_stats
+        #if is_integer(global_stats.max_global_latency):
+        #    max_global_latency_str = ', Max latency: %s' % format_num(global_stats.max_global_latency,
+        #                                                              suffix = 'usec',
+        #                                                              compact = False,
+        #                                                              opts = 'green' if global_stats.max_global_latency < 1000 else 'red')
+        #else:
+        #    max_global_latency_str = ''
+        stats_data = OrderedDict([("connection", "{host}, Port {port}".format(host=global_stats.connection_info.get("server"),
+                                                                     port=global_stats.connection_info.get("sync_port"))),
+                             ("version", "{ver}, UUID: {uuid}".format(ver=global_stats.server_version.get("version", "N/A"),
+                                                                      uuid="N/A")),
+
+                             ("cpu_util", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_cpu_util")), [85, 100], [0, 85]),
+                                                              global_stats.get_trend_gui("m_cpu_util", use_raw = True))),
+
+                             ("rx_cpu_util", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_rx_cpu_util")), [85, 100], [0, 85]),
+                                                                global_stats.get_trend_gui("m_rx_cpu_util", use_raw = True))),
+
+                             (" ", ""),
+
+                             ("total_tx_L2", "{0} {1}".format( global_stats.get("m_tx_bps", format=True, suffix="b/sec"),
+                                                                global_stats.get_trend_gui("m_tx_bps"))),
+
+                            ("total_tx_L1", "{0} {1}".format( global_stats.get("m_tx_bps_L1", format=True, suffix="b/sec"),
+                                                                global_stats.get_trend_gui("m_tx_bps_L1"))),
+
+                             ("total_rx", "{0} {1}".format( global_stats.get("m_rx_bps", format=True, suffix="b/sec"),
+                                                              global_stats.get_trend_gui("m_rx_bps"))),
+
+                             ("total_pps", "{0} {1}".format( global_stats.get("m_tx_pps", format=True, suffix="pkt/sec"),
+                                                              global_stats.get_trend_gui("m_tx_pps"))),
+
+                             ("  ", ""),
+
+                             ("drop_rate", "{0}".format( format_num(global_stats.get("m_rx_drop_bps"),
+                                                                    suffix = 'b/sec',
+                                                                    opts = 'green' if (global_stats.get("m_rx_drop_bps")== 0) else 'red'),
+                                                            )),
+
+                             ("queue_full", "{0}".format( format_num(global_stats.get_rel("m_total_queue_full"),
+                                                                     suffix = 'pkts',
+                                                                     compact = False,
+                                                                     opts = 'green' if (global_stats.get_rel("m_total_queue_full")== 0) else 'red'))),
+
+                             ]
+                            )
 
         # build table representation
         stats_table = text_tables.TRexTextInfo()
@@ -188,9 +240,51 @@ class CTRexInfoGenerator(object):
         return {"global_statistics": ExportableStats(stats_data, stats_table)}
 
     def _generate_streams_stats (self):
-      
-        streams_keys, sstats_data = self._rx_stats_ref.generate_stats()
-        stream_count = len(streams_keys)
+        flow_stats = self._rx_stats_ref
+        # for TUI - maximum 4 
+        pg_ids = list(filter(is_intable, flow_stats.latest_stats.keys()))[:4]
+        stream_count = len(pg_ids)
+
+        sstats_data = OrderedDict([ ('Tx pps',  []),
+                                        ('Tx bps L2',      []),
+                                        ('Tx bps L1',      []),
+                                        ('---', [''] * stream_count),
+                                        ('Rx pps',      []),
+                                        ('Rx bps',      []),
+                                        ('----', [''] * stream_count),
+                                        ('opackets',    []),
+                                        ('ipackets',    []),
+                                        ('obytes',      []),
+                                        ('ibytes',      []),
+                                        ('-----', [''] * stream_count),
+                                        ('tx_pkts',     []),
+                                        ('rx_pkts',     []),
+                                        ('tx_bytes',    []),
+                                        ('rx_bytes',    [])
+                                      ])
+
+
+
+        # maximum 4
+        for pg_id in pg_ids:
+
+            sstats_data['Tx pps'].append(flow_stats.get([pg_id, 'tx_pps_lpf', 'total'], format = True, suffix = "pps"))
+            sstats_data['Tx bps L2'].append(flow_stats.get([pg_id, 'tx_bps_lpf', 'total'], format = True, suffix = "bps"))
+
+            sstats_data['Tx bps L1'].append(flow_stats.get([pg_id, 'tx_bps_L1_lpf', 'total'], format = True, suffix = "bps"))
+
+            sstats_data['Rx pps'].append(flow_stats.get([pg_id, 'rx_pps_lpf', 'total'], format = True, suffix = "pps"))
+            sstats_data['Rx bps'].append(flow_stats.get([pg_id, 'rx_bps_lpf', 'total'], format = True, suffix = "bps"))
+            
+            sstats_data['opackets'].append(flow_stats.get_rel([pg_id, 'tx_pkts', 'total']))
+            sstats_data['ipackets'].append(flow_stats.get_rel([pg_id, 'rx_pkts', 'total']))
+            sstats_data['obytes'].append(flow_stats.get_rel([pg_id, 'tx_bytes', 'total']))
+            sstats_data['ibytes'].append(flow_stats.get_rel([pg_id, 'rx_bytes', 'total']))
+            sstats_data['tx_bytes'].append(flow_stats.get_rel([pg_id, 'tx_bytes', 'total'], format = True, suffix = "B"))
+            sstats_data['rx_bytes'].append(flow_stats.get_rel([pg_id, 'rx_bytes', 'total'], format = True, suffix = "B"))
+            sstats_data['tx_pkts'].append(flow_stats.get_rel([pg_id, 'tx_pkts', 'total'], format = True, suffix = "pkts"))
+            sstats_data['rx_pkts'].append(flow_stats.get_rel([pg_id, 'rx_pkts', 'total'], format = True, suffix = "pkts"))
+
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["r"] * stream_count)
@@ -201,14 +295,54 @@ class CTRexInfoGenerator(object):
                               for k, v in sstats_data.items()],
                               header=False)
 
-        header = ["PG ID"] + [key for key in streams_keys]
+        header = ["PG ID"] + [key for key in pg_ids]
         stats_table.header(header)
 
         return {"streams_statistics": ExportableStats(sstats_data, stats_table)}
 
-    def _generate_latency_stats (self):
-        streams_keys, lstats_data = self._latency_stats_ref.generate_stats()
-        stream_count = len(streams_keys)
+    def _generate_latency_stats(self):
+        lat_stats = self._latency_stats_ref
+        latency_window_size = 10
+
+        # for TUI - maximum 5 
+        pg_ids = list(filter(is_intable, lat_stats.latest_stats.keys()))[:5]
+        stream_count = len(pg_ids)
+        lstats_data = OrderedDict([#('TX pkts',       []),
+                                   #('RX pkts',       []),
+                                   ('Max latency',   []),
+                                   ('Avg latency',   []),
+                                   ('-- Window --', [''] * stream_count),
+                                   ('Last (max)',     []),
+                                  ] + [('Last-%s' % i, []) for i in range(1, latency_window_size)] + [
+                                   ('---', [''] * stream_count),
+                                   ('Jitter',        []),
+                                   ('----', [''] * stream_count),
+                                   ('Errors',        []),
+                                  ])
+
+        with lat_stats.lock:
+            history = [x for x in lat_stats.history]
+        flow_stats = self._rx_stats_ref.get_stats()
+        for pg_id in pg_ids:
+            #lstats_data['TX pkts'].append(flow_stats[pg_id]['tx_pkts']['total'] if pg_id in flow_stats else '')
+            #lstats_data['RX pkts'].append(flow_stats[pg_id]['rx_pkts']['total'] if pg_id in flow_stats else '')
+            lstats_data['Avg latency'].append(try_int(lat_stats.get([pg_id, 'latency', 'average'])))
+            lstats_data['Max latency'].append(try_int(lat_stats.get([pg_id, 'latency', 'total_max'])))
+            lstats_data['Last (max)'].append(try_int(lat_stats.get([pg_id, 'latency', 'last_max'])))
+            for i in range(1, latency_window_size):
+                val = history[-i - 1].get(pg_id, {}).get('latency', {}).get('last_max', '') if len(history) > i else ''
+                lstats_data['Last-%s' % i].append(try_int(val))
+            lstats_data['Jitter'].append(try_int(lat_stats.get([pg_id, 'latency', 'jitter'])))
+            errors = 0
+            seq_too_low = lat_stats.get([pg_id, 'err_cntrs', 'seq_too_low'])
+            if is_integer(seq_too_low):
+                errors += seq_too_low
+            seq_too_high = lat_stats.get([pg_id, 'err_cntrs', 'seq_too_high'])
+            if is_integer(seq_too_high):
+                errors += seq_too_high
+            lstats_data['Errors'].append(format_num(errors,
+                                            opts = 'green' if errors == 0 else 'red'))
+
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["r"] * stream_count)
@@ -218,7 +352,7 @@ class CTRexInfoGenerator(object):
                               for k, v in lstats_data.items()],
                               header=False)
 
-        header = ["PG ID"] + [key for key in streams_keys]
+        header = ["PG ID"] + [key for key in pg_ids]
         stats_table.header(header)
 
         return {"latency_statistics": ExportableStats(lstats_data, stats_table)}
@@ -347,7 +481,7 @@ class CTRexInfoGenerator(object):
                                         ("status", []),
                                         ("promiscuous", []),
                                         ("--", []),
-                                         ("HW src mac", []),
+                                        ("HW src mac", []),
                                         ("SW src mac", []),
                                         ("SW dst mac", []),
                                         ("---", []),
@@ -445,8 +579,8 @@ class CTRexStats(object):
         self.reference_stats = {}
         self.latest_stats = {}
         self.last_update_ts = time.time()
-        self.__history = deque(maxlen = 47)
-        self.lock = threading.RLock()
+        self.history = deque(maxlen = 47)
+        self.lock = threading.Lock()
         self.has_baseline = False
 
     ######## abstract methods ##########
@@ -483,24 +617,13 @@ class CTRexStats(object):
             self.has_baseline = True
 
         # save history
-        self.history.append(self.latest_stats)
-
-
-    @property
-    def history(self):
         with self.lock:
-            return self.__history
-
-    @history.setter
-    def history(self, val):
-        with self.lock:
-            self.__history = val
+            self.history.append(self.latest_stats)
 
 
     def clear_stats(self):
         self.reference_stats = copy.deepcopy(self.latest_stats)
         self.history.clear()
-        self.history.append(self.latest_stats)
 
 
     def invalidate (self):
@@ -561,7 +684,8 @@ class CTRexStats(object):
             return 0
         
         # must lock, deque is not thread-safe for iteration
-        field_samples = [sample[field] for sample in list(self.history)[-5:]]
+        with self.lock:
+            field_samples = [sample[field] for sample in list(self.history)[-5:]]
 
         if use_raw:
             return calculate_diff_raw(field_samples)
@@ -663,46 +787,6 @@ class CGlobalStats(CTRexStats):
         return True
 
 
-    def generate_stats(self):
-        return OrderedDict([("connection", "{host}, Port {port}".format(host=self.connection_info.get("server"),
-                                                                     port=self.connection_info.get("sync_port"))),
-                             ("version", "{ver}, UUID: {uuid}".format(ver=self.server_version.get("version", "N/A"),
-                                                                      uuid="N/A")),
-
-                             ("cpu_util", "{0}% {1}".format( format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85]),
-                                                              self.get_trend_gui("m_cpu_util", use_raw = True))),
-
-                             ("rx_cpu_util", "{0}% {1}".format( format_threshold(round_float(self.get("m_rx_cpu_util")), [85, 100], [0, 85]),
-                                                                self.get_trend_gui("m_rx_cpu_util", use_raw = True))),
-
-                             (" ", ""),
-
-                             ("total_tx_L2", "{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
-                                                                self.get_trend_gui("m_tx_bps"))),
-
-                            ("total_tx_L1", "{0} {1}".format( self.get("m_tx_bps_L1", format=True, suffix="b/sec"),
-                                                                self.get_trend_gui("m_tx_bps_L1"))),
-
-                             ("total_rx", "{0} {1}".format( self.get("m_rx_bps", format=True, suffix="b/sec"),
-                                                              self.get_trend_gui("m_rx_bps"))),
-
-                             ("total_pps", "{0} {1}".format( self.get("m_tx_pps", format=True, suffix="pkt/sec"),
-                                                              self.get_trend_gui("m_tx_pps"))),
-
-                             ("  ", ""),
-
-                             ("drop_rate", "{0}".format( format_num(self.get("m_rx_drop_bps"),
-                                                                    suffix = 'b/sec',
-                                                                    opts = 'green' if (self.get("m_rx_drop_bps")== 0) else 'red'))),
-
-                             ("queue_full", "{0}".format( format_num(self.get_rel("m_total_queue_full"),
-                                                                     suffix = 'pkts',
-                                                                     compact = False,
-                                                                     opts = 'green' if (self.get_rel("m_total_queue_full")== 0) else 'red'))),
-
-                             ]
-                            )
-
 class CPortStats(CTRexStats):
 
     def __init__(self, port_obj):
@@ -735,11 +819,13 @@ class CPortStats(CTRexStats):
             else:
                 self.__merge_dicts(self.reference_stats, x.reference_stats)
 
-        if not self.history:
-            self.history = copy.deepcopy(x.history)
-        else:
-            for h1, h2 in zip(self.history, x.history):
-                self.__merge_dicts(h1, h2)
+        # history - should be traverse with a lock
+        with self.lock, x.lock:
+            if not self.history:
+                self.history = copy.deepcopy(x.history)
+            else:
+                for h1, h2 in zip(self.history, x.history):
+                    self.__merge_dicts(h1, h2)
 
         return self
 
@@ -866,17 +952,16 @@ class CLatencyStats(CTRexStats):
     def __init__(self, ports):
         super(CLatencyStats, self).__init__()
 
+
     # for API
     def get_stats (self):
-        ret = copy.deepcopy(self.latest_stats)
-        return ret
+        return copy.deepcopy(self.latest_stats)
 
 
     def _update(self, snapshot):
-        if not snapshot:
-            return
+        if snapshot is None:
+            snapshot = {}
         output = {}
-        #print snapshot
 
         # we care only about the current active keys
         pg_ids = list(filter(is_intable, snapshot.keys()))
@@ -896,52 +981,8 @@ class CLatencyStats(CTRexStats):
                 output[int_pg_id]['latency']['histogram'] = current_pg['latency']['h']['histogram']
                 zero_count = current_pg['latency']['h']['cnt'] - current_pg['latency']['h']['high_cnt']
                 output[int_pg_id]['latency']['histogram'].append({'key':0, 'val':zero_count})
-
         self.latest_stats = output
         return True
-
-
-    def generate_stats (self):
-        latency_window_size = 10
-
-        # for TUI - maximum 5 
-        pg_ids = list(filter(is_intable, self.latest_stats.keys()))[:5]
-        cnt = len(pg_ids)
-        formatted_stats = OrderedDict([
-                                       ('Max latency',   []),
-                                       ('Avg latency',   []),
-                                       ('Min latency',   []),
-                                       ('Last 0.5s',     []),
-                                      ] + [
-                                       ('Last-%s' % i, []) for i in range(1, latency_window_size)
-                                      ] + [
-                                       ('---',  [''] * cnt),
-                                       ('Jitter',        []),
-                                       ('----', [''] * cnt),
-                                       ('Out of order',  []),
-                                      ])
-
-        history = self.history # get it once with the lock, not per each index
-        for pg_id in pg_ids:
-            latency_dict = self.get([pg_id, 'latency'])
-
-            formatted_stats['Max latency'].append('%s usec' % self.get([pg_id, 'latency', 'max_usec']))
-            formatted_stats['Avg latency'].append('%s usec' % self.get([pg_id, 'latency', 's_avg']))
-            formatted_stats['Min latency'].append('%s usec' % self.get([pg_id, 'latency', 'min_usec']))
-            formatted_stats['Last 0.5s'].append('%s usec' % int(self.get([pg_id, 'latency', 'last_max'])))
-            for i in range(1, latency_window_size):
-                val = '%s usec' % int(history[-i - 1][pg_id]['latency']['last_max']) if len(history) > i else ''
-                formatted_stats['Last-%s' % i].append(val)
-            formatted_stats['Jitter'].append('%g usec' % round(self.get([pg_id, 'latency', 'jitter']), 1))
-
-            #formatted_stats['Dropped'].append(format_num(self.get([pg_id, 'err_cntrs', 'dropped'], format = True, suffix = "pkts"))
-                                            #compact = False,
-                                            #opts = 'green' if self.get([pg_id, 'err_cntrs', 'dropped']) == 0 else 'red')
-                                            #)
-            formatted_stats['Out of order'].append(self.get([pg_id, 'err_cntrs', 'out_of_order'], format = True, suffix = "pkts"))
-
-        return pg_ids, formatted_stats
-
 
 
 # RX stats objects - COMPLEX :-(
@@ -1152,7 +1193,7 @@ class CRxStats(CTRexStats):
 
 
         return True
-      
+
 
 
     # for API
@@ -1185,56 +1226,6 @@ class CRxStats(CTRexStats):
         return stats
 
 
-    # for Console
-    def generate_stats (self):
-
-        # for TUI - maximum 4 
-        pg_ids = list(filter(is_intable, self.latest_stats.keys()))[:4]
-        cnt = len(pg_ids)
-
-        formatted_stats = OrderedDict([ ('Tx pps',  []),
-                                        ('Tx bps L2',      []),
-                                        ('Tx bps L1',      []),
-                                        ('---', [''] * cnt),
-                                        ('Rx pps',      []),
-                                        ('Rx bps',      []),
-                                        ('----', [''] * cnt),
-                                        ('opackets',    []),
-                                        ('ipackets',    []),
-                                        ('obytes',      []),
-                                        ('ibytes',      []),
-                                        ('-----', [''] * cnt),
-                                        ('tx_pkts',     []),
-                                        ('rx_pkts',     []),
-                                        ('tx_bytes',    []),
-                                        ('rx_bytes',    [])
-                                      ])
-
-
-
-        # maximum 4
-        for pg_id in pg_ids:
-
-            formatted_stats['Tx pps'].append(self.get([pg_id, 'tx_pps_lpf', 'total'], format = True, suffix = "pps"))
-            formatted_stats['Tx bps L2'].append(self.get([pg_id, 'tx_bps_lpf', 'total'], format = True, suffix = "bps"))
-
-            formatted_stats['Tx bps L1'].append(self.get([pg_id, 'tx_bps_L1_lpf', 'total'], format = True, suffix = "bps"))
-
-            formatted_stats['Rx pps'].append(self.get([pg_id, 'rx_pps_lpf', 'total'], format = True, suffix = "pps"))
-            formatted_stats['Rx bps'].append(self.get([pg_id, 'rx_bps_lpf', 'total'], format = True, suffix = "bps"))
-            
-            formatted_stats['opackets'].append(self.get_rel([pg_id, 'tx_pkts', 'total']))
-            formatted_stats['ipackets'].append(self.get_rel([pg_id, 'rx_pkts', 'total']))
-            formatted_stats['obytes'].append(self.get_rel([pg_id, 'tx_bytes', 'total']))
-            formatted_stats['ibytes'].append(self.get_rel([pg_id, 'rx_bytes', 'total']))
-            formatted_stats['tx_bytes'].append(self.get_rel([pg_id, 'tx_bytes', 'total'], format = True, suffix = "B"))
-            formatted_stats['rx_bytes'].append(self.get_rel([pg_id, 'rx_bytes', 'total'], format = True, suffix = "B"))
-            formatted_stats['tx_pkts'].append(self.get_rel([pg_id, 'tx_pkts', 'total'], format = True, suffix = "pkts"))
-            formatted_stats['rx_pkts'].append(self.get_rel([pg_id, 'rx_pkts', 'total'], format = True, suffix = "pkts"))
-
-      
-
-        return pg_ids, formatted_stats
 
 if __name__ == "__main__":
     pass

@@ -216,7 +216,11 @@ class TrexTUILatencyStats(TrexTUIPanel):
         stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LS_COMPAT)
         # print stats to screen
         for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+            if stat_type == 'latency_statistics':
+                untouched_header = ' (usec)'
+            else:
+                untouched_header = ''
+            text_tables.print_table_with_header(stat_data.text_table, stat_type, untouched_header = untouched_header)
 
     def get_key_actions (self):
         return self.key_actions 

@@ -857,7 +857,7 @@ class STLClient(object):
 
 
     # clear stats
-    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats):
+    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats):
 
         # we must be sync with the server
         self.async_client.barrier()
@@ -870,6 +870,9 @@ class STLClient(object):
 
         if clear_flow_stats:
             self.flow_stats.clear_stats()
+
+        if clear_latency_stats:
+            self.latency_stats.clear_stats()
 
         self.logger.log_cmd("Clearing stats on port(s) {0}:".format(port_id_list))
 
@@ -2071,7 +2074,7 @@ class STLClient(object):
 
 
     @__api_check(False)
-    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True):
+    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True):
         """
             Clear stats on port(s)
 
@@ -2085,6 +2088,9 @@ class STLClient(object):
                 clear_flow_stats : bool 
                     Clear the flow stats
 
+                clear_latency_stats : bool 
+                    Clear the latency stats
+
             :raises:
                 + :exc:`STLError`
 
@@ -2097,7 +2103,7 @@ class STLClient(object):
         if not type(clear_global) is bool:
             raise STLArgumentError('clear_global', clear_global)
 
-        rc = self.__clear_stats(ports, clear_global, clear_flow_stats)
+        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats)
         if not rc:
             raise STLError(rc)
 
