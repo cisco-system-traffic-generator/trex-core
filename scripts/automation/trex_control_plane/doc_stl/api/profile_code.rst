@@ -76,6 +76,12 @@ STLStream modes
     :members: 
     :member-order: bysource
 
+.. autoclass:: trex_stl_lib.trex_stl_streams.STLFlowLatencyStats
+    :members: 
+    :member-order: bysource
+    
+
+
 
 STLProfile snippet
 ------------------

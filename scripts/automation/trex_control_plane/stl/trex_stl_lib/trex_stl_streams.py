@@ -229,9 +229,9 @@ class STLFlowStats(STLFlowStatsInterface):
     """ Define per stream basic stats
 
     .. code-block:: python
-    :caption: STLFlowStats Example
+        :caption: STLFlowStats Example
 
-    flow_stats = STLFlowStats(pg_id = 7)
+        flow_stats = STLFlowStats(pg_id = 7)
 
     """
 
@@ -244,9 +244,9 @@ class STLFlowLatencyStats(STLFlowStatsInterface):
     """ Define per stream basic stats + latency, jitter, packet reorder/loss
 
     .. code-block:: python
-    :caption: STLFlowLatencyStats Example
+        :caption: STLFlowLatencyStats Example
 
-    flow_stats = STLFlowLatencyStats(pg_id = 7)
+        flow_stats = STLFlowLatencyStats(pg_id = 7)
 
     """
 
