@@ -344,6 +344,7 @@ int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, in
                                                 , m_rfc2544[hw_id].seq_err_events_too_low);
         rfc2544_info[hw_id - min].set_jitter(m_rfc2544[hw_id].jitter.get_jitter());
         m_rfc2544[hw_id].latency.update();
+        json_str = "";
         m_rfc2544[hw_id].latency.dump_json("", json_str);
         // This is a hack. We need to make the dump_json return json object.
         reader.parse( json_str.c_str(), json);
