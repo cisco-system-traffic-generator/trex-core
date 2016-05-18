@@ -19,8 +19,6 @@ class STLS1(object):
             src_ip="48.0.0.1"
             dst_ip="16.0.0.1"
 
-        src="16.0.0.1";
-
         base_pkt = Ether()/IP(src=src_ip,dst=dst_ip)/UDP(dport=12,sport=1025)
 
         pad = max(0, size - len(base_pkt)) * 'x'
