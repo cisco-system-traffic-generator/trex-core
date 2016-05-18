@@ -600,7 +600,7 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, boo
     double factor = calculate_effective_factor_internal(mul);
 
     /* did we exceeded the max L1 line rate ? */
-    double expected_l1_rate = factor * m_graph_obj->get_max_bps_l1();
+    double expected_l1_rate = m_graph_obj->get_max_bps_l1(factor);
 
     /* if not force and exceeded - throw exception */
     if ( (!force) && (expected_l1_rate > get_port_speed_bps()) ) {
@@ -774,9 +774,9 @@ TrexStatelessPort::get_port_effective_rate(double &pps,
         generate_streams_graph();
     }
 
-    pps        = m_graph_obj->get_max_pps()    * m_factor;
-    bps_L1     = m_graph_obj->get_max_bps_l1() * m_factor;
-    bps_L2     = m_graph_obj->get_max_bps_l2() * m_factor;
+    pps        = m_graph_obj->get_max_pps(m_factor);
+    bps_L1     = m_graph_obj->get_max_bps_l1(m_factor);
+    bps_L2     = m_graph_obj->get_max_bps_l2(m_factor);
     percentage = (bps_L1 / get_port_speed_bps()) * 100.0;
     
 }

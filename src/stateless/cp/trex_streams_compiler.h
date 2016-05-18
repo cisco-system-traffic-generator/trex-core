@@ -231,16 +231,16 @@ public:
         uint32_t stream_id;
     };
 
-    double get_max_pps() const {
-        return m_total.m_pps;
+    double get_max_pps(double factor = 1) const {
+        return (m_var.m_pps * factor + m_fixed.m_pps);
     }
 
-    double get_max_bps_l1() const {
-        return m_total.m_bps_l1;
+    double get_max_bps_l1(double factor = 1) const {
+        return (m_var.m_bps_l1 * factor + m_fixed.m_bps_l1);
     }
 
-    double get_max_bps_l2() const {
-        return m_total.m_bps_l2;
+    double get_max_bps_l2(double factor = 1) const {
+        return (m_var.m_bps_l2 * factor + m_fixed.m_bps_l2);
     }
 
     double get_factor_pps(double req_pps) const {

@@ -1,4 +1,4 @@
 #! /bin/bash
 export LD_LIBRARY_PATH=`pwd`
-/bin/gdb --args ./_t-rex-64-debug $@
+/usr/bin/gdb --args ./_t-rex-64-debug $@
 
