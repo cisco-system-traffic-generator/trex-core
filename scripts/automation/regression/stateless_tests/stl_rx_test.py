@@ -171,7 +171,7 @@ class STLRX_Test(CStlGeneral_Test):
             # add both streams to ports
             self.c.add_streams([s1], ports = [self.tx_port])
 
-            print "\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port)
+            print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
 
             exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
 
