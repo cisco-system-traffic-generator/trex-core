@@ -3401,6 +3401,277 @@ Use the following command within the TRex console to run the profile.
 TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a     
 ----
 
+=== PCAP Based Traffic
+
+TRex provides a method of using a pre-recorded traffic as a profile template.
+
+
+There are two main distinct ways of creating a profile or a test based on a PCAP.
+
+* Local PCAP push 
+* Server based push
+
+==== Local PCAP push
+
+On this mode, the PCAP file is loaded locally by the Python client,
+transformed to a list of streams which each one contains a single packet
+and points to the next one.
+
+This allows of a very flexible structure which can basically provide every
+functionality that a regular list of streams allow.
+
+However, due to the overhead of processing and 
+sending a list of streams this method is limited to a file size (on default 1MB)
+
+
+
+*Pros:*
+
+* supports most CAP file formats
+* supports field engine
+* provides a way of locally manipulating packets as streams
+* supports same rate as regular streams
+
+*Cons:*
+
+* limited in file size
+* high configuration time due to transmitting the CAP file as streams
+
+
+
+==== Server based push
+
+To provide also a way of injecting a much larger PCAP files, TRex also provides
+a server based push.
+
+The mechansim is much different and it simply providing a server a PCAP file which
+in turn is loaded to the server and injected packet after packet.
+
+This method provides an unlimited file size to be injected, and the overhead of
+setting up the server with the required configuration is much lower.
+
+
+*Pros:*
+
+* no limitation of PCAP file size
+* no overhead in sending any size of PCAP to the server
+
+*Cons:*
+
+* does not support field engine
+* support only PCAP and ERF formats
+* requires the file path to be accessible from the server
+* rate of transmition is usually limited by I/O performance and buffering (HDD)
+
+
+=== PCAP Based Traffic Tutorials
+
+==== Tutorial: Sending a simple PCAP file (size < 1MB)
+
+For this case we can use the local push:
+
+[source,bash]
+----
+c = STLClient(server = "localhost")
+
+try:
+
+    c.connect()
+    c.reset(ports = [0])
+
+    d = c.push_pcap(pcap_file = "my_file.pcap",             # our local PCAP file
+		    ports = 0,                              # use port 0
+                    ipg_usec = 100,                         # IPG
+                    count = 1)                              # inject only once
+
+    c.wait_on_traffic()
+
+
+    stats = c.get_stats()
+    opackets = stats[port]['opackets']
+    print("{0} packets were Tx on port {1}\n".format(opackets, port))
+
+  except STLError as e:
+      print(e)
+      sys.exit(1)
+
+  finally:
+      c.disconnect()
+
+----
+
+==== Tutorial: Sending a PCAP file iterating over dest IP (size < 1MB)
+
+For this case we can use the local push:
+
+[source,bash]
+----
+c = STLClient(server = "localhost")
+
+try:
+
+    c.connect()
+    port = 0
+    c.reset(ports = [port])
+
+    vm = STLIPRange(dst = {'start': '10.0.0.1', 'end': '10.0.0.254', 'step' : 1})
+
+    c.push_pcap(pcap_file = "my_file.pcap",             # our local PCAP file
+                ports = port,                           # use 'port'
+                ipg_usec = 100,                         # IPG
+                count = 1,                              # inject only once
+		vm = vm                                 # provide VM object
+		)
+
+    c.wait_on_traffic()
+
+    stats = c.get_stats()
+    opackets = stats[port]['opackets']
+    print("{0} packets were Tx on port {1}\n".format(opackets, port))
+
+  except STLError as e:
+      print(e)
+      sys.exit(1)
+
+  finally:
+      c.disconnect()
+
+----
+
+==== Tutorial: Sending a PCAP file with VLAN (size < 1MB)
+
+This is a more intresting case where we can provide the push API a function hook.
+The hook will be called for each packet that is loaded from the PCAP file.
+
+[source,bash]
+----
+# generate a packet hook function with a VLAN ID
+def packet_hook_generator (vlan_id):
+
+    # this function will be called for each packet and will expect
+    # the new packet as a return value
+    def packet_hook (packet):
+        packet = Ether(packet)
+
+        if vlan_id >= 0 and vlan_id <= 4096:
+            packet_l3 = packet.payload
+            packet = Ether() / Dot1Q(vlan = vlan_id) / packet_l3
+
+        return str(packet)
+
+    return packet_hook
+
+c = STLClient(server = "localhost")
+
+try:
+
+    c.connect()
+    port = 0
+    c.reset(ports = [port])
+
+    vm = STLIPRange(dst = {'start': '10.0.0.1', 'end': '10.0.0.254', 'step' : 1})
+
+    d = c.push_pcap(pcap_file = "my_file.pcap",
+		    ports = port,         
+                    ipg_usec = 100,
+                    count = 1,
+                    packet_hook = packet_hook_generator(vlan_id = 1)
+		    )
+
+    c.wait_on_traffic()
+
+    stats = c.get_stats()
+    opackets = stats[port]['opackets']
+    print("{0} packets were Tx on port {1}\n".format(opackets, port))
+
+  except STLError as e:
+      print(e)
+      sys.exit(1)
+
+  finally:
+      c.disconnect()
+
+----
+
+==== Tutorial: Sending a huge PCAP file
+
+Now we would like to use the remote push API.
+This will require the file path to be visible to the server.
+
+
+[source,bash]
+----
+c = STLClient(server = "localhost")
+
+try:
+
+    c.connect()
+    c.reset(ports = [0])
+
+    # use an absolute path so the server can reach this
+    pcap_file = os.path.abspath(pcap_file)
+
+    c.push_remote(pcap_file = pcap_file,                  
+		  ports = 0,                              
+                  ipg_usec = 100,                         
+                  count = 1)                              
+
+    c.wait_on_traffic()
+
+
+    stats = c.get_stats()
+    opackets = stats[port]['opackets']
+    print("{0} packets were Tx on port {1}\n".format(opackets, port))
+
+  except STLError as e:
+      print(e)
+      sys.exit(1)
+
+  finally:
+      c.disconnect()
+
+----
+
+==== Tutorial: Sending a long list of PCAP files of varied sizes
+
+This is also a good candidate for the remote push API.
+The total overhead for sending the PCAP files will be high if the list is long,
+so we would prefer to inject them with remote API and to save the transmition of the packets.
+
+[source,bash]
+----
+c = STLClient(server = "localhost")
+
+try:
+
+    c.connect()
+    c.reset(ports = [0])
+
+    # iterate over the list and send each file to the server
+    for pcap_file in pcap_file_list:
+	pcap_file = os.path.abspath(pcap_file)
+
+	c.push_remote(pcap_file = pcap_file,                  
+	   	      ports = 0,                              
+                      ipg_usec = 100,                         
+                      count = 1)                              
+
+        c.wait_on_traffic()
+
+
+        stats = c.get_stats()
+        opackets = stats[port]['opackets']
+        print("{0} packets were Tx on port {1}\n".format(opackets, port))
+
+  except STLError as e:
+      print(e)
+      sys.exit(1)
+
+  finally:
+      c.disconnect()
+
+----
+
 === Reference
 
 Additional profiles and examples are available in the `stl/hlt` folder.
