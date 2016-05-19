@@ -147,15 +147,14 @@ def listify (x):
         return [x]
 
 # shows as 'N/A', but does not let any compares for user to not mistake in automation
-class StatNotAvailable(object):
-    def __init__(self, stat_name):
-        self.stat_name = stat_name
-
-    def __repr__(self, *args, **kwargs):
-        return 'N/A'
+class StatNotAvailable(str):
+    def __new__(cls, value, *args, **kwargs):
+        cls.stat_name = value
+        return super(X, cls).__new__(cls, 'N/A')
 
     def __cmp__(self, *args, **kwargs):
         raise Exception("Stat '%s' not available at this setup" % self.stat_name)
+
 
 class LRU_cache(OrderedDict):
     def __init__(self, maxlen = 20, *args, **kwargs):
