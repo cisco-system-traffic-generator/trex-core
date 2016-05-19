@@ -150,7 +150,7 @@ def listify (x):
 class StatNotAvailable(str):
     def __new__(cls, value, *args, **kwargs):
         cls.stat_name = value
-        return super(X, cls).__new__(cls, 'N/A')
+        return super(StatNotAvailable, cls).__new__(cls, 'N/A')
 
     def __cmp__(self, *args, **kwargs):
         raise Exception("Stat '%s' not available at this setup" % self.stat_name)
