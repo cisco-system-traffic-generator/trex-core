@@ -3185,7 +3185,7 @@ Latency Statistics (usec)
 <3> Maximum latency measured between last two data reads from server (We currently read every 0.5 second).
     Numbers below are maximum latency for previous measuring periods, so we get latency history for last few seconds.
 <4> Jitter of latency measurements.
-<5> Indication of number of errors (packet lost/out of order/duplicates) that occured). In the future it will be possible to 'zoom in', to see specific counters.
+<5> Indication of number of errors (it is the sum of seq_too_high and seq_too_low. You can see description in Python API doc below). In the future it will be possible to 'zoom in', to see specific counters.
     For now, if you need to see specific counters, you can use the Python API.
     
 
@@ -3220,22 +3220,22 @@ An example of API usage is as follows
     # lat_stats will be in this format   
 
     latency_stats ==  {  
-         'err_cntrs':{                  # error counters
-            u'dup':0,                   # The same seq number was received
-            u'out_of_order':0,          # seq out of order - range is higher that cyclic of 1000
-            u'seq_too_high':0,          # seq number too high 
-            u'seq_too_low':0,           # seq number too low
+         'err_cntrs':{                  # error counters <2>
+            u'dup':0,                   # Same sequence number was received twice in a row
+            u'out_of_order':0,          # Packets received with sequence number too low (We assume it is reorder)
             u'dropped':0                # Estimate of number of packets that were dropped (using seq number)
+            u'seq_too_high':0,          # seq number too high events
+            u'seq_too_low':0,           # seq number too low events
          },
          'latency':{  
             'jitter':0,                 # in usec
-            'average':15.2,             # average latency,usec
-            'last_max':0,               # last 1 sec window maximum latency 
-            'total_max':44,             # maximum latency 
-            'histogram':[               # histogram of latency 
+            'average':15.2,             # average latency (usec)
+            'last_max':0,               # last 0.5 sec window maximum latency (usec)
+            'total_max':44,             # maximum latency (usec)
+            'histogram':[               # histogram of latency
                {  
-                  u'key':20,            # butcket latency in usec (20-30)
-                  u'val':489342         # number of samples that hit this bucket range in usec 
+                  u'key':20,            # bucket counting packets with latency in the range 20 to 30 usec
+                  u'val':489342         # number of samples that hit this bucket's range
                },
                {  
                   u'key':30,
@@ -3243,19 +3243,30 @@ An example of API usage is as follows
                },
                {  
                   u'key':40,
-                  u'val':146
+                  u'val':143
                },
                {  
-                  'key':0,
-                  'val':0
+                  'key':0,              # bucket counting packets with latency in the range 0 to 10 usec
+                  'val':3
                }
             ]
          }
-      },                                                           
+      },
 
    
 ----
 <1> Get the Latency dictionary
+<2> For calculating packet error events, we add sequence number to each packet's payload. We decide what went wrong only according to sequence number
+    of last packet received and that of the previous packet. 'seq_too_low' and 'seq_too_high' count events we see. 'dup', 'out_of_order' and 'dropped'
+    are heuristics we apply to try and understand what happened. They will be accurate in common error scenarios.
+    We describe few scenarios below to help understand this. + 
+
+*Error counters scenarios*::
+Scenario 1: Received packet with seq num 10, and another one with seq num 10. We increment 'dup' and 'seq_too_low' by 1. + 
+Scenario 2: Received pacekt with seq num 10 and then packet with seq num 15. We assume 4 packets were dropped, and increment 'dropped' by 4, and 'seq_too_high' by 1.
+  We expect next packet to arrive with sequence number 16. + 
+Scenario 2 continue: Received packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1.
+  (We assume here that one of the packets we considered as dropped before, actually arrived out of order).
 
 TBD need to update Python API with with this information
 
