@@ -50,9 +50,13 @@ class STLRX_Test(CStlGeneral_Test):
         if latency_stats is not None:
             drops = latency_stats['err_cntrs']['dropped']
             ooo = latency_stats['err_cntrs']['out_of_order']
-            if drops != 0 or ooo != 0:
+            dup = latency_stats['err_cntrs']['dup']
+            sth = latency_stats['err_cntrs']['seq_too_high']
+            stl = latency_stats['err_cntrs']['seq_too_low']
+            lat = latency_stats['latency']
+            if drops != 0 or ooo != 0 or dup != 0 or stl !=0 or sth != 0:
                 pprint.pprint(latency_stats)
-                tmp='Dropped or out of order packets - dropped: {0}, ooo: {1}'.format(drops, ooo)
+                tmp='Dropped or out of order packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
                 assert False, tmp
 
         if tx_pkts != total_pkts:
