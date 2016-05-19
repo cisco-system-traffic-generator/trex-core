@@ -187,3 +187,36 @@ class STLRX_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
+
+
+    
+    # this test adds more and more latency streams and re-test with incremental
+    def test_incremental_latency_streams (self):
+        total_pkts = self.total_pkts
+
+        exp = []
+        try:
+            for i in xrange(1, 128):
+               s1 = STLStream(name = 'rx',
+                              packet = self.pkt,
+                              flow_stats = STLFlowLatencyStats(pg_id = i),
+                              mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                                      percentage = 1
+                                                      ))
+
+               # add both streams to ports
+               self.c.add_streams([s1], ports = [self.tx_port])
+
+               print("\nport {0} : starting with {1} streams at {2}% of line rate\n".format(self.tx_port, i, i))
+
+               exp.append({'pg_id': i, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()})
+
+               self.__rx_iteration( exp )
+
+
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+
+
