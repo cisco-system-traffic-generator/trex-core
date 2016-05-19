@@ -279,6 +279,23 @@ TOC_HEAD = """
 
 <div id="content-section">
 
+    <!-- load the theme CSS file -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" rel="stylesheet"/>
+    
+    <link href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
+    
+    <!-- include the jQuery library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.1/jquery.min.js">
+    </script>
+    
+    <!-- include the jQuery UI library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js">
+    </script>
+    
+    <!-- include the minified jstree source -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/jstree.min.js">
+    </script>
+
     <!-- Hide TOC on mobile -->
     <script>
     
@@ -335,23 +352,6 @@ TOC_END = """
 <!-- End of Content Section -->
 
 </body>
-
-<!-- load the theme CSS file -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" rel="stylesheet"/>
-
-<link href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
-
-<!-- include the jQuery library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.1/jquery.min.js">
-</script>
-
-<!-- include the jQuery UI library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js">
-</script>
-
-<!-- include the minified jstree source -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/jstree.min.js">
-</script>
 
 <style type="text/css">
     #toc {
