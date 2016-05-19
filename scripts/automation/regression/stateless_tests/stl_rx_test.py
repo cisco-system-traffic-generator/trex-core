@@ -125,7 +125,7 @@ class STLRX_Test(CStlGeneral_Test):
     def test_multiple_streams(self):
         num_latency_streams = 110
         num_flow_stat_streams = 110
-        total_pkts = int(self.total_pkts / num_latency_streams) / 2
+        total_pkts = int(self.total_pkts / num_latency_streams / 2)
         if total_pkts == 0:
             total_pkts = 1
         percent = float(self.rate_percent) / num_latency_streams / 2
