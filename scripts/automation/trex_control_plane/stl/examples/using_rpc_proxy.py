@@ -1,0 +1,101 @@
+#!/router/bin/python
+
+import argparse
+import sys
+import os
+from time import sleep
+
+# ext libs
+ext_libs = os.path.join(os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs')
+sys.path.append(os.path.join(ext_libs, 'jsonrpclib-pelix-0.2.5'))
+import jsonrpclib
+
+def fail(msg):
+    print(msg)
+    sys.exit(1)
+
+def verify(res):
+    if not res[0]:
+        fail(res[1])
+    return res
+
+def verify_hlt(res):
+    if res['status'] == 0:
+        fail(res['log'])
+    return res
+
+### Main ###
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description = 'Use of Stateless through rpc_proxy. (Can be implemented in any language)')
+    parser.add_argument('-s', '--server', type=str, default = 'localhost', dest='server', action = 'store',
+                        help = 'Address of rpc proxy.')
+    parser.add_argument('-p', '--port', type=int, default = 8095, dest='port', action = 'store',
+                        help = 'Port of rpc proxy.\nDefault is 8095.')
+    args = parser.parse_args()
+
+    server = jsonrpclib.Server('http://%s:%s' % (args.server, args.port))
+
+# Native API
+
+    print('Initializing Native Client')
+    verify(server.native_proxy_init(server = args.server, force = True))
+
+    print('Connecting to TRex server')
+    verify(server.connect())
+
+    print('Resetting all ports')
+    verify(server.reset())
+
+    print('Getting ports info')
+    res = verify(server.native_method(func_name = 'get_port_info'))
+    print('Ports info is: %s' % res[1])
+    ports = [port['index'] for port in res[1]]
+
+    print('Sending pcap to ports %s' % ports)
+    verify(server.push_remote(pcap_filename = 'stl/sample.pcap'))
+
+    print('Getting stats')
+    res = verify(server.get_stats())
+    print('Stats: %s' % res[1])
+
+    print('Resetting all ports')
+    verify(server.reset())
+
+    print('Deleting Native Client instance')
+    verify(server.native_proxy_del())
+
+# HLTAPI
+
+    print('Initializing HLTAPI Client')
+    verify(server.hltapi_proxy_init(force = True))
+
+    print('HLTAPI connect')
+    verify_hlt(server.hlt_connect(device = args.server, port_list = ports, reset = True, break_locks = True))
+
+    print('Creating traffic')
+    verify_hlt(server.traffic_config(
+            mode = 'create', bidirectional = True,
+            port_handle = ports[0], port_handle2 = ports[1],
+            frame_size = 100,
+            l3_protocol = 'ipv4',
+            ip_src_addr = '10.0.0.1', ip_src_mode = 'increment', ip_src_count = 254,
+            ip_dst_addr = '8.0.0.1', ip_dst_mode = 'increment', ip_dst_count = 254,
+            l4_protocol = 'udp',
+            udp_dst_port = 12, udp_src_port = 1025,
+            rate_percent = 10, ignore_macs = True,
+            ))
+
+    print('Starting traffic for 5 sec')
+    verify_hlt(server.traffic_control(action = 'run', port_handle = ports[:2]))
+
+    sleep(5)
+    print('Stopping traffic')
+    verify_hlt(server.traffic_control(action = 'stop', port_handle = ports[:2]))
+
+    print('Getting stats')
+    res = verify_hlt(server.traffic_stats(mode = 'aggregate', port_handle = ports[:2]))
+    print(res)
+
+    print('Deleting HLTAPI Client instance')
+    verify(server.hltapi_proxy_del())
