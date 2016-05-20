@@ -307,8 +307,8 @@ class CTRexInfoGenerator(object):
         # for TUI - maximum 5 
         pg_ids = list(filter(is_intable, lat_stats.latest_stats.keys()))[:5]
         stream_count = len(pg_ids)
-        lstats_data = OrderedDict([#('TX pkts',       []),
-                                   #('RX pkts',       []),
+        lstats_data = OrderedDict([('TX pkts',       []),
+                                   ('RX pkts',       []),
                                    ('Max latency',   []),
                                    ('Avg latency',   []),
                                    ('-- Window --', [''] * stream_count),
@@ -324,8 +324,8 @@ class CTRexInfoGenerator(object):
             history = [x for x in lat_stats.history]
         flow_stats = self._rx_stats_ref.get_stats()
         for pg_id in pg_ids:
-            #lstats_data['TX pkts'].append(flow_stats[pg_id]['tx_pkts']['total'] if pg_id in flow_stats else '')
-            #lstats_data['RX pkts'].append(flow_stats[pg_id]['rx_pkts']['total'] if pg_id in flow_stats else '')
+            lstats_data['TX pkts'].append(flow_stats[pg_id]['tx_pkts']['total'] if pg_id in flow_stats else '')
+            lstats_data['RX pkts'].append(flow_stats[pg_id]['rx_pkts']['total'] if pg_id in flow_stats else '')
             lstats_data['Avg latency'].append(try_int(lat_stats.get([pg_id, 'latency', 'average'])))
             lstats_data['Max latency'].append(try_int(lat_stats.get([pg_id, 'latency', 'total_max'])))
             lstats_data['Last (max)'].append(try_int(lat_stats.get([pg_id, 'latency', 'last_max'])))
