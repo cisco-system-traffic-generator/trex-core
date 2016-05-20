@@ -101,6 +101,7 @@ class CTRexClient(object):
         '''
         Connects to Master daemon via JsonRPC.
         This daemon controls TRex daemon server.
+        Return true if success, false if fail
         '''
         try:
             print('Connecting to Master daemon @ %s ...' % self.master_daemon_path)
@@ -115,7 +116,8 @@ class CTRexClient(object):
     def connect_server(self):
         '''
         Connects to TRex daemon server via JsonRPC.
-        This daemon controls TRex. (start/stop
+        This daemon controls TRex. (start/stop)
+        Return true if success, false if fail
         '''
         try:
             print('Connecting to TRex daemon server @ %s ...' % self.trex_server_path)
@@ -359,7 +361,7 @@ class CTRexClient(object):
         Returns TRex path on server
         '''
         try:
-            return self.master_daemon.get_trex_path()
+            return self.master_daemon.get_trex_path().encode('ascii', errors='replace')
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         finally:
