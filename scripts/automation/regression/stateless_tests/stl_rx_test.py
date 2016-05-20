@@ -7,6 +7,8 @@ class STLRX_Test(CStlGeneral_Test):
     """Tests for RX feature"""
 
     def setUp(self):
+        if self.is_virt_nics:
+            self.skip('Skip this for virtual NICs for now')
         per_driver_params = {"rte_vmxnet3_pmd": [1, 50], "rte_ixgbe_pmd": [30, 5000], "rte_i40e_pmd": [80, 5000],
                              "rte_igb_pmd": [80, 500], "rte_em_pmd": [1, 50], "rte_virtio_pmd": [1, 50]}
 
