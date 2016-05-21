@@ -361,7 +361,7 @@ class CTRexClient(object):
         Returns TRex path on server
         '''
         try:
-            return self.master_daemon.get_trex_path().encode('ascii', errors='replace')
+            return str(self.master_daemon.get_trex_path())
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         finally:
