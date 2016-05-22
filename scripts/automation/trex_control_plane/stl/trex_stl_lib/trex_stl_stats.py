@@ -980,7 +980,15 @@ class CLatencyStats(CTRexStats):
                 output[int_pg_id]['latency']['total_max'] = current_pg['latency']['h']['max_usec']
                 output[int_pg_id]['latency']['histogram'] = current_pg['latency']['h']['histogram']
                 zero_count = current_pg['latency']['h']['cnt'] - current_pg['latency']['h']['high_cnt']
-                output[int_pg_id]['latency']['histogram'].append({'key':0, 'val':zero_count})
+                if zero_count != 0:
+                    output[int_pg_id]['latency']['histogram'].append({'key':0, 'val':zero_count})
+                    output[int_pg_id]['latency']['total_min'] = 1
+                else:
+                    min_usec = current_pg['latency']['h']['max_usec']
+                    for bucket in output[int_pg_id]['latency']['histogram']:
+                        if bucket['key'] < min_usec:
+                            min_usec = bucket['key']
+                    output[int_pg_id]['latency']['total_min'] = min_usec
         self.latest_stats = output
         return True
 
