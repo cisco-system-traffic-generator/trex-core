@@ -35,16 +35,13 @@ class CStlGeneral_Test(CTRexGeneral_Test):
     def map_ports(self, timeout = 100):
         sys.stdout.write('Mapping ports')
         for i in range(timeout):
-            try:
-                sys.stdout.write('.')
-                sys.stdout.flush()
-                CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
-                if self.verify_bidirectional(CTRexScenario.stl_ports_map):
-                    print('')
-                    return True
-                time.sleep(0.1)
-            except:
-                time.sleep()
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
+            if self.verify_bidirectional(CTRexScenario.stl_ports_map):
+                print('')
+                return True
+            time.sleep(0.1)
         print('')
         return False
 
