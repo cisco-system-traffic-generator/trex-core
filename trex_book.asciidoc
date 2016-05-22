@@ -137,14 +137,14 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 
 // in table above, is it correct to list "paravirtualized" as chipset? Also, what is QSFP28? It does not appear on the lined URL. Clarify: is Intel X710 the preferred NIC?
 
-.Intel X710 SFP+ support (for link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L] with Open Optic)
-[options="header",cols="1,1",width="70%"]
+.X710 NIC base  SFP+ support 
+[options="header",cols="1,1,1",width="70%"]
 |=================
-| link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+]  | Notes 
-| Cisco SFP-10G-SR  | link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Info]
-| Cisco SFP-10G-LR  | link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Info]
-| Cisco SFP-H10GB-CU1M | link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Info]
-| Cisco SFP-10G-AOC1M | link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Info]
+| link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+]  | Intel Ethernet Converged X710-DAX |  Silicom link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[PE310G4i71L] (Open optic)
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-SR] | Does not work     | [green]*works*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-LR] | Does not work     | [green]*works*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-H10GB-CU1M]| [green]*works* | [green]*works*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-AOC1M] | [green]*works* | [green]*works*
 |=================
 
 [NOTE]
@@ -154,16 +154,16 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 
 // clarify above table and note
 
-.Intel XL710 QSFP+ support 
-[options="header",cols="1,1",width="70%"]
+.XL710 NIC base QSFP+ support 
+[options="header",cols="1,1,1",width="70%"]
 |=================
-| link:https://en.wikipedia.org/wiki/QSFP[QSFP+]             | Notes 
-| QSFP+ SR4 optics  |  APPROVED OPTICS For Intel NICS,  Cisco QSFP-40G-SR4-S will work *only* with XL710 NIC vendors with Open Optic like Silicom   link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
-| QSFP+ LR-4 Optics |   APPROVED OPTICS For Intel NICS , Cisco QSFP-40G-LR4-S will work *only* with XL710 NIC vendors with Open Optic like Silicom link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
-| QSFP Active Optical Cables (AoC) |   QSFP-H40G-AOC  link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
-| QSFP+ Intel Ethernet Modular Optics | 
-| QSFP+ DA twin-ax cables |
-| Active QSFP+ Copper Cables | Cisco QSFP-4SFP10G-CU link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-660083.html[here]
+| link:https://en.wikipedia.org/wiki/QSFP[QSFP+]             |  Intel Ethernet Converged XL710-QDAX | Silicom link:http://www.silicom-usa.com/Dual_Port_Fiber_40_Gigabit_Ethernet_PCI_Express_Server_Adapter_PE340G2Qi71_83[PE340G2Qi71] Open optic 
+| QSFP+ SR4 optics  |  APPROVED OPTICS [green]*works*,  Cisco QSFP-40G-SR4-S does *not* work   | Cisco QSFP-40G-SR4-S [green]*works* 
+| QSFP+ LR-4 Optics |   APPROVED OPTICS [green]*works*, Cisco QSFP-40G-LR4-S does *not* work   | Cisco QSFP-40G-LR4-S [green]*works* 
+| QSFP Active Optical Cables (AoC) | Cisco QSFP-H40G-AOC [green]*works*  | Cisco QSFP-H40G-AOC [green]*works* 
+| QSFP+ Intel Ethernet Modular Optics |    N/A            |  N/A
+| QSFP+ DA twin-ax cables | N/A  | N/A  
+| Active QSFP+ Copper Cables | Cisco QSFP-4SFP10G-CU [green]*works*  | Cisco QSFP-4SFP10G-CU [green]*works*
 |=================
 
 [NOTE]
