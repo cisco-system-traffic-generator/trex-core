@@ -168,13 +168,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
-        CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'],
-                                                  verbose   = self.json_verbose)
-        if not self.no_daemon and not CTRexScenario.trex.check_master_connectivity():
-            print('Could not connect to master daemon')
-            sys.exit(-1)
         if not self.no_daemon:
-            CTRexScenario.scripts_path = CTRexScenario.trex.get_trex_path()
+            CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'],
+                                                      verbose   = self.json_verbose)
+            if not CTRexScenario.trex.check_master_connectivity():
+                print('Could not connect to master daemon')
+                sys.exit(-1)
         if options.ga and CTRexScenario.setup_name:
             CTRexScenario.GAManager  = GAmanager(GoogleID       = 'UA-75220362-4',
                                                  UserID         = CTRexScenario.setup_name,
@@ -241,6 +240,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.stateless:
             if not self.no_daemon:
                 CTRexScenario.trex.force_kill(False)
+            if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
+                CTRexScenario.stl_trex.disconnect()
+                time.sleep(3)
             CTRexScenario.stl_trex = None
 
 

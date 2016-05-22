@@ -129,70 +129,70 @@ test_rx_check_sfr_ipv6:
 
 test_CPU_benchmark:
     profiles:
-      - name            : stl/udp_1pkt_simple.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 64}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
-        kwargs          : {packet_len: 64, packet_count: 10}
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 64, stream_count: 10}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
-        kwargs          : {packet_len: 64, packet_count: 100}
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 64, stream_count: 100}
         cpu_util        : 1
         bw_per_core     : 1
 
 # causes queue full
-#      - name            : stl/udp_1pkt_simple.py
-#        kwargs          : {packet_len: 64, packet_count: 1000}
+#      - name            : stl/udp_for_benchmarks.py
+#        kwargs          : {packet_len: 64, stream_count: 1000}
 #        cpu_util        : 1
 #        bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 128}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 256}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 512}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 1500}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 4000}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 9000}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
-        kwargs          : {packet_len: 9000, packet_count: 10}
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 9000, stream_count: 10}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_1pkt_simple.py
-        kwargs          : {packet_len: 9000, packet_count: 100}
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 9000, stream_count: 100}
         cpu_util        : 1
         bw_per_core     : 1
 
 # not enough memory + queue full if memory increase
-#      - name            : stl/udp_1pkt_simple.py
-#        kwargs          : {packet_len: 9000, packet_count: 1000}
+#      - name            : stl/udp_for_benchmarks.py
+#        kwargs          : {packet_len: 9000, stream_count: 1000}
 #        cpu_util        : 1
 #        bw_per_core     : 1
 

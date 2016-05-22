@@ -274,7 +274,8 @@ class CTRexGeneral_Test(unittest.TestCase):
         #     e.args += ('T-Rex has crashed!') 
         #     raise
 
-    def unzip_client_package(self):
+    @staticmethod
+    def unzip_client_package():
         client_pkg_files = glob('%s/trex_client*.tar.gz' % CTRexScenario.scripts_path)
         if not len(client_pkg_files):
             raise Exception('Could not find client package')

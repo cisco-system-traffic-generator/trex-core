@@ -10,9 +10,9 @@ def get_error_in_percentage (golden, value):
 
 def get_stl_profiles ():
     profiles_path = os.path.join(CTRexScenario.scripts_path, 'stl/')
-    profiles = glob.glob(profiles_path + "/*.py") + glob.glob(profiles_path + "yaml/*.yaml")
-
-    return profiles
+    py_profiles = glob.glob(profiles_path + "/*.py")
+    yaml_profiles = glob.glob(profiles_path + "yaml/*.yaml")
+    return py_profiles + yaml_profiles
 
 
 class STLClient_Test(CStlGeneral_Test):

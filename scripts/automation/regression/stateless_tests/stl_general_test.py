@@ -10,18 +10,15 @@ from nose.tools import nottest
 class CStlGeneral_Test(CTRexGeneral_Test):
     """This class defines the general stateless testcase of the T-Rex traffic generator"""
 
-    #once for all tests under CStlGeneral_Test
-    @classmethod
-    def setUpClass(cls):
-        cls.stl_trex = CTRexScenario.stl_trex
-
     def setUp(self):
+        self.stl_trex = CTRexScenario.stl_trex
         CTRexGeneral_Test.setUp(self)
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.stl_init_error:
             self.skip(CTRexScenario.stl_init_error)
 
-    def connect(self, timeout = 20):
+    def connect(self, timeout = 100):
+        # need delay and check only because TRex process might be still starting
         sys.stdout.write('Connecting')
         for i in range(timeout):
             try:
@@ -31,20 +28,23 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 print('')
                 return True
             except:
-                time.sleep(1)
+                time.sleep(0.1)
         print('')
         return False
 
-    def map_ports(self, timeout = 5):
+    def map_ports(self, timeout = 100):
         sys.stdout.write('Mapping ports')
         for i in range(timeout):
-            sys.stdout.write('.')
-            sys.stdout.flush()
-            CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
-            if self.verify_bidirectional(CTRexScenario.stl_ports_map):
-                print('')
-                return True
-            time.sleep(1)
+            try:
+                sys.stdout.write('.')
+                sys.stdout.flush()
+                CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
+                if self.verify_bidirectional(CTRexScenario.stl_ports_map):
+                    print('')
+                    return True
+                time.sleep(0.1)
+            except:
+                time.sleep()
         print('')
         return False
 

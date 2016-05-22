@@ -2,21 +2,23 @@
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 import os, sys
 from misc_methods import run_command
+from time import sleep
+
+
+def setUpModule(self):
+    # examples connect by their own
+    if CTRexScenario.stl_trex.is_connected():
+        CTRexScenario.stl_trex.disconnect()
+        sleep(3)
+
+def tearDownModule():
+    # connect back at end of tests
+    if not CTRexScenario.stl_trex.is_connected():
+        CTRexScenario.stl_trex.connect()
+
 
 class STLExamples_Test(CStlGeneral_Test):
     """This class defines the IMIX testcase of the T-Rex traffic generator"""
-
-    def setUp(self):
-        CStlGeneral_Test.setUp(self)
-        # examples connect by their own
-        if self.is_connected():
-            CTRexScenario.stl_trex.disconnect()
-
-    @classmethod
-    def tearDownClass(cls):
-        # connect back at end of tests
-        if not cls.is_connected():
-            CTRexScenario.stl_trex.connect()
 
     def test_stl_examples(self):
         examples_dir = '../trex_control_plane/stl/examples'
