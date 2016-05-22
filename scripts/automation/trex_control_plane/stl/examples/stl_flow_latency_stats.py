@@ -78,6 +78,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     jitter = lat['jitter']
     avg = lat['average']
     tot_max = lat['total_max']
+    tot_min = lat['total_min']
     last_max = lat['last_max']
     hist = lat ['histogram']
     
@@ -90,6 +91,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     print('Error counters: dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl))
     print('Latency info:')
     print("  Maximum latency(usec): {0}".format(tot_max))
+    print("  Minimum latency(usec): {0}".format(tot_min))
     print("  Maximum latency in last sampling period (usec): {0}".format(last_max))
     print("  Average latency(usec): {0}".format(avg))
     print("  Jitter(usec): {0}".format(jitter))
