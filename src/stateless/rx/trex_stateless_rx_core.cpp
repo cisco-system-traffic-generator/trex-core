@@ -159,7 +159,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                                     m_rfc2544[hw_id].seq_err_events_too_low++;
                                 }
                             } else {
-                                if (unlikely (m_rfc2544[hw_id].seq - seq > 100000)) {
+                                if (unlikely (seq - m_rfc2544[hw_id].seq > 100000)) {
                                     // packet reorder while we had wrap around
                                     if (seq == (m_rfc2544[hw_id].seq - 1)) {
                                         m_rfc2544[hw_id].dup += 1;
@@ -196,7 +196,6 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
             }
         }
     }
-    rte_pktmbuf_free(m);
 }
 
 // In VM setup, handle packets coming as messages from DP cores.
@@ -222,6 +221,7 @@ void CRxCoreStateless::handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r) {
             assert( rx_port_index < m_max_ports );
             lp = &m_ports[rx_port_index];
             handle_rx_pkt(lp, (rte_mbuf_t *)l_msg->m_pkt);
+            rte_pktmbuf_free((rte_mbuf_t *)l_msg->m_pkt);
             break;
         default:
             printf("ERROR latency-thread message type is not valid %d \n", msg_type);
