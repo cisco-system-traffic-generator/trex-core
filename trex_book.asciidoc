@@ -155,7 +155,7 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 // clarify above table and note
 
 .XL710 NIC base QSFP+ support 
-[options="header",cols="1,1,1",width="70%"]
+[options="header",cols="1,1,1",width="90%"]
 |=================
 | link:https://en.wikipedia.org/wiki/QSFP[QSFP+]             |  Intel Ethernet Converged XL710-QDAX | Silicom link:http://www.silicom-usa.com/Dual_Port_Fiber_40_Gigabit_Ethernet_PCI_Express_Server_Adapter_PE340G2Qi71_83[PE340G2Qi71] Open optic 
 | QSFP+ SR4 optics  |  APPROVED OPTICS [green]*works*,  Cisco QSFP-40G-SR4-S does *not* work   | Cisco QSFP-40G-SR4-S [green]*works* 
