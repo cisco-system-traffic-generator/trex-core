@@ -23,6 +23,22 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.01  ==
+
+* First release of latency/jitter per stream see link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[here] 
+* Ability to send server side pcap file - unlimited pcap file size see link:/cp_stl_docs/_modules/trex_stl_lib/trex_stl_client.html#STLClient.push_remote[here] and link:trex_stateless.html#_pcap_based_traffic_tutorials[PCAP tutorial]
+* Significatly improve performance for both Stateful and Stateless - in some cases up to x2 due to Scheduler/CPU utilization rewrite 
+* CPU utilization estimation is done differently 
+* Ability to significatly improve performance for Stateless profile with Field engine (up to x5, 22MPPS) see link:trex_stateless.html#_tutorial_field_engine_significantly_improve_performance[here]
+* Add documentation index link:index.html[index]
+* Fix documentation Table of Content javascript 
+* Update Stateless presentation link:http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Statelss presenation]
+* Stateful Python server API - Add support for iterator of remote file for Stateful GUI
+
+=== fix issues: ===
+
+* Performance issue, link:http://trex-tgn.cisco.com/youtrack/issue/trex-207[trex-207]
+* Sporadic timeout on wait_on_traffic() API see link:http://trex-tgn.cisco.com/youtrack/issue/trex-209[trex-209] 
 
 == Release 2.00  ==
 
@@ -36,7 +52,6 @@ endif::backend-docbook[]
 ** Only pcap file packet builder is supported in this version 
 
 image::images/trex_stl_gui.png[title="TRex Stateless GUI",align="left",width=600, link="images/trex_stl_gui.png"]
-
 
 === fix issues: ===
 
