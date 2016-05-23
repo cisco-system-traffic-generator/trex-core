@@ -11,7 +11,7 @@ def setUpModule():
         CStlGeneral_Test.recover_after_trex_210_issue()
 
 class CStlGeneral_Test(CTRexGeneral_Test):
-    """This class defines the general stateless testcase of the T-Rex traffic generator"""
+    """This class defines the general stateless testcase of the TRex traffic generator"""
 
     def setUp(self):
         self.stl_trex = CTRexScenario.stl_trex

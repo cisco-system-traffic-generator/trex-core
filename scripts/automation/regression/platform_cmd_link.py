@@ -86,7 +86,7 @@ class CCommandCache(object):
 
 
 class CCommandLink(object):
-    def __init__(self, silent_mode = False):
+    def __init__(self, silent_mode = True):
         self.history        = []
         self.virtual_mode   = True
         self.silent_mode    = silent_mode
