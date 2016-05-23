@@ -23,6 +23,15 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.02  ==
+
+* The python latency statistic is compatible to JSON for easy manipulation 
+* Add latency minimum value Python API taken from histogram 
+
+=== fix issues: ===
+
+* Fix corruption of mbuf in case of with high rate latency stream. 
+
 == Release 2.01  ==
 
 * First release of latency/jitter per stream see link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[here] 
