@@ -1,5 +1,8 @@
 
-== TRex Low-Cost, High-Speed Stateful, Pioneer Award Winner Traffic Generator    
+== TRex Low-Cost, High-Speed Stateful Traffic Generator 
+
+
+*New*  Stateless support was released see more in the folowing section 
 
 Traditionally, network infrastructure devices have been tested using commercial traffic generators, while performance was measured using metrics like packets per second (PPS) and No Drop Rate (NDR). As the network infrastructure functionality has become more complex, stateful traffic generators have become necessary in order to test with more realistic application traffic pattern scenarios.
 Realistic and Stateful traffic generators are needed in order to:
@@ -39,7 +42,7 @@ TRex addresses these problems through an innovative and extendable software impl
 ** TRex on your laptop
 ** Self-contained packaging 
 
-=== Current TRex Feature sets 
+=== Current Stateful TRex Feature sets 
 
 * Support Intel DPDK 1/10/40Gbps interfaces 
 * High scale of realistic traffic (number of clients, number of server, bandwidth)-up to 200Gb/sec in one UCS
@@ -53,14 +56,50 @@ TRex addresses these problems through an innovative and extendable software impl
 * Python automation API 
 * Windows GUI for real-time latency/jitter/flow order  
 
-=== What it's not
+=== *New* TRex Stateless feature sets 
 
-* Stateless *IXIA*, *Ostinato* ,*pktgen-dpdk* like traffic generator. it has a minimal stateless support
+* Large scale - Supports about 10-22 million packets per second (mpps) per core, scalable with the number of cores 
+* Support for 1, 10, 25, 40 interfaces
+* Profile can support multiple streams, scalable to 10K parallel streams 
+* Supported for each stream:
+** Packet template - ability to build any packet (including malformed) using link:https://en.wikipedia.org/wiki/Scapy[Scapy] (example: MPLS/IPv4/Ipv6/GRE/VXLAN/NSH) 
+** Field engine program
+*** Ability to change any field inside the packet (example: src_ip = 10.0.0.1-10.0.0.255)
+*** Ability to change the packet size (example: random packet size 64-9K)
+** Mode - Continuous/Burst/Multi-burst support
+** Rate can be specified as:
+*** Packets per second (example: 14MPPS)
+*** L1/L2 bandwidth (example: 500Mb/sec)
+*** Interface link percentage (example: 10%)
+** Support for HLTAPI-like profile definition  
+** Action - stream can trigger a stream 
+* Interactive support - Fast Console,  GUI 
+* Statistics per interface
+* Statistics per stream done in hardware
+* Latency and Jitter per stream
+* Blazingly fast automation support (Python 2.7/3.4)
+* Multi-user support 
+
+The following example shows three streams configured for Continuous, Burst, and Multi-burst traffic.
+
+image::http://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png[title="",align="center",width=600, link="http://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png"]
+
+A new JSON-RPC2 Architecture  provides support for interactive mode
+
+image::http://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png[title="",align="center",width=600, link="http://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png"]
+
+more info can be found here link:http://trex-tgn.cisco.com/trex/doc/index.html[Documentation]
+
+
+=== What it’s not
+
 * There is no routing emulation support, for example, BGP/ISIS/ARP 
 * There is no TCP stack.  
 * Client only or Server Only. 
 
-=== What you can do with it
+=== What you can do with it 
+
+==== Stateful 
 
 * Beanchmark/Stress stateful features :
 ** NAT
@@ -72,7 +111,13 @@ TRex addresses these problems through an innovative and extendable software impl
 * Mixing Application level traffic/profile (HTTP/SIP/Video) 
 * Unlimited concurent flows, limited only by memory 
 
+==== Stateless
+
+* Beanchmark/Stress vSwitch RFC2544 
+ 
 === Presentation 
+
+link:http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[New Stateless support] 
 
 link:http://www.slideshare.net/harryvanhaaren/trex-traffig-gen-hanoch-haim[DPDK summit 2015] 
 
@@ -88,14 +133,13 @@ Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[W
 
 Report bug/request feature link:http://trex-tgn.cisco.com/youtrack/issues[YouTrack]
 
-=== Windows Client GUI
+=== Windows Stateful Client GUI
 
 image::http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png[title="",align="center",width=200, link="http://trex-tgn.cisco.com/trex/doc/images/TrexViewer.png"]
 
-=== Other tools
+=== Sandbox for evaluation
 
-* EAST COAST - STG10G DPDK stateful Traffic Generator 
-* NetLoad Inc - Performer/Developer 
+Try the new Devnet Sandbox link:https://devnetsandbox.cisco.com/RM/Topology[TRex Sandbox]
   
 === Contact Us
 
@@ -103,12 +147,14 @@ Follow us on https://groups.google.com/forum/#!forum/trex-tgn[TRex traffic gener
 
 Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@googlegroups.com)]
 
-*TRex team,Cisco System Inc* 
+Or via Cisco Devnet portal link:http://communities.cisco.com/community/developer/trex/[Devnet]
+
+*TRex team,Cisco Systems Inc* 
 
 
 === Roadmap 
 
-* Stateless support, packet base see link:http://trex-tgn.cisco.com/trex/doc/trex_console.html[here] for high level of functionality 
+* L2 emulation plugin support IPV6-ND/ARP/DHCP 
 * High speed TCP stack support 
 
 
