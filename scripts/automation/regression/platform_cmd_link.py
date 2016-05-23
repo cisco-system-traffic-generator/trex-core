@@ -86,18 +86,21 @@ class CCommandCache(object):
 
 
 class CCommandLink(object):
-    def __init__(self, silent_mode = True):
+    def __init__(self, silent_mode = False, debug_mode = False):
         self.history        = []
         self.virtual_mode   = True
         self.silent_mode    = silent_mode
         self.telnet_con     = None
+        self.debug_mode     = debug_mode
 
 
     def __transmit (self, cmd_list, **kwargs):
         self.history.extend(cmd_list)
+        if not self.silent_mode:
+            print('\n'.join(cmd_list))   # prompting the pushed platform commands
         if not self.virtual_mode:
             # transmit the command to platform. 
-            return self.telnet_con.write_ios_cmd(cmd_list, verbose = not self.silent_mode, **kwargs)
+            return self.telnet_con.write_ios_cmd(cmd_list, debug_mode = self.debug_mode, **kwargs)
 
     def run_command (self, cmd_list, **kwargs):
         response = ''
@@ -431,7 +434,7 @@ class CIosTelnet(telnetlib.Telnet):
         for idx, cmd in enumerate(cmd_list):
             start_time = time.time()
             self.write(cmd+'\r\n')
-            if kwargs.get('verbose'):
+            if kwargs.get('debug_mode'):
                 print('-->\n%s' % cmd)
             if type(wf) is list:
                 output = self.expect(wf, timeout)[2]
@@ -439,7 +442,7 @@ class CIosTelnet(telnetlib.Telnet):
                 output = self.read_until(wf, timeout)
             if idx >= result_from:
                 res += output
-            if kwargs.get('verbose'):
+            if kwargs.get('debug_mode'):
                 print('<-- (%ss)\n%s' % (round(time.time() - start_time, 2), output))
             if time.time() - start_time > timeout - 1:
                 raise Exception('Timeout while performing telnet command: %s' % cmd)
