@@ -210,10 +210,15 @@ class TrexTUILatencyStats(TrexTUIPanel):
         super(TrexTUILatencyStats, self).__init__(mng, "lstats")
         self.key_actions = OrderedDict()
         self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
+        self.key_actions['t'] = {'action': self.action_toggle_histogram,  'legend': 'toggle histogram', 'show': True}
+        self.is_histogram = False
 
 
     def show (self):
-        stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LS_COMPAT)
+        if self.is_histogram:
+            stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LH_COMPAT)
+        else:
+            stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LS_COMPAT)
         # print stats to screen
         for stat_type, stat_data in stats.items():
             if stat_type == 'latency_statistics':
@@ -224,6 +229,10 @@ class TrexTUILatencyStats(TrexTUIPanel):
 
     def get_key_actions (self):
         return self.key_actions 
+
+    def action_toggle_histogram (self):
+        self.is_histogram = not self.is_histogram
+        return ""
 
     def action_clear (self):
          self.stateless_client.latency_stats.clear_stats()

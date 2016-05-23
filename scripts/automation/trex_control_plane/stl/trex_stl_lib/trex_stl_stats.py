@@ -20,13 +20,15 @@ PORT_STATS = 'p'
 PORT_GRAPH = 'pg'
 PORT_STATUS = 'ps'
 STREAMS_STATS = 's'
-LATENCY_STATS = 'l'
+LATENCY_STATS = 'ls'
+LATENCY_HISTOGRAM = 'lh'
 
-ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH]
+ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH, LATENCY_HISTOGRAM]
 COMPACT = [GLOBAL_STATS, PORT_STATS]
 GRAPH_PORT_COMPACT = [GLOBAL_STATS, PORT_GRAPH]
 SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS] # stream stats
 LS_COMPAT = [GLOBAL_STATS, LATENCY_STATS] # latency stats
+LH_COMPAT = [GLOBAL_STATS, LATENCY_HISTOGRAM] # latency histogram
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
@@ -160,6 +162,9 @@ class CTRexInfoGenerator(object):
 
         elif statistic_type == LATENCY_STATS:
             return self._generate_latency_stats()
+
+        elif statistic_type == LATENCY_HISTOGRAM:
+            return self._generate_latency_histogram()
 
         else:
             # ignore by returning empty object
@@ -356,6 +361,49 @@ class CTRexInfoGenerator(object):
         stats_table.header(header)
 
         return {"latency_statistics": ExportableStats(lstats_data, stats_table)}
+
+    def _generate_latency_histogram(self):
+        lat_stats = self._latency_stats_ref.latest_stats
+        max_histogram_size = 17
+
+        # for TUI - maximum 5 
+        pg_ids = list(filter(is_intable, lat_stats.keys()))[:5]
+
+        merged_histogram = {}
+        for pg_id in pg_ids:
+            merged_histogram.update(lat_stats[pg_id]['latency']['histogram'])
+        histogram_size = min(max_histogram_size, len(merged_histogram))
+
+        stream_count = len(pg_ids)
+        stats_table = text_tables.TRexTextTable()
+        stats_table.set_cols_align(["l"] + ["r"] * stream_count)
+        stats_table.set_cols_width([12] + [14]   * stream_count)
+        stats_table.set_cols_dtype(['t'] + ['t'] * stream_count)
+
+        for i in range(max_histogram_size - histogram_size):
+            if i == 0 and not merged_histogram:
+                stats_table.add_row(['  No Data'] + [' '] * stream_count)
+            else:
+                stats_table.add_row([' '] * (stream_count + 1))
+        for key in list(reversed(sorted(merged_histogram.keys())))[:histogram_size]:
+            hist_vals = []
+            for pg_id in pg_ids:
+                hist_vals.append(lat_stats[pg_id]['latency']['histogram'].get(key, ' '))
+            stats_table.add_row([key] + hist_vals)
+
+        stats_table.add_row(['- Counters -'] + [' '] * stream_count)
+        err_cntrs_dict = OrderedDict()
+        for pg_id in pg_ids:
+            for err_cntr in sorted(lat_stats[pg_id]['err_cntrs'].keys()):
+                if err_cntr not in err_cntrs_dict:
+                    err_cntrs_dict[err_cntr] = [lat_stats[pg_id]['err_cntrs'][err_cntr]]
+                else:
+                    err_cntrs_dict[err_cntr].append(lat_stats[pg_id]['err_cntrs'][err_cntr])
+        for err_cntr, val_list in err_cntrs_dict.items():
+            stats_table.add_row([err_cntr] + val_list)
+        header = ["PG ID"] + [key for key in pg_ids]
+        stats_table.header(header)
+        return {"latency_histogram": ExportableStats(None, stats_table)}
 
     @staticmethod
     def _get_rational_block_char(value, range_start, interval):
@@ -745,8 +793,8 @@ class CGlobalStats(CTRexStats):
         self._ports_dict     = ports_dict_ref
         self.events_handler  = events_handler
 
-        self.watched_cpu_util    = WatchedField('CPU util.', '%', 95, 90, events_handler)
-        self.watched_rx_cpu_util = WatchedField('RX core util.', '%', 95, 90, events_handler)
+        self.watched_cpu_util    = WatchedField('CPU util.', '%', 85, 60, events_handler)
+        self.watched_rx_cpu_util = WatchedField('RX core util.', '%', 85, 60, events_handler)
 
     def get_stats (self):
         stats = {}
@@ -978,17 +1026,9 @@ class CLatencyStats(CTRexStats):
             if current_pg['latency']['h'] != "":
                 output[int_pg_id]['latency']['average'] = current_pg['latency']['h']['s_avg']
                 output[int_pg_id]['latency']['total_max'] = current_pg['latency']['h']['max_usec']
-                output[int_pg_id]['latency']['histogram'] = current_pg['latency']['h']['histogram']
+                output[int_pg_id]['latency']['histogram'] = {elem['key']: elem['val'] for elem in current_pg['latency']['h']['histogram']}
                 zero_count = current_pg['latency']['h']['cnt'] - current_pg['latency']['h']['high_cnt']
-                if zero_count != 0:
-                    output[int_pg_id]['latency']['histogram'].append({'key':0, 'val':zero_count})
-                    output[int_pg_id]['latency']['total_min'] = 1
-                else:
-                    min_usec = current_pg['latency']['h']['max_usec']
-                    for bucket in output[int_pg_id]['latency']['histogram']:
-                        if bucket['key'] < min_usec:
-                            min_usec = bucket['key']
-                    output[int_pg_id]['latency']['total_min'] = min_usec
+                output[int_pg_id]['latency']['histogram'][0] = zero_count
         self.latest_stats = output
         return True
 
@@ -1191,7 +1231,7 @@ class CRxStats(CTRexStats):
 
 
     def _update (self, snapshot):
-
+        #print(snapshot)
         # generate a new snapshot
         new_snapshot = self.process_snapshot(snapshot, self.latest_stats)
 
