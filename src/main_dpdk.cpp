@@ -2093,7 +2093,7 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
     }
 
     if (unlikely(node_sl->is_stat_needed())) {
-        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, node_sl->get_cache_mbuf() ? true:false);
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf() || node_sl->is_cache_mbuf_array())? true:false);
     } else {
         send_pkt(lp_port,m,lp_stats);
     }

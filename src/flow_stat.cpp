@@ -871,6 +871,9 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
                 p_user_id_p->set_latency_json(json);
                 p_user_id_p->set_seq_err_cnt(rfc2544_info.get_seq_err_cnt());
                 p_user_id_p->set_ooo_cnt(rfc2544_info.get_ooo_cnt());
+                p_user_id_p->set_dup_cnt(rfc2544_info.get_dup_cnt());
+                p_user_id_p->set_seq_err_big_cnt(rfc2544_info.get_seq_err_ev_big());
+                p_user_id_p->set_seq_err_low_cnt(rfc2544_info.get_seq_err_ev_low());
                 m_hw_id_map_payload.unmap(hw_id);
             }
             m_user_id_map.unmap(stream->m_rx_check.m_pg_id);
@@ -1049,6 +1052,9 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                 rfc2544_info[hw_id].get_latency_json(lat_hist);
                 user_id_info_p->set_seq_err_cnt(rfc2544_info[hw_id].get_seq_err_cnt());
                 user_id_info_p->set_ooo_cnt(rfc2544_info[hw_id].get_ooo_cnt());
+                user_id_info_p->set_dup_cnt(rfc2544_info[hw_id].get_dup_cnt());
+                user_id_info_p->set_seq_err_big_cnt(rfc2544_info[hw_id].get_seq_err_ev_big());
+                user_id_info_p->set_seq_err_low_cnt(rfc2544_info[hw_id].get_seq_err_ev_low());
                 l_data_section[str_user_id]["latency"]["h"] = lat_hist;
                 l_data_section[str_user_id]["latency"]["last_max"] = rfc2544_info[hw_id].get_last_max_usec();
                 l_data_section[str_user_id]["latency"]["jitter"] = rfc2544_info[hw_id].get_jitter_usec();

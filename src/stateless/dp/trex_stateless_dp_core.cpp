@@ -235,6 +235,9 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
             rte_pktmbuf_attach(m_ret, m);
             rte_pktmbuf_trim(m_ret, sizeof(struct flow_stat_payload_header));
             utl_rte_pktmbuf_add_after2(m_ret, m_lat);
+            // ref count was updated when we took the (const) mbuf, and again in rte_pktmbuf_attach
+            // so need do decrease now, to avoid leak.
+            rte_pktmbuf_refcnt_update(m, -1);
             return m_ret;
         } else {
             // Short packet. Just copy all bytes.

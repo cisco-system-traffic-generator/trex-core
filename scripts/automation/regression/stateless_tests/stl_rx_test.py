@@ -9,7 +9,7 @@ class STLRX_Test(CStlGeneral_Test):
     def setUp(self):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs for now')
-        per_driver_params = {"rte_vmxnet3_pmd": [1, 50], "rte_ixgbe_pmd": [30, 5000], "rte_i40e_pmd": [80, 5000, 25],
+        per_driver_params = {"rte_vmxnet3_pmd": [1, 50], "rte_ixgbe_pmd": [30, 5000], "rte_i40e_pmd": [80, 5000, 10],
                              "rte_igb_pmd": [80, 500], "rte_em_pmd": [1, 50], "rte_virtio_pmd": [1, 50]}
 
         CStlGeneral_Test.setUp(self)
@@ -61,17 +61,15 @@ class STLRX_Test(CStlGeneral_Test):
             sth = latency_stats['err_cntrs']['seq_too_high']
             stl = latency_stats['err_cntrs']['seq_too_low']
             lat = latency_stats['latency']
-            if ooo != 0 or dup != 0 or sth != 0:
+            if ooo != 0 or dup != 0 or stl != 0:
                 pprint.pprint(latency_stats)
                 tmp='Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
                 assert False, tmp
 
-            if (drops != 0 or stl != 0) and not self.drops_expected:
+            if (drops != 0 or sth != 0) and not self.drops_expected:
                 pprint.pprint(latency_stats)
                 tmp='Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
                 assert False, tmp
-
-
 
         if tx_pkts != total_pkts:
             pprint.pprint(flow_stats)
@@ -109,7 +107,7 @@ class STLRX_Test(CStlGeneral_Test):
             self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'], stats)
 
 
-    # one simple stream on TX --> RX
+    # one stream on TX --> RX
     def test_one_stream(self):
         total_pkts = self.total_pkts * 10
 
@@ -118,7 +116,7 @@ class STLRX_Test(CStlGeneral_Test):
                            packet = self.pkt,
                            flow_stats = STLFlowLatencyStats(pg_id = 5),
                            mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                                   percentage = self.rate_percent
+                                                   percentage = self.rate_lat
                                                    ))
 
             # add both streams to ports
@@ -135,14 +133,13 @@ class STLRX_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
-    # one simple stream on TX --> RX
     def test_multiple_streams(self):
         num_latency_streams = 128
         num_flow_stat_streams = 127
         total_pkts = int(self.total_pkts / (num_latency_streams + num_flow_stat_streams))
         if total_pkts == 0:
             total_pkts = 1
-        percent = float(self.rate_percent) / (num_latency_streams + num_flow_stat_streams)
+        percent = float(self.rate_lat) / (num_latency_streams + num_flow_stat_streams)
 
         try:
             streams = []
@@ -181,21 +178,33 @@ class STLRX_Test(CStlGeneral_Test):
         try:
             s1 = STLStream(name = 'rx',
                            packet = self.pkt,
-                           flow_stats = STLFlowLatencyStats(pg_id = 5),
+                           flow_stats = STLFlowStats(pg_id = 5),
                            mode = STLTXSingleBurst(total_pkts = total_pkts,
                                                    percentage = self.rate_percent
                                                    ))
 
-            # add both streams to ports
-            self.c.add_streams([s1], ports = [self.tx_port])
+            s_lat = STLStream(name = 'rx',
+                           packet = self.pkt,
+                           flow_stats = STLFlowLatencyStats(pg_id = 5),
+                           mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                                   percentage = self.rate_lat
+                                                   ))
 
             print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
 
             exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
+            exp_lat = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
 
+            self.c.add_streams([s1], ports = [self.tx_port])
             for i in range(0, 10):
                 print("starting iteration {0}".format(i))
                 self.__rx_iteration( [exp] )
+
+            self.c.remove_all_streams(ports = [self.tx_port])
+            self.c.add_streams([s_lat], ports = [self.tx_port])
+            for i in range(0, 10):
+                print("starting iteration {0} latency".format(i))
+                self.__rx_iteration( [exp_lat] )
 
 
 
@@ -205,7 +214,6 @@ class STLRX_Test(CStlGeneral_Test):
 
     
     # this test adds more and more latency streams and re-test with incremental
-    # test does not work yet
     def test_incremental_latency_streams (self):
         total_pkts = self.total_pkts
         percent = 0.5
@@ -244,10 +252,5 @@ class STLRX_Test(CStlGeneral_Test):
 
                 self.c.remove_all_streams(ports = [self.tx_port])
 
-
-
         except STLError as e:
             assert False , '{0}'.format(e)
-
-
-
