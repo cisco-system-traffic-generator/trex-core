@@ -16,6 +16,14 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.stl_init_error:
             self.skip(CTRexScenario.stl_init_error)
+        for i in range(20): # workaround of http://trex-tgn.cisco.com/youtrack/issue/trex-210
+            try:
+                self.map_ports()
+                break
+            except:
+                self.stl_trex.disconnect()
+                time.sleep(0.5)
+                self.stl_trex.connect()
 
     def connect(self, timeout = 100):
         # need delay and check only because TRex process might be still starting
