@@ -6,7 +6,7 @@ from nose.tools import nottest
 from misc_methods import print_r
 
 class CTRexNbar_Test(CTRexGeneral_Test):
-    """This class defines the NBAR testcase of the T-Rex traffic generator"""
+    """This class defines the NBAR testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
         super(CTRexNbar_Test, self).__init__(*args, **kwargs)
         self.unsupported_modes = ['loopback'] # obviously no NBar in loopback

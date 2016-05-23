@@ -1,13 +1,13 @@
 ################################################################
-####         T-Rex nightly test configuration file          ####
+####         TRex nightly test configuration file          ####
 ################################################################
 
 
-### T-Rex configuration:
+### TRex configuration:
 # hostname       - can be DNS name or IP for the TRex machine for ssh to the box
 # password       - root password for TRex machine
 # is_dual        - should the TRex inject with -p ?
-# version_path   - path to the t-rex version and executable
+# version_path   - path to the TRex version and executable
 # cores          - how many cores should be used
 # latency        - rate of latency packets injected by the TRex
 

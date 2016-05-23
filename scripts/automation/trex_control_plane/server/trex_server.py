@@ -46,7 +46,7 @@ class CTRexServer(object):
         Parameters
         ----------
         trex_host : str
-            a string of the t-rex ip address or hostname.
+            a string of the TRex ip address or hostname.
             default value: machine hostname as fetched from socket.gethostname()
         trex_daemon_port : int
             the port number on which the trex-daemon server can be reached
@@ -243,7 +243,7 @@ class CTRexServer(object):
             logger.error(err_str)
             return Fault(-33, err_str)
 
-    def stop_handler (self, signum, frame):
+    def stop_handler (self, *args, **kwargs):
         logger.info("Daemon STOP request detected.")
         if self.is_running():
             # in case TRex process is currently running, stop it before terminating server process
@@ -559,13 +559,13 @@ class CTRex(object):
 
     def stop_trex(self):
         if self.status == TRexStatus.Idle:
-            # t-rex isn't running, nothing to abort
+            # TRex isn't running, nothing to abort
             logger.info("TRex isn't running. No need to stop anything.")
             if self.errcode is not None:    # some error occurred, notify client despite TRex already stopped
                     return Fault(self.errcode, self.verbose_status)               # raise at client relevant exception, depending on the reason the error occured
             return False
         else:
-            # handle stopping t-rex's run
+            # handle stopping TRex's run
             self.session.join()
             logger.info("TRex session has been successfully aborted.")
             return True

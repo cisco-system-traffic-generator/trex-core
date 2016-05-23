@@ -50,14 +50,14 @@ class CTRexRunner:
     def get_config (self):
         """ get_config() -> dict
 
-        Returns the stored configuration of the T-Rex server of the CTRexRunner instance as a dictionary
+        Returns the stored configuration of the TRex server of the CTRexRunner instance as a dictionary
         """
         return self.trex_config
 
     def set_yaml_file (self, yaml_path):
         """ update_yaml_file (self, yaml_path) -> None
 
-        Defines the yaml file to be used by the T-Rex.
+        Defines the yaml file to be used by the TRex.
         """
         self.yaml = yaml_path
 
@@ -65,13 +65,13 @@ class CTRexRunner:
     def generate_run_cmd (self, multiplier, cores, duration, nc = True, export_path="/tmp/trex.txt", **kwargs):
         """ generate_run_cmd(self, multiplier, duration, export_path) -> str
 
-        Generates a custom running command for the kick-off of the T-Rex traffic generator.
+        Generates a custom running command for the kick-off of the TRex traffic generator.
         Returns a command (string) to be issued on the trex server
 
         Parameters
         ----------
         multiplier : float
-            Defines the T-Rex multiplier factor (platform dependant)
+            Defines the TRex multiplier factor (platform dependant)
         duration : int
             Defines the duration of the test
         export_path : str
@@ -80,7 +80,7 @@ class CTRexRunner:
         """
         fileName, fileExtension = os.path.splitext(self.yaml)
         if self.yaml == None:
-            raise ValueError('T-Rex yaml file is not defined')
+            raise ValueError('TRex yaml file is not defined')
         elif fileExtension != '.yaml':
             raise TypeError('yaml path is not referencing a .yaml file')
 
@@ -106,7 +106,7 @@ class CTRexRunner:
             else:
                 trex_cmd += (dash + '{k} {val}'.format( k = tmp_key, val =  value ))
 
-        print("\nT-REX COMMAND: ", trex_cmd)
+        print("\nTRex COMMAND: ", trex_cmd)
 
         cmd = 'sshpass.exp %s %s root "cd %s; %s > %s"' % (self.trex_config['trex_password'],
             self.trex_config['trex_name'],
@@ -119,7 +119,7 @@ class CTRexRunner:
     def generate_fetch_cmd (self, result_file_full_path="/tmp/trex.txt"):
         """ generate_fetch_cmd(self, result_file_full_path) -> str
 
-        Generates a custom command for which will enable to fetch the resutls of the T-Rex run.
+        Generates a custom command for which will enable to fetch the resutls of the TRex run.
         Returns a command (string) to be issued on the trex server.
 
         Example use: fetch_trex_results()                                   -   command that will fetch the content from the default log file- /tmp/trex.txt
@@ -137,13 +137,13 @@ class CTRexRunner:
     def run (self, multiplier, cores, duration, **kwargs):
         """ run(self, multiplier, duration, results_file_path) -> CTRexResults
 
-        Running the T-Rex server based on the config file.
+        Running the TRex server based on the config file.
         Returns a CTRexResults object containing the results of the run.
 
         Parameters
         ----------
         multiplier : float
-            Defines the T-Rex multiplier factor (platform dependant)
+            Defines the TRex multiplier factor (platform dependant)
         duration : int
             Defines the duration of the test
         results_file_path : str
@@ -159,7 +159,7 @@ class CTRexRunner:
         else:
             cmd = self.generate_run_cmd(multiplier, cores, duration, **kwargs)
 
-#       print 'T-REx complete command to be used:'
+#       print 'TRex complete command to be used:'
 #       print cmd
         # print kwargs
 
@@ -179,13 +179,13 @@ class CTRexRunner:
                 # If the run stopped immediately - classify as Trex in use or reachability issue
                 interrupted = True
                 if ((end_time - start_time) < 2):
-                    raise TRexInUseError ('T-Rex run failed since T-Rex is used by another process, or due to reachability issues')
+                    raise TRexInUseError ('TRex run failed since TRex is used by another process, or due to reachability issues')
                 else:
                     CTRexScenario.trex_crashed = True
             # results = subprocess.Popen(cmd, stdout = open(os.devnull, 'wb'),
             #            shell=True, preexec_fn=os.setsid)
         except KeyboardInterrupt:
-            print("\nT-Rex test interrupted by user during traffic generation!!")
+            print("\nTRex test interrupted by user during traffic generation!!")
             results.killpg(results.pid, signal.SIGTERM)  # Send the kill signal to all the process groups
             interrupted = True
             raise RuntimeError
@@ -193,11 +193,11 @@ class CTRexRunner:
             progress_thread.join(isPlannedStop = (not interrupted) )
 
         if results!=0:
-            sys.stderr.write("T-Rex run failed. Please Contact trex-dev mailer for further details")
+            sys.stderr.write("TRex run failed. Please Contact trex-dev mailer for further details")
             sys.stderr.flush()
             return None
         elif interrupted:
-            sys.stderr.write("T-Rex run failed due user-interruption.")
+            sys.stderr.write("TRex run failed due user-interruption.")
             sys.stderr.flush()
             return None
         else:

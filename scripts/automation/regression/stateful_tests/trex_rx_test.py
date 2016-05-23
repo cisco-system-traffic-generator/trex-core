@@ -9,7 +9,7 @@ from nose.tools import nottest
 import traceback
 
 class CTRexRx_Test(CTRexGeneral_Test):
-    """This class defines the rx testcase of the T-Rex traffic generator"""
+    """This class defines the rx testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
         CTRexGeneral_Test.__init__(self, *args, **kwargs)
         self.unsupported_modes = ['virt_nics'] # TODO: fix

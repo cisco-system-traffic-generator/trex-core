@@ -100,7 +100,7 @@ public:
 };
 
 /**
- * defines the T-Rex stateless operation mode
+ * defines the TRex stateless operation mode
  * 
  */
 class TrexStateless {

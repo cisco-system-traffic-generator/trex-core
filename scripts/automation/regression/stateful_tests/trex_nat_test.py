@@ -7,7 +7,7 @@ from nose.tools import assert_equal
 
 
 class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
-    """This class defines the NAT testcase of the T-Rex traffic generator"""
+    """This class defines the NAT testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
         super(CTRexNoNat_Test, self).__init__(*args, **kwargs)
         self.unsupported_modes = ['loopback'] # NAT requires device
@@ -73,7 +73,7 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
 
 class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
-    """This class defines the NAT testcase of the T-Rex traffic generator"""
+    """This class defines the NAT testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
         super(CTRexNat_Test, self).__init__(*args, **kwargs)
         self.unsupported_modes = ['loopback'] # NAT requires device

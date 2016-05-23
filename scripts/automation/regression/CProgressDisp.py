@@ -36,7 +36,7 @@ class TimedProgressBar(threading.Thread):
         self.stoprequest    = threading.Event()
         self.stopFlag       = False
         self.time_in_secs   = time_in_secs + 15 # 80 # taking 15 seconds extra
-        widgets             = ['Running T-Rex: ', progressbar.Percentage(), ' ',
+        widgets             = ['Running TRex: ', progressbar.Percentage(), ' ',
                    progressbar.Bar(marker='>',left='[',right=']'),
                    ' ', progressbar.ETA()]
         self.pbar           = progressbar.ProgressBar(widgets=widgets, maxval=self.time_in_secs*2)
@@ -73,7 +73,7 @@ class TimedProgressBar(threading.Thread):
 
 
 def timedProgressBar(time_in_secs):
-    widgets = ['Running T-Rex: ', progressbar.Percentage(), ' ',
+    widgets = ['Running TRex: ', progressbar.Percentage(), ' ',
                    Bar(marker='>',left='[',right=']'),
                    ' ', progressbar.ETA()]
     pbar = progressbar.ProgressBar(widgets=widgets, maxval=time_in_secs*2)

@@ -367,7 +367,7 @@ if __name__=='__main__':
     example4()
 
     # def timedProgressBar(time_in_secs):
-    #     widgets = ['Running T-Rex: ', Percentage(), ' ',
+    #     widgets = ['Running TRex: ', Percentage(), ' ',
     #                Bar(marker='>',left='[',right=']'),
     #                ' ', ETA()]
     #     pbar = ProgressBar(widgets=widgets, maxval=time_in_secs*2)

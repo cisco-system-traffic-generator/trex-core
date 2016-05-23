@@ -130,7 +130,7 @@ def load_complete_config_file (filepath):
         with open(filepath, 'r') as f:
             config = yaml.load(f)
             
-            # Handle T-Rex configuration
+            # Handle TRex configuration
             trex_config['trex_name']         = config["trex"]["hostname"]
             trex_config['trex_password']     = config["trex"].get("password")
             #trex_config['trex_is_dual']      = config["trex"]["is_dual"]

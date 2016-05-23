@@ -2,25 +2,27 @@
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from misc_methods import run_command
 from nose.plugins.attrib import attr
-from time import sleep
-
 
 def setUpModule():
-    # examples connect by their own
     CStlGeneral_Test.unzip_client_package()
-    if CTRexScenario.stl_trex.is_connected():
-        CTRexScenario.stl_trex.disconnect()
-        sleep(3)
-
-def tearDownModule():
-    # connect back at end of tests
-    if not CTRexScenario.stl_trex.is_connected():
-        CTRexScenario.stl_trex.connect()
-
 
 @attr('client_package')
 class CTRexClientPKG_Test(CStlGeneral_Test):
     """This class tests TRex client package"""
+
+    def setUp(self):
+        CStlGeneral_Test.setUp(self)
+        # examples connect by their own
+        if CTRexScenario.stl_trex.is_connected():
+            self.recover_after_trex_210_issue()
+            CTRexScenario.stl_trex.disconnect()
+
+    def tearDown(self):
+        # connect back at end of tests
+        if not CTRexScenario.stl_trex.is_connected():
+            CTRexScenario.stl_trex.connect()
+        self.recover_after_trex_210_issue()
+        CStlGeneral_Test.tearDown(self)
 
     def run_client_package_stl_example(self, python_version):
         commands = [

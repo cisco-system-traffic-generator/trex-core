@@ -9,8 +9,8 @@ Name:
 
 Description:
 
-    This script creates the functionality to test the performance of the T-Rex traffic generator
-    The tested scenario is a T-Rex TG directly connected to a Cisco router.
+    This script creates the functionality to test the performance of the TRex traffic generator
+    The tested scenario is a TRex TG directly connected to a Cisco router.
 
 ::
 
@@ -18,7 +18,7 @@ Description:
 
        -------                         --------
       |       | Tx---1gig/10gig----Rx |        |
-      | T-Rex |                       | router |
+      | TRex  |                       | router |
       |       | Rx---1gig/10gig----Tx |        |
        -------                         --------
 
@@ -46,7 +46,7 @@ def tearDownModule(module):
     pass
 
 class CTRexGeneral_Test(unittest.TestCase):
-    """This class defines the general stateful testcase of the T-Rex traffic generator"""
+    """This class defines the general stateful testcase of the TRex traffic generator"""
     def __init__ (self, *args, **kwargs):
         sys.stdout.flush()
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -102,7 +102,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes)))
 
             CTRexScenario.is_init = True
-            print(termstyle.green("Done instantiating T-Rex scenario!\n"))
+            print(termstyle.green("Done instantiating TRex scenario!\n"))
 
 #           raise RuntimeError('CTRexScenario class is not initialized!')
         self.router = CTRexScenario.router
@@ -205,17 +205,17 @@ class CTRexGeneral_Test(unittest.TestCase):
         try:
             # check if test is valid
             if not trex_res.is_done_warmup():
-                self.fail('T-Rex did not reach warm-up situtaion. Results are not valid.')
+                self.fail('TRex did not reach warm-up situtaion. Results are not valid.')
 
             # check history size is enough
             if len(trex_res._history) < 5:
-                self.fail('T-Rex results list is too short. Increase the test duration or check unexpected stopping.')
+                self.fail('TRex results list is too short. Increase the test duration or check unexpected stopping.')
 
-            # check T-Rex number of drops
+            # check TRex number of drops
             trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
             trex_drops      = trex_res.get_total_drops()
             trex_drop_rate  = trex_res.get_drop_rate()
-            if ( trex_drops > 0.001 * trex_tx_pckt) and (trex_drop_rate > 0.0):     # deliberately mask kickoff drops when T-Rex first initiated
+            if ( trex_drops > 0.001 * trex_tx_pckt) and (trex_drop_rate > 0.0):     # deliberately mask kickoff drops when TRex first initiated
                 self.fail('Number of packet drops larger than 0.1% of all traffic')
 
             # check queue full, queue drop, allocation error
@@ -231,7 +231,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 allowed_queue_full = 1000 + trex_tx_pckt / 1000
             self.assert_gt(allowed_queue_full, m_total_queue_full, 'Too much queue_full (%s), please review multiplier.' % m_total_queue_full)
 
-            # # check T-Rex expected counters
+            # # check TRex expected counters
             #trex_exp_rate = trex_res.get_expected_tx_rate().get('m_tx_expected_bps')
             #assert trex_exp_rate is not None
             #trex_exp_gbps = trex_exp_rate/(10**9)
@@ -271,7 +271,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             #assert False
 
         # except AssertionError as e:
-        #     e.args += ('T-Rex has crashed!') 
+        #     e.args += ('TRex has crashed!') 
         #     raise
 
     @staticmethod

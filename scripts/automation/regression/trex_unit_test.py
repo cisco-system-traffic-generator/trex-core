@@ -9,8 +9,8 @@ Name:
 
 Description:
 
-    This script creates the functionality to test the performance of the T-Rex traffic generator
-    The tested scenario is a T-Rex TG directly connected to a Cisco router.
+    This script creates the functionality to test the performance of the TRex traffic generator
+    The tested scenario is a TRex TG directly connected to a Cisco router.
 
 ::
 
@@ -18,7 +18,7 @@ Description:
 
        -------                         --------
       |       | Tx---1gig/10gig----Rx |        |
-      | T-Rex |                       | router |
+      | TRex  |                       | router |
       |       | Rx---1gig/10gig----Tx |        |
        -------                         --------
 

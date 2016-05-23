@@ -718,7 +718,7 @@ static int usage(){
     printf("\n simulation mode : \n");
     printf(" Using this mode you can generate the traffic into a pcap file and learn how trex works \n");
     printf(" With this version you must be SUDO to use this mode ( I know this is not normal )  \n");
-    printf(" you can use the Linux CEL version of t-rex to do it without super user   \n");
+    printf(" you can use the Linux CEL version of TRex to do it without super user   \n");
     printf("  \n");
     printf(" -o [capfile_name]  simulate trex into pcap file  \n");
     printf(" --pcap             export the file in pcap mode \n");
