@@ -215,6 +215,9 @@ class STLRX_Test(CStlGeneral_Test):
     
     # this test adds more and more latency streams and re-test with incremental
     def test_incremental_latency_streams (self):
+        if CTRexScenario.setup_name in ('trex08', 'trex09'):
+            self.skip('This test makes trex08 and trex09 sick. Fix those ASAP.')
+
         total_pkts = self.total_pkts
         percent = 0.5
 
