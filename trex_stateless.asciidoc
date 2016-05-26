@@ -4118,6 +4118,107 @@ include::build/hlt_args.asciidoc[]
 link:https://gerrit.fd.io/r/gitweb?p=csit.git;a=tree;f=resources/tools/t-rex[here]
 
 
+==== Using Stateless client via JSON-RPC
+
+For functions that do not require complex objects and can use JSON-serializable input/output, you can use Stateless API via JSON-RPC proxy server. +
+Thus, you can use Stateless TRex *from any language* supporting JSON-RPC.
+
+===== How to run TRex side:
+
+* Run the Stateless TRex server in one of 2 ways:
+
+** Either run TRex directly in shell:
++
+[source,bash]
+----
+sudo ./t-rex-64 -i
+----
+
+** Or run it via JSON-RPC command to trex_daemon_server:
++
+[source,python]
+----
+start_trex(trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = True)
+----
+
+* Run the RPC "proxy" to stateless, here are also 2 ways:
+
+** run directly:
++
+[source,bash]
+----
+cd automation/trex_control_plane/stl/examples
+python rpc_proxy_server.py
+----
+
+** Send JSON-RPC command to master_daemon:
++
+[source,python]
+----
+if not master_daemon.is_stl_rpc_proxy_running():
+    master_daemon.start_stl_rpc_proxy()
+----
+
+Done :)
+
+Now you can send requests to the rpc_proxy_server and get results as array of 2 values:
+
+* If fail, result will be: [False, <traceback log with error>]
+* If success, result will be: [True, <return value of called function>]
+
+In same directory of rpc_proxy_server.py, there is python example of usage: using_rpc_proxy.py
+
+===== Native Stateless API functions:
+
+* acquire
+* connect
+* disconnect
+* get_stats
+* get_warnings
+* push_remote
+* reset
+* wait_on_traffic
+
+...can be called directly as server.push_remote(\'udp_traffic.pcap'). +
+If you need any other function of stateless client, you can either add it to rpc_proxy_server.py, or use this method: +
+server.*native_method*(<string of function name>, <args of the function>) +
+
+===== HLTAPI Methods can be called here as well:
+
+* connect
+* cleanup_session
+* interface_config
+* traffic_config
+* traffic_control
+* traffic_stats
+
+[NOTE]
+=====================================================================
+In case of names collision with native functions (such as connect), for HLTAPI function will be added prefix "hlt_".
+=====================================================================
+
+===== Example of running from Java:
+
+[source,java]
+----
+    ...
+    String host = "csi-trex-11";
+    int port = 8095;
+
+    try {
+           JsonRpcHttpClient rpcConnection = new JsonRpcHttpClient(new URL("http://" + host + ":" + port + "/"));
+           boolean force = true;
+           boolean isInit = rpcConnection.invoke("client_init", new Object[] {force} , Boolean.class);
+           System.out.println("is init = " + isInit);
+
+           rpcConnection.invoke("connect", new Object[] {} , String.class);
+           ArrayList<java.util.LinkedHashMap> response = rpcConnection.invoke("native_method", new Object[] {"get_port_info"} , ArrayList.class);
+
+           for (int i = 0; i < response.size(); i++) {
+                 System.out.println("o = " + response.get(i));
+           }
+    ...
+----
 
 
 
