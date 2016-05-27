@@ -14,7 +14,6 @@ import binascii
 import socket
 import errno
 import signal
-import binascii
 from common.trex_status_e import TRexStatus
 from common.trex_exceptions import *
 import subprocess
@@ -455,10 +454,12 @@ class CTRexServer(object):
         # adding additional options to the command
         trex_cmd_options = ''
         for key, value in kwargs.iteritems():
-            tmp_key = key.replace('_','-')
+            tmp_key = key.replace('_','-').lstrip('-')
             dash = ' -' if (len(key)==1) else ' --'
-            if (value == True) and (str(value) != '1'):       # checking also int(value) to excape from situation that 1 translates by python to 'True'
+            if value is True:
                 trex_cmd_options += (dash + tmp_key)
+            elif value is False:
+                continue
             else:
                 trex_cmd_options += (dash + '{k} {val}'.format( k = tmp_key, val =  value ))
 
