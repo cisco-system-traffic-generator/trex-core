@@ -165,7 +165,7 @@ traffic_control_kwargs = {
 }
 
 traffic_stats_kwargs = {
-    'mode': 'aggregate',                    # ( aggregate )
+    'mode': 'aggregate',                    # ( all | aggregate | streams )
     'port_handle': None,
 }
 
@@ -1529,11 +1529,11 @@ def get_TOS(user_kwargs, kwargs):
     TOS1 = set(['ip_precedence', 'ip_delay', 'ip_throughput', 'ip_reliability', 'ip_cost', 'ip_reserved'])
     TOS2 = set(['ip_dscp', 'ip_cu'])
     user_args = set(user_kwargs.keys())
-    if user_args & (TOS1 - TOS0) and user_args & (TOS0 - TOS1):
+    if user_args & TOS0.symmetric_difference(TOS1):
         raise STLError('You have mixed %s and %s TOS parameters' % (TOS0, TOS1))
-    if user_args & (TOS2 - TOS0) and user_args & (TOS0 - TOS2):
+    if user_args & TOS0.symmetric_difference(TOS2):
         raise STLError('You have mixed %s and %s TOS parameters' % (TOS0, TOS2))
-    if user_args & (TOS2 - TOS1) and user_args & (TOS1 - TOS2):
+    if user_args & TOS1.symmetric_difference(TOS2):
         raise STLError('You have mixed %s and %s TOS parameters' % (TOS1, TOS2))
     if user_args & (TOS0 - TOS1 - TOS2):
         return (kwargs['ip_precedence'] << 5) + (kwargs['ip_tos_field'] << 2) + kwargs['ip_mbz']

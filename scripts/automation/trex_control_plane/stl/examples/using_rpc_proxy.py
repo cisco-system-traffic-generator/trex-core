@@ -32,9 +32,29 @@ if __name__ == '__main__':
                         help = 'Address of rpc proxy.')
     parser.add_argument('-p', '--port', type=int, default = 8095, dest='port', action = 'store',
                         help = 'Port of rpc proxy.\nDefault is 8095.')
+    parser.add_argument('--master_port', type=int, default = 8091, dest='master_port', action = 'store',
+                        help = 'Port of Master daemon.\nDefault is 8091.')
     args = parser.parse_args()
 
     server = jsonrpclib.Server('http://%s:%s' % (args.server, args.port))
+    master = jsonrpclib.Server('http://%s:%s' % (args.server, args.master_port))
+
+# Connecting
+
+    try:
+        print('Connecting to STL RPC proxy server')
+        server.check_connectivity()
+        print('Connected')
+    except Exception as e:
+        print('Could not connect to STL RPC proxy server: %s\nTrying to start it from Master daemon.' % e)
+        try:
+            master.check_connectivity()
+            master.start_stl_rpc_proxy()
+            print('Started')
+        except Exception as e:
+            print('Could not start it from Master daemon. Error: %s' % e)
+            sys.exit(-1)
+
 
 # Native API
 
@@ -68,7 +88,8 @@ if __name__ == '__main__':
 # HLTAPI
 
     print('Initializing HLTAPI Client')
-    verify(server.hltapi_proxy_init(force = True))
+    verify_hlt(server.hltapi_proxy_init(force = True))
+    print('HLTAPI Client initiated')
 
     print('HLTAPI connect')
     verify_hlt(server.hlt_connect(device = args.server, port_list = ports, reset = True, break_locks = True))
@@ -98,4 +119,4 @@ if __name__ == '__main__':
     print(res)
 
     print('Deleting HLTAPI Client instance')
-    verify(server.hltapi_proxy_del())
+    verify_hlt(server.hltapi_proxy_del())

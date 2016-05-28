@@ -6,14 +6,18 @@ import logging
 import sys
 import os
 import json
+import socket
+from functools import partial
 logging.basicConfig(level = logging.FATAL) # keep quiet
 
 import stl_path
 from trex_stl_lib.api import *
-from trex_stl_lib.trex_stl_hltapi import CTRexHltApi, HLT_ERR
+from trex_stl_lib.trex_stl_hltapi import CTRexHltApi, HLT_OK, HLT_ERR
 
 # ext libs
-ext_libs = os.path.join(os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs')
+ext_libs = os.path.join(os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs') # usual package path
+if not os.path.exists(ext_libs):
+    ext_libs = os.path.join(os.pardir, os.pardir, 'external_libs') # client package path
 sys.path.append(os.path.join(ext_libs, 'jsonrpclib-pelix-0.2.5'))
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import yaml
@@ -62,18 +66,17 @@ def native_proxy_del():
 def hltapi_proxy_init(force = False, *args, **kwargs):
     global hltapi_client
     if hltapi_client and not force:
-        return ERR('HLTAPI Client is already initiated')
+        return HLT_ERR('HLTAPI Client is already initiated')
     try:
         hltapi_client = CTRexHltApi(*args, **kwargs)
-        return OK('HLTAPI Client initiated')
+        return HLT_OK()
     except:
-        return ERR(traceback.format_exc())
+        return HLT_ERR(traceback.format_exc())
 
 def hltapi_proxy_del():
     global hltapi_client
     hltapi_client = None
-    return OK()
-
+    return HLT_OK()
 
 # any method not listed above can be called with passing its name here
 def native_method(func_name, *args, **kwargs):
@@ -94,14 +97,7 @@ def hltapi_method(func_name, *args, **kwargs):
 ### /Server functions ###
 
 
-### Main ###
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description = 'Runs TRex Stateless proxy for usage with any language client.')
-    parser.add_argument('-p', '--port', type=int, default = 8095, dest='port', action = 'store',
-                        help = 'Select port on which the stl proxy will run.\nDefault is 8095.')
-    args = parser.parse_args()
+def run_server(port = 8095):
     native_methods = [
                       'acquire',
                       'connect',
@@ -122,25 +118,50 @@ if __name__ == '__main__':
                      ]
 
     try:
-        server = SimpleJSONRPCServer(('0.0.0.0', args.port))
+        register_socket('trex_stl_rpc_proxy')
+        server = SimpleJSONRPCServer(('0.0.0.0', port))
         server.register_function(add)
         server.register_function(check_connectivity)
         server.register_function(native_proxy_init)
         server.register_function(native_proxy_del)
         server.register_function(hltapi_proxy_init)
         server.register_function(hltapi_proxy_del)
+        server.register_function(native_method)
+        server.register_function(hltapi_method)
 
         for method in native_methods:
-            server.register_function(lambda  method=method, *args, **kwargs: native_method(method, *args, **kwargs), method)
-        server.register_function(native_method)
+            server.register_function(partial(native_method, method), method)
         for method in hltapi_methods:
-            if method == 'connect':
-                server.register_function(lambda  method=method, *args, **kwargs: hltapi_method(method, *args, **kwargs), 'hlt_connect')
+            if method in native_methods: # collision in names
+                method_hlt_name = 'hlt_%s' % method
             else:
-                server.register_function(lambda  method=method, *args, **kwargs: hltapi_method(method, *args, **kwargs), method)
-        server.register_function(hltapi_method)
-        print('Started Stateless RPC proxy at port %s' % args.port)
+                method_hlt_name = method
+            server.register_function(partial(hltapi_method, method), method_hlt_name)
+        server.register_function(server.funcs.keys, 'get_methods') # should be last
+        print('Started Stateless RPC proxy at port %s' % port)
         server.serve_forever()
     except KeyboardInterrupt:
         print('Done')
+
+# provides unique way to determine running process
+def register_socket(tag):
+    global foo_socket   # Without this our lock gets garbage collected
+    foo_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        foo_socket.bind('\0%s' % tag)
+        print('Got the socket lock for tag %s.' % tag)
+    except socket.error:
+        print('Error: process with tag %s is already running.' % tag)
+        sys.exit(-1)
+
+### Main ###
+
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description = 'Runs TRex Stateless RPC proxy for usage with any language client.')
+    parser.add_argument('-p', '--port', type=int, default = 8095, dest='port', action = 'store',
+                        help = 'Select port on which the stl rpc proxy will run.\nDefault is 8095.')
+    kwargs = vars(parser.parse_args())
+    run_server(**kwargs)
 
