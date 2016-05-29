@@ -7,8 +7,8 @@ class STLRX_Test(CStlGeneral_Test):
     """Tests for RX feature"""
 
     def setUp(self):
-        if CTRexScenario.setup_name in ('trex08', 'trex09'):
-            self.skip('This test makes trex08 and trex09 sick. Fix those ASAP.')
+        #if CTRexScenario.setup_name in ('trex08', 'trex09'):
+        #    self.skip('This test makes trex08 and trex09 sick. Fix those ASAP.')
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs for now')
         per_driver_params = {"rte_vmxnet3_pmd": [1, 50], "rte_ixgbe_pmd": [30, 5000], "rte_i40e_pmd": [80, 5000, 10],

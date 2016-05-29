@@ -23,6 +23,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
     # workaround of http://trex-tgn.cisco.com/youtrack/issue/trex-210
     @staticmethod
     def recover_after_trex_210_issue():
+        return
         for i in range(20): 
             try:
                 stl_map_ports(CTRexScenario.stl_trex)

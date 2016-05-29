@@ -242,7 +242,7 @@ class CTRexTestConfiguringPlugin(Plugin):
                 CTRexScenario.trex.force_kill(False)
             if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
                 CTRexScenario.stl_trex.disconnect()
-                time.sleep(3)
+                #time.sleep(3)
             CTRexScenario.stl_trex = None
 
 
