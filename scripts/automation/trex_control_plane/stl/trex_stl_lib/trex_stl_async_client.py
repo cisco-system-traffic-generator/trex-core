@@ -178,7 +178,13 @@ class CTRexAsyncClient():
 
         self.connected = True
 
-        # sync all stats data as a baseline from the server
+        # first barrier - make sure async thread is up
+        rc = self.barrier()
+        if not rc:
+            self.disconnect()
+            return rc
+
+        # second barrier - sync all stats data as a baseline from the server
         rc = self.barrier(baseline = True)
         if not rc:
             self.disconnect()
