@@ -96,14 +96,15 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     print("  Average latency(usec): {0}".format(avg))
     print("  Jitter(usec): {0}".format(jitter))
     print("  Latency distribution histogram:")
-    hist.sort()
-    for sample in hist:
-        range_start = sample['key']
+    l = hist.keys()
+    l.sort()
+    for sample in l:
+        range_start = sample
         if range_start == 0:
             range_end = 10
         else:
             range_end  = range_start + pow(10, (len(str(range_start))-1))
-        val = sample['val']
+        val = hist[sample]
         print ("    Packets with latency between {0} and {1}:{2} ".format(range_start, range_end, val))
     
     if tx_pkts != total_pkts:
