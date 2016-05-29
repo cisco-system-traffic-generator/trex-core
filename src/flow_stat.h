@@ -133,6 +133,7 @@ class rfc2544_info_t_ {
         m_seq_err_ev_low = 0;
         m_jitter = 0;
         m_latency = Json::Value("");
+        m_last_max_latency = 0;
     }
 
     inline rfc2544_info_t_ operator+ (const rfc2544_info_t_ &t_in) {
