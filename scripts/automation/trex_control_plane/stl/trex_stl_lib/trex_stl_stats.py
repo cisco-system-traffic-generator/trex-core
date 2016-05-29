@@ -1033,7 +1033,8 @@ class CLatencyStats(CTRexStats):
                     output[int_pg_id]['latency']['total_min'] = 1
                     output[int_pg_id]['latency']['histogram'][0] = zero_count
                 else:
-                    output[int_pg_id]['latency']['total_min'] = min(output[int_pg_id]['latency']['histogram'].keys())
+                    if output[int_pg_id]['latency']['histogram'].keys() != []:
+                        output[int_pg_id]['latency']['total_min'] = min(output[int_pg_id]['latency']['histogram'].keys())
 
         self.latest_stats = output
         return True
