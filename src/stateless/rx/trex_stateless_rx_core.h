@@ -52,26 +52,22 @@ class CLastMax {
 
     dsec_t getMax() {
         if (m_choose)
-            return m_max1;
-        else
             return m_max2;
+        else
+            return m_max1;
     }
 
-    dsec_t switchMax() {
-        dsec_t ret;
+    void switchMax() {
         if (m_choose) {
+            m_max2 = 0;
             m_choose = false;
             sanb_smp_memory_barrier();
-            ret = m_max1;
-            m_max1 = 0;
         }
         else {
+            m_max1 = 0;
             m_choose = true;
             sanb_smp_memory_barrier();
-            ret = m_max2;
-            m_max2 = 0;
         }
-        return ret;
     }
 
  private:
@@ -109,16 +105,38 @@ class CRxSlCfg {
     CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
 };
 
-struct per_flow_rfc2544_info {
-    uint32_t seq; // expected next seq num
-    CTimeHistogram  latency; // latency info
-    CJitter         jitter; 
-    uint64_t seq_err; // How many packet seq num gaps we saw (packets lost or out of order)
-    uint64_t seq_err_events_too_big; // How many packet seq num greater than expected events we had
-    uint64_t seq_err_events_too_low; // How many packet seq num lower than expected events we had
-    uint64_t out_of_order; // Packets we got with seq num lower than expected
-    uint64_t dup; // Packets we got with same seq num
-    CLastMax last_max; // maximum for last measurement period (reset whenever we read it).
+class CRFC2544Info {
+ public:
+    void create();
+    void reset();
+    void export_data(rfc2544_info_t_ &obj);
+    inline void add_sample(double stime) {
+        m_latency.Add(stime);
+        m_last_max.update(stime);
+        m_jitter.calc(stime);
+    }
+    inline void sample_period_end() {
+        m_latency.update();
+        m_last_max.switchMax();
+    }
+    inline uint32_t get_seq() {return m_seq;}
+    inline void set_seq(uint32_t val) {m_seq = val;}
+    inline void inc_seq_err(uint64_t val) {m_seq_err += val;}
+    inline void dec_seq_err() {if (m_seq_err >0) {m_seq_err--;}}
+    inline void inc_seq_err_too_big() {m_seq_err_events_too_big++;}
+    inline void inc_seq_err_too_low() {m_seq_err_events_too_low++;}
+    inline void inc_dup() {m_dup++;}
+    inline void inc_ooo() {m_ooo++;}
+ private:
+    uint32_t m_seq; // expected next seq num
+    CTimeHistogram  m_latency; // latency info
+    CJitter         m_jitter;
+    uint64_t m_seq_err; // How many packet seq num gaps we saw (packets lost or out of order)
+    uint64_t m_seq_err_events_too_big; // How many packet seq num greater than expected events we had
+    uint64_t m_seq_err_events_too_low; // How many packet seq num lower than expected events we had
+    uint64_t m_ooo; // Packets we got with seq num lower than expected (We guess they are out of order)
+    uint64_t m_dup; // Packets we got with same seq num
+    CLastMax m_last_max; // maximum for last measurement period (reset whenever we read it).
 };
 
 class CRxCoreStateless {
@@ -168,6 +186,6 @@ class CRxCoreStateless {
     CCpuUtlCp m_cpu_cp_u;
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
-    struct per_flow_rfc2544_info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
+    CRFC2544Info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 };
 #endif
