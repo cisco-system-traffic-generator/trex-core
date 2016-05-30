@@ -2657,7 +2657,8 @@ public:
 TEST_F(time_histogram, test_average) {
     int i;
     int j;
-    for (j=0; j<10; j++) {
+    // Latency is calculated by low pass filter, so need to give it time to stabilize
+    for (j=0; j < 13; j++) {
         for (i=0; i<100; i++) {
             m_hist.Add(10e-6);
         }
@@ -2667,8 +2668,8 @@ TEST_F(time_histogram, test_average) {
         m_hist.update();
     }
 
-    EXPECT_GT(m_hist.get_average_latency(),7400.0);
-    EXPECT_LT(m_hist.get_average_latency(),7600.0);
+    EXPECT_GT(m_hist.get_average_latency(), 5004);
+    EXPECT_LT(m_hist.get_average_latency(), 5005);
     
     m_hist.Dump(stdout);
 }
