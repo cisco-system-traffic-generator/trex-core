@@ -127,7 +127,7 @@ class SingletonDaemon(object):
     def restart(self, timeout = 5):
         if self.is_running():
             self.kill(timeout)
-        self.start(timeout)
+        return self.start(timeout)
 
 
 # provides unique way to determine running process, should be used inside daemon
