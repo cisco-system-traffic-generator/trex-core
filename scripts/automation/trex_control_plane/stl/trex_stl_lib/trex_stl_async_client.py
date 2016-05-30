@@ -153,6 +153,8 @@ class CTRexAsyncClient():
         self.last_data_recv_ts = 0
         self.async_barrier     = None
 
+        self.monitor = AsyncUtil()
+
         self.connected = False
  
     # connects the async channel
@@ -223,10 +225,17 @@ class CTRexAsyncClient():
 
         got_data = False
 
+        self.monitor.reset()
+
+
         while self.active:
             try:
 
-                line = self.socket.recv_string()
+                with self.monitor:
+                    line = self.socket.recv_string()
+                
+                self.monitor.on_recv_msg(line)
+
                 self.last_data_recv_ts = time.time()
 
                 # signal once
@@ -237,7 +246,6 @@ class CTRexAsyncClient():
 
             # got a timeout - mark as not alive and retry
             except zmq.Again:
-
                 # signal once
                 if got_data:
                     self.event_handler.on_async_dead()
@@ -341,4 +349,82 @@ class CTRexAsyncClient():
         return RC_OK()
 
 
+# a class to measure util. of async subscriber thread
+class AsyncUtil(object):
+
+    STATE_SLEEP = 1
+    STATE_AWAKE = 2
+
+    def __init__ (self):
+        self.reset()
+
+
+    def reset (self):
+        self.state = self.STATE_AWAKE
+        self.clock = time.time()
+
+        # reset the current interval
+        self.interval = {'ts': time.time(), 'total_sleep': 0, 'total_bits': 0}
+
+        # global counters
+        self.cpu_util = 0
+        self.bps      = 0
+
+
+    def on_recv_msg (self, message):
+        self.interval['total_bits'] += len(message) * 8.0
+
+        self._tick()
+
+
+    def __enter__ (self):
+        assert(self.state == self.STATE_AWAKE)
+        self.state = self.STATE_SLEEP
+
+        self.sleep_start_ts = time.time()
+        
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        assert(self.state == self.STATE_SLEEP)
+        self.state = self.STATE_AWAKE
+
+        # measure total sleep time for interval
+        self.interval['total_sleep'] += time.time() - self.sleep_start_ts
+
+        self._tick()
+                
+    def _tick (self):
+        # how much time did the current interval lasted
+        ts = time.time() - self.interval['ts']
+        if ts < 1:
+            return
+
+        # if tick is in the middle of sleep - add the interval and reset
+        if self.state == self.STATE_SLEEP:
+            self.interval['total_sleep'] += time.time() - self.sleep_start_ts
+            self.sleep_start_ts = time.time()
+
+        # add the interval
+        if self.interval['total_sleep'] > 0:
+            # calculate
+            self.cpu_util = self.cpu_util * 0.75 + (float(ts - self.interval['total_sleep']) / ts) * 0.25
+            self.interval['total_sleep'] = 0
+
+
+        if self.interval['total_bits'] > 0:
+            # calculate
+            self.bps = self.bps * 0.75 + ( self.interval['total_bits'] / ts ) * 0.25
+            self.interval['total_bits'] = 0
+
+        # reset the interval's clock
+        self.interval['ts'] = time.time()
+
+
+    def get_cpu_util (self):
+        self._tick()
+        return (self.cpu_util * 100)
+
+    def get_bps (self):
+        self._tick()
+        return (self.bps)
 

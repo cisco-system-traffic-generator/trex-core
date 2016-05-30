@@ -138,11 +138,12 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, async_monitor):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
         self._rx_stats_ref = rx_stats_ref
         self._latency_stats_ref = latency_stats_ref
+        self._async_monitor = async_monitor
 
     def generate_single_statistic(self, port_id_list, statistic_type):
         if statistic_type == GLOBAL_STATS:
@@ -187,23 +188,21 @@ class CTRexInfoGenerator(object):
 
     def _generate_global_stats(self):
         global_stats = self._global_stats
-        #if is_integer(global_stats.max_global_latency):
-        #    max_global_latency_str = ', Max latency: %s' % format_num(global_stats.max_global_latency,
-        #                                                              suffix = 'usec',
-        #                                                              compact = False,
-        #                                                              opts = 'green' if global_stats.max_global_latency < 1000 else 'red')
-        #else:
-        #    max_global_latency_str = ''
+     
         stats_data = OrderedDict([("connection", "{host}, Port {port}".format(host=global_stats.connection_info.get("server"),
                                                                      port=global_stats.connection_info.get("sync_port"))),
                              ("version", "{ver}, UUID: {uuid}".format(ver=global_stats.server_version.get("version", "N/A"),
                                                                       uuid="N/A")),
 
-                             ("cpu_util", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_cpu_util")), [85, 100], [0, 85]),
+                             ("cpu_util.", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_cpu_util")), [85, 100], [0, 85]),
                                                               global_stats.get_trend_gui("m_cpu_util", use_raw = True))),
 
-                             ("rx_cpu_util", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_rx_cpu_util")), [85, 100], [0, 85]),
+                             ("rx_cpu_util.", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_rx_cpu_util")), [85, 100], [0, 85]),
                                                                 global_stats.get_trend_gui("m_rx_cpu_util", use_raw = True))),
+
+                             ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self._async_monitor.get_cpu_util()), [85, 100], [0, 85]),
+                                                                 format_num(self._async_monitor.get_bps() / 8.0, suffix = "B/sec"))),
+                                                             
 
                              (" ", ""),
 
