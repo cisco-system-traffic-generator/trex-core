@@ -80,7 +80,6 @@ extern "C" {
 
 #define SOCKET0         0
 
-#define BP_MAX_PKT      32
 #define MAX_PKT_BURST   32
 
 #define BP_MAX_CORES 32
@@ -1698,7 +1697,8 @@ public:
         }
         m_port=0;
     }
-    uint16_t                m_tx_queue_id;
+    uint8_t                 m_tx_queue_id;
+    uint8_t                 m_tx_queue_id_lat; // q id for tx of latency pkts
     uint16_t                m_len;
     rte_mbuf_t *            m_table[MAX_PKT_BURST];
     CPhyEthIF  *            m_port;
@@ -1710,6 +1710,10 @@ public:
 
 /* per core/gbe queue port for trasmitt */
 class CCoreEthIF : public CVirtualIF {
+public:
+    enum {
+     INVALID_Q_ID = 255
+    };
 
 public:
 
@@ -1717,13 +1721,12 @@ public:
         m_mbuf_cache=0;
     }
 
-public:
     bool Create(uint8_t             core_id,
-                uint16_t            tx_client_queue_id,
+                uint8_t            tx_client_queue_id,
                 CPhyEthIF  *        tx_client_port,
-
-                uint16_t            tx_server_queue_id,
-                CPhyEthIF  *        tx_server_port);
+                uint8_t            tx_server_queue_id,
+                CPhyEthIF  *        tx_server_port,
+                uint8_t             tx_q_id_lat);
     void Delete();
 
     virtual int open_file(std::string file_name){
@@ -1749,8 +1752,6 @@ public:
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p);
 
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
-
-public:
     void GetCoreCounters(CVirtualIFPerSideStats *stats);
     void DumpCoreStats(FILE *fd);
     void DumpIfStats(FILE *fd);
@@ -1773,8 +1774,9 @@ protected:
     int send_pkt(CCorePerPort * lp_port,
                  rte_mbuf_t *m,
                  CVirtualIFPerSideStats  * lp_stats);
-
-
+    int send_pkt_lat(CCorePerPort * lp_port,
+                 rte_mbuf_t *m,
+                 CVirtualIFPerSideStats  * lp_stats);
 
 protected:
     uint8_t      m_core_id;
@@ -1795,16 +1797,17 @@ protected:
 };
 
 bool CCoreEthIF::Create(uint8_t             core_id,
-                        uint16_t            tx_client_queue_id,
+                        uint8_t             tx_client_queue_id,
                         CPhyEthIF  *        tx_client_port,
-
-                        uint16_t            tx_server_queue_id,
-                        CPhyEthIF  *        tx_server_port){
+                        uint8_t             tx_server_queue_id,
+                        CPhyEthIF  *        tx_server_port,
+                        uint8_t tx_q_id_lat ) {
     m_ports[CLIENT_SIDE].m_tx_queue_id = tx_client_queue_id;
     m_ports[CLIENT_SIDE].m_port        = tx_client_port;
-
+    m_ports[CLIENT_SIDE].m_tx_queue_id_lat = tx_q_id_lat;
     m_ports[SERVER_SIDE].m_tx_queue_id = tx_server_queue_id;
     m_ports[SERVER_SIDE].m_port        = tx_server_port;
+    m_ports[SERVER_SIDE].m_tx_queue_id_lat = tx_q_id_lat;
     m_core_id = core_id;
 
     CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
@@ -1892,16 +1895,17 @@ void CCoreEthIF::DumpCoreStats(FILE *fd){
 }
 
 void CCoreEthIF::DumpIfCfgHeader(FILE *fd){
-    fprintf (fd," core ,  c-port, c-queue , s-port, s-queue \n");
+    fprintf (fd," core, c-port, c-queue, s-port, s-queue, lat-queue\n");
     fprintf (fd," ------------------------------------------\n");
 }
 
 void CCoreEthIF::DumpIfCfg(FILE *fd){
-    fprintf (fd," %d,   %u , %u , %u , %u  \n",m_core_id,
+    fprintf (fd," %d   %6u %6u  %6u  %6u %6u  \n",m_core_id,
              m_ports[CLIENT_SIDE].m_port->get_port_id(),
              m_ports[CLIENT_SIDE].m_tx_queue_id,
              m_ports[SERVER_SIDE].m_port->get_port_id(),
-             m_ports[SERVER_SIDE].m_tx_queue_id
+             m_ports[SERVER_SIDE].m_tx_queue_id,
+             m_ports[SERVER_SIDE].m_tx_queue_id_lat
              );
 }
 
@@ -1933,17 +1937,14 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
 #ifdef DELAY_IF_NEEDED
     while ( unlikely( ret<len ) ){
         rte_delay_us(1);
-        //rte_pause();
-        //rte_pause();
         lp_stats->m_tx_queue_full += 1;
         uint16_t ret1=lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,
                                                 &lp_port->m_table[ret],
                                                 len-ret);
         ret+=ret1;
     }
-#endif
-
-    /* CPU has burst of packets , more that TX can send need to drop them !!*/
+#else
+    /* CPU has burst of packets larger than TX can send. Need to drop packets */
     if ( unlikely(ret < len) ) {
         lp_stats->m_tx_drop += (len-ret);
         uint16_t i;
@@ -1952,6 +1953,7 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
             rte_pktmbuf_free(m);
         }
     }
+#endif
 
     return (0);
 }
@@ -1975,7 +1977,20 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     return (0);
 }
 
+int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPerSideStats *lp_stats) {
+    // We allow sending only from first core of each port. This is serious internal bug otherwise.
+    assert(lp_port->m_tx_queue_id_lat != INVALID_Q_ID);
 
+    int ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+
+    while ( unlikely( ret != 1 ) ){
+        rte_delay_us(1);
+        lp_stats->m_tx_queue_full += 1;
+        ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+    }
+
+    return ret;
+}
 
 void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
                               rte_mbuf_t      *m){
@@ -2021,7 +2036,6 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     struct flow_stat_payload_header *fsp_head = NULL;
 
     if (hw_id >= MAX_FLOW_STATS) {
-        flush_tx_queue();
         // payload rule hw_ids are in the range right above ip id rules
         uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
         if (hw_id_payload > max_stat_hw_id_seen_payload) {
@@ -2055,8 +2069,7 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
 
     if (hw_id >= MAX_FLOW_STATS) {
         fsp_head->time_stamp = os_get_hr_tick_64();
-        send_pkt(lp_port, mi, lp_stats);
-        flush_tx_queue();
+        send_pkt_lat(lp_port, mi, lp_stats);
     } else {
         send_pkt(lp_port, mi, lp_stats);
     }
@@ -2093,7 +2106,8 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
     }
 
     if (unlikely(node_sl->is_stat_needed())) {
-        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf() || node_sl->is_cache_mbuf_array())? true:false);
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats,
+                                   (node_sl->get_cache_mbuf() || node_sl->is_cache_mbuf_array())? true:false);
     } else {
         send_pkt(lp_port,m,lp_stats);
     }
@@ -2118,7 +2132,7 @@ int CCoreEthIFStateless::send_pcap_node(CGenNodePCAP *pcap_node) {
 
 /**
  * slow path code goes here
- * 
+ *
  */
 int CCoreEthIFStateless::handle_slow_path_node(CGenNode * no) {
 
@@ -3164,6 +3178,7 @@ int  CGlobalTRex::ixgbe_start(void){
 
     */
     int port_offset=0;
+    int lat_q_id = get_cores_tx() / get_base_num_cores();
     for (i=0; i<get_cores_tx(); i++) {
         int j=(i+1);
         int queue_id=((j-1)/get_base_num_cores() );   /* for the first min core queue 0 , then queue 1 etc */
@@ -3176,11 +3191,13 @@ int  CGlobalTRex::ixgbe_start(void){
                                queue_id,
                                &m_ports[port_offset], /* 0,2*/
                                queue_id,
-                               &m_ports[port_offset+1] /*1,3*/
-                               );
+                               &m_ports[port_offset+1], /*1,3*/
+                               lat_q_id);
         port_offset+=2;
         if (port_offset == m_max_ports) {
             port_offset = 0;
+            // We want to allow sending latency packets only from first core handling a port
+            lat_q_id = CCoreEthIF::INVALID_Q_ID;
         }
     }
 
@@ -3923,7 +3940,7 @@ CGlobalTRex::handle_fast_path() {
     check_for_dp_messages();
     // update CPU%
     m_fl.UpdateFast();
-    
+
     if (get_is_stateless()) {
         m_rx_sl.update_cpu_util();
     }else{
@@ -3933,7 +3950,7 @@ CGlobalTRex::handle_fast_path() {
     if ( is_all_cores_finished() ) {
         return false;
     }
-   
+
     return true;
 }
 
@@ -3966,8 +3983,8 @@ int CGlobalTRex::run_in_master() {
             }
             slow_path_counter = 0;
         }
-        
-       
+
+
         cp_lock.unlock();
         delay(FASTPATH_DELAY_MS);
         slow_path_counter += FASTPATH_DELAY_MS;
