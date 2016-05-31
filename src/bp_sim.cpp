@@ -4511,6 +4511,16 @@ double CFlowGenList::GetCpuUtil(){
     return (c/m_threads_info.size());
 }
 
+double CFlowGenList::GetCpuUtilRaw(){
+    int i;
+    double c=0.0;
+    for (i=0; i<(int)m_threads_info.size(); i++) {
+        CFlowGenListPerThread * lp=m_threads_info[i];
+        c+=lp->m_cpu_cp_u.GetValRaw();
+    }
+    return (c/m_threads_info.size());
+}
+
 
 void CFlowGenList::UpdateFast(){
 

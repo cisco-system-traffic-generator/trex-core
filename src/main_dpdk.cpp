@@ -2417,6 +2417,7 @@ public:
     float m_active_flows;
     float m_open_flows;
     float m_cpu_util;
+    float m_cpu_util_raw;
     float m_rx_cpu_util;
     float m_bw_per_core;
     uint8_t m_threads;
@@ -2484,6 +2485,7 @@ void CGlobalStats::dump_json(std::string & json, bool baseline,uint32_t stats_ti
 #define GET_FIELD_PORT(p,f) get_field_port(p,std::string(#f),lp->f)
 
     json+=GET_FIELD(m_cpu_util);
+    json+=GET_FIELD(m_cpu_util_raw);
     json+=GET_FIELD(m_bw_per_core);
     json+=GET_FIELD(m_rx_cpu_util);
     json+=GET_FIELD(m_platform_factor);
@@ -3542,6 +3544,7 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     stats.m_num_of_ports = m_max_ports;
     stats.m_cpu_util = m_fl.GetCpuUtil();
+    stats.m_cpu_util_raw = m_fl.GetCpuUtilRaw();
     if (get_is_stateless()) {
         stats.m_rx_cpu_util = m_rx_sl.get_cpu_util();
     }
@@ -5701,6 +5704,14 @@ void TrexDpdkPlatformApi::flush_dp_messages() const {
 
 int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
     return g_trex.m_trex_stateless->m_rx_flow_stat.get_active_pgids(result);
+}
+
+int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const {
+    for (int i=0; i<(int)g_trex.m_fl.m_threads_info.size(); i++) {
+        CFlowGenListPerThread * lp=g_trex.m_fl.m_threads_info[i];
+        cpu_util_full.push_back(lp->m_cpu_cp_u.GetHistory());
+    }
+    return 0;
 }
 
 CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {

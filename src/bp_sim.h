@@ -3841,6 +3841,7 @@ public:
     void DumpPktSize();
     void UpdateFast();
     double GetCpuUtil();
+    double GetCpuUtilRaw();
 
 public:
     double get_total_kcps();

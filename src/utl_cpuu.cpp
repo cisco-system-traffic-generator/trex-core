@@ -25,7 +25,9 @@ limitations under the License.
 
 void CCpuUtlCp::Create(CCpuUtlDp * cdp){
     m_dpcpu=cdp;
-    m_cpu_util=0.0;
+    m_cpu_util.clear();
+    m_cpu_util.push_back(0.0); // here it's same as insert to front
+    m_cpu_util_lpf=0.0;
     m_ticks=0;
     m_work=0;
 }
@@ -41,17 +43,29 @@ void CCpuUtlCp::Update(){
         m_work++;
     }
     if (m_ticks==100) {
-        double window_cpu_u = ((double)m_work/(double)m_ticks);
+        double window_cpu_u = (double)m_work/m_ticks;
         /* LPF*/
-        m_cpu_util = (m_cpu_util*0.75)+(window_cpu_u*0.25);
+        m_cpu_util_lpf = (m_cpu_util_lpf*0.75)+(window_cpu_u*0.25);
+        m_cpu_util.insert(m_cpu_util.begin(), window_cpu_u);
+        if (m_cpu_util.size() > history_size)
+            m_cpu_util.pop_back();
         m_ticks=0;
         m_work=0;
 
     }
 }
 
-/* return cpu % */
+/* return cpu % Smoothed */
 double CCpuUtlCp::GetVal(){
-    return (m_cpu_util*100);
+    return (m_cpu_util_lpf*100); // percentage
 }
 
+/* return cpu % Raw */
+double CCpuUtlCp::GetValRaw(){
+    return (m_cpu_util.front()*100); // percentage
+}
+
+/* return cpu utilization history */
+std::vector<double> CCpuUtlCp::GetHistory(){
+    return (m_cpu_util);
+}
