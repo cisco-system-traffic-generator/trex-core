@@ -30,6 +30,8 @@ void CTimeHistogram::Reset() {
     m_period_data[0].reset();
     m_period_data[1].reset();
     m_period = 0;
+    m_total_cnt = 0;
+    m_total_cnt_high = 0;
     m_max_dt = 0;
     m_average = 0;
     memset(&m_max_ar[0],0,sizeof(m_max_ar));
@@ -57,6 +59,9 @@ bool CTimeHistogram::Add(dsec_t dt) {
     CTimeHistogramPerPeriodData &period_elem = m_period_data[m_period];
 
     period_elem.inc_cnt();
+    period_elem.update_sum(dt);
+
+    // values smaller then certain threshold do not get into the histogram
     if (dt < m_min_delta) {
         return false;
     }
@@ -87,8 +92,6 @@ bool CTimeHistogram::Add(dsec_t dt) {
         }
     }
 
-    period_elem.update_sum(dt);
-
     return true;
 }
 
@@ -113,6 +116,8 @@ void CTimeHistogram::update() {
         m_win_cnt = 0;
     }
     update_average(period_elem);
+    m_total_cnt += period_elem.get_cnt();
+    m_total_cnt_high += period_elem.get_high_cnt();
 }
 
 void  CTimeHistogram::update_average(CTimeHistogramPerPeriodData &period_elem) {
@@ -181,7 +186,6 @@ void CTimeHistogram::Dump(FILE *fd) {
 */
 
 void CTimeHistogram::dump_json(std::string name,std::string & json ) {
-    CTimeHistogramPerPeriodData &period_elem = m_period_data[get_read_period_index()];
     char buff[200];
     if (name != "")
         sprintf(buff,"\"%s\":{",name.c_str());
@@ -191,8 +195,8 @@ void CTimeHistogram::dump_json(std::string name,std::string & json ) {
 
     json += add_json("min_usec", get_usec(m_min_delta));
     json += add_json("max_usec", get_usec(m_max_dt));
-    json += add_json("high_cnt", period_elem.get_high_cnt());
-    json += add_json("cnt", period_elem.get_cnt());
+    json += add_json("high_cnt", m_total_cnt_high);
+    json += add_json("cnt", m_total_cnt);
     json+=add_json("s_avg", get_average_latency());
     int i;
     int j;

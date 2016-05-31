@@ -2657,19 +2657,17 @@ public:
 TEST_F(time_histogram, test_average) {
     int i;
     int j;
-    // Latency is calculated by low pass filter, so need to give it time to stabilize
-    for (j=0; j < 13; j++) {
-        for (i=0; i<100; i++) {
-            m_hist.Add(10e-6);
-        }
-        for (i=0; i<100; i++) {
-            m_hist.Add(10e-3);
+    for (j = 0; j < 10; j++) {
+        for (i = 0; i <= 2000; i++) {
+            m_hist.Add(10e-7 * i);
         }
         m_hist.update();
+        // Latency is calculated using low pass filter, with initial value of 0
+        EXPECT_EQ(m_hist.get_average_latency(), 1000.0 - (1000.0 / (2 << j)));
+        EXPECT_EQ(m_hist.get_count(), 2001 * (j+1));
+        EXPECT_EQ(m_hist.get_high_count(), 2001 * (j+1) - (11 * (j+1)));
+        EXPECT_EQ(m_hist.get_max_latency(), 2000);
     }
-
-    EXPECT_GT(m_hist.get_average_latency(), 5004);
-    EXPECT_LT(m_hist.get_average_latency(), 5005);
     
     m_hist.Dump(stdout);
 }
