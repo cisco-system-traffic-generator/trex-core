@@ -2,7 +2,7 @@ TRex Virtual Machine setup and basic usage
 ===========================================
 :author: Dan Klein 
 :email: <danklei@cisco.com> 
-:revnumber: 1.0
+:revnumber: 2.0
 :quotes.++:
 :numbered:
 
@@ -14,30 +14,31 @@ include::trex_ga.asciidoc[]
 
 === TRex traffic generator
 
-TRex traffic generator is a tool design the benchmark platforms with realistic traffic.
-This is a work-in-progress product, which is under constant developement, new features are added and support for more router's fuctionality is achieved.
+TRex traffic generator is a tool designed to benchmark platforms using realistic traffic.
 
-One of the innovative tools through which TRex can be learned and tested during development is a virtual machine instance, fully simulating TRex without the need of any additional hardware.
+One of the tools through which TRex can be learned and tested is a virtual machine instance, fully simulating TRex without the need for any additional hardware.
 
 
 ==== TRex Virtual Machine
 
 The TRex Virtual Machine is based on Oracle's Virtual Box freeware.
 
-It is designed to enable TRex newbies to explore this tool without any special resources, and no single network cable attached. Moreover, is requires no internet or outer network connectivity.
+It is designed to enable TRex newbies to explore this tool without any special resources.
 
 
 == Setup and Usage
 
 === Setup
 
-In order to use TRex VM, there are several super-easy steps to follow:
+In order to use TRex VM, there are several easy steps to follow:
 
-  . Download and install Oracle VM Virtual Box Manage https://www.virtualbox.org/wiki/Downloads[(VB download link)]. + 
-    During the installation you'll be asked to allow the installation of system devices component interactions. Allow it.
-  . Download the latest TRex VM by http://trex-tgn.cisco.com/trex/T_Rex_162_VM_Fedora_21.ova[clicking on this link].
+  . Download and install Oracle VM Virtual Box Manager https://www.virtualbox.org/wiki/Downloads[(VB download link)]. + 
+    During installation you will be asked to allow the installation of system devices component interactions. Allow it.
+  . Download the latest TRex VM by http://trex-tgn.cisco.com/trex/T_Rex_162_VM_Fedora_21.ova[clicking on this link]. Notice that this is the
+    latest VM image, not the latest TRex version. This can be used for demonstration purposes. After installation, you can upgrade to latest
+    TRex image if needed (Instructions below).
   . Open Oracle VM Virtual Box application installed at step 1.
-  . Under 'File' tab, select 'Import Appliance' (`ctrl+I` shorthand can be used as well). The following screen will apear:
+  . Under 'File' tab, select 'Import Appliance'. The following screen will apear:
 
 ifdef::backend-docbook[]
 image::images/vm_import.png[title="VM import screen",align="center",width=400, link="images/vm_import.png"]
@@ -52,12 +53,10 @@ endif::backend-xhtml11[]
   . Browse and select the .ova file you have downloaded at step 2, and click 'continue'.
   . Click 'Next, and then make sure that the 'Reinitialize the MAC address of all network cards' checkbox is **not selected**.
   . Click 'import' and wait for the import process to finish.
-  . **That's it! you're all good and set to go!**
+  **That's it! you're all good and set to go!**
 
 
 === Launching and logging into the machine
-
-Let's get started with running TRex!
 
 First, launch the virtual machine by selecting it in the VM's menu and hitting 'Start' button.
 
@@ -74,7 +73,7 @@ endif::backend-xhtml11[]
 
 [IMPORTANT]
 ====
-You may encounter with "VT-x is disabled" error, similar to the image below. +
+You may encounter "VT-x is disabled" error, as shown in the image below. +
 In that case, please refer to https://www.virtualbox.org/ticket/4130[this link] and follow the provided steps to overcome this issue.
 ====
 
@@ -89,7 +88,7 @@ endif::backend-xhtml11[]
 
 <<<<<
 
-Next, once the machine is finished booting, login to the machine using the following credentials:
+Once the machine finished booting, login to it using the following credentials:
 
   - Username: `trex`
 
@@ -104,23 +103,18 @@ image::images/trex_vm_login.png[title="TRex VM login",align="center",width=900, 
 endif::backend-xhtml11[]
 
 
-TIP: a remote connection to the machine from anywhere in the hosting machine can be achieved by the following command: +
+TIP: Remote connection to the machine from anywhere in the hosting machine can be set up using the following command: +
  `ssh -p 3022 trex@127.0.0.1`
 
 === Running TRex traffic generator
-
-Finally, we're ready to do some TRex magic. This is super easy and can be achived be the following steps:
 
   1. Change dir to latest version supplied using: `cd /home/trex/v1.62/`.
 
   2. Run your desired TRex command. 
 
-IMPORTANT: When launching a TRex command pay attention make sure that: +
-  1. use `sudo` prefix at the beggining of the command. +
-  2. Specify the `-f` argument first among all arguments.
+IMPORTANT: When launching a TRex command, pay attention to make sure that you are using `sudo` prefix at the beggining of the command line. +
 
-
-For example, let's run TRex with DNS traffic generation and no latency. The Runnning command is:
+For example, let's run TRex with DNS traffic. The command is:
 
 ----
 [trex@localhost v1.62]$ sudo ./t-rex-64 -f cap2/dns.yaml -d 100 -m 1 --nc
@@ -161,9 +155,10 @@ zmq publisher at: tcp://*:4500
  current time    : 18.7 sec
  test duration   : 81.3 sec
 ----
-<1> Output prompt continues (trimmed for reader's comfort).
+<1> Output trimmed.
 
-Now, lets review the generated packets as they observed footnoteref:[<1>,The given output represents the output begining.] by our promiscuous interface (interface #2):
+Now, lets review the generated packets as they are observed by our promiscuous interface (interface #2 in the picture at the bottom). +
+Notice that (depending on your virtual box CPU performance), tcpdump output might be delayed.
 
 ----
 [trex@localhost ~]$ sudo tcpdump -i enp0s8
@@ -188,7 +183,7 @@ listening on enp0s8, link-type EN10MB (Ethernet), capture size 262144 bytes
 
 
 Let's have a look at another example. +
-We want to run TRex with simple http traffic generation. The running command will look like this:
+We want to generate simple http traffic. The command will look like:
 
 ----
 [trex@localhost v1.62]$ sudo ./t-rex-64 -f cap2/http_simple.yaml -d 100 -l 1000 -m 1 --nc
@@ -239,28 +234,7 @@ zmq publisher at: tcp://*:4500
 
 ----
 
-<1> Output prompt continues (trimmed for reader's comfort).
-
-Once again, lets review the generated packets as they observed footnoteref:[<1>] by our promiscuous interface (interface #2):
-
-----
-[trex@localhost ~]$ sudo tcpdump -a -i enp0s8
-tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
-listening on enp0s8, link-type EN10MB (Ethernet), capture size 262144 bytes
-19:31:46.650426 IP 16.0.0.1.1024 > 48.0.0.1.http: Flags [S], seq 404375002, win 32768, options [mss 1460], length 0
-19:31:46.650439 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:46.650442 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:46.650445 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:46.652458 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:46.652462 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:46.652465 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:47.152768 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:47.152788 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:47.153796 IP 16.0.0.1.17 > 48.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:47.153801 IP 48.0.0.1.17 > 16.0.0.1.80: sctp (1) [Bad chunk length 0]
-19:31:47.154803 IP 48.0.0.2.http > 16.0.0.2.1024: Flags [P.], seq 404419110:404420570, ack 404375252, win 32768, length 1460
-19:31:47.154823 IP 48.0.0.2.http > 16.0.0.2.1024: Flags [P.], seq 1460:2920, ack 1, win 32768, length 1460
-----
+<1> Output trimmed.
 
 [NOTE]
 See http://trex-tgn.cisco.com/trex/doc/trex_book.pdf[TRex full manual] for a complete understading of the tool features and options.
@@ -271,11 +245,10 @@ See http://trex-tgn.cisco.com/trex/doc/trex_manual.html#_obtaining_the_trex_pack
 
 === TRex Live monitoring
 
-Once we have TRex up and running, we can enjoy the benefit of having live monitoring on its performance, using TRexViewer application footnote:[Supported only on Windows OS]
+Once we have TRex up and running, we can monitor its performance using TRexViewer application (Supported only on Windows OS).
 
 
-
-This can be easily done by following these steps:
+This can be done by following these steps:
 
 1. Download the latest version of TrexViewer application and install it using http://trex-tgn.cisco.com/trex/client_gui/setup.exe[this link].
 
@@ -323,13 +296,9 @@ image::images/T-Rex_vm.png[title="TRex virtual connectivity",align="center",widt
 endif::backend-xhtml11[]
 
 
-The VM runs TRex with single client and single server port. The traffic generated by each of those ports are switched over the 'trex_intnet' virtual network and received by the other side.
+The VM runs TRex with single client and single server port. The traffic generated by each of those ports is switched over the 'trex_intnet' virtual network and received by the other side.
 
-TRex identifies only the packets which were dedicately sent by one of those traffic ports and receives them in the other port. Hence, packets generated by client port will be received by the server port and vice versa.
+TRex identifies only the packets which were dedicately sent by one of those traffic ports and receives them on the other port. Hence, packets generated by client port will be received by the server port and vice versa.
 
-Ontop, network adapter #4 used to [underline]#listen# to all traffic generated by both of TRex's ports, therefore it is very useful in providing live data of the generated flows over the network.
-
-
-
-
+Network adapter #4 can be used for capturing all traffic generated by both of TRex's ports.
 
