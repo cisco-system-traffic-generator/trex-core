@@ -28,6 +28,8 @@ limitations under the License.
 #define L_PKT_SUBMODE_REPLY 2
 #define L_PKT_SUBMODE_0_SEQ 3
 
+class TrexWatchDog;
+
 class CLatencyPktInfo {
 public:
     void Create(class CLatencyPktMode *m_l_pkt_info);
@@ -337,7 +339,7 @@ public:
     bool Create(CLatencyManagerCfg * cfg);
     void Delete();
     void  reset();
-    void  start(int iter);
+    void  start(int iter, TrexWatchDog *watchdog);
     void  stop();
     bool  is_active();
     void set_ip(uint32_t client_ip,
@@ -374,6 +376,7 @@ public:
     CLatencyPktMode *c_l_pkt_mode;
 
 private:
+    void  tickle();
     void  send_pkt_all_ports();
     void  try_rx();
     void  try_rx_queues();
@@ -400,6 +403,9 @@ private:
      CNatRxManager           m_nat_check_manager;
      CCpuUtlDp               m_cpu_dp_u;
      CCpuUtlCp               m_cpu_cp_u;
+     TrexWatchDog            *m_watchdog;
+     int                     m_watchdog_handle;
+
      volatile bool           m_do_stop __rte_cache_aligned ;
 };
 

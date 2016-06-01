@@ -40,7 +40,7 @@ TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
     /* create RPC servers */
 
     /* set both servers to mutex each other */
-    m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg, cfg.m_global_lock);
+    m_rpc_server = new TrexRpcServer(cfg.m_rpc_req_resp_cfg);
     m_rpc_server->set_verbose(cfg.m_rpc_server_verbose);
 
     /* configure ports */

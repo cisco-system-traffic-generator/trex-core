@@ -121,7 +121,7 @@ main_src = SrcGroup(dir='src',
              'latency.cpp',
              'flow_stat.cpp',
              'flow_stat_parser.cpp',
-            
+             'trex_watchdog.cpp',
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp',
              'sim/trex_sim_stateless.cpp',
@@ -371,7 +371,7 @@ class build_option:
 
     def get_link_flags(self):
         # add here basic flags
-        base_flags = ['-pthread'];
+        base_flags = ['-pthread', '-ldl'];
         if self.isPIE():
             base_flags.append('-lstdc++')
 

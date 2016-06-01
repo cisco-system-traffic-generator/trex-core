@@ -36,7 +36,7 @@ limitations under the License.
  * ZMQ based publisher server
  * 
  */
-TrexRpcServerAsync::TrexRpcServerAsync(const TrexRpcServerConfig &cfg, std::mutex *lock) : TrexRpcServerInterface(cfg, "publisher", lock) {
+TrexRpcServerAsync::TrexRpcServerAsync(const TrexRpcServerConfig &cfg) : TrexRpcServerInterface(cfg, "publisher") {
     /* ZMQ is not thread safe - this should be outside */
     m_context = zmq_ctx_new();
 }

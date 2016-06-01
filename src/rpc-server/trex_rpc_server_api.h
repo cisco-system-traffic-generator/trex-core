@@ -33,6 +33,7 @@ limitations under the License.
 
 class TrexRpcServerInterface;
 class TrexRpcServerReqRes;
+class TrexWatchDog;
 
 /**
  * defines a configuration of generic RPC server
@@ -47,8 +48,11 @@ public:
         RPC_PROT_MOCK
     };
 
-    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port) : m_protocol(protocol), m_port(port) {
-
+    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port, std::mutex *lock, TrexWatchDog *watchdog) {
+        m_protocol  = protocol;
+        m_port      = port;
+        m_lock      = lock;
+        m_watchdog  = watchdog;
     }
 
     uint16_t get_port() const {
@@ -62,6 +66,10 @@ public:
 private:
     rpc_prot_e       m_protocol;
     uint16_t         m_port;
+
+public:
+    std::mutex       *m_lock;
+    TrexWatchDog     *m_watchdog;
 };
 
 /**
@@ -72,7 +80,7 @@ private:
 class TrexRpcServerInterface {
 public:
   
-    TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name, std::mutex *m_lock = NULL);
+    TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name);
     virtual ~TrexRpcServerInterface();
 
     /**
@@ -134,6 +142,8 @@ protected:
     std::string                          m_name;
     std::mutex                           *m_lock;
     std::mutex                           m_dummy_lock;
+    TrexWatchDog                        *m_watchdog;
+    int                                  m_watchdog_handle;
 };
 
 /**
@@ -147,8 +157,7 @@ class TrexRpcServer {
 public:
   
     /* creates the collection of servers using configurations */
-    TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
-                  std::mutex *m_lock = NULL);
+    TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg);
 
     ~TrexRpcServer();
 

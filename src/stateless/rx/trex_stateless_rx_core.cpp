@@ -76,6 +76,9 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_ring_to_cp   = cp_rx->getRingDpToCp(0);
     m_state = STATE_IDLE;
 
+    m_watchdog_handle = -1;
+    m_watchdog        = NULL;
+
     for (int i = 0; i < m_max_ports; i++) {
         CLatencyManagerPerPortStl * lp = &m_ports[i];
         lp->m_io = cfg.m_ports[i];
@@ -93,7 +96,15 @@ void CRxCoreStateless::handle_cp_msg(TrexStatelessCpToRxMsgBase *msg) {
     delete msg;
 }
 
+void CRxCoreStateless::tickle() {
+    m_watchdog->tickle(m_watchdog_handle);
+}
+
 bool CRxCoreStateless::periodic_check_for_cp_messages() {
+
+    /* tickle the watchdog */
+    tickle();
+    
     /* fast path */
     if ( likely ( m_ring_from_cp->isEmpty() ) ) {
         return false;
@@ -140,10 +151,14 @@ void CRxCoreStateless::idle_state_loop() {
     }
 }
 
-void CRxCoreStateless::start() {
+void CRxCoreStateless::start(TrexWatchDog &watchdog) {
     int count = 0;
     int i = 0;
     bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
+
+    /* register a watchdog handle on current core */
+    m_watchdog        = &watchdog;
+    m_watchdog_handle = watchdog.register_monitor("STL RX CORE", 1);
 
     while (true) {
         if (m_state == STATE_WORKING) {

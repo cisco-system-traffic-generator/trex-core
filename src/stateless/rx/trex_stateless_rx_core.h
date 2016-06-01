@@ -147,7 +147,7 @@ class CRxCoreStateless {
     };
 
  public:
-    void start();
+    void start(TrexWatchDog &watchdog);
     void create(const CRxSlCfg &cfg);
     void reset_rx_stats(uint8_t port_id);
     int get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset
@@ -165,6 +165,7 @@ class CRxCoreStateless {
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
     bool periodic_check_for_cp_messages();
+    void tickle();
     void idle_state_loop();
     void handle_rx_pkt(CLatencyManagerPerPortStl * lp, rte_mbuf_t * m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
@@ -176,6 +177,10 @@ class CRxCoreStateless {
     uint16_t get_hw_id(uint16_t id);
 
  private:
+
+    TrexWatchDog   *m_watchdog;
+    int             m_watchdog_handle;
+
     uint32_t m_max_ports;
     bool m_has_streams;
     CLatencyManagerPerPortStl m_ports[TREX_MAX_PORTS];

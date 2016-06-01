@@ -897,7 +897,7 @@ TEST_F(basic, latency3) {
 
     EXPECT_EQ_UINT32(mg.is_active()?1:0, (uint32_t)0)<< "pass";
 
-    mg.start(8);
+    mg.start(8, NULL);
     mg.stop();
     mg.Dump(stdout);
     mg.DumpShort(stdout);
