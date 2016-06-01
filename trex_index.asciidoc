@@ -4,7 +4,7 @@ TRex Documentation
 :email: trex.tgen@gmail.com 
 :revnumber: 0.1
 :quotes.++:
-:web_server_url: http://trex-tgn.cisco.com/trex
+:web_server_url: https://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 :toclevels: 4
 
@@ -15,9 +15,9 @@ include::trex_ga.asciidoc[]
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
-| Stateful rather old    | 
-link:trex_preso.html[Old Stateful] 
-| Stateful DPDK summit    | 
+| Stateful    | 
+link:trex_preso.html[Stateful] 
+| Stateful DPDK    | 
 link:http://www.slideshare.net/harryvanhaaren/trex-traffig-gen-hanoch-haim[DPDK summit] 
 | New Stateless support     | 
 http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Stateless support] 
