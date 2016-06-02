@@ -31,7 +31,7 @@ link:trex_manual.html#_troubleshoot_common_problems_faq[FAQ]
 | Installation Guide     |  
 link:trex_manual.html#_download_and_installation[Installation] 
 | Release Notes     |  
-link:release_notes.html[release_notes.html] 
+link:release_notes.html[Release_notes.html] 
 | Stateful  Manual and Getting Started     |  
 link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf] 
 | Stateless Manual    | 
