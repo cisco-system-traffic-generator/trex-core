@@ -68,6 +68,10 @@ link:https://github.com/cisco-system-traffic-generator/trex-core[GitHub]
 link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 | Defect manager    | 
 link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
+| Release pkgs    | 
+link:../release/[pkgs]
+| Windows Stateful GUI    | 
+link:../client_gui/[stateful GUI]
 |=================
 
 == For Developers

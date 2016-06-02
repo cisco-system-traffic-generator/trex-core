@@ -8,7 +8,7 @@ TRex realistic traffic generator
 :deckjs_theme: swiss
 :deckjs_transition: horizontal-slide
 :scrollable:
-:web_server_url: http://trex-tgn.cisco.com/trex
+:web_server_url: https://trex-tgn.cisco.com/trex
 
 
 include::trex_ga.asciidoc[]
@@ -29,10 +29,10 @@ include::trex_ga.asciidoc[]
 
 ++++++++++++++++++
 <script type="text/javascript"
-  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
 </script>
 
-<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
 
 <script src="my_chart.js"></script>
 
