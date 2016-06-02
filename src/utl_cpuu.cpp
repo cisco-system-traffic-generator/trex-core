@@ -25,8 +25,8 @@ limitations under the License.
 
 void CCpuUtlCp::Create(CCpuUtlDp * cdp){
     m_dpcpu=cdp;
-    m_cpu_util.clear();
-    m_cpu_util.push_back(0.0); // here it's same as insert to front
+    memset(m_cpu_util, 0, sizeof(m_cpu_util));
+    m_history_latest_index = 0;
     m_cpu_util_lpf=0.0;
     m_ticks=0;
     m_work=0;
@@ -43,29 +43,35 @@ void CCpuUtlCp::Update(){
         m_work++;
     }
     if (m_ticks==100) {
-        double window_cpu_u = (double)m_work/m_ticks;
         /* LPF*/
-        m_cpu_util_lpf = (m_cpu_util_lpf*0.75)+(window_cpu_u*0.25);
-        m_cpu_util.insert(m_cpu_util.begin(), window_cpu_u);
-        if (m_cpu_util.size() > history_size)
-            m_cpu_util.pop_back();
+        m_cpu_util_lpf = (m_cpu_util_lpf*0.75)+((double)m_work*0.25);
+        AppendHistory(m_work);
         m_ticks=0;
         m_work=0;
-
     }
 }
 
 /* return cpu % Smoothed */
 double CCpuUtlCp::GetVal(){
-    return (m_cpu_util_lpf*100); // percentage
+    return (m_cpu_util_lpf);
 }
 
 /* return cpu % Raw */
-double CCpuUtlCp::GetValRaw(){
-    return (m_cpu_util.front()*100); // percentage
+uint8_t CCpuUtlCp::GetValRaw(){
+    return (m_cpu_util[m_history_latest_index]);
 }
 
-/* return cpu utilization history */
-std::vector<double> CCpuUtlCp::GetHistory(){
-    return (m_cpu_util);
+/* return cpu % utilization history */
+std::vector<uint8_t> CCpuUtlCp::GetHistory(){
+    std::vector<uint8_t> history_vect;
+    for (int i = m_history_latest_index + m_history_size; i > m_history_latest_index; i--) {
+        history_vect.insert(history_vect.begin(), m_cpu_util[i % m_history_size]);
+    }
+    return (history_vect);
+}
+
+/* save last CPU % util in history */
+void CCpuUtlCp::AppendHistory(uint8_t val){
+    m_history_latest_index = (m_history_latest_index + 1) % m_history_size;
+    m_cpu_util[m_history_latest_index] = val;
 }

@@ -88,8 +88,7 @@ class SingletonDaemon(object):
         ret_code, stdout, stderr = run_command('kill -9 %s' % pid) # unconditional kill
         if ret_code:
             raise Exception('Failed to run kill -9 command for %s: %s' % (self.name, [ret_code, stdout, stderr]))
-        poll_rate = 0.1
-        for i in range(inr(timeout / poll_rate)):
+        for i in range(int(timeout / poll_rate)):
             if not self.is_running():
                 return True
             sleep(poll_rate)
@@ -105,23 +104,23 @@ class SingletonDaemon(object):
             raise Exception('No starting command registered for %s' % self.name)
         if type(self.run_cmd) is types.FunctionType:
             self.run_cmd()
-            return
-        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-            proc = Popen(shlex.split('%s -p %s' % (self.run_cmd, self.port)), cwd = self.dir, close_fds = True,
-                         stdout = stdout_file, stderr = stderr_file)
-            if timeout > 0:
-                poll_rate = 0.1
-                for i in range(int(timeout/poll_rate)):
-                    sleep(poll_rate)
-                    if bool(proc.poll()): # process ended with error
-                        stdout_file.seek(0)
-                        stderr_file.seek(0)
-                        raise Exception('Run of %s ended unexpectfully: %s' % (self.name, [proc.returncode, stdout_file.read().decode(errors = 'replace'), stderr_file.read().decode(errors = 'replace')]))
-                    elif proc.poll() == 0: # process runs other process, and ended
-                        break
-            if self.is_running():
-                return True
-            raise Exception('%s failed to run.' % self.name)
+        else:
+            with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+                proc = Popen(shlex.split('%s -p %s' % (self.run_cmd, self.port)), cwd = self.dir, close_fds = True,
+                            stdout = stdout_file, stderr = stderr_file)
+                if timeout > 0:
+                    poll_rate = 0.1
+                    for i in range(int(timeout/poll_rate)):
+                        sleep(poll_rate)
+                        if bool(proc.poll()): # process ended with error
+                            stdout_file.seek(0)
+                            stderr_file.seek(0)
+                            raise Exception('Run of %s ended unexpectfully: %s' % (self.name, [proc.returncode, stdout_file.read().decode(errors = 'replace'), stderr_file.read().decode(errors = 'replace')]))
+                        elif proc.poll() == 0: # process runs other process, and ended
+                            break
+        if self.is_running():
+            return True
+        raise Exception('%s failed to run.' % self.name)
 
     # restart the daemon
     def restart(self, timeout = 5):

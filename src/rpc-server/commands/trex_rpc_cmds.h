@@ -67,7 +67,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcPublishNow,         "publish_now",          2, false,
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCmds,         "get_supported_cmds",   0, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetVersion,      "get_version",          0, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetActivePGIds,  "get_active_pgids",     0, false, APIClass::API_CLASS_TYPE_CORE);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCpuUtilFull,  "get_cpu_util_full",    0, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetUtilization,  "get_utilization",      0, false, APIClass::API_CLASS_TYPE_CORE);
 
 TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdGetSysInfo, "get_system_info", 0, false, APIClass::API_CLASS_TYPE_CORE, 
 

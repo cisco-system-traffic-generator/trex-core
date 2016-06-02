@@ -1149,13 +1149,10 @@ public:
 
     void dump_in_case_of_error(FILE *fd);
 
-    std::string dump_as_json(uint8_t id,bool last);
+    Json::Value dump_as_json();
 
 private:
-        std::string add_to_json(std::string name,
-                                rte_mempool_t * pool,
-                                bool last=false);
-
+    void add_to_json(Json::Value &json, std::string name, rte_mempool_t * pool);
 
 public:
     rte_mempool_t *   m_small_mbuf_pool; /* pool for start packets */
@@ -1249,7 +1246,8 @@ public:
     }
 
 
-    static std::string dump_pool_as_json(void);
+    static Json::Value dump_pool_as_json(void);
+    static std::string dump_pool_as_json_str(void);
 
 
 public:

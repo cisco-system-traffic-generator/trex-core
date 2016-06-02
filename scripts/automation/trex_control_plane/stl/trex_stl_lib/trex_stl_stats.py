@@ -11,7 +11,6 @@ import datetime
 import time
 import re
 import math
-import copy
 import threading
 import pprint
 
@@ -22,13 +21,16 @@ PORT_STATUS = 'ps'
 STREAMS_STATS = 's'
 LATENCY_STATS = 'ls'
 LATENCY_HISTOGRAM = 'lh'
+CPU_STATS = 'c'
+MBUF_STATS = 'm'
 
-ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH, LATENCY_HISTOGRAM]
+ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH, LATENCY_HISTOGRAM, CPU_STATS, MBUF_STATS]
 COMPACT = [GLOBAL_STATS, PORT_STATS]
 GRAPH_PORT_COMPACT = [GLOBAL_STATS, PORT_GRAPH]
 SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS] # stream stats
 LS_COMPAT = [GLOBAL_STATS, LATENCY_STATS] # latency stats
 LH_COMPAT = [GLOBAL_STATS, LATENCY_HISTOGRAM] # latency histogram
+UT_COMPAT = [GLOBAL_STATS, CPU_STATS, MBUF_STATS] # utilization
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
@@ -104,6 +106,13 @@ def calculate_diff_raw (samples):
 
     return total
 
+# used to sort '64b', '9kb' etc.
+def key_cmp_bytes(val):
+    multiplier = 1
+    if 'kb' in val:
+        multiplier = 1000
+    return multiplier * int(val.replace('k', '').replace('b', ''))
+
 # a simple object to keep a watch over a field
 class WatchedField(object):
 
@@ -138,11 +147,12 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, async_monitor):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, async_monitor):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
         self._rx_stats_ref = rx_stats_ref
         self._latency_stats_ref = latency_stats_ref
+        self._util_stats_ref = util_stats_ref
         self._async_monitor = async_monitor
 
     def generate_single_statistic(self, port_id_list, statistic_type):
@@ -166,6 +176,12 @@ class CTRexInfoGenerator(object):
 
         elif statistic_type == LATENCY_HISTOGRAM:
             return self._generate_latency_histogram()
+
+        elif statistic_type == CPU_STATS:
+            return self._generate_cpu_util_stats()
+
+        elif statistic_type == MBUF_STATS:
+            return self._generate_mbuf_util_stats()
 
         else:
             # ignore by returning empty object
@@ -403,6 +419,59 @@ class CTRexInfoGenerator(object):
         header = ["PG ID"] + [key for key in pg_ids]
         stats_table.header(header)
         return {"latency_histogram": ExportableStats(None, stats_table)}
+
+    def _generate_cpu_util_stats(self):
+        util_stats = self._util_stats_ref.get_stats()
+        if not util_stats or 'cpu' not in util_stats:
+            raise Exception("Excepting 'cpu' section in stats %s" % util_stats)
+        cpu_stats = util_stats['cpu']
+        hist_len = len(cpu_stats[0])
+        avg_len = min(5, hist_len)
+        show_len = min(15, hist_len)
+        stats_table = text_tables.TRexTextTable()
+        stats_table.header(['Thread', 'Avg', 'Latest'] + list(range(-1, 0 - show_len, -1)))
+        stats_table.set_cols_align(['l'] + ['r'] * (show_len + 1))
+        stats_table.set_cols_width([8, 3, 6] + [3] * (show_len - 1))
+        stats_table.set_cols_dtype(['t'] * (show_len + 2))
+        for i in range(min(14, len(cpu_stats))):
+            avg = int(round(sum(cpu_stats[i][:avg_len]) / avg_len))
+            stats_table.add_row([i, avg] + cpu_stats[i][:show_len])
+        return {'cpu_util(%)': ExportableStats(None, stats_table)}
+
+    def _generate_mbuf_util_stats(self):
+        util_stats = self._util_stats_ref.get_stats()
+        if not util_stats or 'mbuf_stats' not in util_stats:
+            raise Exception("Excepting 'mbuf_stats' section in stats %s" % util_stats)
+        mbuf_stats = util_stats['mbuf_stats']
+        for mbufs_per_socket in mbuf_stats.values():
+            first_socket_mbufs = mbufs_per_socket
+            break
+        if not self._util_stats_ref.mbuf_types_list:
+            mbuf_keys = list(first_socket_mbufs.keys())
+            mbuf_keys.sort(key = key_cmp_bytes)
+            self._util_stats_ref.mbuf_types_list = mbuf_keys
+        types_len = len(self._util_stats_ref.mbuf_types_list)
+        stats_table = text_tables.TRexTextTable()
+        stats_table.set_cols_align(['l'] + ['r'] * types_len)
+        stats_table.set_cols_width([10] + [7] * types_len)
+        stats_table.set_cols_dtype(['t'] * (types_len + 1))
+        stats_table.header([''] + self._util_stats_ref.mbuf_types_list)
+        total_list = []
+        for mbuf_type in self._util_stats_ref.mbuf_types_list:
+            total_list.append(first_socket_mbufs[mbuf_type][1])
+        stats_table.add_row(['Total:'] + total_list)
+        stats_table.add_row(['Used:'] + [''] * types_len)
+        for socket_name, mbufs in mbuf_stats.items():
+            socket_show_name = socket_name.replace('cpu-', '').replace('-', ' ').capitalize() + ':'
+            used_list = []
+            percentage_list = []
+            for mbuf_type in self._util_stats_ref.mbuf_types_list:
+                used = mbufs[mbuf_type][1] - mbufs[mbuf_type][0]
+                used_list.append(used)
+                percentage_list.append('%s%%' % int(100 * used / mbufs[mbuf_type][1]))
+            stats_table.add_row([socket_show_name] + used_list)
+            stats_table.add_row(['Percent:'] + percentage_list)
+        return {'mbuf_util': ExportableStats(None, stats_table)}
 
     @staticmethod
     def _get_rational_block_char(value, range_start, interval):
@@ -1280,7 +1349,23 @@ class CRxStats(CTRexStats):
 
         return stats
 
+class CUtilStats(CTRexStats):
 
+    def __init__(self, client):
+        super(CUtilStats, self).__init__()
+        self.client = client
+        self.history = deque(maxlen = 1)
+        self.mbuf_types_list = None
+
+    def get_stats(self, force = False):
+        time_now = time.time()
+        if self.last_update_ts + 1 < time_now or not self.history or force:
+            rc = self.client._transmit('get_utilization')
+            if not rc:
+                raise Exception(rc)
+            self.last_update_ts = time_now
+            self.history.append(rc.data())
+        return self.history[-1]
 
 if __name__ == "__main__":
     pass

@@ -23,6 +23,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include <vector>
+#include <cstring>
 #include "os_time.h"
 #include "mbuf.h"
 
@@ -57,15 +58,17 @@ public:
     void Update();
     /* return cpu % */
     double GetVal();
-    double GetValRaw();
-    std::vector<double> GetHistory();
+    uint8_t GetValRaw();
+    std::vector<uint8_t> GetHistory();
 private:
+    void AppendHistory(uint8_t);
     CCpuUtlDp *         m_dpcpu;
-    uint16_t            m_ticks;
-    uint16_t            m_work;
+    uint8_t             m_ticks;
+    uint8_t             m_work;
 
-    std::vector<double> m_cpu_util; // save history
-    const int           history_size=20;
+    static const int    m_history_size=20;
+    uint8_t             m_cpu_util[m_history_size]; // history as cyclic array
+    uint8_t             m_history_latest_index;
     double              m_cpu_util_lpf;
 };
 

@@ -2427,7 +2427,7 @@ public:
 public:
     void Dump(FILE *fd,DumpFormat mode);
     void DumpAllPorts(FILE *fd);
-    void dump_json(std::string & json, bool baseline,uint32_t stats_tick);
+    void dump_json(std::string & json, bool baseline);
 private:
     std::string get_field(std::string name,float &f);
     std::string get_field(std::string name,uint64_t &f);
@@ -2467,7 +2467,7 @@ std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
 }
 
 
-void CGlobalStats::dump_json(std::string & json, bool baseline,uint32_t stats_tick){
+void CGlobalStats::dump_json(std::string & json, bool baseline){
     /* refactor this to JSON */
 
     json="{\"name\":\"trex-global\",\"type\":0,";
@@ -2535,10 +2535,6 @@ void CGlobalStats::dump_json(std::string & json, bool baseline,uint32_t stats_ti
         json+=GET_FIELD_PORT(i,m_total_rx_pps);
     }
     json+=m_template.dump_as_json("template");
-    if ( stats_tick %4==0){
-        json+=CGlobalInfo::dump_pool_as_json(); /* no need a feq update beacuse it trash the cores D cache, once in 2 sec */
-    }
-
     json+="\"unknown\":0}}"  ;
 }
 
@@ -3776,7 +3772,7 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
         get_stats(m_stats);
     }
 
-    m_stats.dump_json(json, baseline,m_stats_cnt);
+    m_stats.dump_json(json, baseline);
     m_zmq_publisher.publish_json(json);
 
     /* generator json , all cores are the same just sample the first one */
@@ -3869,7 +3865,7 @@ CGlobalTRex::handle_slow_path(bool &was_stopped) {
     if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gMem) {
 
         if ( m_stats_cnt%4==0) {
-            fprintf (stdout," %s \n",CGlobalInfo::dump_pool_as_json().c_str());
+            fprintf (stdout," %s \n",CGlobalInfo::dump_pool_as_json_str().c_str());
         }
     }
 
@@ -5707,10 +5703,15 @@ int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
 }
 
 int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const {
-    for (int i=0; i<(int)g_trex.m_fl.m_threads_info.size(); i++) {
-        CFlowGenListPerThread * lp=g_trex.m_fl.m_threads_info[i];
+    for (int thread_id=0; thread_id<(int)g_trex.m_fl.m_threads_info.size(); thread_id++) {
+        CFlowGenListPerThread * lp=g_trex.m_fl.m_threads_info[thread_id];
         cpu_util_full.push_back(lp->m_cpu_cp_u.GetHistory());
     }
+    return 0;
+}
+
+int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
+    mbuf_pool = CGlobalInfo::dump_pool_as_json();
     return 0;
 }
 
