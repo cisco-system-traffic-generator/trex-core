@@ -52,12 +52,8 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
 
     obj.set_err_cntrs(m_seq_err, m_ooo, m_dup, m_seq_err_events_too_big, m_seq_err_events_too_low);
     obj.set_jitter(m_jitter.get_jitter());
-    json_str = "";
-    m_latency.dump_json("", json_str);
-    // This is a hack. We need to make the dump_json return json object.
-    reader.parse( json_str.c_str(), json);
+    m_latency.dump_json(json);
     obj.set_latency_json(json);
-    obj.set_last_max(m_last_max.getMax());
 };
 
 void CCPortLatencyStl::reset() {

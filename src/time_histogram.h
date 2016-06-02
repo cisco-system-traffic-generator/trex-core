@@ -24,11 +24,12 @@ limitations under the License.
 
 
 #include <stdint.h>
-#include "os_time.h"
 #include <stdio.h>
 #include <math.h>
-#include "mbuf.h"
 #include <string>
+#include <json/json.h>
+#include "mbuf.h"
+#include "os_time.h"
 
 class CTimeHistogramPerPeriodData {
  public:
@@ -85,6 +86,7 @@ public:
         return period_elem.get_max_usec();
     }
     void  dump_json(std::string name,std::string & json );
+    void dump_json(Json::Value & json, bool add_histogram = true);
     uint64_t get_count() {return m_total_cnt;}
     uint64_t get_high_count() {return m_total_cnt_high;}
 
