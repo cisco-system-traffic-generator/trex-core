@@ -88,8 +88,6 @@ link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 | Description  |    Name 
 | TRex community     | 
 link:https://groups.google.com/forum/#!forum/trex-tgn[Gmail TRex Forum] 
-| How to build    | 
-link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 | Report a defect  | 
 link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 |=================
