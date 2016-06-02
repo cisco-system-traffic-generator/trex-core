@@ -23,6 +23,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.03  ==
+
+* More accurate stateless latency/more TUI support
+* Speedup DPDK XL710 fdir driver
+
+=== fix issues: ===
+
+* Disconnect issue link:http://trex-tgn.cisco.com/youtrack/issue/trex-210[trex-210]
+
+
 == Release 2.02  ==
 
 * The python latency statistic is compatible to JSON for easy manipulation 
