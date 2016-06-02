@@ -9,11 +9,11 @@ class STLS1(object):
     def get_streams (self, direction = 0, **kwargs):
         return [STLStream(packet = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_64B_no_crc.pcap")), # path relative to pwd 
                           mode = STLTXCont(pps=1000),
-                          flow_stats = STLFlowLatencyStats(pg_id = 7)),
+                          flow_stats = STLFlowLatencyStats(pg_id = 1 + kwargs['port_id'])),
 
                 STLStream(packet = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_594B_no_crc.pcap")), # path relative to pwd 
                           mode = STLTXCont(pps=5000),
-                          flow_stats = STLFlowLatencyStats(pg_id = 12))
+                          flow_stats = STLFlowLatencyStats(pg_id = 50 + kwargs['port_id']))
                ]
 
 
