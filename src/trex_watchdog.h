@@ -75,6 +75,13 @@ public:
 
 
     /**
+     * disable a monitor - it will no longer be watched
+     * 
+     */
+    void disable_monitor(int handle);
+
+
+    /**
      * should be called by each thread on it's handle
      * 
      * @author imarom (31-May-16)
@@ -101,6 +108,7 @@ public:
     /* should be cache aligned to avoid false sharing */
     struct monitor_st {
         /* write fields are first */
+        volatile bool   active;
         volatile bool   tickled;
         dsec_t          ts;
 
@@ -110,7 +118,7 @@ public:
         std::string     name;
 
         /* for for a full cacheline */
-        uint8_t       pad[16];
+        uint8_t       pad[15];
     };
 
 

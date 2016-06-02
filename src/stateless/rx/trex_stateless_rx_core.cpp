@@ -182,6 +182,8 @@ void CRxCoreStateless::start(TrexWatchDog &watchdog) {
         count += try_rx();
     }
     rte_pause();
+
+    m_watchdog->disable_monitor(m_watchdog_handle);
 }
 
 void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *m) {

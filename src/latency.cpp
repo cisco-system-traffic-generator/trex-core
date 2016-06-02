@@ -811,6 +811,11 @@ void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
         m_rx_check_manager.tw_drain();
     }
 
+    /* disable the monitor */
+    if (m_watchdog) {
+        m_watchdog->disable_monitor(m_watchdog_handle);
+    }
+
 }
 
 void  CLatencyManager::stop(){

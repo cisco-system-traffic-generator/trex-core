@@ -36,6 +36,8 @@ limitations under the License.
 #include <iostream>
 #include  <stdexcept>
 
+#define DISABLE_WATCHDOG_ON_GDB
+
 static TrexWatchDog::monitor_st *global_monitor;
 
 const char *get_exe_name();
@@ -166,6 +168,7 @@ int TrexWatchDog::register_monitor(const std::string &name, double timeout_sec) 
     /* cannot add monitors while active */
     assert(m_active == false);
 
+    monitor.active       = true;   
     monitor.tid          = pthread_self();
     monitor.name         = name;
     monitor.timeout_sec  = timeout_sec;
@@ -197,15 +200,20 @@ int TrexWatchDog::register_monitor(const std::string &name, double timeout_sec) 
 }
 
 /**
+ * will disable the monitor - it will no longer be watched
+ * 
+ */
+void TrexWatchDog::disable_monitor(int handle) {
+    assert(handle < m_monitors.size());
+
+    m_monitors[handle].active = false;
+}
+
+/**
  * thread safe function
  * 
  */
 void TrexWatchDog::tickle(int handle) {
-
-    /* ignore ticks if not active */
-    if (!m_active) {
-        return;
-    }
 
     assert(handle < m_monitors.size());
 
@@ -245,13 +253,13 @@ void TrexWatchDog::start() {
     assert(m_pending == 0);
 
     /* under GDB - disable the watchdog */
+    #ifdef DISABLE_WATCHDOG_ON_GDB
     if (ptrace(PTRACE_TRACEME, 0, NULL, 0) == -1) {
         printf("\n\n*** GDB detected - disabling watchdog... ***\n\n");
         return;
     }
+    #endif
 
-    register_signal();
-   
     m_active = true;
     m_thread = new std::thread(&TrexWatchDog::_main, this);
     if (!m_thread) {
@@ -267,8 +275,6 @@ void TrexWatchDog::stop() {
         delete m_thread;
         m_thread = NULL;
     }
-
-    m_monitors.clear();
 }
 
 
@@ -290,6 +296,12 @@ void TrexWatchDog::_main() {
         dsec_t now = now_sec();
 
         for (auto &monitor : m_monitors) {
+
+            /* skip non active monitors */
+            if (!monitor.active) {
+                continue;
+            }
+
             /* if its own - turn it off and write down the time */
             if (monitor.tickled) {
                 monitor.tickled = false;

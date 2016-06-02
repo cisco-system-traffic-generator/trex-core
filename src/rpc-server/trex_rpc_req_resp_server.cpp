@@ -100,6 +100,9 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
 
     /* must be done from the same thread */
     zmq_close(m_socket);
+
+    /* done */
+    m_watchdog->disable_monitor(m_watchdog_handle);
 }
 
 bool

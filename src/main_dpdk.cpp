@@ -4074,6 +4074,9 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
         lpt->start_generate_stateful(CGlobalInfo::m_options.out_file,*lp);
     }
 
+    /* done - remove this from the watchdog (we might wait on join for a long time) */
+    lpt->m_watchdog->disable_monitor(lpt->m_watchdog_handle);
+
     m_signal[virt_core_id]=1;
     return (0);
 }
