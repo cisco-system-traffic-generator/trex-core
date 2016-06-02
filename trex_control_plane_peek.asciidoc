@@ -1,5 +1,5 @@
-TRex Control Plane Design - Phase 1 peek
-=========================================
+TRex Stateful Python API Tutorial 
+=================================
 :author: Dan Klein 
 :email: <danklei@cisco.com> 
 :revnumber: 1.0

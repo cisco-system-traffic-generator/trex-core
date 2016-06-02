@@ -1,8 +1,5 @@
 TRex Documentation
 ==================
-:author: TRex dev team
-:email: trex.tgen@gmail.com 
-:revnumber: 0.1
 :quotes.++:
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
@@ -15,11 +12,11 @@ include::trex_ga.asciidoc[]
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
-| Stateful rather old    | 
-link:trex_preso.html[Old Stateful] 
-| Stateful DPDK summit    | 
+| Stateful     | 
+link:trex_preso.html[Stateful] 
+| Stateful   | 
 link:http://www.slideshare.net/harryvanhaaren/trex-traffig-gen-hanoch-haim[DPDK summit] 
-| New Stateless support     | 
+| *New* Stateless support     | 
 http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Stateless support] 
 |=================
 
@@ -29,8 +26,10 @@ http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
-| Index     |  
-link:index.html[index.html] 
+| FAQ     |  
+link:trex_manual.html#_troubleshoot_common_problems_faq[FAQ] 
+| Installation Guide     |  
+link:trex_manual.html#_download_and_installation[Installation] 
 | Release Notes     |  
 link:release_notes.html[release_notes.html] 
 | Stateful  Manual and Getting Started     |  
@@ -53,7 +52,9 @@ link:cp_stl_docs/index.html[stateless_sdk]
 | Stateful  Python automation API    | 
 link:cp_docs/index.html[statelful_sdk] 
 | Stateful API tutorial              | 
-link:trex_control_plane_peek.html[Peek]
+link:trex_control_plane_peek.html[Stateful API]
+| Stateless API tutorial              | 
+See Stateless Manual
 |=================
 
 == Miscellaneous 
@@ -64,8 +65,6 @@ link:trex_control_plane_peek.html[Peek]
 | GitHub    | 
 link:https://github.com/cisco-system-traffic-generator/trex-core[GitHub]
 | Wiki    | 
-link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
-| How to build    | 
 link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 | Defect manager    | 
 link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
@@ -78,5 +77,20 @@ link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 | Description  |    Name 
 | Stateless server RPC specification    | 
 link:trex_rpc_server_spec.html[server.html] 
+| How to build    | 
+link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
+|=================
+
+== Support 
+
+[options="header",cols="<4,a"]
+|=================
+| Description  |    Name 
+| TRex community     | 
+link:https://groups.google.com/forum/#!forum/trex-tgn[Gmail TRex Forum] 
+| How to build    | 
+link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
+| Report a defect  | 
+link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 |=================
 
