@@ -38,8 +38,8 @@ link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf]
 link:trex_stateless.html[trex_stateless.html] link:trex_stateless.pdf[trex_stateless.pdf]
 | Tutorial TRex on VirtualBox    | 
 link:trex_vm_manual.html[trex_vm_manual.html] link:trex_vm_manual.pdf[trex_vm_manual.pdf]
-| Cisco DevNet SandBox   | 
-link:https://devnetsandbox.cisco.com/RM/Diagram/Index/2ec5952d-8bc5-4096-b327-c294acd9512d?diagramType=Topology[Sandbox] https://devnetsandbox.cisco.com/RM/Topology[DevNet Sandbox]
+| Cisco Devnet SandBox   | 
+link:https://devnetsandbox.cisco.com/RM/Diagram/Index/2ec5952d-8bc5-4096-b327-c294acd9512d?diagramType=Topology[Sandbox] link:https://developer.cisco.com/site/trex/[Devnet site& sandbox] 
 |=================
 
 == Python Automation API 
@@ -94,5 +94,7 @@ link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 link:https://groups.google.com/forum/#!forum/trex-tgn[Gmail TRex Forum] 
 | Report a defect  | 
 link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
+| Cisco TRex Devnet community   | 
+link:https://communities.cisco.com/community/developer/trex[Jive]
 |=================
 
