@@ -22,8 +22,8 @@ limitations under the License.
 */
 
 #include <stdint.h>
-#include <vector>
 #include <cstring>
+#include "trex_defs.h"
 #include "os_time.h"
 #include "mbuf.h"
 
@@ -59,7 +59,7 @@ public:
     /* return cpu % */
     double GetVal();
     uint8_t GetValRaw();
-    std::vector<uint8_t> GetHistory();
+    void GetHistory(cpu_vct_t &cpu_vct);
 private:
     void AppendHistory(uint8_t);
     CCpuUtlDp *         m_dpcpu;

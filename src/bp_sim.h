@@ -1149,7 +1149,7 @@ public:
 
     void dump_in_case_of_error(FILE *fd);
 
-    Json::Value dump_as_json();
+    void dump_as_json(Json::Value &json);
 
 private:
     void add_to_json(Json::Value &json, std::string name, rte_mempool_t * pool);
@@ -1246,7 +1246,7 @@ public:
     }
 
 
-    static Json::Value dump_pool_as_json(void);
+    static void dump_pool_as_json(Json::Value &json);
     static std::string dump_pool_as_json_str(void);
 
 

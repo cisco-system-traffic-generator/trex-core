@@ -61,13 +61,12 @@ uint8_t CCpuUtlCp::GetValRaw(){
     return (m_cpu_util[m_history_latest_index]);
 }
 
-/* return cpu % utilization history */
-std::vector<uint8_t> CCpuUtlCp::GetHistory(){
-    std::vector<uint8_t> history_vect;
+/* get cpu % utilization history */
+void CCpuUtlCp::GetHistory(cpu_vct_t &cpu_vct){
+    cpu_vct.clear();
     for (int i = m_history_latest_index + m_history_size; i > m_history_latest_index; i--) {
-        history_vect.insert(history_vect.begin(), m_cpu_util[i % m_history_size]);
+        cpu_vct.push_back(m_cpu_util[i % m_history_size]);
     }
-    return (history_vect);
 }
 
 /* save last CPU % util in history */
