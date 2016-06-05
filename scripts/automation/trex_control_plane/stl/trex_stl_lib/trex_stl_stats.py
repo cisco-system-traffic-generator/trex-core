@@ -421,7 +421,7 @@ class CTRexInfoGenerator(object):
         return {"latency_histogram": ExportableStats(None, stats_table)}
 
     def _generate_cpu_util_stats(self):
-        util_stats = self._util_stats_ref.get_stats()
+        util_stats = self._util_stats_ref.get_stats(use_1sec_cache = True)
         if not util_stats or 'cpu' not in util_stats:
             raise Exception("Excepting 'cpu' section in stats %s" % util_stats)
         cpu_stats = util_stats['cpu']
@@ -439,7 +439,7 @@ class CTRexInfoGenerator(object):
         return {'cpu_util(%)': ExportableStats(None, stats_table)}
 
     def _generate_mbuf_util_stats(self):
-        util_stats = self._util_stats_ref.get_stats()
+        util_stats = self._util_stats_ref.get_stats(use_1sec_cache = True)
         if not util_stats or 'mbuf_stats' not in util_stats:
             raise Exception("Excepting 'mbuf_stats' section in stats %s" % util_stats)
         mbuf_stats = util_stats['mbuf_stats']
@@ -1358,9 +1358,9 @@ class CUtilStats(CTRexStats):
         self.history = deque(maxlen = 1)
         self.mbuf_types_list = None
 
-    def get_stats(self, force = False):
+    def get_stats(self, use_1sec_cache = False):
         time_now = time.time()
-        if self.last_update_ts + 1 < time_now or not self.history or force:
+        if self.last_update_ts + 1 < time_now or not self.history or not use_1sec_cache:
             rc = self.client._transmit('get_utilization')
             if not rc:
                 raise Exception(rc)
