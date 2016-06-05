@@ -164,15 +164,17 @@ TrexRpcCmdGetUtilization::_run(const Json::Value &params, Json::Value &result) {
 
     Json::Value &section = result["result"];
 
-    if (get_stateless_obj()->get_platform_api()->get_mbuf_util(section) != 0)
+    if (get_stateless_obj()->get_platform_api()->get_mbuf_util(section) != 0) {
         return TREX_RPC_CMD_INTERNAL_ERR;
+    }
 
-    if (get_stateless_obj()->get_platform_api()->get_cpu_util_full(cpu_util_full) != 0)
+    if (get_stateless_obj()->get_platform_api()->get_cpu_util_full(cpu_util_full) != 0) {
         return TREX_RPC_CMD_INTERNAL_ERR;
+    }
 
     for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
         for (int history_id = 0; history_id < cpu_util_full[thread_id].size(); history_id++) {
-            section["cpu"][thread_id].append(cpu_util_full.at(thread_id).at(history_id));
+            section["cpu"][thread_id].append(cpu_util_full[thread_id][history_id]);
         }
     }
     return (TREX_RPC_CMD_OK);
