@@ -73,6 +73,7 @@ extern "C" {
 #include "debug.h"
 #include "internal_api/trex_platform_api.h"
 #include "main_dpdk.h"
+#include "trex_watchdog.h"
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -80,7 +81,6 @@ extern "C" {
 
 #define SOCKET0         0
 
-#define BP_MAX_PKT      32
 #define MAX_PKT_BURST   32
 
 #define BP_MAX_CORES 32
@@ -1698,7 +1698,8 @@ public:
         }
         m_port=0;
     }
-    uint16_t                m_tx_queue_id;
+    uint8_t                 m_tx_queue_id;
+    uint8_t                 m_tx_queue_id_lat; // q id for tx of latency pkts
     uint16_t                m_len;
     rte_mbuf_t *            m_table[MAX_PKT_BURST];
     CPhyEthIF  *            m_port;
@@ -1710,6 +1711,10 @@ public:
 
 /* per core/gbe queue port for trasmitt */
 class CCoreEthIF : public CVirtualIF {
+public:
+    enum {
+     INVALID_Q_ID = 255
+    };
 
 public:
 
@@ -1717,13 +1722,12 @@ public:
         m_mbuf_cache=0;
     }
 
-public:
     bool Create(uint8_t             core_id,
-                uint16_t            tx_client_queue_id,
+                uint8_t            tx_client_queue_id,
                 CPhyEthIF  *        tx_client_port,
-
-                uint16_t            tx_server_queue_id,
-                CPhyEthIF  *        tx_server_port);
+                uint8_t            tx_server_queue_id,
+                CPhyEthIF  *        tx_server_port,
+                uint8_t             tx_q_id_lat);
     void Delete();
 
     virtual int open_file(std::string file_name){
@@ -1749,8 +1753,6 @@ public:
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p);
 
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
-
-public:
     void GetCoreCounters(CVirtualIFPerSideStats *stats);
     void DumpCoreStats(FILE *fd);
     void DumpIfStats(FILE *fd);
@@ -1773,8 +1775,9 @@ protected:
     int send_pkt(CCorePerPort * lp_port,
                  rte_mbuf_t *m,
                  CVirtualIFPerSideStats  * lp_stats);
-
-
+    int send_pkt_lat(CCorePerPort * lp_port,
+                 rte_mbuf_t *m,
+                 CVirtualIFPerSideStats  * lp_stats);
 
 protected:
     uint8_t      m_core_id;
@@ -1795,16 +1798,17 @@ protected:
 };
 
 bool CCoreEthIF::Create(uint8_t             core_id,
-                        uint16_t            tx_client_queue_id,
+                        uint8_t             tx_client_queue_id,
                         CPhyEthIF  *        tx_client_port,
-
-                        uint16_t            tx_server_queue_id,
-                        CPhyEthIF  *        tx_server_port){
+                        uint8_t             tx_server_queue_id,
+                        CPhyEthIF  *        tx_server_port,
+                        uint8_t tx_q_id_lat ) {
     m_ports[CLIENT_SIDE].m_tx_queue_id = tx_client_queue_id;
     m_ports[CLIENT_SIDE].m_port        = tx_client_port;
-
+    m_ports[CLIENT_SIDE].m_tx_queue_id_lat = tx_q_id_lat;
     m_ports[SERVER_SIDE].m_tx_queue_id = tx_server_queue_id;
     m_ports[SERVER_SIDE].m_port        = tx_server_port;
+    m_ports[SERVER_SIDE].m_tx_queue_id_lat = tx_q_id_lat;
     m_core_id = core_id;
 
     CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
@@ -1892,16 +1896,17 @@ void CCoreEthIF::DumpCoreStats(FILE *fd){
 }
 
 void CCoreEthIF::DumpIfCfgHeader(FILE *fd){
-    fprintf (fd," core ,  c-port, c-queue , s-port, s-queue \n");
+    fprintf (fd," core, c-port, c-queue, s-port, s-queue, lat-queue\n");
     fprintf (fd," ------------------------------------------\n");
 }
 
 void CCoreEthIF::DumpIfCfg(FILE *fd){
-    fprintf (fd," %d,   %u , %u , %u , %u  \n",m_core_id,
+    fprintf (fd," %d   %6u %6u  %6u  %6u %6u  \n",m_core_id,
              m_ports[CLIENT_SIDE].m_port->get_port_id(),
              m_ports[CLIENT_SIDE].m_tx_queue_id,
              m_ports[SERVER_SIDE].m_port->get_port_id(),
-             m_ports[SERVER_SIDE].m_tx_queue_id
+             m_ports[SERVER_SIDE].m_tx_queue_id,
+             m_ports[SERVER_SIDE].m_tx_queue_id_lat
              );
 }
 
@@ -1933,17 +1938,14 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
 #ifdef DELAY_IF_NEEDED
     while ( unlikely( ret<len ) ){
         rte_delay_us(1);
-        //rte_pause();
-        //rte_pause();
         lp_stats->m_tx_queue_full += 1;
         uint16_t ret1=lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,
                                                 &lp_port->m_table[ret],
                                                 len-ret);
         ret+=ret1;
     }
-#endif
-
-    /* CPU has burst of packets , more that TX can send need to drop them !!*/
+#else
+    /* CPU has burst of packets larger than TX can send. Need to drop packets */
     if ( unlikely(ret < len) ) {
         lp_stats->m_tx_drop += (len-ret);
         uint16_t i;
@@ -1952,6 +1954,7 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
             rte_pktmbuf_free(m);
         }
     }
+#endif
 
     return (0);
 }
@@ -1975,7 +1978,20 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     return (0);
 }
 
+int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPerSideStats *lp_stats) {
+    // We allow sending only from first core of each port. This is serious internal bug otherwise.
+    assert(lp_port->m_tx_queue_id_lat != INVALID_Q_ID);
 
+    int ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+
+    while ( unlikely( ret != 1 ) ){
+        rte_delay_us(1);
+        lp_stats->m_tx_queue_full += 1;
+        ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+    }
+
+    return ret;
+}
 
 void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
                               rte_mbuf_t      *m){
@@ -2021,7 +2037,6 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     struct flow_stat_payload_header *fsp_head = NULL;
 
     if (hw_id >= MAX_FLOW_STATS) {
-        flush_tx_queue();
         // payload rule hw_ids are in the range right above ip id rules
         uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
         if (hw_id_payload > max_stat_hw_id_seen_payload) {
@@ -2055,8 +2070,7 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
 
     if (hw_id >= MAX_FLOW_STATS) {
         fsp_head->time_stamp = os_get_hr_tick_64();
-        send_pkt(lp_port, mi, lp_stats);
-        flush_tx_queue();
+        send_pkt_lat(lp_port, mi, lp_stats);
     } else {
         send_pkt(lp_port, mi, lp_stats);
     }
@@ -2093,7 +2107,8 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
     }
 
     if (unlikely(node_sl->is_stat_needed())) {
-        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf() || node_sl->is_cache_mbuf_array())? true:false);
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats,
+                                   (node_sl->get_cache_mbuf() || node_sl->is_cache_mbuf_array())? true:false);
     } else {
         send_pkt(lp_port,m,lp_stats);
     }
@@ -2118,7 +2133,7 @@ int CCoreEthIFStateless::send_pcap_node(CGenNodePCAP *pcap_node) {
 
 /**
  * slow path code goes here
- * 
+ *
  */
 int CCoreEthIFStateless::handle_slow_path_node(CGenNode * no) {
 
@@ -2829,6 +2844,7 @@ private:
     std::mutex          m_cp_lock;
 
 public:
+    TrexWatchDog         m_watchdog;
     TrexStateless       *m_trex_stateless;
 
 };
@@ -3162,6 +3178,13 @@ int  CGlobalTRex::ixgbe_start(void){
 
     */
     int port_offset=0;
+    uint8_t lat_q_id;
+
+    if ( get_vm_one_queue_enable() ) {
+        lat_q_id = 0;
+    } else {
+        lat_q_id = get_cores_tx() / get_base_num_cores();
+    }
     for (i=0; i<get_cores_tx(); i++) {
         int j=(i+1);
         int queue_id=((j-1)/get_base_num_cores() );   /* for the first min core queue 0 , then queue 1 etc */
@@ -3174,11 +3197,13 @@ int  CGlobalTRex::ixgbe_start(void){
                                queue_id,
                                &m_ports[port_offset], /* 0,2*/
                                queue_id,
-                               &m_ports[port_offset+1] /*1,3*/
-                               );
+                               &m_ports[port_offset+1], /*1,3*/
+                               lat_q_id);
         port_offset+=2;
         if (port_offset == m_max_ports) {
             port_offset = 0;
+            // We want to allow sending latency packets only from first core handling a port
+            lat_q_id = CCoreEthIF::INVALID_Q_ID;
         }
     }
 
@@ -3247,14 +3272,16 @@ bool CGlobalTRex::Create(){
 
         TrexStatelessCfg cfg;
 
-        TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
+        TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP,
+                                             global_platform_cfg_info.m_zmq_rpc_port,
+                                             &m_cp_lock,
+                                             &m_watchdog);
 
         cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
         cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
         cfg.m_rpc_server_verbose = false;
         cfg.m_platform_api       = new TrexDpdkPlatformApi();
         cfg.m_publisher          = &m_zmq_publisher;
-        cfg.m_global_lock        = &m_cp_lock;
 
         m_trex_stateless = new TrexStateless(cfg);
     }
@@ -3922,7 +3949,7 @@ CGlobalTRex::handle_fast_path() {
     check_for_dp_messages();
     // update CPU%
     m_fl.UpdateFast();
-    
+
     if (get_is_stateless()) {
         m_rx_sl.update_cpu_util();
     }else{
@@ -3932,7 +3959,7 @@ CGlobalTRex::handle_fast_path() {
     if ( is_all_cores_finished() ) {
         return false;
     }
-   
+
     return true;
 }
 
@@ -3951,6 +3978,9 @@ int CGlobalTRex::run_in_master() {
     const int FASTPATH_DELAY_MS = 10;
     const int SLOWPATH_DELAY_MS = 500;
 
+    int handle = m_watchdog.register_monitor("master", 2);
+    m_watchdog.start();
+
     while ( true ) {
 
         /* fast path */
@@ -3965,12 +3995,14 @@ int CGlobalTRex::run_in_master() {
             }
             slow_path_counter = 0;
         }
-        
-       
+
+
         cp_lock.unlock();
         delay(FASTPATH_DELAY_MS);
         slow_path_counter += FASTPATH_DELAY_MS;
         cp_lock.lock();
+
+        m_watchdog.tickle(handle);
     }
 
     /* on exit release the lock */
@@ -3982,6 +4014,9 @@ int CGlobalTRex::run_in_master() {
     }
 
     m_mg.stop();
+
+    m_watchdog.stop();
+
     delay(1000);
     if ( was_stopped ){
         /* we should stop latency and exit to stop agents */
@@ -3993,14 +4028,15 @@ int CGlobalTRex::run_in_master() {
 
 
 int CGlobalTRex::run_in_rx_core(void){
+
     if (get_is_stateless()) {
         m_sl_rx_running = true;
-        m_rx_sl.start();
+        m_rx_sl.start(m_watchdog);
         m_sl_rx_running = false;
     } else {
         if ( CGlobalInfo::m_options.is_rx_enabled() ){
             m_sl_rx_running = false;
-            m_mg.start(0);
+            m_mg.start(0, &m_watchdog);
         }
     }
 
@@ -4008,6 +4044,8 @@ int CGlobalTRex::run_in_rx_core(void){
 }
 
 int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
+    std::stringstream ss;
+    ss << "DP core " << int(virt_core_id);
 
     CPreviewMode *lp=&CGlobalInfo::m_options.preview;
     if ( lp->getSingleCore() &&
@@ -4021,13 +4059,22 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
 
     assert(m_fl_was_init);
     CFlowGenListPerThread   * lpt;
+
     lpt = m_fl.m_threads_info[virt_core_id-1];
+
+    /* register a watchdog handle on current core */
+    lpt->m_watchdog        = &m_watchdog;
+    lpt->m_watchdog_handle = m_watchdog.register_monitor(ss.str(), 1);
+
 
     if (get_is_stateless()) {
         lpt->start_stateless_daemon(*lp);
     }else{
         lpt->start_generate_stateful(CGlobalInfo::m_options.out_file,*lp);
     }
+
+    /* done - remove this from the watchdog (we might wait on join for a long time) */
+    lpt->m_watchdog->disable_monitor(lpt->m_watchdog_handle);
 
     m_signal[virt_core_id]=1;
     return (0);
@@ -4280,6 +4327,16 @@ bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
         // In stateless RX, we only care about flow stat packets
         if ((parser.getIpId() & 0xff00) == IP_ID_RESERVE_BASE) {
             send = true;
+            if (parser.getIpId() == FLOW_STAT_PAYLOAD_IP_ID) {
+                // e1000 on ESXI appends 4 bytes to the packet.
+                // This is a best effort hack to get our latency info which we put at the end of the packet
+                uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
+                struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
+                    (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
+                if (fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC) {
+                    rte_pktmbuf_trim(m, 4);
+                }
+            }
         }
     } else {
         CLatencyPktMode *c_l_pkt_mode = g_trex.m_mg.c_l_pkt_mode;
@@ -4388,9 +4445,14 @@ uint32_t get_cores_mask(uint32_t cores,int offset){
 }
 
 
+static char *g_exe_name;
+const char *get_exe_name() {
+    return g_exe_name;
+}
 
 
 int main(int argc , char * argv[]){
+    g_exe_name = argv[0];
 
     return ( main_test(argc , argv));
 }
@@ -4699,12 +4761,16 @@ int main_test(int argc , char * argv[]){
         uint32_t pkts = CGlobalInfo::m_options.m_latency_prev *
             CGlobalInfo::m_options.m_latency_rate;
         printf("Starting pre latency check for %d sec\n",CGlobalInfo::m_options.m_latency_prev);
-        g_trex.m_mg.start(pkts);
+        g_trex.m_mg.start(pkts, NULL);
         delay(CGlobalInfo::m_options.m_latency_prev* 1000);
         printf("Finished \n");
         g_trex.m_mg.reset();
         g_trex.reset_counters();
     }
+
+    /* this will give us all cores - master + tx + latency */
+    g_trex.m_watchdog.mark_pending_monitor(g_trex.m_max_cores);
+
 
     g_trex.m_sl_rx_running = false;
     if ( get_is_stateless() ) {

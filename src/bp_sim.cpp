@@ -24,6 +24,8 @@ limitations under the License.
 #include "utl_json.h"
 #include "utl_yaml.h"
 #include "msg_manager.h"
+#include "trex_watchdog.h"
+
 #include <common/basic_utils.h>
 
 #include <trex_stream_node.h>
@@ -3299,6 +3301,9 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_max_threads=max_threads;
     m_thread_id=thread_id;
 
+    m_watchdog        = NULL;
+    m_watchdog_handle = -1;
+
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
     uint32_t socket_id=rte_lcore_to_socket_id(m_core_id);
@@ -3874,6 +3879,10 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
 }
 
 void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
+
+    /* tickle the watchdog */
+    thread->tickle();
+
     /* flow sync message is a sync point for time */
     thread->m_cur_time_sec = node->m_time;
 

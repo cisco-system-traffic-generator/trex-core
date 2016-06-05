@@ -24,11 +24,12 @@ limitations under the License.
 
 
 #include <stdint.h>
-#include "os_time.h"
 #include <stdio.h>
 #include <math.h>
-#include "mbuf.h"
 #include <string>
+#include <json/json.h>
+#include "mbuf.h"
+#include "os_time.h"
 
 class CTimeHistogramPerPeriodData {
  public:
@@ -85,6 +86,9 @@ public:
         return period_elem.get_max_usec();
     }
     void  dump_json(std::string name,std::string & json );
+    void dump_json(Json::Value & json, bool add_histogram = true);
+    uint64_t get_count() {return m_total_cnt;}
+    uint64_t get_high_count() {return m_total_cnt_high;}
 
 private:
     uint32_t get_usec(dsec_t d);
@@ -103,6 +107,8 @@ private:
     // Each period we switch between the two
     CTimeHistogramPerPeriodData m_period_data[2];
     uint8_t m_period; // 0 or 1 according to m_period_data element we currently use
+    uint64_t m_total_cnt;
+    uint64_t m_total_cnt_high;
     dsec_t   m_max_dt;  // Total maximum latency
     dsec_t   m_average; /* moving average */
     uint32_t m_win_cnt;

@@ -1089,19 +1089,20 @@ class CLatencyStats(CTRexStats):
             output[int_pg_id]['err_cntrs'] = current_pg['err_cntrs']
             output[int_pg_id]['latency'] = {}
 
-            output[int_pg_id]['latency']['last_max'] = current_pg['latency']['last_max']
-            output[int_pg_id]['latency']['jitter'] = current_pg['latency']['jitter']
-            if current_pg['latency']['h'] != "":
-                output[int_pg_id]['latency']['average'] = current_pg['latency']['h']['s_avg']
-                output[int_pg_id]['latency']['total_max'] = current_pg['latency']['h']['max_usec']
-                output[int_pg_id]['latency']['histogram'] = {elem['key']: elem['val']
-                                                             for elem in current_pg['latency']['h']['histogram']}
-                zero_count = current_pg['latency']['h']['cnt'] - current_pg['latency']['h']['high_cnt']
-                if zero_count != 0:
-                    output[int_pg_id]['latency']['total_min'] = 1
-                    output[int_pg_id]['latency']['histogram'][0] = zero_count
-                elif output[int_pg_id]['latency']['histogram']:
-                    output[int_pg_id]['latency']['total_min'] = min(output[int_pg_id]['latency']['histogram'].keys())
+            if 'latency' in current_pg:
+                for field in ['jitter', 'average', 'total_max', 'last_max']:
+                    if field in current_pg['latency']:
+                        output[int_pg_id]['latency'][field] = current_pg['latency'][field]
+                    else:
+                        output[int_pg_id]['latency'][field] = StatNotAvailable(field)
+
+                if 'histogram' in current_pg['latency']:
+                    output[int_pg_id]['latency']['histogram'] = {int(elem): current_pg['latency']['histogram'][elem]
+                                                                 for elem in current_pg['latency']['histogram']}
+                    min_val = min(output[int_pg_id]['latency']['histogram'].keys())
+                    if min_val == 0:
+                        min_val = 2
+                    output[int_pg_id]['latency']['total_min'] = min_val
                 else:
                     output[int_pg_id]['latency']['total_min'] = StatNotAvailable('total_min')
 

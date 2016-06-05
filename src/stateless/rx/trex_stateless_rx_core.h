@@ -28,55 +28,6 @@
 
 class TrexStatelessCpToRxMsgBase;
 
-class CLastMax {
- public:
-    CLastMax() {
-        m_max1 = 0;
-        m_max1 = 1;
-        m_choose = true;
-    }
-
-    void update(dsec_t val) {
-        if (m_choose) {
-            if (val > m_max1) {
-                m_max1 = val;
-                sanb_smp_memory_barrier();
-            }
-        } else {
-            if (val > m_max2) {
-                m_max2 = val;
-                sanb_smp_memory_barrier();
-            }
-        }
-    }
-
-    dsec_t getMax() {
-        if (m_choose)
-            return m_max2;
-        else
-            return m_max1;
-    }
-
-    void switchMax() {
-        if (m_choose) {
-            m_max2 = 0;
-            m_choose = false;
-            sanb_smp_memory_barrier();
-        }
-        else {
-            m_max1 = 0;
-            m_choose = true;
-            sanb_smp_memory_barrier();
-        }
-    }
-
- private:
-    dsec_t m_max1;
-    dsec_t m_max2;
-    bool m_choose;
-};
-
-
 class CCPortLatencyStl {
  public:
     void reset();
@@ -112,12 +63,10 @@ class CRFC2544Info {
     void export_data(rfc2544_info_t_ &obj);
     inline void add_sample(double stime) {
         m_latency.Add(stime);
-        m_last_max.update(stime);
         m_jitter.calc(stime);
     }
     inline void sample_period_end() {
         m_latency.update();
-        m_last_max.switchMax();
     }
     inline uint32_t get_seq() {return m_seq;}
     inline void set_seq(uint32_t val) {m_seq = val;}
@@ -136,7 +85,6 @@ class CRFC2544Info {
     uint64_t m_seq_err_events_too_low; // How many packet seq num lower than expected events we had
     uint64_t m_ooo; // Packets we got with seq num lower than expected (We guess they are out of order)
     uint64_t m_dup; // Packets we got with same seq num
-    CLastMax m_last_max; // maximum for last measurement period (reset whenever we read it).
 };
 
 class CRxCoreStateless {
@@ -147,7 +95,7 @@ class CRxCoreStateless {
     };
 
  public:
-    void start();
+    void start(TrexWatchDog &watchdog);
     void create(const CRxSlCfg &cfg);
     void reset_rx_stats(uint8_t port_id);
     int get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset
@@ -165,6 +113,7 @@ class CRxCoreStateless {
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
     bool periodic_check_for_cp_messages();
+    void tickle();
     void idle_state_loop();
     void handle_rx_pkt(CLatencyManagerPerPortStl * lp, rte_mbuf_t * m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
@@ -176,6 +125,10 @@ class CRxCoreStateless {
     uint16_t get_hw_id(uint16_t id);
 
  private:
+
+    TrexWatchDog   *m_watchdog;
+    int             m_watchdog_handle;
+
     uint32_t m_max_ports;
     bool m_has_streams;
     CLatencyManagerPerPortStl m_ports[TREX_MAX_PORTS];

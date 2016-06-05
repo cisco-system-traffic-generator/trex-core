@@ -83,6 +83,11 @@ static CSimpleOpt::SOption parser_options[] =
 };
 
 static TrexStateless *m_sim_statelss_obj;
+static char *g_exe_name;
+
+const char *get_exe_name() {
+    return g_exe_name;
+}
 
 static int usage(){
 
@@ -261,8 +266,8 @@ void set_stateless_obj(TrexStateless *obj) {
     m_sim_statelss_obj = obj;
 }
 
-
 int main(int argc , char * argv[]){
+    g_exe_name = argv[0];
 
     std::unordered_map<std::string, int> params;
 

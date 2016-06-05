@@ -28,11 +28,20 @@ limitations under the License.
 #include <sstream>
 #include <iostream>
 
+#include "trex_watchdog.h"
+
 /************** RPC server interface ***************/
 
-TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name, std::mutex *lock) : m_cfg(cfg), m_name(name), m_lock(lock)  {
+TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name) : m_cfg(cfg) {
+    m_name = name;
+
+    m_lock              = cfg.m_lock;
+    m_watchdog          = cfg.m_watchdog;
+    m_watchdog_handle   = -1;
+
     m_is_running = false;
     m_is_verbose = false;
+
     if (m_lock == NULL) {
         m_lock = &m_dummy_lock;
     }
@@ -69,6 +78,7 @@ void TrexRpcServerInterface::start() {
     /* prepare for run */
     _prepare();
 
+    m_watchdog->mark_pending_monitor();
     m_thread = new std::thread(&TrexRpcServerInterface::_rpc_thread_cb, this);
     if (!m_thread) {
         throw TrexRpcException("unable to create RPC thread");
@@ -119,8 +129,7 @@ get_current_date_time() {
 
 const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
 
-TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
-                             std::mutex *lock) {
+TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg) {
 
     m_req_resp = NULL;
 
@@ -130,7 +139,7 @@ TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg,
         if (req_resp_cfg->get_protocol() == TrexRpcServerConfig::RPC_PROT_MOCK) {
             m_req_resp = new TrexRpcServerReqResMock(*req_resp_cfg);
         } else {
-            m_req_resp = new TrexRpcServerReqRes(*req_resp_cfg, lock);
+            m_req_resp = new TrexRpcServerReqRes(*req_resp_cfg);
         }
 
         m_servers.push_back(m_req_resp);
