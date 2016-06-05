@@ -5769,11 +5769,10 @@ int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
 }
 
 int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const {
-    static cpu_vct_t cpu_vct;
+    cpu_util_full.resize((int)g_trex.m_fl.m_threads_info.size());
     for (int thread_id=0; thread_id<(int)g_trex.m_fl.m_threads_info.size(); thread_id++) {
         CFlowGenListPerThread * lp=g_trex.m_fl.m_threads_info[thread_id];
-        cpu_util_full.push_back(cpu_vct);
-        lp->m_cpu_cp_u.GetHistory(cpu_util_full.back());
+        lp->m_cpu_cp_u.GetHistory(cpu_util_full[thread_id]);
     }
     return 0;
 }
