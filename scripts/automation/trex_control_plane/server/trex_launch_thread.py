@@ -6,6 +6,7 @@ import signal
 import socket
 from common.trex_status_e import TRexStatus
 import subprocess
+import shlex
 import time
 import threading
 import logging
@@ -32,7 +33,7 @@ class AsynchronousTRexSession(threading.Thread):
             
         with open(os.devnull, 'w') as DEVNULL:
             self.time_stamps['start'] = self.time_stamps['run_time'] = time.time()
-            self.session   = subprocess.Popen("exec "+self.cmd, cwd = self.launch_path, shell=True, stdin = DEVNULL, stderr = subprocess.PIPE, preexec_fn=os.setsid)
+            self.session   = subprocess.Popen(shlex.split(self.cmd), cwd = self.launch_path, stdin = DEVNULL, stderr = subprocess.PIPE, preexec_fn=os.setsid, close_fds = True)
             logger.info("TRex session initialized successfully, Parent process pid is {pid}.".format( pid = self.session.pid ))
             while self.session.poll() is None:  # subprocess is NOT finished
                 time.sleep(0.5)

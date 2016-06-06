@@ -30,9 +30,9 @@ import shlex
 import tempfile
 
 try:
-    from .singleton_daemon import register_socket
+    from .singleton_daemon import register_socket, run_command
 except:
-    from singleton_daemon import register_socket
+    from singleton_daemon import register_socket, run_command
 
 
 # setup the logger
@@ -134,6 +134,7 @@ class CTRexServer(object):
         self.server.register_function(self.add)
         self.server.register_function(self.cancel_reservation)
         self.server.register_function(self.connectivity_check)
+        self.server.register_function(self.connectivity_check, 'check_connectivity') # alias
         self.server.register_function(self.force_trex_kill)
         self.server.register_function(self.get_file)
         self.server.register_function(self.get_files_list)
@@ -164,16 +165,6 @@ class CTRexServer(object):
             self.server.shutdown()
             #self.server.server_close()
 
-    def _run_command(self, command, timeout = 15, cwd = None):
-        if timeout:
-            command = 'timeout %s %s' % (timeout, command)
-        # pipes might stuck, even with timeout
-        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-            proc = subprocess.Popen(shlex.split(command), stdout=stdout_file, stderr=stderr_file, cwd = cwd)
-            proc.wait()
-            stdout_file.seek(0)
-            stderr_file.seek(0)
-            return (proc.returncode, stdout_file.read().decode(errors = 'replace'), stderr_file.read().decode(errors = 'replace'))
 
     # get files from Trex server and return their content (mainly for logs)
     @staticmethod
@@ -234,7 +225,7 @@ class CTRexServer(object):
         try:
             logger.info("Processing get_trex_version() command.")
             if not self.trex_version:
-                ret_code, stdout, stderr = self._run_command('./t-rex-64 --help', cwd = self.TREX_PATH, timeout = 0)
+                ret_code, stdout, stderr = run_command('./t-rex-64 --help', cwd = self.TREX_PATH)
                 search_result = re.search('\n\s*(Version\s*:.+)', stdout, re.DOTALL)
                 if not search_result:
                     raise Exception('Could not determine version from ./t-rex-64 --help')
@@ -383,7 +374,7 @@ class CTRexServer(object):
     # returns list of tuples (pid, command line) of running TRex(es)
     def get_trex_cmds(self):
         logger.info('Processing get_trex_cmds() command.')
-        ret_code, stdout, stderr = self._run_command('ps -u root --format pid,comm,cmd')
+        ret_code, stdout, stderr = run_command('ps -u root --format pid,comm,cmd')
         if ret_code:
             raise Exception('Failed to determine running processes, stderr: %s' % stderr)
         trex_cmds_list = []
@@ -403,12 +394,12 @@ class CTRexServer(object):
             return False
         for pid, cmd in trex_cmds_list:
             logger.info('Killing process %s %s' % (pid, cmd))
-            self._run_command('kill %s' % pid)
-            ret_code_ps, _, _ = self._run_command('ps -p %s' % pid)
+            run_command('kill %s' % pid)
+            ret_code_ps, _, _ = run_command('ps -p %s' % pid)
             if not ret_code_ps:
                 logger.info('Killing with -9.')
-                self._run_command('kill -9 %s' % pid)
-                ret_code_ps, _, _ = self._run_command('ps -p %s' % pid)
+                run_command('kill -9 %s' % pid)
+                ret_code_ps, _, _ = run_command('ps -p %s' % pid)
                 if not ret_code_ps:
                     logger.info('Could not kill process.')
                     raise Exception('Could not kill process %s %s' % (pid, cmd))

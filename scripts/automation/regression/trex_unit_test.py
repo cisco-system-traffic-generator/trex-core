@@ -238,11 +238,11 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.stateful:
             CTRexScenario.trex = None
         if self.stateless:
-            if not self.no_daemon:
+            if self.no_daemon:
+                if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
+                    CTRexScenario.stl_trex.disconnect()
+            else:
                 CTRexScenario.trex.force_kill(False)
-            if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
-                CTRexScenario.stl_trex.disconnect()
-                #time.sleep(3)
             CTRexScenario.stl_trex = None
 
 

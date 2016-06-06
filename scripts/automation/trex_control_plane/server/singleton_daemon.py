@@ -11,7 +11,7 @@ import jsonrpclib
 
 # uses Unix sockets for determine running process.
 # (assumes used daemons will register proper socket)
-# all daemons should use -p argument as listening tcp port
+# all daemons should use -p argument as listening tcp port and check_connectivity RPC method
 class SingletonDaemon(object):
 
     # run_cmd can be function of how to run daemon or a str to run at subprocess
@@ -102,15 +102,10 @@ class SingletonDaemon(object):
         poll_rate = 0.1
         for i in range(int(timeout/poll_rate)):
             try:
-                daemon.not_existing_function_asdfasd()
+                daemon.check_connectivity()
+                return True
             except socket.error: # daemon is not up yet
                 sleep(poll_rate)
-            except Exception as e: # expect error of not supported function
-                if type(e.args) is tuple and\
-                            type(e.args[0]) is tuple and\
-                                e.args[0][0] == -32601: # error code is written hardcoded in JsonRPC Server
-                    return True
-                raise
         return False
 
     # start daemon
@@ -175,6 +170,8 @@ def run_command(command, timeout = 15, cwd = None):
             if proc.poll() is None:
                 proc.kill() # timeout
                 return (errno.ETIME, '', 'Timeout on running: %s' % command)
+        else:
+            proc.wait()
         stdout_file.seek(0)
         stderr_file.seek(0)
         return (proc.returncode, stdout_file.read().decode(errors = 'replace'), stderr_file.read().decode(errors = 'replace'))
