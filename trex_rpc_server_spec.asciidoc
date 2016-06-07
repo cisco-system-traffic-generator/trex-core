@@ -168,7 +168,7 @@ The following RPC commands are supported
 		  The return values are used for furthur communication with the server.
 		  every API from a specific class requires its corresponding api_h parameter
 		  added to the specific parameters of the function.
-* *Paramters* - 
+* *Parameters* - 
 ** *api_vers* [list] - A list of objects of type xref:api_class['api_class']
 * *Result* ['object'] - A list of objects of type xref:api_class_rc['api_class_rc']
 
@@ -232,7 +232,7 @@ Example:
 * *API Class* - 'None'
 * *Valid States* - 'not relevant'
 * *Description* - Pings the TRex server
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - {}
 
 Example:
@@ -263,7 +263,7 @@ Example:
 * *API Class* - 'core'
 * *Valid States* - 'not relevant'
 * *Description* - Queries the server for all the supported commands
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['array'] - A list of all the supported commands by the server
 
 Example:
@@ -307,7 +307,7 @@ Example:
 * *API Class* - 'core'
 * *Valid States* - 'not relevant'
 * *Description* - Queries the server for version information
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - See table below
 
 .Object type 'return values for get_version' 
@@ -354,7 +354,7 @@ Example:
 * *Name* - 'get_system_info'
 * *API Class* - 'core'
 * *Description* - Queries the server for system properties
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - See table below
 
 .return value: 'get_system_info'
@@ -435,7 +435,7 @@ Example:
 * *API Class* - 'core'
 * *Valid States* - 'all'
 * *Description* - Queries the server for status
-* *Paramters* -
+* *Parameters* -
 ** *port_id* ['int'] - port id to query for owner
 * *Result* ['object'] - see below
 
@@ -482,7 +482,7 @@ Example:
 * *API Class* - 'core'
 * *Valid States* - 'all'
 * *Description* - Takes ownership over the port
-* *Paramters* -
+* *Parameters* -
 ** *port_id* ['int'] - port id to take ownership
 ** *user* ['string'] - User name aquiring the system
 ** *force* ['boolean'] - force action even if another user is holding the port
@@ -522,7 +522,7 @@ Example:
 * *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Release owernship over the device
-* *Paramters* -
+* *Parameters* -
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id to release
 * *Result* ['object'] - {}
@@ -560,7 +560,7 @@ Example:
 * *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Adds a stream to a port
-* *Paramters* 
+* *Parameters* 
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id associated with this stream
 ** *stream_id* ['int'] - stream id associated with the stream object
@@ -932,7 +932,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Removes a stream from a port
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port assosicated with the stream.
 ** *stream_id* ['int'] - stream to remove
@@ -972,7 +972,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - fetch all the assoicated streams for a port
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port to query for registered streams
 
@@ -1013,7 +1013,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - get a specific stream object
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port for the associated stream
 ** *stream_id* ['int'] - the requested stream id
@@ -1073,7 +1073,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - remove all streams from a port
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port for the associated stream
 
@@ -1113,7 +1113,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to start traffic
 
@@ -1150,7 +1150,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'active'
 * *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to stop traffic
 
@@ -1192,7 +1192,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
                   any RX filters that were attached.
 		  this is because the server cannot know when it is safe to remove those
 		  (after stop some packets might take time to get to arrive - RTT)
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to remove all RX filters
 
@@ -1214,7 +1214,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     }
 }
 
-'Request':
+'Response':
 
 {
     "id": "1jwrw9nx",
@@ -1230,7 +1230,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get machine global stats
-* *Paramters* - None
+* *Parameters* - None
 
 * *Result* ['object'] - See Below
 
@@ -1256,7 +1256,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
-* *Paramters*
+* *Parameters*
 ** *port_id* [int] - The port id for query
 
 * *Result* ['object'] - See Below
@@ -1283,7 +1283,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
-* *Paramters*
+* *Parameters*
 ** *port_id* [int] - The port id for query
 ** *stream_id* [int] - The stream id for query
 
@@ -1304,6 +1304,69 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 | latency           | array       | array of 2 ordered elements average, maximum (if 'rx_stats' enabled)
 |=================
 
+
+=== Get Utilization
+* *Name* - 'get_utilization'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Get the CPU and MBUFs utilization.
+* *Parameters* - None
+* *Result* ['object'] -
+** *cpu* - The CPU utilization per DP thread (in their order). Each element is array of history (most latest is first in array, interval between values is 1 sec, values are integers 0-100).
+** *mbuf_stats* - The MBUFs are per CPU socket, per bucket of sizes: 64b, 9kb etc. Each bucket is array of 2 values: first is number of free elements and second is total.
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "vlxrc9r6",
+    "jsonrpc": "2.0",
+    "method": "get_utilization",
+    "params": {
+        "api_h": "2AIar0tl"
+    }
+}
+
+
+
+'Response':
+
+{'id': 'vlxrc9r6',
+ 'jsonrpc': '2.0',
+ 'result': {'cpu': [[30, 33, 28, 21, 30, 35, 33, 38, 29, 25, 37, 35, 31, 34, 35, 37, 26, 31, 26, 27],
+                    [37, 31, 24, 21, 26, 32, 34, 36, 27, 28, 36, 33, 35, 35, 35, 36, 30, 39, 35, 40],
+                    [32, 34, 25, 29, 28, 44, 37, 40, 32, 33, 38, 33, 33, 35, 33, 25, 22, 26, 27, 31],
+                    [28, 33, 17, 21, 27, 36, 30, 30, 27, 25, 36, 35, 38, 43, 41, 28, 31, 32, 31, 41],
+                    [27, 31, 27, 32, 26, 36, 27, 33, 30, 29, 29, 28, 30, 36, 33, 31, 26, 30, 25, 35],
+                    [31, 31, 21, 24, 23, 31, 28, 33, 33, 33, 31, 21, 30, 33, 31, 23, 27, 29, 36, 36],
+                    [27, 32, 38, 23, 35, 44, 38, 28, 29, 31, 38, 38, 31, 32, 32, 33, 24, 28, 29, 32],
+                    [26, 26, 24, 30, 36, 36, 33, 26, 37, 24, 29, 40, 39, 37, 36, 26, 26, 25, 38, 25],
+                    [27, 37, 33, 25, 28, 37, 39, 30, 31, 26, 34, 27, 37, 31, 28, 33, 36, 39, 27, 38],
+                    [31, 31, 31, 26, 31, 28, 31, 35, 24, 25, 31, 24, 34, 30, 31, 35, 29, 30, 28, 30],
+                    [28, 40, 24, 27, 30, 26, 34, 27, 28, 31, 41, 29, 35, 33, 35, 35, 31, 31, 30, 39],
+                    [20, 34, 29, 27, 34, 25, 28, 43, 26, 26, 36, 31, 28, 36, 39, 26, 18, 24, 29, 26],
+                    [26, 29, 34, 25, 26, 42, 30, 38, 30, 26, 37, 29, 43, 36, 36, 29, 27, 37, 33, 28],
+                    [29, 30, 30, 27, 34, 34, 32, 34, 26, 28, 37, 28, 36, 38, 29, 35, 26, 32, 28, 37]],
+            'mbuf_stats': {'cpu-socket-0': {'1024b': [73696, 73710],
+                                            '128b': [98280, 98280],
+                                            '2048b': [98266, 98280],
+                                            '256b': [73710, 73710],
+                                            '4096b': [1152, 1152],
+                                            '512b': [73710, 73710],
+                                            '64b': [191468, 196560],
+                                            '9kb': [6912, 8960]},
+                           'cpu-socket-1': {'1024b': [73696, 73710],
+                                            '128b': [98280, 98280],
+                                            '2048b': [98266, 98280],
+                                            '256b': [73710, 73710],
+                                            '4096b': [1152, 1152],
+                                            '512b': [73710, 73710],
+                                            '64b': [191429, 196560],
+                                            '9kb': [6912, 8960]}}}}
+
+----
 
 == Typical Transactions Examples
 the following examples represents common scenarios.
