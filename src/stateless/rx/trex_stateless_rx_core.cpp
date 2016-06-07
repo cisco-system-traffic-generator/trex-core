@@ -52,12 +52,8 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
 
     obj.set_err_cntrs(m_seq_err, m_ooo, m_dup, m_seq_err_events_too_big, m_seq_err_events_too_low);
     obj.set_jitter(m_jitter.get_jitter());
-    json_str = "";
-    m_latency.dump_json("", json_str);
-    // This is a hack. We need to make the dump_json return json object.
-    reader.parse( json_str.c_str(), json);
+    m_latency.dump_json(json);
     obj.set_latency_json(json);
-    obj.set_last_max(m_last_max.getMax());
 };
 
 void CCPortLatencyStl::reset() {
@@ -76,6 +72,9 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_ring_to_cp   = cp_rx->getRingDpToCp(0);
     m_state = STATE_IDLE;
 
+    m_watchdog_handle = -1;
+    m_watchdog        = NULL;
+
     for (int i = 0; i < m_max_ports; i++) {
         CLatencyManagerPerPortStl * lp = &m_ports[i];
         lp->m_io = cfg.m_ports[i];
@@ -93,7 +92,15 @@ void CRxCoreStateless::handle_cp_msg(TrexStatelessCpToRxMsgBase *msg) {
     delete msg;
 }
 
+void CRxCoreStateless::tickle() {
+    m_watchdog->tickle(m_watchdog_handle);
+}
+
 bool CRxCoreStateless::periodic_check_for_cp_messages() {
+
+    /* tickle the watchdog */
+    tickle();
+    
     /* fast path */
     if ( likely ( m_ring_from_cp->isEmpty() ) ) {
         return false;
@@ -140,10 +147,14 @@ void CRxCoreStateless::idle_state_loop() {
     }
 }
 
-void CRxCoreStateless::start() {
+void CRxCoreStateless::start(TrexWatchDog &watchdog) {
     int count = 0;
     int i = 0;
     bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
+
+    /* register a watchdog handle on current core */
+    m_watchdog        = &watchdog;
+    m_watchdog_handle = watchdog.register_monitor("STL RX CORE", 1);
 
     while (true) {
         if (m_state == STATE_WORKING) {
@@ -167,6 +178,8 @@ void CRxCoreStateless::start() {
         count += try_rx();
     }
     rte_pause();
+
+    m_watchdog->disable_monitor(m_watchdog_handle);
 }
 
 void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *m) {

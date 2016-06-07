@@ -200,7 +200,7 @@ SimStateless::prepare_control_plane() {
     
     m_publisher = new SimPublisher();
 
-    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_MOCK, 0);
+    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_MOCK, 0, NULL, NULL);
 
     cfg.m_port_count         = m_port_count;
     cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;

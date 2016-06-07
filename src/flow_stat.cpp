@@ -464,6 +464,8 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_rx_core = NULL;
     m_hw_id_map.create(MAX_FLOW_STATS);
     m_hw_id_map_payload.create(MAX_FLOW_STATS_PAYLOAD);
+    memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
+    memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
 }
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {
@@ -959,6 +961,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                         p_user_id->set_need_to_send_rx(port);
                     }
                 } else {
+                    m_rx_cant_count_err[port] += rx_pkts.get_pkts();
                     std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx packets, on port "
                               << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
@@ -972,6 +975,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                         p_user_id->set_need_to_send_tx(port);
                     }
                 } else {
+                    m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
                     std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
                               << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
@@ -990,6 +994,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                         p_user_id->set_need_to_send_rx(port);
                     }
                 } else {
+                    m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
                     std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
                               << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
@@ -1003,6 +1008,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                         p_user_id->set_need_to_send_tx(port);
                     }
                 } else {
+                    m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
                     std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
                               << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
@@ -1011,6 +1017,15 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     }
 
     // build json report
+    // general per port data
+    for (uint8_t port = 0; port < m_num_ports; port++) {
+            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
+            if (m_rx_cant_count_err[port] != 0)
+                s_data_section["port_data"][str_port]["rx_err"] = m_rx_cant_count_err[port];
+            if (m_tx_cant_count_err[port] != 0)
+                s_data_section["port_data"][str_port]["tx_err"] = m_tx_cant_count_err[port];
+    }
+
     flow_stat_user_id_map_it_t it;
     for (it = m_user_id_map.begin(); it != m_user_id_map.end(); it++) {
         bool send_empty = true;
@@ -1022,6 +1037,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
             user_id_info->set_was_sent(true);
             send_empty = false;
         }
+        // flow stat json
         for (uint8_t port = 0; port < m_num_ports; port++) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
             if (user_id_info->need_to_send_rx(port) || baseline) {
@@ -1042,10 +1058,11 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
             s_data_section[str_user_id] = Json::objectValue;
         }
 
+        // latency info json
         if (user_id_info->rfc2544_support()) {
             CFlowStatUserIdInfoPayload *user_id_info_p = (CFlowStatUserIdInfoPayload *)user_id_info;
             // payload object. Send also latency, jitter...
-            Json::Value lat_hist;
+            Json::Value lat_hist = Json::arrayValue;
             if (user_id_info->is_hw_id()) {
                 // if mapped to hw_id, take info from what we just got from rx core
                 uint16_t hw_id = user_id_info->get_hw_id();
@@ -1055,17 +1072,16 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                 user_id_info_p->set_dup_cnt(rfc2544_info[hw_id].get_dup_cnt());
                 user_id_info_p->set_seq_err_big_cnt(rfc2544_info[hw_id].get_seq_err_ev_big());
                 user_id_info_p->set_seq_err_low_cnt(rfc2544_info[hw_id].get_seq_err_ev_low());
-                l_data_section[str_user_id]["latency"]["h"] = lat_hist;
-                l_data_section[str_user_id]["latency"]["last_max"] = rfc2544_info[hw_id].get_last_max_usec();
+                l_data_section[str_user_id]["latency"] = lat_hist;
                 l_data_section[str_user_id]["latency"]["jitter"] = rfc2544_info[hw_id].get_jitter_usec();
             } else {
                 // Not mapped to hw_id. Get saved info.
                 user_id_info_p->get_latency_json(lat_hist);
-                l_data_section[str_user_id]["latency"]["h"] = lat_hist;
-                l_data_section[str_user_id]["latency"]["last_max"] = 0;
-                l_data_section[str_user_id]["latency"]["jitter"] = user_id_info_p->get_jitter_usec();
+                if (lat_hist != Json::nullValue) {
+                    l_data_section[str_user_id]["latency"] = lat_hist;
+                    l_data_section[str_user_id]["latency"]["jitter"] = user_id_info_p->get_jitter_usec();
+                }
             }
-            //todo: add last 10 samples
             l_data_section[str_user_id]["err_cntrs"]["dropped"]
                 = Json::Value::UInt64(user_id_info_p->get_seq_err_cnt());
             l_data_section[str_user_id]["err_cntrs"]["out_of_order"]

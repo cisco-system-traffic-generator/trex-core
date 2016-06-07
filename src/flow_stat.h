@@ -24,11 +24,12 @@
 #include <stdio.h>
 #include <string>
 #include <map>
+#include <json/json.h>
 #include "trex_defs.h"
 #include "trex_exception.h"
 #include "trex_stream.h"
 #include "msg_manager.h"
-#include <internal_api/trex_platform_api.h>
+#include "internal_api/trex_platform_api.h"
 
 // range reserved for rx stat measurement is from IP_ID_RESERVE_BASE to 0xffff
 // Do not change this value. In i350 cards, we filter according to first byte of IP ID
@@ -132,7 +133,7 @@ class rfc2544_info_t_ {
         m_seq_err_ev_big = 0;
         m_seq_err_ev_low = 0;
         m_jitter = 0;
-        m_latency = Json::Value("");
+        m_latency = Json::nullValue;
         m_last_max_latency = 0;
     }
 
@@ -332,7 +333,7 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
         json = m_rfc2544_info.m_latency;
     }
 
-    inline void set_latency_json(Json::Value json) {
+    inline void set_latency_json(const Json::Value &json) {
         m_rfc2544_info.m_latency = json;
     }
 
@@ -474,7 +475,9 @@ class CFlowStatRuleMgr {
     uint32_t m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
     CFlowStatParser *m_parser;
-    uint16_t m_cap;
+    uint16_t m_cap; // capabilities of the NIC driver we are using
+    uint32_t m_rx_cant_count_err[TREX_MAX_PORTS];
+    uint32_t m_tx_cant_count_err[TREX_MAX_PORTS];
 };
 
 #endif

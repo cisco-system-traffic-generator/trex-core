@@ -41,6 +41,7 @@ limitations under the License.
 #include "trex_api_class.h"
 
 class TrexStatelessPort;
+class TrexWatchDog;
 
 /**
  * unified stats
@@ -87,7 +88,6 @@ public:
         m_rpc_server_verbose  = false;
         m_platform_api        = NULL;
         m_publisher           = NULL;
-        m_global_lock         = NULL;
     }
 
     const TrexRpcServerConfig  *m_rpc_req_resp_cfg;
@@ -95,7 +95,6 @@ public:
     bool                        m_rpc_server_verbose;
     uint8_t                     m_port_count;
     TrexPublisher              *m_publisher;
-    std::mutex                 *m_global_lock;
 
 };
 

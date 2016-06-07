@@ -73,6 +73,7 @@ extern "C" {
 #include "debug.h"
 #include "internal_api/trex_platform_api.h"
 #include "main_dpdk.h"
+#include "trex_watchdog.h"
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -2845,6 +2846,7 @@ private:
     std::mutex          m_cp_lock;
 
 public:
+    TrexWatchDog         m_watchdog;
     TrexStateless       *m_trex_stateless;
 
 };
@@ -3272,14 +3274,16 @@ bool CGlobalTRex::Create(){
 
         TrexStatelessCfg cfg;
 
-        TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP, global_platform_cfg_info.m_zmq_rpc_port);
+        TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP,
+                                             global_platform_cfg_info.m_zmq_rpc_port,
+                                             &m_cp_lock,
+                                             &m_watchdog);
 
         cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
         cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
         cfg.m_rpc_server_verbose = false;
         cfg.m_platform_api       = new TrexDpdkPlatformApi();
         cfg.m_publisher          = &m_zmq_publisher;
-        cfg.m_global_lock        = &m_cp_lock;
 
         m_trex_stateless = new TrexStateless(cfg);
     }
@@ -3975,6 +3979,9 @@ int CGlobalTRex::run_in_master() {
     const int FASTPATH_DELAY_MS = 10;
     const int SLOWPATH_DELAY_MS = 500;
 
+    int handle = m_watchdog.register_monitor("master", 2);
+    m_watchdog.start();
+
     while ( true ) {
 
         /* fast path */
@@ -3995,6 +4002,8 @@ int CGlobalTRex::run_in_master() {
         delay(FASTPATH_DELAY_MS);
         slow_path_counter += FASTPATH_DELAY_MS;
         cp_lock.lock();
+
+        m_watchdog.tickle(handle);
     }
 
     /* on exit release the lock */
@@ -4006,6 +4015,9 @@ int CGlobalTRex::run_in_master() {
     }
 
     m_mg.stop();
+
+    m_watchdog.stop();
+
     delay(1000);
     if ( was_stopped ){
         /* we should stop latency and exit to stop agents */
@@ -4017,14 +4029,15 @@ int CGlobalTRex::run_in_master() {
 
 
 int CGlobalTRex::run_in_rx_core(void){
+
     if (get_is_stateless()) {
         m_sl_rx_running = true;
-        m_rx_sl.start();
+        m_rx_sl.start(m_watchdog);
         m_sl_rx_running = false;
     } else {
         if ( CGlobalInfo::m_options.is_rx_enabled() ){
             m_sl_rx_running = false;
-            m_mg.start(0);
+            m_mg.start(0, &m_watchdog);
         }
     }
 
@@ -4032,6 +4045,8 @@ int CGlobalTRex::run_in_rx_core(void){
 }
 
 int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
+    std::stringstream ss;
+    ss << "DP core " << int(virt_core_id);
 
     CPreviewMode *lp=&CGlobalInfo::m_options.preview;
     if ( lp->getSingleCore() &&
@@ -4045,13 +4060,22 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
 
     assert(m_fl_was_init);
     CFlowGenListPerThread   * lpt;
+
     lpt = m_fl.m_threads_info[virt_core_id-1];
+
+    /* register a watchdog handle on current core */
+    lpt->m_watchdog        = &m_watchdog;
+    lpt->m_watchdog_handle = m_watchdog.register_monitor(ss.str(), 1);
+
 
     if (get_is_stateless()) {
         lpt->start_stateless_daemon(*lp);
     }else{
         lpt->start_generate_stateful(CGlobalInfo::m_options.out_file,*lp);
     }
+
+    /* done - remove this from the watchdog (we might wait on join for a long time) */
+    lpt->m_watchdog->disable_monitor(lpt->m_watchdog_handle);
 
     m_signal[virt_core_id]=1;
     return (0);
@@ -4422,9 +4446,14 @@ uint32_t get_cores_mask(uint32_t cores,int offset){
 }
 
 
+static char *g_exe_name;
+const char *get_exe_name() {
+    return g_exe_name;
+}
 
 
 int main(int argc , char * argv[]){
+    g_exe_name = argv[0];
 
     return ( main_test(argc , argv));
 }
@@ -4733,12 +4762,16 @@ int main_test(int argc , char * argv[]){
         uint32_t pkts = CGlobalInfo::m_options.m_latency_prev *
             CGlobalInfo::m_options.m_latency_rate;
         printf("Starting pre latency check for %d sec\n",CGlobalInfo::m_options.m_latency_prev);
-        g_trex.m_mg.start(pkts);
+        g_trex.m_mg.start(pkts, NULL);
         delay(CGlobalInfo::m_options.m_latency_prev* 1000);
         printf("Finished \n");
         g_trex.m_mg.reset();
         g_trex.reset_counters();
     }
+
+    /* this will give us all cores - master + tx + latency */
+    g_trex.m_watchdog.mark_pending_monitor(g_trex.m_max_cores);
+
 
     g_trex.m_sl_rx_running = false;
     if ( get_is_stateless() ) {

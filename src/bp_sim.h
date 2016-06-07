@@ -58,6 +58,7 @@ limitations under the License.
 #include <arpa/inet.h>
 #include "platform_cfg.h"
 #include "flow_stat.h"
+#include "trex_watchdog.h"
 
 #include <trex_stateless_dp_core.h>
 
@@ -3637,6 +3638,12 @@ public:
         m_node_gen.m_v_if->flush_tx_queue();
     }
 
+    void tickle() {
+        if (m_watchdog) {
+            m_watchdog->tickle(m_watchdog_handle);
+        }
+    }
+
     /* return the dual port ID this thread is attached to in 4 ports configuration
        there are 2 dual-ports
 
@@ -3759,6 +3766,8 @@ public:
 
     CTupleGeneratorSmart             m_smart_gen;
 
+    TrexWatchDog                    *m_watchdog;
+    int                              m_watchdog_handle;
 
 public:
     CNodeGenerator                   m_node_gen;

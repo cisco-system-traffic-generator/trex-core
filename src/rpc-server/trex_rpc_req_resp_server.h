@@ -32,7 +32,7 @@ limitations under the License.
 class TrexRpcServerReqRes : public TrexRpcServerInterface  {
 public:
 
-    TrexRpcServerReqRes(const TrexRpcServerConfig &cfg, std::mutex *lock = NULL);
+    TrexRpcServerReqRes(const TrexRpcServerConfig &cfg);
 
     /* for test purposes - bypass the ZMQ and inject a message */
     std::string test_inject_request(const std::string &req);

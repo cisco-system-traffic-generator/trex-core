@@ -66,10 +66,6 @@ bool CTimeHistogram::Add(dsec_t dt) {
         return false;
     }
     period_elem.inc_high_cnt();
-
-    if ( m_max_dt < dt) {
-        m_max_dt = dt;
-    }
     period_elem.update_max(dt);
 
     uint32_t d_10usec = (uint32_t)(dt*100000.0);
@@ -118,6 +114,9 @@ void CTimeHistogram::update() {
     update_average(period_elem);
     m_total_cnt += period_elem.get_cnt();
     m_total_cnt_high += period_elem.get_high_cnt();
+    if ( m_max_dt < period_elem.get_max()) {
+        m_max_dt = period_elem.get_max();
+    }
 }
 
 void  CTimeHistogram::update_average(CTimeHistogramPerPeriodData &period_elem) {
@@ -180,11 +179,7 @@ void CTimeHistogram::Dump(FILE *fd) {
     }
 }
 
-/*
- { "histogram" : [ {} ,{} ]  }
-
-*/
-
+// Used in statefull
 void CTimeHistogram::dump_json(std::string name,std::string & json ) {
     char buff[200];
     if (name != "")
@@ -222,3 +217,31 @@ void CTimeHistogram::dump_json(std::string name,std::string & json ) {
     }
     json+="  ] } ,";
 }
+
+// Used in stateless
+void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
+    int i, j;
+    uint32_t base=10;
+    CTimeHistogramPerPeriodData &period_elem = m_period_data[get_read_period_index()];
+
+    json["total_max"] = get_usec(m_max_dt);
+    json["last_max"] = get_usec(period_elem.get_max());
+    json["average"] = get_average_latency();
+
+    if (add_histogram) {
+        for (j = 0; j < HISTOGRAM_SIZE_LOG; j++) {
+            for (i = 0; i < HISTOGRAM_SIZE; i++) {
+                if (m_hcnt[j][i] > 0) {
+                    std::string key = static_cast<std::ostringstream*>( &(std::ostringstream()
+                                                                          << int(base * (i + 1)) ) )->str();
+                    json["histogram"][key] = Json::Value::UInt64(m_hcnt[j][i]);
+                }
+            }
+            base = base * 10;
+        }
+        if (m_total_cnt != m_total_cnt_high) {
+            json["histogram"]["0"] = Json::Value::UInt64(m_total_cnt - m_total_cnt_high);
+        }
+    }
+}
+

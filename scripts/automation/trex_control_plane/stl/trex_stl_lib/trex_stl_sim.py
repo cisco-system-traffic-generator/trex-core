@@ -40,18 +40,11 @@ class BpSimException(Exception):
 
 # stateless simulation
 class STLSim(object):
-    def __init__ (self, bp_sim_path = None, handler = 0, port_id = 0, api_h = "dummy"):
+    def __init__ (self, bp_sim_path, handler = 0, port_id = 0, api_h = "dummy"):
 
-        if not bp_sim_path:
-            # auto find scripts
-            m = re.match(".*/trex-core", os.getcwd())
-            if not m:
-                raise STLError('cannot find BP sim path, please provide it')
-
-            self.bp_sim_path = os.path.join(m.group(0), 'scripts')
-
-        else:
-            self.bp_sim_path = bp_sim_path
+        self.bp_sim_path = os.path.abspath(bp_sim_path)
+        if not os.path.exists(self.bp_sim_path):
+            raise STLError('BP sim path %s does not exist' % self.bp_sim_path)
 
         # dummies
         self.handler = handler

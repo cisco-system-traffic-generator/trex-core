@@ -98,6 +98,7 @@ main_src = SrcGroup(dir='src',
              'utl_term_io.cpp',
              'global_io_mode.cpp',
              'main_dpdk.cpp',
+             'trex_watchdog.cpp',
              'debug.cpp',
              'flow_stat.cpp',
              'flow_stat_parser.cpp',
@@ -665,7 +666,7 @@ class build_option:
         return (flags)
 
     def get_link_flags(self):
-        base_flags = [];
+        base_flags = ['-rdynamic'];
         if self.is64Platform():
             base_flags += ['-m64'];
             base_flags += ['-lrt'];

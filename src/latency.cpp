@@ -22,6 +22,8 @@ limitations under the License.
 #include "latency.h"
 #include "bp_sim.h"
 #include "utl_json.h"
+#include "trex_watchdog.h"
+
 #include <common/basic_utils.h> 
 
 const uint8_t sctp_pkt[]={ 
@@ -562,6 +564,10 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
     if ( CGlobalInfo::is_learn_mode() ){
         m_nat_check_manager.Create();
     }
+
+    m_watchdog        = NULL;
+    m_watchdog_handle = -1;
+
     return (true);
 }
 
@@ -711,7 +717,13 @@ void  CLatencyManager::reset(){
 
 }
 
-void  CLatencyManager::start(int iter) {
+void CLatencyManager::tickle() {
+    if (m_watchdog) {
+        m_watchdog->tickle(m_watchdog_handle);
+    }
+}
+
+void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
     m_do_stop =false;
     m_is_active =false;
     int cnt=0;
@@ -728,6 +740,10 @@ void  CLatencyManager::start(int iter) {
     m_p_queue.push(node);
     bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable()?true:false;
 
+    if (watchdog) {
+        m_watchdog        = watchdog;
+        m_watchdog_handle = watchdog->register_monitor("STF RX CORE", 1);
+    }
 
     while (  !m_p_queue.empty() ) {
         node = m_p_queue.top();
@@ -748,6 +764,9 @@ void  CLatencyManager::start(int iter) {
 
         switch (node->m_type) {
         case CGenNode::FLOW_SYNC:
+
+            tickle();
+
             if ( CGlobalInfo::is_learn_mode() ) {
                 m_nat_check_manager.handle_aging();
             }
@@ -790,6 +809,11 @@ void  CLatencyManager::start(int iter) {
     printf(" latency daemon has stopped\n");
     if ( get_is_rx_check_mode() ) {
         m_rx_check_manager.tw_drain();
+    }
+
+    /* disable the monitor */
+    if (m_watchdog) {
+        m_watchdog->disable_monitor(m_watchdog_handle);
     }
 
 }

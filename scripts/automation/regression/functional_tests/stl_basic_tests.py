@@ -119,9 +119,9 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def run_sim (self, yaml, output, options = "", silent = False, obj = None):
         if output:
-            user_cmd = "-f {0} -o {1} {2}".format(yaml, output, options)
+            user_cmd = "-f {0} -o {1} {2} -p {3}".format(yaml, output, options, self.scripts_path)
         else:
-            user_cmd = "-f {0} {1}".format(yaml, options)
+            user_cmd = "-f {0} {1} -p {2}".format(yaml, options, self.scripts_path)
 
         if silent:
             user_cmd += " --silent"
