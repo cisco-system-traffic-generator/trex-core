@@ -552,7 +552,8 @@ enum { OPT_HELP,
        OPT_VIRT_ONE_TX_RX_QUEUE,
        OPT_PREFIX,
        OPT_MAC_SPLIT,
-       OPT_SEND_DEBUG_PKT
+       OPT_SEND_DEBUG_PKT,
+       OPT_NO_WATCHDOG 
 };
 
 
@@ -614,6 +615,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_MAC_SPLIT, "--mac-spread", SO_REQ_SEP },
         { OPT_SEND_DEBUG_PKT, "--send-debug-pkt", SO_REQ_SEP },
         { OPT_MBUF_FACTOR     , "--mbuf-factor",  SO_REQ_SEP },
+        { OPT_NO_WATCHDOG ,  "--no-watchdog",  SO_NONE  },
 
 
         SO_END_OF_OPTIONS
@@ -714,6 +716,8 @@ static int usage(){
     printf("                             maximum is up to 128 devices   \n");
 
     printf(" --mbuf-factor              : factor for packet memory \n");
+
+    printf(" --no-watchdog              : disable watchdog  \n");
 
     printf("\n simulation mode : \n");
     printf(" Using this mode you can generate the traffic into a pcap file and learn how trex works \n");
@@ -934,6 +938,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_1G_MODE :
                 po->preview.set_1g_mode(true);
+                break;
+
+            case OPT_NO_WATCHDOG :
+                po->preview.setWDDisable(true);
                 break;
 
             case  OPT_LATENCY_PREVIEW :
@@ -3849,6 +3857,7 @@ CGlobalTRex::handle_slow_path(bool &was_stopped) {
 
     if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ) {
         if ( m_io_modes.handle_io_modes() ) {
+            printf(" CTRL -C ... \n");
             was_stopped=true;
             return false;
         }
@@ -4009,6 +4018,9 @@ int CGlobalTRex::run_in_master() {
     /* on exit release the lock */
     cp_lock.unlock();
 
+    /* first stop the WD */
+    m_watchdog.stop();
+
     if (!is_all_cores_finished()) {
         /* probably CLTR-C */
         try_stop_all_cores();
@@ -4016,7 +4028,6 @@ int CGlobalTRex::run_in_master() {
 
     m_mg.stop();
 
-    m_watchdog.stop();
 
     delay(1000);
     if ( was_stopped ){
@@ -4768,6 +4779,9 @@ int main_test(int argc , char * argv[]){
         g_trex.m_mg.reset();
         g_trex.reset_counters();
     }
+
+    /* disable WD if needed */
+    g_trex.m_watchdog.init(CGlobalInfo::m_options.preview.getWDDisable()?false:true);
 
     /* this will give us all cores - master + tx + latency */
     g_trex.m_watchdog.mark_pending_monitor(g_trex.m_max_cores);

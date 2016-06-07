@@ -36,7 +36,6 @@ limitations under the License.
 #include <iostream>
 #include  <stdexcept>
 
-#define DISABLE_WATCHDOG_ON_GDB
 
 static TrexWatchDog::monitor_st *global_monitor;
 
@@ -122,13 +121,30 @@ static void _callstack_signal_handler(int signr, siginfo_t *info, void *secret) 
     throw std::runtime_error(ss.str());
 }
 
+
+void TrexWatchDog::init(bool enable){
+    m_enable =enable;
+    if (m_enable) {
+        register_signal();
+    } 
+}
+
+
 void TrexWatchDog::mark_pending_monitor(int count) {
+    if (!m_enable){
+        return;
+    }
+
     std::unique_lock<std::mutex> lock(m_lock);
     m_pending += count;
     lock.unlock();
 }
 
 void TrexWatchDog::block_on_pending(int max_block_time_ms) {
+
+    if (!m_enable){
+        return;
+    }
 
     int timeout_msec = max_block_time_ms;
 
@@ -163,7 +179,11 @@ void TrexWatchDog::block_on_pending(int max_block_time_ms) {
  * @return int 
  */
 int TrexWatchDog::register_monitor(const std::string &name, double timeout_sec) {
+    if (!m_enable){
+        return 0;
+    }
     monitor_st monitor;
+
 
     /* cannot add monitors while active */
     assert(m_active == false);
@@ -204,6 +224,10 @@ int TrexWatchDog::register_monitor(const std::string &name, double timeout_sec) 
  * 
  */
 void TrexWatchDog::disable_monitor(int handle) {
+    if (!m_enable){
+        return ;
+    }
+
     assert(handle < m_monitors.size());
 
     m_monitors[handle].active = false;
@@ -214,7 +238,9 @@ void TrexWatchDog::disable_monitor(int handle) {
  * 
  */
 void TrexWatchDog::tickle(int handle) {
-
+    if (!m_enable){
+        return ;
+    }
     assert(handle < m_monitors.size());
 
     /* not nesscary but write gets cache invalidate for nothing */
@@ -226,7 +252,6 @@ void TrexWatchDog::tickle(int handle) {
 }
 
 void TrexWatchDog::register_signal() {
-
     /* do this once */
     if (g_signal_init) {
         return;
@@ -247,18 +272,14 @@ void TrexWatchDog::register_signal() {
 
 void TrexWatchDog::start() {
 
+    if (!m_enable){
+        return ;
+    }
+
     block_on_pending();
 
     /* no pending monitors */
     assert(m_pending == 0);
-
-    /* under GDB - disable the watchdog */
-    #ifdef DISABLE_WATCHDOG_ON_GDB
-    if (ptrace(PTRACE_TRACEME, 0, NULL, 0) == -1) {
-        printf("\n\n*** GDB detected - disabling watchdog... ***\n\n");
-        return;
-    }
-    #endif
 
     m_active = true;
     m_thread = new std::thread(&TrexWatchDog::_main, this);
@@ -268,6 +289,10 @@ void TrexWatchDog::start() {
 }
 
 void TrexWatchDog::stop() {
+    if (!m_enable){
+        return ;
+    }
+
     m_active = false;
 
     if (m_thread) {
@@ -284,6 +309,8 @@ void TrexWatchDog::stop() {
  * 
  */
 void TrexWatchDog::_main() {
+
+    assert(m_enable==true);
 
     /* reset all the monitors */
     for (auto &monitor : m_monitors) {

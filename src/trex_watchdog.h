@@ -37,9 +37,10 @@ public:
         m_thread  = NULL;
         m_active  = false;
         m_pending = 0;
-
-        register_signal();
+        m_enable  = false;
     }
+
+    void init(bool enable);
 
     /**
      * registering a monitor happens from another thread 
@@ -119,16 +120,17 @@ public:
 
         /* for for a full cacheline */
         uint8_t       pad[15];
-    };
+    } __rte_cache_aligned ;
 
 
 private:
     void register_signal();
     void _main();
 
+
     std::vector<monitor_st> m_monitors __rte_cache_aligned;
     std::mutex              m_lock;
-
+    bool                    m_enable;
     volatile bool           m_active;
     std::thread            *m_thread;
     volatile int            m_pending;
@@ -136,6 +138,6 @@ private:
     static bool             g_signal_init;
 };
 
-static_assert(sizeof(TrexWatchDog::monitor_st) >= RTE_CACHE_LINE_SIZE, "sizeof(monitor_st) != RTE_CACHE_LINE_SIZE" );
+static_assert(sizeof(TrexWatchDog::monitor_st) == RTE_CACHE_LINE_SIZE, "sizeof(monitor_st) != RTE_CACHE_LINE_SIZE" );
 
 #endif /* __TREX_WATCHDOG_H__ */

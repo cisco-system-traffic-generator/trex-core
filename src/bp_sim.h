@@ -670,6 +670,14 @@ public:
         return (btGetMaskBit32(m_flags1,4,4) ? true:false);
     }
 
+    /* split mac is enabled */
+    void setWDDisable(bool wd_disable){
+        btSetMaskBit32(m_flags1,6,6,wd_disable?1:0);
+    }
+
+    bool getWDDisable(){
+        return (btGetMaskBit32(m_flags1,6,6) ? true:false);
+    }
 
 
 
