@@ -41,6 +41,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @classmethod
     def tearDownClass(cls):
+        if CTRexScenario.stl_init_error:
+            return
         # connect back at end of tests
         if not cls.is_connected():
             CTRexScenario.stl_trex.connect()

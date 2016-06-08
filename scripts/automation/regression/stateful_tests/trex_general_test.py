@@ -80,9 +80,9 @@ class CTRexGeneral_Test(unittest.TestCase):
                 device_cfg.set_tftp_config(CTRexScenario.router_cfg['tftp_config_dict'])
                 CTRexScenario.router.load_platform_data_from_file(device_cfg)
                 CTRexScenario.router.launch_connection(device_cfg)
-                running_image = CTRexScenario.router.get_running_image_details()['image']
-                print('Current router image: %s' % running_image)
                 if CTRexScenario.router_cfg['forceImageReload']:
+                    running_image = CTRexScenario.router.get_running_image_details()['image']
+                    print('Current router image: %s' % running_image)
                     needed_image = device_cfg.get_image_name()
                     if not CTRexScenario.router.is_image_matches(needed_image):
                         print('Setting router image: %s' % needed_image)
@@ -96,7 +96,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                             self.fail('Unable to set router image: %s, current image is: %s' % (needed_image, running_image))
                     else:
                         print('Matches needed image: %s' % needed_image)
-                CTRexScenario.router_image = running_image
+                    CTRexScenario.router_image = running_image
 
             if self.modes:
                 print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes)))
