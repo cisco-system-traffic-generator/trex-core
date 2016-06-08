@@ -3681,28 +3681,28 @@ For information about the Python client API, see the link:cp_stl_docs/index.html
 
 ==== Overview 
 
-The console uses the TRex client API to control TRex.
+The console uses TRex client API to control TRex.
 
-*Important information about use of the console*::
+*Important information about console usage*::
 
 // it seems that all of these provide background info, not guidelines for use. the use of "should" is unclear.
 
-* The console does not save its own state. It caches the server state. It is assumed that there is only one console that has R/W capability, so once connected as R/W console (per user/interface), it can read the server state and then cache all operations. 
-* There may be many read-only clients for the same user interface. 
-* The console syncs with the server to get the state during the connection stage, and caches the server information locally.
-* In case of crash or exit of the console, it syncs again at startup.
-* Commands are similar to bash shell commands - no order args, many flags.
-* The console can display TRex stats in real time. You can open two consoles simultaneously - one for commands and one for displaying statistics.
+* The console does not save its own state. It caches the server state. It is assumed that there is only one console with R/W permission at any given time, so once connected as R/W console (per user/interface), it can read the server state and then cache all operations. 
+* Many read-only clients can exist for the same user interface. 
+* The console syncs with the server to get the state during connection stage, and caches the server information locally.
+* In case of crash or exit of the console, it will sync again at startup.
+* Command line parameters order is not important.
+* The console can display TRex stats in real time. You can open two consoles simultaneously - one for commands (R/W) and one for displaying statistics (read only).
 
 ==== Ports State
 
 [options="header",cols="^1,3a"]
 |=================
 | state   |    meaning
-| IDLE    | no streams, does not work 
-| STREAMS | with streams, does not work 
-| WORK    | with streams, works 
-| PAUSE   | with streams, pause 
+| IDLE    | No streams
+| STREAMS | Has streams. Not transmitting (did not start transmission, or it was stopped).
+| WORK    | Has streams. Transmitting.
+| PAUSE   | Has streams. Transmission paused. 
 |=================
 
 
@@ -3718,27 +3718,35 @@ The console uses the TRex client API to control TRex.
 
 ==== Common Arguments 
 
-The command descriptions include arguments common to many commands, designated as: (arg name)
+Following command line arguments are common to many commands.
 
-==== Port mask 
-
-The port mask enbales selecting a range or set of ports.
+===== Help
+You can specify -h or --help after each command to get full description of its purpose and arguments.
 
 *Example*::
 
 [source,bash]
 ----
-$command   [-a] [-port 1 2 3]  [-port 0xff]  [-port clients/servers] 
+$streams -h
+----
+
+===== Port mask 
+
+Port mask enables selecting range, or set of ports.
+
+*Example*::
+
+[source,bash]
+----
+$<command>   [-a] [--port 1 2 3]  [--port 0xff]  [--port clients/servers] 
 
   port mask : 
     [-a]           : all ports 
-    [-port 1 2 3]  : port 1,2 3
-    [-port 0xff]   : port by mask 0x1 for port 0 0x3 for port 0 and 1   <1> 
-    [-port clients/servers] : -port clients will choose all the client side ports
+    [--port 1 2 3]  : port 1,2 3
+    [--port 0xff]   : port by mask 0x1 for port 0 0x3 for port 0 and 1
 ----
-<7> 
 
-==== Duration 
+===== Duration 
 
 Duration is expressed in seconds, minutes, or hours. 
 
@@ -3746,42 +3754,44 @@ Duration is expressed in seconds, minutes, or hours.
 
 [source,bash]
 ----
-$command[-d 100] [-d 10m] [-d 1h] 
+$<command> [-d 100] [-d 10m] [-d 1h] 
   
   duration:
-   -d 100 : in sec 
-   -d 10m : in min 
-   -d 1h  : in hours
+   -d 100 : Seconds 
+   -d 10m : Minutes
+   -d 1h  : Hours
 ----
 
 
-==== Multiplier 
+===== Multiplier 
 
-The traffic profile defines the bandwidth for each stream. The multiplier function normalizes the bandwidth of streams to a specified bandwidth, PPS, or port percentage.
+The traffic profile defines default bandwidth for each stream. Using the multiplier command line argument, it is possible to set different bandwidth. It is possible to specify either packets or bytes per second, percentage of total port rate, or just factor to multiply the original rate by.
 
 *Example*::
 
 [source,bash]
 ----
-$command [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+$<command> [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
   
   multiplier :
   
-  -m 100    : multiply stream file by this factor
-  -m 10gbps : from graph calculate the maximum rate as this bandwidth for all streams( for each port )
-  -m 10kpps : from graph calculate the maximum rate as this pps for all streams      ( for each port )
-  -m 40%    : from graph calculate the maximum rate as this precent from total port  ( for each port )
+  -m 100    : Multiply original rate by given factor.
+  -m 10gbps : From graph calculate the maximum rate as this bandwidth for all streams( for each port )
+  -m 10kpps : From graph calculate the maximum rate as this pps for all streams      ( for each port )
+  -m 40%    : From graph calculate the maximum rate as this precent from total port rate ( for each port )
 ----
+// What does it mean from graph???
 
 
 ==== Commands 
 
 ===== connect 
 
-* Attempts to connect to server
-* Sends a ping command 
-* Syncs with the port info and stream info state 
-* Reads all counter stats for reference
+Attempts to connet to the server you were connected to. Can be used in case server was restarted. Can not be used
+in order to connect to different server. In addition:
+
+* Syncs the port info and stream info state.
+* Reads all counter statistics for reference.
 
 // IGNORE: this line helps rendering of next line
 
@@ -3789,14 +3799,7 @@ $command [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
 
 [source,bash]
 ----
-
-$trex-con   [--ip  $IP] [--server  $IP] [--rpc-port $PORT] [--async_port port]
-
-   --rpc-port   : change the default server - default 5505 for RPC
-
-   --async_port : for sub/pub ZMQ - default 4505 
-
-   --ip or --server  :default 127.0.0.1 the TRex server ip
+$connect
 ----
 
 ===== reset 
@@ -3816,18 +3819,16 @@ Resets the server and client to a known state. Not used in normal scenarios.
 $reset  
 ----
 
+//??? command name is portattr, and there is no --cfg arg. there --prom
+===== portattr
 
-===== port 
-
-Configures port state, autoneg, rate, and so on. 
+Configures port state. Currently support only turning promiscuous mode on and off
 
 *Example*::
 
 [source,bash]
 ----
-$port (port mask) --cfg "auto/10/" 
-
- --cfg string with the configuration name
+$portattr --port 0 --prom
 
 ----
 
@@ -3840,44 +3841,27 @@ Clears all port stats counters.
 
 [source,bash]
 ----
-$clear (port mask) 
+$clear -a
 ----
 
 
 ===== stats 
 
-Shows global and port statistics.
+Can be used to show global/port/stream statistics.
 
 *Example*::
 
 [source,bash]
 ----
-$stats  (port mask) [-g] [-p] [-ps]   
-
-  -g show only global stats
-  -p only ports stats
-  -ps only port status (type/driver/link-up/down/negotion type etc)
+$stats --port 0 -p
+$stats -s
 ----
 
 // IGNORE - this line helps rendering
 
 ===== streams
 
-Shows the configured streams on each port, from the client cache. 
-
-
-*Example*::
-
-[source,bash]
-----
-$streams (port mask)  [--streams mask] [-f]  [--full]  [--graph]
-
-   --port mask,  e.g --port 1 2 3 4
-   --streams mask e.g. --streams 1 2 
-   -f /--full  print stream info in a JSON format with all the information 
-   --graph : add the graph in time of each port stream  
-----
-    
+Shows info about configured streams on each port, from the client cache. 
 
 *Example*::
   
@@ -3885,20 +3869,19 @@ $streams (port mask)  [--streams mask] [-f]  [--full]  [--graph]
 ----
 $streams 
 
-port 0 : imix/a.yaml 
+Port 0:
 
-  stream id  , packet type        , length , mode       , rate    , next    
- + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
- + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
- + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
-  
- 
+    ID     |     packet type     |  length  |       mode       |      rate       | next stream
 
-port 1 : imix/a.yaml
+    1      | Ethernet:IP:UDP:Raw |       64 |    continuous    |           1 pps |      -1
+    2      | Ethernet:IP:UDP:Raw |       64 |    continuous    |       1.00 Kpps |      -1
 
- + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
- + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
- + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
+Port 1:
+
+    ID     |     packet type     |  length  |       mode       |      rate       | next stream
+
+    1      | Ethernet:IP:UDP:Raw |       64 |    continuous    |           1 pps |      -1
+    2      | Ethernet:IP:UDP:Raw |       64 |    continuous    |       1.00 Kpps |      -1
 
 ----
 
@@ -3921,42 +3904,26 @@ Use this command to show full information for stream 0 and port 0, output in JSO
 
 [source,bash]
 ----
-$streams --port 0 --streams 0 -f  
+$streams --port 0 --streams 0
 
 ----
         
 
 ===== start 
 
-* Operates on a set of ports
+Start transmitting traffic on set of ports
+
 * Removes all streams
 * Loads new streams
-* Starts traffic with a specific multiplier 
-* Limits the traffic to a specific duration  
-* Acts only on ports in "stopped: mode. Using `--force` first stops the port(s). 
-* Note: If any ports are not in "stopped" mode, the command fails.
+* Starts traffic (can set multiplier, duration and other parameters)
+* Acts only on ports in "stopped: mode. If `--force` is specified, port(s) are first stopped.
+* Note: If any ports are not in "stopped" mode, and `--force` is not used the command fails.
 
 // IGNORE: this line helps rendering of next line
 
 *Example*::
 
-[source,bash]
-----
-$start [--force] (port mask) [-f stl/imix.py] [-db ab] (duration) (multiplier)  
-
-    
-  stream to load:
-  -f stl/imix.py : load from local disk the streams file 
-  --db stream that was loaded to db 
-   
-  force:
-    --force stop ports if they are active 
-
-----
-
-*Example*::
-
-Use this command to start the profile on all all ports, with a maximum bandwidth of 10 GB.
+Use this command to start a profile on all ports, with a maximum bandwidth of 10 GB.
 
 [source,bash]
 ----
@@ -3965,7 +3932,7 @@ $start -a -f stl/imix.py  -m 10gb
 
 *Example*::
 
-Use this command to start the profile on ports 1 and 2, multiplies the bandwidth specified in the traffic profile by 100.
+Use this command to start a profile on ports 1 and 2, and multiply the bandwidth specified in the traffic profile by 100.
    
 [source,bash]
 ----
@@ -3976,7 +3943,7 @@ $start -port 1 2 -f stl/imix.py  -m 100
 ===== stop
 
 * Operates on a set of ports 
-* Changes the mode of the port to "stopped"
+* Changes the mode of the port(s) to "stopped"
 * Does not remove streams
 
 // IGNORE: this line helps rendering of next line
@@ -3985,11 +3952,9 @@ $start -port 1 2 -f stl/imix.py  -m 100
 
 Use this command to stop the specified ports.
 
-See the port mask description.
-
 [source,bash]
 ----
-$stop (port mask)
+$stop --port 0
 
 ----
 
@@ -3997,15 +3962,13 @@ $stop (port mask)
 ===== pause 
 
 * Operates on a set of ports 
-* Changes a working set of ports to a "pause" state
+* Changes a working set of ports to "pause" (no traffic transmission) state.
 
 *Example*::
 
-See the port mask description.
-
 [source,bash]
 ----
-$pause  (port mask)
+$pause --port 0
 
 ----
 
@@ -4013,25 +3976,23 @@ $pause  (port mask)
 ===== resume 
 
 * Operates on a set of ports 
-* Changes a working set of port to a "resume" state 
-* All ports should be in "paused" status. If any of the ports are not paused, the command fails.
+* Changes a working set of port(s) to "resume" state (transmitting traffic again).
+* All ports should be in "paused" status. If any of the ports is not paused, the command fails.
 
 // IGNORE: this line helps rendering of next line
 
 *Example*::
 
-See the port mask description.
-
 [source,bash]
 ----
-$resume  (port mask) 
+$resume --port 0
 
 ----
 
 
 ===== update 
 
-Update the bandwidth multiplier for a mask of ports.
+Update the bandwidth multiplier for a set of ports.
 
 * All ports must be in "work" state. If any ports are not in "work" state, the command fails
 
@@ -4039,24 +4000,24 @@ Update the bandwidth multiplier for a mask of ports.
 
 *Example*::
 
-See the descriptions for port mask and multiplier.
+Multiplly traffic on all ports by a factor of 5.
 
 [source,bash]
 ----
->update   (port mask) (multiplier)  
+>update -a -m 5
 ----
 
 
 [NOTE]
 =====================================
- Here we could add the ability to disable/enable specific stream, load a new stream dynamically, and so on.
+ We might add in the future the ability to disable/enable specific stream, load a new stream dynamically, and so on.
 =====================================
 
 // clarify note above
 
 ===== TUI
 
-The textual user interface (TUI) displays constantly updated TRex states in a textual window, similar to the Linux "top" tool.
+The textual user interface (TUI) displays constantly updated TRex statistics in a textual window.
 
 *Example*::
         
@@ -4071,10 +4032,10 @@ Enters a Stats mode and displays three types of TRex statistics:
 * Per port stream 
 
 
-The followig keyboard commands operate in the TUI window: 
- q - Quit the TUI window
- c - Clear all counters
-
+The followig keyboard commands operate in the TUI window: +
+ q - Quit the TUI window (get back to console) +
+ c - Clear all counters +
+ d, s, l - change display between dashboard (d), streams (s) and l (latency) info. +
 
 === Appendix
 
@@ -4083,19 +4044,19 @@ The followig keyboard commands operate in the TUI window:
 [source,python]
 ----
 
-# udp header 
+# UDP header 
 Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
-# UDP over one valn
+# UDP over one vlan
 Ether()/Dot1Q(vlan=12)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
 # UDP QinQ
 Ether()/Dot1Q(vlan=12)/Dot1Q(vlan=12)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
-#TCP over IP ove VALN
+#TCP over IP over VLAN
 Ether()/Dot1Q(vlan=12)/IP(src="16.0.0.1",dst="48.0.0.1")/TCP(dport=12,sport=1025)
 
-# IPv6 over valn 
+# IPv6 over vlan
 Ether()/Dot1Q(vlan=12)/IPv6(src="::5")/TCP(dport=12,sport=1025)
 
 #Ipv6 over UDP over IP 
@@ -4194,7 +4155,7 @@ server.*native_method*(<string of function name>, <args of the function>) +
 
 [NOTE]
 =====================================================================
-In case of names collision with native functions (such as connect), for HLTAPI function will be added prefix "hlt_".
+In case of names collision with native functions (such as connect), for HLTAPI, function will change to have "hlt_" prefix.
 =====================================================================
 
 ===== Example of running from Java:

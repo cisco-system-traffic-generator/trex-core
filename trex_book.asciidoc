@@ -530,12 +530,12 @@ zmq publisher at: tcp://*:4500
 <3> Total Rx must be the same as Tx 
 <4> Tx_ok == Rx_ok
 <5> Tx_ok == Rx_ok
-<6> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usualy the TRex number of active flows is much lower that of the router.
-<7> Number of TRex flows from startup.
+<6> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usualy the TRex number of active flows is much lower than that of the router.
+<7> Total number of TRex flows opened since startup (including active ones, and ones already closed). 
 <8> Drop rate.
-<9> Expected packets per second (calculated without latency packets).
-<10> Expected connections per second (calculated without latency packets).
-<11> Expected bits per second (calculated without latency packets).
+<9> Expected number of packets per second (calculated without latency packets).
+<10> Expected number of connections per second (calculated without latency packets).
+<11> Expected number of bits per second (calculated without latency packets).
 <12> Average CPU utilization of transmitters threads. For best results it should be lower than 80%.
 <13> Gb/sec generated per core of DP. Higher is better.
 <14> Rx and latency thread CPU utilization.
@@ -551,10 +551,10 @@ More statistics information:
 // clarify above, especially the formula
 
 *Max window*:: Momentary maximum latency for a time window of 500 msec. There are a few numbers per number of windows that are shown. 
- The new number (the last 500msec) is the right number. The oldest in the left number. This can help to identify spikes of high latency that after a time clear.in a contrast the maximum latency will stuck at the maximum value for all the test. 
+ The newest number (last 500msec) is on the right. Oldest in the left. This can help identifying spikes of high latency clearing after some time. Maximum latency is the total maximum over the entire test duration. 
 //clarify above
 
-*Platform_factor*:: There are cases that we duplicate the traffic using splitter/switch and we would like all the number to be multiplied by this factor (e.g. x2) 
+*Platform_factor*:: There are cases in which we duplicate the traffic using splitter/switch and we would like all numbers displayed to be multiplied by this factor (e.g. x2) 
 //clarify above
 
 WARNING: If you don't see rx packets, revisit your MAC address configuration.
