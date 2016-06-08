@@ -48,6 +48,13 @@ import re
 import time
 from distutils.dir_util import mkpath
 
+# override nose's strange representation of setUpClass errors
+def __suite_repr__(self):
+    return "%s.%s" % (nose.suite._strclass(self.context), getattr(self.context, '__name__', self.context))
+
+nose.suite.ContextSuite.__repr__ = __suite_repr__
+nose.suite.ContextSuite.__str__  = __suite_repr__
+
 def check_trex_path(trex_path):
     if os.path.isfile('%s/trex_daemon_server' % trex_path):
         return os.path.abspath(trex_path)
