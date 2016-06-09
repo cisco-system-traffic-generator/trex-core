@@ -298,7 +298,7 @@ class GAmanager_Regression(GAmanager):
 #***************************************------TEST--------------**************************************
 
 
-if __name__ == '__main__':
+#if __name__ == '__main__':
 
 #g= GAmanager_Regression(GoogleID='UA-75220362-4',AnalyticsUserID=3845,UUID='trex18UUID_GA_TEST',TRexMode='stateFull_GA_TEST',
 #             appName='TRex_GA_TEST',appVer='1.1_GA_TEST',QueueSize=20,Timeout=11,UserPermission=1,BlockingMode=0,SetupName='setup1_GA_TEST',CommitID='commitID1_GA_TEST')
