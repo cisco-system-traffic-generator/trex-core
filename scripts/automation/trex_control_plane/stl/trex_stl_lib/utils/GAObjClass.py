@@ -260,8 +260,22 @@ class GAmanager:
 
 
 #.....................................................................class GAmanager_Regression.................................................................
-
-
+"""
+            *-*-*-*-Google Analytics Regression Manager-*-*-*-*
+            attributes:
+GoogleID - the tracker ID that Google uses in order to track the activity of a property. for regression use: 'UA-75220362-4'
+AnalyticsUserID - text value  - used by Google to differ between 2 users sending data. (will not be presented on reports). use only as a way to differ between different users
+UUID - text  - will be presented on analysis. put here UUID
+TRexMode - text - will be presented on analysis. put here TRexMode
+appName - text - will be presented on analysis. put here appName as string describing app name
+appVer - text - will be presented on analysis. put here the appVer
+QueueSize - integer - determines the queue size. the queue will hold pending request before submission. RECOMMENDED VALUE: 20
+Timeout - integer (seconds) - the timeout in seconds between automated reports when activating reporting thread
+UserPermission - boolean (1/0) - required in order to send packets, should be 1.
+BlockingMode - boolean (1/0) - required when each tracked event is critical and program should halt until the event is reported
+SetupName - text - will be presented on analysis. put here setup name as string.
+CommitID - text - will be presented on analysis. put here CommitID 
+"""
 class GAmanager_Regression(GAmanager):
     def __init__(self,GoogleID,AnalyticsUserID,UUID,TRexMode,appName,appVer,
                  QueueSize,Timeout,UserPermission,BlockingMode,SetupName,CommitID):
@@ -286,14 +300,14 @@ class GAmanager_Regression(GAmanager):
 
 if __name__ == '__main__':
 
-    g= GAmanager_Regression(GoogleID='UA-75220362-4',AnalyticsUserID=3845,UUID='trex18UUID_GA_TEST',TRexMode='stateFull_GA_TEST',
-                appName='TRex_GA_TEST',appVer='1.1_GA_TEST',QueueSize=20,Timeout=11,UserPermission=1,BlockingMode=0,SetupName='setup1_GA_TEST',CommitID='commitID1_GA_TEST')
-    #for j in range(1,3,1):
-    for i in range(100,118,1):
-        g.gaAddTestQuery('test_name_GA_TEST',i+0.5,150)
-    #   sleep(11)
-    #   print "finished batch"
-    g.emptyAndReportQ()
+#g= GAmanager_Regression(GoogleID='UA-75220362-4',AnalyticsUserID=3845,UUID='trex18UUID_GA_TEST',TRexMode='stateFull_GA_TEST',
+#             appName='TRex_GA_TEST',appVer='1.1_GA_TEST',QueueSize=20,Timeout=11,UserPermission=1,BlockingMode=0,SetupName='setup1_GA_TEST',CommitID='commitID1_GA_TEST')
+#for j in range(1,3,1):
+#for i in range(100,118,1):
+#    g.gaAddTestQuery('test_name_GA_TEST',i+0.5,150)
+#   sleep(11)
+#   print "finished batch"
+#g.emptyAndReportQ()
 
 #g.printSelf()
 #g.emptyAndReportQ()
