@@ -466,12 +466,11 @@ class CTRexServer(object):
             if 'd' not in kwargs:
                 raise Exception('Argument -d should be specified in stateful command')
 
-        cmd = "{nice}{run_command} --iom {io} {cmd_options} --no-key > {export}".format( # -- iom 0 disables the periodic log to the screen (not needed)
+        cmd = "{nice}{run_command} --iom {io} {cmd_options} --no-key".format( # -- iom 0 disables the periodic log to the screen (not needed)
             nice = '' if self.trex_nice == 0 else 'nice -n %s ' % self.trex_nice,
             run_command = self.TREX_START_CMD,
             cmd_options = trex_cmd_options,
-            io          = iom, 
-            export = export_path )
+            io          = iom)
 
         logger.info("TREX FULL COMMAND: {command}".format(command = cmd) )
 

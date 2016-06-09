@@ -209,6 +209,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             if not res:
                 print('Could not restart TRex daemon server')
                 sys.exit(-1)
+            print('Restarted.')
 
             if self.kill_running:
                 CTRexScenario.trex.kill_all_trexes()
