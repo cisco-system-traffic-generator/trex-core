@@ -12,12 +12,11 @@ from glob import glob
 import signal
 
 sys.path.append(os.path.join('automation', 'trex_control_plane', 'server'))
+import CCustomLogger
 import outer_packages
 from singleton_daemon import SingletonDaemon, register_socket, run_command
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import termstyle
-
-logger = logging.getLogger('Master daemon')
 
 ### Server functions ###
 
@@ -90,22 +89,21 @@ def start_master_daemon():
     fail(termstyle.red('Master daemon failed to run. Please look in log: %s' % logging_file))
 
 def set_logger():
+    log_dir = os.path.dirname(logging_file)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     if os.path.exists(logging_file):
         if os.path.exists(logging_file_bu):
             os.unlink(logging_file_bu)
         os.rename(logging_file, logging_file_bu)
-    hdlr = logging.FileHandler(logging_file)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt = '%Y-%m-%d %H:%M:%S')
-    hdlr.setFormatter(formatter)
-    logger.addHandler(hdlr) 
-    logger.setLevel(logging.INFO)
+    CCustomLogger.setup_daemon_logger('Master daemon', logging_file)
 
 def start_master_daemon_func():
     try:
         set_logger()
         register_socket(master_daemon.tag)
         server = SimpleJSONRPCServer(('0.0.0.0', master_daemon.port))
-        logger.info('Started master daemon (port %s)' % master_daemon.port)
+        logging.info('Started master daemon (port %s)' % master_daemon.port)
         server.register_function(add)
         server.register_function(check_connectivity)
         server.register_function(get_trex_path)
@@ -125,10 +123,10 @@ def start_master_daemon_func():
         signal.signal(signal.SIGTERM, stop_handler)
         server.serve_forever()
     except Exception as e:
-        logger.error('Closing due to error: %s' % e)
+        logging.error('Closing due to error: %s' % e)
 
 def stop_handler(*args, **kwargs):
-    logger.info('Got killed explicitly.')
+    logging.info('Got killed explicitly.')
     sys.exit(0)
 
 # returns True if given path is under current dir or /tmp
