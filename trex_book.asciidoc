@@ -1786,7 +1786,7 @@ The TRex output
 
 anchor:fedora21_example[]
 
-=== Fedora 21 *Server* installation
+=== Fedora 21 Server installation
 
 Download the .iso file from link above, boot with it using Hypervisor or CIMC console. +
 Troubleshooting -> install in basic graphics mode
