@@ -4782,7 +4782,7 @@ int main_test(int argc , char * argv[]){
 
     /* disable WD if needed */
     //CGlobalInfo::m_options.preview.getWDDisable()?false:true
-    g_trex.m_watchdog.init(false); /* always disable - due to trex-211 
+    g_trex.m_watchdog.init(false); /* always disable - due to trex-211 */
 
     /* this will give us all cores - master + tx + latency */
     g_trex.m_watchdog.mark_pending_monitor(g_trex.m_max_cores);
