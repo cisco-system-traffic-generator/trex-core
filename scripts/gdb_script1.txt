@@ -1,0 +1,16 @@
+run
+set logging overwrite on
+set logging file gdb.bt
+set logging on 
+set pagination off 
+echo backtrace
+bt 
+bt full
+gcore
+info registers
+set logging off
+quit
+
+
+
+
