@@ -227,7 +227,7 @@ CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint8_t proto) {
               << std::endl;
 #endif
 
-    CFlowStatUserIdInfo *new_id = new CFlowStatUserIdInfo(proto);
+    CFlowStatUserIdInfo *new_id;
 
     if (proto == PAYLOAD_RULE_PROTO) {
         new_id = new CFlowStatUserIdInfoPayload(proto);
@@ -390,7 +390,8 @@ uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
 
 /************** class CFlowStatHwIdMap ***************/
 CFlowStatHwIdMap::CFlowStatHwIdMap() {
-    m_map = NULL;
+    m_map = NULL; // must call create in order to work with the class
+    m_num_free = 0; // to make coverity happy, init this here too.
 }
 
 CFlowStatHwIdMap::~CFlowStatHwIdMap() {
@@ -466,6 +467,7 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_hw_id_map_payload.create(MAX_FLOW_STATS_PAYLOAD);
     memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
     memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
+    m_num_ports = 0; // need to call create to init
 }
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {
@@ -480,7 +482,7 @@ void CFlowStatRuleMgr::create() {
     m_api = tstateless->get_platform_api();
     assert(m_api);
     m_api->get_interface_stat_info(0, num_counters, cap);
-    m_api->get_port_num(m_num_ports);
+    m_api->get_port_num(m_num_ports); // This initialize m_num_ports
     for (uint8_t port = 0; port < m_num_ports; port++) {
         assert(m_api->reset_hw_flow_stats(port) == 0);
     }

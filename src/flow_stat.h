@@ -472,7 +472,7 @@ class CFlowStatRuleMgr {
     const CRxCoreStateless *m_rx_core;
     int m_max_hw_id; // max hw id we ever used
     int m_max_hw_id_payload; // max hw id we ever used for payload rules
-    uint32_t m_num_started_streams; // How many started (transmitting) streams we have
+    int m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
     CFlowStatParser *m_parser;
     uint16_t m_cap; // capabilities of the NIC driver we are using

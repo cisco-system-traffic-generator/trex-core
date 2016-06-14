@@ -745,7 +745,7 @@ std::string double_to_human_str(double num,
     if (etype ==KBYE_1024){
         f=1024.0;
     }
-    while ((abs_num > f ) && (i< max_cnt)){
+    while ((abs_num > f ) && (i < max_cnt - 1)){
         abs_num/=f;
         div*=f;
         i++;

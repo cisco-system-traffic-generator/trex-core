@@ -338,9 +338,7 @@ bool CCPortLatency::dump_packet(rte_mbuf_t * m){
 	uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     utl_DumpBuffer(stdout,p,pkt_size,0);
     return (0);
-
-
-
+#if 0
     if (pkt_size < ( sizeof(CRx_check_header)+14+20) ) {
         assert(0);
     }
@@ -348,16 +346,8 @@ bool CCPortLatency::dump_packet(rte_mbuf_t * m){
 
     lp->dump(stdout);
 
-
-	uint16_t vlan_offset=0;
-	if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-		vlan_offset=4;
-	}
-
-    (void)vlan_offset;
-
-//	utl_DumpBuffer(stdout,p,pkt_size,0);
 	return (0);
+#endif
 
 }
 
