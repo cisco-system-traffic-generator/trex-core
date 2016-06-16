@@ -2143,7 +2143,7 @@ class STLClient(object):
                     Ports on which to execute the command
 
                 timeout : int
-                    timeout in seconds
+                    timeout in seconds (-1 for infinite loop)
 
                 rx_delay_ms : int
                     time to wait until RX filters are removed
@@ -2173,7 +2173,7 @@ class STLClient(object):
                 raise STLError("subscriber thread is dead")
 
             time.sleep(0.01)
-            if time.time() > expr:
+            if time.time() > expr and timeout != -1:
                 raise STLTimeoutError(timeout)
 
         # remove any RX filters
