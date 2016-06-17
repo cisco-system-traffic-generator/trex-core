@@ -83,8 +83,7 @@ def start_master_daemon():
     proc.start()
     for i in range(50):
         if master_daemon.is_running():
-            print(termstyle.green('Master daemon is started.'))
-            os._exit(0)
+            return True
         sleep(0.1)
     fail(termstyle.red('Master daemon failed to run. Please look in log: %s' % logging_file))
 
@@ -226,9 +225,13 @@ if args.action != 'show':
         print(termstyle.red(e))
         sys.exit(1)
 
-# prints running status
-if daemon.is_running():
-    print(termstyle.green('%s is running' % daemon.name))
+passive = {'start': 'started', 'restart': 'restarted', 'stop': 'stopped', 'show': 'running'}
+
+if args.action in ('show', 'start', 'restart') and daemon.is_running() or \
+    args.action == 'stop' and not daemon.is_running():
+    print(termstyle.green('%s is %s' % (daemon.name, passive[args.action])))
+    os._exit(0)
 else:
-    print(termstyle.red('%s is NOT running' % daemon.name))
+    print(termstyle.red('%s is NOT %s' % (daemon.name, passive[args.action])))
+    os._exit(-1)
 

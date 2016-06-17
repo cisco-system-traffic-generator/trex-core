@@ -86,7 +86,7 @@ class SingletonDaemon(object):
     def kill(self, timeout = 15):
         pid = self.get_pid()
         if not pid:
-            return False
+            raise Exception('%s is not running' % self.name)
         # try Ctrl+C, usual kill, kill -9
         for signal_name in [signal.SIGINT, signal.SIGTERM, signal.SIGKILL]:
             if self.kill_by_signal(pid, signal_name, timeout):
