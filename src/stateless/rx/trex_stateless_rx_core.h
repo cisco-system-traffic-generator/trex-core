@@ -95,7 +95,7 @@ class CRxCoreStateless {
     };
 
  public:
-    void start(TrexWatchDog &watchdog);
+    void start();
     void create(const CRxSlCfg &cfg);
     void reset_rx_stats(uint8_t port_id);
     int get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset
@@ -126,8 +126,7 @@ class CRxCoreStateless {
 
  private:
 
-    TrexWatchDog   *m_watchdog;
-    int             m_watchdog_handle;
+    TrexMonitor     m_monitor;
 
     uint32_t m_max_ports;
     bool m_has_streams;

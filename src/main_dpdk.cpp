@@ -2857,8 +2857,9 @@ private:
     uint32_t            m_stats_cnt;
     std::mutex          m_cp_lock;
 
+    TrexMonitor         m_monitor;
+   
 public:
-    TrexWatchDog         m_watchdog;
     TrexStateless       *m_trex_stateless;
 
 };
@@ -3288,8 +3289,7 @@ bool CGlobalTRex::Create(){
 
         TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP,
                                              global_platform_cfg_info.m_zmq_rpc_port,
-                                             &m_cp_lock,
-                                             &m_watchdog);
+                                             &m_cp_lock);
 
         cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
         cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
@@ -3992,8 +3992,10 @@ int CGlobalTRex::run_in_master() {
     const int FASTPATH_DELAY_MS = 10;
     const int SLOWPATH_DELAY_MS = 500;
 
-    int handle = m_watchdog.register_monitor("master", 2);
-    m_watchdog.start();
+    m_monitor.create("master", 2);
+    TrexWatchDog::getInstance().register_monitor(&m_monitor);
+
+    TrexWatchDog::getInstance().start();
 
     while ( true ) {
 
@@ -4016,14 +4018,14 @@ int CGlobalTRex::run_in_master() {
         slow_path_counter += FASTPATH_DELAY_MS;
         cp_lock.lock();
 
-        m_watchdog.tickle(handle);
+        m_monitor.tickle();
     }
 
     /* on exit release the lock */
     cp_lock.unlock();
 
     /* first stop the WD */
-    m_watchdog.stop();
+    TrexWatchDog::getInstance().stop();
 
     if (!is_all_cores_finished()) {
         /* probably CLTR-C */
@@ -4047,12 +4049,12 @@ int CGlobalTRex::run_in_rx_core(void){
 
     if (get_is_stateless()) {
         m_sl_rx_running = true;
-        m_rx_sl.start(m_watchdog);
+        m_rx_sl.start();
         m_sl_rx_running = false;
     } else {
         if ( CGlobalInfo::m_options.is_rx_enabled() ){
             m_sl_rx_running = false;
-            m_mg.start(0, &m_watchdog);
+            m_mg.start(0, true);
         }
     }
 
@@ -4079,9 +4081,8 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     lpt = m_fl.m_threads_info[virt_core_id-1];
 
     /* register a watchdog handle on current core */
-    lpt->m_watchdog        = &m_watchdog;
-    lpt->m_watchdog_handle = m_watchdog.register_monitor(ss.str(), 1);
-
+    lpt->m_monitor.create(ss.str(), 1);
+    TrexWatchDog::getInstance().register_monitor(&lpt->m_monitor);
 
     if (get_is_stateless()) {
         lpt->start_stateless_daemon(*lp);
@@ -4090,7 +4091,7 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     }
 
     /* done - remove this from the watchdog (we might wait on join for a long time) */
-    lpt->m_watchdog->disable_monitor(lpt->m_watchdog_handle);
+    lpt->m_monitor.disable();
 
     m_signal[virt_core_id]=1;
     return (0);
@@ -4786,11 +4787,7 @@ int main_test(int argc , char * argv[]){
 
     /* disable WD if needed */
     //CGlobalInfo::m_options.preview.getWDDisable()?false:true
-    g_trex.m_watchdog.init(false); /* always disable - due to trex-211 */
-
-    /* this will give us all cores - master + tx + latency */
-    g_trex.m_watchdog.mark_pending_monitor(g_trex.m_max_cores);
-
+    TrexWatchDog::getInstance().init(true); /* always disable - due to trex-211 */
 
     g_trex.m_sl_rx_running = false;
     if ( get_is_stateless() ) {

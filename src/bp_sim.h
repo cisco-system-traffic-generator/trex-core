@@ -3647,9 +3647,7 @@ public:
     }
 
     void tickle() {
-        if (m_watchdog) {
-            m_watchdog->tickle(m_watchdog_handle);
-        }
+        m_monitor.tickle();
     }
 
     /* return the dual port ID this thread is attached to in 4 ports configuration
@@ -3774,8 +3772,7 @@ public:
 
     CTupleGeneratorSmart             m_smart_gen;
 
-    TrexWatchDog                    *m_watchdog;
-    int                              m_watchdog_handle;
+    TrexMonitor                      m_monitor;
 
 public:
     CNodeGenerator                   m_node_gen;

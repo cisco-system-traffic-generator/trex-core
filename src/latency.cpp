@@ -555,9 +555,6 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
         m_nat_check_manager.Create();
     }
 
-    m_watchdog        = NULL;
-    m_watchdog_handle = -1;
-
     return (true);
 }
 
@@ -708,12 +705,10 @@ void  CLatencyManager::reset(){
 }
 
 void CLatencyManager::tickle() {
-    if (m_watchdog) {
-        m_watchdog->tickle(m_watchdog_handle);
-    }
+    m_monitor.tickle();
 }
 
-void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
+void  CLatencyManager::start(int iter, bool activate_watchdog) {
     m_do_stop =false;
     m_is_active =false;
     int cnt=0;
@@ -730,9 +725,9 @@ void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
     m_p_queue.push(node);
     bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable()?true:false;
 
-    if (watchdog) {
-        m_watchdog        = watchdog;
-        m_watchdog_handle = watchdog->register_monitor("STF RX CORE", 1);
+    if (activate_watchdog) {
+        m_monitor.create("STF RX CORE", 1);
+        TrexWatchDog::getInstance().register_monitor(&m_monitor);
     }
 
     while (  !m_p_queue.empty() ) {
@@ -802,8 +797,8 @@ void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
     }
 
     /* disable the monitor */
-    if (m_watchdog) {
-        m_watchdog->disable_monitor(m_watchdog_handle);
+    if (activate_watchdog) {
+        m_monitor.disable();
     }
 
 }

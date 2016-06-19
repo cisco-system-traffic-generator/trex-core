@@ -36,8 +36,6 @@ TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, c
     m_name = name;
 
     m_lock              = cfg.m_lock;
-    m_watchdog          = cfg.m_watchdog;
-    m_watchdog_handle   = -1;
 
     m_is_running = false;
     m_is_verbose = false;
@@ -78,7 +76,6 @@ void TrexRpcServerInterface::start() {
     /* prepare for run */
     _prepare();
 
-    m_watchdog->mark_pending_monitor();
     m_thread = new std::thread(&TrexRpcServerInterface::_rpc_thread_cb, this);
     if (!m_thread) {
         throw TrexRpcException("unable to create RPC thread");

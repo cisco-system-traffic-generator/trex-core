@@ -3324,9 +3324,6 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_max_threads=max_threads;
     m_thread_id=thread_id;
 
-    m_watchdog        = NULL;
-    m_watchdog_handle = -1;
-
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
     uint32_t socket_id=rte_lcore_to_socket_id(m_core_id);

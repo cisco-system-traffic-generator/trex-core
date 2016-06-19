@@ -56,7 +56,8 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
     std::stringstream ss;
     int zmq_rc;
 
-    m_watchdog_handle = m_watchdog->register_monitor(m_name, 1);
+    m_monitor.create(m_name, 1);
+    TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
     /* create a socket based on the configuration */
 
@@ -102,7 +103,7 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
     zmq_close(m_socket);
 
     /* done */
-    m_watchdog->disable_monitor(m_watchdog_handle);
+    m_monitor.disable();
 }
 
 bool
@@ -115,7 +116,7 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
     assert(rc == 0);
 
     while (true) {
-        m_watchdog->tickle(m_watchdog_handle);
+        m_monitor.tickle();
 
         rc = zmq_msg_recv (&zmq_msg, m_socket, 0);
         if (rc != -1) {

@@ -341,7 +341,7 @@ public:
     bool Create(CLatencyManagerCfg * cfg);
     void Delete();
     void  reset();
-    void  start(int iter, TrexWatchDog *watchdog);
+    void  start(int iter, bool activate_watchdog);
     void  stop();
     bool  is_active();
     void set_ip(uint32_t client_ip,
@@ -405,8 +405,7 @@ private:
      CNatRxManager           m_nat_check_manager;
      CCpuUtlDp               m_cpu_dp_u;
      CCpuUtlCp               m_cpu_cp_u;
-     TrexWatchDog            *m_watchdog;
-     int                     m_watchdog_handle;
+     TrexMonitor             m_monitor;
 
      volatile bool           m_do_stop __rte_cache_aligned ;
 };
