@@ -83,8 +83,7 @@ def start_master_daemon():
     proc.start()
     for i in range(50):
         if master_daemon.is_running():
-            print(termstyle.green('Master daemon is started.'))
-            os._exit(0)
+            return True
         sleep(0.1)
     fail(termstyle.red('Master daemon failed to run. Please look in log: %s' % logging_file))
 
@@ -119,14 +118,16 @@ def start_master_daemon_func():
         server.register_function(stl_rpc_proxy.start, 'start_stl_rpc_proxy')
         server.register_function(stl_rpc_proxy.stop, 'stop_stl_rpc_proxy')
         server.register_function(server.funcs.keys, 'get_methods') # should be last
-        signal.signal(signal.SIGTSTP, stop_handler)
-        signal.signal(signal.SIGTERM, stop_handler)
+        signal.signal(signal.SIGTSTP, stop_handler) # ctrl+z
+        signal.signal(signal.SIGTERM, stop_handler) # kill
         server.serve_forever()
+    except KeyboardInterrupt:
+        logging.info('Ctrl+C')
     except Exception as e:
         logging.error('Closing due to error: %s' % e)
 
-def stop_handler(*args, **kwargs):
-    logging.info('Got killed explicitly.')
+def stop_handler(signalnum, *args, **kwargs):
+    logging.info('Got signal %s, exiting.' % signalnum)
     sys.exit(0)
 
 # returns True if given path is under current dir or /tmp
@@ -191,6 +192,7 @@ master_daemon      = SingletonDaemon('Master daemon', 'trex_master_daemon', args
 tmp_dir = '/tmp/trex-tmp'
 logging_file = '/var/log/trex/master_daemon.log'
 logging_file_bu = '/var/log/trex/master_daemon.log_bu'
+os.chdir('/')
 
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
@@ -223,9 +225,13 @@ if args.action != 'show':
         print(termstyle.red(e))
         sys.exit(1)
 
-# prints running status
-if daemon.is_running():
-    print(termstyle.green('%s is running' % daemon.name))
+passive = {'start': 'started', 'restart': 'restarted', 'stop': 'stopped', 'show': 'running'}
+
+if args.action in ('show', 'start', 'restart') and daemon.is_running() or \
+    args.action == 'stop' and not daemon.is_running():
+    print(termstyle.green('%s is %s' % (daemon.name, passive[args.action])))
+    os._exit(0)
 else:
-    print(termstyle.red('%s is NOT running' % daemon.name))
+    print(termstyle.red('%s is NOT %s' % (daemon.name, passive[args.action])))
+    os._exit(-1)
 

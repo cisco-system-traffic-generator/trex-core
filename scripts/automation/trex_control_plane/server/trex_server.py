@@ -387,23 +387,14 @@ class CTRexServer(object):
         return trex_cmds_list
 
 
-    def kill_all_trexes(self):
+    # Silently tries to kill TRexes with given signal.
+    # Responsibility of client to verify with get_trex_cmds.
+    def kill_all_trexes(self, signal_name):
         logger.info('Processing kill_all_trexes() command.')
         trex_cmds_list = self.get_trex_cmds()
-        if not trex_cmds_list:
-            return False
         for pid, cmd in trex_cmds_list:
-            logger.info('Killing process %s %s' % (pid, cmd))
-            run_command('kill %s' % pid)
-            ret_code_ps, _, _ = run_command('ps -p %s' % pid)
-            if not ret_code_ps:
-                logger.info('Killing with -9.')
-                run_command('kill -9 %s' % pid)
-                ret_code_ps, _, _ = run_command('ps -p %s' % pid)
-                if not ret_code_ps:
-                    logger.info('Could not kill process.')
-                    raise Exception('Could not kill process %s %s' % (pid, cmd))
-        return True
+            logger.info('Killing with signal %s process %s %s' % (signal_name, pid, cmd))
+            os.kill(int(pid), signal_name)
 
 
     def wait_until_kickoff_finish (self, timeout = 40):

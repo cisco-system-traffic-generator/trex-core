@@ -2,6 +2,7 @@ import errno
 import os
 import shlex
 import socket
+import signal
 import tempfile
 import types
 from subprocess import Popen
@@ -73,31 +74,27 @@ class SingletonDaemon(object):
         if pid:
             return pid
 
-
-    # kill daemon
-    def kill(self, timeout = 10):
-        pid = self.get_pid()
-        if not pid:
-            return False
-        ret_code, stdout, stderr = run_command('kill %s' % pid) # usual kill
-        if ret_code:
-            raise Exception('Failed to run kill command for %s: %s' % (self.name, [ret_code, stdout, stderr]))
+    def kill_by_signal(self, pid, signal_name, timeout):
+        os.kill(pid, signal_name)
         poll_rate = 0.1
         for i in range(int(timeout / poll_rate)):
             if not self.is_running():
                 return True
             sleep(poll_rate)
-        ret_code, stdout, stderr = run_command('kill -9 %s' % pid) # unconditional kill
-        if ret_code:
-            raise Exception('Failed to run kill -9 command for %s: %s' % (self.name, [ret_code, stdout, stderr]))
-        for i in range(int(timeout / poll_rate)):
-            if not self.is_running():
+
+    # kill daemon, with verification
+    def kill(self, timeout = 15):
+        pid = self.get_pid()
+        if not pid:
+            raise Exception('%s is not running' % self.name)
+        # try Ctrl+C, usual kill, kill -9
+        for signal_name in [signal.SIGINT, signal.SIGTERM, signal.SIGKILL]:
+            if self.kill_by_signal(pid, signal_name, timeout):
                 return True
-            sleep(poll_rate)
         raise Exception('Could not kill %s, even with -9' % self.name)
 
     # try connection as RPC client, return True upon success, False if fail
-    def check_connectivity(self, timeout = 5):
+    def check_connectivity(self, timeout = 15):
         daemon = jsonrpclib.Server('http://127.0.0.1:%s/' % self.port)
         poll_rate = 0.1
         for i in range(int(timeout/poll_rate)):
@@ -140,7 +137,7 @@ class SingletonDaemon(object):
             raise Exception('%s failed to run.' % self.name)
 
     # restart the daemon
-    def restart(self, timeout = 5):
+    def restart(self, timeout = 15):
         if self.is_running():
             self.kill(timeout)
         return self.start(timeout)
