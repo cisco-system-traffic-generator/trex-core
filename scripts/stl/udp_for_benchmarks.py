@@ -1,5 +1,23 @@
 from trex_stl_lib.api import *
 
+# Tunable example 
+#
+#trex>profile -f stl/udp_for_benchmarks.py
+#
+#Profile Information:
+#
+#
+#General Information:
+#Filename:         stl/udp_for_benchmarks.py
+#Stream count:          1      
+#
+#Specific Information:
+#Type:             Python Module
+#Tunables:         ['stream_count = 1', 'direction = 0', 'packet_len = 64']
+#
+#trex>start -f stl/udp_for_benchmarks.py -t  packet_len=128 --port 0
+#
+
 class STLS1(object):
     '''
     Generalization of udp_1pkt_simple, can specify number of streams and packet length
