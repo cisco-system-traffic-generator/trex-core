@@ -925,7 +925,7 @@ TrexStreamsGraphObj::find_max_rate() {
     }
 
     /* if not mark as inifite - get the last event time */
-    if (m_expected_duration != -1) {
+    if ( (m_expected_duration != -1) && (m_rate_events.size() > 0) ) {
         m_expected_duration = m_rate_events.back().time;
     }
 
