@@ -235,7 +235,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                             curr_rfc2544.set_seq(pkt_seq + 1);
                         }
                         lp->m_port.m_rx_pg_stat_payload[hw_id].add_pkts(1);
-                        lp->m_port.m_rx_pg_stat_payload[hw_id].add_bytes(m->pkt_len);
+                        lp->m_port.m_rx_pg_stat_payload[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
                         uint64_t d = (os_get_hr_tick_64() - fsp_head->time_stamp );
                         dsec_t ctime = ptime_convert_hr_dsec(d);
                         curr_rfc2544.add_sample(ctime);
@@ -243,7 +243,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                 } else {
                     hw_id = get_hw_id(ip_id);
                     lp->m_port.m_rx_pg_stat[hw_id].add_pkts(1);
-                    lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len);
+                    lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
                 }
             }
         }

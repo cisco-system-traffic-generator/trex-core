@@ -80,7 +80,7 @@ class STLRX_Test(CStlGeneral_Test):
             tmp = 'TX pkts mismatch - got: {0}, expected: {1}'.format(tx_pkts, total_pkts)
             assert False, tmp
 
-        if tx_bytes != (total_pkts * pkt_len):
+        if tx_bytes != (total_pkts * (pkt_len + 4)): # + 4 for ethernet CRC
             pprint.pprint(flow_stats)
             tmp = 'TX bytes mismatch - got: {0}, expected: {1}'.format(tx_bytes, (total_pkts * pkt_len))
             assert False, tmp
@@ -92,7 +92,7 @@ class STLRX_Test(CStlGeneral_Test):
 
         if "rx_bytes" in self.cap:
             rx_bytes = flow_stats['rx_bytes'].get(self.rx_port, 0)
-            if rx_bytes != (total_pkts * pkt_len) and not self.drops_expected:
+            if rx_bytes != (total_pkts * (pkt_len + 4)) and not self.drops_expected: # +4 for ethernet CRC
                 pprint.pprint(flow_stats)
                 tmp = 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * pkt_len))
                 assert False, tmp

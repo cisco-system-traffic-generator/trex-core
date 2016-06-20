@@ -114,7 +114,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     else:
         print("TX pkts match   - {0}".format(tx_pkts))
 
-    if tx_bytes != (total_pkts * pkt_len):
+    if tx_bytes != (total_pkts * (pkt_len + 4)): # +4 for ethernet CRC
         print("TX bytes mismatch - got: {0}, expected: {1}".format(tx_bytes, (total_pkts * pkt_len)))
         pprint.pprint(flow_stats)
         return False

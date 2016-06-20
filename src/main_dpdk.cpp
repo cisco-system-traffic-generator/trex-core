@@ -2074,7 +2074,7 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     }
     tx_per_flow_t *lp_s = &lp_stats->m_tx_per_flow[hw_id];
     lp_s->add_pkts(1);
-    lp_s->add_bytes(mi->pkt_len);
+    lp_s->add_bytes(mi->pkt_len + 4); // We add 4 because of ethernet CRC
 
     if (hw_id >= MAX_FLOW_STATS) {
         fsp_head->time_stamp = os_get_hr_tick_64();
