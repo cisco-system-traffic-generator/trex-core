@@ -4777,8 +4777,8 @@ int main_test(int argc , char * argv[]){
     }
 
     /* disable WD if needed */
-    //CGlobalInfo::m_options.preview.getWDDisable()?false:true
-    TrexWatchDog::getInstance().init(true); /* always disable - due to trex-211 */
+    bool wd_enable = (CGlobalInfo::m_options.preview.getWDDisable() ? false : true);
+    TrexWatchDog::getInstance().init(wd_enable);
 
     g_trex.m_sl_rx_running = false;
     if ( get_is_stateless() ) {
