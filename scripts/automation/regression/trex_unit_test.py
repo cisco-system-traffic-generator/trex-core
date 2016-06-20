@@ -50,7 +50,11 @@ from distutils.dir_util import mkpath
 
 # override nose's strange representation of setUpClass errors
 def __suite_repr__(self):
-    return "%s.%s" % (nose.suite._strclass(self.context), getattr(self.context, '__name__', self.context))
+    if hasattr(self.context, '__module__'): # inside class, setUpClass etc.
+        class_repr = nose.suite._strclass(self.context)
+    else:                                   # outside of class, setUpModule etc.
+        class_repr = nose.suite._strclass(self.__class__)
+    return '%s.%s' % (class_repr, getattr(self.context, '__name__', self.context))
 
 nose.suite.ContextSuite.__repr__ = __suite_repr__
 nose.suite.ContextSuite.__str__  = __suite_repr__
