@@ -310,7 +310,7 @@ class CTRexServer(object):
                 return False
 
             
-    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False):
+    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False):
         with self.start_lock:
             logger.info("Processing start_trex() command.")
             if self.is_reserved():
@@ -323,7 +323,7 @@ class CTRexServer(object):
                 return Fault(-13, '')  # raise at client TRexInUseError
             
             try:
-                server_cmd_data = self.generate_run_cmd(stateless = stateless, **trex_cmd_options)
+                server_cmd_data = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, **trex_cmd_options)
                 self.zmq_monitor.first_dump = True
                 self.trex.start_trex(self.TREX_PATH, server_cmd_data)
                 logger.info("TRex session has been successfully initiated.")
@@ -413,7 +413,7 @@ class CTRexServer(object):
         return self.trex.get_running_info()
 
 
-    def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, **kwargs):
+    def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, **kwargs):
         """ generate_run_cmd(self, iom, export_path, kwargs) -> str
 
         Generates a custom running command for the kick-off of the TRex traffic generator.
@@ -457,9 +457,10 @@ class CTRexServer(object):
             if 'd' not in kwargs:
                 raise Exception('Argument -d should be specified in stateful command')
 
-        cmd = "{nice}{run_command} --iom {io} {cmd_options} --no-key".format( # -- iom 0 disables the periodic log to the screen (not needed)
+        cmd = "{nice}{run_command}{debug_image} --iom {io} {cmd_options} --no-key".format( # -- iom 0 disables the periodic log to the screen (not needed)
             nice = '' if self.trex_nice == 0 else 'nice -n %s ' % self.trex_nice,
             run_command = self.TREX_START_CMD,
+            debug_image = '-debug' if debug_image else '',
             cmd_options = trex_cmd_options,
             io          = iom)
 

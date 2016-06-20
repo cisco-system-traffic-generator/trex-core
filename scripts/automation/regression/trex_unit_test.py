@@ -143,6 +143,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--no-daemon', action="store_true", default = False,
                             dest="no_daemon",
                             help="Flag that specifies to use running stl server, no need daemons.")
+        parser.add_option('--debug-image', action="store_true", default = False,
+                            dest="debug_image",
+                            help="Flag that specifies to use t-rex-64-debug as TRex executable.")
 
 
     def configure(self, options, conf):
@@ -179,9 +182,11 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
+        CTRexScenario.debug_image   = options.debug_image
         if not self.no_daemon:
-            CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'],
-                                                      verbose   = self.json_verbose)
+            CTRexScenario.trex      = CTRexClient(trex_host   = self.configuration.trex['trex_name'],
+                                                  verbose     = self.json_verbose,
+                                                  debug_image = options.debug_image)
             if not CTRexScenario.trex.check_master_connectivity():
                 print('Could not connect to master daemon')
                 sys.exit(-1)
@@ -267,6 +272,9 @@ def save_setup_info():
             setup_info += 'Server: %s, Modes: %s' % (cfg.trex.get('trex_name'), cfg.trex.get('modes'))
             if cfg.router:
                 setup_info += '\nRouter: Model: %s, Image: %s' % (cfg.router.get('model'), CTRexScenario.router_image)
+            if CTRexScenario.debug_image:
+                setup_info += '\nDebug image: %s' % CTRexScenario.debug_image
+                
             with open('%s/report_%s.info' % (CTRexScenario.report_dir, CTRexScenario.setup_name), 'w') as f:
                 f.write(setup_info)
     except Exception as err:

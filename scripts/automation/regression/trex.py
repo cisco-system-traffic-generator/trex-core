@@ -39,6 +39,7 @@ class CTRexScenario:
     GAManager        = None
     no_daemon        = False
     router_image     = None
+    debug_image      = False
 
 class CTRexRunner:
     """This is an instance for generating a CTRexRunner"""
