@@ -90,10 +90,6 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 # value should be divided
 def decode_multiplier(val, allow_update = False, divide_count = 1):
 
-    # must be string
-    if not isinstance(val, str):
-        return None
-
     # do we allow updates ?  +/-
     if not allow_update:
         match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
