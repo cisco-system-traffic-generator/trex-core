@@ -250,8 +250,8 @@ void TrexWatchDog::_main() {
 
                 /* nothing to do more... the other thread will terminate, but if not - we terminate */
                 sleep(5);
-                printf("\n\n*** WATCHDOG violation detected on task '%s' which have failed to response to the signal ***\n\n", monitor->get_name().c_str());
-                exit(1);
+                fprintf(stderr, "\n\n*** WATCHDOG violation detected on task '%s' which have failed to response to the signal ***\n\n", monitor->get_name().c_str());
+                abort();
             }
 
         }
