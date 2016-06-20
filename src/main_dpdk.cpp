@@ -714,20 +714,11 @@ static int usage(){
     printf(" --prefix                   : for multi trex, each instance should have a different name \n");
     printf(" --mac-spread               : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
     printf("                             maximum is up to 128 devices   \n");
-
     printf(" --mbuf-factor              : factor for packet memory \n");
-
+    printf("                             \n");
     printf(" --no-watchdog              : disable watchdog  \n");
-
-    printf("\n simulation mode : \n");
-    printf(" Using this mode you can generate the traffic into a pcap file and learn how trex works \n");
-    printf(" With this version you must be SUDO to use this mode ( I know this is not normal )  \n");
-    printf(" you can use the Linux CEL version of TRex to do it without super user   \n");
-    printf("  \n");
-    printf(" -o [capfile_name]  simulate trex into pcap file  \n");
-    printf(" --pcap             export the file in pcap mode \n");
-    printf(" bp-sim-64 -d 10 -f cfg.yaml  -o my.pcap --pcap  # export 10 sec of what Trex will do on real-time to a file my.pcap \n");
-    printf(" --vm-sim               : simulate vm with driver of one input queue and one output queue \n");
+    printf("                             \n");
+    printf(" --vm-sim                   : simulate vm with driver of one input queue and one output queue \n");
     printf("  \n");
     printf(" Examples: ");
     printf(" basic trex run for 10 sec and multiplier of x10 \n");
