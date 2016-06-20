@@ -2115,8 +2115,12 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
     }
 
     if (unlikely(node_sl->is_stat_needed())) {
-        return send_node_flow_stat(m, node_sl, lp_port, lp_stats,
-                                   (node_sl->get_cache_mbuf() || node_sl->is_cache_mbuf_array())? true:false);
+        if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
+            // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
+            // assert here just to make sure.
+            assert(1);
+        }
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
     } else {
         send_pkt(lp_port,m,lp_stats);
     }

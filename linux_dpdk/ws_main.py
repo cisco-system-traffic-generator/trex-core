@@ -119,7 +119,8 @@ main_src = SrcGroup(dir='src',
              'msg_manager.cpp',
              'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
-             'pal/linux_dpdk/mbuf.cpp'
+             'pal/linux_dpdk/mbuf.cpp',
+             'pal/common/common_mbuf.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -430,6 +431,7 @@ common_flags_old = common_flags + [
 
 
 includes_path =''' ../src/pal/linux_dpdk/
+                   ../src/pal/common/
                    ../src/
                    
                    ../src/rpc-server/
