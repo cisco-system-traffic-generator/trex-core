@@ -382,7 +382,13 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
     assert(dp_core_count > 0);
 
     try {
-        return compile_internal(port_id,streams,objs,dp_core_count,factor,fail_msg);
+        return compile_internal(port_id,
+                                streams,
+                                objs,
+                                dp_core_count,
+                                factor,
+                                fail_msg);
+
     } catch (const TrexException &ex) {
         if (fail_msg) {
             *fail_msg = ex.what();
@@ -410,7 +416,6 @@ TrexStreamsCompiler::compile_internal(uint8_t                                por
 #endif
 
     GraphNodeMap nodes;
-
 
     /* compile checks */
     pre_compile_check(streams, nodes);
@@ -474,7 +479,7 @@ TrexStreamsCompiler::compile_on_single_core(uint8_t                             
     }
 
      /* compile all the streams */
-    for (auto stream : streams) {
+    for (auto const stream : streams) {
 
         /* skip non-enabled streams */
         if (!stream->m_enabled) {
@@ -507,7 +512,7 @@ TrexStreamsCompiler::compile_on_all_cores(uint8_t                               
     }
 
     /* compile all the streams */
-    for (auto stream : streams) {
+    for (auto const stream : streams) {
 
         /* skip non-enabled streams */
         if (!stream->m_enabled) {
@@ -527,7 +532,7 @@ TrexStreamsCompiler::compile_on_all_cores(uint8_t                               
  * 
  */
 void
-TrexStreamsCompiler::compile_stream(TrexStream *stream,
+TrexStreamsCompiler::compile_stream(const TrexStream *stream,
                                     double factor,
                                     uint8_t dp_core_count,
                                     std::vector<TrexStreamsCompiledObj *> &objs,
@@ -543,31 +548,25 @@ TrexStreamsCompiler::compile_stream(TrexStream *stream,
         new_next_id = nodes.get(stream->m_next_stream_id)->m_compressed_stream_id;
     }
 
-    TrexStream *fixed_rx_flow_stat_stream = stream->clone(true);
-
-    get_stateless_obj()->m_rx_flow_stat.start_stream(fixed_rx_flow_stat_stream);
-    // CFlowStatRuleMgr keeps state of the stream object. We duplicated the stream here (in order not
-    // change the packet kept in the stream). We want the state to be saved in the original stream.
-    get_stateless_obj()->m_rx_flow_stat.copy_state(fixed_rx_flow_stat_stream, stream);
-
-    fixed_rx_flow_stat_stream->update_rate_factor(factor);
+    /* we clone because we alter the stream now */
+    std::unique_ptr<TrexStream> tmp_stream(stream->clone(true));
+    tmp_stream->update_rate_factor(factor);
 
     /* can this stream be split to many cores ? */
     if ( (dp_core_count == 1) || (!stream->is_splitable(dp_core_count)) ) {
-        compile_stream_on_single_core(fixed_rx_flow_stat_stream,
+        compile_stream_on_single_core(tmp_stream.get(),
                                       dp_core_count,
                                       objs,
                                       new_id,
                                       new_next_id);
     } else {
-        compile_stream_on_all_cores(fixed_rx_flow_stat_stream,
+        compile_stream_on_all_cores(tmp_stream.get(),
                                     dp_core_count,
                                     objs,
                                     new_id,
                                     new_next_id);
     }
 
-    delete fixed_rx_flow_stat_stream;
 }
 
 /**
