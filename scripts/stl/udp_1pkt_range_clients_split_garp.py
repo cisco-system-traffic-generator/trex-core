@@ -10,7 +10,7 @@ class STLS1(object):
         self.num_clients  =3000; # max is 16bit
 
     def create_stream (self):
-        # create a base packet and pad it to size
+        # Create base packet and pad it to size
         base_pkt =  Ether(src="00:00:dd:dd:00:01",dst="ff:ff:ff:ff:ff:ff")/ARP(psrc="55.55.1.1",hwsrc="00:00:dd:dd:00:01", hwdst="00:00:dd:dd:00:01", pdst="55.55.1.1")
 
         vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=self.num_clients, size=2, op="inc"),

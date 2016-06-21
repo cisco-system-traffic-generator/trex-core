@@ -16,8 +16,8 @@ class STLS1(object):
 
 
     def create_stream (self, dir,port_id):
-        # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        # Create base packet and pad it to size
+        size = self.fsize - 4; # HW will add 4 bytes ethernet FCS
 
         if dir==0:
             src_ip="16.0.0.1"

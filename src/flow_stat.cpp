@@ -539,7 +539,20 @@ void CFlowStatRuleMgr::init_stream(TrexStream * stream) {
     stream->m_rx_check.m_hw_id = HW_ID_INIT;
 }
 
+int CFlowStatRuleMgr::verify_stream(TrexStream * stream) {
+    return add_stream_internal(stream, false);
+}
+
 int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
+    return add_stream_internal(stream, true);
+}
+
+/* 
+ * Helper function for adding/verifying streams
+ * stream - stream to act on
+ * do_action - if false, just verify. Do not change any state, or add to database.
+ */
+int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
     stream_dump(stream);
@@ -572,7 +585,9 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
         }
 
         // throws exception if there is error
-        m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
+        if (do_action) {
+            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
+        }
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
         uint16_t payload_len;
@@ -584,14 +599,17 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
                               + " payload bytes for payload rules. Packet only has " + std::to_string(payload_len) + " bytes"
                               , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
         }
-        m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, PAYLOAD_RULE_PROTO);
+        if (do_action) {
+            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, PAYLOAD_RULE_PROTO);
+        }
         break;
     default:
         throw TrexFStatEx("Wrong rule_type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
         break;
     }
-
-    stream->m_rx_check.m_hw_id = HW_ID_FREE;
+    if (do_action) {
+        stream->m_rx_check.m_hw_id = HW_ID_FREE;
+    }
     return 0;
 }
 

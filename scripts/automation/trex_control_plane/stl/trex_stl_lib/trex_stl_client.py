@@ -1700,23 +1700,17 @@ class STLClient(object):
         ports = self._validate_port_list(ports)
 
 
+        validate_type('mult', mult, basestring)
+        validate_type('force', force, bool)
+        validate_type('duration', duration, (int, float))
+        validate_type('total', total, bool)
+
         # verify multiplier
         mult_obj = parsing_opts.decode_multiplier(mult,
                                                   allow_update = False,
                                                   divide_count = len(ports) if total else 1)
         if not mult_obj:
             raise STLArgumentError('mult', mult)
-
-        # some type checkings
-
-        if not type(force) is bool:
-            raise STLArgumentError('force', force)
-
-        if not isinstance(duration, (int, float)):
-            raise STLArgumentError('duration', duration)
-
-        if not type(total) is bool:
-            raise STLArgumentError('total', total)
 
 
         # verify ports are stopped or force stop them
@@ -1762,11 +1756,12 @@ class STLClient(object):
 
         """
 
-        ports = ports if ports is not None else self.get_active_ports()
-        ports = self._validate_port_list(ports)
+        if ports is None:
+            ports = self.get_active_ports()
+            if not ports:
+                return
 
-        if not ports:
-            return
+        ports = self._validate_port_list(ports)
 
         self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
         rc = self.__stop(ports)
@@ -1815,6 +1810,9 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_active_ports()
         ports = self._validate_port_list(ports)
 
+        validate_type('mult', mult, basestring)
+        validate_type('force', force, bool)
+        validate_type('total', total, bool)
 
         # verify multiplier
         mult_obj = parsing_opts.decode_multiplier(mult,
@@ -1822,10 +1820,6 @@ class STLClient(object):
                                                   divide_count = len(ports) if total else 1)
         if not mult_obj:
             raise STLArgumentError('mult', mult)
-
-        # verify total
-        if not type(total) is bool:
-            raise STLArgumentError('total', total)
 
 
         # call low level functions
@@ -2050,6 +2044,10 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 
+        validate_type('mult', mult, basestring)
+        validate_type('duration', duration, (int, float))
+        validate_type('total', total, bool)
+
 
         # verify multiplier
         mult_obj = parsing_opts.decode_multiplier(mult,
@@ -2057,11 +2055,6 @@ class STLClient(object):
                                                   divide_count = len(ports) if total else 1)
         if not mult_obj:
             raise STLArgumentError('mult', mult)
-
-
-        if not isinstance(duration, (int, float)):
-            raise STLArgumentError('duration', duration)
-
 
         self.logger.pre_cmd("Validating streams on port(s) {0}:".format(ports))
         rc = self.__validate(ports)

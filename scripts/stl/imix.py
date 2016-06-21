@@ -18,7 +18,7 @@ class STLImix(object):
 
 
     def create_stream (self, size, pps, isg, vm ):
-        # create a base packet and pad it to size
+        # Create base packet and pad it to size
         base_pkt = Ether()/IP()/UDP()
         pad = max(0, size - len(base_pkt)) * 'x'
 
