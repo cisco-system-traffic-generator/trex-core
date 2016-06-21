@@ -225,8 +225,10 @@ void TrexWatchDog::_main() {
 
         dsec_t now = now_sec();
 
-        /* volatile are slow - read once per iteration */
+        /* to be on the safe side - read the count with a lock */
+        std::unique_lock<std::mutex> lock(m_lock);
         int count = m_mon_count;
+        lock.unlock();
 
         for (int i = 0; i < count; i++) {
             TrexMonitor *monitor = m_monitors[i];
