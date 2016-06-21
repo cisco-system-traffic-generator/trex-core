@@ -3,7 +3,7 @@ from trex_stl_lib.api import *
 class STLS1(object):
 
     def create_stream (self, packet_len):
-        # create a base packet and pad it to size
+        # Create base packet and pad it to size
 
         base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 

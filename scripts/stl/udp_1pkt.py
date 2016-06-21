@@ -18,8 +18,8 @@ class STLS1(object):
         return t[self.mode]
 
     def create_stream (self):
-        # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        # Create base packet and pad it to size
+        size = self.fsize - 4; # HW will add 4 bytes ethernet FCS
 
         base_pkt = self.create_pkt_base ()
 

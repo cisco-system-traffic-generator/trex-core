@@ -10,8 +10,8 @@ class STLS1(object):
 
     def create_stream (self):
 
-        # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        # Create base packet and pad it to size
+        size = self.fsize - 4; # HW will add 4 bytes ethernet FCS
 
         # Ether(src="00:bb:12:34:56:01") this will tell TRex to take the src-mac from packet and not from config file
         base_pkt =  Ether(src="00:bb:12:34:56:01")/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)  
