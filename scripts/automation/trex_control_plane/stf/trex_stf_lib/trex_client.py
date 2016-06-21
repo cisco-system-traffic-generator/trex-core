@@ -40,7 +40,7 @@ class CTRexClient(object):
     This class defines the client side of the RESTfull interaction with TRex
     """
 
-    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False):
+    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False, trex_args = ''):
         """ 
         Instantiate a TRex client object, and connecting it to listening daemon-server
 
@@ -97,6 +97,7 @@ class CTRexClient(object):
         self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
         self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)
         self.debug_image        = debug_image
+        self.trex_args          = trex_args
 
 
     def add (self, x, y):
@@ -160,7 +161,7 @@ class CTRexClient(object):
         self.result_obj.clear_results()
         try:
             issue_time = time.time()
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, False, self.debug_image)
+            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -206,7 +207,7 @@ class CTRexClient(object):
         """
         try:
             user = user or self.__default_user
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, True, self.debug_image)
+            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, True, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:

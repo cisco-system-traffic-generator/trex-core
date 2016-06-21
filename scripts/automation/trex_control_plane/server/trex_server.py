@@ -310,7 +310,7 @@ class CTRexServer(object):
                 return False
 
             
-    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False):
+    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False, trex_args = ''):
         with self.start_lock:
             logger.info("Processing start_trex() command.")
             if self.is_reserved():
@@ -323,7 +323,7 @@ class CTRexServer(object):
                 return Fault(-13, '')  # raise at client TRexInUseError
             
             try:
-                server_cmd_data = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, **trex_cmd_options)
+                server_cmd_data = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, trex_args = trex_args, **trex_cmd_options)
                 self.zmq_monitor.first_dump = True
                 self.trex.start_trex(self.TREX_PATH, server_cmd_data)
                 logger.info("TRex session has been successfully initiated.")
@@ -413,7 +413,7 @@ class CTRexServer(object):
         return self.trex.get_running_info()
 
 
-    def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, **kwargs):
+    def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, trex_args = '', **kwargs):
         """ generate_run_cmd(self, iom, export_path, kwargs) -> str
 
         Generates a custom running command for the kick-off of the TRex traffic generator.
@@ -450,6 +450,8 @@ class CTRexServer(object):
                 continue
             else:
                 trex_cmd_options += (dash + '{k} {val}'.format( k = tmp_key, val =  value ))
+        if trex_args:
+            trex_cmd_options += ' %s' % trex_args
 
         if not stateless:
             if 'f' not in kwargs:
