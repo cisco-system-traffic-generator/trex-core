@@ -160,7 +160,7 @@ class CTRexClient(object):
         self.result_obj.clear_results()
         try:
             issue_time = time.time()
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, self.debug_image)
+            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, False, self.debug_image)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
