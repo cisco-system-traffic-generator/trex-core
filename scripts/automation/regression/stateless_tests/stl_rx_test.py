@@ -3,6 +3,8 @@ from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
 
+ERROR_LATENCY_TOO_HIGH = 1
+
 class STLRX_Test(CStlGeneral_Test):
     """Tests for RX feature"""
 
@@ -11,8 +13,8 @@ class STLRX_Test(CStlGeneral_Test):
         #    self.skip('This test makes trex08 and trex09 sick. Fix those ASAP.')
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs for now')
-        per_driver_params = {"rte_vmxnet3_pmd": [1, 50, 1], "rte_ixgbe_pmd": [30, 5000, 1], "rte_i40e_pmd": [80, 5000, 1],
-                             "rte_igb_pmd": [80, 500, 1], "rte_em_pmd": [1, 50, 1], "rte_virtio_pmd": [1, 50, 1]}
+        per_driver_params = {"rte_vmxnet3_pmd": [1, 50, 1,False], "rte_ixgbe_pmd": [30, 5000, 1,True,200,400], "rte_i40e_pmd": [80, 5000, 1,True,100,250],
+                             "rte_igb_pmd": [80, 500, 1,False], "rte_em_pmd": [1, 50, 1,False], "rte_virtio_pmd": [1, 50, 1,False]}
 
         CStlGeneral_Test.setUp(self)
         assert 'bi' in CTRexScenario.stl_ports_map
@@ -38,6 +40,15 @@ class STLRX_Test(CStlGeneral_Test):
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000))
+        self.pkt_9k = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000))
+
+
+        drv_name=port_info['driver']
+        self.latency_9k_enable=per_driver_params[drv_name][3]
+
+        self.latency_9k_max_average = per_driver_params[drv_name][4]
+        self.latency_9k_max_latency = per_driver_params[drv_name][5]
+
 
     @classmethod
     def tearDownClass(cls):
@@ -46,6 +57,36 @@ class STLRX_Test(CStlGeneral_Test):
         # connect back at end of tests
         if not cls.is_connected():
             CTRexScenario.stl_trex.connect()
+
+
+    def __verify_latency (self, latency_stats,max_latency,max_average):
+
+        error=0;
+        err_latency = latency_stats['err_cntrs']
+        latency     = latency_stats['latency']
+
+        for key in err_latency :
+            error +=err_latency[key]
+        if error !=0 :
+            pprint.pprint(err_latency)
+            tmp = 'RX pkts ERROR - one of the error is on'
+            print(tmp)
+            #assert False, tmp
+
+        if latency['average']> max_average:
+            pprint.pprint(latency_stats)
+            tmp = 'Average latency is too high {0} {1} '.format(latency['average'], max_average)
+            print(tmp)
+            return ERROR_LATENCY_TOO_HIGH
+
+        if latency['total_max']> max_latency:
+            pprint.pprint(latency_stats)
+            tmp = 'Max latency is too high {0} {1} '.format(latency['total_max'], max_latency)
+            print(tmp)
+            return ERROR_LATENCY_TOO_HIGH
+
+        return 0
+
 
 
     def __verify_flow (self, pg_id, total_pkts, pkt_len, stats):
@@ -214,6 +255,92 @@ class STLRX_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
+
+
+
+    def __test_9k_stream(self,pgid,ports,precet,max_latency,avg_latency,duration,pkt_size):
+        my_pg_id=pgid
+        s_ports=ports;
+        all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
+        if ports == None:
+            s_ports=all_ports
+        assert( type(s_ports)==list)
+
+        stream_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*pkt_size))
+
+        try:
+            # reset all ports
+            self.c.reset(ports = all_ports)
+
+
+            for pid in s_ports:
+                s1  = STLStream(name = 'rx',
+                               packet = self.pkt,
+                               flow_stats = STLFlowLatencyStats(pg_id = my_pg_id+pid),
+                               mode = STLTXCont(pps = 1000))
+
+                s2 = STLStream(name = 'bulk',
+                               packet = stream_pkt,
+                               mode = STLTXCont(percentage =precet))
+
+
+                # add both streams to ports
+                self.c.add_streams([s1,s2], ports = [pid])
+
+            self.c.clear_stats()
+
+            self.c.start(ports = s_ports,duration = duration)
+            self.c.wait_on_traffic(ports = s_ports,timeout = duration+10,rx_delay_ms = 100)
+            stats = self.c.get_stats()
+
+            for pid in s_ports:
+                latency_stats = stats['latency'].get(my_pg_id+pid)
+                #pprint.pprint(latency_stats)
+                if self.__verify_latency (latency_stats,max_latency,avg_latency) !=0:
+                    return (ERROR_LATENCY_TOO_HIGH);
+
+            return 0
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+
+
+
+
+    # check low latency when you have stream of 9K stream 
+    def test_9k_stream(self):
+
+        if self.latency_9k_enable == False:
+           print("SKIP")
+           return
+
+        for i in range(0,5):
+            print("Iteration {0}".format(i));
+            duration=random.randint(10, 70);
+            pgid=random.randint(1, 65000);
+            pkt_size=random.randint(1000, 9000);
+            all_ports = list(CTRexScenario.stl_ports_map['map'].keys());
+            s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
+            s_port=sorted(s_port)
+            error=1;
+            for j in range(0,5):
+               print(" {4} - duration {0} pgid {1} pkt_size {2} s_port {3} ".format(duration,pgid,pkt_size,s_port,j));
+               if self.__test_9k_stream(pgid,
+                                        s_port,90,
+                                        self.latency_9k_max_latency,
+                                        self.latency_9k_max_average,
+                                        duration,
+                                        pkt_size)==0:
+                   error=0;
+                   break;
+
+            if error:
+                assert False , "Latency too high"
+            else:
+                print("===>Iteration {0} PASS {1}".format(i,j));
+
+
 
 
     
