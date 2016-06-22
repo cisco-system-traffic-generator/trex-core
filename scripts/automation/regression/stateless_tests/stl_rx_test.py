@@ -24,6 +24,9 @@ class STLRX_Test(CStlGeneral_Test):
         self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
 
         port_info = self.c.get_port_info(ports = self.rx_port)[0]
+        self.speed = port_info['speed']
+
+
         cap = port_info['rx']['caps']
         if "flow_stats" not in cap or "latency" not in cap:
             self.skip('port {0} does not support RX'.format(self.rx_port))
@@ -45,9 +48,9 @@ class STLRX_Test(CStlGeneral_Test):
 
         drv_name=port_info['driver']
         self.latency_9k_enable=per_driver_params[drv_name][3]
-
-        self.latency_9k_max_average = per_driver_params[drv_name][4]
-        self.latency_9k_max_latency = per_driver_params[drv_name][5]
+        if self.latency_9k_enable:
+            self.latency_9k_max_average = per_driver_params[drv_name][4]
+            self.latency_9k_max_latency = per_driver_params[drv_name][5]
 
 
     @classmethod
@@ -321,8 +324,20 @@ class STLRX_Test(CStlGeneral_Test):
             pgid=random.randint(1, 65000);
             pkt_size=random.randint(1000, 9000);
             all_ports = list(CTRexScenario.stl_ports_map['map'].keys());
+
+
             s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
             s_port=sorted(s_port)
+            if self.speed == 40 :
+                # the NIC does not support all full rate in case both port works let's  
+                tmp_l=[]
+                for port  in s_port:
+                    if ((int(port) % 2) ==0):
+                        tmp_l.append(port);
+                s_port=tmp_l;
+                if len(s_port)==0:
+                    s_port=[0];
+
             error=1;
             for j in range(0,5):
                print(" {4} - duration {0} pgid {1} pkt_size {2} s_port {3} ".format(duration,pgid,pkt_size,s_port,j));
