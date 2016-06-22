@@ -146,6 +146,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--debug-image', action="store_true", default = False,
                             dest="debug_image",
                             help="Flag that specifies to use t-rex-64-debug as TRex executable.")
+        parser.add_option('--trex-args', action='store', default = '',
+                            dest="trex_args",
+                            help="Additional TRex arguments (--no-watchdog etc.).")
 
 
     def configure(self, options, conf):
@@ -186,7 +189,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         if not self.no_daemon:
             CTRexScenario.trex      = CTRexClient(trex_host   = self.configuration.trex['trex_name'],
                                                   verbose     = self.json_verbose,
-                                                  debug_image = options.debug_image)
+                                                  debug_image = options.debug_image,
+                                                  trex_args   = options.trex_args)
             if not CTRexScenario.trex.check_master_connectivity():
                 print('Could not connect to master daemon')
                 sys.exit(-1)

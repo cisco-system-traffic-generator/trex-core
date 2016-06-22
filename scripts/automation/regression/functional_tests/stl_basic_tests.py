@@ -201,6 +201,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True],
              ["pcap.py", "-m 1", True],
              ["pcap_with_vm.py", "-m 1", True],
+             ["flow_stats.py", "-m 1 -l 1", True],
+             ["flow_stats_latency.py", "-m 1 -l 1", True],
 
             # YAML test
              ["yaml/burst_1000_pkt.yaml","-m 1 -l 100",True],

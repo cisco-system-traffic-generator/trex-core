@@ -472,6 +472,16 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {
     delete m_parser;
+#ifdef TREX_SIM
+    // In simulator, nobody handles the messages to RX, so need to free them to have clean valgrind run.
+    if (m_ring_to_rx) {
+        CGenNode *msg = NULL;
+        while (! m_ring_to_rx->isEmpty()) {
+            m_ring_to_rx->Dequeue(msg);
+            delete msg;
+        }
+    }
+#endif
 }
 
 void CFlowStatRuleMgr::create() {
