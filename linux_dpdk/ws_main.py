@@ -714,7 +714,8 @@ def build_prog (bld, build_obj):
     debug_file_list='';
     if not build_obj.isRelease ():
         #debug 
-        debug_file_list +=ef_src.file_list(top)
+        #debug_file_list +=ef_src.file_list(top)
+        pass
 
 
     bld.objects(
