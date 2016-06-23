@@ -59,6 +59,7 @@ class CRxSlCfg {
 class CRFC2544Info {
  public:
     void create();
+    void stop();
     void reset();
     void export_data(rfc2544_info_t_ &obj);
     inline void add_sample(double stime) {
@@ -76,7 +77,14 @@ class CRFC2544Info {
     inline void inc_seq_err_too_low() {m_seq_err_events_too_low++;}
     inline void inc_dup() {m_dup++;}
     inline void inc_ooo() {m_ooo++;}
+    inline uint16_t get_exp_magic() {return m_exp_magic;}
+    inline void set_exp_magic(uint16_t magic) {m_exp_magic = magic;}
+    inline uint16_t get_prev_magic() {return m_prev_magic;}
+    inline bool no_magic() {return (m_exp_magic == FLOW_STAT_PAYLOAD_MAGIC_NONE) ? true : false;}
  private:
+    enum payload_e {
+        FLOW_STAT_PAYLOAD_MAGIC_NONE = 0
+    };
     uint32_t m_seq; // expected next seq num
     CTimeHistogram  m_latency; // latency info
     CJitter         m_jitter;
@@ -85,6 +93,9 @@ class CRFC2544Info {
     uint64_t m_seq_err_events_too_low; // How many packet seq num lower than expected events we had
     uint64_t m_ooo; // Packets we got with seq num lower than expected (We guess they are out of order)
     uint64_t m_dup; // Packets we got with same seq num
+    uint16_t m_exp_magic; // magic number we should see in latency header
+    // magic number previously used with this id. We use this to catch packets arriving late from old flow
+    uint16_t m_prev_magic;
 };
 
 class CRxCoreStateless {

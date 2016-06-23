@@ -2053,17 +2053,17 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
         }
 
         mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
-        fsp_head->seq = lp_stats->m_seq_num[hw_id_payload];
+        fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num();
         fsp_head->hw_id = hw_id_payload;
-        fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+        fsp_head->magic = lp_stats->m_lat_data[hw_id_payload].get_magic();
 
-        lp_stats->m_seq_num[hw_id_payload]++;
+        lp_stats->m_lat_data[hw_id_payload].inc_seq_num();
 #ifdef ERR_CNTRS_TEST
         if (temp % 10 == 0) {
-            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload]++;
+            fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].inc_seq_num();
         }
         if ((temp - 1) % 100 == 0) {
-            fsp_head->seq = lp_stats->m_seq_num[hw_id_payload] - 4;
+            fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num() - 4;
         }
 #endif
     } else {
@@ -2815,7 +2815,7 @@ public:
     bool sanity_check();
     void update_stats(void);
     tx_per_flow_t get_flow_tx_stats(uint8_t port, uint16_t hw_id);
-    tx_per_flow_t clear_flow_tx_stats(uint8_t port, uint16_t index);
+    tx_per_flow_t clear_flow_tx_stats(uint8_t port, uint16_t index, bool is_lat);
     void get_stats(CGlobalStats & stats);
     void dump_post_test_stats(FILE *fd);
     void dump_config(FILE *fd);
@@ -2859,7 +2859,7 @@ private:
     std::mutex          m_cp_lock;
 
     TrexMonitor         m_monitor;
-   
+
 public:
     TrexStateless       *m_trex_stateless;
 
@@ -3536,7 +3536,7 @@ tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
 }
 
 // read stats. Return read value, and clear.
-tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index) {
+tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index, bool is_lat) {
     uint8_t port0;
     CFlowGenListPerThread * lpt;
     tx_per_flow_t ret;
@@ -3546,12 +3546,11 @@ tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index) {
     for (int i=0; i < get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
         port0 = lpt->getDualPortId() * 2;
-        if (port == port0) {
-            m_stats.m_port[port0].m_tx_per_flow[index] +=
-                lpt->m_node_gen.m_v_if->m_stats[0].m_tx_per_flow[index];
-        } else if (port == port0 + 1) {
-            m_stats.m_port[port0 + 1].m_tx_per_flow[index] +=
-                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_per_flow[index];
+        if ((port == port0) || (port == port0 + 1)) {
+            m_stats.m_port[port].m_tx_per_flow[index] +=
+                lpt->m_node_gen.m_v_if->m_stats[port - port0].m_tx_per_flow[index];
+            if (is_lat)
+                lpt->m_node_gen.m_v_if->m_stats[port - port0].m_lat_data[index - MAX_FLOW_STATS].reset();
         }
     }
 
@@ -4293,7 +4292,7 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
 
             }
             if (tx_stats != NULL) {
-                tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i);
+                tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i, false);
             }
         } else {
             if (hw_rx_stat_supported) {
@@ -4318,7 +4317,7 @@ int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx
     for (int i = min; i <= max; i++) {
         if ( reset ) {
             if (tx_stats != NULL) {
-                tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i + MAX_FLOW_STATS);
+                tx_stats[i - min] = g_trex.clear_flow_tx_stats(m_port_id, i + MAX_FLOW_STATS, true);
             }
         } else {
             if (tx_stats != NULL) {
@@ -5798,4 +5797,3 @@ int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
 CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
     return CTRexExtendedDriverDb::Ins()->get_drv()->get_flow_stat_parser();
 }
-

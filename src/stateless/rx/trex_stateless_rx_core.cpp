@@ -29,13 +29,21 @@
 
 void CRFC2544Info::create() {
     m_latency.Create();
-    // This is the seq num value we expect next packet to have.
-    // Init value should match m_seq_num in CVirtualIFPerSideStats
-    m_seq = UINT32_MAX - 1;  // catch wrap around issues early
+    m_exp_magic = 0;
+    m_prev_magic = 0;
     reset();
 }
 
+// after calling stop, packets still arriving will be considered error
+void CRFC2544Info::stop() {
+    m_prev_magic = m_exp_magic;
+    m_exp_magic = FLOW_STAT_PAYLOAD_MAGIC_NONE;
+}
+
 void CRFC2544Info::reset() {
+    // This is the seq num value we expect next packet to have.
+    // Init value should match m_seq_num in CVirtualIFPerSideStats
+    m_seq = UINT32_MAX - 1;  // catch wrap around issues early
     m_seq_err = 0;
     m_seq_err_events_too_big = 0;
     m_seq_err_events_too_low = 0;
@@ -97,7 +105,7 @@ bool CRxCoreStateless::periodic_check_for_cp_messages() {
 
     /* tickle the watchdog */
     tickle();
-    
+
     /* fast path */
     if ( likely ( m_ring_from_cp->isEmpty() ) ) {
         return false;
@@ -187,13 +195,32 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
         if (parser.get_ip_id(ip_id) == 0) {
             if (is_flow_stat_id(ip_id)) {
                 uint16_t hw_id;
+                bool good_packet = true;
                 if (is_flow_stat_payload_id(ip_id)) {
                     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
                     struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
                         (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
-                    if (fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC) {
-                        hw_id = fsp_head->hw_id;
-                        CRFC2544Info &curr_rfc2544 = m_rfc2544[hw_id];
+                    hw_id = fsp_head->hw_id;
+                    CRFC2544Info &curr_rfc2544 = m_rfc2544[hw_id];
+                    if (unlikely(fsp_head->magic != curr_rfc2544.get_exp_magic())) {
+                        // bad magic.
+                        // Might be the first packet of a new flow, packet from an old flow or just garbage.
+                        if (fsp_head->magic == curr_rfc2544.get_prev_magic()) {
+                            // packet from previous flow using this hw_id that arrived late
+                            good_packet = false;
+                        } else {
+                            if (curr_rfc2544.no_magic()) {
+                                // first packet we see from this flow
+                                good_packet = true;
+                                curr_rfc2544.set_exp_magic(fsp_head->magic);
+                            } else {
+                                // garbage packet
+                                good_packet = false;
+                            }
+                        }
+                    }
+
+                    if (good_packet) {
                         uint32_t pkt_seq = fsp_head->seq;
                         uint32_t exp_seq = curr_rfc2544.get_seq();
                         if (unlikely(pkt_seq != exp_seq)) {
@@ -388,6 +415,12 @@ int CRxCoreStateless::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int
 int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset) {
     for (int hw_id = min; hw_id <= max; hw_id++) {
         CRFC2544Info &curr_rfc2544 = m_rfc2544[hw_id];
+
+        if (reset) {
+            // need to stop first, so count will be consistent
+            curr_rfc2544.stop();
+        }
+
         curr_rfc2544.sample_period_end();
         curr_rfc2544.export_data(rfc2544_info[hw_id - min]);
 
