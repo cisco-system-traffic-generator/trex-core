@@ -1254,18 +1254,161 @@ class STLClient(object):
 
 
     # get stats
-    def get_stats (self, ports = None, async_barrier = True):
+    def get_stats (self, ports = None, sync_now = True):
+        """
+        Return dictionary containing statistics information gathered from the server.
+
+        :parameters:
+
+          ports - List of ports to retreive stats on.
+                  If None, assume the request is for all acquired ports.
+
+          sync_now - Boolean - If true, create a call to the server to get latest stats, and wait for result to arrive. Otherwise, return last stats saved in client cache.
+                            Downside of putting True is a slight delay (few 10th msecs) in getting the result. For practical uses, value should be True.
+        :return:
+            Statistics dictionary of dictionaries with the following format:
+
+            ===============================  ===============
+            key                               Meaning
+            ===============================  ===============
+            :ref:`numbers (0,1,..<total>`    Statistcs per port number
+            :ref:`total <total>`             Sum of port statistics
+            :ref:`flow_stats <flow_stats>`   Per flow statistics
+            :ref:`global <global>`           Global statistics
+            :ref:`latency <latency>`         Per flow statistics regarding flow latency
+            ===============================  ===============
+
+            Below is description of each of the inner dictionaries.
+
+            .. _total:
+
+            **total** and per port statistics contain dictionary with following format.
+
+            ===============================  ===============
+            key                               Meaning
+            ===============================  ===============
+            ibytes                           Number of input bytes
+            ierrors                          Number of input errors
+            ipackets                         Number of input packets
+            obytes                           Number of output bytes
+            oerrors                          Number of output errors
+            opackets                         Number of output packets
+            rx_bps                           Receive bytes per second rate
+            rx_pps                           Receive packet per second rate
+            tx_bps                           Transmit bytes per second rate
+            tx_pps                           Transmit packet per second rate
+            ===============================  ===============
+
+            .. _flow_stats:
+
+            **flow_stats** contains dictionaries per packet group id (pg id). Each one with the following structure.
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            rx_bps              Receivd bytes per second rate
+            rx_bps_l1           Receivd bytes per second rate, including layer one
+            rx_bytes            Total number of received bytes
+            rx_pkts             Total number of received packets
+            rx_pps              Received packets per second
+            tx_bps              Transmitted bytes per second rate
+            tx_bps_l1           Transmitted bytes per second rate, including layer one
+            tx_bytes            Total number of sent bytes
+            tx_pkts             Total number of sent packets
+            tx_pps              Transmit packets per second
+            =================   ===============
+
+            .. _global:
+
+            **global**
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            bw_per_core         Estimated byte rate Trex can support per core. This is calculated by extrapolation of current rate and load on transmitting cores.
+            cpu_util            Estimate of the average utilization percentage of the transimitting cores
+            queue_full          Total number of packets we could not transmit because NIC TX queue was full. This usually indicates that the rate we trying to transmit is too high for this port
+            rx_cpu_util         Estimate of the utilization percentage of the core handling RX traffic
+            rx_drop_bps         Received bytes per second drop rate
+            rx_bps              Received bytes per second rate
+            rx_pps              Received packets per second rate
+            tx_bps              Transmit bytes per second rate
+            tx_pps              Transmit packets per second rate
+            =================   ===============
+
+            .. _latency:
+
+            **latency** contains dictionary per packet group id (pg id). Each one with the following structure.
+
+            ===========================          ===============
+            key                                  Meaning
+            ===========================          ===============
+            :ref:`err_cntrs<err-cntrs>`          Counters describing errors that occured with this pg id
+            :ref:`latency<lat_inner>`            Information regarding packet latency
+            ===========================          ===============
+
+            Following are the inner dictionaries of latency
+
+            .. _err-cntrs:
+
+            **err-cntrs**
+
+            =================   ===============
+            key                 Meaning (see better explanation below the table)
+            =================   ===============
+            dropped             How many packets were dropped.
+            dup                 How many packets were duplicated.
+            out_of_order        How many packets we received out of order.
+            seq_too_high        How many events of packet with sequence number too high we saw.
+            seq_too_low         How many events of packet with sequence number too low we saw.
+            =================   ===============
+
+            For calculating packet error events, we add sequence number to each packet's payload. We decide what went wrong only according to sequence number
+            of last packet received and that of the previous packet. 'seq_too_low' and 'seq_too_high' count events we see. 'dup', 'out_of_order' and 'dropped'
+            are heuristics we apply to try and understand what happened. They will be accurate in common error scenarios.
+            We describe few scenarios below to help understand this.
+
+            Scenario 1: Received packet with seq num 10, and another one with seq num 10. We increment 'dup' and 'seq_too_low' by 1.
+
+            Scenario 2: Received pacekt with seq num 10 and then packet with seq num 15. We assume 4 packets were dropped, and increment 'dropped' by 4, and 'seq_too_high' by 1.
+            We expect next packet to arrive with sequence number 16.
+
+            Scenario 2 continue: Received packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1.
+            (We assume here that one of the packets we considered as dropped before, actually arrived out of order).
+
+
+            .. _lat_inner:
+
+            **latency**
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            average             Average latency over the stream lifetime (usec). Total average is computed each sampling period by following formula: <average> = <prev average>/2 + <last sampling period average>/2
+            histogram           Dictionary describing logarithmic distribution histogram of packet latencies. Keys in the dictionary represent range of latencies (in usec). Values are the total number of packets received in this latency range. For example, an entry {100:13} would mean that we saw 13 packets with latency in the range between 100 and 200 usec.
+            jitter              Jitter of latency samples, computed as described in :rfc:`3550#appendix-A.8`
+            last_max            Maximum latency measured between last two data reads from server.
+            total_max           Maximum latency measured over the stream lifetime (in usec).
+            total_min           Minimum latency measured over the stream lifetime (in usec).
+            =================   ===============
+
+
+
+        :raises:
+          None
+
+        """
         # by default use all acquired ports
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 
         # check async barrier
-        if not type(async_barrier) is bool:
-            raise STLArgumentError('async_barrier', async_barrier)
+        if not type(sync_now) is bool:
+            raise STLArgumentError('sync_now', sync_now)
 
 
         # if the user requested a barrier - use it
-        if async_barrier:
+        if sync_now:
             rc = self.async_client.barrier()
             if not rc:
                 raise STLError(rc)
@@ -1279,7 +1422,7 @@ class STLClient(object):
 
         :parameters:
           ev_type_filter - 'info', 'warning' or a list of those
-                           default is no filter
+                           default: no filter
 
         :return:
             logged events
