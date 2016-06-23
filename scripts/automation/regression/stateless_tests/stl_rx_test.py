@@ -261,7 +261,7 @@ class STLRX_Test(CStlGeneral_Test):
 
 
 
-    def __test_9k_stream(self,pgid,ports,precet,max_latency,avg_latency,duration,pkt_size):
+    def __9k_stream(self,pgid,ports,precet,max_latency,avg_latency,duration,pkt_size):
         my_pg_id=pgid
         s_ports=ports;
         all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
@@ -314,6 +314,8 @@ class STLRX_Test(CStlGeneral_Test):
     # check low latency when you have stream of 9K stream 
     def test_9k_stream(self):
 
+        self.skip('Skip due to bug trex-215')
+
         if self.latency_9k_enable == False:
            print("SKIP")
            return
@@ -330,18 +332,14 @@ class STLRX_Test(CStlGeneral_Test):
             s_port=sorted(s_port)
             if self.speed == 40 :
                 # the NIC does not support all full rate in case both port works let's filter odd ports  
-                tmp_l=[]
-                for port  in s_port:
-                    if ((int(port) % 2) ==0):
-                        tmp_l.append(port);
-                s_port=tmp_l;
+                s_port=list(filter(lambda x: x % 2==0, s_port))
                 if len(s_port)==0:
                     s_port=[0];
 
             error=1;
             for j in range(0,5):
                print(" {4} - duration {0} pgid {1} pkt_size {2} s_port {3} ".format(duration,pgid,pkt_size,s_port,j));
-               if self.__test_9k_stream(pgid,
+               if self.__9k_stream(pgid,
                                         s_port,90,
                                         self.latency_9k_max_latency,
                                         self.latency_9k_max_average,
