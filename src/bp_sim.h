@@ -679,7 +679,13 @@ public:
         return (btGetMaskBit32(m_flags1,6,6) ? true:false);
     }
 
+    void setCoreDumpEnable(bool enable) {
+        btSetMaskBit32(m_flags1, 7, 7, (enable ? 1 : 0) );
+    }
 
+    bool getCoreDumpEnable(){
+        return (btGetMaskBit32(m_flags1, 7, 7) ? true : false);
+    }
 
 public:
     void Dump(FILE *fd);

@@ -50,6 +50,7 @@
 #include <rte_mbuf.h>
 #include <rte_random.h>
 #include <rte_version.h>
+
 #include "bp_sim.h"
 #include "os_time.h"
 #include "common/arg/SimpleGlob.h"
@@ -553,7 +554,9 @@ enum { OPT_HELP,
        OPT_PREFIX,
        OPT_MAC_SPLIT,
        OPT_SEND_DEBUG_PKT,
-       OPT_NO_WATCHDOG 
+       OPT_NO_WATCHDOG,
+       OPT_ALLOW_COREDUMP
+
 };
 
 
@@ -615,7 +618,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_MAC_SPLIT, "--mac-spread", SO_REQ_SEP },
         { OPT_SEND_DEBUG_PKT, "--send-debug-pkt", SO_REQ_SEP },
         { OPT_MBUF_FACTOR     , "--mbuf-factor",  SO_REQ_SEP },
-        { OPT_NO_WATCHDOG ,  "--no-watchdog",  SO_NONE  },
+        { OPT_NO_WATCHDOG ,     "--no-watchdog",  SO_NONE  },
+        { OPT_ALLOW_COREDUMP ,  "--allow-coredump",  SO_NONE  },
 
 
         SO_END_OF_OPTIONS
@@ -717,6 +721,8 @@ static int usage(){
     printf(" --mbuf-factor              : factor for packet memory \n");
     printf("                             \n");
     printf(" --no-watchdog              : disable watchdog  \n");
+    printf("                             \n");
+    printf(" --allow-coredump           : allow a creation of core dump \n");
     printf("                             \n");
     printf(" --vm-sim                   : simulate vm with driver of one input queue and one output queue \n");
     printf("  \n");
@@ -933,6 +939,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_NO_WATCHDOG :
                 po->preview.setWDDisable(true);
+                break;
+
+            case OPT_ALLOW_COREDUMP :
+                po->preview.setCoreDumpEnable(true);
                 break;
 
             case  OPT_LATENCY_PREVIEW :
@@ -4703,6 +4713,15 @@ int main_test(int argc , char * argv[]){
         exit(-1);
     }
 
+    /* enable core dump if requested */
+    if (CGlobalInfo::m_options.preview.getCoreDumpEnable()) {
+        utl_set_coredump_size(-1);
+    }
+    else {
+        utl_set_coredump_size(0);
+    }
+
+
     update_global_info_from_platform_file();
 
     /* It is not a mistake. Give the user higher priorty over the configuration file */
@@ -5779,3 +5798,4 @@ int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
 CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
     return CTRexExtendedDriverDb::Ins()->get_drv()->get_flow_stat_parser();
 }
+
