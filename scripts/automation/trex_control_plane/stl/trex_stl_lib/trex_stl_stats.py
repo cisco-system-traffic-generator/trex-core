@@ -1047,12 +1047,7 @@ class CRxStats(CTRexStats):
     def __init__(self, ports):
         super(CRxStats, self).__init__()
         self.ports = ports
-        self.ports_speed = {}
 
-    def get_ports_speed(self):
-        for port in self.ports:
-            self.ports_speed[str(port)] = self.ports[port].get_speed_bps()
-        self.ports_speed['total'] = sum(self.ports_speed.values())
 
     # calculates a diff between previous snapshot
     # and current one
@@ -1170,8 +1165,8 @@ class CRxStats(CTRexStats):
             return
 
         # TX
-        self.get_ports_speed()
         for port in pg_current['tx_pkts'].keys():
+
             prev_tx_pps   = pg_prev['tx_pps'].get(port)
             now_tx_pkts   = pg_current['tx_pkts'].get(port)
             prev_tx_pkts  = pg_prev['tx_pkts'].get(port)
@@ -1180,19 +1175,20 @@ class CRxStats(CTRexStats):
             prev_tx_bps   = pg_prev['tx_bps'].get(port)
             now_tx_bytes  = pg_current['tx_bytes'].get(port)
             prev_tx_bytes = pg_prev['tx_bytes'].get(port)
+
             pg_current['tx_bps'][port], pg_current['tx_bps_lpf'][port] = self.calc_bps(prev_tx_bps, now_tx_bytes, prev_tx_bytes, diff_sec)
 
             if pg_current['tx_bps'].get(port) != None and pg_current['tx_pps'].get(port) != None:
                 pg_current['tx_bps_L1'][port] = calc_bps_L1(pg_current['tx_bps'][port], pg_current['tx_pps'][port])
                 pg_current['tx_bps_L1_lpf'][port] = calc_bps_L1(pg_current['tx_bps_lpf'][port], pg_current['tx_pps_lpf'][port])
-                pg_current['tx_line_util'][port] = 100.0 * pg_current['tx_bps_L1'][port] / self.ports_speed[port]
             else:
                 pg_current['tx_bps_L1'][port] = None
                 pg_current['tx_bps_L1_lpf'][port] = None
-                pg_current['tx_line_util'][port] = None
+
 
         # RX
         for port in pg_current['rx_pkts'].keys():
+
             prev_rx_pps   = pg_prev['rx_pps'].get(port)
             now_rx_pkts   = pg_current['rx_pkts'].get(port)
             prev_rx_pkts  = pg_prev['rx_pkts'].get(port)
@@ -1205,11 +1201,9 @@ class CRxStats(CTRexStats):
             if pg_current['rx_bps'].get(port) != None and pg_current['rx_pps'].get(port) != None:
                 pg_current['rx_bps_L1'][port] = calc_bps_L1(pg_current['rx_bps'][port], pg_current['rx_pps'][port])
                 pg_current['rx_bps_L1_lpf'][port] = calc_bps_L1(pg_current['rx_bps_lpf'][port], pg_current['rx_pps_lpf'][port])
-                pg_current['rx_line_util'][port] = 100.0 * pg_current['rx_bps_L1'][port] / self.ports_speed[port]
             else:
                 pg_current['rx_bps_L1'][port] = None
                 pg_current['rx_bps_L1_lpf'][port] = None
-                pg_current['rx_line_util'][port] = None
 
 
     def calc_pps (self, prev_bw, now, prev, diff_sec):
@@ -1272,7 +1266,7 @@ class CRxStats(CTRexStats):
                         stats[int(pg_id)][field][int(port)] = val if val != 'N/A' else StatNotAvailable(field)
 
             # BW values
-            for field in ['tx_pps', 'tx_bps', 'tx_bps_L1', 'rx_pps', 'rx_bps', 'rx_bps_L1', 'tx_line_util', 'rx_line_util']:
+            for field in ['tx_pps', 'tx_bps', 'tx_bps_L1', 'rx_pps', 'rx_bps', 'rx_bps_L1']:
                 val = self.get([pg_id, field, 'total'])
                 stats[int(pg_id)][field] = {'total': val if val != 'N/A' else StatNotAvailable(field)}
                 for port in value[field].keys():
