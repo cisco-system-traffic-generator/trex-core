@@ -60,13 +60,13 @@ bool CTimeHistogram::Add(dsec_t dt) {
 
     period_elem.inc_cnt();
     period_elem.update_sum(dt);
+    period_elem.update_max(dt);
 
     // values smaller then certain threshold do not get into the histogram
     if (dt < m_min_delta) {
         return false;
     }
     period_elem.inc_high_cnt();
-    period_elem.update_max(dt);
 
     uint32_t d_10usec = (uint32_t)(dt*100000.0);
     // 1 10-19 usec

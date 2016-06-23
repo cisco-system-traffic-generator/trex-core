@@ -49,6 +49,7 @@ class SrcGroup:
         res=''
         for file in self.src_list:
             res= res + top+'/'+self.dir+'/'+file+'  ';
+
         return res;
 
     def __str__ (self):
@@ -118,7 +119,8 @@ main_src = SrcGroup(dir='src',
              'msg_manager.cpp',
              'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
-             'pal/linux_dpdk/mbuf.cpp'
+             'pal/linux_dpdk/mbuf.cpp',
+             'pal/common/common_mbuf.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -163,6 +165,15 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                               'commands/trex_rpc_cmd_stream.cpp',
 
                           ])
+
+
+ef_src = SrcGroup(dir='src/common',
+    src_list=[ 
+        'ef/efence.cpp',
+        'ef/page.cpp',
+        'ef/print.cpp'
+        ]);
+
 
 # stateless code
 stateless_src = SrcGroup(dir='src/stateless/',
@@ -420,6 +431,7 @@ common_flags_old = common_flags + [
 
 
 includes_path =''' ../src/pal/linux_dpdk/
+                   ../src/pal/common/
                    ../src/
                    
                    ../src/rpc-server/
@@ -698,6 +710,14 @@ def build_prog (bld, build_obj):
     #for obj in rte_libs:
     #    bld.read_shlib( name=obj , paths=[top+rte_lib_path] )
 
+    # add electric fence only for debug image  
+    debug_file_list='';
+    if not build_obj.isRelease ():
+        #debug 
+        #debug_file_list +=ef_src.file_list(top)
+        pass
+
+
     bld.objects(
       features='c ',
       includes = dpdk_includes_path,
@@ -713,7 +733,7 @@ def build_prog (bld, build_obj):
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl', 'z'],
                 use =[build_obj.get_dpdk_target(),'zmq'],
-                source = bp.file_list(top),
+                source = bp.file_list(top) + debug_file_list,
                 target = build_obj.get_target())
 
 

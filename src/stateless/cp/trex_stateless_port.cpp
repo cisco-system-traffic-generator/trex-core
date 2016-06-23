@@ -87,6 +87,68 @@ protected:
     }
 };
 
+/*************************************
+ * Streams Feeder 
+ * A class that holds a temporary 
+ * clone of streams that can be 
+ * manipulated 
+ *  
+ * this is a RAII object meant for 
+ * graceful cleanup 
+ ************************************/
+class StreamsFeeder {
+public:
+    StreamsFeeder(TrexStatelessPort *port) {
+
+        /* start pesimistic */
+        m_success = false;
+
+        /* fetch the original streams */
+        port->get_object_list(m_in_streams);
+
+        for (const TrexStream *in_stream : m_in_streams) {
+            TrexStream *out_stream = in_stream->clone(true);
+
+            get_stateless_obj()->m_rx_flow_stat.start_stream(out_stream);
+
+            m_out_streams.push_back(out_stream);
+        }
+    }
+
+    void set_status(bool status) {
+        m_success = status;
+    }
+
+    vector<TrexStream *> &get_streams() {
+        return m_out_streams;
+    }
+
+    /**
+     * RAII
+     */
+    ~StreamsFeeder() {
+        for (int i = 0; i < m_out_streams.size(); i++) {
+            TrexStream *out_stream = m_out_streams[i];
+            TrexStream *in_stream  = m_in_streams[i];
+
+            if (m_success) {
+                /* success path */
+                get_stateless_obj()->m_rx_flow_stat.copy_state(out_stream, in_stream);
+            } else {
+                /* fail path */
+                get_stateless_obj()->m_rx_flow_stat.stop_stream(out_stream);
+            }
+            delete out_stream;
+        }
+    }
+
+private:
+    vector<TrexStream *>  m_in_streams;
+    vector<TrexStream *>  m_out_streams;
+    bool                  m_success;
+};
+
+
 /***************************
  * trex stateless port
  * 
@@ -193,10 +255,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     /* caclulate the effective factor for DP */
     double factor = calculate_effective_factor(mul, force);
 
-    /* fetch all the streams from the table */
-    vector<TrexStream *> streams;
-    get_object_list(streams);
-
+    StreamsFeeder feeder(this);
 
     /* compiler it */
     std::vector<TrexStreamsCompiledObj *> compiled_objs;
@@ -204,14 +263,18 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
 
     TrexStreamsCompiler compiler;
     bool rc = compiler.compile(m_port_id,
-                               streams,
+                               feeder.get_streams(),
                                compiled_objs,
                                get_dp_core_count(),
                                factor,
                                &fail_msg);
+
     if (!rc) {
+        feeder.set_status(false);
         throw TrexException(fail_msg);
     }
+
+    feeder.set_status(true);
 
     /* generate a message to all the relevant DP cores to start transmitting */
     assert(m_pending_async_stop_event == TrexDpPortEvents::INVALID_ID);

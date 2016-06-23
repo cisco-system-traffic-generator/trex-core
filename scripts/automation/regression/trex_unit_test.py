@@ -48,6 +48,17 @@ import re
 import time
 from distutils.dir_util import mkpath
 
+# override nose's strange representation of setUpClass errors
+def __suite_repr__(self):
+    if hasattr(self.context, '__module__'): # inside class, setUpClass etc.
+        class_repr = nose.suite._strclass(self.context)
+    else:                                   # outside of class, setUpModule etc.
+        class_repr = nose.suite._strclass(self.__class__)
+    return '%s.%s' % (class_repr, getattr(self.context, '__name__', self.context))
+
+nose.suite.ContextSuite.__repr__ = __suite_repr__
+nose.suite.ContextSuite.__str__  = __suite_repr__
+
 def check_trex_path(trex_path):
     if os.path.isfile('%s/trex_daemon_server' % trex_path):
         return os.path.abspath(trex_path)
@@ -132,6 +143,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--no-daemon', action="store_true", default = False,
                             dest="no_daemon",
                             help="Flag that specifies to use running stl server, no need daemons.")
+        parser.add_option('--debug-image', action="store_true", default = False,
+                            dest="debug_image",
+                            help="Flag that specifies to use t-rex-64-debug as TRex executable.")
+        parser.add_option('--trex-args', action='store', default = '',
+                            dest="trex_args",
+                            help="Additional TRex arguments (--no-watchdog etc.).")
 
 
     def configure(self, options, conf):
@@ -168,9 +185,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
+        CTRexScenario.debug_image   = options.debug_image
         if not self.no_daemon:
-            CTRexScenario.trex          = CTRexClient(trex_host = self.configuration.trex['trex_name'],
-                                                      verbose   = self.json_verbose)
+            CTRexScenario.trex      = CTRexClient(trex_host   = self.configuration.trex['trex_name'],
+                                                  verbose     = self.json_verbose,
+                                                  debug_image = options.debug_image,
+                                                  trex_args   = options.trex_args)
             if not CTRexScenario.trex.check_master_connectivity():
                 print('Could not connect to master daemon')
                 sys.exit(-1)
@@ -202,12 +222,12 @@ class CTRexTestConfiguringPlugin(Plugin):
             if not res:
                 print('Could not restart TRex daemon server')
                 sys.exit(-1)
+            print('Restarted.')
 
-            trex_cmds = CTRexScenario.trex.get_trex_cmds()
-            if trex_cmds:
-                if self.kill_running:
-                    CTRexScenario.trex.kill_all_trexes()
-                else:
+            if self.kill_running:
+                CTRexScenario.trex.kill_all_trexes()
+            else:
+                if CTRexScenario.trex.get_trex_cmds():
                     print('TRex is already running')
                     sys.exit(-1)
 
@@ -238,11 +258,11 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.stateful:
             CTRexScenario.trex = None
         if self.stateless:
-            if not self.no_daemon:
+            if self.no_daemon:
+                if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
+                    CTRexScenario.stl_trex.disconnect()
+            else:
                 CTRexScenario.trex.force_kill(False)
-            if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
-                CTRexScenario.stl_trex.disconnect()
-                #time.sleep(3)
             CTRexScenario.stl_trex = None
 
 
@@ -256,6 +276,9 @@ def save_setup_info():
             setup_info += 'Server: %s, Modes: %s' % (cfg.trex.get('trex_name'), cfg.trex.get('modes'))
             if cfg.router:
                 setup_info += '\nRouter: Model: %s, Image: %s' % (cfg.router.get('model'), CTRexScenario.router_image)
+            if CTRexScenario.debug_image:
+                setup_info += '\nDebug image: %s' % CTRexScenario.debug_image
+                
             with open('%s/report_%s.info' % (CTRexScenario.report_dir, CTRexScenario.setup_name), 'w') as f:
                 f.write(setup_info)
     except Exception as err:

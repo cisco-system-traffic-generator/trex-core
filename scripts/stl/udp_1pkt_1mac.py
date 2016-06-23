@@ -8,8 +8,8 @@ class STLS1(object):
 
     def create_stream (self):
 
-        # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        # Create base packet and pad it to size
+        size = self.fsize - 4; # HW will add 4 bytes ethernet FCS
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
         pad = max(0, size - len(base_pkt)) * 'x'
 

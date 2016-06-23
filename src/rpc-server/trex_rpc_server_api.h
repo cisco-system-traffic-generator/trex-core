@@ -30,10 +30,10 @@ limitations under the License.
 #include <stdexcept>
 #include <trex_rpc_exception_api.h>
 #include <json/json.h>
+#include "trex_watchdog.h"
 
 class TrexRpcServerInterface;
 class TrexRpcServerReqRes;
-class TrexWatchDog;
 
 /**
  * defines a configuration of generic RPC server
@@ -48,11 +48,10 @@ public:
         RPC_PROT_MOCK
     };
 
-    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port, std::mutex *lock, TrexWatchDog *watchdog) {
+    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port, std::mutex *lock) {
         m_protocol  = protocol;
         m_port      = port;
         m_lock      = lock;
-        m_watchdog  = watchdog;
     }
 
     uint16_t get_port() const {
@@ -69,7 +68,6 @@ private:
 
 public:
     std::mutex       *m_lock;
-    TrexWatchDog     *m_watchdog;
 };
 
 /**
@@ -142,8 +140,7 @@ protected:
     std::string                          m_name;
     std::mutex                           *m_lock;
     std::mutex                           m_dummy_lock;
-    TrexWatchDog                        *m_watchdog;
-    int                                  m_watchdog_handle;
+    TrexMonitor                          m_monitor;
 };
 
 /**

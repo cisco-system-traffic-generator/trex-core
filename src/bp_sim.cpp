@@ -722,7 +722,7 @@ std::string double_to_human_str(double num,
     if (etype ==KBYE_1024){
         f=1024.0;
     }
-    while ((abs_num > f ) && (i< max_cnt)){
+    while ((abs_num > f ) && (i < max_cnt - 1)){
         abs_num/=f;
         div*=f;
         i++;
@@ -3301,9 +3301,6 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_max_threads=max_threads;
     m_thread_id=thread_id;
 
-    m_watchdog        = NULL;
-    m_watchdog_handle = -1;
-
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
     uint32_t socket_id=rte_lcore_to_socket_id(m_core_id);
@@ -4981,29 +4978,27 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
         bool is_const = false;
         if (m) {
             is_const = true;
+            rte_pktmbuf_refcnt_update(m,1);
         }else{
             m=node_sl->alloc_node_with_vm();
             assert(m);
         }
 
-        if (node_sl->is_stat_needed()) {
+        if (node_sl->is_stat_needed() && (node_sl->get_stat_hw_id() >= MAX_FLOW_STATS) ) {
+            /* latency packet. flow stat without latency handled like normal packet in simulation */
             uint16_t hw_id = node_sl->get_stat_hw_id();
-            if (hw_id >= MAX_FLOW_STATS) {
-                rte_mbuf_t *mi;
-                struct flow_stat_payload_header *fsp_head;
-                mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
-                fsp_head->seq = 0x12345678;
-                fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
-                fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
-                fsp_head->time_stamp = 0x8899aabbccddeeff;
-                fill_raw_packet(m,(CGenNode *)node_sl,dir);
-                rte_pktmbuf_free(mi);
-            }
+            rte_mbuf_t *mi;
+            struct flow_stat_payload_header *fsp_head;
+            mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
+            fsp_head->seq = 0x12345678;
+            fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
+            fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+            fsp_head->time_stamp = 0x8899aabbccddeeff;
+            fill_raw_packet(mi, (CGenNode *)node_sl, dir);
+            rte_pktmbuf_free(mi);
         } else {
             fill_raw_packet(m,(CGenNode *)node_sl,dir);
-            if (! is_const) {
-                rte_pktmbuf_free(m);
-            }
+            rte_pktmbuf_free(m);
         }
     }
         /* check that we have mbuf  */

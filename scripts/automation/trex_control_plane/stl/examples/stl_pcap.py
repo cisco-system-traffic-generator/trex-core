@@ -39,13 +39,11 @@ def inject_pcap (pcap_file, server, port, loop_count, ipg_usec, use_vm, remove_f
         c.reset(ports = [port])
 
         c.clear_stats()
-        d = c.push_pcap(pcap_file,
+        c.push_pcap(pcap_file,
                         ipg_usec = ipg_usec,
                         count = loop_count,
                         vm = vm,
                         packet_hook = packet_hook)
-
-        STLSim().run(d, outfile = 'test.cap')
 
         c.wait_on_traffic()
 

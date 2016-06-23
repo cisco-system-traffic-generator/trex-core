@@ -396,6 +396,7 @@ TAILQ_HEAD(i40e_mirror_rule_list, i40e_mirror_rule);
 struct i40e_pf {
 	struct i40e_adapter *adapter; /* The adapter this PF associate to */
 	struct i40e_vsi *main_vsi; /* pointer to main VSI structure */
+	struct i40e_vsi * ll_vsi; // TREX_PATCH
 	uint16_t mac_seid; /* The seid of the MAC of this PF */
 	uint16_t main_vsi_seid; /* The seid of the main VSI */
 	uint16_t max_num_vsi;

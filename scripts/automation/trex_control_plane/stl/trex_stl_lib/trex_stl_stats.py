@@ -1119,6 +1119,7 @@ class CLatencyStats(CTRexStats):
                     output[int_pg_id]['latency']['total_min'] = min_val
                 else:
                     output[int_pg_id]['latency']['total_min'] = StatNotAvailable('total_min')
+                    output[int_pg_id]['latency']['histogram'] = {}
 
         self.latest_stats = output
         return True

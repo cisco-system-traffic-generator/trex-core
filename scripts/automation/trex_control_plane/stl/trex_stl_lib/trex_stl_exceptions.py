@@ -4,6 +4,11 @@ import linecache
 
 from .utils.text_opts import *
 
+try:
+    basestring
+except NameError:
+    basestring = str
+
 # basic error for API
 class STLError(Exception):
     def __init__ (self, msg):
@@ -56,7 +61,8 @@ class STLArgumentError(STLError):
 # raised when argument type is not valid for operation
 class STLTypeError(STLError):
     def __init__ (self, arg_name, arg_type, valid_types):
-        self.msg = "Argument: '%s' invalid type: %s, expecting type(s): %s." % (arg_name, arg_type, valid_types)
+        self.msg = "Argument: '%s' invalid type: '%s', expecting type(s): %s." % (arg_name, arg_type.__name__,
+            [t.__name__ for t in valid_types] if isinstance(valid_types, tuple) else valid_types.__name__)
 
 # raised when timeout occurs
 class STLTimeoutError(STLError):

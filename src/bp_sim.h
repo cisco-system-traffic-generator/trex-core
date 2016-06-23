@@ -670,6 +670,14 @@ public:
         return (btGetMaskBit32(m_flags1,4,4) ? true:false);
     }
 
+    /* split mac is enabled */
+    void setWDDisable(bool wd_disable){
+        btSetMaskBit32(m_flags1,6,6,wd_disable?1:0);
+    }
+
+    bool getWDDisable(){
+        return (btGetMaskBit32(m_flags1,6,6) ? true:false);
+    }
 
 
 
@@ -3637,9 +3645,7 @@ public:
     }
 
     void tickle() {
-        if (m_watchdog) {
-            m_watchdog->tickle(m_watchdog_handle);
-        }
+        m_monitor.tickle();
     }
 
     /* return the dual port ID this thread is attached to in 4 ports configuration
@@ -3764,8 +3770,7 @@ public:
 
     CTupleGeneratorSmart             m_smart_gen;
 
-    TrexWatchDog                    *m_watchdog;
-    int                              m_watchdog_handle;
+    TrexMonitor                      m_monitor;
 
 public:
     CNodeGenerator                   m_node_gen;

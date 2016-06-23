@@ -258,23 +258,20 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
             fsp_head = (struct flow_stat_payload_header *)(p + rte_pktmbuf_data_len(m) - fsp_head_size);
             return m;
         } else {
-            // r/w --> read only. Should do something like:
-            // Alloc indirect,. make r/w->indirect point to read_only) -> new fsp_header
-            // for the mean time, just copy the entire packet.
-            m_ret = CGlobalInfo::pktmbuf_alloc( get_socket_id(), rte_pktmbuf_pkt_len(m) );
-            assert(m_ret);
-            char *p_new = rte_pktmbuf_append(m_ret, rte_pktmbuf_pkt_len(m));
-            rte_mbuf_t *m_free = m;
-            while (m != NULL) {
-                char *p = rte_pktmbuf_mtod(m, char*);
-                memcpy(p_new, p, m->data_len);
-                p_new += m->data_len;
-                m = m->next;
-            }
-            p_new = rte_pktmbuf_mtod(m_ret, char*);
-            fsp_head = (struct flow_stat_payload_header *)(p_new + rte_pktmbuf_data_len(m_ret) - fsp_head_size);
-            rte_pktmbuf_free(m_free);
-            return m_ret;
+            // We have: r/w --> read only.
+            // Changing to:
+            // (original) r/w -> (new) indirect (direct is original read_only, after trimming last bytes) -> (new) latency info
+            rte_mbuf_t *m_read_only = m->next, *m_indirect;
+
+            m_indirect = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+            assert(m_indirect);
+            // alloc mbuf just for the latency header
+            m_lat = CGlobalInfo::pktmbuf_alloc( get_socket_id(), fsp_head_size);
+            assert(m_lat);
+            fsp_head = (struct flow_stat_payload_header *)rte_pktmbuf_append(m_lat, fsp_head_size);
+            utl_rte_pktmbuf_chain_with_indirect(m, m_indirect, m_read_only, m_lat);
+            m_indirect->data_len = (uint16_t)(m_indirect->data_len - fsp_head_size);
+            return m;
         }
     }
 }
@@ -910,6 +907,10 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         uint8_t hw_id = stream->m_rx_check.m_hw_id;
         assert (hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD);
         node->set_stat_hw_id(hw_id);
+        // no support for cache with flow stat payload rules
+        if ((TrexPlatformApi::driver_stat_cap_e)stream->m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+            stream->m_cache_size = 0;
+        }
     }
 
     /* set socket id */

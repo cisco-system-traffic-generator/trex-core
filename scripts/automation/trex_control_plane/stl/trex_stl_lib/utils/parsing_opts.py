@@ -92,10 +92,6 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 # value should be divided
 def decode_multiplier(val, allow_update = False, divide_count = 1):
 
-    # must be string
-    if not isinstance(val, str):
-        return None
-
     # do we allow updates ?  +/-
     if not allow_update:
         match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
@@ -246,25 +242,23 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'type': int}),
 
               PROMISCUOUS: ArgumentPack(['--prom'],
-                                        {'help': "sets port promiscuous on",
+                                        {'help': "Sets port promiscuous on",
                                          'dest': "prom",
                                          'default': None,
                                          'action': "store_true"}),
 
-
               TUNABLES: ArgumentPack(['-t'],
-                                     {'help': "sets tunable for a profile",
+                                     {'help': "Sets tunables for a profile. Example: '-t fsize=100,pg_id=7'",
+                                      'metavar': 'T1=VAL[,T2=VAL ...]',
                                       'dest': "tunables",
                                       'default': None,
                                       'type': decode_tunables}),
 
-
               NO_PROMISCUOUS: ArgumentPack(['--no_prom'],
-                                           {'help': "sets port promiscuous off",
+                                           {'help': "Sets port promiscuous off",
                                             'dest': "prom",
                                             'default': None,
                                             'action': "store_false"}),
-
 
               PORT_LIST: ArgumentPack(['--port', '-p'],
                                         {"nargs": '+',

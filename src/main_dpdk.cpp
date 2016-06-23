@@ -552,7 +552,8 @@ enum { OPT_HELP,
        OPT_VIRT_ONE_TX_RX_QUEUE,
        OPT_PREFIX,
        OPT_MAC_SPLIT,
-       OPT_SEND_DEBUG_PKT
+       OPT_SEND_DEBUG_PKT,
+       OPT_NO_WATCHDOG 
 };
 
 
@@ -614,6 +615,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_MAC_SPLIT, "--mac-spread", SO_REQ_SEP },
         { OPT_SEND_DEBUG_PKT, "--send-debug-pkt", SO_REQ_SEP },
         { OPT_MBUF_FACTOR     , "--mbuf-factor",  SO_REQ_SEP },
+        { OPT_NO_WATCHDOG ,  "--no-watchdog",  SO_NONE  },
 
 
         SO_END_OF_OPTIONS
@@ -712,18 +714,11 @@ static int usage(){
     printf(" --prefix                   : for multi trex, each instance should have a different name \n");
     printf(" --mac-spread               : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
     printf("                             maximum is up to 128 devices   \n");
-
     printf(" --mbuf-factor              : factor for packet memory \n");
-
-    printf("\n simulation mode : \n");
-    printf(" Using this mode you can generate the traffic into a pcap file and learn how trex works \n");
-    printf(" With this version you must be SUDO to use this mode ( I know this is not normal )  \n");
-    printf(" you can use the Linux CEL version of TRex to do it without super user   \n");
-    printf("  \n");
-    printf(" -o [capfile_name]  simulate trex into pcap file  \n");
-    printf(" --pcap             export the file in pcap mode \n");
-    printf(" bp-sim-64 -d 10 -f cfg.yaml  -o my.pcap --pcap  # export 10 sec of what Trex will do on real-time to a file my.pcap \n");
-    printf(" --vm-sim               : simulate vm with driver of one input queue and one output queue \n");
+    printf("                             \n");
+    printf(" --no-watchdog              : disable watchdog  \n");
+    printf("                             \n");
+    printf(" --vm-sim                   : simulate vm with driver of one input queue and one output queue \n");
     printf("  \n");
     printf(" Examples: ");
     printf(" basic trex run for 10 sec and multiplier of x10 \n");
@@ -934,6 +929,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_1G_MODE :
                 po->preview.set_1g_mode(true);
+                break;
+
+            case OPT_NO_WATCHDOG :
+                po->preview.setWDDisable(true);
                 break;
 
             case  OPT_LATENCY_PREVIEW :
@@ -2066,7 +2065,7 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     }
     tx_per_flow_t *lp_s = &lp_stats->m_tx_per_flow[hw_id];
     lp_s->add_pkts(1);
-    lp_s->add_bytes(mi->pkt_len);
+    lp_s->add_bytes(mi->pkt_len + 4); // We add 4 because of ethernet CRC
 
     if (hw_id >= MAX_FLOW_STATS) {
         fsp_head->time_stamp = os_get_hr_tick_64();
@@ -2107,8 +2106,12 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
     }
 
     if (unlikely(node_sl->is_stat_needed())) {
-        return send_node_flow_stat(m, node_sl, lp_port, lp_stats,
-                                   (node_sl->get_cache_mbuf() || node_sl->is_cache_mbuf_array())? true:false);
+        if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
+            // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
+            // assert here just to make sure.
+            assert(1);
+        }
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
     } else {
         send_pkt(lp_port,m,lp_stats);
     }
@@ -2843,8 +2846,9 @@ private:
     uint32_t            m_stats_cnt;
     std::mutex          m_cp_lock;
 
+    TrexMonitor         m_monitor;
+   
 public:
-    TrexWatchDog         m_watchdog;
     TrexStateless       *m_trex_stateless;
 
 };
@@ -3274,8 +3278,7 @@ bool CGlobalTRex::Create(){
 
         TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP,
                                              global_platform_cfg_info.m_zmq_rpc_port,
-                                             &m_cp_lock,
-                                             &m_watchdog);
+                                             &m_cp_lock);
 
         cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
         cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
@@ -3848,6 +3851,7 @@ CGlobalTRex::handle_slow_path(bool &was_stopped) {
 
     if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ) {
         if ( m_io_modes.handle_io_modes() ) {
+            printf(" CTRL -C ... \n");
             was_stopped=true;
             return false;
         }
@@ -3978,8 +3982,10 @@ int CGlobalTRex::run_in_master() {
     const int FASTPATH_DELAY_MS = 10;
     const int SLOWPATH_DELAY_MS = 500;
 
-    int handle = m_watchdog.register_monitor("master", 2);
-    m_watchdog.start();
+    m_monitor.create("master", 2);
+    TrexWatchDog::getInstance().register_monitor(&m_monitor);
+
+    TrexWatchDog::getInstance().start();
 
     while ( true ) {
 
@@ -4002,11 +4008,14 @@ int CGlobalTRex::run_in_master() {
         slow_path_counter += FASTPATH_DELAY_MS;
         cp_lock.lock();
 
-        m_watchdog.tickle(handle);
+        m_monitor.tickle();
     }
 
     /* on exit release the lock */
     cp_lock.unlock();
+
+    /* first stop the WD */
+    TrexWatchDog::getInstance().stop();
 
     if (!is_all_cores_finished()) {
         /* probably CLTR-C */
@@ -4015,7 +4024,6 @@ int CGlobalTRex::run_in_master() {
 
     m_mg.stop();
 
-    m_watchdog.stop();
 
     delay(1000);
     if ( was_stopped ){
@@ -4031,12 +4039,12 @@ int CGlobalTRex::run_in_rx_core(void){
 
     if (get_is_stateless()) {
         m_sl_rx_running = true;
-        m_rx_sl.start(m_watchdog);
+        m_rx_sl.start();
         m_sl_rx_running = false;
     } else {
         if ( CGlobalInfo::m_options.is_rx_enabled() ){
             m_sl_rx_running = false;
-            m_mg.start(0, &m_watchdog);
+            m_mg.start(0, true);
         }
     }
 
@@ -4063,9 +4071,8 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     lpt = m_fl.m_threads_info[virt_core_id-1];
 
     /* register a watchdog handle on current core */
-    lpt->m_watchdog        = &m_watchdog;
-    lpt->m_watchdog_handle = m_watchdog.register_monitor(ss.str(), 1);
-
+    lpt->m_monitor.create(ss.str(), 1);
+    TrexWatchDog::getInstance().register_monitor(&lpt->m_monitor);
 
     if (get_is_stateless()) {
         lpt->start_stateless_daemon(*lp);
@@ -4074,7 +4081,7 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     }
 
     /* done - remove this from the watchdog (we might wait on join for a long time) */
-    lpt->m_watchdog->disable_monitor(lpt->m_watchdog_handle);
+    lpt->m_monitor.disable();
 
     m_signal[virt_core_id]=1;
     return (0);
@@ -4768,9 +4775,9 @@ int main_test(int argc , char * argv[]){
         g_trex.reset_counters();
     }
 
-    /* this will give us all cores - master + tx + latency */
-    g_trex.m_watchdog.mark_pending_monitor(g_trex.m_max_cores);
-
+    /* disable WD if needed */
+    bool wd_enable = (CGlobalInfo::m_options.preview.getWDDisable() ? false : true);
+    TrexWatchDog::getInstance().init(wd_enable);
 
     g_trex.m_sl_rx_running = false;
     if ( get_is_stateless() ) {
@@ -5478,10 +5485,10 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 
 
     stats->ipackets     =  stats1.ipackets;
-    stats->ibytes       =  stats1.ibytes;
+    stats->ibytes       =  stats1.ibytes + (stats1.ipackets<<2);
 
     stats->opackets     =  stats1.opackets;
-    stats->obytes       =  stats1.obytes;
+    stats->obytes       =  stats1.obytes + (stats1.opackets<<2);
 
     stats->f_ipackets   = 0;
     stats->f_ibytes     = 0;

@@ -13,6 +13,7 @@ from distutils.util import strtobool
 from collections import deque, OrderedDict
 from json import JSONDecoder
 import traceback
+import signal
 
 try:
     from . import outer_packages
@@ -39,7 +40,7 @@ class CTRexClient(object):
     This class defines the client side of the RESTfull interaction with TRex
     """
 
-    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False):
+    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False, trex_args = ''):
         """ 
         Instantiate a TRex client object, and connecting it to listening daemon-server
 
@@ -92,42 +93,11 @@ class CTRexClient(object):
         self.decoder            = JSONDecoder()
         self.history            = jsonrpclib.history.History()
         self.master_daemon_path = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
+        self.master_daemon      = jsonrpclib.Server(self.master_daemon_path, history = self.history)
         self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
-        self.connect_master()
-        self.connect_server()
-
-
-    def connect_master(self):
-        '''
-        Connects to Master daemon via JsonRPC.
-        This daemon controls TRex daemon server.
-        Return true if success, false if fail
-        '''
-        try:
-            print('Connecting to Master daemon @ %s ...' % self.master_daemon_path)
-            self.master_daemon      = jsonrpclib.Server(self.master_daemon_path, history = self.history)
-            self.check_master_connectivity()
-            print('Connected to Master daemon.')
-            return True
-        except Exception as e:
-            print(e)
-            return False
-
-    def connect_server(self):
-        '''
-        Connects to TRex daemon server via JsonRPC.
-        This daemon controls TRex. (start/stop)
-        Return true if success, false if fail
-        '''
-        try:
-            print('Connecting to TRex daemon server @ %s ...' % self.trex_server_path)
-            self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)
-            self.check_server_connectivity()
-            print('Connected TRex server daemon.')
-            return True
-        except Exception as e:
-            print(e)
-            return False
+        self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)
+        self.debug_image        = debug_image
+        self.trex_args          = trex_args
 
 
     def add (self, x, y):
@@ -191,7 +161,7 @@ class CTRexClient(object):
         self.result_obj.clear_results()
         try:
             issue_time = time.time()
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout)
+            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, False, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -237,7 +207,7 @@ class CTRexClient(object):
         """
         try:
             user = user or self.__default_user
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, True)
+            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, True, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -322,18 +292,28 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def kill_all_trexes(self):
+    def kill_all_trexes(self, timeout = 15):
         """
         Kills running TRex processes (if exists) on the server, not only owned by current daemon.
         Raises exception upon error killing.
 
         :return: 
-            + **True** if any process killed 
+            + **True** if processes killed/not running
             + **False** otherwise.
 
         """
         try:
-            return self.server.kill_all_trexes()
+            poll_rate = 0.1
+            # try Ctrl+C, usual kill, -9
+            for signal_name in [signal.SIGINT, signal.SIGTERM, signal.SIGKILL]:
+                self.server.kill_all_trexes(signal_name)
+                for i in range(int(timeout / poll_rate)):
+                    if not self.get_trex_cmds():
+                        return True
+                    sleep(poll_rate)
+            if self.get_trex_cmds():
+                return False
+            return True
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         finally:
@@ -1518,8 +1498,15 @@ class CTRexResult(object):
         return result
 
 
-
-
 if __name__ == "__main__":
-    pass
+    c = CTRexClient('127.0.0.1')
+    print('restarting daemon')
+    c.restart_trex_daemon()
+    print('kill any running')
+    c.kill_all_trexes()
+    print('start')
+    c.start_stateless()
+    print('sleep')
+    time.sleep(5)
+    print('done')
 

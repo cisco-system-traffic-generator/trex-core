@@ -3,15 +3,13 @@ import sys
 import os
 import logging
 
+def prepare_dir(log_path):
+    log_dir = os.path.dirname(log_path)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
 def setup_custom_logger(name, log_path = None):
     # first make sure path availabe
-#   if log_path is None:
-#       log_path = os.getcwd()+'/trex_log.log'
-#   else:
-#       directory = os.path.dirname(log_path)
-#       if not os.path.exists(directory):
-#           os.makedirs(directory)
     logging.basicConfig(level   = logging.INFO, 
                         format  = '%(asctime)s %(name)-10s %(module)-20s %(levelname)-8s %(message)s',
                         datefmt = '%m-%d %H:%M')
@@ -31,6 +29,7 @@ def setup_custom_logger(name, log_path = None):
 
 def setup_daemon_logger (name, log_path = None):
     # first make sure path availabe
+    prepare_dir(log_path)
     try:
         os.unlink(log_path)
     except:

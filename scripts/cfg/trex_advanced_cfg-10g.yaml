@@ -1,0 +1,15 @@
+- port_limit    : 2         
+  version       : 2
+  #interfaces    : ["04:00.0", "04:00.1", "06:00.0", "06:00.1"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status 
+  interfaces    : ["04:00.0", "04:00.1"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status 
+  port_info       :  # set eh mac addr 
+  prefix          : setup1   # WARNING,WARNING,WARNING DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING
+  limit_memory    : 1024     # WARNING,WARNING,WARNING DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING
+  port_info       :  # set eh mac addr
+         - dest_mac        :   [0x00, 0xe0, 0xed, 0x5d, 0x84, 0x65]
+           src_mac         :   [0x00, 0xe0, 0xed, 0x5d, 0x84, 0x64]
+         - dest_mac        :   [0x00, 0xe0, 0xed, 0x5d, 0x84, 0x64]
+           src_mac         :   [0x00, 0xe0, 0xed, 0x5d, 0x84, 0x65]
+
+
+

@@ -72,9 +72,6 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_ring_to_cp   = cp_rx->getRingDpToCp(0);
     m_state = STATE_IDLE;
 
-    m_watchdog_handle = -1;
-    m_watchdog        = NULL;
-
     for (int i = 0; i < m_max_ports; i++) {
         CLatencyManagerPerPortStl * lp = &m_ports[i];
         lp->m_io = cfg.m_ports[i];
@@ -93,7 +90,7 @@ void CRxCoreStateless::handle_cp_msg(TrexStatelessCpToRxMsgBase *msg) {
 }
 
 void CRxCoreStateless::tickle() {
-    m_watchdog->tickle(m_watchdog_handle);
+    m_monitor.tickle();
 }
 
 bool CRxCoreStateless::periodic_check_for_cp_messages() {
@@ -147,14 +144,14 @@ void CRxCoreStateless::idle_state_loop() {
     }
 }
 
-void CRxCoreStateless::start(TrexWatchDog &watchdog) {
+void CRxCoreStateless::start() {
     int count = 0;
     int i = 0;
     bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
 
     /* register a watchdog handle on current core */
-    m_watchdog        = &watchdog;
-    m_watchdog_handle = watchdog.register_monitor("STL RX CORE", 1);
+    m_monitor.create("STL RX CORE", 1);
+    TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
     while (true) {
         if (m_state == STATE_WORKING) {
@@ -179,7 +176,7 @@ void CRxCoreStateless::start(TrexWatchDog &watchdog) {
     }
     rte_pause();
 
-    m_watchdog->disable_monitor(m_watchdog_handle);
+    m_monitor.disable();
 }
 
 void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *m) {
@@ -238,7 +235,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                             curr_rfc2544.set_seq(pkt_seq + 1);
                         }
                         lp->m_port.m_rx_pg_stat_payload[hw_id].add_pkts(1);
-                        lp->m_port.m_rx_pg_stat_payload[hw_id].add_bytes(m->pkt_len);
+                        lp->m_port.m_rx_pg_stat_payload[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
                         uint64_t d = (os_get_hr_tick_64() - fsp_head->time_stamp );
                         dsec_t ctime = ptime_convert_hr_dsec(d);
                         curr_rfc2544.add_sample(ctime);
@@ -246,7 +243,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                 } else {
                     hw_id = get_hw_id(ip_id);
                     lp->m_port.m_rx_pg_stat[hw_id].add_pkts(1);
-                    lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len);
+                    lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
                 }
             }
         }

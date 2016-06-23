@@ -3868,6 +3868,30 @@ i40e_update_default_filter_setting(struct i40e_vsi *vsi)
 	return i40e_vsi_add_mac(vsi, &filter);
 }
 
+#ifdef TREX_PATCH
+#define LOW_LATENCY_WORKAROUND
+#ifdef LOW_LATENCY_WORKAROUND
+static int
+i40e_vsi_update_tc_max_bw(struct i40e_vsi *vsi, u16 credit){
+    struct i40e_hw *hw = I40E_VSI_TO_HW(vsi);
+    int ret;
+
+    if (!vsi->seid) {
+        PMD_DRV_LOG(ERR, "seid not valid");
+        return -EINVAL;
+    }
+
+    ret = i40e_aq_config_vsi_bw_limit(hw, vsi->seid, credit,0, NULL);
+    if (ret != I40E_SUCCESS) {
+        PMD_DRV_LOG(ERR, "Failed to configure TC BW");
+        return ret;
+    }
+    return (0);
+}
+#endif
+#endif
+
+
 #define I40E_3_BIT_MASK     0x7
 /*
  * i40e_vsi_get_bw_config - Query VSI BW Information
@@ -4425,6 +4449,39 @@ i40e_pf_setup(struct i40e_pf *pf)
 		return I40E_ERR_NOT_READY;
 	}
 	pf->main_vsi = vsi;
+
+
+#ifdef TREX_PATCH
+#ifdef LOW_LATENCY_WORKAROUND
+    /*
+     Workaround for low latency issue.
+     It seems RR does not work as expected both from same QSet and from different QSet
+     Quanta could be very high and this creates very high latency, especially with long packet size (9K)
+     This is a workaround limit the main (bulk) VSI to 99% of the BW and by that support low latency (suggested by Intel)
+     ETS with with strict priority and 127 credit does not work .
+    */
+
+    if (hw->phy.link_info.link_speed == I40E_LINK_SPEED_10GB) {
+        i40e_vsi_update_tc_max_bw(vsi,199);
+    }else{
+        if (hw->phy.link_info.link_speed == I40E_LINK_SPEED_40GB) {
+            i40e_vsi_update_tc_max_bw(vsi,799);
+        }else{
+            PMD_DRV_LOG(ERR, "Unknown phy speed %d",hw->phy.link_info.link_speed);
+        }
+    }
+
+    /* add for low latency a new VSI for Queue set */
+    vsi = i40e_vsi_setup(pf, I40E_VSI_VMDQ2, vsi, 0);
+    if (!vsi) {
+        PMD_DRV_LOG(ERR, "Setup of low latency vsi failed");
+        return I40E_ERR_NOT_READY;
+    }
+
+    pf->ll_vsi = vsi;
+
+#endif
+#endif
 
 	/* Configure filter control */
 	memset(&settings, 0, sizeof(settings));

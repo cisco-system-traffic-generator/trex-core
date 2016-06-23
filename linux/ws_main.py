@@ -124,6 +124,7 @@ main_src = SrcGroup(dir='src',
              'trex_watchdog.cpp',
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp',
+             'pal/common/common_mbuf.cpp',
              'sim/trex_sim_stateless.cpp',
              'sim/trex_sim_stateful.cpp'
              ]);
@@ -254,6 +255,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 
 
 includes_path =''' ../src/pal/linux/
+                   ../src/pal/common/
                    ../src/
                    ../src/rpc-server/
                    ../src/stateless/cp/

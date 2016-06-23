@@ -85,7 +85,8 @@ class STLBasic_Test(CStlGeneral_Test):
     @nottest
     def test_connectivity(self):
         if not self.is_loopback:
-            CTRexScenario.router.load_clean_config()
+            if CTRexScenario.router_cfg['forceImageReload']:
+                CTRexScenario.router.load_clean_config()
             CTRexScenario.router.configure_basic_interfaces()
             CTRexScenario.router.config_pbr(mode = "config")
 

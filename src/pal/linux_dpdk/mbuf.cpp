@@ -6,7 +6,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ rte_mempool_t * utl_rte_mempool_create(const char  *name,
                                        unsigned elt_size,
                                        unsigned cache_size,
                                        uint32_t _id,
-                                       uint32_t socket_id ){
+                                       int socket_id ){
     char buffer[100];
     sprintf(buffer,"%s-%d",name,socket_id);
 

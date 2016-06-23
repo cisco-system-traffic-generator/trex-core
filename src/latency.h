@@ -85,6 +85,7 @@ public:
 
     CSimplePacketParser(rte_mbuf_t * m){
         m_m=m;
+        m_l4 = NULL;
     }
 
     bool Parse();
@@ -269,6 +270,7 @@ public:
     CLatencyManagerCfg (){
         m_max_ports=0;
         m_cps=0.0;
+        memset(m_ports, 0, sizeof(m_ports));
         m_client_ip.v4=0x10000000;
         m_server_ip.v4=0x20000000;
         m_dual_port_mask=0x01000000;
@@ -339,7 +341,7 @@ public:
     bool Create(CLatencyManagerCfg * cfg);
     void Delete();
     void  reset();
-    void  start(int iter, TrexWatchDog *watchdog);
+    void  start(int iter, bool activate_watchdog);
     void  stop();
     bool  is_active();
     void set_ip(uint32_t client_ip,
@@ -403,8 +405,7 @@ private:
      CNatRxManager           m_nat_check_manager;
      CCpuUtlDp               m_cpu_dp_u;
      CCpuUtlCp               m_cpu_cp_u;
-     TrexWatchDog            *m_watchdog;
-     int                     m_watchdog_handle;
+     TrexMonitor             m_monitor;
 
      volatile bool           m_do_stop __rte_cache_aligned ;
 };

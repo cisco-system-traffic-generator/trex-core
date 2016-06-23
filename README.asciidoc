@@ -125,6 +125,11 @@ link:http://www.youtube.com/watch?v=U0gRalB7DOs[Video DPDK summit 2015]
 
 link:https://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation] 
 
+
+=== Documentation
+
+link:https://trex-tgn.cisco.com/trex/doc/index.html[Documentation]
+
 === Wiki
 
 Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]

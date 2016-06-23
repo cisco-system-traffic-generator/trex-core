@@ -61,6 +61,9 @@ def format_time (t_sec):
     if t_sec < 0:
         return "infinite"
 
+    if t_sec == 0:
+        return "zero"
+
     if t_sec < 1:
         # low numbers
         for unit in ['ms', 'usec', 'ns']:

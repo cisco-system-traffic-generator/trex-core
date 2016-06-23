@@ -30,9 +30,9 @@ import shlex
 import tempfile
 
 try:
-    from .singleton_daemon import register_socket
+    from .singleton_daemon import register_socket, run_command
 except:
-    from singleton_daemon import register_socket
+    from singleton_daemon import register_socket, run_command
 
 
 # setup the logger
@@ -134,6 +134,7 @@ class CTRexServer(object):
         self.server.register_function(self.add)
         self.server.register_function(self.cancel_reservation)
         self.server.register_function(self.connectivity_check)
+        self.server.register_function(self.connectivity_check, 'check_connectivity') # alias
         self.server.register_function(self.force_trex_kill)
         self.server.register_function(self.get_file)
         self.server.register_function(self.get_files_list)
@@ -164,16 +165,6 @@ class CTRexServer(object):
             self.server.shutdown()
             #self.server.server_close()
 
-    def _run_command(self, command, timeout = 15, cwd = None):
-        if timeout:
-            command = 'timeout %s %s' % (timeout, command)
-        # pipes might stuck, even with timeout
-        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-            proc = subprocess.Popen(shlex.split(command), stdout=stdout_file, stderr=stderr_file, cwd = cwd)
-            proc.wait()
-            stdout_file.seek(0)
-            stderr_file.seek(0)
-            return (proc.returncode, stdout_file.read().decode(errors = 'replace'), stderr_file.read().decode(errors = 'replace'))
 
     # get files from Trex server and return their content (mainly for logs)
     @staticmethod
@@ -234,7 +225,7 @@ class CTRexServer(object):
         try:
             logger.info("Processing get_trex_version() command.")
             if not self.trex_version:
-                ret_code, stdout, stderr = self._run_command('./t-rex-64 --help', cwd = self.TREX_PATH, timeout = 0)
+                ret_code, stdout, stderr = run_command('./t-rex-64 --help', cwd = self.TREX_PATH)
                 search_result = re.search('\n\s*(Version\s*:.+)', stdout, re.DOTALL)
                 if not search_result:
                     raise Exception('Could not determine version from ./t-rex-64 --help')
@@ -319,7 +310,7 @@ class CTRexServer(object):
                 return False
 
             
-    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False):
+    def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False, trex_args = ''):
         with self.start_lock:
             logger.info("Processing start_trex() command.")
             if self.is_reserved():
@@ -332,7 +323,7 @@ class CTRexServer(object):
                 return Fault(-13, '')  # raise at client TRexInUseError
             
             try:
-                server_cmd_data = self.generate_run_cmd(stateless = stateless, **trex_cmd_options)
+                server_cmd_data = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, trex_args = trex_args, **trex_cmd_options)
                 self.zmq_monitor.first_dump = True
                 self.trex.start_trex(self.TREX_PATH, server_cmd_data)
                 logger.info("TRex session has been successfully initiated.")
@@ -383,7 +374,7 @@ class CTRexServer(object):
     # returns list of tuples (pid, command line) of running TRex(es)
     def get_trex_cmds(self):
         logger.info('Processing get_trex_cmds() command.')
-        ret_code, stdout, stderr = self._run_command('ps -u root --format pid,comm,cmd')
+        ret_code, stdout, stderr = run_command('ps -u root --format pid,comm,cmd')
         if ret_code:
             raise Exception('Failed to determine running processes, stderr: %s' % stderr)
         trex_cmds_list = []
@@ -396,23 +387,14 @@ class CTRexServer(object):
         return trex_cmds_list
 
 
-    def kill_all_trexes(self):
+    # Silently tries to kill TRexes with given signal.
+    # Responsibility of client to verify with get_trex_cmds.
+    def kill_all_trexes(self, signal_name):
         logger.info('Processing kill_all_trexes() command.')
         trex_cmds_list = self.get_trex_cmds()
-        if not trex_cmds_list:
-            return False
         for pid, cmd in trex_cmds_list:
-            logger.info('Killing process %s %s' % (pid, cmd))
-            self._run_command('kill %s' % pid)
-            ret_code_ps, _, _ = self._run_command('ps -p %s' % pid)
-            if not ret_code_ps:
-                logger.info('Killing with -9.')
-                self._run_command('kill -9 %s' % pid)
-                ret_code_ps, _, _ = self._run_command('ps -p %s' % pid)
-                if not ret_code_ps:
-                    logger.info('Could not kill process.')
-                    raise Exception('Could not kill process %s %s' % (pid, cmd))
-        return True
+            logger.info('Killing with signal %s process %s %s' % (signal_name, pid, cmd))
+            os.kill(int(pid), signal_name)
 
 
     def wait_until_kickoff_finish (self, timeout = 40):
@@ -431,7 +413,7 @@ class CTRexServer(object):
         return self.trex.get_running_info()
 
 
-    def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, **kwargs):
+    def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, trex_args = '', **kwargs):
         """ generate_run_cmd(self, iom, export_path, kwargs) -> str
 
         Generates a custom running command for the kick-off of the TRex traffic generator.
@@ -468,6 +450,8 @@ class CTRexServer(object):
                 continue
             else:
                 trex_cmd_options += (dash + '{k} {val}'.format( k = tmp_key, val =  value ))
+        if trex_args:
+            trex_cmd_options += ' %s' % trex_args
 
         if not stateless:
             if 'f' not in kwargs:
@@ -475,12 +459,12 @@ class CTRexServer(object):
             if 'd' not in kwargs:
                 raise Exception('Argument -d should be specified in stateful command')
 
-        cmd = "{nice}{run_command} --iom {io} {cmd_options} --no-key > {export}".format( # -- iom 0 disables the periodic log to the screen (not needed)
+        cmd = "{nice}{run_command}{debug_image} --iom {io} {cmd_options} --no-key".format( # -- iom 0 disables the periodic log to the screen (not needed)
             nice = '' if self.trex_nice == 0 else 'nice -n %s ' % self.trex_nice,
             run_command = self.TREX_START_CMD,
+            debug_image = '-debug' if debug_image else '',
             cmd_options = trex_cmd_options,
-            io          = iom, 
-            export = export_path )
+            io          = iom)
 
         logger.info("TREX FULL COMMAND: {command}".format(command = cmd) )
 

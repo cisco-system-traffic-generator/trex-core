@@ -9,14 +9,14 @@ from collections import OrderedDict
 from argparse import *
 from time import time, sleep
 from glob import glob
+import signal
 
 sys.path.append(os.path.join('automation', 'trex_control_plane', 'server'))
+import CCustomLogger
 import outer_packages
 from singleton_daemon import SingletonDaemon, register_socket, run_command
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import termstyle
-
-logging.basicConfig(level = logging.FATAL) # keep quiet
 
 ### Server functions ###
 
@@ -83,33 +83,52 @@ def start_master_daemon():
     proc.start()
     for i in range(50):
         if master_daemon.is_running():
-            print(termstyle.green('Master daemon is started'))
-            os._exit(0)
+            return True
         sleep(0.1)
-    fail(termstyle.red('Master daemon failed to run'))
+    fail(termstyle.red('Master daemon failed to run. Please look in log: %s' % logging_file))
 
+def set_logger():
+    log_dir = os.path.dirname(logging_file)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    if os.path.exists(logging_file):
+        if os.path.exists(logging_file_bu):
+            os.unlink(logging_file_bu)
+        os.rename(logging_file, logging_file_bu)
+    CCustomLogger.setup_daemon_logger('Master daemon', logging_file)
 
 def start_master_daemon_func():
-    register_socket(master_daemon.tag)
-    server = SimpleJSONRPCServer(('0.0.0.0', master_daemon.port))
-    print('Started master daemon (port %s)' % master_daemon.port)
-    server.register_function(add)
-    server.register_function(check_connectivity)
-    server.register_function(get_trex_path)
-    server.register_function(update_trex)
-    # trex_daemon_server
-    server.register_function(trex_daemon_server.is_running, 'is_trex_daemon_running')
-    server.register_function(trex_daemon_server.restart, 'restart_trex_daemon')
-    server.register_function(trex_daemon_server.start, 'start_trex_daemon')
-    server.register_function(trex_daemon_server.stop, 'stop_trex_daemon')
-    # stl rpc proxy
-    server.register_function(stl_rpc_proxy.is_running, 'is_stl_rpc_proxy_running')
-    server.register_function(stl_rpc_proxy.restart, 'restart_stl_rpc_proxy')
-    server.register_function(stl_rpc_proxy.start, 'start_stl_rpc_proxy')
-    server.register_function(stl_rpc_proxy.stop, 'stop_stl_rpc_proxy')
-    server.register_function(server.funcs.keys, 'get_methods') # should be last
-    server.serve_forever()
+    try:
+        set_logger()
+        register_socket(master_daemon.tag)
+        server = SimpleJSONRPCServer(('0.0.0.0', master_daemon.port))
+        logging.info('Started master daemon (port %s)' % master_daemon.port)
+        server.register_function(add)
+        server.register_function(check_connectivity)
+        server.register_function(get_trex_path)
+        server.register_function(update_trex)
+        # trex_daemon_server
+        server.register_function(trex_daemon_server.is_running, 'is_trex_daemon_running')
+        server.register_function(trex_daemon_server.restart, 'restart_trex_daemon')
+        server.register_function(trex_daemon_server.start, 'start_trex_daemon')
+        server.register_function(trex_daemon_server.stop, 'stop_trex_daemon')
+        # stl rpc proxy
+        server.register_function(stl_rpc_proxy.is_running, 'is_stl_rpc_proxy_running')
+        server.register_function(stl_rpc_proxy.restart, 'restart_stl_rpc_proxy')
+        server.register_function(stl_rpc_proxy.start, 'start_stl_rpc_proxy')
+        server.register_function(stl_rpc_proxy.stop, 'stop_stl_rpc_proxy')
+        server.register_function(server.funcs.keys, 'get_methods') # should be last
+        signal.signal(signal.SIGTSTP, stop_handler) # ctrl+z
+        signal.signal(signal.SIGTERM, stop_handler) # kill
+        server.serve_forever()
+    except KeyboardInterrupt:
+        logging.info('Ctrl+C')
+    except Exception as e:
+        logging.error('Closing due to error: %s' % e)
 
+def stop_handler(signalnum, *args, **kwargs):
+    logging.info('Got signal %s, exiting.' % signalnum)
+    sys.exit(0)
 
 # returns True if given path is under current dir or /tmp
 def _check_path_under_current_or_temp(path):
@@ -170,8 +189,10 @@ stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy'
 trex_daemon_server = SingletonDaemon('TRex daemon server', 'trex_daemon_server', args.trex_daemon_port, './trex_daemon_server start', args.trex_dir)
 master_daemon      = SingletonDaemon('Master daemon', 'trex_master_daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.
 
-daemons_by_name = {}
 tmp_dir = '/tmp/trex-tmp'
+logging_file = '/var/log/trex/master_daemon.log'
+logging_file_bu = '/var/log/trex/master_daemon.log_bu'
+os.chdir('/')
 
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
@@ -182,6 +203,7 @@ if not os.path.exists(args.trex_dir):
     os.makedirs(args.trex_dir)
     os.chmod(args.trex_dir, 0o777)
 elif args.allow_update:
+    print('Due to allow updates flag, setting mode 777 on given directory')
     os.chmod(args.trex_dir, 0o777)
 
 if not os.path.exists(tmp_dir):
@@ -203,9 +225,13 @@ if args.action != 'show':
         print(termstyle.red(e))
         sys.exit(1)
 
-# prints running status
-if daemon.is_running():
-    print(termstyle.green('%s is running' % daemon.name))
+passive = {'start': 'started', 'restart': 'restarted', 'stop': 'stopped', 'show': 'running'}
+
+if args.action in ('show', 'start', 'restart') and daemon.is_running() or \
+    args.action == 'stop' and not daemon.is_running():
+    print(termstyle.green('%s is %s' % (daemon.name, passive[args.action])))
+    os._exit(0)
 else:
-    print(termstyle.red('%s is NOT running' % daemon.name))
+    print(termstyle.red('%s is NOT %s' % (daemon.name, passive[args.action])))
+    os._exit(-1)
 

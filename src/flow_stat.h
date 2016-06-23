@@ -450,6 +450,7 @@ class CFlowStatRuleMgr {
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
     void copy_state(TrexStream * from, TrexStream * to);
     void init_stream(TrexStream * stream);
+    int verify_stream(TrexStream * stream);
     int add_stream(TrexStream * stream);
     int del_stream(TrexStream * stream);
     int start_stream(TrexStream * stream);
@@ -460,6 +461,7 @@ class CFlowStatRuleMgr {
  private:
     void create();
     int compile_stream(const TrexStream * stream, CFlowStatParser *parser);
+    int add_stream_internal(TrexStream * stream, bool do_action);
     int add_hw_rule(uint16_t hw_id, uint8_t proto);
     void send_start_stop_msg_to_rx(bool is_start);
 
@@ -472,7 +474,7 @@ class CFlowStatRuleMgr {
     const CRxCoreStateless *m_rx_core;
     int m_max_hw_id; // max hw id we ever used
     int m_max_hw_id_payload; // max hw id we ever used for payload rules
-    uint32_t m_num_started_streams; // How many started (transmitting) streams we have
+    int m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
     CFlowStatParser *m_parser;
     uint16_t m_cap; // capabilities of the NIC driver we are using
