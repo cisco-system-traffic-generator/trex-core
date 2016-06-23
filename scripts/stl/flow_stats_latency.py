@@ -6,6 +6,8 @@ class STLS1(object):
     Can specify using tunables the packet length (fsize) and packet group id (pg_id)
     Since we can't have two latency streams with same pg_id, in order to be able to start this profile
     on more than one port, we add port_id to the pg_id
+    Notice that for perfomance reasons, latency streams are not affected by -m flag, so
+    you can only change the pps value by editing the code.
     """
 
     def __init__ (self):
@@ -19,7 +21,7 @@ class STLS1(object):
         pkt = STLPktBuilder(pkt = base_pkt/pad)
 
         return [STLStream(packet = pkt,
-                          mode = STLTXCont(pps=1),
+                          mode = STLTXCont(pps=1000),
                           flow_stats = STLFlowLatencyStats(pg_id = self.pg_id))
                ]
 
