@@ -441,13 +441,13 @@ class STLRX_Test(CStlGeneral_Test):
 
     def test_fcs_stream(self):
         """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
-        self.skip('Skip due to bug trex-213')
+        #self.skip('Skip due to bug trex-213')
 
         all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
         for port in all_ports:
             for l in [True,False]:
                 print(" test port {0} latency : {1} ".format(port,l))
-                self.send_1_burst(port,l,100)
+                self.send_1_burst(port,False,100)
 
     
     # this test adds more and more latency streams and re-test with incremental
