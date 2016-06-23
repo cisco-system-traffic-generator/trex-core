@@ -354,7 +354,100 @@ class STLRX_Test(CStlGeneral_Test):
                 print("===>Iteration {0} PASS {1}".format(i,j));
 
 
+    def  check_stats (self,stats,a,b,err):
+        if a != b:
+            tmp = 'ERROR field : {0}, read : {1} != expected : {2} '.format(err,a,b)
+            pprint.pprint(stats)
+            assert False,tmp
 
+
+
+    def send_1_burst(self,from_port,is_latency,pkts):
+
+        pid = from_port
+        base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+        pad = (60 - len(base_pkt)) * 'x'
+
+        stream_pkt = STLPktBuilder(pkt = base_pkt/pad)
+
+        all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
+
+        dpid = CTRexScenario.stl_ports_map['map'][pid]
+
+        s_ports =[pid]
+
+        try:
+            # reset all ports
+            self.c.reset(ports = all_ports)
+
+
+            for pid in s_ports:
+                if is_latency:
+                    s1  = STLStream(name = 'rx',
+                               packet = stream_pkt,
+                               flow_stats = STLFlowLatencyStats(pg_id = 5 + pid),
+                               mode = STLTXSingleBurst(total_pkts = pkts,pps = 1000))
+                else:
+                    s1  = STLStream(name = 'rx',
+                               packet = stream_pkt,
+                               mode = STLTXSingleBurst(total_pkts = pkts,pps = 1000))
+
+
+                # add both streams to ports
+                self.c.add_streams(s1, ports = [pid])
+
+            self.c.clear_stats()
+
+            self.c.start(ports = s_ports)
+            self.c.wait_on_traffic(ports = s_ports)
+
+            stats = self.c.get_stats()
+
+            ips = stats[dpid]
+            ops = stats[pid]
+            tps = stats['total']
+            tbytes = pkts*64
+
+            self.check_stats (stats,ops["obytes"], tbytes,"ops[obytes]")
+            self.check_stats (stats,ops["opackets"], pkts,"ops[opackets]")
+
+            self.check_stats (stats,ips["ibytes"], tbytes,"ips[ibytes]")
+            self.check_stats (stats,ips["ipackets"], pkts,"ips[ipackets]")
+
+            self.check_stats (stats,tps['ibytes'], tbytes,"tps[ibytes]")
+            self.check_stats (stats,tps['obytes'], tbytes,"tps[obytes]")
+            self.check_stats (stats,tps['ipackets'], pkts,"tps[ipackets]")
+            self.check_stats (stats,tps['opackets'], pkts,"tps[opackets]")
+
+            if is_latency:
+                ls=stats['flow_stats'][5+ pid]
+                self.check_stats (stats,ls['rx_pkts']['total'], pkts,"ls['rx_pkts']['total']")
+                self.check_stats (stats,ls['rx_pkts'][dpid], pkts,"ls['rx_pkts'][dpid]")
+                
+                self.check_stats (stats,ls['tx_pkts']['total'], pkts,"ls['tx_pkts']['total']")
+                self.check_stats (stats,ls['tx_pkts'][pid], pkts,"ls['tx_pkts'][pid]")
+
+                self.check_stats (stats,ls['tx_bytes']['total'], tbytes,"ls['tx_bytes']['total']")
+                self.check_stats (stats,ls['tx_bytes'][pid], pkts+1,"ls['tx_bytes'][pid]")
+
+
+            return 0
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+
+
+    def test_fcs_stream(self):
+        """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
+        self.skip('Skip due to bug trex-213')
+
+        all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
+        for port in all_ports:
+            for l in [True,False]:
+                print(" test port {0} latency : {1} ".format(port,l))
+                self.send_1_burst(port,l,100)
 
     
     # this test adds more and more latency streams and re-test with incremental
