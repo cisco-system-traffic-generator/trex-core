@@ -3868,6 +3868,9 @@ i40e_update_default_filter_setting(struct i40e_vsi *vsi)
 	return i40e_vsi_add_mac(vsi, &filter);
 }
 
+#ifdef TREX_PATCH
+#define LOW_LATENCY_WORKAROUND
+#ifdef LOW_LATENCY_WORKAROUND
 static int
 i40e_vsi_update_tc_max_bw(struct i40e_vsi *vsi, u16 credit){
     struct i40e_hw *hw = I40E_VSI_TO_HW(vsi);
@@ -3885,7 +3888,8 @@ i40e_vsi_update_tc_max_bw(struct i40e_vsi *vsi, u16 credit){
     }
     return (0);
 }
-
+#endif
+#endif
 
 
 #define I40E_3_BIT_MASK     0x7
@@ -4447,18 +4451,16 @@ i40e_pf_setup(struct i40e_pf *pf)
 	pf->main_vsi = vsi;
 
 
-#define LOW_LATENCY_WORKAROUND
+#ifdef TREX_PATCH
 #ifdef LOW_LATENCY_WORKAROUND
-
-    /* 
-     Workaround for low latency issue. 
-     It seems RR does not work as expected both from same QSet and from different QSet 
-     Quanta could be very high and this creates very high latency, especially with long packet size (9K) 
+    /*
+     Workaround for low latency issue.
+     It seems RR does not work as expected both from same QSet and from different QSet
+     Quanta could be very high and this creates very high latency, especially with long packet size (9K)
      This is a workaround limit the main (bulk) VSI to 99% of the BW and by that support low latency (suggested by Intel)
      ETS with with strict priority and 127 credit does not work .
-
     */
-    
+
     if (hw->phy.link_info.link_speed == I40E_LINK_SPEED_10GB) {
         i40e_vsi_update_tc_max_bw(vsi,199);
     }else{
@@ -4478,6 +4480,7 @@ i40e_pf_setup(struct i40e_pf *pf)
 
     pf->ll_vsi = vsi;
 
+#endif
 #endif
 
 	/* Configure filter control */
