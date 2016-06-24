@@ -74,7 +74,7 @@ class STLRX_Test(CStlGeneral_Test):
             pprint.pprint(err_latency)
             tmp = 'RX pkts ERROR - one of the error is on'
             print(tmp)
-            #assert False, tmp
+            assert False, tmp
 
         if latency['average']> max_average:
             pprint.pprint(latency_stats)
@@ -314,7 +314,7 @@ class STLRX_Test(CStlGeneral_Test):
     # check low latency when you have stream of 9K stream 
     def test_9k_stream(self):
 
-        self.skip('Skip due to bug trex-215')
+        #self.skip('Skip due to bug trex-215')
 
         if self.latency_9k_enable == False:
            print("SKIP")
