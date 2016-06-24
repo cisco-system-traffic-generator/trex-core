@@ -23,6 +23,20 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.04  ==
+
+* Watchdog support
+* Ability to export core file 
+* Optimized the case of Latency stream, Field Engine and 9K template packets 
+
+=== fix issues: ===
+
+* XL710/X710 present high latency with 9K packets  link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
+* The latency seq number gets out of sync link:http://trex-tgn.cisco.com/youtrack/issue/trex-215[trex-215]
+* Port/Latency stats should be with FCS  link:http://trex-tgn.cisco.com/youtrack/issue/trex-213[trex-213]
+* Stateless Unicode is not accepted for multiplier API see  link:https://github.com/cisco-system-traffic-generator/trex-core/issues/15[github-issue15]
+
+
 == Release 2.03  ==
 
 * More accurate stateless latency/more TUI support
