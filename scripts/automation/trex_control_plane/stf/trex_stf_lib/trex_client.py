@@ -1480,21 +1480,22 @@ class CTRexResult(object):
     @staticmethod
     def __get_filtered_max_latency (src_dict, filtered_latency_amount = 0.001):
         result = {}
-        for port, data in src_dict.items():
-            if not port.startswith('port-'):
-                continue
-            max_port = 'max-%s' % port[5:]
-            res = data['hist']
-            if not len(res['histogram']):
-                result[max_port] = 0
-                continue
-            result[max_port] = 5 # if sum below will not get to filtered amount, use this value
-            sum_high = 0.0
-            for elem in reversed(res['histogram']):
-                sum_high += elem['val']
-                if sum_high >= filtered_latency_amount * res['cnt']:
-                    result[max_port] = elem['key'] + int('5' + repr(elem['key'])[2:])
-                    break
+        if src_dict:
+            for port, data in src_dict.items():
+                if not port.startswith('port-'):
+                    continue
+                max_port = 'max-%s' % port[5:]
+                res = data['hist']
+                if not len(res['histogram']):
+                    result[max_port] = 0
+                    continue
+                result[max_port] = 5 # if sum below will not get to filtered amount, use this value
+                sum_high = 0.0
+                for elem in reversed(res['histogram']):
+                    sum_high += elem['val']
+                    if sum_high >= filtered_latency_amount * res['cnt']:
+                        result[max_port] = elem['key'] + int('5' + repr(elem['key'])[2:])
+                        break
         return result
 
 
