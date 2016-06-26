@@ -784,10 +784,6 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         m_parser->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
         stream->m_rx_check.m_hw_id = hw_id;
     } else {
-        struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
-            (stream->m_pkt.binary + stream->m_pkt.len - sizeof(struct flow_stat_payload_header));
-        fsp_head->hw_id = hw_id;
-        fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
         m_parser->set_ip_id(FLOW_STAT_PAYLOAD_IP_ID);
         // for payload rules, we use the range right after ip id rules
         stream->m_rx_check.m_hw_id = hw_id + MAX_FLOW_STATS;

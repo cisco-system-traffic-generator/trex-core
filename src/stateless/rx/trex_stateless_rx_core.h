@@ -77,14 +77,11 @@ class CRFC2544Info {
     inline void inc_seq_err_too_low() {m_seq_err_events_too_low++;}
     inline void inc_dup() {m_dup++;}
     inline void inc_ooo() {m_ooo++;}
-    inline uint16_t get_exp_magic() {return m_exp_magic;}
-    inline void set_exp_magic(uint16_t magic) {m_exp_magic = magic;}
-    inline uint16_t get_prev_magic() {return m_prev_magic;}
-    inline bool no_magic() {return (m_exp_magic == FLOW_STAT_PAYLOAD_MAGIC_NONE) ? true : false;}
+    inline uint16_t get_exp_flow_seq() {return m_exp_flow_seq;}
+    inline void set_exp_flow_seq(uint16_t flow_seq) {m_exp_flow_seq = flow_seq;}
+    inline uint16_t get_prev_flow_seq() {return m_prev_flow_seq;}
+    inline bool no_flow_seq() {return (m_exp_flow_seq == FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ) ? true : false;}
  private:
-    enum payload_e {
-        FLOW_STAT_PAYLOAD_MAGIC_NONE = 0
-    };
     uint32_t m_seq; // expected next seq num
     CTimeHistogram  m_latency; // latency info
     CJitter         m_jitter;
@@ -93,9 +90,9 @@ class CRFC2544Info {
     uint64_t m_seq_err_events_too_low; // How many packet seq num lower than expected events we had
     uint64_t m_ooo; // Packets we got with seq num lower than expected (We guess they are out of order)
     uint64_t m_dup; // Packets we got with same seq num
-    uint16_t m_exp_magic; // magic number we should see in latency header
-    // magic number previously used with this id. We use this to catch packets arriving late from old flow
-    uint16_t m_prev_magic;
+    uint16_t m_exp_flow_seq; // flow sequence number we should see in latency header
+    // flow sequence number previously used with this id. We use this to catch packets arriving late from an old flow
+    uint16_t m_prev_flow_seq;
 };
 
 class CRxCoreStateless {

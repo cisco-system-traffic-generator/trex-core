@@ -2055,7 +2055,8 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
         mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
         fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num();
         fsp_head->hw_id = hw_id_payload;
-        fsp_head->magic = lp_stats->m_lat_data[hw_id_payload].get_magic();
+        fsp_head->flow_seq = lp_stats->m_lat_data[hw_id_payload].get_flow_seq();
+        fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
 
         lp_stats->m_lat_data[hw_id_payload].inc_seq_num();
 #ifdef ERR_CNTRS_TEST

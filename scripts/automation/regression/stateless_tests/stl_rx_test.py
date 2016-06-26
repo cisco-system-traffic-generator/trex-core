@@ -9,10 +9,6 @@ class STLRX_Test(CStlGeneral_Test):
     """Tests for RX feature"""
 
     def setUp(self):
-        #if CTRexScenario.setup_name in ('trex08', 'trex09'):
-        #    self.skip('This test makes trex08 and trex09 sick. Fix those ASAP.')
-        if self.is_virt_nics:
-            self.skip('Skip this for virtual NICs for now')
         per_driver_params = {"rte_vmxnet3_pmd": [1, 50, 1,False], "rte_ixgbe_pmd": [30, 5000, 1,True,200,400], "rte_i40e_pmd": [80, 5000, 1,True,100,250],
                              "rte_igb_pmd": [80, 500, 1,False], "rte_em_pmd": [1, 50, 1,False], "rte_virtio_pmd": [1, 50, 1,False]}
 
@@ -182,6 +178,9 @@ class STLRX_Test(CStlGeneral_Test):
 
 
     def test_multiple_streams(self):
+        if self.is_virt_nics:
+            self.skip('Skip this for virtual NICs')
+
         num_latency_streams = 128
         num_flow_stat_streams = 127
         total_pkts = int(self.total_pkts / (num_latency_streams + num_flow_stat_streams))
@@ -313,8 +312,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     # check low latency when you have stream of 9K stream 
     def test_9k_stream(self):
-
-        #self.skip('Skip due to bug trex-215')
+        if self.is_virt_nics:
+            self.skip('Skip this for virtual NICs')
 
         if self.latency_9k_enable == False:
            print("SKIP")
@@ -441,7 +440,9 @@ class STLRX_Test(CStlGeneral_Test):
 
     def test_fcs_stream(self):
         """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
-        #self.skip('Skip due to bug trex-213')
+
+        if self.is_virt_nics:
+            self.skip('Skip this for virtual NICs')
 
         all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
         for port in all_ports:
@@ -452,6 +453,8 @@ class STLRX_Test(CStlGeneral_Test):
     
     # this test adds more and more latency streams and re-test with incremental
     def test_incremental_latency_streams (self):
+        if self.is_virt_nics:
+            self.skip('Skip this for virtual NICs')
 
         total_pkts = self.total_pkts
         percent = 0.5

@@ -5006,6 +5006,7 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
             fsp_head->seq = 0x12345678;
             fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
             fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+            fsp_head->flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
             fsp_head->time_stamp = 0x8899aabbccddeeff;
             fill_raw_packet(mi, (CGenNode *)node_sl, dir);
             rte_pktmbuf_free(mi);

@@ -259,18 +259,20 @@ class CPreviewMode ;
 
 class CLatencyPktData {
  public:
-    CLatencyPktData() {m_magic = 0xaa;}
+    CLatencyPktData() {m_flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;}
     inline uint32_t get_seq_num() {return m_seq_num;}
     inline void inc_seq_num() {m_seq_num++;}
-    inline uint32_t get_magic() {return m_magic;}
+    inline uint32_t get_flow_seq() {return m_flow_seq;}
     void reset() {
         m_seq_num = UINT32_MAX - 1; // catch wrap around issues early
-        m_magic++;
+        m_flow_seq++;
+        if (m_flow_seq == FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ)
+            m_flow_seq++;
     }
 
  private:
-    uint32_t m_seq_num;  // seq num to put in packet for payload rules
-    uint16_t m_magic;  // magic to put in packet for payload rules
+    uint32_t m_seq_num;  // seq num to put in packet for payload rules. Increased every packet.
+    uint16_t m_flow_seq;  // Seq num of flow. Changed when we start new flow on this id.
 };
 
 /* represent the virtual interface
