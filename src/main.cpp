@@ -22,6 +22,7 @@ limitations under the License.
 
 #include "bp_sim.h"
 #include "os_time.h"
+#include "trex_client_config.h"
 
 #include <unordered_map>
 #include <string>
@@ -160,7 +161,7 @@ static int parse_options(int argc,
                 break;
 
             case OPT_MAC_FILE:
-                po->mac_file = args.OptionArg();
+                po->client_cfg_file = args.OptionArg();
                 break;
 
             case OPT_FILE_OUT:

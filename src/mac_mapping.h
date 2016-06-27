@@ -1,6 +1,6 @@
 #ifndef MAC_MAPPING_H_
 #define MAC_MAPPING_H_
-
+#if 0
 #define INUSED 0
 #define UNUSED 1
 typedef struct mac_addr_align_ {
@@ -57,4 +57,6 @@ private:
     std::map<uint32_t, mac_addr_align_t> m_mac_info;  /* global mac info loaded form mac_file*/
 };
 
+/*********************************************************************************/
+#endif
 #endif //MAC_MAPPING_H_

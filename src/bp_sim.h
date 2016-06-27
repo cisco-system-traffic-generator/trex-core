@@ -59,6 +59,7 @@ limitations under the License.
 #include "platform_cfg.h"
 #include "flow_stat.h"
 #include "trex_watchdog.h"
+#include "trex_client_config.h"
 
 #include <trex_stateless_dp_core.h>
 
@@ -180,6 +181,12 @@ inline int ip_to_str(uint32_t ip,char * str){
     uint32_t ipv4 = PKT_HTONL(ip);
     inet_ntop(AF_INET, (const char *)&ipv4, str, INET_ADDRSTRLEN);
     return(strlen(str));
+}
+
+inline std::string ip_to_str(uint32_t ip) {
+    char tmp[INET_ADDRSTRLEN];
+    ip_to_str(ip, tmp);
+    return tmp;
 }
 
 // Routine to create IPv6 address string
@@ -817,7 +824,7 @@ public:
 
 
     std::string        cfg_file;
-    std::string        mac_file;
+    std::string        client_cfg_file;
     std::string        platform_cfg_file;
 
     std::string        out_file;
@@ -1565,7 +1572,7 @@ public:
     uint16_t            m_nat_external_port;
 
     uint16_t            m_nat_pad[3];
-    mac_addr_align_t    m_src_mac;
+    ClientCfg           *m_client_cfg;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
@@ -1911,7 +1918,8 @@ public:
 
 
 protected:
-
+    void add_vlan(uint16_t vlan_id);
+    void apply_client_config(CGenNode *node, pkt_dir_t dir);
     virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
 
     CFileWriterBase         * m_writer;
@@ -3874,7 +3882,8 @@ public:
 public:
 
     int load_from_yaml(std::string csv_file,uint32_t num_threads);
-    int load_from_mac_file(std::string csv_file);
+    int load_client_config_file(std::string file_name);
+
 public:
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
@@ -3888,12 +3897,12 @@ public:
     double get_total_tx_bps();
     uint32_t get_total_repeat_flows();
     double get_delta_flow_is_sec();
-    bool   get_is_mac_conf() { return m_mac_info.is_configured();}
+
 public:
-    std::vector<CFlowGeneratorRec *> m_cap_gen;   /* global info */
-    CFlowsYamlInfo                   m_yaml_info; /* global yaml*/
-    std::vector<CFlowGenListPerThread   *> m_threads_info;
-    CFlowGenListMac                  m_mac_info;
+    std::vector<CFlowGeneratorRec *>        m_cap_gen;   /* global info */
+    CFlowsYamlInfo                          m_yaml_info; /* global yaml*/
+    std::vector<CFlowGenListPerThread   *>  m_threads_info;
+    ClientCfgDB                             m_client_config_info;
 };
 
 
@@ -3933,9 +3942,8 @@ inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tup
     node->m_src_idx = tuple.getClientId();
     node->m_dest_idx = tuple.getServerId();
     node->m_src_port = tuple.getClientPort();
-    memcpy(&node->m_src_mac,
-           tuple.getClientMac(),
-           sizeof(mac_addr_align_t));
+    node->m_client_cfg = tuple.getClientCfg();
+
     node->m_plugin_info =(void *)0;
 
     if ( unlikely( CGlobalInfo::is_learn_mode()  ) ){

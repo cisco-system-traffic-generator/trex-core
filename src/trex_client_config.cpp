@@ -31,7 +31,7 @@ limitations under the License.
 #include "bp_sim.h"
 
 void
-ClientGroup::dump() const {
+ClientCfgEntry::dump() const {
 
     std::cout << "IP start:       " << ip_to_str(m_ip_start) << "\n";
     std::cout << "IP end:         " << ip_to_str(m_ip_end) << "\n";
@@ -60,7 +60,7 @@ ClientGroup::dump() const {
  * 
  */
 void
-ClientGroupsDB::load_yaml_file(const std::string &filename) {
+ClientCfgDB::load_yaml_file(const std::string &filename) {
     std::stringstream ss;
 
     m_filename = filename;
@@ -78,7 +78,7 @@ ClientGroupsDB::load_yaml_file(const std::string &filename) {
 
     for (int i = 0; i < root.size(); i++) {
         const YAML::Mark &mark = root[i].GetMark();
-        ClientGroup group;
+        ClientCfgEntry group;
         bool rc;
 
         /* ip_start */
@@ -127,14 +127,14 @@ ClientGroupsDB::load_yaml_file(const std::string &filename) {
 }
 
 void
-ClientGroupsDB::verify() const {
+ClientCfgDB::verify() const {
     std::stringstream ss;
     uint32_t monotonic = 0;
 
     /* check that no interval overlaps */
     
     for (const auto &p : m_groups) {
-        const ClientGroup &group = p.second;
+        const ClientCfgEntry &group = p.second;
 
         if ( (monotonic > 0 ) && (group.m_ip_start <= monotonic) ) {
             ss << "IP '" << ip_to_str(group.m_ip_start) << "' - '" << ip_to_str(group.m_ip_end) << "' overlaps with other groups";
@@ -150,15 +150,15 @@ ClientGroupsDB::verify() const {
  * should be fast 
  * 
  */
-ClientGroup *
-ClientGroupsDB::lookup(uint32_t ip) {
+ClientCfgEntry *
+ClientCfgDB::lookup(uint32_t ip) {
     
     /* check the cache */
     if ( (m_cache_group) && (m_cache_group->contains(ip)) ) {
         return m_cache_group;
     }
 
-    std::map<uint32_t ,ClientGroup>::iterator it;
+    std::map<uint32_t ,ClientCfgEntry>::iterator it;
     
     it = m_groups.upper_bound(ip);
 
@@ -170,7 +170,7 @@ ClientGroupsDB::lookup(uint32_t ip) {
     /* go one back - we know it's not on begin so we have at least one back */
     it--;
 
-    ClientGroup &group = (*it).second;
+    ClientCfgEntry &group = (*it).second;
 
     /* because this is a non overlapping intervals
        if IP exists it must be in this group
@@ -188,8 +188,8 @@ ClientGroupsDB::lookup(uint32_t ip) {
 
 }
 
-ClientGroup *
-ClientGroupsDB::lookup(const std::string &ip) {
+ClientCfgEntry *
+ClientCfgDB::lookup(const std::string &ip) {
     uint32_t addr = (uint32_t)inet_addr(ip.c_str());
     addr = PKT_NTOHL(addr);
 
@@ -198,7 +198,7 @@ ClientGroupsDB::lookup(const std::string &ip) {
 
 
 void
-ClientGroupsDB::yaml_parse_err(const std::string &err, const YAML::Mark *mark) const {
+ClientCfgDB::yaml_parse_err(const std::string &err, const YAML::Mark *mark) const {
     std::stringstream ss;
 
     if (mark) {

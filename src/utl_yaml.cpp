@@ -21,7 +21,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
+#include <istream>
 
 #define INADDRSZ 4
 
@@ -65,8 +65,8 @@ static int my_inet_pton4(const char *src, unsigned char *dst)
 
 
 bool utl_yaml_read_ip_addr(const YAML::Node& node, 
-                         std::string name,
-                         uint32_t & val){
+                           const std::string &name,
+                           uint32_t & val){
     std::string tmp;
     uint32_t ip;
     bool res=false;
@@ -83,8 +83,61 @@ bool utl_yaml_read_ip_addr(const YAML::Node& node,
     return (res);
 }
 
+static void
+split_str_by_delimiter(std::string str, char delim, std::vector<std::string> &tokens) {
+    size_t pos = 0;
+    std::string token;
+
+    while ((pos = str.find(delim)) != std::string::npos) {
+        token = str.substr(0, pos);
+        tokens.push_back(token);
+        str.erase(0, pos + 1);
+    }
+
+    if (str.size() > 0) {
+        tokens.push_back(str);
+    }
+}
+
+bool utl_yaml_read_mac_addr(const YAML::Node &node,
+                            const std::string &name,
+                            uint64_t &val) {
+
+    std::string mac_str;
+
+    if (!node.FindValue(name)) {
+        return false;
+    }
+
+    node[name] >> mac_str;
+
+    std::vector<std::string> tokens;
+    split_str_by_delimiter(mac_str, ':', tokens);
+
+    if (tokens.size() != 6) {
+        throw YAML::InvalidScalar(node[name].GetMark());
+    }
+
+    val = 0;
+
+    for (int i = 0; i < 6 ; i++) {
+        char *endptr = NULL;
+        unsigned long octet = strtoul(tokens[i].c_str(), &endptr, 16);
+
+        if ( (*endptr != 0) || (octet > 0xff) ) {
+            throw YAML::InvalidScalar(node[name].GetMark());
+        }
+
+        //mac_addr[i] = (uint8_t)octet;
+        val = (val << 8) + octet;
+    }   
+                  
+    return true;
+}
+
+
 bool utl_yaml_read_uint32(const YAML::Node& node, 
-                          std::string name,
+                          const std::string &name,
                           uint32_t & val){
     bool res=false;
     if ( node.FindValue(name) ) {
@@ -95,8 +148,8 @@ bool utl_yaml_read_uint32(const YAML::Node& node,
 }
 
 bool utl_yaml_read_uint16(const YAML::Node& node, 
-                       std::string name,
-                       uint16_t & val){
+                          const std::string &name,
+                          uint16_t & val){
     uint32_t val_tmp;
     bool res=false;
     if ( node.FindValue(name) ) {
@@ -109,8 +162,8 @@ bool utl_yaml_read_uint16(const YAML::Node& node,
 }
 
 bool utl_yaml_read_bool(const YAML::Node& node, 
-                       std::string name,
-                       bool & val){
+                        const std::string &name,
+                        bool & val){
     bool res=false;
     if ( node.FindValue(name) ) {
         node[name] >> val ;

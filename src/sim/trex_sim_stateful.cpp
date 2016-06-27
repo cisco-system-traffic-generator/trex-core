@@ -165,6 +165,12 @@ int load_list_of_cap_files(CParserOption * op){
     CFlowGenList fl;
     fl.Create();
     fl.load_from_yaml(op->cfg_file,1);
+    
+    if (op->client_cfg_file != "") {
+        fl.load_client_config_file(op->client_cfg_file);
+        CGlobalInfo::m_options.preview.set_mac_ip_mapping_enable(true);
+    }
+
     if ( op->preview.getVMode() >0 ) {
         fl.DumpCsv(stdout);
     }

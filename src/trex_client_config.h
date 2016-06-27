@@ -41,13 +41,14 @@ public:
 };
 
 /**
- * describes a single client group
- * configuration
+ * describes a single client config 
+ * entry loaded from the config file
+ * 
  */
-class ClientGroup {
+class ClientCfgEntry {
 public:
 
-    ClientGroup() {
+    ClientCfgEntry() {
         reset();
     }
 
@@ -104,10 +105,10 @@ private:
  * describes the DB of every client group
  * 
  */
-class ClientGroupsDB {
+class ClientCfgDB {
 public:
 
-    ClientGroupsDB() {
+    ClientCfgDB() {
         m_is_empty = true;
         m_cache_group = NULL;
     }
@@ -134,8 +135,8 @@ public:
      * a group that contains this IP 
      * 
      */
-    ClientGroup * lookup(uint32_t ip);
-    ClientGroup * lookup(const std::string &ip);
+    ClientCfgEntry * lookup(uint32_t ip);
+    ClientCfgEntry * lookup(const std::string &ip);
 
 private:
 
@@ -148,10 +149,10 @@ private:
     void verify() const;
 
     /* maps the IP start value to client groups */
-    std::map<uint32_t, ClientGroup> m_groups;
-    ClientGroup                    *m_cache_group;
-    std::string                     m_filename;
-    bool                            m_is_empty;
+    std::map<uint32_t, ClientCfgEntry>  m_groups;
+    ClientCfgEntry                     *m_cache_group;
+    std::string                         m_filename;
+    bool                                m_is_empty;
 };
 
 #endif /* __TREX_CLIENT_CONFIG_H__ */

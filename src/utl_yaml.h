@@ -27,19 +27,23 @@ limitations under the License.
     
 
 bool utl_yaml_read_ip_addr(const YAML::Node& node, 
-                      std::string name,
-                      uint32_t & val
-                           );
+                           const std::string &name,
+                           uint32_t & val);
+
+bool utl_yaml_read_mac_addr(const YAML::Node &node,
+                            const std::string &name,
+                            uint64_t &val);
 
 bool utl_yaml_read_uint32(const YAML::Node& node, 
-                       std::string name,
-                       uint32_t & val);
+                          const std::string &name,
+                          uint32_t & val);
+
 bool utl_yaml_read_uint16(const YAML::Node& node, 
-                       std::string name,
-                       uint16_t & val);
+                          const std::string &name,
+                          uint16_t & val);
 
 bool utl_yaml_read_bool(const YAML::Node& node, 
-                        std::string name,
+                        const std::string &name,
                         bool & val);
 
 

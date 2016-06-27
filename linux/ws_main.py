@@ -97,7 +97,7 @@ bp_sim_main = SrcGroup(dir='src',
 bp_sim_gtest = SrcGroup(dir='src',
         src_list=[
              'bp_gtest.cpp',
-             'gtest/tuple_gen_test.cpp',
+             #'gtest/tuple_gen_test.cpp',
              'gtest/nat_test.cpp',
              'gtest/trex_stateless_gtest.cpp'
              ])
@@ -122,6 +122,7 @@ main_src = SrcGroup(dir='src',
              'flow_stat.cpp',
              'flow_stat_parser.cpp',
              'trex_watchdog.cpp',
+             'trex_client_config.cpp',
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp',
              'pal/common/common_mbuf.cpp',
