@@ -428,7 +428,7 @@ class STLRX_Test(CStlGeneral_Test):
                 self.check_stats (stats,ls['tx_pkts'][pid], pkts,"ls['tx_pkts'][pid]")
 
                 self.check_stats (stats,ls['tx_bytes']['total'], tbytes,"ls['tx_bytes']['total']")
-                self.check_stats (stats,ls['tx_bytes'][pid], pkts+1,"ls['tx_bytes'][pid]")
+                self.check_stats (stats,ls['tx_bytes'][pid], tbytes,"ls['tx_bytes'][pid]")
 
 
             return 0
@@ -448,7 +448,7 @@ class STLRX_Test(CStlGeneral_Test):
         for port in all_ports:
             for l in [True,False]:
                 print(" test port {0} latency : {1} ".format(port,l))
-                self.send_1_burst(port,False,100)
+                self.send_1_burst(port,l,100)
 
     
     # this test adds more and more latency streams and re-test with incremental

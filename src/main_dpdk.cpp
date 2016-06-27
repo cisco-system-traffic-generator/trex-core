@@ -5505,7 +5505,7 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 
 
     stats->ipackets     =  stats1.ipackets;
-    stats->ibytes       =  stats1.ibytes + (stats1.ipackets<<2);
+    stats->ibytes       =  stats1.ibytes ;
 
     stats->opackets     =  stats1.opackets;
     stats->obytes       =  stats1.obytes + (stats1.opackets<<2);
