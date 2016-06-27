@@ -4317,12 +4317,19 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         fprintf(stderr," nothing to generate no template loaded \n");
         return;
     }
+    
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
     dsec_t d_time_flow=get_delta_flow_is_sec();
-    m_cur_time_sec =  0.01+m_thread_id*m_flow_list->get_delta_flow_is_sec();
+
+    m_cur_time_sec =  0.01 + m_thread_id*m_flow_list->get_delta_flow_is_sec();
+
+
     if ( CGlobalInfo::is_realtime()  ){
-        m_cur_time_sec += now_sec() + 0.5 ;
+        if (m_cur_time_sec > 0.2 ) {
+            m_cur_time_sec =  0.01 + m_thread_id*0.01;
+        }
+        m_cur_time_sec += now_sec() + 0.1 ;
     }
     dsec_t c_stop_sec = m_cur_time_sec + m_yaml_info.m_duration_sec;
     m_stop_time_sec =c_stop_sec;
