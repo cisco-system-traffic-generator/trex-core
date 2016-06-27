@@ -4341,20 +4341,15 @@ bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
     }
     bool send=false;
 
+    // e1000 on ESXI hands us the packet with the ethernet FCS
+    if (parser.getPktSize() < m->pkt_len) {
+        rte_pktmbuf_trim(m, m->pkt_len - parser.getPktSize());
+    }
+
     if ( get_is_stateless() ) {
         // In stateless RX, we only care about flow stat packets
         if ((parser.getIpId() & 0xff00) == IP_ID_RESERVE_BASE) {
             send = true;
-            if (parser.getIpId() == FLOW_STAT_PAYLOAD_IP_ID) {
-                // e1000 on ESXI appends 4 bytes to the packet.
-                // This is a best effort hack to get our latency info which we put at the end of the packet
-                uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
-                struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
-                    (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
-                if (fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC) {
-                    rte_pktmbuf_trim(m, 4);
-                }
-            }
         }
     } else {
         CLatencyPktMode *c_l_pkt_mode = g_trex.m_mg.c_l_pkt_mode;
