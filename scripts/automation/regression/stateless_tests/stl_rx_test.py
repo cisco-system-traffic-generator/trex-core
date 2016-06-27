@@ -28,10 +28,11 @@ class STLRX_Test(CStlGeneral_Test):
             self.skip('port {0} does not support RX'.format(self.rx_port))
         self.cap = cap
 
-        self.rate_percent = per_driver_params[port_info['driver']][0]
-        self.total_pkts = per_driver_params[port_info['driver']][1]
-        if len(per_driver_params[port_info['driver']]) > 2:
-            self.rate_lat = per_driver_params[port_info['driver']][2]
+        drv_name = port_info['driver']
+        self.rate_percent = per_driver_params[drv_name][0]
+        self.total_pkts = per_driver_params[drv_name][1]
+        if len(per_driver_params[drv_name]) > 2:
+            self.rate_lat = per_driver_params[drv_name][2]
         else:
             self.rate_lat = self.rate_percent
         self.drops_expected = False
@@ -41,8 +42,6 @@ class STLRX_Test(CStlGeneral_Test):
         self.large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000))
         self.pkt_9k = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000))
 
-
-        drv_name=port_info['driver']
         self.latency_9k_enable=per_driver_params[drv_name][3]
         if self.latency_9k_enable:
             self.latency_9k_max_average = per_driver_params[drv_name][4]
@@ -120,7 +119,7 @@ class STLRX_Test(CStlGeneral_Test):
             tmp = 'TX pkts mismatch - got: {0}, expected: {1}'.format(tx_pkts, total_pkts)
             assert False, tmp
 
-        if tx_bytes != (total_pkts * (pkt_len + 4)): # + 4 for ethernet CRC
+        if tx_bytes != (total_pkts * pkt_len):
             pprint.pprint(flow_stats)
             tmp = 'TX bytes mismatch - got: {0}, expected: {1}'.format(tx_bytes, (total_pkts * pkt_len))
             assert False, tmp
@@ -132,7 +131,7 @@ class STLRX_Test(CStlGeneral_Test):
 
         if "rx_bytes" in self.cap:
             rx_bytes = flow_stats['rx_bytes'].get(self.rx_port, 0)
-            if rx_bytes != (total_pkts * (pkt_len + 4)) and not self.drops_expected: # +4 for ethernet CRC
+            if rx_bytes != (total_pkts * pkt_len) and not self.drops_expected:
                 pprint.pprint(flow_stats)
                 tmp = 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * pkt_len))
                 assert False, tmp
@@ -148,12 +147,13 @@ class STLRX_Test(CStlGeneral_Test):
         stats = self.c.get_stats()
 
         for exp in exp_list:
-            self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'], stats)
+             # Expecting to get pkt_len + 4 because of ethernet FCS
+            self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'] + 4, stats)
 
 
     # one stream on TX --> RX
     def test_one_stream(self):
-        total_pkts = self.total_pkts * 10
+        total_pkts = self.total_pkts
 
         try:
             s1 = STLStream(name = 'rx',
