@@ -38,9 +38,26 @@ class STLRX_Test(CStlGeneral_Test):
         self.drops_expected = False
         self.c.reset(ports = [self.tx_port, self.rx_port])
 
+        vm = STLScVmRaw( [ STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
+                                          max_value="10.0.0.255", size=4, step=1,op="inc"),
+                           STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                           STLVmFixIpv4(offset = "IP")                                # fix checksum
+                          ]
+                         # Latency is bound to one core. We test that this option is not causing trouble
+                         ,split_by_field = "ip_src"
+                         ,cache_size =255 # Cache is ignored by latency flows. Need to test it is not crashing.
+                         );
+
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000))
         self.pkt_9k = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000))
+        self.vm_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")
+                                    / UDP(dport=12,sport=1025)/('Your_paylaod_comes_here')
+                                    , vm = vm)
+        self.vm_large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000)
+                                          , vm = vm)
+        self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000)
+                                       ,vm = vm)
 
         self.latency_9k_enable=per_driver_params[drv_name][3]
         if self.latency_9k_enable:
@@ -147,8 +164,7 @@ class STLRX_Test(CStlGeneral_Test):
         stats = self.c.get_stats()
 
         for exp in exp_list:
-             # Expecting to get pkt_len + 4 because of ethernet FCS
-            self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'] + 4, stats)
+            self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'], stats)
 
 
     # one stream on TX --> RX
@@ -168,7 +184,7 @@ class STLRX_Test(CStlGeneral_Test):
 
             print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
 
-            exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
+            exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
 
             self.__rx_iteration( [exp] )
 
@@ -199,7 +215,7 @@ class STLRX_Test(CStlGeneral_Test):
                                          flow_stats = STLFlowLatencyStats(pg_id = pg_id),
                                          mode = STLTXSingleBurst(total_pkts = total_pkts+pg_id, percentage = percent)))
 
-                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': self.pkt.get_pkt_len()})
+                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': streams[-1].get_pkt_len()})
 
             for pg_id in range(num_latency_streams + 1, num_latency_streams + num_flow_stat_streams):
 
@@ -208,7 +224,7 @@ class STLRX_Test(CStlGeneral_Test):
                                          flow_stats = STLFlowStats(pg_id = pg_id),
                                          mode = STLTXSingleBurst(total_pkts = total_pkts+pg_id, percentage = percent)))
 
-                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': self.pkt.get_pkt_len()})
+                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': streams[-1].get_pkt_len()})
 
             # add both streams to ports
             self.c.add_streams(streams, ports = [self.tx_port])
@@ -223,36 +239,41 @@ class STLRX_Test(CStlGeneral_Test):
         total_pkts = self.total_pkts
 
         try:
-            s1 = STLStream(name = 'rx',
-                           packet = self.pkt,
-                           flow_stats = STLFlowStats(pg_id = 5),
-                           mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                                   percentage = self.rate_percent
-                                                   ))
+            streams_data = [
+                {'name': 'Flow stat. No latency', 'pkt': self.pkt, 'lat': False},
+                {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
+                {'name': 'Latency, short packet with field engine', 'pkt': self.vm_pkt, 'lat': True},
+                {'name': 'Latency, large packet field engine', 'pkt': self.vm_large_pkt, 'lat': True}
+            ]
+            if self.latency_9k_enable:
+                streams_data.append({'name': 'Latency, 9k packet with field engine', 'pkt': self.vm_9k_pkt, 'lat': True})
 
-            s_lat = STLStream(name = 'rx',
-                           packet = self.pkt,
-                           flow_stats = STLFlowLatencyStats(pg_id = 5),
-                           mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                                   percentage = self.rate_lat
-                                                   ))
+            streams = []
+            for data in streams_data:
+                if data['lat']:
+                    flow_stats = STLFlowLatencyStats(pg_id = 5)
+                else:
+                    flow_stats = STLFlowStats(pg_id = 5)
 
-            print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
+                s = STLStream(name = data['name'],
+                              packet = data['pkt'],
+                              flow_stats = flow_stats,
+                              mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                                      percentage = self.rate_percent
+                              ))
+                streams.append(s)
 
-            exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
-            exp_lat = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': self.pkt.get_pkt_len()}
+            print("\ninjecting {0} packets on port {1}".format(total_pkts, self.tx_port))
+            exp = {'pg_id': 5, 'total_pkts': total_pkts}
 
-            self.c.add_streams([s1], ports = [self.tx_port])
-            for i in range(0, 10):
-                print("starting iteration {0}".format(i))
-                self.__rx_iteration( [exp] )
-
-            self.c.remove_all_streams(ports = [self.tx_port])
-            self.c.add_streams([s_lat], ports = [self.tx_port])
-            for i in range(0, 10):
-                print("starting iteration {0} latency".format(i))
-                self.__rx_iteration( [exp_lat] )
-
+            for stream in streams:
+                self.c.add_streams([stream], ports = [self.tx_port])
+                print("Stream: {0}".format(stream.name))
+                exp['pkt_len'] = stream.get_pkt_len()
+                for i in range(0, 10):
+                    print("Iteration {0}".format(i))
+                    self.__rx_iteration( [exp] )
+                self.c.remove_all_streams(ports = [self.tx_port])
 
 
         except STLError as e:
@@ -487,7 +508,7 @@ class STLRX_Test(CStlGeneral_Test):
 
                     print("port {0} : {1} streams at {2}% of line rate\n".format(self.tx_port, i, total_percent))
 
-                    exp.append({'pg_id': i, 'total_pkts': total_pkts, 'pkt_len': my_pkt.get_pkt_len()})
+                    exp.append({'pg_id': i, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()})
 
                     self.__rx_iteration( exp )
 
