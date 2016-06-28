@@ -20,7 +20,7 @@ class CPlatform(object):
         self.tftp_cfg           = None
         self.config_history     = { 'basic_if_config' : False, 'tftp_server_config' : False }
 
-    def configure_basic_interfaces(self, mtu = 4000):
+    def configure_basic_interfaces(self, mtu = 9050):
 
         cache = CCommandCache()
         for dual_if in self.if_mngr.get_dual_if_list():
@@ -46,7 +46,7 @@ class CPlatform(object):
 
 
 
-    def configure_basic_filtered_interfaces(self, intf_list, mtu = 4000):
+    def configure_basic_filtered_interfaces(self, intf_list, mtu = 9050):
 
         cache = CCommandCache()
         for intf in intf_list:
