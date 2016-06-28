@@ -23,6 +23,19 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.05  ==
+
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-221] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-220] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-219] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-218] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-217] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-216] 
+
+
 == Release 2.04  ==
 
 * Watchdog support
