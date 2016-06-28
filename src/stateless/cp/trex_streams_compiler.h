@@ -244,7 +244,7 @@ public:
     }
 
     double get_factor_pps(double req_pps) const {
-        if ( (req_pps - m_fixed.m_pps) < 0 )  {
+        if ( (req_pps - m_fixed.m_pps) <= 0 )  {
             std::stringstream ss;
             ss << "current stream configuration enforces a minimum rate of '" << m_fixed.m_pps << "' pps";
             throw TrexException(ss.str());
