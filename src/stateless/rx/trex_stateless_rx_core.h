@@ -95,6 +95,25 @@ class CRFC2544Info {
     uint16_t m_prev_flow_seq;
 };
 
+class CRxCoreErrCntrs {
+    friend CRxCoreStateless;
+
+ public:
+    uint64_t get_bad_header() {return m_bad_header;}
+    uint64_t get_old_flow() {return m_old_flow;}
+    CRxCoreErrCntrs() {
+        reset();
+    }
+    void reset() {
+        m_bad_header = 0;
+        m_old_flow = 0;
+    }
+
+ private:
+    uint64_t m_bad_header;
+    uint64_t m_old_flow;
+};
+
 class CRxCoreStateless {
     enum state_e {
         STATE_IDLE,
@@ -109,7 +128,11 @@ class CRxCoreStateless {
     int get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset
                      , TrexPlatformApi::driver_stat_cap_e type);
     int get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset);
-    void work() {m_state = STATE_WORKING;}
+    int get_rx_err_cntrs(CRxCoreErrCntrs *rx_err);
+    void work() {
+        m_state = STATE_WORKING;
+        m_err_cntrs.reset(); // When starting to work, reset global counters
+    }
     void idle() {m_state = STATE_IDLE;}
     void quit() {m_state = STATE_QUIT;}
     bool is_working() const {return (m_ack_start_work_msg == true);}
@@ -146,6 +169,7 @@ class CRxCoreStateless {
     CCpuUtlCp m_cpu_cp_u;
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
+    CRxCoreErrCntrs m_err_cntrs;
     CRFC2544Info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 };
 #endif

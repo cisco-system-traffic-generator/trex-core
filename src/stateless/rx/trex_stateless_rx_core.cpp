@@ -206,6 +206,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
 
                     if (unlikely(fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC) || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
                         good_packet = false;
+                        m_err_cntrs.m_bad_header++;
                     } else {
                         curr_rfc2544 = &m_rfc2544[hw_id];
 
@@ -216,6 +217,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                             if (fsp_head->flow_seq == curr_rfc2544->get_prev_flow_seq()) {
                                 // packet from previous flow using this hw_id that arrived late
                                 good_packet = false;
+                                m_err_cntrs.m_old_flow++;
                             } else {
                                 if (curr_rfc2544->no_flow_seq()) {
                                     // first packet we see from this flow
@@ -224,6 +226,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                                 } else {
                                     // garbage packet
                                     good_packet = false;
+                                    m_err_cntrs.m_bad_header++;
                                 }
                             }
                         }
@@ -278,9 +281,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
                     }
                 } else {
                     hw_id = get_hw_id(ip_id);
-                    if (hw_id >= MAX_FLOW_STATS) {
-                        // increase some error counter
-                    } else {
+                    if (hw_id < MAX_FLOW_STATS) {
                         lp->m_port.m_rx_pg_stat[hw_id].add_pkts(1);
                         lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
                     }
@@ -441,6 +442,11 @@ int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, in
             curr_rfc2544.reset();
         }
     }
+    return 0;
+}
+
+int CRxCoreStateless::get_rx_err_cntrs(CRxCoreErrCntrs *rx_err) {
+    *rx_err = m_err_cntrs;
     return 0;
 }
 

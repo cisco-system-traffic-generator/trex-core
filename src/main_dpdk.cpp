@@ -5760,6 +5760,10 @@ int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, 
     return g_trex.m_rx_sl.get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset);
 }
 
+int TrexDpdkPlatformApi::get_rx_err_cntrs(void *rx_err_cntrs) const {
+    return g_trex.m_rx_sl.get_rx_err_cntrs((CRxCoreErrCntrs *)rx_err_cntrs);
+}
+
 int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
     return g_trex.m_ports[port_id].reset_hw_flow_stats();
 }
