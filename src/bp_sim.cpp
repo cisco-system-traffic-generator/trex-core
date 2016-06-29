@@ -5049,17 +5049,25 @@ void CErfIF::add_vlan(uint16_t vlan_id) {
 
 void CErfIF::apply_client_config(CGenNode *node, pkt_dir_t dir) {
     uint8_t *p =(uint8_t *)m_raw->raw;
-    uint16_t vlan_id;
 
-    if (dir == CLIENT_SIDE) {
-        memcpy(p, node->m_client_cfg->m_initiator.m_dst_mac, 6);
-        vlan_id = node->m_client_cfg->m_responder.m_vlan;
-    } else {
-        memcpy(p, node->m_client_cfg->m_responder.m_dst_mac, 6);
-        vlan_id = node->m_client_cfg->m_responder.m_vlan;
+    ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? node->m_client_cfg->m_initiator : node->m_client_cfg->m_responder);
+
+    /* dst mac */
+    if (cfg_dir.has_dst_mac_addr()) {
+        memcpy(p, cfg_dir.get_dst_mac_addr(), 6);
     }
 
-    add_vlan(vlan_id);
+    /* src mac */
+    if (cfg_dir.has_src_mac_addr()) {
+        memcpy(p + 6, cfg_dir.get_src_mac_addr(), 6);
+    }
+
+    /* VLAN */
+    if (cfg_dir.has_vlan()) {
+        add_vlan(cfg_dir.get_vlan());
+    }
+
+    
   
 }
 

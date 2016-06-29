@@ -57,12 +57,15 @@ public:
     uint32_t parse_ip(const YAML::Node &node, const std::string &name);
 
     uint64_t parse_mac_addr(const YAML::Node &node, const std::string &name);
+    uint64_t parse_mac_addr(const YAML::Node &node, const std::string &name, uint64_t def);
 
     uint64_t parse_uint(const YAML::Node &node, const std::string &name, uint64_t low = 0, uint64_t high = UINT64_MAX);
+    uint64_t parse_uint(const YAML::Node &node, const std::string &name, uint64_t low, uint64_t high, uint64_t def);
 
 
 public:
     void parse_err(const std::string &err, const YAML::Node &node) const;
+    void parse_err(const std::string &err) const;
 
     
 private:

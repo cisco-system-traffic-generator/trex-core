@@ -36,6 +36,9 @@ ClientCfgEntry::dump() const {
     std::cout << "IP start:       " << ip_to_str(m_ip_start) << "\n";
     std::cout << "IP end:         " << ip_to_str(m_ip_end) << "\n";
 
+    //m_cfg.dump();
+
+    #if 0
     std::cout << "Init. MAC addr: ";
     for (int i = 0; i < 6; i++) {
         printf("%lx:", ( (m_initiator.m_dst_mac >> ( (6-i) * 8)) & 0xFF ) );
@@ -51,6 +54,7 @@ ClientCfgEntry::dump() const {
     std::cout << "\n";
 
     std::cout << "Res. VLAN:      " << m_responder.m_vlan << "\n";
+    #endif
 }
 
 
@@ -69,7 +73,7 @@ ClientCfgDB::load_yaml_file(const std::string &filename) {
     m_filename = filename;
 
     if (!utl_is_file_exists(filename)){
-        ss << "file does not exists";
+        ss << "*** file '" << filename << "' does not exists";
         throw std::runtime_error(ss.str());
     }
 
@@ -98,7 +102,7 @@ ClientCfgDB::load_yaml_file(const std::string &filename) {
         parse_single_group(parser, groups[i]);
     }
 
-    verify();
+    verify(parser);
 
     m_is_empty = false;
 
@@ -126,28 +130,34 @@ ClientCfgDB::parse_single_group(YAMLParserWrapper &parser, const YAML::Node &nod
     const YAML::Node &init = parser.parse_map(node, "initiator");
     const YAML::Node &resp = parser.parse_map(node, "responder");
 
-    /* parse MACs */
-    group.m_initiator.m_dst_mac = parser.parse_mac_addr(init, "dst_mac");
-    group.m_responder.m_dst_mac = parser.parse_mac_addr(resp, "dst_mac");
+    parse_dir(parser, init, group.m_cfg.m_initiator);
+    parse_dir(parser, resp, group.m_cfg.m_responder);
 
-    if (m_under_vlan) {
-        group.m_initiator.m_vlan  = parser.parse_uint(init, "vlan", 0, 0xfff);
-        group.m_responder.m_vlan  = parser.parse_uint(resp, "vlan", 0, 0xfff);
-    } else {
-        if (init.FindValue("vlan")) {
-            parser.parse_err("VLAN config was disabled", init["vlan"]);
-        }
-        if (resp.FindValue("vlan")) {
-            parser.parse_err("VLAN config was disabled", resp["vlan"]);
-        }
-    }
-    
-
-    group.m_count     = parser.parse_uint(node, "count");
+  
+    group.m_count = parser.parse_uint(node, "count", 0, UINT64_MAX, 1);
 
     /* add to map with copying */
     m_groups[group.m_ip_start] = group;
 
+}
+
+void 
+ClientCfgDB::parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDir &dir) {
+    if (node.FindValue("src_mac")) {
+        dir.set_dst_mac_addr(parser.parse_mac_addr(node, "src_mac"));
+    }
+    
+    if (node.FindValue("dst_mac")) {
+        dir.set_dst_mac_addr(parser.parse_mac_addr(node, "dst_mac"));
+    }
+
+    if (m_under_vlan) {
+        dir.set_vlan(parser.parse_uint(node, "vlan", 0, 0xfff));
+    } else {
+        if (node.FindValue("vlan")) {
+            parser.parse_err("VLAN config was disabled", node["vlan"]);
+        }
+    }
 }
 
 /**
@@ -156,7 +166,7 @@ ClientCfgDB::parse_single_group(YAMLParserWrapper &parser, const YAML::Node &nod
  * @author imarom (28-Jun-16)
  */
 void
-ClientCfgDB::verify() const {
+ClientCfgDB::verify(const YAMLParserWrapper &parser) const {
     std::stringstream ss;
     uint32_t monotonic = 0;
 
@@ -168,7 +178,7 @@ ClientCfgDB::verify() const {
 
         if ( (monotonic > 0 ) && (group.m_ip_start <= monotonic) ) {
             ss << "IP '" << ip_to_str(group.m_ip_start) << "' - '" << ip_to_str(group.m_ip_end) << "' overlaps with other groups";
-            yaml_parse_err(ss.str());
+            parser.parse_err(ss.str());
         }
 
         monotonic = group.m_ip_end;
@@ -239,18 +249,4 @@ ClientCfgDB::lookup(const std::string &ip) {
     return lookup(addr);
 }
 
-
-void
-ClientCfgDB::yaml_parse_err(const std::string &err, const YAML::Mark *mark) const {
-    std::stringstream ss;
-
-    if (mark) {
-        ss << "\n*** '" << m_filename << "' - YAML parsing error at line " << mark->line << ": ";
-    } else {
-        ss << "\n*** '" << m_filename << "' - YAML parsing error: ";
-    }
-
-    ss << err;
-    throw std::runtime_error(ss.str());
-}
 

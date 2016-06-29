@@ -1016,7 +1016,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                   "if you think it is important,open a defect \n");
     }
 
-    if (CGlobalInfo::get_vlan_mode_enable() && (po->client_cfg_file != "") ) {
+    if (po->preview.get_vlan_mode_enable() && (po->client_cfg_file != "") ) {
         parse_err("--vlan and --client_cfg cannot be combined");
     }
 
@@ -4204,12 +4204,10 @@ int CGlobalTRex::start_master_statefull() {
 
     m_fl.Create();
     m_fl.load_from_yaml(CGlobalInfo::m_options.cfg_file,get_cores_tx());
-    if (CGlobalInfo::m_options.mac_file != "") {
+
+    if (CGlobalInfo::m_options.client_cfg_file != "") {
+        m_fl.load_client_config_file(CGlobalInfo::m_options.client_cfg_file);
         CGlobalInfo::m_options.preview.set_mac_ip_mapping_enable(true);
-        m_fl.load_from_mac_file(CGlobalInfo::m_options.mac_file);
-        m_fl.m_mac_info.set_configured(true);
-    } else {
-        m_fl.m_mac_info.set_configured(false);
     }
 
     m_expected_pps = m_fl.get_total_pps();

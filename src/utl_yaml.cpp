@@ -250,6 +250,15 @@ YAMLParserWrapper::parse_ip(const YAML::Node &node, const std::string &name) {
 }
 
 uint64_t
+YAMLParserWrapper::parse_mac_addr(const YAML::Node &node, const std::string &name, uint64_t def) {
+    if (!node.FindValue(name)) {
+        return def;
+    }
+
+    return parse_mac_addr(node, name);
+}
+
+uint64_t
 YAMLParserWrapper::parse_mac_addr(const YAML::Node &node, const std::string &name) {
 
     std::string mac_str;
@@ -272,6 +281,15 @@ YAMLParserWrapper::parse_mac_addr(const YAML::Node &node, const std::string &nam
     }
 
     assert(0);
+}
+
+uint64_t 
+YAMLParserWrapper::parse_uint(const YAML::Node &node, const std::string &name, uint64_t low, uint64_t high, uint64_t def) {
+    if (!node.FindValue(name)) {
+        return def;
+    }
+
+    return parse_uint(node, name, low, high);
 }
 
 uint64_t 
@@ -310,3 +328,11 @@ YAMLParserWrapper::parse_err(const std::string &err, const YAML::Node &node) con
     throw std::runtime_error(ss.str());
 }
 
+void
+YAMLParserWrapper::parse_err(const std::string &err) const {
+    std::stringstream ss;
+
+    ss << "\n*** '" << m_header << "' - YAML parsing error: " << err;
+
+    throw std::runtime_error(ss.str());
+}

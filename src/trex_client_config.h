@@ -27,20 +27,130 @@ limitations under the License.
 
 class YAMLParserWrapper;
 
+
+/**
+ * client configuration per direction
+ * 
+ * @author imarom (29-Jun-16)
+ */
+class ClientCfgDir {
+
+private:
+    enum {
+        HAS_SRC_MAC = 0x1,
+        HAS_DST_MAC = 0x2,
+        HAS_VLAN    = 0x4,
+    };
+
+    uint8_t     m_src_mac[6];
+    uint8_t     m_dst_mac[6];
+    uint16_t    m_vlan;
+    uint8_t     m_bitfield;
+
+
+public:
+    ClientCfgDir() {
+        m_bitfield = 0;
+    }
+
+    bool has_src_mac_addr() const {
+        return (m_bitfield & HAS_SRC_MAC);
+    }
+
+    bool has_dst_mac_addr() const {
+        return (m_bitfield & HAS_DST_MAC);
+    }
+    bool has_vlan() const {
+        return (m_bitfield & HAS_VLAN);
+    }
+
+    void set_src_mac_addr(uint64_t mac_addr) {
+        for (int i = 0; i < 6; i++) {
+            m_src_mac[i] = ( mac_addr >> ((5 - i) * 8) ) & 0xFF;
+        }
+        m_bitfield |= HAS_SRC_MAC;
+    }
+
+    void set_dst_mac_addr(uint64_t mac_addr) {
+        for (int i = 0; i < 6; i++) {
+            m_dst_mac[i] = ( mac_addr >> ((5 - i) * 8) ) & 0xFF;
+        }
+        m_bitfield |= HAS_DST_MAC;
+    }
+
+    void set_vlan(uint16_t vlan_id) {
+        m_vlan      = vlan_id;
+        m_bitfield |= HAS_VLAN;
+    }
+
+    /* updates a configuration with a group index member */
+
+    void update(uint32_t index) {
+        if (has_src_mac_addr()) {
+            mac_add(m_src_mac, index);
+        }
+
+        if (has_dst_mac_addr()) {
+            mac_add(m_dst_mac, index);
+        }
+    }
+
+    const uint8_t *get_src_mac_addr() {
+        assert(has_src_mac_addr());
+        return m_src_mac;
+    }
+
+    const uint8_t *get_dst_mac_addr() {
+        assert(has_dst_mac_addr());
+        return m_dst_mac;
+    }
+
+    uint16_t get_vlan() {
+        assert(has_vlan());
+        return m_vlan;
+    }
+
+private:
+    /**
+     * transform MAC address to uint64_t 
+     * performs add and return to MAC format 
+     * 
+     */
+    void mac_add(uint8_t *mac, uint32_t i) {
+        uint64_t tmp = 0;
+
+        for (int i = 0; i < 6; i++) {
+            tmp <<= 8;
+            tmp |= mac[i];
+        }
+
+        tmp += i;
+
+        for (int i = 0; i < 6; i++) {
+            mac[i] = ( tmp >> ((5 - i) * 8) ) & 0xFF;
+        }
+
+    }
+};
+
 /**
  * single client config
  * 
  */
 class ClientCfg {
+
 public:
-    struct dir_st {
-        uint8_t   m_dst_mac[6];
-        uint16_t  m_vlan;
-    };
-    
-    dir_st m_initiator;
-    dir_st m_responder;
+
+    void update(uint32_t index) {
+        m_initiator.update(index);
+        m_responder.update(index);
+    }
+
+    ClientCfgDir m_initiator;
+    ClientCfgDir m_responder;
 };
+
+/******************************** internal section ********************************/
 
 /**
  * describes a single client config 
@@ -48,6 +158,7 @@ public:
  * 
  */
 class ClientCfgEntry {
+
 public:
 
     ClientCfgEntry() {
@@ -65,6 +176,7 @@ public:
         m_iterator = 0;
     }
 
+ 
     /**
      * assings a client config from the group 
      * it will advance MAC addresses andf etc. 
@@ -74,37 +186,23 @@ public:
      * @param info 
      */
     void assign(ClientCfg &info) {
-
-        /* assigns MAC addrs as big endian */
-        for (int i = 0; i < 6; i++) {
-            info.m_initiator.m_dst_mac[i] = ( (m_initiator.m_dst_mac + m_iterator) >> ((5 - i) * 8) ) & 0xFF;
-            info.m_responder.m_dst_mac[i] = ( (m_responder.m_dst_mac + m_iterator) >> ((5 - i) * 8) ) & 0xFF;
-        }
-
-        info.m_initiator.m_vlan = m_initiator.m_vlan;
-        info.m_responder.m_vlan = m_responder.m_vlan;
-
+        info = m_cfg;
+        info.update(m_iterator);
+        
         /* advance for the next assign */
         m_iterator = (m_iterator + 1) % m_count;
     }
 
 public:
-    uint32_t  m_ip_start;
-    uint32_t  m_ip_end;
+    uint32_t    m_ip_start;
+    uint32_t    m_ip_end;
 
-    struct cfg_dir_st {
-        //uint64_t m_src_mac;
-        uint64_t m_dst_mac;
-        uint16_t m_vlan;
-    };
-
-    cfg_dir_st  m_initiator;
-    cfg_dir_st  m_responder;
+    ClientCfg   m_cfg;
 
     uint32_t    m_count;
 
 private:
-    uint32_t m_iterator;
+    uint32_t    m_iterator;
 };
 
 /**
@@ -147,13 +245,13 @@ public:
 
 private:
     void parse_single_group(YAMLParserWrapper &parser, const YAML::Node &node);
-    void yaml_parse_err(const std::string &err, const YAML::Mark *mark = NULL) const;
+    void parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDir &dir);
 
     /**
      * verify the YAML file loaded in valid
      * 
      */
-    void verify() const;
+    void verify(const YAMLParserWrapper &parser) const;
 
     /* maps the IP start value to client groups */
     std::map<uint32_t, ClientCfgEntry>  m_groups;
@@ -165,3 +263,4 @@ private:
 };
 
 #endif /* __TREX_CLIENT_CONFIG_H__ */
+
