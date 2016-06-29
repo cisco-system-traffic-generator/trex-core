@@ -37,7 +37,6 @@ limitations under the License.
 #include "common/c_common.h"
 #include <bitset>
 #include <yaml-cpp/yaml.h>
-#include <mac_mapping.h>
 #include "trex_client_config.h"
 
 #include <random>
@@ -670,8 +669,8 @@ public:
 public:
     CTupleGeneratorSmart(){
         m_was_init=false;
-        m_has_mac_mapping = false;
     }
+
     bool Create(uint32_t _id, uint32_t thread_id);
 
     void Delete();
@@ -722,7 +721,6 @@ private:
     std::vector<CClientPool*> m_client_pool;
     std::vector<CServerPoolBase*> m_server_pool;
     bool     m_was_init;
-    bool     m_has_mac_mapping;
 };
 
 class CTupleTemplateGeneratorSmart {

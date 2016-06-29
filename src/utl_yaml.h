@@ -24,15 +24,12 @@ limitations under the License.
 
 #include <stdint.h>
 #include <yaml-cpp/yaml.h>
-    
 
+
+/* static methods - please prefer the wrapper over those */
 bool utl_yaml_read_ip_addr(const YAML::Node& node, 
                            const std::string &name,
                            uint32_t & val);
-
-bool utl_yaml_read_mac_addr(const YAML::Node &node,
-                            const std::string &name,
-                            uint64_t &val);
 
 bool utl_yaml_read_uint32(const YAML::Node& node, 
                           const std::string &name,
@@ -42,9 +39,33 @@ bool utl_yaml_read_uint16(const YAML::Node& node,
                           const std::string &name,
                           uint16_t & val);
 
-bool utl_yaml_read_bool(const YAML::Node& node, 
-                        const std::string &name,
-                        bool & val);
+
+/* a thin wrapper to customize errors */
+class YAMLParserWrapper {
+public:
+    /* a header that will start every error message */
+    YAMLParserWrapper(const std::string &header) : m_header(header) {
+    }
+
+    /* bool */
+    bool parse_bool(const YAML::Node &node, const std::string &name);
+    bool parse_bool(const YAML::Node &node, const std::string &name, bool def);
+
+    const YAML::Node & parse_list(const YAML::Node &node, const std::string &name);
+    const YAML::Node & parse_map(const YAML::Node &node, const std::string &name);
+
+    uint32_t parse_ip(const YAML::Node &node, const std::string &name);
+
+    uint64_t parse_mac_addr(const YAML::Node &node, const std::string &name);
+
+    uint64_t parse_uint(const YAML::Node &node, const std::string &name, uint64_t low = 0, uint64_t high = UINT64_MAX);
 
 
+public:
+    void parse_err(const std::string &err, const YAML::Node &node) const;
+
+    
+private:
+    std::string m_header;
+};
 #endif

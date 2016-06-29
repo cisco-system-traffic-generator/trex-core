@@ -36,7 +36,7 @@ using namespace std;
 
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
-       OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_MAC_FILE,
+       OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
        OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
        OPT_DRY_RUN};
 
@@ -62,22 +62,22 @@ typedef enum {
 */
 static CSimpleOpt::SOption parser_options[] =
 {
-    { OPT_HELP,          "-?",           SO_NONE    },
-    { OPT_HELP,          "-h",           SO_NONE    },
-    { OPT_HELP,          "--help",       SO_NONE    },
-    { OPT_UT,            "--ut",         SO_NONE    },
-    { OP_STATS,          "-s",           SO_NONE    },
-    { OPT_CFG,           "-f",           SO_REQ_SEP },
-    { OPT_MAC_FILE,      "--mac",        SO_REQ_SEP },
-    { OPT_FILE_OUT ,     "-o",           SO_REQ_SEP },
-    { OPT_NODE_DUMP ,    "-v",           SO_REQ_SEP },
-    { OPT_PCAP,          "--pcap",       SO_NONE    },
-    { OPT_IPV6,          "--ipv6",       SO_NONE    },
-    { OPT_SL,            "--sl",         SO_NONE    },
-    { OPT_DP_CORE_COUNT, "--cores",      SO_REQ_SEP },
-    { OPT_DP_CORE_INDEX, "--core_index", SO_REQ_SEP },
-    { OPT_LIMIT,         "--limit",      SO_REQ_SEP },
-    { OPT_DRY_RUN,       "--dry",      SO_NONE },
+    { OPT_HELP,               "-?",           SO_NONE    },
+    { OPT_HELP,               "-h",           SO_NONE    },
+    { OPT_HELP,               "--help",       SO_NONE    },
+    { OPT_UT,                 "--ut",         SO_NONE    },
+    { OP_STATS,               "-s",           SO_NONE    },
+    { OPT_CFG,                "-f",           SO_REQ_SEP },
+    { OPT_CLIENT_CFG_FILE,    "--client_cfg", SO_REQ_SEP },
+    { OPT_FILE_OUT ,          "-o",           SO_REQ_SEP },
+    { OPT_NODE_DUMP ,         "-v",           SO_REQ_SEP },
+    { OPT_PCAP,               "--pcap",       SO_NONE    },
+    { OPT_IPV6,               "--ipv6",       SO_NONE    },
+    { OPT_SL,                 "--sl",         SO_NONE    },
+    { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
+    { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
+    { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
+    { OPT_DRY_RUN,            "--dry",      SO_NONE },
 
     
     SO_END_OF_OPTIONS
@@ -160,7 +160,7 @@ static int parse_options(int argc,
                 po->cfg_file = args.OptionArg();
                 break;
 
-            case OPT_MAC_FILE:
+            case OPT_CLIENT_CFG_FILE:
                 po->client_cfg_file = args.OptionArg();
                 break;
 

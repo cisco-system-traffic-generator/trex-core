@@ -25,19 +25,21 @@ limitations under the License.
 #include <string>
 #include <map>
 
+class YAMLParserWrapper;
+
 /**
  * single client config
  * 
- * @author imarom (27-Jun-16)
  */
 class ClientCfg {
 public:
-    uint8_t   m_init_mac[6];
-    uint16_t  m_init_vlan;
-
-    uint8_t   m_res_mac[6];
-    uint16_t  m_res_vlan;
-
+    struct dir_st {
+        uint8_t   m_dst_mac[6];
+        uint16_t  m_vlan;
+    };
+    
+    dir_st m_initiator;
+    dir_st m_responder;
 };
 
 /**
@@ -73,15 +75,16 @@ public:
      */
     void assign(ClientCfg &info) {
 
+        /* assigns MAC addrs as big endian */
         for (int i = 0; i < 6; i++) {
-            info.m_init_mac[i]  = ( (m_init_mac + m_iterator) >> ((5 - i) * 8) ) & 0xFF;
-            info.m_res_mac[i]   = ( (m_res_mac  + m_iterator) >> ((5 - i) * 8) ) & 0xFF;
+            info.m_initiator.m_dst_mac[i] = ( (m_initiator.m_dst_mac + m_iterator) >> ((5 - i) * 8) ) & 0xFF;
+            info.m_responder.m_dst_mac[i] = ( (m_responder.m_dst_mac + m_iterator) >> ((5 - i) * 8) ) & 0xFF;
         }
 
-        info.m_init_vlan = m_init_vlan;
-        info.m_res_vlan  = m_res_vlan;
+        info.m_initiator.m_vlan = m_initiator.m_vlan;
+        info.m_responder.m_vlan = m_responder.m_vlan;
 
-        /* advance */
+        /* advance for the next assign */
         m_iterator = (m_iterator + 1) % m_count;
     }
 
@@ -89,28 +92,32 @@ public:
     uint32_t  m_ip_start;
     uint32_t  m_ip_end;
 
-    uint64_t  m_init_mac;
-    uint16_t  m_init_vlan;
+    struct cfg_dir_st {
+        //uint64_t m_src_mac;
+        uint64_t m_dst_mac;
+        uint16_t m_vlan;
+    };
 
-    uint64_t  m_res_mac;
-    uint16_t  m_res_vlan;
+    cfg_dir_st  m_initiator;
+    cfg_dir_st  m_responder;
 
-    uint32_t  m_count;
+    uint32_t    m_count;
 
 private:
     uint32_t m_iterator;
 };
 
 /**
- * describes the DB of every client group
+ * holds all the configured clients groups
  * 
  */
 class ClientCfgDB {
 public:
 
     ClientCfgDB() {
-        m_is_empty = true;
+        m_is_empty    = true;
         m_cache_group = NULL;
+        m_under_vlan  = false;
     }
 
     /**
@@ -139,7 +146,7 @@ public:
     ClientCfgEntry * lookup(const std::string &ip);
 
 private:
-
+    void parse_single_group(YAMLParserWrapper &parser, const YAML::Node &node);
     void yaml_parse_err(const std::string &err, const YAML::Mark *mark = NULL) const;
 
     /**
@@ -150,6 +157,8 @@ private:
 
     /* maps the IP start value to client groups */
     std::map<uint32_t, ClientCfgEntry>  m_groups;
+    bool                                m_under_vlan;
+
     ClientCfgEntry                     *m_cache_group;
     std::string                         m_filename;
     bool                                m_is_empty;

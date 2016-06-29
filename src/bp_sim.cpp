@@ -5042,7 +5042,7 @@ void CErfIF::add_vlan(uint16_t vlan_id) {
     /* insert vlan tag and adjust packet size */
     memcpy(cbuff+4, buffer + 12, m_raw->pkt_len - 12);
     memcpy(cbuff, &vlan_tag, 4);
-    memcpy(buffer + 12, cbuff, m_raw->pkt_len-8);
+    memcpy(buffer + 12, cbuff, m_raw->pkt_len - 8);
 
     m_raw->pkt_len += 4;
 }
@@ -5052,11 +5052,11 @@ void CErfIF::apply_client_config(CGenNode *node, pkt_dir_t dir) {
     uint16_t vlan_id;
 
     if (dir == CLIENT_SIDE) {
-        memcpy(p, node->m_client_cfg->m_init_mac, 6);
-        vlan_id = node->m_client_cfg->m_init_vlan;
+        memcpy(p, node->m_client_cfg->m_initiator.m_dst_mac, 6);
+        vlan_id = node->m_client_cfg->m_responder.m_vlan;
     } else {
-        memcpy(p, node->m_client_cfg->m_res_mac, 6);
-        vlan_id = node->m_client_cfg->m_res_vlan;
+        memcpy(p, node->m_client_cfg->m_responder.m_dst_mac, 6);
+        vlan_id = node->m_client_cfg->m_responder.m_vlan;
     }
 
     add_vlan(vlan_id);

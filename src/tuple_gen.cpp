@@ -121,7 +121,7 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
 void CClientPool::allocate_configured_clients(uint32_t        min_ip,
                                               uint32_t        total_ip,
                                               bool            is_long_range,
-                                              ClientCfgDB  &client_info) {
+                                              ClientCfgDB     &client_info) {
 
     for (uint32_t i = 0; i < total_ip; i++) {
         uint32_t ip = min_ip + i;
@@ -129,8 +129,9 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
         /* lookup for the right group of clients */
         ClientCfgEntry *group = client_info.lookup(ip);
         if (!group) {
-            std::cout << "could not map " << ip_to_str(ip) << "\n";
-            exit(-1);
+            std::stringstream ss;
+            ss << "*** client configuration error: could not map IP '" << ip_to_str(ip) << "' to a group\n";
+            throw std::runtime_error(ss.str());
         }
 
         ClientCfg info;
@@ -145,14 +146,14 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
 }
 
 
-bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
-                                          uint32_t min_client,
-                                          uint32_t max_client,
-                                          double l_flow,
-                                          double t_cps,
-                                          ClientCfgDB &client_info,
-                                          uint16_t tcp_aging,
-                                          uint16_t udp_aging){
+bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
+                                          uint32_t        min_client,
+                                          uint32_t        max_client,
+                                          double          l_flow,
+                                          double          t_cps,
+                                          ClientCfgDB     &client_info,
+                                          uint16_t        tcp_aging,
+                                          uint16_t        udp_aging) {
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
     pool->Create(client_dist,

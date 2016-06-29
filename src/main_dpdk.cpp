@@ -547,7 +547,7 @@ enum { OPT_HELP,
        OPT_L_PKT_MODE,
        OPT_NO_FLOW_CONTROL,
        OPT_RX_CHECK_HOPS,
-       OPT_MAC_FILE,
+       OPT_CLIENT_CFG_FILE,
        OPT_NO_KEYBOARD_INPUT,
        OPT_VLAN,
        OPT_VIRT_ONE_TX_RX_QUEUE,
@@ -611,7 +611,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
         { OPT_NO_FLOW_CONTROL, "--no-flow-control-change",       SO_NONE   },
         { OPT_VLAN,       "--vlan",       SO_NONE   },
-        { OPT_MAC_FILE, "--mac", SO_REQ_SEP },
+        { OPT_CLIENT_CFG_FILE, "--client_cfg", SO_REQ_SEP },
         { OPT_NO_KEYBOARD_INPUT ,"--no-key", SO_NONE   },
         { OPT_VIRT_ONE_TX_RX_QUEUE, "--vm-sim", SO_NONE },
         { OPT_PREFIX, "--prefix", SO_REQ_SEP },
@@ -641,7 +641,7 @@ static int usage(){
 
     printf(" options \n\n");
 
-    printf(" --mac [file]               : YAML file with <client ip, mac addr> configuration \n");
+    printf(" --client_cfg [file]        : YAML file which describes clients configuration\n");
     printf(" \n\n");
     printf(" -c [number of threads]     : default is 1. number of threads to allocate for each dual ports. \n");
     printf("  \n");
@@ -825,8 +825,8 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.set_no_keyboard(true);
                 break;
 
-            case OPT_MAC_FILE :
-                po->mac_file = args.OptionArg();
+            case OPT_CLIENT_CFG_FILE :
+                po->client_cfg_file = args.OptionArg();
                 break;
 
             case OPT_PLAT_CFG_FILE :
@@ -1011,11 +1011,13 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         parse_err(ss.str());
     }
 
-    if ( CGlobalInfo::is_learn_mode()  ){
-        if  ( po->preview.get_ipv6_mode_enable() ){
-            parse_err("--learn mode is not supported with --ipv6, beacuse there is not such thing NAT66 ( ipv6-ipv6) \n" \
-                      "if you think it is important,open a defect \n");
-        }
+    if (CGlobalInfo::is_learn_mode() && po->preview.get_ipv6_mode_enable()) {
+        parse_err("--learn mode is not supported with --ipv6, beacuse there is not such thing NAT66 ( ipv6-ipv6) \n" \
+                  "if you think it is important,open a defect \n");
+    }
+
+    if (CGlobalInfo::get_vlan_mode_enable() && (po->client_cfg_file != "") ) {
+        parse_err("--vlan and --client_cfg cannot be combined");
     }
 
     if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()) {
