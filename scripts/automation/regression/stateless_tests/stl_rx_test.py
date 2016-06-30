@@ -9,7 +9,7 @@ class STLRX_Test(CStlGeneral_Test):
     """Tests for RX feature"""
 
     def setUp(self):
-        per_driver_params = {"rte_vmxnet3_pmd": [1, 50, 1,False], "rte_ixgbe_pmd": [30, 5000, 1,True,200,400], "rte_i40e_pmd": [80, 5000, 1,True,100,250],
+        per_driver_params = {"rte_vmxnet3_pmd": [1, 50, 1,False], "rte_ixgbe_pmd": [30, 5000, 1,True,300,400], "rte_i40e_pmd": [80, 5000, 1,True,100,250],
                              "rte_igb_pmd": [80, 500, 1,False], "rte_em_pmd": [1, 50, 1,False], "rte_virtio_pmd": [1, 50, 1,False]}
 
         CStlGeneral_Test.setUp(self)
@@ -35,6 +35,7 @@ class STLRX_Test(CStlGeneral_Test):
             self.rate_lat = per_driver_params[drv_name][2]
         else:
             self.rate_lat = self.rate_percent
+        self.lat_pps = 5000
         self.drops_expected = False
         self.c.reset(ports = [self.tx_port, self.rx_port])
 
@@ -252,15 +253,16 @@ class STLRX_Test(CStlGeneral_Test):
             for data in streams_data:
                 if data['lat']:
                     flow_stats = STLFlowLatencyStats(pg_id = 5)
+                    mode = STLTXSingleBurst(total_pkts = total_pkts, percentage = self.rate_percent)
                 else:
                     flow_stats = STLFlowStats(pg_id = 5)
+                    mode = STLTXSingleBurst(total_pkts = total_pkts, pps = self.lat_pps)
 
                 s = STLStream(name = data['name'],
                               packet = data['pkt'],
                               flow_stats = flow_stats,
-                              mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                                      percentage = self.rate_percent
-                              ))
+                              mode = mode
+                              )
                 streams.append(s)
 
             print("\ninjecting {0} packets on port {1}".format(total_pkts, self.tx_port))
