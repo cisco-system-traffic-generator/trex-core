@@ -549,10 +549,8 @@ enum { OPT_HELP,
        OPT_RX_CHECK_HOPS,
        OPT_CLIENT_CFG_FILE,
        OPT_NO_KEYBOARD_INPUT,
-       OPT_VLAN,
        OPT_VIRT_ONE_TX_RX_QUEUE,
        OPT_PREFIX,
-       OPT_MAC_SPLIT,
        OPT_SEND_DEBUG_PKT,
        OPT_NO_WATCHDOG,
        OPT_ALLOW_COREDUMP
@@ -610,12 +608,10 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
         { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
         { OPT_NO_FLOW_CONTROL, "--no-flow-control-change",       SO_NONE   },
-        { OPT_VLAN,       "--vlan",       SO_NONE   },
         { OPT_CLIENT_CFG_FILE, "--client_cfg", SO_REQ_SEP },
         { OPT_NO_KEYBOARD_INPUT ,"--no-key", SO_NONE   },
         { OPT_VIRT_ONE_TX_RX_QUEUE, "--vm-sim", SO_NONE },
         { OPT_PREFIX, "--prefix", SO_REQ_SEP },
-        { OPT_MAC_SPLIT, "--mac-spread", SO_REQ_SEP },
         { OPT_SEND_DEBUG_PKT, "--send-debug-pkt", SO_REQ_SEP },
         { OPT_MBUF_FACTOR     , "--mbuf-factor",  SO_REQ_SEP },
         { OPT_NO_WATCHDOG ,     "--no-watchdog",  SO_NONE  },
@@ -716,8 +712,6 @@ static int usage(){
     printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
     printf(" --prefix                   : for multi trex, each instance should have a different name \n");
-    printf(" --mac-spread               : Spread the destination mac-order by this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1  \n");
-    printf("                             maximum is up to 128 devices   \n");
     printf(" --mbuf-factor              : factor for packet memory \n");
     printf("                             \n");
     printf(" --no-watchdog              : disable watchdog  \n");
@@ -725,6 +719,7 @@ static int usage(){
     printf(" --allow-coredump           : allow a creation of core dump \n");
     printf("                             \n");
     printf(" --vm-sim                   : simulate vm with driver of one input queue and one output queue \n");
+    
     printf("  \n");
     printf(" Examples: ");
     printf(" basic trex run for 10 sec and multiplier of x10 \n");
@@ -740,7 +735,7 @@ static int usage(){
 
     printf("\n");
     printf("\n");
-    printf(" Copyright (c) 2015-2015 Cisco Systems, Inc.    \n");
+    printf(" Copyright (c) 2015-2016 Cisco Systems, Inc.    \n");
     printf("                                                                  \n");
     printf(" Licensed under the Apache License, Version 2.0 (the 'License') \n");
     printf(" you may not use this file except in compliance with the License. \n");
@@ -841,9 +836,6 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.set_ipv6_mode_enable(true);
                 break;
 
-            case OPT_VLAN:
-                po->preview.set_vlan_mode_enable(true);
-                break;
 
             case OPT_LEARN :
                 po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
@@ -975,13 +967,6 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->prefix = args.OptionArg();
                 break;
 
-            case OPT_MAC_SPLIT:
-                sscanf(args.OptionArg(),"%d", &tmp_data);
-                po->m_mac_splitter = (uint8_t)tmp_data;
-                po->preview.set_mac_ip_features_enable(true);
-                po->preview.setDestMacSplit(true);
-                break;
-
             case OPT_SEND_DEBUG_PKT:
                 sscanf(args.OptionArg(),"%d", &tmp_data);
                 po->m_debug_pkt_proto = (uint8_t)tmp_data;
@@ -1005,19 +990,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         parse_err("Please provide single run mode (e.g. batch or interactive)");
     }
 
-    if ( po->m_mac_splitter > 128 ){
-        std::stringstream ss;
-        ss << "maximum mac spreading is 128 you set it to: " << po->m_mac_splitter;
-        parse_err(ss.str());
-    }
-
     if (CGlobalInfo::is_learn_mode() && po->preview.get_ipv6_mode_enable()) {
         parse_err("--learn mode is not supported with --ipv6, beacuse there is not such thing NAT66 ( ipv6-ipv6) \n" \
                   "if you think it is important,open a defect \n");
-    }
-
-    if (po->preview.get_vlan_mode_enable() && (po->client_cfg_file != "") ) {
-        parse_err("--vlan and --client_cfg cannot be combined");
     }
 
     if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()) {
@@ -1757,7 +1732,7 @@ public:
     virtual void flush_dp_rx_queue(void);
     virtual int flush_tx_queue(void);
     __attribute__ ((noinline)) void flush_rx_queue();
-    __attribute__ ((noinline)) void update_mac_addr(CGenNode * node,uint8_t *p);
+    __attribute__ ((noinline)) void apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
 
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
@@ -1789,6 +1764,8 @@ protected:
     int send_pkt_lat(CCorePerPort * lp_port,
                  rte_mbuf_t *m,
                  CVirtualIFPerSideStats  * lp_stats);
+
+    void add_vlan(rte_mbuf_t *m, uint16_t vlan_id);
 
 protected:
     uint8_t      m_core_id;
@@ -2014,30 +1991,6 @@ void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
     lp_port->m_len = 0;
 }
 
-
-void CCoreEthIF::update_mac_addr(CGenNode * node,uint8_t *p){
-
-    if ( CGlobalInfo::m_options.preview.getDestMacSplit() ) {
-        p[5]+= (node->m_src_ip % CGlobalInfo::m_options.m_mac_splitter);
-    }
-
-    if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_mapping_enable() ) ) {
-        /* mac mapping file is configured
-         */
-        #if 0
-        if ( node->is_initiator_pkt() && (node->m_src_mac.inused==INUSED)) {
-            memcpy(p+6, &node->m_src_mac.mac, 6);
-        }
-        #endif
-
-    } else if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_overide_enable() ) ){
-        /* client side */
-        if ( node->is_initiator_pkt() ){
-            *((uint32_t*)(p+6))=PKT_NTOHL(node->m_src_ip);
-        }
-    }
-}
-
 int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats, bool is_const) {
     // Defining this makes 10% percent packet loss. 1% packet reorder.
@@ -2163,8 +2116,38 @@ int CCoreEthIFStateless::handle_slow_path_node(CGenNode * no) {
     return (-1);
 }
 
+void CCoreEthIF::apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p) {
 
-int CCoreEthIF::send_node(CGenNode * node){
+    assert(cfg);
+
+    /* take the right direction config */
+    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
+
+    /* dst mac */
+    if (cfg_dir.has_dst_mac_addr()) {
+        memcpy(p, cfg_dir.get_dst_mac_addr(), 6);
+    }
+
+    /* src mac */
+    if (cfg_dir.has_src_mac_addr()) {
+        memcpy(p + 6, cfg_dir.get_src_mac_addr(), 6);
+    }
+
+    /* VLAN */
+    if (cfg_dir.has_vlan()) {
+        add_vlan(m, cfg_dir.get_vlan());
+    }   
+}
+
+
+void CCoreEthIF::add_vlan(rte_mbuf_t *m, uint16_t vlan_id) {
+    m->ol_flags = PKT_TX_VLAN_PKT;
+    m->l2_len   = 14;
+    m->vlan_tci = vlan_id;
+}
+
+int CCoreEthIF::send_node(CGenNode * node) {
+     
 
     if ( unlikely( node->get_cache_mbuf() !=NULL ) ) {
         pkt_dir_t       dir;
@@ -2182,33 +2165,29 @@ int CCoreEthIF::send_node(CGenNode * node){
     rte_mbuf_t *    m=lp->generate_new_mbuf(node);
 
     pkt_dir_t       dir;
-    bool single_port;
+    bool            single_port;
 
-    dir = node->cur_interface_dir();
+    dir         = node->cur_interface_dir();
     single_port = node->get_is_all_flow_from_same_dir() ;
 
     if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
         /* which vlan to choose 0 or 1*/
         uint8_t vlan_port = (node->m_src_ip &1);
-
-        /* set the vlan */
-        m->ol_flags = PKT_TX_VLAN_PKT;
-        m->l2_len   =14;
-        uint16_t vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
-
+        uint16_t vlan_id  = CGlobalInfo::m_options.m_vlan_port[vlan_port];
 
         if (likely( vlan_id >0 ) ) {
-            m->vlan_tci = vlan_id;
             dir = dir ^ vlan_port;
         }else{
             /* both from the same dir but with VLAN0 */
-            m->vlan_tci = CGlobalInfo::m_options.m_vlan_port[0];
+            vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
             dir = dir ^ 0;
         }
+
+        add_vlan(m, vlan_id);
     }
 
-    CCorePerPort *  lp_port=&m_ports[dir];
-    CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
+    CCorePerPort *lp_port = &m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
 
     if (unlikely(m==0)) {
         lp_stats->m_tx_alloc_error++;
@@ -2216,17 +2195,21 @@ int CCoreEthIF::send_node(CGenNode * node){
     }
 
     /* update mac addr dest/src 12 bytes */
-    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
-    uint8_t p_id=lp_port->m_port->get_port_id();
-
-
+    uint8_t *p   = rte_pktmbuf_mtod(m, uint8_t*);
+    uint8_t p_id = lp_port->m_port->get_port_id();
+    
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
-    /* if customer enables both mac_file and get_mac_ip_overide,
-     * we will apply mac_file.
-     */
-    if ( unlikely(CGlobalInfo::m_options.preview.get_mac_ip_features_enable() ) ) {
-        update_mac_addr(node,p);
+    if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_overide_enable() ) ) {
+        /* client side */
+        if ( node->is_initiator_pkt() ) {
+            *((uint32_t*)(p+6)) = PKT_NTOHL(node->m_src_ip);
+        }
+    }
+
+    /* flag is faster than checking the node pointer (another cacheline) */
+    if ( unlikely(CGlobalInfo::m_options.preview.get_is_client_cfg_enable() ) ) {
+        apply_client_cfg(node->m_client_cfg, m, dir, p);
     }
 
     if ( unlikely( node->is_rx_check_enabled() ) ) {
@@ -4207,7 +4190,15 @@ int CGlobalTRex::start_master_statefull() {
 
     if (CGlobalInfo::m_options.client_cfg_file != "") {
         m_fl.load_client_config_file(CGlobalInfo::m_options.client_cfg_file);
-        CGlobalInfo::m_options.preview.set_mac_ip_mapping_enable(true);
+        CGlobalInfo::m_options.preview.set_client_cfg_enable(true);
+    }
+
+    /* verify options */
+    try {
+        CGlobalInfo::m_options.verify();
+    } catch (const std::runtime_error &e) {
+        std::cout << "\n*** " << e.what() << "\n\n";
+        exit(-1);
     }
 
     m_expected_pps = m_fl.get_total_pps();

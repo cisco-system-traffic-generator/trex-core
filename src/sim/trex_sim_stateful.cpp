@@ -168,7 +168,14 @@ int load_list_of_cap_files(CParserOption * op){
     
     if (op->client_cfg_file != "") {
         fl.load_client_config_file(op->client_cfg_file);
-        CGlobalInfo::m_options.preview.set_mac_ip_mapping_enable(true);
+        CGlobalInfo::m_options.preview.set_client_cfg_enable(true);
+    }
+
+    try {
+        CGlobalInfo::m_options.verify();
+    } catch (const std::runtime_error &e) {
+        std::cout << "\n*** " << e.what() << "\n\n";
+        exit(-1);
     }
 
     if ( op->preview.getVMode() >0 ) {

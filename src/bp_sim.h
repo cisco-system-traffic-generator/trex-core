@@ -629,9 +629,6 @@ public:
 
     void set_mac_ip_overide_enable(bool enable){
         btSetMaskBit32(m_flags,30,30,enable?1:0);
-        if (enable) {
-            set_mac_ip_features_enable(enable);
-        }
     }
 
     bool get_is_rx_check_enable(){
@@ -642,25 +639,23 @@ public:
         btSetMaskBit32(m_flags,31,31,enable?1:0);
     }
 
-
-    bool get_mac_ip_features_enable(){
-        return (btGetMaskBit32(m_flags1,0,0) ? true:false);
+    bool get_is_slowpath_features_on() {
+        return (btGetMaskBit32(m_flags1, 0, 0) ? true : false);
     }
 
-    void set_mac_ip_features_enable(bool enable){
-        btSetMaskBit32(m_flags1,0,0,enable?1:0);
+    void set_slowpath_features_on(bool enable) {
+        btSetMaskBit32(m_flags1, 0, 0, enable ? 1 : 0);
     }
 
-    bool get_mac_ip_mapping_enable(){
-        return (btGetMaskBit32(m_flags1,1,1) ? true:false);
+    bool get_is_client_cfg_enable() {
+        return (btGetMaskBit32(m_flags1, 1, 1) ? true : false);
     }
 
-    void set_mac_ip_mapping_enable(bool enable){
-        btSetMaskBit32(m_flags1,1,1,enable?1:0);
-        if (enable) {
-            set_mac_ip_features_enable(enable);
-        }
+    void set_client_cfg_enable(bool enable){
+        btSetMaskBit32(m_flags1, 1, 1, enable ? 1 : 0);
     }
+
+   
 
     bool get_vm_one_queue_enable(){
         return (btGetMaskBit32(m_flags1,2,2) ? true:false);
@@ -685,16 +680,6 @@ public:
 
     bool getClientServerFlowFlipAddr(){
         return (btGetMaskBit32(m_flags1,3,3) ? true:false);
-    }
-
-
-    /* split mac is enabled */
-    void setDestMacSplit(bool enable){
-        btSetMaskBit32(m_flags1,4,4,enable?1:0);
-    }
-
-    bool getDestMacSplit(){
-        return (btGetMaskBit32(m_flags1,4,4) ? true:false);
     }
 
     /* split mac is enabled */
@@ -788,7 +773,6 @@ public:
         m_io_mode=1;
         m_run_flags=0;
         prefix="";
-        m_mac_splitter=0;
         m_run_mode = RUN_MODE_INVALID;
         m_l_pkt_mode = 0;
         m_rx_thread_enabled = false;
@@ -814,7 +798,6 @@ public:
     uint16_t        m_expected_portd;
     uint16_t        m_io_mode; //0,1,2 0 disable, 1- normal , 2 - short
     uint16_t        m_run_flags;
-    uint8_t         m_mac_splitter;
     uint8_t         m_l_pkt_mode;
     uint8_t         m_learn_mode;
     uint16_t        m_debug_pkt_proto;
@@ -882,6 +865,8 @@ public:
     }
     void dump(FILE *fd);
     bool is_valid_opt_val(int val, int min, int max, const std::string &opt_name);
+
+    void verify();
 };
 
 
@@ -1572,7 +1557,7 @@ public:
     uint16_t            m_nat_external_port;
 
     uint16_t            m_nat_pad[3];
-    ClientCfg           *m_client_cfg;
+    const ClientCfg    *m_client_cfg;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
@@ -1919,7 +1904,7 @@ public:
 
 protected:
     void add_vlan(uint16_t vlan_id);
-    void apply_client_config(CGenNode *node, pkt_dir_t dir);
+    void apply_client_config(const ClientCfg *cfg, pkt_dir_t dir);
     virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
 
     CFileWriterBase         * m_writer;

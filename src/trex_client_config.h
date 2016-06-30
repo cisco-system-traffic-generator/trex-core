@@ -95,17 +95,17 @@ public:
         }
     }
 
-    const uint8_t *get_src_mac_addr() {
+    const uint8_t *get_src_mac_addr() const {
         assert(has_src_mac_addr());
         return m_src_mac;
     }
 
-    const uint8_t *get_dst_mac_addr() {
+    const uint8_t *get_dst_mac_addr() const {
         assert(has_dst_mac_addr());
         return m_dst_mac;
     }
 
-    uint16_t get_vlan() {
+    uint16_t get_vlan() const {
         assert(has_vlan());
         return m_vlan;
     }

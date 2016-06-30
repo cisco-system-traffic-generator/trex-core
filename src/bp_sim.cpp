@@ -771,9 +771,8 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," 1g mode         : %d\n", (int)get_1g_mode() );
     fprintf(fd," zmq_publish     : %d\n", (int)get_zmq_publish_enable() );
     fprintf(fd," vlan_enable     : %d\n", (int)get_vlan_mode_enable() );
+    fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
     fprintf(fd," mbuf_cache_disable  : %d\n", (int)isMbufCacheDisabled() );
-    fprintf(fd," mac_ip_features : %d\n", (int)get_mac_ip_features_enable()?1:0 );
-    fprintf(fd," mac_ip_map : %d\n", (int)get_mac_ip_mapping_enable()?1:0 );
     fprintf(fd," vm mode         : %d\n", (int)get_vm_one_queue_enable()?1:0 );
 }
 
@@ -4719,21 +4718,20 @@ bool CParserOption::is_valid_opt_val(int val, int min, int max, const std::strin
 
 void CParserOption::dump(FILE *fd){
     preview.Dump(fd);
-    fprintf(fd," cfg file    : %s \n",cfg_file.c_str());
-    fprintf(fd," mac file    : %s \n",client_cfg_file.c_str());
-    fprintf(fd," out file    : %s \n",out_file.c_str());
-    fprintf(fd," duration    : %.0f \n",m_duration);
-    fprintf(fd," factor      : %.0f \n",m_factor);
-    fprintf(fd," mbuf_factor : %.0f \n",m_mbuf_factor);
-    fprintf(fd," latency     : %d pkt/sec \n",m_latency_rate);
-    fprintf(fd," zmq_port    : %d \n",m_zmq_port);
-    fprintf(fd," telnet_port : %d \n",m_telnet_port);
-    fprintf(fd," expected_ports : %d \n",m_expected_portd);
+    fprintf(fd," cfg file        : %s \n",cfg_file.c_str());
+    fprintf(fd," mac file        : %s \n",client_cfg_file.c_str());
+    fprintf(fd," out file        : %s \n",out_file.c_str());
+    fprintf(fd," client cfg file : %s \n",out_file.c_str());
+    fprintf(fd," duration        : %.0f \n",m_duration);
+    fprintf(fd," factor          : %.0f \n",m_factor);
+    fprintf(fd," mbuf_factor     : %.0f \n",m_mbuf_factor);
+    fprintf(fd," latency         : %d pkt/sec \n",m_latency_rate);
+    fprintf(fd," zmq_port        : %d \n",m_zmq_port);
+    fprintf(fd," telnet_port     : %d \n",m_telnet_port);
+    fprintf(fd," expected_ports  : %d \n",m_expected_portd);
     if (preview.get_vlan_mode_enable() ) {
-       fprintf(fd," vlans       : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
+       fprintf(fd," vlans     : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
     }
-   fprintf(fd," mac spreading: %d \n",(int)m_mac_splitter);
-
 
     int i;
     for (i = 0; i < TREX_MAX_PORTS; i++) {
@@ -4743,6 +4741,15 @@ void CParserOption::dump(FILE *fd){
         fprintf(fd,"  src:");
         dump_mac_addr(fd,lp->u.m_mac.src);
         fprintf(fd,"\n");
+    }
+}
+
+void CParserOption::verify() {
+    /* check for mutual exclusion options */
+    if (preview.get_is_client_cfg_enable()) {
+        if (preview.get_vlan_mode_enable() || preview.get_mac_ip_overide_enable()) {
+            throw std::runtime_error("VLAN / MAC override cannot be combined with client configuration");
+        }
     }
 }
 
@@ -5047,10 +5054,11 @@ void CErfIF::add_vlan(uint16_t vlan_id) {
     m_raw->pkt_len += 4;
 }
 
-void CErfIF::apply_client_config(CGenNode *node, pkt_dir_t dir) {
-    uint8_t *p =(uint8_t *)m_raw->raw;
+void CErfIF::apply_client_config(const ClientCfg *cfg, pkt_dir_t dir) {
+    assert(cfg);
+    uint8_t *p = (uint8_t *)m_raw->raw;
 
-    ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? node->m_client_cfg->m_initiator : node->m_client_cfg->m_responder);
+    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
 
     /* dst mac */
     if (cfg_dir.has_dst_mac_addr()) {
@@ -5065,10 +5073,7 @@ void CErfIF::apply_client_config(CGenNode *node, pkt_dir_t dir) {
     /* VLAN */
     if (cfg_dir.has_vlan()) {
         add_vlan(cfg_dir.get_vlan());
-    }
-
-    
-  
+    }   
 }
 
 int CErfIF::send_node(CGenNode *node){
@@ -5089,8 +5094,8 @@ int CErfIF::send_node(CGenNode *node){
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
     /* if a client configuration was provided - apply the config */
-    if (node->m_client_cfg) {
-        apply_client_config(node, dir);
+    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+        apply_client_config(node->m_client_cfg, dir);
 
     } else if (CGlobalInfo::m_options.preview.get_vlan_mode_enable()) {
         uint8_t vlan_port = (node->m_src_ip & 1);
