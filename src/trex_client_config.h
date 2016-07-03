@@ -258,7 +258,6 @@ private:
     bool                                m_under_vlan;
 
     ClientCfgEntry                     *m_cache_group;
-    std::string                         m_filename;
     bool                                m_is_empty;
 };
 

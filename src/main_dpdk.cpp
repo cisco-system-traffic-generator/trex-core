@@ -4188,8 +4188,14 @@ int CGlobalTRex::start_master_statefull() {
     m_fl.Create();
     m_fl.load_from_yaml(CGlobalInfo::m_options.cfg_file,get_cores_tx());
 
+    /* client config */
     if (CGlobalInfo::m_options.client_cfg_file != "") {
-        m_fl.load_client_config_file(CGlobalInfo::m_options.client_cfg_file);
+        try {
+            m_fl.load_client_config_file(CGlobalInfo::m_options.client_cfg_file);
+        } catch (const std::runtime_error &e) {
+            std::cout << "\n*** " << e.what() << "\n\n";
+            exit(-1);
+        }
         CGlobalInfo::m_options.preview.set_client_cfg_enable(true);
     }
 

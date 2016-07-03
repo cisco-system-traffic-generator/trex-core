@@ -167,7 +167,12 @@ int load_list_of_cap_files(CParserOption * op){
     fl.load_from_yaml(op->cfg_file,1);
     
     if (op->client_cfg_file != "") {
-        fl.load_client_config_file(op->client_cfg_file);
+        try {
+            fl.load_client_config_file(op->client_cfg_file);
+        } catch (const std::runtime_error &e) {
+            std::cout << "\n*** " << e.what() << "\n\n";
+            exit(-1);
+        }
         CGlobalInfo::m_options.preview.set_client_cfg_enable(true);
     }
 
@@ -609,5 +614,10 @@ int merge_2_cap_files_sip() {
 int
 SimStateful::run() {
     assert( CMsgIns::Ins()->Create(4) );
-    return load_list_of_cap_files(&CGlobalInfo::m_options);
+    try {
+        return load_list_of_cap_files(&CGlobalInfo::m_options);
+    } catch (const std::runtime_error &e) {
+        std::cout << "\n*** " << e.what() << "\n\n";
+        exit(-1);
+    }
 }

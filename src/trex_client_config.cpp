@@ -70,10 +70,8 @@ ClientCfgDB::load_yaml_file(const std::string &filename) {
     m_groups.clear();
     m_cache_group = NULL;
 
-    m_filename = filename;
-
     if (!utl_is_file_exists(filename)){
-        ss << "*** file '" << filename << "' does not exists";
+        ss << "file '" << filename << "' does not exists";
         throw std::runtime_error(ss.str());
     }
 
@@ -85,12 +83,11 @@ ClientCfgDB::load_yaml_file(const std::string &filename) {
     try {
         base_parser.GetNextDocument(root);
     } catch (const std::runtime_error &ex) {
-        throw std::runtime_error("*** failed to parse client config file '" + filename + "'\n  " + std::string(ex.what()));
-
+        throw std::runtime_error("failed to parse client config file '" + filename + "'\n  " + std::string(ex.what()));
     }
 
     /* wrapper parser */
-    YAMLParserWrapper parser(m_filename);
+    YAMLParserWrapper parser(filename);
 
     /* parse globals */
     m_under_vlan = parser.parse_bool(root, "vlan");

@@ -322,7 +322,7 @@ void
 YAMLParserWrapper::parse_err(const std::string &err, const YAML::Node &node) const {
     std::stringstream ss;
 
-    ss << "\n*** '" << m_header << "' - YAML parsing error at line " << node.GetMark().line << ": ";
+    ss << "'" << m_header << "' - YAML parsing error at line " << node.GetMark().line << ": ";
     ss << err;
 
     throw std::runtime_error(ss.str());
@@ -332,7 +332,7 @@ void
 YAMLParserWrapper::parse_err(const std::string &err) const {
     std::stringstream ss;
 
-    ss << "\n*** '" << m_header << "' - YAML parsing error: " << err;
+    ss << "'" << m_header << "' - YAML parsing error: " << err;
 
     throw std::runtime_error(ss.str());
 }

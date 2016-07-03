@@ -4399,12 +4399,7 @@ void CFlowGenList::clean_p_thread_info(void){
 }
 
 int CFlowGenList::load_client_config_file(std::string file_name) {
-    try {
-        m_client_config_info.load_yaml_file(file_name);
-    } catch (const std::exception& e) {
-        std::cout << e.what() << "\n";
-        exit(-1);
-    }
+    m_client_config_info.load_yaml_file(file_name);
     return (0);
 }
 
