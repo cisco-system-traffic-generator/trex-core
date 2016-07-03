@@ -39,13 +39,18 @@ bool utl_yaml_read_uint16(const YAML::Node& node,
                           const std::string &name,
                           uint16_t & val);
 
-
 /* a thin wrapper to customize errors */
 class YAMLParserWrapper {
 public:
     /* a header that will start every error message */
-    YAMLParserWrapper(const std::string &header) : m_header(header) {
+    YAMLParserWrapper(const std::string &filename) : m_filename(filename) {
     }
+
+    /**
+     * loads the file (while parsing it)
+     * 
+     */
+    void load(YAML::Node &root);
 
     /* bool */
     bool parse_bool(const YAML::Node &node, const std::string &name);
@@ -69,6 +74,6 @@ public:
 
     
 private:
-    std::string m_header;
+    std::string m_filename;
 };
 #endif

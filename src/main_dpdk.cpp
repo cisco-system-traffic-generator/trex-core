@@ -1732,7 +1732,9 @@ public:
     virtual void flush_dp_rx_queue(void);
     virtual int flush_tx_queue(void);
     __attribute__ ((noinline)) void flush_rx_queue();
-    __attribute__ ((noinline)) void apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
+    __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
+
+    void apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
 
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
@@ -2146,8 +2148,29 @@ void CCoreEthIF::add_vlan(rte_mbuf_t *m, uint16_t vlan_id) {
     m->vlan_tci = vlan_id;
 }
 
+/**
+ * slow path features goes here (avoid multiple IFs)
+ * 
+ */
+void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir) {
+
+  
+    /* MAC ovverride */
+    if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_overide_enable() ) ) {
+        /* client side */
+        if ( node->is_initiator_pkt() ) {
+            *((uint32_t*)(p+6)) = PKT_NTOHL(node->m_src_ip);
+        }
+    }
+
+    /* flag is faster than checking the node pointer (another cacheline) */
+    if ( unlikely(CGlobalInfo::m_options.preview.get_is_client_cfg_enable() ) ) {
+        apply_client_cfg(node->m_client_cfg, m, dir, p);
+    }
+
+}
+
 int CCoreEthIF::send_node(CGenNode * node) {
-     
 
     if ( unlikely( node->get_cache_mbuf() !=NULL ) ) {
         pkt_dir_t       dir;
@@ -2170,6 +2193,7 @@ int CCoreEthIF::send_node(CGenNode * node) {
     dir         = node->cur_interface_dir();
     single_port = node->get_is_all_flow_from_same_dir() ;
 
+   
     if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
         /* which vlan to choose 0 or 1*/
         uint8_t vlan_port = (node->m_src_ip &1);
@@ -2200,18 +2224,12 @@ int CCoreEthIF::send_node(CGenNode * node) {
     
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
-    if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_overide_enable() ) ) {
-        /* client side */
-        if ( node->is_initiator_pkt() ) {
-            *((uint32_t*)(p+6)) = PKT_NTOHL(node->m_src_ip);
-        }
+     /* when slowpath features are on */
+    if ( unlikely( CGlobalInfo::m_options.preview.get_is_slowpath_features_on() ) ) {
+        handle_slowpath_features(node, m, p, dir);
     }
 
-    /* flag is faster than checking the node pointer (another cacheline) */
-    if ( unlikely(CGlobalInfo::m_options.preview.get_is_client_cfg_enable() ) ) {
-        apply_client_cfg(node->m_client_cfg, m, dir, p);
-    }
-
+   
     if ( unlikely( node->is_rx_check_enabled() ) ) {
         lp_stats->m_tx_rx_check_pkt++;
         lp->do_generate_new_mbuf_rxcheck(m, node, single_port);

@@ -22,6 +22,8 @@ limitations under the License.
 */
 
 #include <istream>
+#include <fstream>
+#include "common/basic_utils.h"
 
 #define INADDRSZ 4
 
@@ -157,6 +159,27 @@ static bool mac2uint64(const std::string &mac_str, uint64_t &mac_num) {
  * YAML Parser Wrapper
  *
  ***********************/
+void
+YAMLParserWrapper::load(YAML::Node &root) {
+    std::stringstream ss;
+
+    /* first check file exists */
+    if (!utl_is_file_exists(m_filename)){
+        ss << "file '" << m_filename << "' does not exists";
+        throw std::runtime_error(ss.str());
+    }
+
+    std::ifstream fin(m_filename);
+
+    try {
+        YAML::Parser base_parser(fin);
+        base_parser.GetNextDocument(root);
+
+    } catch (const YAML::Exception &e) {
+        parse_err(e.what());
+    }
+}
+
 bool
 YAMLParserWrapper::parse_bool(const YAML::Node &node, const std::string &name, bool def) {
     if (!node.FindValue(name)) {
@@ -322,7 +345,7 @@ void
 YAMLParserWrapper::parse_err(const std::string &err, const YAML::Node &node) const {
     std::stringstream ss;
 
-    ss << "'" << m_header << "' - YAML parsing error at line " << node.GetMark().line << ": ";
+    ss << "'" << m_filename << "' - YAML parsing error at line " << node.GetMark().line << ": ";
     ss << err;
 
     throw std::runtime_error(ss.str());
@@ -332,7 +355,7 @@ void
 YAMLParserWrapper::parse_err(const std::string &err) const {
     std::stringstream ss;
 
-    ss << "'" << m_header << "' - YAML parsing error: " << err;
+    ss << "'" << m_filename << "' - YAML parsing error: " << err;
 
     throw std::runtime_error(ss.str());
 }

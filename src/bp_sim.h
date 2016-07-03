@@ -629,6 +629,9 @@ public:
 
     void set_mac_ip_overide_enable(bool enable){
         btSetMaskBit32(m_flags,30,30,enable?1:0);
+        if (enable) {
+            set_slowpath_features_on(enable);
+        }
     }
 
     bool get_is_rx_check_enable(){
@@ -653,6 +656,9 @@ public:
 
     void set_client_cfg_enable(bool enable){
         btSetMaskBit32(m_flags1, 1, 1, enable ? 1 : 0);
+        if (enable) {
+            set_slowpath_features_on(enable);
+        }
     }
 
    
