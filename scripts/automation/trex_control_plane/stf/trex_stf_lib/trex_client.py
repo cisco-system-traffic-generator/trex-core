@@ -535,7 +535,7 @@ class CTRexClient(object):
             finally:
                 self.prompt_verbose_data()
 
-    def sample_until_condition (self, condition_func, time_between_samples = 5):
+    def sample_until_condition (self, condition_func, time_between_samples = 1):
         """
         Automatically sets ongoing sampling of TRex data, with sampling rate described by time_between_samples.
 
@@ -549,7 +549,7 @@ class CTRexClient(object):
             time_between_samples : int
                 determines the time between each sample of the server
 
-                default value : **5**
+                default value : **1**
 
         :return: 
             the first result object (see :class:`CTRexResult` for further details) of the TRex run on which the condition has been met.
@@ -579,7 +579,7 @@ class CTRexClient(object):
             # this could come from provided method 'condition_func'
             raise
 
-    def sample_to_run_finish (self, time_between_samples = 5):
+    def sample_to_run_finish (self, time_between_samples = 1):
         """
         Automatically sets automatically sampling of TRex data with sampling rate described by time_between_samples until TRex run finished.
 
@@ -587,7 +587,7 @@ class CTRexClient(object):
             time_between_samples : int
                 determines the time between each sample of the server
 
-                default value : **5**
+                default value : **1**
 
         :return: 
             the latest result object (see :class:`CTRexResult` for further details) with sampled data.
@@ -609,7 +609,7 @@ class CTRexClient(object):
         results = self.get_result_obj()
         return results
             
-    def sample_x_seconds (self, sample_time, time_between_samples = 5):
+    def sample_x_seconds (self, sample_time, time_between_samples = 1):
         """
         Automatically sets ongoing sampling of TRex data for sample_time seconds, with sampling rate described by time_between_samples.
         Does not stop the TRex afterwards!
@@ -623,7 +623,7 @@ class CTRexClient(object):
             time_between_samples : int
                 determines the time between each sample of the server
 
-                default value : **5**
+                default value : **1**
 
         :return:
             the first result object (see :class:`CTRexResult` for further details) of the TRex run after given sample_time.
@@ -1271,7 +1271,7 @@ class CTRexResult(object):
                 .. tip:: | Use '.' to enter one level deeper in dictionary hierarchy. 
                          | Use '[i]' to access the i'th indexed object of an array.
 
-            tree_path_to_key : regex
+            regex : regex
                 apply a regex to filter results out from a multiple results set.
 
                 Filter applies only on keys of dictionary type.
@@ -1299,7 +1299,7 @@ class CTRexResult(object):
                 .. tip:: | Use '.' to enter one level deeper in dictionary hierarchy. 
                          | Use '[i]' to access the i'th indexed object of an array.
 
-            tree_path_to_key : regex
+            regex : regex
                 apply a regex to filter results out from a multiple results set.
 
                 Filter applies only on keys of dictionary type.
@@ -1352,7 +1352,7 @@ class CTRexResult(object):
 
         if not len(self._history):
             return -1
-        return len(self.__get_value_by_path(self._history[-1], 'trex-global.data', 'opackets-\d+'))
+        return len(self.get_last_value('trex-global.data', 'opackets-\d+'))
 
 
     def update_result_data (self, latest_dump):
@@ -1383,6 +1383,7 @@ class CTRexResult(object):
                 # check for up to 2% change between expected and actual
                 if (self._current_tx_rate['m_tx_bps'] > 0.98 * self._expected_tx_rate['m_tx_expected_bps']):
                     self._done_warmup = True
+                    latest_dump['warmup_barrier'] = True
 
             # handle latency data
             if self.latency_checked:
@@ -1427,12 +1428,12 @@ class CTRexResult(object):
             for i, p in re.findall(r'(\d+)|([\w|-]+)', tree_path):
                 dct = dct[p or int(i)]
             if regex is not None and isinstance(dct, dict):
-            	res = {}
-            	for key,val in dct.items():
-            		match = re.match(regex, key)
-            		if match:
-            			res[key]=val
-            	return res
+                res = {}
+                for key,val in dct.items():
+                    match = re.match(regex, key)
+                    if match:
+                        res[key]=val
+                return res
             else:
                return dct
         except (KeyError, TypeError):
@@ -1480,22 +1481,59 @@ class CTRexResult(object):
     @staticmethod
     def __get_filtered_max_latency (src_dict, filtered_latency_amount = 0.001):
         result = {}
-        for port, data in src_dict.items():
-            if not port.startswith('port-'):
-                continue
-            max_port = 'max-%s' % port[5:]
-            res = data['hist']
-            if not len(res['histogram']):
-                result[max_port] = 0
-                continue
-            result[max_port] = 5 # if sum below will not get to filtered amount, use this value
-            sum_high = 0.0
-            for elem in reversed(res['histogram']):
-                sum_high += elem['val']
-                if sum_high >= filtered_latency_amount * res['cnt']:
-                    result[max_port] = elem['key'] + int('5' + repr(elem['key'])[2:])
-                    break
+        if src_dict:
+            for port, data in src_dict.items():
+                if not port.startswith('port-'):
+                    continue
+                max_port = 'max-%s' % port[5:]
+                res = data['hist']
+                if not len(res['histogram']):
+                    result[max_port] = 0
+                    continue
+                result[max_port] = 5 # if sum below will not get to filtered amount, use this value
+                sum_high = 0.0
+                for elem in reversed(res['histogram']):
+                    sum_high += elem['val']
+                    if sum_high >= filtered_latency_amount * res['cnt']:
+                        result[max_port] = elem['key'] + int('5' + repr(elem['key'])[2:])
+                        break
         return result
+
+
+    # history iterator after warmup period
+    def _get_steady_state_history_iterator(self):
+        if not self.is_done_warmup():
+            raise Exception('Warm-up period not finished')
+        for index, res in enumerate(self._history):
+            if 'warmup_barrier' in res:
+                for steady_state_index in range(index, max(index, len(self._history) - 1)):
+                    yield self._history[steady_state_index]
+                return
+        for index in range(len(self._history) - 1):
+            yield self._history[index]
+
+
+    def get_avg_steady_state_value(self, tree_path_to_key):
+        '''
+        Gets average value after warmup period.
+        For example: <result object>.get_avg_steady_state_value('trex-global.data.m_tx_bps')
+        Usually more accurate than latest history value.
+
+        :parameters:
+            tree_path_to_key : str
+                defines a path to desired data.
+
+        :return: 
+            average value at steady state
+
+        :raises:
+            Exception in case steady state period was not reached or tree_path_to_key was not found in result.
+        '''
+        values_arr = [self.__get_value_by_path(res, tree_path_to_key) for res in self._get_steady_state_history_iterator()]
+        values_arr = list(filter(lambda x: x is not None, values_arr))
+        if not values_arr:
+            raise Exception('All the keys are None, probably wrong tree_path_to_key: %s' % tree_path_to_key)
+        return sum(values_arr) / float(len(values_arr))
 
 
 if __name__ == "__main__":
