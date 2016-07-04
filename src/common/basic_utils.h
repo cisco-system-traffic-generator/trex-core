@@ -87,6 +87,16 @@ void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output);
 
 std::string utl_generate_random_str(unsigned int &seed, int len);
 
+/**
+ * define the coredump size 
+ * allowed when crashing 
+ * 
+ * @param size - -1 means unlimited
+ * @param map_huge_pages - should the core map the huge TLB 
+ *                       pages
+ */
+void utl_set_coredump_size(long size, bool map_huge_pages = false);
+
 #endif
 
 

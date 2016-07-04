@@ -256,7 +256,23 @@ void on_node_last(uint8_t plugin_id,CGenNode *     node);
 rte_mbuf_t * on_node_generate_mbuf(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info);
 
 class CPreviewMode ;
-struct CGenNode;
+
+class CLatencyPktData {
+ public:
+    CLatencyPktData() {m_magic = 0xaa;}
+    inline uint32_t get_seq_num() {return m_seq_num;}
+    inline void inc_seq_num() {m_seq_num++;}
+    inline uint32_t get_magic() {return m_magic;}
+    void reset() {
+        m_seq_num = UINT32_MAX - 1; // catch wrap around issues early
+        m_magic++;
+    }
+
+ private:
+    uint32_t m_seq_num;  // seq num to put in packet for payload rules
+    uint16_t m_magic;  // magic to put in packet for payload rules
+};
+
 /* represent the virtual interface
 */
 
@@ -275,7 +291,7 @@ public:
     uint64_t   m_tx_queue_full;
     uint64_t   m_tx_alloc_error;
     tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD];
-    uint32_t   m_seq_num[MAX_FLOW_STATS_PAYLOAD]; // seq num to put in packet for payload rules
+    CLatencyPktData m_lat_data[MAX_FLOW_STATS_PAYLOAD];
     CPerTxthreadTemplateInfo m_template;
 
 public:
@@ -299,12 +315,14 @@ public:
        m_tx_queue_full=0;
        m_template.Clear();
        for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
-           m_seq_num[i] = UINT32_MAX - 1; // catch wrap around issues early
+           m_lat_data[i].reset();
+       }
+       for (int i = 0; i < sizeof(m_tx_per_flow) / sizeof(m_tx_per_flow[0]); i++) {
+           m_tx_per_flow[i].clear();
        }
     }
 
     inline void Dump(FILE *fd);
-
 };
 
 
@@ -679,7 +697,13 @@ public:
         return (btGetMaskBit32(m_flags1,6,6) ? true:false);
     }
 
+    void setCoreDumpEnable(bool enable) {
+        btSetMaskBit32(m_flags1, 7, 7, (enable ? 1 : 0) );
+    }
 
+    bool getCoreDumpEnable(){
+        return (btGetMaskBit32(m_flags1, 7, 7) ? true : false);
+    }
 
 public:
     void Dump(FILE *fd);

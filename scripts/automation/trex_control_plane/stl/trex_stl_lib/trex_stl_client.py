@@ -1287,18 +1287,20 @@ class STLClient(object):
 
             **total** and per port statistics contain dictionary with following format.
 
+            Most of the bytes counters (unless  specified otherwise) are in L2 layer including the FCS. e.g. minimum packet size in 64 bytes
+
             ===============================  ===============
             key                               Meaning
             ===============================  ===============
-            ibytes                           Number of input bytes
+            ibytes                           Number of input bytes 
             ierrors                          Number of input errors
-            ipackets                         Number of input packets
-            obytes                           Number of output bytes
+            ipackets                         Number of input packets 
+            obytes                           Number of output bytes  
             oerrors                          Number of output errors
             opackets                         Number of output packets
-            rx_bps                           Receive bytes per second rate
+            rx_bps                           Receive bytes per second rate (L2 layer)
             rx_pps                           Receive packet per second rate
-            tx_bps                           Transmit bytes per second rate
+            tx_bps                           Transmit bytes per second rate (L2 layer)
             tx_pps                           Transmit packet per second rate
             ===============================  ===============
 
@@ -1330,8 +1332,8 @@ class STLClient(object):
             =================   ===============
             bw_per_core         Estimated byte rate Trex can support per core. This is calculated by extrapolation of current rate and load on transmitting cores.
             cpu_util            Estimate of the average utilization percentage of the transimitting cores
-            queue_full          Total number of packets we could not transmit because NIC TX queue was full. This usually indicates that the rate we trying to transmit is too high for this port
-            rx_cpu_util         Estimate of the utilization percentage of the core handling RX traffic
+            queue_full          Total number of packets transmitted while the NIC TX queue was full. The packets will be transmitted, eventually, but will create high CPU%due to polling the queue.  This usually indicates that the rate we trying to transmit is too high for this port. 
+            rx_cpu_util         Estimate of the utilization percentage of the core handling RX traffic. Too high value of this CPU utilization could cause drop of latency streams. 
             rx_drop_bps         Received bytes per second drop rate
             rx_bps              Received bytes per second rate
             rx_pps              Received packets per second rate
@@ -1359,7 +1361,7 @@ class STLClient(object):
             =================   ===============
             key                 Meaning (see better explanation below the table)
             =================   ===============
-            dropped             How many packets were dropped.
+            dropped             How many packets were dropped (estimation)
             dup                 How many packets were duplicated.
             out_of_order        How many packets we received out of order.
             seq_too_high        How many events of packet with sequence number too high we saw.
@@ -1387,10 +1389,10 @@ class STLClient(object):
             =================   ===============
             key                 Meaning
             =================   ===============
-            average             Average latency over the stream lifetime (usec). Total average is computed each sampling period by following formula: <average> = <prev average>/2 + <last sampling period average>/2
+            average             Average latency over the stream lifetime (usec).Low pass filter is applied to the last window average.It is computed each sampling period by following formula: <average> = <prev average>/2 + <last sampling period average>/2
             histogram           Dictionary describing logarithmic distribution histogram of packet latencies. Keys in the dictionary represent range of latencies (in usec). Values are the total number of packets received in this latency range. For example, an entry {100:13} would mean that we saw 13 packets with latency in the range between 100 and 200 usec.
             jitter              Jitter of latency samples, computed as described in :rfc:`3550#appendix-A.8`
-            last_max            Maximum latency measured between last two data reads from server.
+            last_max            Maximum latency measured between last two data reads from server (0.5 sec window).
             total_max           Maximum latency measured over the stream lifetime (in usec).
             total_min           Minimum latency measured over the stream lifetime (in usec).
             =================   ===============

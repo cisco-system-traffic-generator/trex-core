@@ -1,6 +1,9 @@
 #!/bin/bash
 
-INPUT_ARGS=${@//--python[23]/}
+ARGS=()
+for var in "$@"; do
+    [[ "$var" != '--python2' && "$var" != '--python3' ]] && ARGS+=("$var")
+done
 
 if [[ $@ =~ '--python2' || ! $@ =~ '--python3' ]]; then
     source find_python.sh --python2
@@ -8,7 +11,7 @@ if [[ $@ =~ '--python2' || ! $@ =~ '--python3' ]]; then
 
     # Python 2
     echo Python2 test
-    $PYTHON trex_unit_test.py $INPUT_ARGS
+    $PYTHON trex_unit_test.py "${ARGS[@]}"
     if [ $? -eq 0 ]; then
         printf "\n$PYTHON test succeeded\n\n"
     else
@@ -24,7 +27,7 @@ if [[ $@ =~ '--python3' ]]; then
 
     # Python 3
     echo Python3 test
-    $PYTHON trex_unit_test.py $INPUT_ARGS
+    $PYTHON trex_unit_test.py "${ARGS[@]}"
     if [ $? -eq 0 ]; then
         printf "\n$PYTHON test succeeded\n\n"
     else
