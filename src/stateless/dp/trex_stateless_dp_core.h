@@ -114,7 +114,7 @@ class TrexStatelessDpCore {
 
 public:
 
-    #define SCHD_OFFSET_DTIME  (10.0/1000000.0)
+    #define SCHD_OFFSET_DTIME  (100.0/1000000.0)
     
     /* states */
     enum state_e {

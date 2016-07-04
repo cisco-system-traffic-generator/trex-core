@@ -29,15 +29,15 @@
 
 void CRFC2544Info::create() {
     m_latency.Create();
-    m_exp_magic = 0;
-    m_prev_magic = 0;
+    m_exp_flow_seq = 0;
+    m_prev_flow_seq = 0;
     reset();
 }
 
 // after calling stop, packets still arriving will be considered error
 void CRFC2544Info::stop() {
-    m_prev_magic = m_exp_magic;
-    m_exp_magic = FLOW_STAT_PAYLOAD_MAGIC_NONE;
+    m_prev_flow_seq = m_exp_flow_seq;
+    m_exp_flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
 }
 
 void CRFC2544Info::reset() {
@@ -195,82 +195,96 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
         if (parser.get_ip_id(ip_id) == 0) {
             if (is_flow_stat_id(ip_id)) {
                 uint16_t hw_id;
-                bool good_packet = true;
+
                 if (is_flow_stat_payload_id(ip_id)) {
+                    bool good_packet = true;
                     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
                     struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
                         (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
                     hw_id = fsp_head->hw_id;
-                    CRFC2544Info &curr_rfc2544 = m_rfc2544[hw_id];
-                    if (unlikely(fsp_head->magic != curr_rfc2544.get_exp_magic())) {
-                        // bad magic.
-                        // Might be the first packet of a new flow, packet from an old flow or just garbage.
-                        if (fsp_head->magic == curr_rfc2544.get_prev_magic()) {
-                            // packet from previous flow using this hw_id that arrived late
-                            good_packet = false;
-                        } else {
-                            if (curr_rfc2544.no_magic()) {
-                                // first packet we see from this flow
-                                good_packet = true;
-                                curr_rfc2544.set_exp_magic(fsp_head->magic);
-                            } else {
-                                // garbage packet
+                    CRFC2544Info *curr_rfc2544;
+
+                    if (unlikely(fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC) || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
+                        good_packet = false;
+                        m_err_cntrs.m_bad_header++;
+                    } else {
+                        curr_rfc2544 = &m_rfc2544[hw_id];
+
+                        if (fsp_head->flow_seq != curr_rfc2544->get_exp_flow_seq()) {
+                            // bad flow seq num
+                            // Might be the first packet of a new flow, packet from an old flow, or garbage.
+
+                            if (fsp_head->flow_seq == curr_rfc2544->get_prev_flow_seq()) {
+                                // packet from previous flow using this hw_id that arrived late
                                 good_packet = false;
+                                m_err_cntrs.m_old_flow++;
+                            } else {
+                                if (curr_rfc2544->no_flow_seq()) {
+                                    // first packet we see from this flow
+                                    good_packet = true;
+                                    curr_rfc2544->set_exp_flow_seq(fsp_head->flow_seq);
+                                } else {
+                                    // garbage packet
+                                    good_packet = false;
+                                    m_err_cntrs.m_bad_header++;
+                                }
                             }
                         }
                     }
 
                     if (good_packet) {
                         uint32_t pkt_seq = fsp_head->seq;
-                        uint32_t exp_seq = curr_rfc2544.get_seq();
+                        uint32_t exp_seq = curr_rfc2544->get_seq();
                         if (unlikely(pkt_seq != exp_seq)) {
                             if (pkt_seq < exp_seq) {
                                 if (exp_seq - pkt_seq > 100000) {
                                     // packet loss while we had wrap around
-                                    curr_rfc2544.inc_seq_err(pkt_seq - exp_seq);
-                                    curr_rfc2544.inc_seq_err_too_big();
-                                    curr_rfc2544.set_seq(pkt_seq + 1);
+                                    curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
+                                    curr_rfc2544->inc_seq_err_too_big();
+                                    curr_rfc2544->set_seq(pkt_seq + 1);
                                 } else {
                                     if (pkt_seq == (exp_seq - 1)) {
-                                        curr_rfc2544.inc_dup();
+                                        curr_rfc2544->inc_dup();
                                     } else {
-                                        curr_rfc2544.inc_ooo();
+                                        curr_rfc2544->inc_ooo();
                                         // We thought it was lost, but it was just out of order
-                                        curr_rfc2544.dec_seq_err();
+                                        curr_rfc2544->dec_seq_err();
                                     }
-                                    curr_rfc2544.inc_seq_err_too_low();
+                                    curr_rfc2544->inc_seq_err_too_low();
                                 }
                             } else {
                                 if (unlikely (pkt_seq - exp_seq > 100000)) {
                                     // packet reorder while we had wrap around
                                     if (pkt_seq == (exp_seq - 1)) {
-                                        curr_rfc2544.inc_dup();
+                                        curr_rfc2544->inc_dup();
                                     } else {
-                                        curr_rfc2544.inc_ooo();
+                                        curr_rfc2544->inc_ooo();
                                         // We thought it was lost, but it was just out of order
-                                        curr_rfc2544.dec_seq_err();
+                                        curr_rfc2544->dec_seq_err();
                                     }
-                                    curr_rfc2544.inc_seq_err_too_low();
+                                    curr_rfc2544->inc_seq_err_too_low();
                                 } else {
-                                // seq > curr_rfc2544.seq. Assuming lost packets
-                                    curr_rfc2544.inc_seq_err(pkt_seq - exp_seq);
-                                    curr_rfc2544.inc_seq_err_too_big();
-                                    curr_rfc2544.set_seq(pkt_seq + 1);
+                                // seq > curr_rfc2544->seq. Assuming lost packets
+                                    curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
+                                    curr_rfc2544->inc_seq_err_too_big();
+                                    curr_rfc2544->set_seq(pkt_seq + 1);
                                 }
                             }
                         } else {
-                            curr_rfc2544.set_seq(pkt_seq + 1);
+                            curr_rfc2544->set_seq(pkt_seq + 1);
                         }
                         lp->m_port.m_rx_pg_stat_payload[hw_id].add_pkts(1);
                         lp->m_port.m_rx_pg_stat_payload[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
                         uint64_t d = (os_get_hr_tick_64() - fsp_head->time_stamp );
                         dsec_t ctime = ptime_convert_hr_dsec(d);
-                        curr_rfc2544.add_sample(ctime);
+                        curr_rfc2544->add_sample(ctime);
                     }
                 } else {
                     hw_id = get_hw_id(ip_id);
-                    lp->m_port.m_rx_pg_stat[hw_id].add_pkts(1);
-                    lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
+                    if (hw_id < MAX_FLOW_STATS) {
+                        lp->m_port.m_rx_pg_stat[hw_id].add_pkts(1);
+                        lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
+                    }
                 }
             }
         }
@@ -428,6 +442,11 @@ int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, in
             curr_rfc2544.reset();
         }
     }
+    return 0;
+}
+
+int CRxCoreStateless::get_rx_err_cntrs(CRxCoreErrCntrs *rx_err) {
+    *rx_err = m_err_cntrs;
     return 0;
 }
 

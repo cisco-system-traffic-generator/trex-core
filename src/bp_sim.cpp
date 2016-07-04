@@ -748,9 +748,8 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," 1g mode         : %d\n", (int)get_1g_mode() );
     fprintf(fd," zmq_publish     : %d\n", (int)get_zmq_publish_enable() );
     fprintf(fd," vlan_enable     : %d\n", (int)get_vlan_mode_enable() );
+    fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
     fprintf(fd," mbuf_cache_disable  : %d\n", (int)isMbufCacheDisabled() );
-    fprintf(fd," mac_ip_features : %d\n", (int)get_mac_ip_features_enable()?1:0 );
-    fprintf(fd," mac_ip_map : %d\n", (int)get_mac_ip_mapping_enable()?1:0 );
     fprintf(fd," vm mode         : %d\n", (int)get_vm_one_queue_enable()?1:0 );
 }
 
@@ -2426,26 +2425,6 @@ void CCapFileFlowInfo::Delete(){
     RemoveAll();
 }
 
-void operator >> (const YAML::Node& node, mac_mapping_t &fi) {
-    utl_yaml_read_ip_addr(node,"ip", fi.ip);
-    const YAML::Node& mac_info = node["mac"];
-    for(unsigned i=0;i<mac_info.size();i++) {
-        const YAML::Node & node_2 =mac_info;
-        uint32_t value;
-        node_2[i]  >> value;
-        fi.mac.mac[i] = value;
-    }
-}
-
-void operator >> (const YAML::Node& node, std::map<uint32_t, mac_addr_align_t> &mac_info) {
-    const YAML::Node& mac_node = node["items"];
-    mac_mapping_t mac_mapping;
-    for (unsigned i=0;i<mac_node.size();i++) {
-        mac_node[i] >> mac_mapping;
-        mac_info[mac_mapping.ip] = mac_mapping.mac;
-    }
-}
-
 void operator >> (const YAML::Node& node, CFlowYamlDpPkt & fi) {
     uint32_t val;
     node["pkt_id"]      >> val;
@@ -3325,7 +3304,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     /* split the clients to threads */
     CTupleGenYamlInfo * tuple_gen = &m_flow_list->m_yaml_info.m_tuple_gen;
 
-    m_smart_gen.Create(0,m_thread_id,m_flow_list->get_is_mac_conf());
+    m_smart_gen.Create(0,m_thread_id);
 
     /* split the clients to threads using the mask */
     CIpPortion  portion;
@@ -3335,14 +3314,14 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                   portion);
 
         m_smart_gen.add_client_pool(tuple_gen->m_client_pool[i].m_dist,
-                        portion.m_ip_start,
-                        portion.m_ip_end,
-                        get_longest_flow(i,true),
-                        get_total_kcps(i,true)*1000,
-                        &m_flow_list->m_mac_info,
-                        tuple_gen->m_client_pool[i].m_tcp_aging_sec,
-                        tuple_gen->m_client_pool[i].m_udp_aging_sec
-                        );
+                                    portion.m_ip_start,
+                                    portion.m_ip_end,
+                                    get_longest_flow(i,true),
+                                    get_total_kcps(i,true)*1000,
+                                    m_flow_list->m_client_config_info,
+                                    tuple_gen->m_client_pool[i].m_tcp_aging_sec,
+                                    tuple_gen->m_client_pool[i].m_udp_aging_sec
+                                    );
     }
     for (int i=0;i<tuple_gen->m_server_pool.size();i++) {
         split_ips(m_thread_id, m_max_threads, getDualPortId(),
@@ -4294,12 +4273,19 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         fprintf(stderr," nothing to generate no template loaded \n");
         return;
     }
+    
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
     dsec_t d_time_flow=get_delta_flow_is_sec();
-    m_cur_time_sec =  0.01+m_thread_id*m_flow_list->get_delta_flow_is_sec();
+
+    m_cur_time_sec =  0.01 + m_thread_id*m_flow_list->get_delta_flow_is_sec();
+
+
     if ( CGlobalInfo::is_realtime()  ){
-        m_cur_time_sec += now_sec() + 0.5 ;
+        if (m_cur_time_sec > 0.2 ) {
+            m_cur_time_sec =  0.01 + m_thread_id*0.01;
+        }
+        m_cur_time_sec += now_sec() + 0.1 ;
     }
     dsec_t c_stop_sec = m_cur_time_sec + m_yaml_info.m_duration_sec;
     m_stop_time_sec =c_stop_sec;
@@ -4389,31 +4375,10 @@ void CFlowGenList::clean_p_thread_info(void){
     m_threads_info.clear();
 }
 
-
-
-int CFlowGenList::load_from_mac_file(std::string file_name) {
-    if ( !utl_is_file_exists (file_name)  ){
-         printf(" ERROR no mac_file is set,  file %s does not exist \n",file_name.c_str());
-         exit(-1);
-     }
-    m_mac_info.set_configured(true);
-
-     try {
-        std::ifstream fin((char *)file_name.c_str());
-        YAML::Parser parser(fin);
-        YAML::Node doc;
-
-        parser.GetNextDocument(doc);
-        doc[0] >> m_mac_info.get_mac_info();
-     } catch ( const std::exception& e ) {
-         std::cout << e.what() << "\n";
-         m_mac_info.clear();
-         exit(-1);
-     }
-
-     return (0);
+int CFlowGenList::load_client_config_file(std::string file_name) {
+    m_client_config_info.load_yaml_file(file_name);
+    return (0);
 }
-
 
 int CFlowGenList::load_from_yaml(std::string file_name,
                                  uint32_t num_threads){
@@ -4735,21 +4700,20 @@ bool CParserOption::is_valid_opt_val(int val, int min, int max, const std::strin
 
 void CParserOption::dump(FILE *fd){
     preview.Dump(fd);
-    fprintf(fd," cfg file    : %s \n",cfg_file.c_str());
-    fprintf(fd," mac file    : %s \n",mac_file.c_str());
-    fprintf(fd," out file    : %s \n",out_file.c_str());
-    fprintf(fd," duration    : %.0f \n",m_duration);
-    fprintf(fd," factor      : %.0f \n",m_factor);
-    fprintf(fd," mbuf_factor : %.0f \n",m_mbuf_factor);
-    fprintf(fd," latency     : %d pkt/sec \n",m_latency_rate);
-    fprintf(fd," zmq_port    : %d \n",m_zmq_port);
-    fprintf(fd," telnet_port : %d \n",m_telnet_port);
-    fprintf(fd," expected_ports : %d \n",m_expected_portd);
+    fprintf(fd," cfg file        : %s \n",cfg_file.c_str());
+    fprintf(fd," mac file        : %s \n",client_cfg_file.c_str());
+    fprintf(fd," out file        : %s \n",out_file.c_str());
+    fprintf(fd," client cfg file : %s \n",out_file.c_str());
+    fprintf(fd," duration        : %.0f \n",m_duration);
+    fprintf(fd," factor          : %.0f \n",m_factor);
+    fprintf(fd," mbuf_factor     : %.0f \n",m_mbuf_factor);
+    fprintf(fd," latency         : %d pkt/sec \n",m_latency_rate);
+    fprintf(fd," zmq_port        : %d \n",m_zmq_port);
+    fprintf(fd," telnet_port     : %d \n",m_telnet_port);
+    fprintf(fd," expected_ports  : %d \n",m_expected_portd);
     if (preview.get_vlan_mode_enable() ) {
-       fprintf(fd," vlans       : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
+       fprintf(fd," vlans     : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
     }
-   fprintf(fd," mac spreading: %d \n",(int)m_mac_splitter);
-
 
     int i;
     for (i = 0; i < TREX_MAX_PORTS; i++) {
@@ -4759,6 +4723,15 @@ void CParserOption::dump(FILE *fd){
         fprintf(fd,"  src:");
         dump_mac_addr(fd,lp->u.m_mac.src);
         fprintf(fd,"\n");
+    }
+}
+
+void CParserOption::verify() {
+    /* check for mutual exclusion options */
+    if (preview.get_is_client_cfg_enable()) {
+        if (preview.get_vlan_mode_enable() || preview.get_mac_ip_overide_enable()) {
+            throw std::runtime_error("VLAN / MAC override cannot be combined with client configuration");
+        }
     }
 }
 
@@ -4993,6 +4966,7 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
             fsp_head->seq = 0x12345678;
             fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
             fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+            fsp_head->flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
             fsp_head->time_stamp = 0x8899aabbccddeeff;
             fill_raw_packet(mi, (CGenNode *)node_sl, dir);
             rte_pktmbuf_free(mi);
@@ -5047,37 +5021,68 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
     return (0);
 }
 
+void CErfIF::add_vlan(uint16_t vlan_id) {
+    uint8_t *buffer =(uint8_t *)m_raw->raw;
 
+    uint16_t vlan_protocol = EthernetHeader::Protocol::VLAN;
+    uint32_t vlan_tag = (vlan_protocol << 16) | vlan_id;
+    vlan_tag = PKT_HTONL(vlan_tag);
 
-int CErfIF::send_node(CGenNode * node){
+    /* insert vlan tag and adjust packet size */
+    memcpy(cbuff+4, buffer + 12, m_raw->pkt_len - 12);
+    memcpy(cbuff, &vlan_tag, 4);
+    memcpy(buffer + 12, cbuff, m_raw->pkt_len - 8);
 
-    if ( m_preview_mode->getFileWrite() ){
+    m_raw->pkt_len += 4;
+}
 
-    CFlowPktInfo * lp=node->m_pkt_info;
-    rte_mbuf_t * m=lp->generate_new_mbuf(node);
-    pkt_dir_t dir=node->cur_interface_dir();
+void CErfIF::apply_client_config(const ClientCfg *cfg, pkt_dir_t dir) {
+    assert(cfg);
+    uint8_t *p = (uint8_t *)m_raw->raw;
 
-    fill_raw_packet(m,node,dir);
+    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
+
+    /* dst mac */
+    if (cfg_dir.has_dst_mac_addr()) {
+        memcpy(p, cfg_dir.get_dst_mac_addr(), 6);
+    }
+
+    /* src mac */
+    if (cfg_dir.has_src_mac_addr()) {
+        memcpy(p + 6, cfg_dir.get_src_mac_addr(), 6);
+    }
+
+    /* VLAN */
+    if (cfg_dir.has_vlan()) {
+        add_vlan(cfg_dir.get_vlan());
+    }   
+}
+
+int CErfIF::send_node(CGenNode *node){
+
+    if (!m_preview_mode->getFileWrite()) {
+        return (0);
+    }
+
+    CFlowPktInfo *lp = node->m_pkt_info;
+    rte_mbuf_t   *m  = lp->generate_new_mbuf(node);
+    pkt_dir_t    dir = node->cur_interface_dir();
+
+    fill_raw_packet(m, node, dir);
 
     /* update mac addr dest/src 12 bytes */
     uint8_t *p=(uint8_t *)m_raw->raw;
     int p_id=(int)dir;
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
-    /* If vlan is enabled, add vlan header */
-    if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-            /* retrieve vlan ID and  form vlan tag */
-            uint8_t vlan_port = (node->m_src_ip &1);
-            uint16_t vlan_protocol = EthernetHeader::Protocol::VLAN;
-            uint16_t vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
-            uint32_t vlan_tag = (vlan_protocol << 16) | vlan_id;
-            vlan_tag = PKT_HTONL(vlan_tag);
+    /* if a client configuration was provided - apply the config */
+    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+        apply_client_config(node->m_client_cfg, dir);
 
-            /* insert vlan tag and adjust packet size */
-            memcpy(cbuff+4, p+12, m_raw->pkt_len-12);
-            memcpy(cbuff, &vlan_tag, 4);
-            memcpy(p+12, cbuff, m_raw->pkt_len-8);
-            m_raw->pkt_len += 4;
+    } else if (CGlobalInfo::m_options.preview.get_vlan_mode_enable()) {
+        uint8_t vlan_port = (node->m_src_ip & 1);
+        uint16_t vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
+        add_vlan(vlan_id);
     }
 
     //utl_DumpBuffer(stdout,p,  12,0);
@@ -5086,8 +5091,8 @@ int CErfIF::send_node(CGenNode * node){
     BP_ASSERT(rc == 0);
 
     rte_pktmbuf_free(m);
-   }
-   return (0);
+
+    return (0);
 }
 
 int CErfIF::flush_tx_queue(void){

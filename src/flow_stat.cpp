@@ -784,10 +784,6 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         m_parser->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
         stream->m_rx_check.m_hw_id = hw_id;
     } else {
-        struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
-            (stream->m_pkt.binary + stream->m_pkt.len - sizeof(struct flow_stat_payload_header));
-        fsp_head->hw_id = hw_id;
-        fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
         m_parser->set_ip_id(FLOW_STAT_PAYLOAD_IP_ID);
         // for payload rules, we use the range right after ip id rules
         stream->m_rx_check.m_hw_id = hw_id + MAX_FLOW_STATS;
@@ -800,6 +796,9 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     if (m_num_started_streams == 0) {
         send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+        //also good time to zero global counters
+        memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
+        memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
 
         // wait to make sure that message is acknowledged. RX core might be in deep sleep mode, and we want to
         // start transmitting packets only after it is working, otherwise, packets will get lost.
@@ -914,7 +913,7 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
     m_num_started_streams--;
     assert (m_num_started_streams >= 0);
     if (m_num_started_streams == 0) {
-        send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core shoulde get into idle loop.
+        send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
     }
     return 0;
 }
@@ -951,6 +950,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
     rfc2544_info_t rfc2544_info[MAX_FLOW_STATS_PAYLOAD];
+    CRxCoreErrCntrs rx_err_cntrs;
     Json::FastWriter writer;
     Json::Value s_root;
     Json::Value l_root;
@@ -977,6 +977,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     }
 
     m_api->get_rfc2544_info(rfc2544_info, 0, m_max_hw_id_payload, false);
+    m_api->get_rx_err_cntrs(&rx_err_cntrs);
 
     // read hw counters, and update
     for (uint8_t port = 0; port < m_num_ports; port++) {
@@ -1050,10 +1051,21 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     // general per port data
     for (uint8_t port = 0; port < m_num_ports; port++) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
-            if (m_rx_cant_count_err[port] != 0)
-                s_data_section["port_data"][str_port]["rx_err"] = m_rx_cant_count_err[port];
-            if (m_tx_cant_count_err[port] != 0)
-                s_data_section["port_data"][str_port]["tx_err"] = m_tx_cant_count_err[port];
+            if ((m_rx_cant_count_err[port] != 0) || baseline)
+                s_data_section["global"]["rx_err"][str_port] = m_rx_cant_count_err[port];
+            if ((m_tx_cant_count_err[port] != 0) || baseline)
+                s_data_section["global"]["tx_err"][str_port] = m_tx_cant_count_err[port];
+    }
+
+    // payload rules rx errors
+    uint64_t tmp_cnt;
+    tmp_cnt = rx_err_cntrs.get_bad_header();
+    if (tmp_cnt || baseline) {
+        l_data_section["global"]["bad_hdr"] = Json::Value::UInt64(tmp_cnt);
+    }
+    tmp_cnt = rx_err_cntrs.get_old_flow();
+    if (tmp_cnt || baseline) {
+        l_data_section["global"]["old_flow"] = Json::Value::UInt64(tmp_cnt);
     }
 
     flow_stat_user_id_map_it_t it;

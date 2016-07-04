@@ -59,6 +59,7 @@ limitations under the License.
 #include "platform_cfg.h"
 #include "flow_stat.h"
 #include "trex_watchdog.h"
+#include "trex_client_config.h"
 
 #include <trex_stateless_dp_core.h>
 
@@ -182,6 +183,12 @@ inline int ip_to_str(uint32_t ip,char * str){
     return(strlen(str));
 }
 
+inline std::string ip_to_str(uint32_t ip) {
+    char tmp[INET_ADDRSTRLEN];
+    ip_to_str(ip, tmp);
+    return tmp;
+}
+
 // Routine to create IPv6 address string
 inline int ipv6_to_str(ipaddr_t *ip,char * str){
     int idx=0;
@@ -259,18 +266,20 @@ class CPreviewMode ;
 
 class CLatencyPktData {
  public:
-    CLatencyPktData() {m_magic = 0xaa;}
+    CLatencyPktData() {m_flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;}
     inline uint32_t get_seq_num() {return m_seq_num;}
     inline void inc_seq_num() {m_seq_num++;}
-    inline uint32_t get_magic() {return m_magic;}
+    inline uint32_t get_flow_seq() {return m_flow_seq;}
     void reset() {
         m_seq_num = UINT32_MAX - 1; // catch wrap around issues early
-        m_magic++;
+        m_flow_seq++;
+        if (m_flow_seq == FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ)
+            m_flow_seq++;
     }
 
  private:
-    uint32_t m_seq_num;  // seq num to put in packet for payload rules
-    uint16_t m_magic;  // magic to put in packet for payload rules
+    uint32_t m_seq_num;  // seq num to put in packet for payload rules. Increased every packet.
+    uint16_t m_flow_seq;  // Seq num of flow. Changed when we start new flow on this id.
 };
 
 /* represent the virtual interface
@@ -621,7 +630,7 @@ public:
     void set_mac_ip_overide_enable(bool enable){
         btSetMaskBit32(m_flags,30,30,enable?1:0);
         if (enable) {
-            set_mac_ip_features_enable(enable);
+            set_slowpath_features_on(enable);
         }
     }
 
@@ -633,25 +642,26 @@ public:
         btSetMaskBit32(m_flags,31,31,enable?1:0);
     }
 
-
-    bool get_mac_ip_features_enable(){
-        return (btGetMaskBit32(m_flags1,0,0) ? true:false);
+    bool get_is_slowpath_features_on() {
+        return (btGetMaskBit32(m_flags1, 0, 0) ? true : false);
     }
 
-    void set_mac_ip_features_enable(bool enable){
-        btSetMaskBit32(m_flags1,0,0,enable?1:0);
+    void set_slowpath_features_on(bool enable) {
+        btSetMaskBit32(m_flags1, 0, 0, enable ? 1 : 0);
     }
 
-    bool get_mac_ip_mapping_enable(){
-        return (btGetMaskBit32(m_flags1,1,1) ? true:false);
+    bool get_is_client_cfg_enable() {
+        return (btGetMaskBit32(m_flags1, 1, 1) ? true : false);
     }
 
-    void set_mac_ip_mapping_enable(bool enable){
-        btSetMaskBit32(m_flags1,1,1,enable?1:0);
+    void set_client_cfg_enable(bool enable){
+        btSetMaskBit32(m_flags1, 1, 1, enable ? 1 : 0);
         if (enable) {
-            set_mac_ip_features_enable(enable);
+            set_slowpath_features_on(enable);
         }
     }
+
+   
 
     bool get_vm_one_queue_enable(){
         return (btGetMaskBit32(m_flags1,2,2) ? true:false);
@@ -676,16 +686,6 @@ public:
 
     bool getClientServerFlowFlipAddr(){
         return (btGetMaskBit32(m_flags1,3,3) ? true:false);
-    }
-
-
-    /* split mac is enabled */
-    void setDestMacSplit(bool enable){
-        btSetMaskBit32(m_flags1,4,4,enable?1:0);
-    }
-
-    bool getDestMacSplit(){
-        return (btGetMaskBit32(m_flags1,4,4) ? true:false);
     }
 
     /* split mac is enabled */
@@ -779,7 +779,6 @@ public:
         m_io_mode=1;
         m_run_flags=0;
         prefix="";
-        m_mac_splitter=0;
         m_run_mode = RUN_MODE_INVALID;
         m_l_pkt_mode = 0;
         m_rx_thread_enabled = false;
@@ -805,7 +804,6 @@ public:
     uint16_t        m_expected_portd;
     uint16_t        m_io_mode; //0,1,2 0 disable, 1- normal , 2 - short
     uint16_t        m_run_flags;
-    uint8_t         m_mac_splitter;
     uint8_t         m_l_pkt_mode;
     uint8_t         m_learn_mode;
     uint16_t        m_debug_pkt_proto;
@@ -815,7 +813,7 @@ public:
 
 
     std::string        cfg_file;
-    std::string        mac_file;
+    std::string        client_cfg_file;
     std::string        platform_cfg_file;
 
     std::string        out_file;
@@ -873,6 +871,8 @@ public:
     }
     void dump(FILE *fd);
     bool is_valid_opt_val(int val, int min, int max, const std::string &opt_name);
+
+    void verify();
 };
 
 
@@ -1561,7 +1561,7 @@ public:
     uint16_t            m_nat_external_port;
 
     uint16_t            m_nat_pad[3];
-    mac_addr_align_t    m_src_mac;
+    const ClientCfg    *m_client_cfg;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
@@ -1907,7 +1907,8 @@ public:
 
 
 protected:
-
+    void add_vlan(uint16_t vlan_id);
+    void apply_client_config(const ClientCfg *cfg, pkt_dir_t dir);
     virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
 
     CFileWriterBase         * m_writer;
@@ -3870,7 +3871,8 @@ public:
 public:
 
     int load_from_yaml(std::string csv_file,uint32_t num_threads);
-    int load_from_mac_file(std::string csv_file);
+    int load_client_config_file(std::string file_name);
+
 public:
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
@@ -3885,12 +3887,12 @@ public:
     double get_total_tx_bps();
     uint32_t get_total_repeat_flows();
     double get_delta_flow_is_sec();
-    bool   get_is_mac_conf() { return m_mac_info.is_configured();}
+
 public:
-    std::vector<CFlowGeneratorRec *> m_cap_gen;   /* global info */
-    CFlowsYamlInfo                   m_yaml_info; /* global yaml*/
-    std::vector<CFlowGenListPerThread   *> m_threads_info;
-    CFlowGenListMac                  m_mac_info;
+    std::vector<CFlowGeneratorRec *>        m_cap_gen;   /* global info */
+    CFlowsYamlInfo                          m_yaml_info; /* global yaml*/
+    std::vector<CFlowGenListPerThread   *>  m_threads_info;
+    ClientCfgDB                             m_client_config_info;
 };
 
 
@@ -3930,9 +3932,8 @@ inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tup
     node->m_src_idx = tuple.getClientId();
     node->m_dest_idx = tuple.getServerId();
     node->m_src_port = tuple.getClientPort();
-    memcpy(&node->m_src_mac,
-           tuple.getClientMac(),
-           sizeof(mac_addr_align_t));
+    node->m_client_cfg = tuple.getClientCfg();
+
     node->m_plugin_info =(void *)0;
 
     if ( unlikely( CGlobalInfo::is_learn_mode()  ) ){

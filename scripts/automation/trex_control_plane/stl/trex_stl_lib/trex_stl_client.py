@@ -1287,7 +1287,7 @@ class STLClient(object):
 
             **total** and per port statistics contain dictionary with following format.
 
-            Most of the bytes counters (unless  specified otherwise) are in L2 layer including the FCS. e.g. minimum packet size in 64 bytes
+            Most of the bytes counters (unless specified otherwise) are in L2 layer, including the Ethernet FCS. e.g. minimum packet size is 64 bytes
 
             ===============================  ===============
             key                               Meaning
@@ -1306,21 +1306,34 @@ class STLClient(object):
 
             .. _flow_stats:
 
-            **flow_stats** contains dictionaries per packet group id (pg id). Each one with the following structure.
+            **flow_stats** contains :ref:`global dictionary <flow_stats_global>`, and dictionaries per packet group id (pg id). See structures below.
+
+            **per pg_id flow stat** dictionaries have following structure:
 
             =================   ===============
             key                 Meaning
             =================   ===============
-            rx_bps              Receivd bytes per second rate
-            rx_bps_l1           Receivd bytes per second rate, including layer one
+            rx_bps              Received bytes per second rate
+            rx_bps_l1           Received bytes per second rate, including layer one
             rx_bytes            Total number of received bytes
             rx_pkts             Total number of received packets
             rx_pps              Received packets per second
-            tx_bps              Transmitted bytes per second rate
-            tx_bps_l1           Transmitted bytes per second rate, including layer one
+            tx_bps              Transmit bytes per second rate
+            tx_bps_l1           Transmit bytes per second rate, including layer one
             tx_bytes            Total number of sent bytes
             tx_pkts             Total number of sent packets
-            tx_pps              Transmit packets per second
+            tx_pps              Transmit packets per second rate
+            =================   ===============
+
+            .. _flow_stats_global:
+
+            **global flow stats** dictionary has the following structure:
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            rx_err              Number of flow statistics packets received that we could not associate to any pg_id. This can happen if latency on the used setup is large. See :ref:`wait_on_traffic <wait_on_traffic>` rx_delay_ms parameter for details.
+            tx_err              Number of flow statistics packets transmitted that we could not associate to any pg_id. This is never expected. If you see this different than 0, please report.
             =================   ===============
 
             .. _global:
@@ -1343,7 +1356,9 @@ class STLClient(object):
 
             .. _latency:
 
-            **latency** contains dictionary per packet group id (pg id). Each one with the following structure.
+            **latency** contains :ref:`global dictionary <lat_stats_global>`, and dictionaries per packet group id (pg id). Each one with the following structure.
+
+            **per pg_id latency stat** dictionaries have following structure:
 
             ===========================          ===============
             key                                  Meaning
@@ -1397,7 +1412,16 @@ class STLClient(object):
             total_min           Minimum latency measured over the stream lifetime (in usec).
             =================   ===============
 
+            .. _lat_stats_global:
 
+            **global latency stats** dictionary has the following structure:
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            old_flow            Number of latency statistics packets received that we could not associate to any pg_id. This can happen if latency on the used setup is large. See :ref:`wait_on_traffic <wait_on_traffic>` rx_delay_ms parameter for details.
+            bad_hdr             Number of latency packets received with bad latency data. This can happen becuase of garbage packets in the network, or if the DUT causes packet corruption.
+            =================   ===============
 
         :raises:
           None
@@ -2292,6 +2316,8 @@ class STLClient(object):
     @__api_check(True)
     def wait_on_traffic (self, ports = None, timeout = 60, rx_delay_ms = 10):
         """
+            .. _wait_on_traffic:
+
             Block until traffic on specified port(s) has ended
 
             :parameters:
@@ -2302,12 +2328,11 @@ class STLClient(object):
                     timeout in seconds
 
                 rx_delay_ms : int
-                    time to wait until RX filters are removed
-                    this value should reflect the time it takes
-                    packets which were transmitted to arrive
+                    Time to wait (in milliseconds) after last packet was sent, until RX filters used for
+                    measuring flow statistics and latency are removed.
+                    This value should reflect the time it takes packets which were transmitted to arrive
                     to the destination.
-                    after this time the RX filters will be removed
-
+                    After this time, RX filters will be removed, and packets arriving for per flow statistics feature and latency flows will be counted as errors.
 
             :raises:
                 + :exc:`STLTimeoutError` - in case timeout has expired

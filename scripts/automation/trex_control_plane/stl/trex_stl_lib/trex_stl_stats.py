@@ -1093,6 +1093,13 @@ class CLatencyStats(CTRexStats):
             snapshot = {}
         output = {}
 
+        output['global'] = {}
+        for field in ['bad_hdr', 'old_flow']:
+            if 'global' in snapshot and field in snapshot['global']:
+                output['global'][field] = snapshot['global'][field]
+            else:
+                output['global'][field] = 0
+
         # we care only about the current active keys
         pg_ids = list(filter(is_intable, snapshot.keys()))
 
@@ -1189,6 +1196,14 @@ class CRxStats(CTRexStats):
 
         # copy timestamp field
         output['ts'] = current['ts']
+
+        # global (not per pg_id) error counters
+        output['global'] = {}
+        for field in ['rx_err', 'tx_err']:
+            output['global'][field] = {}
+            if 'global' in current and field in current['global']:
+                for port in current['global'][field]:
+                    output['global'][field][int(port)] = current['global'][field][port]
 
         # we care only about the current active keys
         pg_ids = list(filter(is_intable, current.keys()))
@@ -1337,6 +1352,9 @@ class CRxStats(CTRexStats):
         for pg_id, value in self.latest_stats.items():
             # skip non ints
             if not is_intable(pg_id):
+                # 'global' stats are in the same level of the pg_ids. We do want them to go to the user
+                if pg_id == 'global':
+                    stats[pg_id] = value
                 continue
             # bare counters
             stats[int(pg_id)] = {}
