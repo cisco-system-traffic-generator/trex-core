@@ -57,17 +57,15 @@ test_ipv6_simple:
 test_nat_simple_mode1: &test_nat_simple
     stat_route_dict     : *stat_route_dict
     nat_dict            : *nat_dict
-    multiplier          : 12000
+    multiplier          : 6000
     cores               : 1
-    nat_opened          : 40000
+    nat_opened          : 500000
     allow_timeout_dev   : True
     bw_per_core         : 44.445
 
 test_nat_simple_mode2: *test_nat_simple
 
-test_nat_learning:
-    <<                  : *test_nat_simple
-    nat_opened          : 40000
+test_nat_learning: *test_nat_simple
 
 
 test_nbar_simple:
