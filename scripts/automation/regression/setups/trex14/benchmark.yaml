@@ -99,7 +99,7 @@ test_rx_check_http_ipv6:
     <<                  : *rx_http
     bw_per_core         : 49.237
 
-test_rx_check_http_negative:
+test_rx_check_http_negative_disabled:
     <<                  : *rx_http
     stat_route_dict     : *stat_route_dict
     nat_dict            : *nat_dict
