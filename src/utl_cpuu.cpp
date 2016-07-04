@@ -25,7 +25,9 @@ limitations under the License.
 
 void CCpuUtlCp::Create(CCpuUtlDp * cdp){
     m_dpcpu=cdp;
-    m_cpu_util=0.0;
+    memset(m_cpu_util, 0, sizeof(m_cpu_util));
+    m_history_latest_index = 0;
+    m_cpu_util_lpf=0.0;
     m_ticks=0;
     m_work=0;
 }
@@ -41,17 +43,34 @@ void CCpuUtlCp::Update(){
         m_work++;
     }
     if (m_ticks==100) {
-        double window_cpu_u = ((double)m_work/(double)m_ticks);
         /* LPF*/
-        m_cpu_util = (m_cpu_util*0.75)+(window_cpu_u*0.25);
+        m_cpu_util_lpf = (m_cpu_util_lpf*0.75)+((double)m_work*0.25);
+        AppendHistory(m_work);
         m_ticks=0;
         m_work=0;
-
     }
 }
 
-/* return cpu % */
+/* return cpu % Smoothed */
 double CCpuUtlCp::GetVal(){
-    return (m_cpu_util*100);
+    return (m_cpu_util_lpf);
 }
 
+/* return cpu % Raw */
+uint8_t CCpuUtlCp::GetValRaw(){
+    return (m_cpu_util[m_history_latest_index]);
+}
+
+/* get cpu % utilization history */
+void CCpuUtlCp::GetHistory(cpu_vct_t &cpu_vct){
+    cpu_vct.clear();
+    for (int i = m_history_latest_index + m_history_size; i > m_history_latest_index; i--) {
+        cpu_vct.push_back(m_cpu_util[i % m_history_size]);
+    }
+}
+
+/* save last CPU % util in history */
+void CCpuUtlCp::AppendHistory(uint8_t val){
+    m_history_latest_index = (m_history_latest_index + 1) % m_history_size;
+    m_cpu_util[m_history_latest_index] = val;
+}

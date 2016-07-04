@@ -22,6 +22,8 @@ limitations under the License.
 */
 
 #include <stdint.h>
+#include <cstring>
+#include "trex_defs.h"
 #include "os_time.h"
 #include "mbuf.h"
 
@@ -56,13 +58,18 @@ public:
     void Update();
     /* return cpu % */
     double GetVal();
-
+    uint8_t GetValRaw();
+    void GetHistory(cpu_vct_t &cpu_vct);
 private:
-    CCpuUtlDp * m_dpcpu;
-    uint16_t    m_ticks;
-    uint16_t    m_work;
+    void AppendHistory(uint8_t);
+    CCpuUtlDp *         m_dpcpu;
+    uint8_t             m_ticks;
+    uint8_t             m_work;
 
-    double      m_cpu_util;
+    static const int    m_history_size=20;
+    uint8_t             m_cpu_util[m_history_size]; // history as cyclic array
+    uint8_t             m_history_latest_index;
+    double              m_cpu_util_lpf;
 };
 
 #endif

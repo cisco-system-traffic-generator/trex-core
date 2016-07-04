@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <set>
+#include <queue>
+#include <vector>
 
 #ifndef __TREX_DEFS_H__
 #define __TREX_DEFS_H__
@@ -36,5 +38,7 @@ limitations under the License.
 
 typedef std::set<uint32_t> flow_stat_active_t;
 typedef std::set<uint32_t>::iterator flow_stat_active_it_t;
+typedef std::vector<std::vector<uint8_t>> cpu_util_full_t;
+typedef std::vector<uint8_t> cpu_vct_t;
 
 #endif

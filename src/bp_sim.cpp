@@ -498,40 +498,23 @@ void CRteMemPool::dump_in_case_of_error(FILE *fd){
     dump(fd);
 }
 
-std::string CRteMemPool::add_to_json(
-                              std::string name,
-                              rte_mempool_t * pool,
-                              bool last){
+void CRteMemPool::add_to_json(Json::Value &json, std::string name, rte_mempool_t * pool){
     uint32_t p_free = rte_mempool_count(pool);
     uint32_t p_size = pool->size;
-    char buff[200];
-    sprintf(buff,"\"%s\":[%llu,%llu]",name.c_str(),(unsigned long long)p_free,(unsigned long long)p_size);
-    std::string json = std::string(buff) + (last?std::string(""):std::string(","));
-    return (json);
+    json[name].append((unsigned long long)p_free);
+    json[name].append((unsigned long long)p_size);
 }
 
 
-std::string CRteMemPool::dump_as_json(uint8_t id,bool last){
-
-    char buff[200];
-    sprintf(buff,"\"socket-%d\":{", (int)id);
-
-    std::string json=std::string(buff);
-
-    json+=add_to_json("64b",m_small_mbuf_pool);
-    json+=add_to_json("128b",m_mbuf_pool_128);
-    json+=add_to_json("256b",m_mbuf_pool_256);
-    json+=add_to_json("512b",m_mbuf_pool_512);
-    json+=add_to_json("1024b",m_mbuf_pool_1024);
-    json+=add_to_json("2048b",m_mbuf_pool_2048);
-    json+=add_to_json("4096b",m_mbuf_pool_4096);
-    json+=add_to_json("9kb",m_mbuf_pool_9k,true);
-
-    json+="}" ;
-    if (last==false) {
-        json+="," ;
-    }
-    return (json);
+void CRteMemPool::dump_as_json(Json::Value &json){
+    add_to_json(json, "64b", m_small_mbuf_pool);
+    add_to_json(json, "128b", m_mbuf_pool_128);
+    add_to_json(json, "256b", m_mbuf_pool_256);
+    add_to_json(json, "512b", m_mbuf_pool_512);
+    add_to_json(json, "1024b", m_mbuf_pool_1024);
+    add_to_json(json, "2048b", m_mbuf_pool_2048);
+    add_to_json(json, "4096b", m_mbuf_pool_4096);
+    add_to_json(json, "9kb", m_mbuf_pool_9k);
 }
 
 
@@ -548,30 +531,24 @@ void CRteMemPool::dump(FILE *fd){
     DUMP_MBUF("mbuf_9k",m_mbuf_pool_9k);
 
 }
+
 ////////////////////////////////////////
 
-
-std::string CGlobalInfo::dump_pool_as_json(void){
-
-    std::string json="\"mbuf_stats\":{";
+void CGlobalInfo::dump_pool_as_json(Json::Value &json){
     CPlatformSocketInfo * lpSocket =&m_socket;
-    int last_socket=-1;
 
-    /* calc the last socket */
-    int i;
-    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
+    for (int i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
         if (lpSocket->is_sockets_enable((socket_id_t)i)) {
-            last_socket=i;
+            std::string socket_id = "cpu-socket-" + std::to_string(i);
+            m_mem_pool[i].dump_as_json(json["mbuf_stats"][socket_id]);
         }
     }
+}
 
-    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
-        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
-            json+=m_mem_pool[i].dump_as_json(i,last_socket==i?true:false);
-        }
-    }
-    json+="},";
-    return json;
+std::string CGlobalInfo::dump_pool_as_json_str(void){
+    Json::Value json;
+    dump_pool_as_json(json);
+    return (json.toStyledString());
 }
 
 void CGlobalInfo::free_pools(){
@@ -4478,6 +4455,16 @@ double CFlowGenList::GetCpuUtil(){
     for (i=0; i<(int)m_threads_info.size(); i++) {
         CFlowGenListPerThread * lp=m_threads_info[i];
         c+=lp->m_cpu_cp_u.GetVal();
+    }
+    return (c/m_threads_info.size());
+}
+
+double CFlowGenList::GetCpuUtilRaw(){
+    int i;
+    double c=0.0;
+    for (i=0; i<(int)m_threads_info.size(); i++) {
+        CFlowGenListPerThread * lp=m_threads_info[i];
+        c+=lp->m_cpu_cp_u.GetValRaw();
     }
     return (c/m_threads_info.size());
 }

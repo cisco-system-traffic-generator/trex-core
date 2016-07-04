@@ -181,7 +181,7 @@ parser.add_argument('--type', '--daemon-type', '--daemon_type', choices = daemon
                     action = 'store', help = 'Specify daemon type to start/stop etc.\nDefault is master_daemon.')
 
 args = parser.parse_args()
-args.trex_dir = os.path.normpath(args.trex_dir)
+args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
 stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'stl', 'examples')

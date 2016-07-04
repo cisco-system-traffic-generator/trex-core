@@ -555,14 +555,17 @@ class STLClient(object):
 
         self.latency_stats = trex_stl_stats.CLatencyStats(self.ports)
 
+        self.util_stats = trex_stl_stats.CUtilStats(self)
+
         self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
                                                                  self.ports,
                                                                  self.flow_stats,
                                                                  self.latency_stats,
+                                                                 self.util_stats,
                                                                  self.async_client.monitor)
 
 
-       
+
 
     ############# private functions - used by the class itself ###########
 
@@ -1688,6 +1691,23 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+    @__api_check(True)
+    def get_util_stats(self):
+        """
+            Get utilization stats:
+            History of TRex CPU utilization per thread (list of lists)
+            MBUFs memory consumption per CPU socket.
+
+            :parameters:
+                None
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+        self.logger.pre_cmd('Getting Utilization stats')
+        return self.util_stats.get_stats()
+
 
     @__api_check(True)
     def reset(self, ports = None):
@@ -1902,8 +1922,6 @@ class STLClient(object):
             raise STLError(rc)
 
 
-
-    
     @__api_check(True)
     def stop (self, ports = None, rx_delay_ms = 10):
         """

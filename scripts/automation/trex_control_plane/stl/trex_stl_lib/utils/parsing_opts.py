@@ -39,6 +39,8 @@ PORT_STATS = 51
 PORT_STATUS = 52
 STREAMS_STATS = 53
 STATS_MASK = 54
+CPU_STATS = 55
+MBUF_STATS = 56
 
 STREAMS_MASK = 60
 # ALL_STREAMS = 61
@@ -340,6 +342,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           {'action': 'store_true',
                                            'help': "Fetch only streams stats"}),
 
+              CPU_STATS: ArgumentPack(['-c'],
+                                      {'action': 'store_true',
+                                       'help': "Fetch only CPU utilization stats"}),
+
+              MBUF_STATS: ArgumentPack(['-m'],
+                                       {'action': 'store_true',
+                                        'help': "Fetch only MBUF utilization stats"}),
+
               STREAMS_MASK: ArgumentPack(['--streams'],
                                          {"nargs": '+',
                                           'dest':'streams',
@@ -365,7 +375,9 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               STATS_MASK: ArgumentGroup(MUTEX, [GLOBAL_STATS,
                                                 PORT_STATS,
                                                 PORT_STATUS,
-                                                STREAMS_STATS],
+                                                STREAMS_STATS,
+                                                CPU_STATS,
+                                                MBUF_STATS],
                                         {})
               }
 

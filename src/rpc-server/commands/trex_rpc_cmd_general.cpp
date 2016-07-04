@@ -157,6 +157,29 @@ TrexRpcCmdGetActivePGIds::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+// get utilization of CPU per thread with up to 20 latest values + mbufs per socket
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetUtilization::_run(const Json::Value &params, Json::Value &result) {
+    cpu_util_full_t cpu_util_full;
+
+    Json::Value &section = result["result"];
+
+    if (get_stateless_obj()->get_platform_api()->get_mbuf_util(section) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+    if (get_stateless_obj()->get_platform_api()->get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+        for (int history_id = 0; history_id < cpu_util_full[thread_id].size(); history_id++) {
+            section["cpu"][thread_id].append(cpu_util_full[thread_id][history_id]);
+        }
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
 /**
  * get the CPU model
  *

@@ -250,7 +250,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
         print('Run until finish, expect errors')
         old_errors = copy.deepcopy(self.fail_reasons)
-        nat_dict = self.get_benchmark_param('nat_dict', test_name = 'test_nat_simple')
+        nat_dict = self.get_benchmark_param('nat_dict', test_name = 'test_nat_simple_mode1')
         nat_obj  = CNatConfig(nat_dict)
         self.router.config_nat(nat_obj)
         self.router.config_zbf()

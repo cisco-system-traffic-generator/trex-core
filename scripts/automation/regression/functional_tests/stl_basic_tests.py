@@ -85,7 +85,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         pkts1 = list(RawPcapReader(output))
         pkts2 = list(RawPcapReader(golden))
 
-        assert_equal(len(pkts1), len(pkts2))
+        assert_equal(len(pkts1), len(pkts2), 'Lengths of generated pcap (%s) and golden (%s) are different' % (output, golden))
 
         for pkt1, pkt2, i in zip(pkts1, pkts2, range(1, len(pkts1))):
             ts1 = float(pkt1[1][0]) + (float(pkt1[1][1]) / 1e6)
@@ -143,7 +143,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             os.unlink(output_cap)
         try:
             rc = self.run_sim(input_file, output_cap, options, silent)
-            assert_equal(rc, True)
+            assert_equal(rc, True, 'Simulation on profile %s failed.' % profile)
             #s='cp  '+output_cap+' '+golden_file;
             #print s
             #os.system(s)
@@ -165,7 +165,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                 profile.dump_to_code(generated_filename)
 
                 rc = self.run_sim(generated_filename, output_cap, options, silent)
-                assert_equal(rc, True)
+                assert_equal(rc, True, 'Simulation on profile %s (generated) failed.' % profile)
 
                 if compare:
                     self.compare_caps(output_cap, golden_file)

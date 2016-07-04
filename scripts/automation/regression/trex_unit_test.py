@@ -30,7 +30,7 @@ import outer_packages
 
 import nose
 from nose.plugins import Plugin
-import logging
+from nose.selector import Selector
 import CustomLogger
 import misc_methods
 from rednose import RedNose
@@ -43,10 +43,29 @@ from trex_stl_lib.utils.GAObjClass import GAmanager
 import trex
 import socket
 from pprint import pprint
-import subprocess
-import re
 import time
 from distutils.dir_util import mkpath
+
+# nose overrides
+
+# option to select wanted test by name without file, class etc.
+def new_Selector_wantMethod(self, method, orig_Selector_wantMethod = Selector.wantMethod):
+    result = orig_Selector_wantMethod(self, method)
+    if not CTRexScenario.test:
+        return result
+    else:
+        return CTRexScenario.test in getattr(method, '__name__', '')
+
+Selector.wantMethod = new_Selector_wantMethod
+
+def new_Selector_wantFunction(self, function, orig_Selector_wantFunction = Selector.wantFunction):
+    result = orig_Selector_wantFunction(self, function)
+    if not CTRexScenario.test:
+        return result
+    else:
+        return CTRexScenario.test in getattr(function, '__name__', '')
+
+Selector.wantFunction = new_Selector_wantFunction
 
 # override nose's strange representation of setUpClass errors
 def __suite_repr__(self):
@@ -58,6 +77,8 @@ def __suite_repr__(self):
 
 nose.suite.ContextSuite.__repr__ = __suite_repr__
 nose.suite.ContextSuite.__str__  = __suite_repr__
+
+# /nose overrides
 
 def check_trex_path(trex_path):
     if os.path.isfile('%s/trex_daemon_server' % trex_path):
@@ -78,7 +99,7 @@ def get_trex_path():
 
 
 def address_to_ip(address):
-    for i in range(10):
+    for i in range(5):
         try:
             return socket.gethostbyname(address)
         except:
@@ -149,6 +170,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--trex-args', action='store', default = '',
                             dest="trex_args",
                             help="Additional TRex arguments (--no-watchdog etc.).")
+        parser.add_option('-t', '--test', action='store', default = '', dest='test',
+                            help='Test name to run (without file, class etc.)')
 
 
     def configure(self, options, conf):
@@ -160,6 +183,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.json_verbose   = options.json_verbose
         self.telnet_verbose = options.telnet_verbose
         self.no_daemon      = options.no_daemon
+        CTRexScenario.test  = options.test
         if self.collect_only or self.functional:
             return
         if CTRexScenario.setup_dir and options.config_path:
@@ -181,7 +205,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             self.loggerPath = options.log_path
         # initialize CTRexScenario global testing class, to be used by all tests
         CTRexScenario.configuration = self.configuration
-        CTRexScenario.no_daemon     = self.no_daemon
+        CTRexScenario.no_daemon     = options.no_daemon
         CTRexScenario.benchmark     = self.benchmark
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
@@ -347,15 +371,14 @@ if __name__ == "__main__":
 
     nose_argv += sys_args
 
-    config_plugin = CTRexTestConfiguringPlugin()
-    red_nose = RedNose()
+    addplugins = [RedNose(), CTRexTestConfiguringPlugin()]
     result = True
     try:
         if len(CTRexScenario.test_types['functional_tests']):
             additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
-            result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin])
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins)
         if len(CTRexScenario.test_types['stateful_tests']):
             additional_args = ['--stf']
             if '--warmup' in sys.argv:
@@ -365,14 +388,14 @@ if __name__ == "__main__":
                 additional_args.extend(['-a', '!client_package'])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
-            result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin]) and result
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
         if len(CTRexScenario.test_types['stateless_tests']):
             additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
             if not test_client_package:
                 additional_args.extend(['-a', '!client_package'])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
-            result = nose.run(argv = nose_argv + additional_args, addplugins = [red_nose, config_plugin]) and result
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
     #except Exception as e:
     #    result = False
     #    print(e)

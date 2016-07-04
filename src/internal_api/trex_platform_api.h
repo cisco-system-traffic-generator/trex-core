@@ -28,6 +28,7 @@ limitations under the License.
 #include <string.h>
 #include "flow_stat_parser.h"
 #include "trex_defs.h"
+#include <json/json.h>
 
 /**
  * Global stats
@@ -157,6 +158,8 @@ public:
     virtual bool get_promiscuous(uint8_t port_id) const = 0;
     virtual void flush_dp_messages() const = 0;
     virtual int get_active_pgids(flow_stat_active_t &result) const = 0;
+    virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
+    virtual int get_mbuf_util(Json::Value &result) const = 0;
     virtual CFlowStatParser *get_flow_stat_parser() const = 0;
     virtual ~TrexPlatformApi() {}
 };
@@ -190,6 +193,8 @@ public:
     bool get_promiscuous(uint8_t port_id) const;
     void flush_dp_messages() const;
     int get_active_pgids(flow_stat_active_t &result) const;
+    int get_cpu_util_full(cpu_util_full_t &result) const;
+    int get_mbuf_util(Json::Value &result) const;
     CFlowStatParser *get_flow_stat_parser() const;
 };
 
@@ -255,6 +260,8 @@ public:
     void flush_dp_messages() const {
     }
     int get_active_pgids(flow_stat_active_t &result) const {return 0;}
+    int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
+    int get_mbuf_util(Json::Value &result) const {return 0;}
     CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
 
 private:
