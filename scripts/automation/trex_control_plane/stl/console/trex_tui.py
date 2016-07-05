@@ -15,6 +15,10 @@ from trex_stl_lib.utils import text_tables
 from trex_stl_lib import trex_stl_stats
 from trex_stl_lib.utils.filters import ToggleFilter
 
+class TUIQuit(Exception):
+    pass
+
+
 # for STL exceptions
 from trex_stl_lib.api import *
 
@@ -290,7 +294,8 @@ class TrexTUIPanelManager():
         self.panels['ustats']    = TrexTUIUtilizationStats(self)
 
         self.key_actions = OrderedDict()
-        self.key_actions['q'] = {'action': self.action_quit, 'legend': 'quit', 'show': True}
+        self.key_actions['q']   = {'action': self.action_none, 'legend': 'quit', 'show': True}
+        self.key_actions['ESC'] = {'action': self.action_none, 'legend': 'console', 'show': True}
         self.key_actions['d'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
         self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
         self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
@@ -350,10 +355,12 @@ class TrexTUIPanelManager():
         self.show_log = show_log
         self.generate_legend()
 
-    def show (self):
+    def show (self, show_legend):
         self.main_panel.show()
         self.print_connection_status()
-        self.print_legend()
+
+        if show_legend:
+            self.print_legend()
 
         if self.show_log:
             self.log.show()
@@ -383,7 +390,7 @@ class TrexTUIPanelManager():
 
     # actions
 
-    def action_quit (self):
+    def action_none (self):
         return None
 
     def action_show_dash (self):
@@ -428,15 +435,14 @@ class TrexTUI():
         self.stateless_client = stateless_client
 
         self.pm = TrexTUIPanelManager(self)
-
+        
 
 
     def handle_key_input (self):
         # try to read a single key
         ch = os.read(sys.stdin.fileno(), 1).decode()
-        if ch != None and len(ch) > 0:
+        if ch:
             return (self.pm.handle_key(ch), True)
-
         else:
             return (True, False)
             
@@ -447,15 +453,14 @@ class TrexTUI():
         sys.stdout.write("\x1b[2J\x1b[H")
 
 
+    def show (self, cmd, show_log = False):
+        with AsyncKeys(cmd) as async_keys:
+            self.async_keys = async_keys
+            self.show_internal(show_log)
 
-    def show (self, show_log = False):
-        # init termios
-        old_settings = termios.tcgetattr(sys.stdin)
-        new_settings = termios.tcgetattr(sys.stdin)
-        new_settings[3] = new_settings[3] & ~(termios.ECHO | termios.ICANON) # lflags
-        new_settings[6][termios.VMIN] = 0  # cc
-        new_settings[6][termios.VTIME] = 0 # cc
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
+
+
+    def show_internal (self, show_log = False):
 
         self.pm.init(show_log)
 
@@ -465,11 +470,11 @@ class TrexTUI():
         try:
             while True:
                 # draw and handle user input
-                cont, force_draw = self.handle_key_input()
-                self.draw_screen(force_draw)
-                if not cont:
-                    break
-                time.sleep(0.1)
+                status = self.async_keys.tick(self.pm)
+
+                self.draw_screen(status)
+                if not status:
+                    time.sleep(0.001)
 
                 # regular state
                 if self.state == self.STATE_ACTIVE:
@@ -497,34 +502,241 @@ class TrexTUI():
                         self.state = self.STATE_LOST_CONT
 
 
-        finally:
-            # restore
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        except TUIQuit:
+            print("\nExiting TUI...")
 
         print("")
 
 
     # draw once
-    def draw_screen (self, force_draw = False):
+    def draw_screen (self, status):
 
-        if (self.draw_policer >= 5) or (force_draw):
+        # only redraw the keys line
+        if status == AsyncKeys.STATUS_REDRAW_KEYS:
+            self.clear_screen()
+            sys.stdout.write(self.last_snap)
+            self.async_keys.draw()
+            sys.stdout.flush()
+            return
+
+        if (self.draw_policer >= 500) or (status == AsyncKeys.STATUS_REDRAW_ALL):
 
             # capture stdout to a string
             old_stdout = sys.stdout
             sys.stdout = mystdout = StringIO()
-            self.pm.show()
+            self.pm.show(show_legend = self.async_keys.is_legend_mode())
+            self.last_snap = mystdout.getvalue()
+
+            self.async_keys.draw()
             sys.stdout = old_stdout
 
             self.clear_screen()
 
-            print(mystdout.getvalue())
-
+            sys.stdout.write(mystdout.getvalue())
+           
             sys.stdout.flush()
 
             self.draw_policer = 0
         else:
             self.draw_policer += 1 
 
+
     def get_state (self):
         return self.state
+
+
+
+
+
+# handles async IO
+class AsyncKeys:
+
+    MODE_LEGEND  = 1
+    MODE_CONSOLE = 2
+
+    STATUS_NONE        = 0
+    STATUS_REDRAW_KEYS = 1
+    STATUS_REDRAW_ALL  = 2
+
+    def __init__ (self, cmd):
+        self.engine_console = AsyncKeysEngineConsole(self, cmd)
+        self.engine_legend  = AsyncKeysEngineLegend(self)
+        self.engine = self.engine_console
+
+    def __enter__ (self):
+        # init termios
+        self.old_settings = termios.tcgetattr(sys.stdin)
+        new_settings = termios.tcgetattr(sys.stdin)
+        new_settings[3] = new_settings[3] & ~(termios.ECHO | termios.ICANON) # lflags
+        new_settings[6][termios.VMIN] = 0  # cc
+        new_settings[6][termios.VTIME] = 0 # cc
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
+        return self
+
+    def __exit__ (self, type, value, traceback):
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
+
+
+    def is_legend_mode (self):
+        return self.engine.get_type() == AsyncKeys.MODE_LEGEND
+
+    def is_console_mode (self):
+        return self.engine.get_type == AsyncKeys.MODE_CONSOLE
+
+    def switch (self):
+        if self.is_legend_mode():
+            self.engine = self.engine_console
+        else:
+            self.engine = self.engine_legend
+
+
+    def tick (self, pm):
+        try:
+            rc = self.engine.tick(pm)
+            return self.STATUS_REDRAW_KEYS if rc else self.STATUS_NONE
+
+        except AsyncKeysSwitch:
+            self.switch()
+            return self.STATUS_REDRAW_ALL
+
+    def draw (self):
+        self.engine.draw()
+ 
+
+# used for switching engines
+class AsyncKeysSwitch(Exception):
+    pass
+
+    
+# Legend engine
+class AsyncKeysEngineLegend:
+    def __init__ (self, async):
+        self.async = async
+
+    def get_type (self):
+        return self.async.MODE_LEGEND
+
+    def tick (self, pm):
+        ch = os.read(sys.stdin.fileno(), 1).decode()
+        if not ch:
+            return False
+
+        if ch == '\x1b':
+            raise AsyncKeysSwitch()
+
+        elif ch == 'q':
+            raise TUIQuit()
+
+        return pm.handle_key(ch)
+
+    def draw (self):
+        pass
+
+
+# console engine
+class AsyncKeysEngineConsole:
+    def __init__ (self, async, cmd):
+        self.async = async
+        self.cmd = cmd
+        self.line = ""
+        self.history = deque(maxlen = 100)
+
+        # fetch readline history
+        for i in range(0, readline.get_current_history_length()):
+            self.history.appendleft(readline.get_history_item(i))
+
+        # reset index
+        self.history_index = -1
+
+
+    def get_type (self):
+        return self.async.MODE_CONSOLE
+
+
+    def handle_escape_char (self, seq):
+        # up
+        if seq == '\x1b[A':
+            self.history_index = min(self.history_index + 1, len(self.history) - 1)
+            self.line = self.history[self.history_index] if self.history_index > -1 else ''
+            return True
+
+        # down
+        elif seq == '\x1b[B':
+            self.history_index = max(self.history_index - 1, -1)
+            self.line = self.history[self.history_index] if self.history_index > -1 else ''
+            return True
+
+        # left
+        #elif seq == '\x1b[D':
+        #    self.line_index = min(self.line_index - 1, 0)
+        #    return True
+
+        # right
+        #elif seq == '\x1b[C':
+        #    self.line_index = min(self.line_index - 1, 0)
+        #    return True
+
+        return False
+
+    def tick (self, _):
+        seq = ''
+        # drain all chars
+        while True:
+            ch = os.read(sys.stdin.fileno(), 1).decode()
+            if not ch:
+                break
+            seq += ch
+
+        # ignore - nothing to do
+        if not seq:
+            return False
+
+        # handle escape chars
+        if len(seq) > 1:
+            return self.handle_escape_char(seq)
+
+        # handle each char
+        for ch in seq:
+            return self.handle_single_key(ch)
+
+
+    
+    def handle_single_key (self, ch):
+
+        # ecsape
+        if ch == '\x1b':
+            raise AsyncKeysSwitch()
+
+        # newline
+        elif ch == '\n':
+            self.handle_cmd()
+
+        # backspace
+        elif ch == '\x7f':
+            self.line = self.line[:-1]
+
+        # TAB
+        elif ch == '\t':
+            self.line = "TAB"
+
+        # simple char
+        else:
+            self.line += ch
+
+        return True
+
+
+    def handle_cmd (self):
+        if self.line in ['quit', 'exit', 'q']:
+            raise TUIQuit()
+
+        self.cmd.onecmd(self.line)
+        self.history.appendleft(self.line)
+        self.history_index = -1
+        self.line = ""
+
+
+    def draw (self):
+        sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
+        sys.stdout.write("\n" + "tui>" + self.line)
 

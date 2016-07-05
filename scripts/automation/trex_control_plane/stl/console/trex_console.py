@@ -19,6 +19,7 @@ limitations under the License.
 from __future__ import print_function
 
 import subprocess
+import threading
 import cmd
 import json
 import ast
@@ -590,7 +591,7 @@ class TRexConsole(TRexGeneralCmd):
 
 
         with self.stateless_client.logger.supress():
-            self.tui.show()
+            self.tui.show(self)
 
 
     def help_tui (self):
