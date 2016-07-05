@@ -57,10 +57,7 @@ Selector.wantMethod = new_Selector_wantMethod
 
 def new_Selector_wantFunction(self, function, orig_Selector_wantFunction = Selector.wantFunction):
     result = orig_Selector_wantFunction(self, function)
-    if not CTRexScenario.test:
-        return result
-    else:
-        return CTRexScenario.test in getattr(function, '__name__', '')
+    return result and (not CTRexScenario.test or CTRexScenario.test in getattr(function, '__name__', ''))
 
 Selector.wantFunction = new_Selector_wantFunction
 
