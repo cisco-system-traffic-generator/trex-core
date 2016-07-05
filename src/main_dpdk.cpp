@@ -4863,6 +4863,18 @@ int main_test(int argc , char * argv[]){
     return (0);
 }
 
+void wait_x_sec(int sec) {
+    int i;
+    printf(" wait %d sec ", sec);
+    fflush(stdout);
+    for (i=0; i<sec; i++) {
+        delay(1000);
+        printf(".");
+        fflush(stdout);
+    }
+    printf("\n");
+    fflush(stdout);
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -4886,19 +4898,6 @@ CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
     CFlowStatParser *parser = new CFlowStatParser();
     assert (parser);
     return parser;
-}
-
-void wait_x_sec(int sec) {
-    int i;
-    printf(" wait %d sec ", sec);
-    fflush(stdout);
-    for (i=0; i<sec; i++) {
-        delay(1000);
-        printf(".");
-        fflush(stdout);
-    }
-    printf("\n");
-    fflush(stdout);
 }
 
 // in 1G we need to wait if links became ready to soon
@@ -5289,7 +5288,7 @@ void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 }
 
 int CTRexExtendedDriverBase10G::wait_for_stable_link(){
-    delay(2000);
+    wait_x_sec(1 + CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
@@ -5562,7 +5561,7 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 }
 
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
-    delay(2000);
+    wait_x_sec(1 + CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
@@ -5636,7 +5635,7 @@ void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSt
 }
 
 int CTRexExtendedDriverBase1GVm::wait_for_stable_link(){
-    delay(10);
+    wait_x_sec(9 + CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
