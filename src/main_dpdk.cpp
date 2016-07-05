@@ -140,8 +140,8 @@ public:
     virtual int configure_drop_queue(CPhyEthIF * _if);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
-    virtual int  wait_for_stable_link()=0;
-    virtual void wait_after_link_up(){};
+    virtual int  wait_for_stable_link();
+    virtual void wait_after_link_up();
     virtual bool flow_control_disable_supported(){return true;}
     virtual bool hw_rx_stat_supported(){return false;}
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes
@@ -537,6 +537,7 @@ enum { OPT_HELP,
        OPT_ONLY_LATENCY,
        OPT_1G_MODE,
        OPT_LATENCY_PREVIEW ,
+       OPT_WAIT_BEFORE_TRAFFIC,
        OPT_PCAP,
        OPT_RX_CHECK,
        OPT_IO_MODE,
@@ -598,6 +599,7 @@ static CSimpleOpt::SOption parser_options[] =
 
         { OPT_1G_MODE,       "-1g",   SO_NONE   },
         { OPT_LATENCY_PREVIEW ,       "-k",   SO_REQ_SEP   },
+        { OPT_WAIT_BEFORE_TRAFFIC ,   "-w",   SO_REQ_SEP   },
         { OPT_PCAP,       "--pcap",       SO_NONE   },
         { OPT_RX_CHECK,   "--rx-check",  SO_REQ_SEP },
         { OPT_IO_MODE,   "--iom",  SO_REQ_SEP },
@@ -674,6 +676,8 @@ static int usage(){
     printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for 9K UDP\n");
     printf("  \n");
     printf(" -k  [sec]                  : run latency test before starting the test. it will wait for x sec sending packet and x sec after that  \n");
+    printf("  \n");
+    printf(" -w  [sec]                  : wait between init of interfaces and sending traffic,\n");
     printf("  \n");
 
     printf(" --cfg [platform_yaml]      : load and configure platform using this file see example in cfg/cfg_examplexx.yaml file  \n");
@@ -939,6 +943,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case  OPT_LATENCY_PREVIEW :
                 sscanf(args.OptionArg(),"%d", &po->m_latency_prev);
+                break;
+
+            case  OPT_WAIT_BEFORE_TRAFFIC :
+                sscanf(args.OptionArg(),"%d", &po->m_wait_before_traffic);
                 break;
 
             case OPT_PCAP:
@@ -4855,22 +4863,6 @@ int main_test(int argc , char * argv[]){
     return (0);
 }
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////
-// driver section
-//////////////////////////////////////////////////////////////////////////////////////////////
-int CTRexExtendedDriverBase::configure_drop_queue(CPhyEthIF * _if) {
-    uint8_t port_id=_if->get_rte_port_id();
-    return (rte_eth_dev_rx_queue_stop(port_id, 0));
-}
-
-CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
-    CFlowStatParser *parser = new CFlowStatParser();
-    assert (parser);
-    return parser;
-}
-
 void wait_x_sec(int sec) {
     int i;
     printf(" wait %d sec ", sec);
@@ -4884,13 +4876,37 @@ void wait_x_sec(int sec) {
     fflush(stdout);
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
+// driver section
+//////////////////////////////////////////////////////////////////////////////////////////////
+int CTRexExtendedDriverBase::configure_drop_queue(CPhyEthIF * _if) {
+    uint8_t port_id=_if->get_rte_port_id();
+    return (rte_eth_dev_rx_queue_stop(port_id, 0));
+}
+
+int CTRexExtendedDriverBase::wait_for_stable_link() {
+    wait_x_sec(CGlobalInfo::m_options.m_wait_before_traffic);
+    return 0;
+}
+
+void CTRexExtendedDriverBase::wait_after_link_up() {
+    wait_x_sec(CGlobalInfo::m_options.m_wait_before_traffic);
+}
+
+CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
+    CFlowStatParser *parser = new CFlowStatParser();
+    assert (parser);
+    return parser;
+}
+
 // in 1G we need to wait if links became ready to soon
 void CTRexExtendedDriverBase1G::wait_after_link_up(){
-    wait_x_sec(7);
+    wait_x_sec(6 + CGlobalInfo::m_options.m_wait_before_traffic);
 }
 
 int CTRexExtendedDriverBase1G::wait_for_stable_link(){
-    wait_x_sec(10);
+    wait_x_sec(9 + CGlobalInfo::m_options.m_wait_before_traffic);
     return(0);
 }
 
@@ -5272,7 +5288,7 @@ void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 }
 
 int CTRexExtendedDriverBase10G::wait_for_stable_link(){
-    delay(2000);
+    wait_x_sec(1 + CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
@@ -5545,7 +5561,7 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 }
 
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
-    delay(2000);
+    wait_x_sec(1 + CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
@@ -5619,7 +5635,7 @@ void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSt
 }
 
 int CTRexExtendedDriverBase1GVm::wait_for_stable_link(){
-    delay(10);
+    wait_x_sec(9 + CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
