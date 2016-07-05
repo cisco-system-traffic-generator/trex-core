@@ -4,6 +4,7 @@ import os
 import time
 from collections import OrderedDict, deque
 import datetime
+import readline
 
 if sys.version_info > (3,0):
     from io import StringIO
@@ -376,9 +377,11 @@ class TrexTUIPanelManager():
             msg = self.main_panel.get_key_actions()[ch]['action']()
 
         else:
-            msg = ""
+            return False
+            #msg = ""
 
         self.generate_legend()
+        return True
 
         if msg == None:
             return False
@@ -591,21 +594,28 @@ class AsyncKeys:
 
 
     def tick (self, pm):
-        try:
-            rc = self.engine.tick(pm)
-            return self.STATUS_REDRAW_KEYS if rc else self.STATUS_NONE
+        seq = ''
+        # drain all chars
+        while True:
+            ch = os.read(sys.stdin.fileno(), 1).decode()
+            if not ch:
+                break
+            seq += ch
 
-        except AsyncKeysSwitch:
+        if not seq:
+            return self.STATUS_NONE
+
+        if seq == '\x1b':
             self.switch()
             return self.STATUS_REDRAW_ALL
+
+        # pass tick to engine
+        return self.engine.tick(seq, pm)
+
 
     def draw (self):
         self.engine.draw()
  
-
-# used for switching engines
-class AsyncKeysSwitch(Exception):
-    pass
 
     
 # Legend engine
@@ -616,18 +626,17 @@ class AsyncKeysEngineLegend:
     def get_type (self):
         return self.async.MODE_LEGEND
 
-    def tick (self, pm):
-        ch = os.read(sys.stdin.fileno(), 1).decode()
-        if not ch:
-            return False
+    def tick (self, seq, pm):
 
-        if ch == '\x1b':
-            raise AsyncKeysSwitch()
-
-        elif ch == 'q':
+        if seq == 'q':
             raise TUIQuit()
 
-        return pm.handle_key(ch)
+        # ignore escapes
+        if len(seq) > 1:
+            return AsyncKeys.STATUS_NONE
+
+        rc = pm.handle_key(seq)
+        return AsyncKeys.STATUS_REDRAW_ALL if rc else AsyncKeys.STATUS_NONE
 
     def draw (self):
         pass
@@ -638,15 +647,17 @@ class AsyncKeysEngineConsole:
     def __init__ (self, async, cmd):
         self.async = async
         self.cmd = cmd
-        self.line = ""
-        self.history = deque(maxlen = 100)
+        self.lines = deque(maxlen = 100)
 
         # fetch readline history
         for i in range(0, readline.get_current_history_length()):
-            self.history.appendleft(readline.get_history_item(i))
+            self.lines.appendleft(CmdLine(readline.get_history_item(i)))
 
-        # reset index
-        self.history_index = -1
+        # new line
+        self.lines.appendleft(CmdLine(''))
+        self.line_index = 0
+
+        self.ac = ['start', 'stop', 'pause', 'resume', 'update', 'quit', 'exit']
 
 
     def get_type (self):
@@ -656,16 +667,15 @@ class AsyncKeysEngineConsole:
     def handle_escape_char (self, seq):
         # up
         if seq == '\x1b[A':
-            self.history_index = min(self.history_index + 1, len(self.history) - 1)
-            self.line = self.history[self.history_index] if self.history_index > -1 else ''
-            return True
+            self.line_index = min(self.line_index + 1, len(self.lines) - 1)
+            return AsyncKeys.STATUS_REDRAW_KEYS
 
         # down
         elif seq == '\x1b[B':
-            self.history_index = max(self.history_index - 1, -1)
-            self.line = self.history[self.history_index] if self.history_index > -1 else ''
-            return True
+            self.line_index = max(self.line_index - 1, 0)
+            return AsyncKeys.STATUS_REDRAW_KEYS
 
+        # TODO: left and right
         # left
         #elif seq == '\x1b[D':
         #    self.line_index = min(self.line_index - 1, 0)
@@ -676,21 +686,10 @@ class AsyncKeysEngineConsole:
         #    self.line_index = min(self.line_index - 1, 0)
         #    return True
 
-        return False
+        return AsyncKeys.STATUS_NONE
 
-    def tick (self, _):
-        seq = ''
-        # drain all chars
-        while True:
-            ch = os.read(sys.stdin.fileno(), 1).decode()
-            if not ch:
-                break
-            seq += ch
-
-        # ignore - nothing to do
-        if not seq:
-            return False
-
+    def tick (self, seq, _):
+    
         # handle escape chars
         if len(seq) > 1:
             return self.handle_escape_char(seq)
@@ -703,40 +702,100 @@ class AsyncKeysEngineConsole:
     
     def handle_single_key (self, ch):
 
-        # ecsape
-        if ch == '\x1b':
-            raise AsyncKeysSwitch()
-
         # newline
-        elif ch == '\n':
+        if ch == '\n':
             self.handle_cmd()
 
         # backspace
         elif ch == '\x7f':
-            self.line = self.line[:-1]
+            self.lines[self.line_index].set(self.lines[self.line_index].get()[:-1])
 
         # TAB
         elif ch == '\t':
-            self.line = "TAB"
+            cur = self.lines[self.line_index].get()
+            common = os.path.commonprefix([x for x in self.ac if x.startswith(cur)])
+            if common:
+                if common in self.ac:
+                    self.lines[self.line_index].set(common + ' ')
+                else:
+                    self.lines[self.line_index].set(common)
+            
 
         # simple char
         else:
-            self.line += ch
+            self.lines[self.line_index] += ch
 
-        return True
+        return AsyncKeys.STATUS_REDRAW_KEYS
 
 
     def handle_cmd (self):
-        if self.line in ['quit', 'exit', 'q']:
+        cmd = self.lines[self.line_index].get().strip()
+        if not cmd:
+            return
+
+        if cmd in ['quit', 'exit', 'q']:
             raise TUIQuit()
 
-        self.cmd.onecmd(self.line)
-        self.history.appendleft(self.line)
-        self.history_index = -1
-        self.line = ""
+        self.cmd.onecmd(cmd)
 
+        # take out the empty line
+        empty_line = self.lines.popleft()
+        assert(empty_line.ro_line == '')
+
+        if self.lines[0].ro_line != cmd:
+            self.lines.appendleft(CmdLine(cmd))
+        
+        # back in
+        self.lines.appendleft(empty_line)
+        self.line_index = 0
+
+        # back to readonly
+        for line in self.lines:
+            line.invalidate()
+
+        assert(self.lines[0].modified == False)
 
     def draw (self):
         sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
-        sys.stdout.write("\n" + "tui>" + self.line)
+        sys.stdout.write("\n" + "tui>" + self.lines[self.line_index].get())
+
+
+# a readline alike command line - can be modified during edit
+class CmdLine(object):
+    def __init__ (self, line):
+        self.ro_line  = line
+        self.w_line   = None
+        self.modified = False
+
+    def get (self):
+        if self.modified:
+            return self.w_line
+        else:
+            return self.ro_line
+
+    def set (self, line):
+        self.w_line = line
+        self.modified = True
+
+    def __add__ (self, other):
+        if self.modified:
+            return self.ro_line + other
+        else:
+            return self.wo_line + other
+
+    def __iadd__ (self, other):
+        if not self.modified:
+            self.w_line = self.ro_line
+            self.modified = True
+
+        self.w_line += other
+        return self
+
+    def __str__ (self):
+        return self.get()
+
+    def invalidate (self):
+        self.modified = False
+        self.w_line = None
+
 
