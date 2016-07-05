@@ -2974,7 +2974,7 @@ class STLClient(object):
 
         if profile_type == 'python':
             self.logger.log('Type:             {:^12}'.format('Python Module'))
-            self.logger.log('Tunables:         {:^12}'.format(['{0} = {1}'.format(k ,v) for k, v in info['tunables'].items()]))
+            self.logger.log('Tunables:         {:^12}'.format(str(['{0} = {1}'.format(k ,v) for k, v in info['tunables'].items()])))
 
         elif profile_type == 'yaml':
             self.logger.log('Type:             {:^12}'.format('YAML'))
