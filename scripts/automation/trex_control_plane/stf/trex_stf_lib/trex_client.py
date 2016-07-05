@@ -310,7 +310,7 @@ class CTRexClient(object):
                 for i in range(int(timeout / poll_rate)):
                     if not self.get_trex_cmds():
                         return True
-                    sleep(poll_rate)
+                    time.sleep(poll_rate)
             if self.get_trex_cmds():
                 return False
             return True

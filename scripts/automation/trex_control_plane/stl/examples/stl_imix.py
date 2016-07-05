@@ -5,6 +5,7 @@ import time
 import json
 from pprint import pprint
 import argparse
+import sys
 
 # IMIX test
 # it maps the ports to sides
@@ -97,6 +98,7 @@ def imix_test (server, mult):
     except STLError as e:
         passed = False
         print(e)
+        sys.exit(1)
 
     finally:
         c.disconnect()

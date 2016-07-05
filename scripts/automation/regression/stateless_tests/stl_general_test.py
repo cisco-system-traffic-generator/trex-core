@@ -85,18 +85,22 @@ class STLBasic_Test(CStlGeneral_Test):
     @nottest
     def test_connectivity(self):
         if not self.is_loopback:
-            if CTRexScenario.router_cfg['forceImageReload']:
-                CTRexScenario.router.load_clean_config()
-            CTRexScenario.router.configure_basic_interfaces()
-            CTRexScenario.router.config_pbr(mode = "config")
-
-        err = 'Client could not connect'
-        CTRexScenario.stl_init_error = err
+            try:
+                if CTRexScenario.router_cfg['forceImageReload']:
+                    CTRexScenario.router.load_clean_config()
+                CTRexScenario.router.configure_basic_interfaces()
+                CTRexScenario.router.config_pbr(mode = "config")
+            except Exception as e:
+                CTRexScenario.stl_init_error = 'Could not configure device, err: %s' % e
+                self.fail(CTRexScenario.stl_init_error)
+                return
         if not self.connect():
-            self.fail(err)
-        err = 'Client could not map ports'
-        CTRexScenario.stl_init_error = err
+            CTRexScenario.stl_init_error = 'Client could not connect'
+            self.fail(CTRexScenario.stl_init_error)
+            return
+        print('Connected')
         if not self.map_ports():
-            self.fail(err)
+            CTRexScenario.stl_init_error = 'Client could not map ports'
+            self.fail(CTRexScenario.stl_init_error)
+            return
         print('Got ports mapping: %s' % CTRexScenario.stl_ports_map)
-        CTRexScenario.stl_init_error = None

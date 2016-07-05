@@ -51,10 +51,7 @@ from distutils.dir_util import mkpath
 # option to select wanted test by name without file, class etc.
 def new_Selector_wantMethod(self, method, orig_Selector_wantMethod = Selector.wantMethod):
     result = orig_Selector_wantMethod(self, method)
-    if not CTRexScenario.test:
-        return result
-    else:
-        return CTRexScenario.test in getattr(method, '__name__', '')
+    return result and (not CTRexScenario.test or CTRexScenario.test in getattr(method, '__name__', ''))
 
 Selector.wantMethod = new_Selector_wantMethod
 

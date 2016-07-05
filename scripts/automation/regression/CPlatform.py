@@ -70,11 +70,10 @@ class CPlatform(object):
             res = self.cmd_link.run_single_command(cache)
             if 'Rollback Done' not in res:
                 print('Failed to load clean config, trying again')
+                time.sleep(2)
                 if i < 4:
                     continue
                 raise Exception('Could not load clean config, response: %s' % res)
-            if i > 0: # were errors, better to wait
-                time.sleep(2)
 
     def config_pbr (self, mode = 'config'):
         idx = 1
