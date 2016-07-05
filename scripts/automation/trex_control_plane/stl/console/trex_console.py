@@ -459,7 +459,6 @@ class TRexConsole(TRexGeneralCmd):
 
         self.stateless_client.start_line(line)
 
-        
 
 
     def help_start(self):
@@ -590,7 +589,7 @@ class TRexConsole(TRexGeneralCmd):
 
 
         with self.stateless_client.logger.supress():
-            self.tui.show(self)
+            self.tui.show(self.stateless_client)
 
 
     def help_tui (self):

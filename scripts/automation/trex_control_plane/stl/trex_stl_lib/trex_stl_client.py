@@ -2428,13 +2428,14 @@ class STLClient(object):
                 rc = f(*args)
             except STLError as e:
                 client.logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
-                return
+                return RC_ERR(e.brief())
 
             # if got true - print time
             if rc:
                 delta = time.time() - time1
                 client.logger.log(format_time(delta) + "\n")
 
+            return rc
 
         return wrap
 
@@ -2587,14 +2588,14 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if opts is None:
-            return
+            return RC_ERR("invalid arguments for 'start'")
 
         active_ports = list_intersect(self.get_active_ports(), opts.ports)
         if active_ports:
             if not opts.force:
                 msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
                 self.logger.log(format_text(msg, 'bold'))
-                return
+                return RC_ERR(msg)
             else:
                 self.stop(active_ports)
 
@@ -2612,8 +2613,10 @@ class STLClient(object):
             else:
                 # must be exact
                 if len(opts.ports) != len(opts.tunables):
-                    self.logger.log('tunables section count must be 1 or exactly as the number of ports: got {0}'.format(len(opts.tunables)))
-                    return
+                    msg = 'tunables section count must be 1 or exactly as the number of ports: got {0}'.format(len(opts.tunables))
+                    self.logger.log(msg)
+                    return RC_ERR(msg)
+
                 tunables = opts.tunables
             
 
@@ -2633,9 +2636,10 @@ class STLClient(object):
                 self.add_streams(profile.get_streams(), ports = port)
 
         except STLError as e:
-            self.logger.log(format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold'))
+            msg = format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold')
+            self.logger.log(msg)
             self.logger.log(e.brief() + "\n")
-            return
+            return RC_ERR(msg)
 
 
         if opts.dry:
@@ -2647,8 +2651,7 @@ class STLClient(object):
                        opts.duration,
                        opts.total)
 
-        # true means print time
-        return True
+        return RC_OK()
 
 
 
@@ -2662,23 +2665,25 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
         if opts is None:
-            return
+            return RC_ERR("invalid arguments for 'stop'")
 
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_active_ports())
         if not ports:
             if not opts.ports:
-                self.logger.log('stop - no active ports')
+                msg = 'stop - no active ports'
             else:
-                self.logger.log('stop - no active traffic on ports {0}'.format(opts.ports))
-            return
+                msg = 'stop - no active traffic on ports {0}'.format(opts.ports)
+
+            self.logger.log(msg)
+            return RC_ERR(msg)
 
         # call API
         self.stop(ports)
 
         # true means print time
-        return True
+        return RC_OK()
 
 
     @__console
@@ -2694,22 +2699,24 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
         if opts is None:
-            return
+            return RC_ERR("invalid arguments for 'update'")
 
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_active_ports())
         if not ports:
             if not opts.ports:
-                self.logger.log('update - no active ports')
+                msg = 'update - no active ports'
             else:
-                self.logger.log('update - no active traffic on ports {0}'.format(opts.ports))
-            return
+                msg = 'update - no active traffic on ports {0}'.format(opts.ports)
+
+            self.logger.log(msg)
+            return RC_ERR(msg)
 
         self.update(ports, opts.mult, opts.total, opts.force)
 
         # true means print time
-        return True
+        return RC_OK()
 
 
     @__console
@@ -2722,26 +2729,29 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split(), default_ports = self.get_transmitting_ports(), verify_acquired = True)
         if opts is None:
-            return
+            return RC_ERR("invalid arguments for 'pause'")
 
         # check for already paused case
         if opts.ports and is_sub_list(opts.ports, self.get_paused_ports()):
-            self.logger.log('pause - all of port(s) {0} are already paused'.format(opts.ports))
-            return
+            msg = 'pause - all of port(s) {0} are already paused'.format(opts.ports)
+            self.logger.log(msg)
+            return RC_ERR(msg)
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_transmitting_ports())
         if not ports:
             if not opts.ports:
-                self.logger.log('pause - no transmitting ports')
+                msg = 'pause - no transmitting ports'
             else:
-                self.logger.log('pause - none of ports {0} are transmitting'.format(opts.ports))
-            return
+                msg = 'pause - none of ports {0} are transmitting'.format(opts.ports)
+
+            self.logger.log(msg)
+            return RC_ERR(msg)
 
         self.pause(ports)
 
         # true means print time
-        return True
+        return RC_OK()
 
 
     @__console
@@ -2754,22 +2764,24 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split(), default_ports = self.get_paused_ports(), verify_acquired = True)
         if opts is None:
-            return
+            return RC_ERR("invalid arguments for 'resume'")
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_paused_ports())
         if not ports:
             if not opts.ports:
-                self.logger.log('resume - no paused ports')
+                msg = 'resume - no paused ports'
             else:
-                self.logger.log('resume - none of ports {0} are paused'.format(opts.ports))
-            return
+                msg = 'resume - none of ports {0} are paused'.format(opts.ports)
+                
+            self.logger.log(msg)
+            return RC_ERR(msg)
 
 
         self.resume(ports)
 
         # true means print time
-        return True
+        return RC_OK()
 
    
     @__console

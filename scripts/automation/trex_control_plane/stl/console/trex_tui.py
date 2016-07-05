@@ -378,17 +378,16 @@ class TrexTUIPanelManager():
 
         else:
             return False
-            #msg = ""
 
         self.generate_legend()
         return True
 
-        if msg == None:
-            return False
-        else:
-            if msg:
-                self.log.add_event(msg)
-            return True
+        #if msg == None:
+        #    return False
+        #else:
+        #    if msg:
+        #        self.log.add_event(msg)
+        #    return True
             
 
     # actions
@@ -438,17 +437,7 @@ class TrexTUI():
         self.stateless_client = stateless_client
 
         self.pm = TrexTUIPanelManager(self)
-        
-
-
-    def handle_key_input (self):
-        # try to read a single key
-        ch = os.read(sys.stdin.fileno(), 1).decode()
-        if ch:
-            return (self.pm.handle_key(ch), True)
-        else:
-            return (True, False)
-            
+                    
 
     def clear_screen (self):
         #os.system('clear')
@@ -456,8 +445,8 @@ class TrexTUI():
         sys.stdout.write("\x1b[2J\x1b[H")
 
 
-    def show (self, cmd, show_log = False):
-        with AsyncKeys(cmd) as async_keys:
+    def show (self, client, show_log = False):
+        with AsyncKeys(client) as async_keys:
             self.async_keys = async_keys
             self.show_internal(show_log)
 
@@ -476,7 +465,7 @@ class TrexTUI():
                 status = self.async_keys.tick(self.pm)
 
                 self.draw_screen(status)
-                if not status:
+                if status == AsyncKeys.STATUS_NONE:
                     time.sleep(0.001)
 
                 # regular state
@@ -561,8 +550,8 @@ class AsyncKeys:
     STATUS_REDRAW_KEYS = 1
     STATUS_REDRAW_ALL  = 2
 
-    def __init__ (self, cmd):
-        self.engine_console = AsyncKeysEngineConsole(self, cmd)
+    def __init__ (self, client):
+        self.engine_console = AsyncKeysEngineConsole(self, client)
         self.engine_legend  = AsyncKeysEngineLegend(self)
         self.engine = self.engine_console
 
@@ -644,21 +633,29 @@ class AsyncKeysEngineLegend:
 
 # console engine
 class AsyncKeysEngineConsole:
-    def __init__ (self, async, cmd):
+    def __init__ (self, async, client):
         self.async = async
-        self.cmd = cmd
+        self.client = client
         self.lines = deque(maxlen = 100)
 
-        # fetch readline history
+        self.ac = {'start' : client.start_line,
+                   'stop'  : client.stop_line,
+                   'pause' : client.pause_line,
+                   'resume': client.resume_line,
+                   'update': client.update_line,
+                   'quit'  : None,
+                   'exit'  : None}
+
+        # fetch readline history and add relevants
         for i in range(0, readline.get_current_history_length()):
-            self.lines.appendleft(CmdLine(readline.get_history_item(i)))
+            cmd = readline.get_history_item(i)
+            if cmd and cmd.split()[0] in self.ac:
+                self.lines.appendleft(CmdLine(cmd))
 
         # new line
         self.lines.appendleft(CmdLine(''))
         self.line_index = 0
-
-        self.ac = ['start', 'stop', 'pause', 'resume', 'update', 'quit', 'exit']
-
+        self.last_status = ''
 
     def get_type (self):
         return self.async.MODE_CONSOLE
@@ -727,6 +724,12 @@ class AsyncKeysEngineConsole:
 
         return AsyncKeys.STATUS_REDRAW_KEYS
 
+    def split_cmd (self, cmd):
+        s = cmd.split(' ', 1)
+        op = s[0]
+        param = s[1] if len(s) == 2 else ''
+        return op, param
+
 
     def handle_cmd (self):
         cmd = self.lines[self.line_index].get().strip()
@@ -736,7 +739,11 @@ class AsyncKeysEngineConsole:
         if cmd in ['quit', 'exit', 'q']:
             raise TUIQuit()
 
-        self.cmd.onecmd(cmd)
+        op, param = self.split_cmd(cmd)
+        
+        func = self.ac.get(op)
+        if func:
+            func_rc = func(param)
 
         # take out the empty line
         empty_line = self.lines.popleft()
@@ -754,10 +761,16 @@ class AsyncKeysEngineConsole:
             line.invalidate()
 
         assert(self.lines[0].modified == False)
+        if not func:
+            self.last_status = "unknown command: '{0}'".format(cmd.split()[0])
+        else:
+            self.last_status = format_text("[OK]", 'green') if func_rc else format_text(str(func_rc).replace('\n', ''), 'red')
+
 
     def draw (self):
         sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
-        sys.stdout.write("\n" + "tui>" + self.lines[self.line_index].get())
+        sys.stdout.write("status: {0}\n".format(format_text(self.last_status, 'red')))
+        sys.stdout.write("\ntui>" + self.lines[self.line_index].get())
 
 
 # a readline alike command line - can be modified during edit
