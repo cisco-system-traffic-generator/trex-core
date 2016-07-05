@@ -5635,7 +5635,7 @@ void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSt
 }
 
 int CTRexExtendedDriverBase1GVm::wait_for_stable_link(){
-    wait_x_sec(9 + CGlobalInfo::m_options.m_wait_before_traffic);
+    wait_x_sec(CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
