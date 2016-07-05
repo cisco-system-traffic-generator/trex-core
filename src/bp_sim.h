@@ -768,6 +768,7 @@ public:
         m_latency_rate =0;
         m_latency_mask =0xffffffff;
         m_latency_prev=0;
+        m_wait_before_traffic=1;
         m_zmq_port=4500;
         m_telnet_port =4501;
         m_platform_factor=1.0;
@@ -797,6 +798,7 @@ public:
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
     uint32_t        m_latency_mask;
     uint32_t        m_latency_prev;
+    uint32_t        m_wait_before_traffic;
     uint16_t        m_rx_check_sample; /* the sample rate of flows */
     uint16_t        m_rx_check_hops;
     uint16_t        m_zmq_port;
