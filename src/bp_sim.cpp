@@ -1938,42 +1938,114 @@ typedef CTmpFlowInfo * flow_tmp_t;
 typedef std::map<uint16_t, flow_tmp_t> flow_tmp_map_t;
 typedef flow_tmp_map_t::iterator flow_tmp_map_iter_t;
 
-
-
-bool CCapFileFlowInfo::is_valid_template_load_time(std::string & err){
-    err="";
+enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_load_time(){
    int i;
     for (i=0; i<Size(); i++) {
         CFlowPktInfo * lp= GetPacket((uint32_t)i);
         CPacketIndication * lpd=&lp->m_pkt_indication;
         if ( lpd->getEtherOffset() !=0 ){
-            err=" supported template Ether offset start is 0 \n";
-            return (false);
+            fprintf(stderr, "Error: Bad CAP file. Ether offset start is not 0 in packet %d \n", i+1);
+            return kPktNotSupp;
         }
-        if ( lpd->getIpOffset() !=14 ){
-            err=" supported template ip offset is 14 \n";
-            return (false);
-        }
-        if ( lpd->is_ipv6() ){
-            if ( lpd->getTcpOffset() != (14+40) ){
-                err=" supported template tcp/udp offset is 54, no ipv6 option header is supported \n";
-                return (false);
+
+        if  ( CGlobalInfo::is_learn_mode() ) {
+            // We change TCP ports. Need them to be in first 64 byte mbuf.
+            // Since we also add IP option, and rx-check feature might add another IP option, better not allow
+            // OP options in this mode. If needed this limitation can be refined a bit.
+            if ( lpd->getTcpOffset() - lpd->getIpOffset() != 20 ) {
+                fprintf(stderr, "Error: Bad CAP file. In learn (NAT) mode, no IP options allowed \n");
+                return kIPOptionNotAllowed;
             }
-        }else{
-            if ( lpd->getTcpOffset() != (14+20) ){
-                err=" supported template tcp/udp offset is 34, no ipv4 option is allowed in this version \n";
-                return (false);
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+                if (lpd->getIpProto() != IPPROTO_TCP && !lpd->m_desc.IsInitSide()) {
+                    fprintf(stderr, "Error: In the chosen learn mode, all packets from server to client in CAP file should be TCP.\n");
+                    fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                    return kNoTCPFromServer;
+                }
             }
         }
     }
 
     if  ( CGlobalInfo::is_learn_mode() ) {
-        if ( GetPacket(0)->m_pkt_indication.m_desc.IsPluginEnable() ) {
-            err="plugins are not supported with --learn mode \n";
-            return(false);
+        CPacketIndication &pkt_0_indication = GetPacket(0)->m_pkt_indication;
+
+        if ( pkt_0_indication.m_desc.IsPluginEnable() ) {
+            fprintf(stderr, "Error: plugins are not supported with --learn mode \n");
+            return kPlugInWithLearn;
+        }
+
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                if (Size() < 3) {
+                    fprintf(stderr
+                            , "Error: In the chosen learn mode, need at least the 3 TCP handshake packets.\n");
+                    fprintf(stderr
+                            , "       Please give different CAP file, or try different --learn-mode\n");
+                    return kTCPLearnModeBadFlow;
+                }
+            }
+            CPacketIndication &pkt_1_indication = GetPacket(1)->m_pkt_indication;
+
+
+            // verify first packet is TCP SYN from client
+            TCPHeader *tcp = (TCPHeader *)(pkt_0_indication.getBasePtr() + pkt_0_indication.getTcpOffset());
+            if ( (! pkt_0_indication.m_desc.IsInitSide()) || (! tcp->getSynFlag()) ) {
+                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet should be SYN from client side.\n");
+                fprintf(stderr, "       In cap file, first packet side direction is %s. TCP header is:\n"
+                        , pkt_0_indication.m_desc.IsInitSide() ? "outside":"inside");
+                tcp->dump(stderr);
+                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                return kNoSyn;
+            }
+
+            // We want at least the TCP flags to be inside first mbuf
+            if (pkt_0_indication.getTcpOffset() + 14 > FIRST_PKT_SIZE) {
+                fprintf(stderr
+                        , "Error: In the chosen learn mode, TCP flags offset should be less than %d, but it is %d.\n"
+                        , FIRST_PKT_SIZE, pkt_0_indication.getTcpOffset() + 14);
+                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                return kTCPOffsetTooBig;
+            }
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                // To support TCP seq randomization from server to client, we need second packet in flow to be the server SYN+ACK
+                bool error = false;
+                if (pkt_1_indication.getIpProto() != IPPROTO_TCP) {
+                    error = true;
+                } else {
+                    TCPHeader *tcp = (TCPHeader *)(pkt_1_indication.getBasePtr() + pkt_1_indication.getTcpOffset());
+                    if ( (! tcp->getSynFlag()) ||  (! tcp->getAckFlag()) || ( pkt_1_indication.m_desc.IsInitSide())) {
+                        error = true;
+                    }
+                }
+                if (error) {
+                    fprintf(stderr, "Error: In the chosen learn mode, second packet should be SYN+ACK from server.\n");
+                    fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                    return kNoTCPSynAck;
+                }
+
+                CPacketIndication &pkt_2_indication = GetPacket(2)->m_pkt_indication;
+                if ( (! pkt_2_indication.m_desc.IsInitSide()) ) {
+                    fprintf(stderr
+                            , "Error: Wrong third packet. In the chosen learn mode, need at least the 3 TCP handshake packets.\n");
+                    fprintf(stderr
+                            , "       Please give different CAP file, or try different --learn-mode\n");
+                    return kTCPLearnModeBadFlow;
+                }
+                if ((pkt_0_indication.m_cap_ipg < LEARN_MODE_MIN_IPG / 1000) || (pkt_1_indication.m_cap_ipg < LEARN_MODE_MIN_IPG / 1000)) {
+                    fprintf(stderr
+                            , "Error: Bad cap file timings. In the chosen learn mode");
+                    fprintf(stderr, "IPG between TCP handshake packets should be at least %d msec.\n", LEARN_MODE_MIN_IPG);
+                    fprintf(stderr, "       Current delay is %f between second and first, %f between third and second"
+                            , pkt_0_indication.m_cap_ipg, pkt_1_indication.m_cap_ipg);
+                    fprintf(stderr
+                            , "       Please give different CAP file, try different --learn-mode, or edit ipg parameters in template file\n");
+                    return kTCPIpgTooLow;
+                }
+            }
         }
     }
-    return(true);
+
+    return(kOK);
 }
 
 
@@ -2061,6 +2133,13 @@ void CCapFileFlowInfo::update_info(){
         if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ){
             lp->mask_as_learn();
         }
+
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+            // In this mode, we need to see the SYN+ACK as well.
+            lp = GetPacket(1);
+            assert(lp);
+            lp->m_pkt_indication.setTTL(TTL_RESERVE_DUPLICATE);
+        }
     }
 
     if ( ft.empty() )
@@ -2100,7 +2179,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     m_total_errors=0;
     CFlow * first_flow=0;
     bool first_flow_fif_is_swap=false;
-
     bool time_was_set=false;
     double last_time=0.0;
     CCapPktRaw raw_packet;
@@ -2175,35 +2253,10 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                             m_total_errors++;
                         }
                     }
-
-                    if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
-                        // in this mode, first TCP packet must be SYN from client.
-                        if (pkt_indication.getIpProto() == IPPROTO_TCP) {
-                            TCPHeader *tcp = (TCPHeader *)(pkt_indication.getBasePtr() + pkt_indication.getTcpOffset());
-                            if ( (! pkt_indication.m_desc.IsInitSide()) || (! tcp->getSynFlag()) ) {
-                                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet should be SYN from client side.\n");
-                                fprintf(stderr, "       In cap file, first packet side direction is %s. TCP header is:\n", pkt_indication.m_desc.IsInitSide() ? "outside":"inside");
-                                tcp->dump(stderr);
-                                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-
-                                return kNoSyn;
-                            }
-                            // We want at least the TCP flags to be inside first mbuf
-                            if (pkt_indication.getTcpOffset() + 14 > FIRST_PKT_SIZE) {
-                                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet TCP flags offset should be less than %d, but it is %d.\n"
-                                       , FIRST_PKT_SIZE, pkt_indication.getTcpOffset() + 14);
-                                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-                                return kTCPOffsetTooBig;
-                            }
-                        }
-                    }
-
                 }else{ /* no FIF */
-
                     pkt_indication.m_desc.SetFlowId(lpflow->flow_id);
 
                     if ( multi_flow_enable ==false ){
-
                         if (lpflow == first_flow) {
                             // add to
                             bool init_side=
@@ -2225,16 +2278,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
                     }
                 }
-
-                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
-                    // This test must be down here, after initializing init side indication
-                    if (pkt_indication.getIpProto() != IPPROTO_TCP && !pkt_indication.m_desc.IsInitSide()) {
-                        fprintf(stderr, "Error: In the chosen learn mode, all packets from server to client in CAP file should be TCP.\n");
-                        fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-                        return kNoTCPFromServer;
-                    }
-                }
-
             }else{
                 fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
                 return kPktNotSupp;
@@ -2244,7 +2287,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
             return kPktProcessFail;
         }
     }
-
 
     /* set the last */
     CFlowPktInfo * last_pkt =GetPacket((uint32_t)(Size()-1));
@@ -2261,6 +2303,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
 
 
+        printf("%d: IPG:%f", i, lp_prev->m_pkt_indication.m_cap_ipg); //??? remove
         if ( lp->m_pkt_indication.m_desc.IsInitSide() !=
              lp_prev->m_pkt_indication.m_desc.IsInitSide()) {
             lp_prev->m_pkt_indication.m_desc.SetRtt(true);
@@ -3122,11 +3165,8 @@ bool CFlowGeneratorRec::Create(CFlowYamlInfo * info,
     int res=m_flow_info.load_cap_file(info->m_name.c_str(),_id,m_info->m_plugin_id);
     if ( res==0 ) {
         fixup_ipg_if_needed();
-        std::string  err;
-        /* verify that template are valid */
-        bool is_valid=m_flow_info.is_valid_template_load_time(err);
-        if (!is_valid) {
-            printf("\n ERROR template file is not valid  '%s' \n",err.c_str());
+
+        if (m_flow_info.is_valid_template_load_time() != 0) {
             return (false);
         }
         m_flow_info.update_info();
@@ -3700,11 +3740,11 @@ inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
     }
     return (0);
 }
-                                           
+
 
 
 template<int SCH_MODE>
-inline int CNodeGenerator::flush_file_realtime(dsec_t max_time, 
+inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                                         dsec_t d_time,
                                         bool always,
                                         CFlowGenListPerThread * thread,
@@ -3723,9 +3763,9 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
 
     sch_state_t state = scINIT;
     node = m_p_queue.top();
-    n_time = node->m_time + offset; 
+    n_time = node->m_time + offset;
     cur_time = now_sec();
-    
+
     while (state!=scTERMINATE) {
 
          switch (state) {
@@ -3751,7 +3791,7 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                          break;
                      }
                      node = m_p_queue.top();
-                     n_time = node->m_time + offset; 
+                     n_time = node->m_time + offset;
 
                      if ((n_time-cur_time)>EAT_WINDOW_DTIME) {
                        state=scINIT;
@@ -3761,7 +3801,7 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                  break;
 
          case scWAIT:
-                do_sleep(cur_time,thread,n_time); // estimate  loop 
+                do_sleep(cur_time,thread,n_time); // estimate  loop
                 state=scWORK;
                 break;
          default:
@@ -3772,7 +3812,7 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
     return (teardown(thread,always,old_offset,offset));
 }
 
-FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time, 
+FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time,
                                         dsec_t d_time,
                                         bool always,
                                         CFlowGenListPerThread * thread,
@@ -3799,7 +3839,7 @@ FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time,
     return (teardown(thread,always,old_offset,0));
 }
 
-int CNodeGenerator::flush_file(dsec_t max_time, 
+int CNodeGenerator::flush_file(dsec_t max_time,
                                dsec_t d_time,
                                bool always,
                                CFlowGenListPerThread * thread,
@@ -3820,7 +3860,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 
 void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread) {
 
-    /*repeat and NAT is not supported */
+    /*repeat and NAT is not supported together */
     if ( node->is_nat_first_state()  ) {
         node->set_nat_wait_state();
         flush_one_node_to_file(node);
@@ -3831,7 +3871,7 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
         if ( node->is_nat_wait_state() ) {
             if (node->is_responder_pkt()) {
                 m_p_queue.pop();
-                /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
+                /* time out, need to free the flow and remove the association , we didn't get conversion yet*/
                 thread->terminate_nat_flows(node);
                 return;
 
@@ -3842,7 +3882,22 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
                 #endif
             }
         } else {
-            assert(0);
+            if ( node->is_nat_wait_ack_state() ) {
+                if (node->is_initiator_pkt()) {
+                    m_p_queue.pop();
+                    /* time out, need to free the flow and remove the association , we didn't get conversion yet*/
+                    thread->terminate_nat_flows(node);
+                    return;
+
+                } else {
+                    flush_one_node_to_file(node);
+#ifdef _DEBUG
+                    update_stats(node);
+#endif
+                }
+            } else {
+                assert(0);
+            }
         }
     }
     m_p_queue.pop();
@@ -4146,38 +4201,72 @@ void CFlowGenListPerThread::handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg)
     m_node_gen.m_v_if->send_one_pkt((pkt_dir_t)msg->m_dir,msg->m_pkt);
 }
 
-
 void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
     int i;
+    bool first = true, second = true;
+
     for (i=0; i<msg->m_cnt; i++) {
+        first = true;
+        second = true;
         CNatFlowInfo * nat_msg=&msg->m_data[i];
         CGenNode * node=m_flow_id_to_node_lookup.lookup(nat_msg->m_fid);
         if (!node) {
-            /* this should be move to a notification module */
-            #ifdef NAT_TRACE_
+            /* this should be moved to a notification module */
+#ifdef NAT_TRACE_
             printf(" ERORR not valid flow_id %d probably flow was aged  \n",nat_msg->m_fid);
-            #endif
+#endif
             m_stats.m_nat_lookup_no_flow_id++;
             continue;
         }
-        #ifdef NAT_TRACE_
-        printf(" %.03f  RX :set node %p:%x  %x:%x:%x \n",now_sec() ,node,nat_msg->m_fid,nat_msg->m_external_ip,nat_msg->m_external_ip_server,nat_msg->m_external_port);
-        #endif
-        node->set_nat_ipv4_addr(nat_msg->m_external_ip);
-        node->set_nat_ipv4_port(nat_msg->m_external_port);
-        node->set_nat_ipv4_addr_server(nat_msg->m_external_ip_server);
 
-        assert(node->is_nat_wait_state());
-        if ( CGlobalInfo::is_learn_verify_mode() ){
-            if (!node->is_external_is_eq_to_internal_ip() ){
-                m_stats.m_nat_flow_learn_error++;
+        // Calculate diff between tcp seq of SYN packet, and TCP ack of SYN+ACK packet
+        // For supporting firewalls who do TCP seq num randomization
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+            if (node->is_nat_wait_state()) {
+                char *syn_pkt = node->m_flow_info->GetPacket(0)->m_packet->raw;
+                TCPHeader *tcp = (TCPHeader *)(syn_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
+                node->set_nat_tcp_seq_diff_client(nat_msg->m_tcp_seq - tcp->getSeqNumber());
+                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                    node->set_nat_wait_ack_state();
+                    second = false;
+                } else {
+                    node->set_nat_learn_state();
+                }
+            } else {
+                char *syn_ack_pkt = node->m_flow_info->GetPacket(1)->m_packet->raw;
+                TCPHeader *tcp = (TCPHeader *)(syn_ack_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
+                node->set_nat_tcp_seq_diff_server(nat_msg->m_tcp_seq - tcp->getSeqNumber());
+                assert(node->is_nat_wait_ack_state());
+                node->set_nat_learn_state();
+                first = false;
+            }
+        } else {
+            assert(node->is_nat_wait_state());
+            node->set_nat_learn_state();
+        }
+
+        if (first) {
+#ifdef NAT_TRACE_
+            printf(" %.03f  RX :set node %p:%x  %x:%x TCP diff %x\n"
+                   , now_sec(), node,nat_msg->m_fid, nat_msg->m_external_ip, nat_msg->m_external_port
+                   , node->get_nat_tcp_seq_diff_client());
+#endif
+
+            node->set_nat_ipv4_addr(nat_msg->m_external_ip);
+            node->set_nat_ipv4_port(nat_msg->m_external_port);
+
+            if ( CGlobalInfo::is_learn_verify_mode() ){
+                if (!node->is_external_is_eq_to_internal_ip() ){
+                    m_stats.m_nat_flow_learn_error++;
+                }
             }
         }
-        node->set_nat_learn_state();
-        /* remove from the hash */
-        m_flow_id_to_node_lookup.remove_no_lookup(nat_msg->m_fid);
-        m_stats.m_nat_lookup_remove_flow_id++;
 
+        if (second) {
+            /* remove from the hash */
+            m_flow_id_to_node_lookup.remove_no_lookup(nat_msg->m_fid);
+            m_stats.m_nat_lookup_remove_flow_id++;
+        }
     }
 }
 
@@ -4273,7 +4362,7 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         fprintf(stderr," nothing to generate no template loaded \n");
         return;
     }
-    
+
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
     dsec_t d_time_flow=get_delta_flow_is_sec();
@@ -5055,7 +5144,7 @@ void CErfIF::apply_client_config(const ClientCfg *cfg, pkt_dir_t dir) {
     /* VLAN */
     if (cfg_dir.has_vlan()) {
         add_vlan(cfg_dir.get_vlan());
-    }   
+    }
 }
 
 int CErfIF::send_node(CGenNode *node){
@@ -6422,7 +6511,7 @@ void CGenNodeBase::free_base(){
         CGenNodePCAP *p = (CGenNodePCAP *)this;
         p->destroy();
         return;
-    } 
+    }
 
     if ( m_type == COMMAND ) {
          CGenNodeCommand* p=(CGenNodeCommand*)this;
@@ -6430,4 +6519,3 @@ void CGenNodeBase::free_base(){
     }
 
 }
-

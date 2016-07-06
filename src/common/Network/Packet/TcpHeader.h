@@ -23,6 +23,11 @@ class TCPHeader
 {
 
 public:
+    enum TCPHeader_enum_t
+    {
+        TCP_INVALID_PORT = 0
+    };
+
     TCPHeader(){}
 
     TCPHeader(uint16_t    argSourcePort,

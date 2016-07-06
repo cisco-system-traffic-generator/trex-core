@@ -387,6 +387,12 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
 
     if ( ! is_lateancy_pkt) {
 
+#if 0
+        TCPHeader *tcp = (TCPHeader *)parser.m_l4; //????? remove
+	if (parser.m_ipv4->getProtocol() == 0x6 && tcp->getSynFlag()) {
+        tcp->dump(stdout); //???? remove
+	}
+#endif
 #ifdef NAT_TRACE_
         printf(" %.3f RX : got packet !!! \n",now_sec() );
 #endif
@@ -436,7 +442,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
                         m_no_ipv4_option++;
                         return (false);
                     }
-                    m_parent->get_nat_manager()->handle_packet_ipv4(lp,parser.m_ipv4);
+                    m_parent->get_nat_manager()->handle_packet_ipv4(lp, parser.m_ipv4, true);
                     opt_len -= CNatOption::noOPTION_LEN;
                     opt_ptr += CNatOption::noOPTION_LEN;
                     break;
@@ -445,10 +451,11 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
                     return (false);
             } // End of switch
         } // End of while
-	if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)
-	    && parser.IsNatInfoPkt()) {
-		m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4);
-	}
+
+        bool first;
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP) && parser.IsNatInfoPkt(first)) {
+            m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4, first);
+        }
 
         return (true);
     } // End of check for non-latency packet

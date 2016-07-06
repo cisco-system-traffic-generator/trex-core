@@ -21,6 +21,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <map>
 #include "msg_manager.h"
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
@@ -121,7 +122,7 @@ private:
 
 struct CNatFlowInfo {
     uint32_t m_external_ip;
-    uint32_t m_external_ip_server;
+    uint32_t m_tcp_seq;
     uint32_t m_fid;
     uint16_t m_external_port;
     uint16_t m_pad;
@@ -210,13 +211,28 @@ public:
     void Dump(FILE *fd);
 };
 
+typedef std::map<uint64_t, uint32_t, std::less<uint64_t> > nat_check_flow_map_t;
+typedef nat_check_flow_map_t::iterator nat_check_flow_map_iter_t;
+
+class CNatCheckFlowTableMap   {
+public:
+    void erase(uint64_t key) {m_map.erase(key);}
+    bool find(uint64_t fid, uint32_t &val);
+    void insert(uint64_t key, uint32_t val) {m_map.insert(std::pair<uint64_t, uint32_t>(key, val));}
+    void clear(void) {m_map.clear();}
+    void dump(FILE *fd);
+    uint64_t size(void) {return m_map.size();}
+
+public:
+    nat_check_flow_map_t m_map;
+};
 
 class CNatRxManager {
 
 public:
     bool Create();
     void Delete();
-    void handle_packet_ipv4(CNatOption * option, IPHeader * ipv4);
+    void handle_packet_ipv4(CNatOption * option, IPHeader * ipv4, bool is_first);
     void handle_aging();
     void Dump(FILE *fd);
     void DumpShort(FILE *fd);
@@ -232,6 +248,7 @@ private:
     uint8_t               m_max_threads;
     CNatPerThreadInfo   * m_per_thread;
     CNatStats             m_stats;
+    CNatCheckFlowTableMap  m_fm;
 };
 
 

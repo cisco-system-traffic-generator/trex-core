@@ -65,8 +65,6 @@ limitations under the License.
 
 class CGenNodePCAP;
 
-#undef NAT_TRACE_
-
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 #define FORCE_INLINE __attribute__((always_inline))
 
@@ -83,10 +81,6 @@ typedef struct {
  * Length of string needed to hold the largest port (16-bit) address
  */
 #define INET_PORTSTRLEN 5
-
-
-
-
 
 /* VM commands */
 
@@ -757,7 +751,10 @@ public:
     LEARN_MODE_DISABLED=0,
     LEARN_MODE_TCP_ACK=1,
     LEARN_MODE_IP_OPTION=2,
-    LEARN_MODE_MAX=LEARN_MODE_IP_OPTION
+    LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND=3,
+    LEARN_MODE_MAX=LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND,
+    // This is used to check if 1 or 3 exist
+    LEARN_MODE_TCP=100
     };
 
 public:
@@ -1246,7 +1243,11 @@ public:
     }
 
     static inline bool is_learn_mode(CParserOption::trex_learn_mode_e mode){
-        return ( (m_options.m_learn_mode == mode));
+        if (mode == CParserOption::LEARN_MODE_TCP) {
+            return ((m_options.m_learn_mode == CParserOption::LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND)
+                    || (m_options.m_learn_mode == CParserOption::LEARN_MODE_TCP_ACK));
+        } else
+            return (m_options.m_learn_mode == mode);
     }
 
     static inline bool is_ipv6_enable(void){
@@ -1558,11 +1559,11 @@ public:
 
     CTupleGeneratorSmart *m_tuple_gen;
     // cache line 1 - 64bytes waste of space !
-    uint32_t            m_nat_external_ipv4; /* client */
-    uint32_t            m_nat_external_ipv4_server;
-    uint16_t            m_nat_external_port;
-
-    uint16_t            m_nat_pad[3];
+    uint32_t            m_nat_external_ipv4; // NAT client IP
+    uint32_t            m_nat_tcp_seq_diff_client; // support for firewalls that do TCP seq num randomization
+    uint32_t            m_nat_tcp_seq_diff_server; // And some do seq num randomization for server->client also
+    uint16_t            m_nat_external_port; // NAT client port
+    uint16_t            m_nat_pad[1];
     const ClientCfg    *m_client_cfg;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
@@ -1699,6 +1700,15 @@ public:
         return (btGetMaskBit16(m_flags,4,3)==2?true:false) ;
     }
 
+    // We saw first TCP SYN. Waiting for SYN+ACK
+    inline void set_nat_wait_ack_state() {
+        btSetMaskBit16(m_flags, 4, 3, 3);
+    }
+
+    inline bool is_nat_wait_ack_state(){
+        return (btGetMaskBit16(m_flags,4,3) == 3) ? true : false;
+    }
+
     inline void set_nat_learn_state(){
         m_type=FLOW_PKT; /* normal operation .. repeat might work too */
     }
@@ -1712,14 +1722,21 @@ public:
         return (m_thread_id);
     }
 
-    inline void set_nat_ipv4_addr_server(uint32_t ip){
-        m_nat_external_ipv4_server =ip;
+    inline void set_nat_tcp_seq_diff_client(uint32_t diff) {
+        m_nat_tcp_seq_diff_client = diff;
     }
 
-    inline uint32_t  get_nat_ipv4_addr_server(){
-        return ( m_nat_external_ipv4_server );
+    inline uint32_t get_nat_tcp_seq_diff_client() {
+        return m_nat_tcp_seq_diff_client;
     }
 
+    inline void set_nat_tcp_seq_diff_server(uint32_t diff) {
+        m_nat_tcp_seq_diff_server = diff;
+    }
+
+    inline uint32_t get_nat_tcp_seq_diff_server() {
+        return m_nat_tcp_seq_diff_server;
+    }
 
     inline void set_nat_ipv4_addr(uint32_t ip){
         m_nat_external_ipv4 =ip;
@@ -1740,8 +1757,7 @@ public:
     bool is_external_is_eq_to_internal_ip(){
         /* this API is used to check TRex itself */
         if ( (get_nat_ipv4_addr() == m_src_ip ) &&
-             (get_nat_ipv4_port()==m_src_port) &&
-             ( get_nat_ipv4_addr_server() == m_dest_ip) ) {
+             (get_nat_ipv4_port()==m_src_port)) {
             return (true);
         }else{
             return (false);
@@ -3004,6 +3020,8 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
     (void)et;
 
     uint16_t src_port =   node->m_src_port;
+    uint32_t tcp_seq_diff_client = 0;
+    uint32_t tcp_seq_diff_server = 0;
 
     pkt_dir_t ip_dir = node->cur_pkt_ip_addr_dir();
     pkt_dir_t port_dir = node->cur_pkt_port_addr_dir();
@@ -3024,7 +3042,6 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
     }else{
 
         if ( unlikely ( CGlobalInfo::is_learn_mode()  ) ){
-
             if (m_pkt_indication.m_desc.IsLearn()) {
                 /* might be done twice */
 #ifdef NAT_TRACE_
@@ -3033,42 +3050,48 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
 
                 /* first ipv4 option add the info in case of learn packet, usualy only the first packet */
-        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
-            CNatOption *lpNat =(CNatOption *)ipv4->getOption();
-            lpNat->set_fid(node->get_short_fid());
-            lpNat->set_thread_id(node->get_thread_id());
-        } else {
-            // This method only work on first TCP SYN
-            if (ipv4->getProtocol() == IPPROTO_TCP) {
-            TCPHeader *tcp = (TCPHeader *)(((uint8_t *)ipv4) + ipv4->getHeaderLength());
-            if (tcp->getSynFlag()) {
-                tcp->setAckNumber(CNatRxManager::calc_tcp_ack_val(node->get_short_fid(), node->get_thread_id()));
-            }
+                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
+                    CNatOption *lpNat =(CNatOption *)ipv4->getOption();
+                    lpNat->set_fid(node->get_short_fid());
+                    lpNat->set_thread_id(node->get_thread_id());
+                } else {
+                    // This method only work on first TCP SYN
+                    if (ipv4->getProtocol() == IPPROTO_TCP) {
+                        TCPHeader *tcp = (TCPHeader *)(((uint8_t *)ipv4) + ipv4->getHeaderLength());
+                        if (tcp->getSynFlag()) {
+                            tcp->setAckNumber(CNatRxManager::calc_tcp_ack_val(node->get_short_fid(), node->get_thread_id()));
+                        }
 #ifdef NAT_TRACE_
-            printf(" %.3f : flow_id: %x thread_id %x TCP ack %x\n",now_sec(), node->get_short_fid(), node->get_thread_id(), tcp->getAckNumber());
+                        printf(" %.3f : flow_id: %x thread_id %x TCP ack %x seq %x\n"
+                               ,now_sec(), node->get_short_fid(), node->get_thread_id(), tcp->getAckNumber()
+                               , tcp->getSeqNumber());
 #endif
-            }
-        }
+                    }
+                }
             }
             /* in all cases update the ip using the outside ip */
 
             if ( m_pkt_indication.m_desc.IsInitSide()  ) {
 #ifdef NAT_TRACE_
                 if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
-                    printf(" %.3f : DP : i %x:%x -> %x  flow_id: %lx\n",now_sec(),node->m_src_ip,node->m_src_port,node->m_dest_ip,node->m_flow_id);
+                    printf(" %.3f : DP : i %x:%x -> %x  flow_id: %lx\n",now_sec(), node->m_src_ip
+                           , node->m_src_port, node->m_dest_ip, node->m_flow_id);
                 }
 #endif
 
+                tcp_seq_diff_server = node->get_nat_tcp_seq_diff_server();
                 ipv4->updateIpSrc(node->m_src_ip);
                 ipv4->updateIpDst(node->m_dest_ip);
-            }else{
+            } else {
 #ifdef NAT_TRACE_
                 if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
-                    printf(" %.3f : r %x   -> %x:%x  flow_id: %lx \n",now_sec(),node->m_dest_ip,node->m_src_ip,node->m_src_port,node->m_flow_id);
+                    printf(" %.3f : r %x   -> %x:%x  flow_id: %lx \n", now_sec(), node->m_dest_ip
+                           , node->m_src_ip, node->m_src_port, node->m_flow_id);
                 }
 #endif
                 src_port = node->get_nat_ipv4_port();
-                ipv4->updateIpSrc(node->get_nat_ipv4_addr_server());
+                tcp_seq_diff_client = node->get_nat_tcp_seq_diff_client();
+                ipv4->updateIpSrc(node->m_dest_ip);
                 ipv4->updateIpDst(node->get_nat_ipv4_addr());
             }
 
@@ -3076,7 +3099,7 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 #ifdef NAT_TRACE_
             if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
                 if ( m_pkt_indication.m_desc.IsInitSide() ==false ){
-                    printf(" %.3f : pkt ==> %x:%x %x:%x \n",now_sec(),node->get_nat_ipv4_addr(),node->get_nat_ipv4_addr_server(),
+                    printf(" %.3f : pkt ==> %x %x:%x \n",now_sec(),node->get_nat_ipv4_addr(),
                            node->get_nat_ipv4_port(),node->m_src_port);
                 }else{
                     printf(" %.3f : pkt ==> init pkt sent \n",now_sec());
@@ -3116,8 +3139,10 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
         /* replace port */
         if ( port_dir ==  CLIENT_SIDE ) {
             m_tcp->setSourcePort(src_port);
+            m_tcp->setAckNumber(m_tcp->getAckNumber() + tcp_seq_diff_server);
         }else{
             m_tcp->setDestPort(src_port);
+            m_tcp->setAckNumber(m_tcp->getAckNumber() + tcp_seq_diff_client);
         }
     }else {
         if ( m_pkt_indication.m_desc.IsUdp() ){
@@ -3352,6 +3377,8 @@ public:
 
 class CCapFileFlowInfo {
 public:
+    const int LEARN_MODE_MIN_IPG = 10; // msec
+
     enum load_cap_file_err {
     kOK = 0,
     kFileNotExist,
@@ -3359,9 +3386,14 @@ public:
     kNoSyn,
     kTCPOffsetTooBig,
     kNoTCPFromServer,
+    kNoTCPSynAck,
+    kTCPLearnModeBadFlow,
     kPktNotSupp,
     kPktProcessFail,
-    kCapFileErr
+    kCapFileErr,
+    kPlugInWithLearn,
+    kIPOptionNotAllowed,
+    kTCPIpgTooLow
     };
 
     bool Create();
@@ -3378,7 +3410,7 @@ public:
     /* update flow info */
     void update_info();
 
-    bool is_valid_template_load_time(std::string & err);
+    enum CCapFileFlowInfo::load_cap_file_err is_valid_template_load_time();
 
     void save_to_erf(std::string cap_file_name,int pcap);
 

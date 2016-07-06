@@ -687,9 +687,10 @@ static int usage(){
 
     printf(" --ipv6                     : work in ipv6 mode\n");
     printf(" --learn (deprecated). Replaced by --learn-mode. To get older behaviour, use --learn-mode 2\n");
-    printf(" --learn-mode [1-2]         : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
-    printf("      1    Use TCP ACK in first SYN to pass NAT translation information. Will work only for TCP streams. Initial SYN packet must be present in stream.\n");
+    printf(" --learn-mode [1-3]         : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
+    printf("      1    Use TCP ACK in first SYN to pass NAT translation information. Will work only for TCP streams. Initial SYN packet must be first packet in stream.\n");
     printf("      2    Add special IP option to pass NAT translation information. Will not work on certain firewalls if they drop packets with IP options\n");
+    printf("      3    Like 1, but without support for sequence number randomization in server->clien direction. Performance (flow/second) better than 1\n");
     printf(" --learn-verify             : Learn the translation, but intended for verification of the mechanism in cases that NAT does not exist \n");
     printf("  \n");
     printf(" --l-pkt-mode [0-3]         : Set mode for sending latency packets.\n");

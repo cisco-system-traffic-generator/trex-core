@@ -107,19 +107,27 @@ public:
     }
 
     // Check if this packet contains NAT info in TCP ack
-    inline bool IsNatInfoPkt() {
-	if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
-	    return false;
-	}
-	if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
-	    return false;
-	}
-	// If we are here, relevant fields from tcp header are guaranteed to be in first mbuf 
-	TCPHeader *tcp = (TCPHeader *)m_l4;
-	if (!tcp->getSynFlag() || (tcp->getAckNumber() == 0)) {
-	    return false;
-	}
-	return true;
+    // first - set to true if this is the first packet of the flow. false otherwise.
+    //         relevant only if return value is true
+    inline bool IsNatInfoPkt(bool &first) {
+        if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
+            return false;
+        }
+        if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
+            return false;
+        }
+        // If we are here, relevant fields from tcp header are guaranteed to be in first mbuf
+        // We want to handle SYN and SYN+ACK packets
+        TCPHeader *tcp = (TCPHeader *)m_l4;
+        if (! tcp->getSynFlag())
+            return false;
+
+        if (! tcp->getAckFlag()) {
+            first = true;
+        } else {
+            first = false;
+        }
+        return true;
     }
 
 public:

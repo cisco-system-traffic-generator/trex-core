@@ -2416,7 +2416,7 @@ public:
                 assert(ipv4->getTimeToLive()==255);
                 /* ip option packet */
                 printf(" rx got ip option packet ! \n");
-                mg->handle_packet_ipv4(option,ipv4);
+                mg->handle_packet_ipv4(option, ipv4, true);
                 delay(10);          // delay for queue flush 
                 mg->handle_aging(); // flush the RxRing 
             }
@@ -2481,8 +2481,10 @@ protected:
       m_flow_info.Delete();
   }
 public:
-    CCapFileFlowInfo m_flow_info;
+    void load_cap_file_errors_helper(std::string cap_file, enum CCapFileFlowInfo::load_cap_file_err expect);
 
+public:
+    CCapFileFlowInfo m_flow_info;
 };
 
 TEST_F(file_flow_info, f1) {
@@ -2612,30 +2614,58 @@ TEST_F(file_flow_info, http_add_ipv6_option) {
     po->preview.set_ipv6_mode_enable(false);
 }
 
+void file_flow_info::load_cap_file_errors_helper(std::string cap_file, enum CCapFileFlowInfo::load_cap_file_err expect) {
+    enum CCapFileFlowInfo::load_cap_file_err err;
+
+    err = m_flow_info.load_cap_file(cap_file, 1, 0);
+    if (err == 0) err = m_flow_info.is_valid_template_load_time();
+    if (err != expect) {
+        printf("Error in testing file %s. Expected error to be %d, but it is %d\n", cap_file.c_str(), expect, err);
+    }
+    assert (err == expect);
+}
+
 // Test error conditions when loading cap file
 TEST_F(file_flow_info, load_cap_file_errors) {
-    enum CCapFileFlowInfo::load_cap_file_err err;
-    CParserOption * po =&CGlobalInfo::m_options;
-    po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK;
+    CParserOption *po = &CGlobalInfo::m_options;
 
-    // file does not exist
-    err = m_flow_info.load_cap_file("/tmp/not_exist",1,0);
-    assert (err == CCapFileFlowInfo::kFileNotExist);
+    po->m_learn_mode = CParserOption::LEARN_MODE_DISABLED;
+    load_cap_file_errors_helper("/tmp/not_exist", CCapFileFlowInfo::kFileNotExist);
     // file format not supported
-    err = m_flow_info.load_cap_file("cap2/dns.yaml",1,0);
-    assert (err == CCapFileFlowInfo::kFileNotExist);
-    // udp in tcp learn mode
-    err = m_flow_info.load_cap_file("./cap2/dns.pcap",1,0);
-    assert (err == CCapFileFlowInfo::kNoTCPFromServer);
-    // First TCP packet without syn
-    err = m_flow_info.load_cap_file("./exp/tcp_no_syn.pcap",1,0);
-    assert (err == CCapFileFlowInfo::kNoSyn);
-    // TCP flags offset is too big
-    err = m_flow_info.load_cap_file("./exp/many_ip_options.pcap",1,0);
-    assert (err == CCapFileFlowInfo::kTCPOffsetTooBig);
+    load_cap_file_errors_helper("cap2/dns.yaml", CCapFileFlowInfo::kFileNotExist);
+    load_cap_file_errors_helper("cap2/dns.pcap", CCapFileFlowInfo::kOK);
+    load_cap_file_errors_helper("./exp/tcp_no_syn.pcap", CCapFileFlowInfo::kOK);
+    load_cap_file_errors_helper("./exp/many_ip_options.pcap", CCapFileFlowInfo::kOK);
     // Non IP packet
-    err = m_flow_info.load_cap_file("./exp/bad_not_ip.pcap",1,0);
-    assert (err == CCapFileFlowInfo::kPktProcessFail);
+    load_cap_file_errors_helper("./exp/bad_not_ip.pcap", CCapFileFlowInfo::kPktProcessFail);
+    load_cap_file_errors_helper("./exp/tcp_2_pkts.pcap", CCapFileFlowInfo::kOK);
+    // more than 1 flow in cap file
+    load_cap_file_errors_helper("./exp/syn_attack.pcap",  CCapFileFlowInfo::kCapFileErr);
+
+    po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
+    load_cap_file_errors_helper("cap2/dns.pcap", CCapFileFlowInfo::kOK);
+    load_cap_file_errors_helper("./exp/tcp_no_syn.pcap", CCapFileFlowInfo::kOK);
+    load_cap_file_errors_helper("./exp/many_ip_options.pcap", CCapFileFlowInfo::kIPOptionNotAllowed);
+    load_cap_file_errors_helper("./exp/tcp_2_pkts.pcap", CCapFileFlowInfo::kOK);
+
+    po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND;
+    // udp in tcp learn mode
+    load_cap_file_errors_helper("cap2/dns.pcap", CCapFileFlowInfo::kNoTCPFromServer);
+    // no SYN in first packet
+    load_cap_file_errors_helper("./exp/tcp_no_syn.pcap", CCapFileFlowInfo::kNoSyn);
+    // TCP flags offset is too big. We don't allow IP option, so can comment this.
+    // open this if we do allow IP options in the future
+    //    load_cap_file_errors_helper("./exp/many_ip_options.pcap", CCapFileFlowInfo::kTCPOffsetTooBig);
+    load_cap_file_errors_helper("./exp/tcp_2_pkts.pcap", CCapFileFlowInfo::kOK);
+    load_cap_file_errors_helper("./exp/no_tcp_syn_ack.pcap",  CCapFileFlowInfo::kOK);
+
+    po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK;
+    // too short. only two packets
+    load_cap_file_errors_helper("./exp/tcp_2_pkts.pcap", CCapFileFlowInfo::kTCPLearnModeBadFlow);
+    // no SYN+ACK
+    load_cap_file_errors_helper("./exp/no_tcp_syn_ack.pcap",  CCapFileFlowInfo::kNoTCPSynAck);
+    // IPG between TCP handshake packets too low
+    load_cap_file_errors_helper("./exp/tcp_low_ipg.pcap",  CCapFileFlowInfo::kTCPIpgTooLow);
 }
 
 //////////////////////////////////////////////////////////////
