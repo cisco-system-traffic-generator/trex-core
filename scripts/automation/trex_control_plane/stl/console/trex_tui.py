@@ -804,7 +804,7 @@ class AsyncKeysEngineConsole:
         empty_line = self.lines.popleft()
         assert(empty_line.ro_line == '')
 
-        if self.lines[0].ro_line != cmd:
+        if not self.lines or self.lines[0].ro_line != cmd:
             self.lines.appendleft(CmdLine(cmd))
         
         # back in
