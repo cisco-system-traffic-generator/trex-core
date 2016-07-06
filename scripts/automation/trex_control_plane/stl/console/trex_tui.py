@@ -280,13 +280,24 @@ class TrexTUILog():
             print(msg)
 
 
+# a predicate to wrap function as a bool
+class Predicate(object):
+    def __init__ (self, func):
+        self.func = func
+
+    def __nonzero__ (self):
+        return True if self.func() else False
+    def __bool__ (self):
+        return True if self.func() else False
+
+
 # Panels manager (contains server panels)
 class TrexTUIPanelManager():
     def __init__ (self, tui):
         self.tui = tui
         self.stateless_client = tui.stateless_client
         self.ports = self.stateless_client.get_all_ports()
-        
+        self.locked = False
 
         self.panels = {}
         self.panels['dashboard'] = TrexTUIDashBoard(self)
@@ -295,12 +306,16 @@ class TrexTUIPanelManager():
         self.panels['ustats']    = TrexTUIUtilizationStats(self)
 
         self.key_actions = OrderedDict()
-        self.key_actions['q']   = {'action': self.action_none, 'legend': 'quit', 'show': True}
-        self.key_actions['ESC'] = {'action': self.action_none, 'legend': 'console', 'show': True}
+
+        # we allow console only when ports are acquired
+        self.key_actions['ESC'] = {'action': self.action_none, 'legend': 'console', 'show': Predicate(lambda : not self.locked)}
+
+        self.key_actions['q'] = {'action': self.action_none, 'legend': 'quit', 'show': True}
         self.key_actions['d'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
         self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
         self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
         self.key_actions['u'] = {'action': self.action_show_ustats, 'legend': 'util', 'show': True}
+        
 
         # start with dashboard
         self.main_panel = self.panels['dashboard']
@@ -315,7 +330,6 @@ class TrexTUIPanelManager():
         self.show_log = False
 
         
-
     def generate_legend (self):
 
         self.legend = "\n{:<12}".format("browse:")
@@ -352,8 +366,9 @@ class TrexTUIPanelManager():
 
 
     # on window switch or turn on / off of the TUI we call this
-    def init (self, show_log = False):
+    def init (self, show_log = False, locked = False):
         self.show_log = show_log
+        self.locked = locked
         self.generate_legend()
 
     def show (self, show_legend):
@@ -361,6 +376,7 @@ class TrexTUIPanelManager():
         self.print_connection_status()
 
         if show_legend:
+            self.generate_legend()
             self.print_legend()
 
         if self.show_log:
@@ -445,16 +461,16 @@ class TrexTUI():
         sys.stdout.write("\x1b[2J\x1b[H")
 
 
-    def show (self, client, show_log = False):
-        with AsyncKeys(client) as async_keys:
+    def show (self, client, show_log = False, locked = False):
+        with AsyncKeys(client, locked) as async_keys:
             self.async_keys = async_keys
-            self.show_internal(show_log)
+            self.show_internal(show_log, locked)
 
 
 
-    def show_internal (self, show_log = False):
+    def show_internal (self, show_log, locked):
 
-        self.pm.init(show_log)
+        self.pm.init(show_log, locked)
 
         self.state = self.STATE_ACTIVE
         self.draw_policer = 0
@@ -550,10 +566,17 @@ class AsyncKeys:
     STATUS_REDRAW_KEYS = 1
     STATUS_REDRAW_ALL  = 2
 
-    def __init__ (self, client):
+    def __init__ (self, client, locked = False):
         self.engine_console = AsyncKeysEngineConsole(self, client)
         self.engine_legend  = AsyncKeysEngineLegend(self)
-        self.engine = self.engine_console
+        self.locked = locked
+
+        if locked:
+            self.engine = self.engine_legend
+            self.locked = True
+        else:
+            self.engine = self.engine_console
+            self.locked = False
 
     def __enter__ (self):
         # init termios
@@ -594,9 +617,15 @@ class AsyncKeys:
         if not seq:
             return self.STATUS_NONE
 
+        # ESC for switch
         if seq == '\x1b':
-            self.switch()
+            if not self.locked:
+                self.switch()
             return self.STATUS_REDRAW_ALL
+
+        # EOF (ctrl + D)
+        if seq == '\x04':
+            raise TUIQuit()
 
         # pass tick to engine
         return self.engine.tick(seq, pm)
@@ -635,7 +664,6 @@ class AsyncKeysEngineLegend:
 class AsyncKeysEngineConsole:
     def __init__ (self, async, client):
         self.async = async
-        self.client = client
         self.lines = deque(maxlen = 100)
 
         self.ac = {'start' : client.start_line,

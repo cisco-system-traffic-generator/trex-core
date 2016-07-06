@@ -33,6 +33,7 @@ NO_PROMISCUOUS = 20
 PROMISCUOUS_SWITCH = 21
 TUNABLES = 22
 REMOTE_FILE = 23
+LOCKED = 24
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -321,6 +322,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'default': False,
                                    'help': "Starts TUI in xterm window"}),
 
+              LOCKED: ArgumentPack(['-l', '--locked'],
+                                   {'action': 'store_true',
+                                    'dest': 'locked',
+                                    'default': False,
+                                    'help': "Locks TUI on legend mode"}),
 
               FULL_OUTPUT: ArgumentPack(['--full'],
                                          {'action': 'store_true',

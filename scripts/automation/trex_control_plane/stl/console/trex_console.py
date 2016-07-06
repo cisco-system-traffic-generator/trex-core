@@ -566,7 +566,8 @@ class TRexConsole(TRexGeneralCmd):
         parser = parsing_opts.gen_parser(self,
                                          "tui",
                                          self.do_tui.__doc__,
-                                         parsing_opts.XTERM)
+                                         parsing_opts.XTERM,
+                                         parsing_opts.LOCKED)
 
         opts = parser.parse_args(line.split())
         if opts is None:
@@ -589,7 +590,7 @@ class TRexConsole(TRexGeneralCmd):
 
 
         with self.stateless_client.logger.supress():
-            self.tui.show(self.stateless_client)
+            self.tui.show(self.stateless_client, locked = opts.locked)
 
 
     def help_tui (self):
@@ -871,7 +872,8 @@ def main():
 
         # TUI
         if options.tui:
-            console.do_tui("-x" if options.xtui else "")
+            console.do_tui("-x" if options.xtui else "-l")
+
         else:
             console.start()
             
