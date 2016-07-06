@@ -54,7 +54,11 @@ TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
     m_publisher    = cfg.m_publisher;
 
     /* API core version */
-    m_api_classes[APIClass::API_CLASS_TYPE_CORE].init(APIClass::API_CLASS_TYPE_CORE, 1, 2);
+    const int API_VER_MAJOR = 1;
+    const int API_VER_MINOR = 3;
+    m_api_classes[APIClass::API_CLASS_TYPE_CORE].init(APIClass::API_CLASS_TYPE_CORE,
+                                                      API_VER_MAJOR,
+                                                      API_VER_MINOR);
 }
 
 /** 

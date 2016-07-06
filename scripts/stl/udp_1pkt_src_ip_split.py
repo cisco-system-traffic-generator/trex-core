@@ -8,11 +8,15 @@ class STLS1(object):
     def __init__ (self):
         self.fsize  =64;
 
-    def create_stream (self):
+    def create_stream (self, direction, cache_size):
         # Create base packet and pad it to size
         size = self.fsize - 4; # HW will add 4 bytes ethernet FCS
+        src_ip = '16.0.0.1'
+        dst_ip = '48.0.0.1'
+        if direction:
+            src_ip, dst_ip = dst_ip, src_ip
 
-        base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+        base_pkt = Ether()/IP(src=src_ip,dst=dst_ip)/UDP(dport=12,sport=1025)
 
         pad = max(0, size - len(base_pkt)) * 'x'
                              
@@ -22,7 +26,7 @@ class STLS1(object):
                              STLVmFixIpv4(offset = "IP")                                # fix checksum
                                   ]
                               ,split_by_field = "ip_src"  # split to cores base on the tuple generator 
-                              ,cache_size =255 # the cache size
+                              ,cache_size = cache_size # the cache size
                               );
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,
@@ -33,9 +37,9 @@ class STLS1(object):
         return stream
 
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, direction = 0, cache_size = 255, **kwargs):
         # create 1 stream 
-        return [ self.create_stream() ]
+        return [ self.create_stream(direction, cache_size) ]
 
 
 # dynamic load - used for trex console or simulator

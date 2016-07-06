@@ -677,7 +677,7 @@ static int usage(){
     printf("  \n");
     printf(" -k  [sec]                  : run latency test before starting the test. it will wait for x sec sending packet and x sec after that  \n");
     printf("  \n");
-    printf(" -w  [sec]                  : wait between init of interfaces and sending traffic,\n");
+    printf(" -w  [sec]                  : wait between init of interfaces and sending traffic, default is 1\n");
     printf("  \n");
 
     printf(" --cfg [platform_yaml]      : load and configure platform using this file see example in cfg/cfg_examplexx.yaml file  \n");

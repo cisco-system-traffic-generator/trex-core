@@ -221,9 +221,13 @@ if args.action != 'show':
         raise Exception('%s does not have function %s' % (daemon.name, args.action))
     try:
         func()
-    except Exception as e:
-        print(termstyle.red(e))
-        sys.exit(1)
+    except:
+        try: # give it another try
+            sleep(1)
+            func()
+        except Exception as e:
+            print(termstyle.red(e))
+            sys.exit(1)
 
 passive = {'start': 'started', 'restart': 'restarted', 'stop': 'stopped', 'show': 'running'}
 

@@ -511,8 +511,7 @@ class STLClient(object):
         self.connected = False
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 1, 'minor':2 }
-                        ]
+        self.api_vers = [ {'type': 'core', 'major': 1, 'minor': 3 } ]
         self.api_h = {'core': None}
 
         # logger
