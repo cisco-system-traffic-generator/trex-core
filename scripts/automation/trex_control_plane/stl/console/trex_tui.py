@@ -643,8 +643,11 @@ class AsyncKeysEngineConsole:
                    'pause' : client.pause_line,
                    'resume': client.resume_line,
                    'update': client.update_line,
-                   'quit'  : None,
-                   'exit'  : None}
+                   'quit'  : self.action_quit,
+                   'q'     : self.action_quit,
+                   'exit'  : self.action_quit,
+                   'help'  : self.action_help,
+                   '?'     : self.action_help}
 
         # fetch readline history and add relevants
         for i in range(0, readline.get_current_history_length()):
@@ -657,6 +660,12 @@ class AsyncKeysEngineConsole:
         self.line_index = 0
         self.last_status = ''
 
+    def action_quit (self, _):
+        raise TUIQuit()
+
+    def action_help (self, _):
+        return ' '.join([format_text(cmd, 'bold') for cmd in self.ac.keys()])
+
     def get_type (self):
         return self.async.MODE_CONSOLE
 
@@ -665,25 +674,38 @@ class AsyncKeysEngineConsole:
         # up
         if seq == '\x1b[A':
             self.line_index = min(self.line_index + 1, len(self.lines) - 1)
-            return AsyncKeys.STATUS_REDRAW_KEYS
 
         # down
         elif seq == '\x1b[B':
             self.line_index = max(self.line_index - 1, 0)
-            return AsyncKeys.STATUS_REDRAW_KEYS
 
-        # TODO: left and right
         # left
-        #elif seq == '\x1b[D':
-        #    self.line_index = min(self.line_index - 1, 0)
-        #    return True
+        elif seq == '\x1b[D':
+            self.lines[self.line_index].go_left()
 
         # right
-        #elif seq == '\x1b[C':
-        #    self.line_index = min(self.line_index - 1, 0)
-        #    return True
+        elif seq == '\x1b[C':
+            self.lines[self.line_index].go_right()
 
-        return AsyncKeys.STATUS_NONE
+        # del
+        elif seq == '\x1b[3~':
+            self.lines[self.line_index].del_key()
+
+        # home
+        elif seq == '\x1b[H':
+            self.lines[self.line_index].home_key()
+
+        # end
+        elif seq == '\x1b[F':
+            self.lines[self.line_index].end_key()
+            return True
+
+        # unknown key
+        else:
+            return AsyncKeys.STATUS_NONE
+
+        return AsyncKeys.STATUS_REDRAW_KEYS
+
 
     def tick (self, seq, _):
     
@@ -705,24 +727,32 @@ class AsyncKeysEngineConsole:
 
         # backspace
         elif ch == '\x7f':
-            self.lines[self.line_index].set(self.lines[self.line_index].get()[:-1])
+            self.lines[self.line_index].backspace()
 
         # TAB
         elif ch == '\t':
             cur = self.lines[self.line_index].get()
+            if not cur:
+                return
+
+            matching_cmds = [x for x in self.ac if x.startswith(cur)]
+            
             common = os.path.commonprefix([x for x in self.ac if x.startswith(cur)])
             if common:
-                if common in self.ac:
+                if len(matching_cmds) == 1:
                     self.lines[self.line_index].set(common + ' ')
+                    self.last_status = ''
                 else:
                     self.lines[self.line_index].set(common)
-            
+                    self.last_status = 'ambigious: '+ ' '.join([format_text(cmd, 'bold') for cmd in matching_cmds])
+
 
         # simple char
         else:
             self.lines[self.line_index] += ch
 
         return AsyncKeys.STATUS_REDRAW_KEYS
+
 
     def split_cmd (self, cmd):
         s = cmd.split(' ', 1)
@@ -735,9 +765,6 @@ class AsyncKeysEngineConsole:
         cmd = self.lines[self.line_index].get().strip()
         if not cmd:
             return
-
-        if cmd in ['quit', 'exit', 'q']:
-            raise TUIQuit()
 
         op, param = self.split_cmd(cmd)
         
@@ -755,6 +782,7 @@ class AsyncKeysEngineConsole:
         # back in
         self.lines.appendleft(empty_line)
         self.line_index = 0
+        readline.add_history(cmd)
 
         # back to readonly
         for line in self.lines:
@@ -762,23 +790,28 @@ class AsyncKeysEngineConsole:
 
         assert(self.lines[0].modified == False)
         if not func:
-            self.last_status = "unknown command: '{0}'".format(cmd.split()[0])
+            self.last_status = "unknown command: '{0}'".format(format_text(cmd.split()[0], 'bold'))
         else:
-            self.last_status = format_text("[OK]", 'green') if func_rc else format_text(str(func_rc).replace('\n', ''), 'red')
+            if isinstance(func_rc, str):
+                self.last_status = func_rc
+            else:
+                self.last_status = format_text("[OK]", 'green') if func_rc else format_text(str(func_rc).replace('\n', ''), 'red')
 
 
     def draw (self):
         sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
-        sys.stdout.write("status: {0}\n".format(format_text(self.last_status, 'red')))
-        sys.stdout.write("\ntui>" + self.lines[self.line_index].get())
+        sys.stdout.write("status: {0}\n".format(self.last_status))
+        sys.stdout.write("\ntui>")
+        self.lines[self.line_index].draw()
 
 
 # a readline alike command line - can be modified during edit
 class CmdLine(object):
     def __init__ (self, line):
-        self.ro_line  = line
-        self.w_line   = None
-        self.modified = False
+        self.ro_line      = line
+        self.w_line       = None
+        self.modified     = False
+        self.cursor_index = len(line)
 
     def get (self):
         if self.modified:
@@ -786,29 +819,65 @@ class CmdLine(object):
         else:
             return self.ro_line
 
-    def set (self, line):
+    def set (self, line, cursor_pos = None):
         self.w_line = line
         self.modified = True
 
-    def __add__ (self, other):
-        if self.modified:
-            return self.ro_line + other
+        if cursor_pos is None:
+            self.cursor_index = len(self.w_line)
         else:
-            return self.wo_line + other
+            self.cursor_index = cursor_pos
 
-    def __iadd__ (self, other):
-        if not self.modified:
-            self.w_line = self.ro_line
-            self.modified = True
 
-        self.w_line += other
-        return self
+    def __add__ (self, other):
+        assert(0)
+
 
     def __str__ (self):
         return self.get()
 
+
+    def __iadd__ (self, other):
+
+        self.set(self.get()[:self.cursor_index] + other + self.get()[self.cursor_index:],
+                 cursor_pos = self.cursor_index + len(other))
+
+        return self
+
+
+    def backspace (self):
+        if self.cursor_index == 0:
+            return
+
+        self.set(self.get()[:self.cursor_index - 1] + self.get()[self.cursor_index:],
+                 self.cursor_index - 1)
+
+
+    def del_key (self):
+        if self.cursor_index == len(self.get()):
+            return
+
+        self.set(self.get()[:self.cursor_index] + self.get()[self.cursor_index + 1:],
+                 self.cursor_index)
+
+    def home_key (self):
+        self.cursor_index = 0
+
+    def end_key (self):
+        self.cursor_index = len(self.get())
+
     def invalidate (self):
         self.modified = False
         self.w_line = None
+        self.cursor_index = len(self.ro_line)
 
+    def go_left (self):
+        self.cursor_index = max(0, self.cursor_index - 1)
+
+    def go_right (self):
+        self.cursor_index = min(len(self.get()), self.cursor_index + 1)
+
+    def draw (self):
+        sys.stdout.write(self.get())
+        sys.stdout.write('\b' * (len(self.get()) - self.cursor_index))
 
