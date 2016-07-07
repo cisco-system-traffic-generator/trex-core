@@ -4162,23 +4162,79 @@ In case of names collision with native functions (such as connect), for HLTAPI, 
 
 [source,java]
 ----
-    ...
-    String host = "csi-trex-11";
-    int port = 8095;
+package com.cisco.trex_example;
 
-    try {
-           JsonRpcHttpClient rpcConnection = new JsonRpcHttpClient(new URL("http://" + host + ":" + port + "/"));
-           boolean force = true;
-           boolean isInit = rpcConnection.invoke("client_init", new Object[] {force} , Boolean.class);
-           System.out.println("is init = " + isInit);
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.HashMap;
 
-           rpcConnection.invoke("connect", new Object[] {} , String.class);
-           ArrayList<java.util.LinkedHashMap> response = rpcConnection.invoke("native_method", new Object[] {"get_port_info"} , ArrayList.class);
+import com.googlecode.jsonrpc4j.JsonRpcHttpClient;
 
-           for (int i = 0; i < response.size(); i++) {
-                 System.out.println("o = " + response.get(i));
-           }
-    ...
+public class TrexMain {
+
+    @SuppressWarnings("rawtypes")
+    public static Object verify(ArrayList response) {
+        if ((boolean) response.get(0)) {
+            return response.get(1);
+        }
+        System.out.println("Error: " + response.get(1));
+        System.exit(1);
+        return null;
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static void main(String[] args) throws Throwable {
+        try {
+            String trex_host = "csi-trex-11";
+            int rpc_proxy_port = 8095;
+            Map<String, Object> kwargs = new HashMap<>();
+            ArrayList<Integer> ports = new ArrayList<Integer>();
+            HashMap res_dict = new HashMap<>();
+            ArrayList res_list = new ArrayList();
+            JsonRpcHttpClient rpcConnection = new JsonRpcHttpClient(new URL("http://" + trex_host + ":" + rpc_proxy_port));
+
+            System.out.println("Initializing Native Client");
+            kwargs.put("server", trex_host);
+            kwargs.put("force", true);
+            verify(rpcConnection.invoke("native_proxy_init", kwargs, ArrayList.class));
+            kwargs.clear();
+
+            System.out.println("Connecting to TRex server");
+            verify(rpcConnection.invoke("connect", kwargs, ArrayList.class));
+            
+            System.out.println("Resetting all ports");
+            verify(rpcConnection.invoke("reset", kwargs, ArrayList.class));
+
+            System.out.println("Getting ports info");
+            kwargs.put("func_name", "get_port_info"); // some "custom" function
+            res_list = (ArrayList) verify(rpcConnection.invoke("native_method", kwargs, ArrayList.class));
+            System.out.println("Ports info is: " + Arrays.toString(res_list.toArray()));
+            kwargs.clear();
+            for (int i = 0; i < res_list.size(); i++) {
+                    Map port = (Map) res_list.get(i);
+                    ports.add((int)port.get("index"));
+                    }
+
+            System.out.println("Sending pcap to ports: " + Arrays.toString(ports.toArray()));
+            kwargs.put("pcap_filename", "stl/sample.pcap");
+            verify(rpcConnection.invoke("push_remote", kwargs, ArrayList.class));
+            kwargs.clear();
+
+            System.out.println("Getting stats");
+            res_dict = (HashMap) verify(rpcConnection.invoke("get_stats", kwargs, ArrayList.class));
+            System.out.println("Stats: " + res_dict.toString());
+
+            System.out.println("Deleting Native Client instance");
+            verify(rpcConnection.invoke("native_proxy_del", kwargs, ArrayList.class));
+
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+}
+
 ----
 
 
