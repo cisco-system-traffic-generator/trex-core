@@ -92,7 +92,7 @@ std::string Backtrace(int skip = 1)
     /* add the addr2line info */
     std::stringstream addr2line;
 
-    addr2line << "/usr/bin/addr2line -e " << get_exe_name() << " ";
+    addr2line << "/usr/bin/addr2line -s -e " << get_exe_name() << " ";
     for (int i = skip; i < nFrames; i++) {
         addr2line << callstack[i] << " ";
     }
