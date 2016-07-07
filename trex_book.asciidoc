@@ -1387,9 +1387,12 @@ anchor:cml-line[]
 *-1g*::                       
    Deprecated. Configure TRex to 1G. Configure this in the --cfg file. 
   
-*-k=KSEC*::                  
+*-k=SEC*::
    Run a latency test before starting the test. TRex will wait for x sec before and after sending latency packets at startup.
    Current limitation (holds for TRex version 1.82): does not work properly on VM.
+
+*-w=SEC*::
+   Wait additional time between NICs initialization and sending traffic. Can be useful if DUT needs extra setup time. Default is 1 second.
   
 *--cfg=platform_yaml*::     
         Load and configure platform using this file. See example file: cfg/cfg_examplexx.yaml 
