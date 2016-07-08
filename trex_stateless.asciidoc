@@ -4221,6 +4221,7 @@ public class TrexMain {
             kwargs.put("pcap_filename", "stl/sample.pcap");
             verify(rpcConnection.invoke("push_remote", kwargs, ArrayList.class));
             kwargs.clear();
+            verify(rpcConnection.invoke("wait_on_traffic", kwargs, ArrayList.class));
 
             System.out.println("Getting stats");
             res_dict = (HashMap) verify(rpcConnection.invoke("get_stats", kwargs, ArrayList.class));
