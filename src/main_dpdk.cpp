@@ -5542,11 +5542,10 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
     stats->f_ibytes     = 0;
 
 
-    stats->ierrors      =  stats1.ierrors + stats1.imissed + stats1.ibadcrc +
+    stats->ierrors      =  stats1.imissed + stats1.ibadcrc +
         stats1.ibadlen      +
         stats1.ierrors      +
         stats1.oerrors      +
-        stats1.imcasts      +
         stats1.rx_nombuf    +
         stats1.tx_pause_xon +
         stats1.rx_pause_xon +
@@ -5616,11 +5615,10 @@ void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSt
     stats->f_ibytes     = 0;
 
 
-    stats->ierrors      =  stats1.ierrors + stats1.imissed + stats1.ibadcrc +
+    stats->ierrors      =  stats1.imissed + stats1.ibadcrc +
         stats1.ibadlen      +
         stats1.ierrors      +
         stats1.oerrors      +
-        stats1.imcasts      +
         stats1.rx_nombuf    +
         stats1.tx_pause_xon +
         stats1.rx_pause_xon +

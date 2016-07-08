@@ -73,6 +73,8 @@ class CTRexClient(object):
                 sets a verbose output on supported class method.
 
                 default value : **False**
+             trex_args : string
+                additional arguments passed to TRex. For example, "-w 3 --no-watchdog"
 
         :raises:
             socket errors, in case server could not be reached.
@@ -82,22 +84,23 @@ class CTRexClient(object):
             self.trex_host          = socket.gethostbyname(trex_host)
         except: # give it another try
             self.trex_host          = socket.gethostbyname(trex_host)
-        self.trex_daemon_port   = trex_daemon_port
-        self.master_daemon_port = master_daemon_port
-        self.trex_zmq_port      = trex_zmq_port
-        self.seq                = None
-        self._last_sample       = time.time()
-        self.__default_user     = get_current_user()
-        self.verbose            = verbose
-        self.result_obj         = CTRexResult(max_history_size, filtered_latency_amount)
-        self.decoder            = JSONDecoder()
-        self.history            = jsonrpclib.history.History()
-        self.master_daemon_path = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
-        self.master_daemon      = jsonrpclib.Server(self.master_daemon_path, history = self.history)
-        self.trex_server_path   = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
-        self.server             = jsonrpclib.Server(self.trex_server_path, history = self.history)
-        self.debug_image        = debug_image
-        self.trex_args          = trex_args
+        self.trex_daemon_port       = trex_daemon_port
+        self.master_daemon_port     = master_daemon_port
+        self.trex_zmq_port          = trex_zmq_port
+        self.seq                    = None
+        self._last_sample           = time.time()
+        self.__default_user         = get_current_user()
+        self.verbose                = verbose
+        self.result_obj             = CTRexResult(max_history_size, filtered_latency_amount)
+        self.decoder                = JSONDecoder()
+        self.history                = jsonrpclib.history.History()
+        self.master_daemon_path     = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
+        self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history)
+        self.trex_server_path       = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
+        self.server                 = jsonrpclib.Server(self.trex_server_path, history = self.history)
+        self.debug_image            = debug_image
+        self.trex_args              = trex_args
+        self.sample_to_run_finish   = self.sample_until_finish # alias for legacy
 
 
     def add (self, x, y):
@@ -579,9 +582,9 @@ class CTRexClient(object):
             # this could come from provided method 'condition_func'
             raise
 
-    def sample_to_run_finish (self, time_between_samples = 1):
+    def sample_until_finish (self, time_between_samples = 1):
         """
-        Automatically sets automatically sampling of TRex data with sampling rate described by time_between_samples until TRex run finished.
+        Automatically samples TRex data with sampling rate described by time_between_samples until TRex run finishes.
 
         :parameters:        
             time_between_samples : int
@@ -637,12 +640,12 @@ class CTRexClient(object):
         """
         # make sure TRex is running. raise exceptions here if any
         self.wait_until_kickoff_finish()
-        elapsed_time = 0
+        end_time = time.time() + sample_time
         while self.is_running():
-            if elapsed_time >= sample_time:
+            if time.time() < end_time:
+                time.sleep(time_between_samples)
+            else:
                 return self.get_result_obj()
-            time.sleep(time_between_samples)
-            elapsed_time += time_between_samples
         raise UserWarning("TRex has stopped at %s seconds (before expected %s seconds)\nTry increasing test duration or decreasing sample_time" % (elapsed_time, sample_time))
 
     def get_result_obj (self, copy_obj = True):
@@ -1387,11 +1390,17 @@ class CTRexResult(object):
 
             # handle latency data
             if self.latency_checked:
-                latency_per_port         = self.get_last_value("trex-latecny-v2.data", "port-")
+                # fix typos, by "pointer"
+                if 'trex-latecny-v2' in latest_dump and 'trex-latency-v2' not in latest_dump:
+                    latest_dump['trex-latency-v2'] = latest_dump['trex-latecny-v2']
+                if 'trex-latecny' in latest_dump and 'trex-latency' not in latest_dump:
+                    latest_dump['trex-latency'] = latest_dump['trex-latecny']
+
+                latency_per_port         = self.get_last_value("trex-latency-v2.data", "port-")
                 self._max_latency        = self.__get_filtered_max_latency(latency_per_port, self.filtered_latency_amount)
-                avg_latency              = self.get_last_value("trex-latecny.data", "avg-")
+                avg_latency              = self.get_last_value("trex-latency.data", "avg-")
                 self._avg_latency        = CTRexResult.__avg_all_and_rename_keys(avg_latency)
-                avg_win_latency_list     = self.get_value_list("trex-latecny.data", "avg-")
+                avg_win_latency_list     = self.get_value_list("trex-latency.data", "avg-")
                 self._avg_window_latency = CTRexResult.__calc_latency_win_stats(avg_win_latency_list)
 
             tx_pkts = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_total_tx_pkts")

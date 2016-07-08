@@ -6,10 +6,6 @@ from trex_stl_lib.api import *
 import time
 from nose.tools import nottest
 
-def setUpModule():
-    if CTRexScenario.stl_trex.is_connected():
-        CStlGeneral_Test.recover_after_trex_210_issue()
-
 class CStlGeneral_Test(CTRexGeneral_Test):
     """This class defines the general stateless testcase of the TRex traffic generator"""
 
@@ -19,21 +15,6 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.stl_init_error:
             self.skip(CTRexScenario.stl_init_error)
-
-    # workaround of http://trex-tgn.cisco.com/youtrack/issue/trex-210
-    @staticmethod
-    def recover_after_trex_210_issue():
-        return
-        for i in range(20): 
-            try:
-                stl_map_ports(CTRexScenario.stl_trex)
-                break
-            except:
-                CTRexScenario.stl_trex.disconnect()
-                time.sleep(0.5)
-                CTRexScenario.stl_trex.connect()
-        # verify problem is solved
-        stl_map_ports(CTRexScenario.stl_trex)
 
     def connect(self, timeout = 100):
         # need delay and check only because TRex process might be still starting
