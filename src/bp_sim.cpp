@@ -761,8 +761,10 @@ void CFlowGenStats::clear(){
    m_total_close_flows =0;
    m_nat_lookup_no_flow_id=0;
    m_nat_lookup_remove_flow_id=0;
+   m_nat_lookup_wait_ack_state = 0;
    m_nat_lookup_add_flow_id=0;
    m_nat_flow_timeout=0;
+   m_nat_flow_timeout_wait_ack = 0;
    m_nat_flow_learn_error=0;
 }
 
@@ -791,9 +793,12 @@ void CFlowGenStats::dump(FILE *fd){
 
    DP(m_nat_lookup_no_flow_id);
    DP(m_nat_lookup_remove_flow_id);
+   DP(m_nat_lookup_wait_ack_state);
    DP(m_nat_lookup_add_flow_id);
    DP(m_nat_flow_timeout);
+   DP(m_nat_flow_timeout_wait_ack);
    DP_name("active_nat",(m_nat_lookup_add_flow_id-m_nat_lookup_remove_flow_id));
+   DP_name("active_nat_wait_syn", (m_nat_lookup_add_flow_id - m_nat_lookup_wait_ack_state));
    DP(m_nat_flow_learn_error);
 }
 
@@ -2031,7 +2036,8 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_loa
                             , "       Please give different CAP file, or try different --learn-mode\n");
                     return kTCPLearnModeBadFlow;
                 }
-                if ((pkt_0_indication.m_cap_ipg < LEARN_MODE_MIN_IPG / 1000) || (pkt_1_indication.m_cap_ipg < LEARN_MODE_MIN_IPG / 1000)) {
+                if ((pkt_0_indication.m_cap_ipg < (double)LEARN_MODE_MIN_IPG / 1000)
+                    || (pkt_1_indication.m_cap_ipg < (double)LEARN_MODE_MIN_IPG / 1000)) {
                     fprintf(stderr
                             , "Error: Bad cap file timings. In the chosen learn mode");
                     fprintf(stderr, "IPG between TCP handshake packets should be at least %d msec.\n", LEARN_MODE_MIN_IPG);
@@ -2300,10 +2306,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
         lp_prev->m_pkt_indication.m_cap_ipg = lp->m_pkt_indication.m_cap_ipg-
                                               lp_prev->m_pkt_indication.m_cap_ipg;
-
-
-
-        printf("%d: IPG:%f", i, lp_prev->m_pkt_indication.m_cap_ipg); //??? remove
         if ( lp->m_pkt_indication.m_desc.IsInitSide() !=
              lp_prev->m_pkt_indication.m_desc.IsInitSide()) {
             lp_prev->m_pkt_indication.m_desc.SetRtt(true);
@@ -4177,6 +4179,11 @@ int CFlowGenListPerThread::reschedule_flow(CGenNode *node){
 void CFlowGenListPerThread::terminate_nat_flows(CGenNode *p){
     m_stats.m_nat_flow_timeout++;
     m_stats.m_nat_lookup_remove_flow_id++;
+    if (p->is_nat_wait_ack_state()) {
+        m_stats.m_nat_flow_timeout_wait_ack++;
+    } else {
+        m_stats.m_nat_lookup_wait_ack_state++;
+    }
     m_flow_id_to_node_lookup.remove_no_lookup(p->get_short_fid());
     free_last_flow_node( p);
 }
@@ -4228,6 +4235,7 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
                 node->set_nat_tcp_seq_diff_client(nat_msg->m_tcp_seq - tcp->getSeqNumber());
                 if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
                     node->set_nat_wait_ack_state();
+                    m_stats.m_nat_lookup_wait_ack_state++;
                     second = false;
                 } else {
                     node->set_nat_learn_state();
@@ -4256,7 +4264,8 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
             node->set_nat_ipv4_port(nat_msg->m_external_port);
 
             if ( CGlobalInfo::is_learn_verify_mode() ){
-                if (!node->is_external_is_eq_to_internal_ip() ){
+                if (!node->is_external_is_eq_to_internal_ip() ||
+                    node->get_nat_tcp_seq_diff_client() != 0) {
                     m_stats.m_nat_flow_learn_error++;
                 }
             }

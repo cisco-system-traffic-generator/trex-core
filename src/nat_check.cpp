@@ -52,29 +52,6 @@ void CGenNodeNatInfo::init(){
     m_cnt=0;
 }
 
-bool CNatCheckFlowTableMap::find(uint64_t key, uint32 &val) {
-    nat_check_flow_map_t::iterator iter;
-    iter = m_map.find(key);
-    if (iter != m_map.end() ) {
-        val = (*iter).second;
-        return true;
-    }else{
-        return false;
-    }
-}
-
-void CNatCheckFlowTableMap::dump(FILE *fd) {
-    nat_check_flow_map_iter_t it;
-    uint32_t val;
-    uint64_t key;
-
-    for (it = m_map.begin(); it != m_map.end(); it++) {
-        val = it->second;
-        key = it->first;
-        fprintf(fd, "%lx->%x\n", key, val);
-    }
-}
-
 void CNatStats::reset(){
     m_total_rx=0;
     m_total_msg=0;
@@ -207,21 +184,20 @@ void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4, bool 
                 uint32_t dst_ip = ipv4->getDestIp();
                 uint16_t dst_port = tcp->getDestPort();
                 uint64_t map_key = (dst_ip << 16) + dst_port;
-                m_fm.insert(map_key, tcp_ack);
+                double time_stamp = now_sec();
+                m_ft.insert(map_key, tcp_ack, time_stamp);
+                m_ft.clear_old(time_stamp - 1);
             }
         } else {
             uint32_t val;
             // server->client packet. IP/port reversed in regard to first SYN packet
             uint64_t map_key = (ext_ip << 16) + ext_port;
-
-            if (m_fm.find(map_key, val)) {
+            if (m_ft.erase(map_key, val)) {
                 get_info_from_tcp_ack(val, fid, thread_id);
                 thread_info = get_thread_info(thread_id);
-                m_fm.erase(map_key);
             } else {
+                // flow was not found in the table
                 thread_info = 0;
-                // ??? Handle error
-                // ??? handle aging of flow info
             }
         }
     }
@@ -279,7 +255,8 @@ void CNatStats::Dump(FILE *fd){
 
 
 void CNatRxManager::Dump(FILE *fd){
-    m_stats.Dump(stdout);
+    m_stats.Dump(fd);
+    m_ft.dump(fd);
 }
 
 void CNatRxManager::DumpShort(FILE *fd){

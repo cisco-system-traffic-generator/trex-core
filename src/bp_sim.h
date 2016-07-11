@@ -1871,8 +1871,10 @@ public:
     uint64_t                         m_total_close_flows;
     uint64_t                         m_nat_lookup_no_flow_id;
     uint64_t                         m_nat_lookup_remove_flow_id;
+    uint64_t                         m_nat_lookup_wait_ack_state;
     uint64_t                         m_nat_lookup_add_flow_id;
     uint64_t                         m_nat_flow_timeout;
+    uint64_t                         m_nat_flow_timeout_wait_ack;
     uint64_t                         m_nat_flow_learn_error;
 
 public:

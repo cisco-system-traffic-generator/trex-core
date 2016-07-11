@@ -362,6 +362,7 @@ public:
 
     void DumpRxCheck(FILE *fd); // dump all
     void DumpShortRxCheck(FILE *fd); // dump short histogram of latency 
+    void dump_nat_flow_table(FILE *fd);
     void rx_check_dump_json(std::string & json);
     uint16_t get_latency_header_offset(){
         return ( m_pkt_gen.get_payload_offset() );

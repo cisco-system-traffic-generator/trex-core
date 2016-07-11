@@ -2439,8 +2439,10 @@ public:
     uint64_t  m_active_sockets;
 
     uint64_t  m_total_nat_time_out;
+    uint64_t  m_total_nat_time_out_wait_ack;
     uint64_t  m_total_nat_no_fid  ;
     uint64_t  m_total_nat_active  ;
+    uint64_t  m_total_nat_syn_wait;
     uint64_t  m_total_nat_open    ;
     uint64_t  m_total_nat_learn_error    ;
 
@@ -2559,8 +2561,10 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
     json+=GET_FIELD(m_socket_util);
 
     json+=GET_FIELD(m_total_nat_time_out);
+    json+=GET_FIELD(m_total_nat_time_out_wait_ack);
     json+=GET_FIELD(m_total_nat_no_fid );
     json+=GET_FIELD(m_total_nat_active );
+    json+=GET_FIELD(m_total_nat_syn_wait);
     json+=GET_FIELD(m_total_nat_open   );
     json+=GET_FIELD(m_total_nat_learn_error);
 
@@ -2596,7 +2600,12 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
     fprintf (fd," Platform_factor : %2.1f  \n",m_platform_factor);
     fprintf (fd," Total-Tx        : %s  ",double_to_human_str(m_tx_bps,"bps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Nat_time_out    : %8llu \n", (unsigned long long)m_total_nat_time_out);
+        fprintf (fd," NAT time out    : %8llu", (unsigned long long)m_total_nat_time_out);
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+            fprintf (fd," (%llu in wait for syn+ack)\n", (unsigned long long)m_total_nat_time_out_wait_ack);
+        } else {
+            fprintf (fd, "\n");
+        }
     }else{
         fprintf (fd,"\n");
     }
@@ -2604,28 +2613,33 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
 
     fprintf (fd," Total-Rx        : %s  ",double_to_human_str(m_rx_bps,"bps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Nat_no_fid      : %8llu \n", (unsigned long long)m_total_nat_no_fid);
+        fprintf (fd," NAT aged flow id: %8llu \n", (unsigned long long)m_total_nat_no_fid);
     }else{
         fprintf (fd,"\n");
     }
 
     fprintf (fd," Total-PPS       : %s  ",double_to_human_str(m_tx_pps,"pps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Total_nat_active: %8llu \n", (unsigned long long)m_total_nat_active);
+        fprintf (fd," Total NAT active: %8llu", (unsigned long long)m_total_nat_active);
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+            fprintf (fd," (%llu waiting for syn)\n", (unsigned long long)m_total_nat_syn_wait);
+        } else {
+            fprintf (fd, "\n");
+        }
     }else{
         fprintf (fd,"\n");
     }
 
     fprintf (fd," Total-CPS       : %s  ",double_to_human_str(m_tx_cps,"cps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_mode() ) {
-        fprintf (fd," Total_nat_open  : %8llu \n", (unsigned long long)m_total_nat_open);
+        fprintf (fd," Total NAT opened: %8llu \n", (unsigned long long)m_total_nat_open);
     }else{
         fprintf (fd,"\n");
     }
     fprintf (fd,"\n");
     fprintf (fd," Expected-PPS    : %s  ",double_to_human_str(m_tx_expected_pps,"pps",KBYE_1000).c_str());
     if ( CGlobalInfo::is_learn_verify_mode() ) {
-        fprintf (fd," Nat_learn_errors: %8llu \n", (unsigned long long)m_total_nat_learn_error);
+        fprintf (fd," NAT learn errors: %8llu \n", (unsigned long long)m_total_nat_learn_error);
     }else{
         fprintf (fd,"\n");
     }
@@ -3647,8 +3661,10 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
 
     uint64_t total_nat_time_out =0;
+    uint64_t total_nat_time_out_wait_ack =0;
     uint64_t total_nat_no_fid   =0;
     uint64_t total_nat_active   =0;
+    uint64_t total_nat_syn_wait = 0;
     uint64_t total_nat_open     =0;
     uint64_t total_nat_learn_error=0;
 
@@ -3677,8 +3693,10 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_sockets   += lpt->m_smart_gen.MaxSockets();
 
         total_nat_time_out +=lpt->m_stats.m_nat_flow_timeout;
+        total_nat_time_out_wait_ack += lpt->m_stats.m_nat_flow_timeout_wait_ack;
         total_nat_no_fid   +=lpt->m_stats.m_nat_lookup_no_flow_id ;
         total_nat_active   +=lpt->m_stats.m_nat_lookup_add_flow_id - lpt->m_stats.m_nat_lookup_remove_flow_id;
+        total_nat_syn_wait += lpt->m_stats.m_nat_lookup_add_flow_id - lpt->m_stats.m_nat_lookup_wait_ack_state;
         total_nat_open     +=lpt->m_stats.m_nat_lookup_add_flow_id;
         total_nat_learn_error   +=lpt->m_stats.m_nat_flow_learn_error;
         uint8_t port0 = lpt->getDualPortId() *2;
@@ -3700,8 +3718,10 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     }
 
     stats.m_total_nat_time_out = total_nat_time_out;
+    stats.m_total_nat_time_out_wait_ack = total_nat_time_out_wait_ack;
     stats.m_total_nat_no_fid   = total_nat_no_fid;
     stats.m_total_nat_active   = total_nat_active;
+    stats.m_total_nat_syn_wait = total_nat_syn_wait;
     stats.m_total_nat_open     = total_nat_open;
     stats.m_total_nat_learn_error     = total_nat_learn_error;
 
@@ -3959,9 +3979,17 @@ CGlobalTRex::handle_slow_path(bool &was_stopped) {
                     m_mg.DumpRxCheck(stdout);
                     break;
                 }
-
             }
-
+        }
+    }
+    if ( m_io_modes.m_g_mode ==  CTrexGlobalIoMode::gNAT ) {
+        if ( m_io_modes.m_nat_mode == CTrexGlobalIoMode::natENABLE ) {
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                fprintf(stdout, "NAT flow table info\n");
+                m_mg.dump_nat_flow_table(stdout);
+            } else {
+                fprintf(stdout, "\nThis is only relevant in --learn-mode %d\n", CParserOption::LEARN_MODE_TCP_ACK);
+            }
         }
     }
 

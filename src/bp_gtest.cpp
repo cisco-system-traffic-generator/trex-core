@@ -32,6 +32,7 @@ limitations under the License.
 #include <common/cgen_map.h>
 #include "platform_cfg.h"
 #include "latency.h"
+#include "nat_check_flow_table.h"
 
 int test_policer(){
     CPolicer policer;
@@ -2400,7 +2401,20 @@ TEST_F(rx_check_system, rx_json) {
     printf(" %s \n",json.c_str());
 }
 
+class nat_check_flow_table  : public testing::Test {
+ protected:
+  virtual void SetUp() {
+  }
 
+  virtual void TearDown() {
+  }
+public:
+    CNatCheckFlowTable m_ft;
+};
+
+TEST_F(nat_check_flow_table, test1) {
+    m_ft.test();
+};
 
 //////////////////////////////////////////////////////////////
 

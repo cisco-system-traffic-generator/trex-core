@@ -29,6 +29,7 @@ limitations under the License.
 #include <common/Network/Packet/IPv6Header.h>
 #include <common/Network/Packet/EthernetHeader.h>
 #include "os_time.h"
+#include "nat_check_flow_table.h"
 
 // 2msec timeout                                            
 #define MAX_TIME_MSG_IN_QUEUE_SEC  ( 0.002 )
@@ -211,22 +212,6 @@ public:
     void Dump(FILE *fd);
 };
 
-typedef std::map<uint64_t, uint32_t, std::less<uint64_t> > nat_check_flow_map_t;
-typedef nat_check_flow_map_t::iterator nat_check_flow_map_iter_t;
-
-class CNatCheckFlowTableMap   {
-public:
-    void erase(uint64_t key) {m_map.erase(key);}
-    bool find(uint64_t fid, uint32_t &val);
-    void insert(uint64_t key, uint32_t val) {m_map.insert(std::pair<uint64_t, uint32_t>(key, val));}
-    void clear(void) {m_map.clear();}
-    void dump(FILE *fd);
-    uint64_t size(void) {return m_map.size();}
-
-public:
-    nat_check_flow_map_t m_map;
-};
-
 class CNatRxManager {
 
 public:
@@ -248,7 +233,7 @@ private:
     uint8_t               m_max_threads;
     CNatPerThreadInfo   * m_per_thread;
     CNatStats             m_stats;
-    CNatCheckFlowTableMap  m_fm;
+    CNatCheckFlowTable    m_ft;
 };
 
 

@@ -387,12 +387,6 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
 
     if ( ! is_lateancy_pkt) {
 
-#if 0
-        TCPHeader *tcp = (TCPHeader *)parser.m_l4; //????? remove
-	if (parser.m_ipv4->getProtocol() == 0x6 && tcp->getSynFlag()) {
-        tcp->dump(stdout); //???? remove
-	}
-#endif
 #ifdef NAT_TRACE_
         printf(" %.3f RX : got packet !!! \n",now_sec() );
 #endif
@@ -915,6 +909,10 @@ void CLatencyManager::DumpShortRxCheck(FILE *fd){
     if ( get_is_rx_check_mode() ) {
         m_rx_check_manager.DumpShort(fd);
     }
+}
+
+void CLatencyManager::dump_nat_flow_table(FILE *fd) {
+    m_nat_check_manager.Dump(fd);
 }
 
 void CLatencyManager::rx_check_dump_json(std::string & json){
