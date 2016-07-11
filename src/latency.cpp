@@ -25,6 +25,7 @@ limitations under the License.
 #include "trex_watchdog.h"
 
 #include <common/basic_utils.h> 
+#include <rte_arp.h>
 
 const uint8_t sctp_pkt[]={ 
 
@@ -554,6 +555,7 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
     if ( CGlobalInfo::is_learn_mode() ){
         m_nat_check_manager.Create();
     }
+    m_gre_info = NULL;
 
     return (true);
 }
@@ -708,6 +710,151 @@ void CLatencyManager::tickle() {
     m_monitor.tickle();
 }
 
+static size_t create_gratuitous_arp_pkt(uint8_t *p, uint32_t ip, uint8_t mac[6]) {
+    uint8_t *pkt = p;
+
+    // Ethernet header
+    EthernetHeader *eth = (EthernetHeader *)(pkt);
+    eth->getSrcMacP()->set(mac);
+    eth->getDestMacP()->set(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+    eth->setNextProtocol(EthernetHeader::Protocol::ARP);
+    pkt += eth->getSize() - 4 /* VLAN */;
+
+    // ARP Payload
+    struct arp_hdr *arp = (struct arp_hdr *)pkt;
+    arp->arp_hrd = PKT_HTONS(ARP_HRD_ETHER); // Format of hardware address
+    arp->arp_pro = PKT_HTONS(EthernetHeader::Protocol::IP); // Format of protocol address
+    arp->arp_hln = 6; // Length of hardware address
+    arp->arp_pln = 4; // Length of protocol address
+    arp->arp_op = PKT_HTONS(ARP_OP_REQUEST); // ARP opcode (command)
+
+    memcpy(&arp->arp_data.arp_sha, mac, 6); // Sender MAC address
+    arp->arp_data.arp_sip = PKT_HTONL(ip); // Sender IP address
+    memset(&arp->arp_data.arp_tha, 0xFF, 6); // Target MAC address (Broadcast for gratuitous ARP)
+    arp->arp_data.arp_tip = PKT_HTONL(ip); // Target IP address (Sender IP for gratuitous ARP)
+    pkt += sizeof(struct arp_hdr);
+
+    // Padding to 60 bytes
+    pkt += 18;
+
+    return pkt - p;
+}
+
+static size_t create_gre_pkt(uint8_t *p, uint8_t src_mac[6], uint8_t dst_mac[6], uint32_t src_ip, uint32_t dst_ip, uint32_t key, uint32_t arp_ip, uint8_t arp_mac[6]) {
+    uint8_t *pkt = p;
+
+    // Add Ethernet header
+    EthernetHeader *eth = (EthernetHeader *)(pkt);
+    eth->getSrcMacP()->set(src_mac);
+    eth->getDestMacP()->set(dst_mac);
+    eth->setNextProtocol(EthernetHeader::Protocol::IP);
+    pkt += eth->getSize() - 4 /* VLAN */;
+
+    // Add IP header
+    IPHeader *ipv4 = (IPHeader *)(pkt);
+    ipv4->setVersion(4);
+    ipv4->setHeaderLength(IPV4_HDR_LEN);
+    ipv4->setTOS(0);
+    ipv4->setId(0);
+    ipv4->setFragment(0, 0, 1);
+    ipv4->setTimeToLive(64);
+    ipv4->setProtocol(IPHeader::Protocol::GRE);
+    ipv4->setSourceIp(src_ip);
+    ipv4->setDestIp(dst_ip);
+    pkt += ipv4->getSize();
+
+    // Add GRE header
+    GREHeader *gre = (GREHeader *)(pkt);
+    gre->setFlags(0, 1, 0);
+    gre->setVersion(0);
+    gre->setProtocolType(GREHeader::Protocol::TRANSPARENT_ETHERNET_BRIDIGING);
+    gre->setKey(key);
+    pkt += gre->getSize();
+
+    // Add ARP packet
+    size_t arp_len = create_gratuitous_arp_pkt(pkt, arp_ip, arp_mac);
+    pkt += arp_len;
+
+    // Update packet size and calculate new checksum
+    ipv4->setTotalLength(ipv4->getSize() + gre->getSize() + arp_len);
+    ipv4->updateCheckSum();
+
+    return pkt - p;
+}
+
+void CLatencyManager::send_arps(){
+    int port, i;
+    size_t pkt_len;
+
+    for (port = 0; port < m_max_ports; port++) {
+        CLatencyManagerPerPort *lp = &m_ports[port];
+
+        if (port % 2 == 0) {
+            // Client to server
+            uint32_t client_ip = m_client_ip;
+
+            if (m_gre_info) {
+                for (auto &gre_entry : m_gre_info->get_gre_info()) {
+                    // Send pCPE ARP
+                    {
+                        rte_mbuf_t *m = m_pkt_gen.generate_pkt(port);
+                        uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+                        memset(p, 0, rte_ctrlmbuf_len(m));
+
+                        pkt_len = create_gratuitous_arp_pkt(p, gre_entry.src_ip,
+                            CGlobalInfo::m_options.get_dst_src_mac_addr(CLIENT_SIDE) + 6);
+                        rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) = pkt_len;
+
+                        lp->m_io->tx(m);
+                    }
+
+                    // Send LAN client ARP
+                    for (i = 0; i < m_num_clients; i++, client_ip++) {
+                        rte_mbuf_t *m = m_pkt_gen.generate_pkt(port);
+                        uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+                        memset(p, 0, rte_ctrlmbuf_len(m));
+
+                        pkt_len = create_gre_pkt(p, CGlobalInfo::m_options.get_dst_src_mac_addr(CLIENT_SIDE) + 6,
+                            CGlobalInfo::m_options.get_dst_src_mac_addr(CLIENT_SIDE),
+                            gre_entry.src_ip, m_gre_info->get_gre_dst_ip(), gre_entry.key, client_ip, gre_entry.client_mac);
+                        rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) = pkt_len;
+
+                        lp->m_io->tx(m);
+                    }
+                    /* Reset client IP for next GRE tunnel */
+                    client_ip = m_client_ip;
+                }
+            } else {
+                for (i = 0; i < m_num_clients; i++, client_ip++) {
+                    rte_mbuf_t *m = m_pkt_gen.generate_pkt(port);
+                    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+                    memset(p, 0, rte_ctrlmbuf_len(m));
+
+                    pkt_len = create_gratuitous_arp_pkt(p, client_ip,
+                        CGlobalInfo::m_options.get_dst_src_mac_addr(CLIENT_SIDE) + 6);
+                    rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) = pkt_len;
+
+                    lp->m_io->tx(m);
+                }
+            }
+        } else {
+            // Server to client
+            uint32_t server_ip = m_server_ip;
+
+            for (i = 0; i < m_num_servers; i++, server_ip++) {
+                rte_mbuf_t *m = m_pkt_gen.generate_pkt(port);
+                uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+                memset(p, 0, rte_ctrlmbuf_len(m));
+
+                pkt_len = create_gratuitous_arp_pkt(p, server_ip, CGlobalInfo::m_options.get_dst_src_mac_addr(SERVER_SIDE) + 6);
+                rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) = pkt_len;
+
+                lp->m_io->tx(m);
+            }
+        }
+    }
+}
+
 void  CLatencyManager::start(int iter, bool activate_watchdog) {
     m_do_stop =false;
     m_is_active =false;
@@ -729,6 +876,11 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
         m_monitor.create("STF RX CORE", 1);
         TrexWatchDog::getInstance().register_monitor(&m_monitor);
     }
+
+    node = new CGenNode();
+    node->m_type = CGenNode::SEND_ARP; /* Gratuitous ARP */
+    node->m_time = now_sec();
+    m_p_queue.push(node);
 
     while (  !m_p_queue.empty() ) {
         node = m_p_queue.top();
@@ -766,6 +918,14 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             send_pkt_all_ports();
             m_p_queue.pop();
             node->m_time += m_delta_sec;
+            m_p_queue.push(node);
+            m_cpu_dp_u.commit1();
+            break;
+        case CGenNode::SEND_ARP:
+            m_cpu_dp_u.start_work1();
+            send_arps();
+            m_p_queue.pop();
+            node->m_time += (2 * m_delta_sec);
             m_p_queue.push(node);
             m_cpu_dp_u.commit1();
             break;

@@ -490,6 +490,7 @@ includes_path =''' ../src/pal/linux_dpdk/
 ../src/dpdk22/lib/librte_kvargs/
 ../src/dpdk22/lib/librte_mbuf/
 ../src/dpdk22/lib/librte_mempool/
+../src/dpdk22/lib/librte_net/
 ../src/dpdk22/lib/librte_pipeline/
 ../src/dpdk22/lib/librte_ring/
 ../src/dpdk22/
@@ -547,6 +548,7 @@ dpdk_includes_path =''' ../src/
 ../src/dpdk22/lib/librte_kvargs/
 ../src/dpdk22/lib/librte_mbuf/
 ../src/dpdk22/lib/librte_mempool/
+../src/dpdk22/lib/librte_net/
 ../src/dpdk22/lib/librte_pipeline/
 ../src/dpdk22/lib/librte_ring/
 ../src/dpdk22/lib/librte_net/
