@@ -170,7 +170,7 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
     assert(m->magic2== MAGIC2);
 }
 
-#define __rte_cache_aligned 
+#define __rte_cache_aligned __attribute__((__aligned__(64)))
 
 
 #define CACHE_LINE_SIZE 64

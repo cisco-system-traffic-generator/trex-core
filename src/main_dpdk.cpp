@@ -541,6 +541,7 @@ enum { OPT_HELP,
        OPT_RX_CHECK,
        OPT_IO_MODE,
        OPT_IPV6,
+       OPT_GRE,
        OPT_LEARN,
        OPT_LEARN_MODE,
        OPT_LEARN_VERIFY,
@@ -605,6 +606,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_IO_MODE,   "--iom",  SO_REQ_SEP },
         { OPT_RX_CHECK_HOPS, "--hops", SO_REQ_SEP },
         { OPT_IPV6,       "--ipv6",       SO_NONE   },
+        { OPT_GRE,        "--gre",        SO_REQ_SEP   },
         { OPT_LEARN, "--learn",       SO_NONE   },
         { OPT_LEARN_MODE, "--learn-mode",       SO_REQ_SEP   },
         { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
@@ -686,6 +688,7 @@ static int usage(){
     printf("  \n");
 
     printf(" --ipv6                     : work in ipv6 mode\n");
+    printf(" --gre [cfg.yaml]           : encapsulate outgoing packets with GRE\n");
     printf(" --learn (deprecated). Replaced by --learn-mode. To get older behaviour, use --learn-mode 2\n");
     printf(" --learn-mode [1-2]         : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
     printf("      1    Use TCP ACK in first SYN to pass NAT translation information. Will work only for TCP streams. Initial SYN packet must be present in stream.\n");
@@ -839,6 +842,11 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_IPV6:
                 po->preview.set_ipv6_mode_enable(true);
+                break;
+
+            case OPT_GRE:
+                po->gre_file = args.OptionArg();
+                po->preview.set_gre_mode_enable(true);
                 break;
 
             case OPT_VLAN:
@@ -4205,6 +4213,13 @@ int CGlobalTRex::start_master_statefull() {
         m_fl.m_mac_info.set_configured(true);
     } else {
         m_fl.m_mac_info.set_configured(false);
+    }
+    if (CGlobalInfo::m_options.gre_file != "") {
+        CGlobalInfo::m_options.preview.set_mac_ip_mapping_enable(true);
+        m_fl.load_from_gre_file(CGlobalInfo::m_options.gre_file);
+        m_fl.m_gre_info.set_configured(true);
+    } else {
+        m_fl.m_gre_info.set_configured(false);
     }
 
     m_expected_pps = m_fl.get_total_pps();

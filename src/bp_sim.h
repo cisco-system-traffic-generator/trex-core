@@ -34,6 +34,7 @@ limitations under the License.
 #include "mbuf.h"
 #include <common/c_common.h>
 #include <common/captureFile.h>
+#include <common/Network/Packet/GREHeader.h>
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
 #include <common/Network/Packet/IcmpHeader.h>
@@ -432,7 +433,7 @@ public:
 #define CONST_NB_MBUF  16380
 
 /* this is the first small part of the packet that we manipulate */
-#define FIRST_PKT_SIZE 64
+#define FIRST_PKT_SIZE 128
 #define CONST_SMALL_MBUF_SIZE (FIRST_PKT_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 
 
@@ -707,6 +708,15 @@ public:
         return (btGetMaskBit32(m_flags1, 7, 7) ? true : false);
     }
 
+    /* GRE encapsulation enable/disable */
+    void set_gre_mode_enable(bool enable){
+        btSetMaskBit32(m_flags1,8,8,enable?1:0);
+    }
+
+    bool get_gre_mode_enable(){
+        return (btGetMaskBit32(m_flags1,8,8) ? true:false);
+    }
+
 public:
     void Dump(FILE *fd);
 
@@ -818,6 +828,7 @@ public:
 
     std::string        cfg_file;
     std::string        mac_file;
+    std::string        gre_file;
     std::string        platform_cfg_file;
 
     std::string        out_file;
@@ -1256,6 +1267,10 @@ public:
         return ( m_options.preview.get_ipv6_mode_enable() );
     }
 
+    static inline bool is_gre_enable(void){
+        return ( m_options.preview.get_gre_mode_enable() );
+    }
+
     static inline bool is_realtime(void){
         //return (false);
         return ( m_options.preview.getRealTime() );
@@ -1569,7 +1584,8 @@ public:
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
-
+    CFlowGenListGre   * m_gre_info;
+    uint32_t            m_gre_idx;
 
 public:
     void free_gen_node();
@@ -2585,6 +2601,7 @@ public:
         IPv6Header     * m_ipv6;
     } l3;
     bool        m_is_ipv6;
+    bool        m_is_gre;
     union {
         TCPHeader * m_tcp;
         UDPHeader * m_udp;
@@ -2609,6 +2626,7 @@ public:
     void Clean();
     bool ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
                                     int offset);
+    bool EncasulatePacketWithGREInPlace(CCapPktRaw * pkt);
     void ProcessPacket(CPacketParser *parser,CCapPktRaw * pkt);
     void Clone(CPacketIndication * obj,CCapPktRaw * pkt);
     void RefreshPointers(void);
@@ -2617,6 +2635,9 @@ public:
 public:
     bool is_ipv6(){
         return (m_is_ipv6);
+    }
+    bool is_gre(){
+        return (m_is_gre);
     }
     char * getBasePtr(){
         return ((char *)m_packet->raw);
@@ -3137,6 +3158,26 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
             }
 #endif
         }
+    }
+
+    /* Replace GRE destination and keys */
+    if (unlikely(m_pkt_indication.is_gre())){
+      CFlowGenListGre *gre_info = node->m_gre_info;
+      gre_mapping_t gre_map = gre_info->get_gre_info(node->m_gre_idx);
+
+      /* Set GRE IP source + destinaion */
+      IPHeader *ipv4 = (IPHeader *)(p + 14);
+      ipv4->setSourceIp(gre_map.src_ip); /* Per client */
+      ipv4->setDestIp(gre_info->get_gre_dst_ip()); /* Constant for GRE setup */
+      ipv4->updateCheckSum();
+
+      /* Set GRE key */
+      GREHeader *gre = (GREHeader *)(p + 34);
+      gre->setKey(gre_map.key); /* Per client */
+
+      /* Set MAC addresses inside encapsulated packet */
+      et->getSrcMacP()->set(gre_map.client_mac);
+      et->getDestMacP()->set(gre_map.gw_mac);
     }
 }
 
@@ -3875,6 +3916,7 @@ public:
 
     int load_from_yaml(std::string csv_file,uint32_t num_threads);
     int load_from_mac_file(std::string csv_file);
+    int load_from_gre_file(std::string file_name);
 public:
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
@@ -3894,6 +3936,7 @@ public:
     CFlowsYamlInfo                   m_yaml_info; /* global yaml*/
     std::vector<CFlowGenListPerThread   *> m_threads_info;
     CFlowGenListMac                  m_mac_info;
+    CFlowGenListGre                  m_gre_info;
 };
 
 
@@ -3978,6 +4021,11 @@ inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tup
         /* alloc the info , generate the ports */
         on_node_first(template_info->m_plugin_id,node,template_info,tuple_gen,gen->Parent() );
     }
+
+    /* If GRE, add gre instance (pointer and index) to node */
+    node->m_gre_info = node->m_tuple_gen->get_gre_info();
+    if (node->m_gre_info)
+      node->m_gre_idx = node->m_gre_info->get_gre_next_index();
 
     gen->add_node(node);
 }

@@ -40,7 +40,7 @@ friend class TrexStatelessDpCore;
 public:
     TrexStatelessCpToDpMsgBase * m_cmd;
 
-    uint8_t             m_pad_end[104];
+    uint8_t             m_pad_end[120];
 
 public:
     void free_command();
@@ -133,7 +133,7 @@ private:
     /* End Fast Field VM Section */
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[20];
+    uint8_t             m_pad_end[36];
 
 
 public:
@@ -616,7 +616,7 @@ private:
     uint8_t             m_port_id;
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[33];
+    uint8_t             m_pad_end[97];
 
 } __rte_cache_aligned;
 

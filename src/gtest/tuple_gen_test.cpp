@@ -158,7 +158,7 @@ TEST(tuple_gen,clientPoolL) {
     CClientPool gen;
     gen.Create(cdSEQ_DIST, 
                0x10000001,  0x10000f01, 64000,1,NULL,false, 
-               0,0);
+               NULL,false,0,0);
     CTupleBase result;
     uint32_t result_src;
     uint16_t result_port;
@@ -182,7 +182,7 @@ TEST(tuple_gen,clientPool) {
     CClientPool gen;
     gen.Create(cdSEQ_DIST, 
                0x10000001,  0x10000021, 64000,1000,NULL,false, 
-               0,0);
+               NULL,false,0,0);
     CTupleBase result;
     uint32_t result_src;
     uint16_t result_port;
@@ -274,7 +274,7 @@ TEST(tuple_gen,GenerateTuple2) {
     CClientPool c_gen_2;
     c_gen.Create(cdSEQ_DIST, 
                0x10000001,  0x1000000f, 64000,4,NULL,false, 
-               0,0);
+               NULL,false,0,0);
     CServerPool s_gen;
     CServerPool s_gen_2;
     s_gen.Create(cdSEQ_DIST, 
@@ -303,7 +303,7 @@ TEST(tuple_gen,GenerateTuple2) {
 //    EXPECT_EQ((size_t)0, gen.m_clients.size());
     c_gen.Create(cdSEQ_DIST, 
                0x10000001,  0x1000000f, 64000,400,NULL,false, 
-               0,0);
+               NULL,false,0,0);
     s_gen.Create(cdSEQ_DIST, 
                0x30000001,  0x30000001, 64000,10);
     for(int i=0;i<200;i++) {
@@ -332,7 +332,7 @@ TEST(tuple_gen,GenerateTupleMac) {
 
     CClientPool gen;
     gen.Create(cdSEQ_DIST, 
-               0x10000001,  0x1000000f, 64000,2, &fl.m_mac_info,true,0,0);
+               0x10000001,  0x1000000f, 64000,2, &fl.m_mac_info,true,NULL,false,0,0);
 
     CTupleBase result;
     uint32_t result_src;
@@ -421,7 +421,7 @@ TEST(tuple_gen,split2) {
 TEST(tuple_gen,template1) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1); 
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);
@@ -446,7 +446,7 @@ TEST(tuple_gen,template1) {
 TEST(tuple_gen,template2) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1);
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);
@@ -475,7 +475,7 @@ TEST(tuple_gen,template2) {
 TEST(tuple_gen,no_free) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1);
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000001,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000001,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x400000ff,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);
@@ -497,7 +497,7 @@ TEST(tuple_gen,no_free) {
 TEST(tuple_gen,try_to_free) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1); 
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000001,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000001,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x400000ff,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);
@@ -524,7 +524,7 @@ TEST(tuple_gen,try_to_free) {
 TEST(tuple_gen_2,GenerateTuple) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1); 
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000f01,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000f01,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);
@@ -552,7 +552,7 @@ TEST(tuple_gen_2,GenerateTuple) {
 TEST(tuple_gen_2,GenerateTuple2) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1);
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);
@@ -576,7 +576,7 @@ TEST(tuple_gen_2,GenerateTuple2) {
     gen.Delete();
 //    EXPECT_EQ((size_t)0, gen.m_clients.size());
     gen.Create(1, 1); 
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     template_1.Create(&gen,0,0);
     for(int i=0;i<200;i++) {
@@ -599,7 +599,7 @@ TEST(tuple_gen_2,GenerateTuple2) {
 TEST(tuple_gen_2,template1) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1); 
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);
@@ -626,7 +626,7 @@ TEST(tuple_gen_2,template1) {
 TEST(tuple_gen_2,template2) {
     CTupleGeneratorSmart gen;
     gen.Create(1, 1);
-    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,0,0);
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000,4,NULL,NULL,0,0);
     gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,4,false);
     CTupleTemplateGeneratorSmart template_1;
     template_1.Create(&gen,0,0);

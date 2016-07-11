@@ -38,6 +38,7 @@ limitations under the License.
 #include <bitset>
 #include <yaml-cpp/yaml.h>
 #include <mac_mapping.h>
+#include <gre_mapping.h>
 
 #include <random>
 
@@ -543,6 +544,8 @@ public:
                 double t_cps,
                 CFlowGenListMac* mac_info,
                 bool has_mac_map, 
+                CFlowGenListGre* gre_info,
+                bool has_gre_map,
                 uint16_t tcp_aging,
                 uint16_t udp_aging); 
 
@@ -686,9 +689,11 @@ public:
     CTupleGeneratorSmart(){
         m_was_init=false;
         m_has_mac_mapping = false;
+        m_gre_info = NULL;
+        m_has_gre_mapping = false;
     }
     bool Create(uint32_t _id,
-            uint32_t thread_id, bool has_mac=false);
+            uint32_t thread_id, bool has_mac=false, bool has_gre=false);
 
     void Delete();
 
@@ -710,6 +715,7 @@ public:
                          double l_flow,
                          double t_cps,
                          CFlowGenListMac* mac_info,
+                         CFlowGenListGre* gre_info,
                          uint16_t tcp_aging,
                          uint16_t udp_aging);
     bool add_server_pool(IP_DIST_t  server_dist,
@@ -730,6 +736,10 @@ public:
     CServerPoolBase* get_server_pool(uint8_t idx) {
         return m_server_pool[idx];
     }
+
+    CFlowGenListGre* get_gre_info() {
+        return m_gre_info;
+    }
 private:
     uint32_t m_id;
     uint32_t m_thread_id;
@@ -737,6 +747,8 @@ private:
     std::vector<CServerPoolBase*> m_server_pool;
     bool     m_was_init;
     bool     m_has_mac_mapping;
+    CFlowGenListGre* m_gre_info;
+    bool     m_has_gre_mapping;
 };
 
 class CTupleTemplateGeneratorSmart {

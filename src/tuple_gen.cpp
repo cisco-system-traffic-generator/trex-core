@@ -59,6 +59,8 @@ void CClientPool::Create(IP_DIST_t  dist_value,
             double t_cps,
             CFlowGenListMac* mac_info,
             bool has_mac_map,
+            CFlowGenListGre* gre_info,
+            bool has_gre_map,
             uint16_t tcp_aging, 
             uint16_t udp_aging) {
     assert(max_ip>=min_ip);
@@ -136,15 +138,17 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
                                           double l_flow,
                                           double t_cps,
                                           CFlowGenListMac* mac_info, 
+                                          CFlowGenListGre* gre_info,
                                           uint16_t tcp_aging,
                                           uint16_t udp_aging){
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
     pool->Create(client_dist, min_client, max_client,
                  l_flow, t_cps, mac_info, m_has_mac_mapping,
-                 tcp_aging, udp_aging);
+                 gre_info, m_has_gre_mapping, tcp_aging, udp_aging);
 
     m_client_pool.push_back(pool);
+    m_gre_info = gre_info;
     return(true);
 }
 
@@ -171,18 +175,21 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
 
 bool CTupleGeneratorSmart::Create(uint32_t _id,
                                   uint32_t thread_id,
-                                  bool has_mac)
+                                  bool has_mac,
+                                  bool has_gre)
 {
     m_thread_id     = thread_id;
     m_id = _id;
     m_was_init=true;
     m_has_mac_mapping = has_mac;
+    m_has_gre_mapping = has_gre;
     return(true);
 }
 
 void CTupleGeneratorSmart::Delete(){
     m_was_init=false;
     m_has_mac_mapping = false;
+    m_has_gre_mapping = false;
 
     for (int idx=0;idx<m_client_pool.size();idx++) {
         m_client_pool[idx]->Delete();

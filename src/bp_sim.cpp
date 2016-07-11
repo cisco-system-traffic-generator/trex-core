@@ -968,6 +968,7 @@ void CPacketIndication::Clone(CPacketIndication * obj,CCapPktRaw * pkt){
     m_payload_len = obj->m_payload_len;
     m_flow_key    = obj->m_flow_key;
     m_desc        = obj->m_desc;
+    m_is_gre      = obj->m_is_gre;
 
     m_packet_padding = obj->m_packet_padding;
     /* copy offsets*/
@@ -1014,6 +1015,7 @@ void CPacketIndication::Clean(){
     l4.m_tcp=0;
     m_payload=0;
     m_payload_len=0;
+    m_is_gre=false;
 }
 
 
@@ -1402,6 +1404,59 @@ bool CPacketIndication::ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
     pkt->pkt_len = ipv6_offset;
     m_is_ipv6 = true;
 
+    return (true);
+}
+
+bool CPacketIndication::EncasulatePacketWithGREInPlace(CCapPktRaw * pkt){
+    uint8_t *new_pkt = cbuff;
+
+    // Add Ethernet header
+    EthernetHeader *eth = (EthernetHeader *)(new_pkt);
+    eth->setNextProtocol(EthernetHeader::Protocol::IP);
+    new_pkt += eth->getSize() - 4 /* VLAN */;
+
+    // Add IP header
+    IPHeader *ipv4 = (IPHeader *)(new_pkt);
+    ipv4->setVersion(4);
+    ipv4->setHeaderLength(IPV4_HDR_LEN);
+    ipv4->setTOS(0);
+    ipv4->setId(l3.m_ipv4->getId()); // Set GRE IP ID to original packet ID
+    ipv4->setFragment(0, 0, 1);
+    ipv4->setTimeToLive(64);
+    ipv4->setProtocol(IPHeader::Protocol::GRE);
+    new_pkt += ipv4->getSize();
+
+    // Add GRE header
+    GREHeader *gre = (GREHeader *)(new_pkt);
+    gre->setFlags(0, 1, 0);
+    gre->setVersion(0);
+    gre->setProtocolType(GREHeader::Protocol::TRANSPARENT_ETHERNET_BRIDIGING);
+    new_pkt += gre->getSize();
+
+    // Copy orignal packet to post GRE header
+    memcpy(new_pkt, pkt->raw, pkt->getTotalLen());
+
+    // Update packet size and calculate new checksum
+    ipv4->setTotalLength(ipv4->getSize() + gre->getSize() + pkt->getTotalLen());
+    ipv4->updateCheckSum();
+
+    // Bump packet pointers
+    uint8_t new_header_size = new_pkt - cbuff;
+    m_ether = (EthernetHeader*)(((uint8_t*)m_ether) + new_header_size);
+    // In the below cases, it doesn't really matter which union field is used
+    if (l3.m_ipv4) {
+        l3.m_ipv4 = (IPHeader*)(((uint8_t*)l3.m_ipv4) + new_header_size);
+    }
+    if (l4.m_tcp) {
+        l4.m_tcp = (TCPHeader*)(((uint8_t*)l4.m_tcp) + new_header_size);
+    }
+    UpdateOffsets();
+
+    // Copy back the new packet
+    pkt->pkt_len = (new_pkt - cbuff) + pkt->getTotalLen();
+    memcpy(pkt->raw, cbuff, pkt->pkt_len);
+
+    m_is_gre = true;
     return (true);
 }
 
@@ -2155,6 +2210,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
                 pkt_indication.m_desc.SetId(_id);
                 bool is_fif;
+                bool append = false;
                 CFlow * lpflow=flow.process(pkt_indication.m_flow_key,is_fif);
                 m_total_bytes += pkt_indication.m_packet->pkt_len;
                 pkt_indication.m_cap_ipg = raw_packet.get_time();
@@ -2182,7 +2238,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                         lpflow->is_fif_swap =pkt_indication.m_desc.IsSwapTuple();
                         first_flow_fif_is_swap = pkt_indication.m_desc.IsSwapTuple();
                         pkt_indication.m_desc.SetInitSide(true);
-                        Append(&pkt_indication);
+                        append = true;
                         m_total_flows++;
                     } else {
                         if ( multi_flow_enable ) {
@@ -2191,7 +2247,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                             bool init_side_in_repect_to_first_flow =
                                 ((first_flow_fif_is_swap?true:false) == lpflow->is_fif_swap)?true:false;
                             pkt_indication.m_desc.SetInitSide(init_side_in_repect_to_first_flow);
-                            Append(&pkt_indication);
+                            append = true;
                             m_total_flows++;
                         } else {
                             printf("More than one flow in this cap. Ignoring it !! \n");
@@ -2233,7 +2289,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                             bool init_side=
                                 ((lpflow->is_fif_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
                             pkt_indication.m_desc.SetInitSide( init_side  );
-                            Append(&pkt_indication);
+                            append = true;
                         }else{
                             //printf(" more than one flow in this cap ignot it !! \n");
                             m_total_errors++;
@@ -2245,7 +2301,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                         bool init_side=
                             ((first_flow_fif_is_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
                         pkt_indication.m_desc.SetInitSide( init_side  );
-                        Append(&pkt_indication);
+                        append = true;
 
                     }
                 }
@@ -2259,6 +2315,14 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                     }
                 }
 
+                if (CGlobalInfo::is_gre_enable() && pkt_indication.m_desc.IsInitSide()) {
+                    if (pkt_indication.EncasulatePacketWithGREInPlace(&raw_packet) == false){
+                        // Now what?
+                    }
+                }
+
+                if (append)
+                    Append(&pkt_indication);
             }else{
                 fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
                 return kPktNotSupp;
@@ -2466,6 +2530,34 @@ void operator >> (const YAML::Node& node, std::map<uint32_t, mac_addr_align_t> &
     for (unsigned i=0;i<mac_node.size();i++) {
         mac_node[i] >> mac_mapping;
         mac_info[mac_mapping.ip] = mac_mapping.mac;
+    }
+}
+
+void operator >> (const YAML::Node& node, gre_mapping_t &fi) {
+    utl_yaml_read_ip_addr(node,"src_ip", fi.src_ip);
+    utl_yaml_read_uint32(node,"key", fi.key);
+    const YAML::Node& gw_mac_info = node["gw_mac"];
+    for(unsigned i=0;i<gw_mac_info.size();i++) {
+        const YAML::Node & node_2 =gw_mac_info;
+        uint32_t value;
+        node_2[i] >> value;
+        fi.gw_mac[i] = value;
+    }
+    const YAML::Node& client_mac_info = node["client_mac"];
+    for(unsigned i=0;i<client_mac_info.size();i++) {
+        const YAML::Node & node_2 =client_mac_info;
+        uint32_t value;
+        node_2[i] >> value;
+        fi.client_mac[i] = value;
+    }
+}
+
+void operator >> (const YAML::Node& node, std::vector<gre_mapping_t> &gre_info) {
+    const YAML::Node& gre_node = node["tunnels"];
+    gre_mapping_t gre_mapping;
+    for (unsigned i=0;i<gre_node.size();i++) {
+        gre_node[i] >> gre_mapping;
+        gre_info.push_back(gre_mapping);
     }
 }
 
@@ -3363,6 +3455,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                         get_longest_flow(i,true),
                         get_total_kcps(i,true)*1000,
                         &m_flow_list->m_mac_info,
+                        &m_flow_list->m_gre_info,
                         tuple_gen->m_client_pool[i].m_tcp_aging_sec,
                         tuple_gen->m_client_pool[i].m_udp_aging_sec
                         );
@@ -4444,6 +4537,31 @@ int CFlowGenList::load_from_mac_file(std::string file_name) {
      return (0);
 }
 
+int CFlowGenList::load_from_gre_file(std::string file_name) {
+    if ( !utl_is_file_exists (file_name)  ){
+         printf(" ERROR no gre_file is set,  file %s does not exist \n",file_name.c_str());
+         exit(-1);
+     }
+    m_gre_info.set_configured(true);
+
+     try {
+        std::ifstream fin((char *)file_name.c_str());
+        YAML::Parser parser(fin);
+        YAML::Node doc;
+
+        parser.GetNextDocument(doc);
+        uint32_t ip;
+        utl_yaml_read_ip_addr(doc[0], "remote_ip", ip);
+        m_gre_info.set_gre_dst_ip(ip);
+        doc[0] >> m_gre_info.get_gre_info();
+     } catch ( const std::exception& e ) {
+         std::cout << e.what() << "\n";
+         m_gre_info.clear();
+         exit(-1);
+     }
+
+     return (0);
+}
 
 int CFlowGenList::load_from_yaml(std::string file_name,
                                  uint32_t num_threads){
@@ -4758,6 +4876,7 @@ void CParserOption::dump(FILE *fd){
     fprintf(fd," cfg file    : %s \n",cfg_file.c_str());
     fprintf(fd," mac file    : %s \n",mac_file.c_str());
     fprintf(fd," out file    : %s \n",out_file.c_str());
+    fprintf(fd," gre file    : %s \n",gre_file.c_str());
     fprintf(fd," duration    : %.0f \n",m_duration);
     fprintf(fd," factor      : %.0f \n",m_factor);
     fprintf(fd," mbuf_factor : %.0f \n",m_mbuf_factor);
