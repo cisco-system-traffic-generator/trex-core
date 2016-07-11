@@ -1484,7 +1484,8 @@ public:
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE = 0x40,
         NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE     = 0x80,
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100, /* init packet start from server side with server addr */
-        NODE_FLAGS_SLOW_PATH = 0x200 /* used by the nodes to differ between fast path nodes and slow path nodes */
+        NODE_FLAGS_SLOW_PATH = 0x200, /* used by the nodes to differ between fast path nodes and slow path nodes */
+        NODE_FLAGS_DONT_OVERRIDE_DST_MAC = 0x400,
     };
 
 
@@ -1560,6 +1561,7 @@ public:
 
     CTupleGeneratorSmart *m_tuple_gen;
     // cache line 1 - 64bytes waste of space !
+    uint8_t             m_nat_external_mac[6];
     uint32_t            m_nat_external_ipv4; /* client */
     uint32_t            m_nat_external_ipv4_server;
     uint16_t            m_nat_external_port;
@@ -1600,6 +1602,17 @@ public:
         return ( ( (m_src_ip&1) == 1)?true:false);
     }
 
+    inline void set_dont_override_dst_mac(bool enable){
+        if (enable) {
+            m_flags |= NODE_FLAGS_DONT_OVERRIDE_DST_MAC;
+        }else{
+            m_flags &=~ NODE_FLAGS_DONT_OVERRIDE_DST_MAC;
+        }
+    }
+
+    inline bool get_dont_override_dst_mac(){
+        return ((m_flags & NODE_FLAGS_DONT_OVERRIDE_DST_MAC));
+    }
 
     inline void set_initiator_start_from_server_side_with_server_addr(bool enable){
            if (enable) {
@@ -1737,6 +1750,13 @@ public:
 
     inline uint16_t get_nat_ipv4_port(){
         return ( m_nat_external_port );
+    }
+
+    inline void set_nat_mac_addr(uint8_t mac[6]){
+        memcpy(m_nat_external_mac, mac, sizeof(uint8_t) * 6);
+    }
+    inline uint8_t *get_nat_mac_addr(){
+        return (m_nat_external_mac);
     }
 
     bool is_external_is_eq_to_internal_ip(){
@@ -3060,6 +3080,7 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 }
 #endif
 
+                node->set_dont_override_dst_mac(false);
                 ipv4->updateIpSrc(node->m_src_ip);
                 ipv4->updateIpDst(node->m_dest_ip);
             }else{
@@ -3068,6 +3089,8 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                     printf(" %.3f : r %x   -> %x:%x  flow_id: %lx \n",now_sec(),node->m_dest_ip,node->m_src_ip,node->m_src_port,node->m_flow_id);
                 }
 #endif
+                et->getDestMacP()->set(node->get_nat_mac_addr());
+                node->set_dont_override_dst_mac(true);
                 src_port = node->get_nat_ipv4_port();
                 ipv4->updateIpSrc(node->get_nat_ipv4_addr_server());
                 ipv4->updateIpDst(node->get_nat_ipv4_addr());

@@ -123,6 +123,7 @@ public:
     }
 
 public:
+    EthernetHeader *m_ether;
     IPHeader *      m_ipv4;
     IPv6Header *    m_ipv6;
     uint8_t         m_protocol;

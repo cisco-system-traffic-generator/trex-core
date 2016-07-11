@@ -2215,7 +2215,11 @@ int CCoreEthIF::send_node(CGenNode * node){
     uint8_t p_id=lp_port->m_port->get_port_id();
 
 
-    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
+    if (node->get_dont_override_dst_mac()) {
+        memcpy(p+6,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id)+6,6);
+    } else {
+        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
+    }
 
     /* if customer enables both mac_file and get_mac_ip_overide,
      * we will apply mac_file.

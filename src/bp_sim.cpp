@@ -4207,6 +4207,7 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
         #ifdef NAT_TRACE_
         printf(" %.03f  RX :set node %p:%x  %x:%x:%x \n",now_sec() ,node,nat_msg->m_fid,nat_msg->m_external_ip,nat_msg->m_external_ip_server,nat_msg->m_external_port);
         #endif
+        node->set_nat_mac_addr(nat_msg->m_external_mac);
         node->set_nat_ipv4_addr(nat_msg->m_external_ip);
         node->set_nat_ipv4_port(nat_msg->m_external_port);
         node->set_nat_ipv4_addr_server(nat_msg->m_external_ip_server);
@@ -6359,7 +6360,7 @@ bool CSimplePacketParser::Parse(){
 
     rte_mbuf_t * m=m_m;
     uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
-    EthernetHeader *m_ether = (EthernetHeader *)p;
+    EthernetHeader *ether = (EthernetHeader *)p;
     IPHeader * ipv4=0;
     IPv6Header * ipv6=0;
     m_vlan_offset=0;
@@ -6368,7 +6369,7 @@ bool CSimplePacketParser::Parse(){
     uint8_t protocol = 0;
 
     // Retrieve the protocol type from the packet
-    switch( m_ether->getNextProtocol() ) {
+    switch( ether->getNextProtocol() ) {
     case EthernetHeader::Protocol::IP :
         // IPv4 packet
         ipv4=(IPHeader *)(p+14);
@@ -6385,7 +6386,7 @@ bool CSimplePacketParser::Parse(){
         break;
     case EthernetHeader::Protocol::VLAN :
         m_vlan_offset = 4;
-        switch ( m_ether->getVlanProtocol() ){
+        switch ( ether->getVlanProtocol() ){
         case EthernetHeader::Protocol::IP:
             // IPv4 packet
             ipv4=(IPHeader *)(p+18);
@@ -6409,6 +6410,7 @@ bool CSimplePacketParser::Parse(){
     m_protocol =protocol;
     m_ipv4=ipv4;
     m_ipv6=ipv6;
+    m_ether=ether;
 
     if ( protocol == 0 ){
         return (false);

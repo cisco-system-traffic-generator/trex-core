@@ -120,6 +120,7 @@ private:
 };
 
 struct CNatFlowInfo {
+    uint8_t m_external_mac[6];
     uint32_t m_external_ip;
     uint32_t m_external_ip_server;
     uint32_t m_fid;
@@ -216,7 +217,7 @@ class CNatRxManager {
 public:
     bool Create();
     void Delete();
-    void handle_packet_ipv4(CNatOption * option, IPHeader * ipv4);
+    void handle_packet_ipv4(CNatOption * option, IPHeader * ipv4, EthernetHeader * ether);
     void handle_aging();
     void Dump(FILE *fd);
     void DumpShort(FILE *fd);

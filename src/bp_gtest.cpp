@@ -2416,7 +2416,7 @@ public:
                 assert(ipv4->getTimeToLive()==255);
                 /* ip option packet */
                 printf(" rx got ip option packet ! \n");
-                mg->handle_packet_ipv4(option,ipv4);
+                mg->handle_packet_ipv4(option,ipv4,(EthernetHeader *)(mp));
                 delay(10);          // delay for queue flush 
                 mg->handle_aging(); // flush the RxRing 
             }
