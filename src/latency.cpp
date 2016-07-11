@@ -436,7 +436,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
                         m_no_ipv4_option++;
                         return (false);
                     }
-                    m_parent->get_nat_manager()->handle_packet_ipv4(lp,parser.m_ipv4);
+                    m_parent->get_nat_manager()->handle_packet_ipv4(lp,parser.m_ipv4,parser.m_ether);
                     opt_len -= CNatOption::noOPTION_LEN;
                     opt_ptr += CNatOption::noOPTION_LEN;
                     break;
@@ -447,7 +447,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
         } // End of while
 	if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)
 	    && parser.IsNatInfoPkt()) {
-		m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4);
+		m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4,parser.m_ether);
 	}
 
         return (true);

@@ -148,7 +148,7 @@ void CNatRxManager::get_info_from_tcp_ack(uint32_t tcp_ack, uint32_t &fid, uint8
  *      If it is NULL, the NAT info is in the TCP ACK number
  *   ipv4 - pointer to ipv4 header to extract info from.
  */
-void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4) {
+void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4, EthernetHeader *ether) {
     CNatPerThreadInfo * thread_info;
     uint32_t fid=0;
 
@@ -194,6 +194,7 @@ void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4) {
     CNatFlowInfo * msg=node->get_next_msg();
 
     /* fill the message */
+    ether->getSrcMacP()->copyToArray(msg->m_external_mac);
     msg->m_external_ip   = ext_ip;
     msg->m_external_ip_server = ext_ip_server;
     msg->m_external_port = ext_port;
