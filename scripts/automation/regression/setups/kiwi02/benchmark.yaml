@@ -69,6 +69,8 @@ test_nat_simple_mode1: &test_nat_simple
 
 test_nat_simple_mode2: *test_nat_simple
 
+test_nat_simple_mode3: *test_nat_simple
+
 test_nat_learning:
     <<                  : *test_nat_simple
     nat_opened          : 100000
