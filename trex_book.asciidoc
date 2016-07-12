@@ -609,7 +609,7 @@ include::trex_book_basic.asciidoc[]
 
 === VLAN Trunk support 
 
-anchor:trex_valn[]
+anchor:trex_vlan[]
 
 The VLAN Trunk TRex feature attempts to solve the router port bandwidth limitation when the traffic profile is asymmetric. Example: Asymmetric SFR profile.
 This feature converts asymmetric traffic to symmetric, from the port perspective, using router sub-interfaces.
@@ -817,7 +817,7 @@ asr1k(config)#ipv6 route 5000::/64 3001::2
 
 === Source MAC address mapping using a file 
 
-Extends the source MAC address replacment capability. Enables mapping between IPv4->MAC using the new `--mac` CLI switch. The file format is YAML.
+Extends the source MAC address replacment capability. Enables mapping between IPv4->MAC using the `--mac` CLI switch. The file format is YAML.
 
 *Example:*::
 [source,bash]
@@ -881,11 +881,18 @@ packet of each flow. This can be done in two different methods, depending on the
 Flow info is embedded in the ACK of the first TCP SYN.
 In this mode, there is a limitation that bidirectional UDP templates (for example, DNS) are not supported. 
 This mode was developed for testing NAT with firewalls (which usually do not work with mode 2).
+In this mode, TRex also learn and compensate for TCP sequence number randomization that might be done by the DUT.
+TRex can learn and compensate for seq num randomization in both directions of the connection.
 
 *mode 2:*::
 
 Flow info is added in a special IPv4 option header (8 bytes long 0x10 id). The option is added only to the first packet in the flow.
 This mode does not work with DUTs that drop packets with IP options (for example, Cisco ASA firewall).
+
+*mode 3:*::
+
+This is like mode 1, with the only change being that TRex does not learn the seq num randomization in the server->client direction.
+This mode can give much better connections per second performance than mode 1 (still, for all existing firewalls, mode 1 cps rate is more than enough).
 
 ==== Examples
 
@@ -903,23 +910,24 @@ $sudo ./t-rex-64 -f cap2/http_simple.yaml -c 4  -l 1000 -d 100000 -m 30  --learn
 $sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4  -l 1000 -d 100000 -m 10  --learn-mode 2
 ----
 
-*New terminal counters:*::
+*NAT terminal counters:*::
 
 [source,python]
 ----
 -Global stats enabled 
  Cpu Utilization : 0.6  %  33.4 Gb/core 
- Platform_factor : 1.0  
- Total-Tx        :     773.76 Mbps   Nat_time_out    :        0 <1>
- Total-Rx        :     770.47 Mbps   Nat_no_fid      :        0 <2>
- Total-PPS       :     106.73 Kpps   Total_nat_active:        9 <3>
- Total-CPS       :       2.78 Kcps   Total_nat_open  :   232129 <4>
+ Platform_factor : 1.0
+ Total-Tx        :       3.77 Gbps   NAT time out    :      917 <1> (0 in wait for syn+ack) <5>
+ Total-Rx        :       3.77 Gbps   NAT aged flow id:        0 <2>
+ Total-PPS       :     505.72 Kpps   Total NAT active:      163 <3> (12 waiting for syn) <6>
+ Total-CPS       :      13.43 Kcps   Total NAT opened:    82677 <4>
 ----
-<1> The number of translations with timeout should be zero. Usually this occurs when the router drops the flow due to NAT. 
-<2> Translation not found. This can occur when there is large latency in the router input/output queue.
-<3> Active number of TRex traslation flows, should be low in the case of low RTT.
-<4> A total of TRex translation. May be different from the total number of flows if template is uni-directional (and consequently does not need translation).
-
+<1> Number of connections for which TRex had to send the next packet in the flow, but did not learn the NAT translation yet. Should be 0. Usually, value different than 0 is seen if the DUT drops the flow (probably because it can't handle the number of connections)
+<2> Number of flows for which when we got the translation info, flow was aged out already. Non 0 value here should be very rare. Can occur only when there is huge latency in the DUT input/output queue.
+<3> Number of flows for which we sent the first packet, but did not learn the NAT translation yet. Value seen depends on the connection per second rate and round trip time.
+<4> Total number of translations over the lifetime of the TRex instance. May be different from the total number of flows if template is uni-directional (and consequently does not need translation).
+<5> Out of the timed out flows, how many were timed out while waiting to learn the TCP seq num randomization of the server->client from the SYN+ACK packet (Seen only in --learn-mode 1)
+<6> Out of the active NAT sessions, how many are waiting to learn the client->server translation from the SYN packet (others are waiting for SYN+ACK from server) (Seen only in --learn-mode 1)
 
 *Configuration for Cisco ASR1000 Series:*::
 
@@ -1081,7 +1089,7 @@ Cpu Utilization : 0.1 %                                                         
 
 == Reference
 
-=== Traffic YAML
+=== Traffic YAML (parameter of -f option)
 
 ==== Global Traffic YAML section 
 
@@ -1100,22 +1108,20 @@ Cpu Utilization : 0.1 %                                                         
           tcp_aging      : 1
           udp_aging      : 1
   mac        : [0x00,0x00,0x00,0x01,0x00,0x00] <3>
-  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 } <7>
-  mac_override_by_ip : true  <8>
   cap_ipg    : true                            <4>
   cap_ipg_min    : 30                          <5>
   cap_override_ipg    : 200                    <6>
+  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 } <7>
+  mac_override_by_ip : true  <8>
 ----
-<1> Test duration (seconds). Can override using the `-d` option.
+<1> Test duration (seconds). Can be overridden using the `-d` option.
 <2> See the generator section.
 // what does note 2 mean? see somewhere else? isn't this simply the generator section?
-<3> Default source/destination MAC address. The configuration file can override the defaults.
-<4> TRUE indicates that the IPG is taken from pcap file.
-<5> The following two options can set the min ipg in microseconds: (if (pkt_ipg<cap_ipg_min) { pkt_ipg=cap_override_ipg) }
-// in note 5 above, the parentheses and braces ( "(" and "{" ) are mismatched 
-<6> Value to override (microseconds). 
-// in note 6, clarify "override" 
-<7> Enable valn feature. See xref:trex_valn[trex_valn section] for info.
+<3> Default source/destination MAC address. The configuration YAML can override this.
+<4> true (default) indicates that the IPG is taken from the cap file (also taking into account cap_ipg_min and cap_override_ipg if they exist). false indicates that IPG is taken from per template section.
+<5> The following two options can set the min ipg in microseconds: (if (pkt_ipg<cap_ipg_min) { pkt_ipg=cap_override_ipg} )
+<6> Value to override (microseconds), as described in note above.
+<7> Enable vlan feature. See xref:trex_vlan[trex_vlan section] for info.
 <8> Enable MAC address replacement by client IP.
 
 ==== Per template section 
@@ -1132,9 +1138,9 @@ Cpu Utilization : 0.1 %                                                         
        one_app_server : true       <7>
        
 ----
-<1> The name of the template pcap file. Can be a relative path, based on the t-rex-64 image directory, or an absolute path. The pcap file can include one flow. (Exception: in case of plug-ins).
-<2> Connection per second for m==1
-<3> If the global section of the YAML file does not include `cap_ipg    : true`, this line sets the inter-packet gap in microseconds. 
+<1> The name of the template pcap file. Can be relative path from the t-rex-64 image directory, or an absolute path. The pcap file should include only one flow. (Exception: in case of plug-ins).
+<2> Connection per second. This is the value that will be used if specifying -m 1 from command line (giving -m x will multiply this 
+<3> If the global section of the YAML file includes `cap_ipg    : false`, this line sets the inter-packet gap in microseconds. 
 <4> Should be set to the same value as ipg (microseconds). 
 <5> Default value: w=1. This indicates to the IP generator how to generate the flows. If w=2, two flows from the same template will be generated in a burst (more for HTTP that has burst of flows).
 <6> If `one_app_server` is set to true, then all templates will use the same server.
@@ -1142,7 +1148,7 @@ Cpu Utilization : 0.1 %                                                         
 
 
 
-=== Configuration YAML 
+=== Configuration YAML (parameter of --cfg option)
 
 anchor:trex_config[]
 
@@ -1585,10 +1591,12 @@ see link:https://www.google.co.il/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&cad=r
 
 === TRex with ASA 5585
 
-Running TRex aginst ASA 5585 has some limitations:
+When running TRex aginst ASA 5585, you have to notice following things:
 
-* There is a need to disable TCP sequence randomization in ASA, using the command `set connection random-sequence-number disable`
-* ASA can't forward ipv4 options, so there is a need to use --learn-mode 1 in case of NAT. In this mode, bidirectional UDP flows are not supported.
+* ASA can't forward ipv4 options, so there is a need to use --learn-mode 1 (or 3) in case of NAT. In this mode, bidirectional UDP flows are not supported.
+--learn-mode 1 support TCP sequence number randomization in both sides of the connection (client to server and server client). For this to work, TRex must learn
+the translation of packets from both sides, so this mode reduce the amount of connections per second TRex can generate (The number is still high enough to test
+any existing firewall). If you need higher cps rate, you can use --learn-mode 3. This mode handles sequence number randomization on client->server side only.
 * Latency should be tested using ICMP with `--l-pkt-mode 2`
 
 ====  ASA 5585 sample configuration
@@ -1676,17 +1684,12 @@ class-map icmp-class
  match default-inspection-traffic
 class-map inspection_default
  match default-inspection-traffic
-class-map no-tcp-seq-rand
- match any    
 !             
 !             
 policy-map type inspect dns preset_dns_map
  parameters   
   message-length maximum client auto
   message-length maximum 512
-policy-map no-tcp-seq-rand
- class no-tcp-seq-rand
-  set connection random-sequence-number disable   #<1>
 policy-map icmp_policy
  class icmp-class
   inspect icmp 
@@ -1709,7 +1712,6 @@ policy-map global_policy
   inspect ip-options 
 !             
 service-policy global_policy global
-service-policy no-tcp-seq-rand interface inside
 service-policy icmp_policy interface outside
 prompt hostname context 
 !             
@@ -1719,7 +1721,6 @@ no call-home reporting anonymous
 : end         
 ciscoasa# 
 ----
-<1> Disable TCP sequence randomization
 
 ====  TRex commands example 
 
@@ -1736,7 +1737,7 @@ Using these commands the configuration is:
 $sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
 ----
 
-This is more realistic traffic for enterprise (we removed from SFR the bidirectional UDP traffic templates. As described above, ther are not supported in this mode).
+This is more realistic traffic for enterprise (we removed from SFR file the bidirectional UDP traffic templates, which (as described above), are not supported in this mode).
 
 *Enterprise profile:*::
 [source,bash]
@@ -1762,18 +1763,18 @@ The TRex output
 -Global stats enabled 
  Cpu Utilization : 18.4  %  31.7 Gb/core 
  Platform_factor : 1.0  
- Total-Tx        :       2.92 Gbps   Nat_time_out    :     9103   #<1> 
- Total-Rx        :       2.92 Gbps   Nat_no_fid      :        0 
- Total-PPS       :     542.29 Kpps   Total_nat_active:        7 
- Total-CPS       :       8.30 Kcps   Total_nat_open  :  3465246 
+ Total-Tx        :       2.92 Gbps   NAT time out    :        0 #<1> (0 in wait for syn+ack) #<1>
+ Total-Rx        :       2.92 Gbps   NAT aged flow id:        0 #<1>
+ Total-PPS       :     542.29 Kpps   Total NAT active:      163  (12 waiting for syn)
+ Total-CPS       :       8.30 Kcps   Nat_learn_errors:        0
 
- Expected-PPS    :     539.85 Kpps   Nat_learn_errors:        0 
+ Expected-PPS    :     539.85 Kpps
  Expected-CPS    :       8.29 Kcps  
  Expected-BPS    :       2.90 Gbps  
 
  Active-flows    :     7860  Clients :      255   Socket-util : 0.0489 %    
  Open-flows      :  3481234  Servers :     5375   Socket :     7860 Socket/Clients :  30.8 
- drop-rate       :       0.00  bps   
+ drop-rate       :       0.00  bps   #<1>
  current time    : 425.1 sec  
  test duration   : 574.9 sec  
 
@@ -1785,7 +1786,7 @@ The TRex output
  0 |   420510,  420495,         0,   1,         58  ,    1555,      14      |  240  257  258  258  219  930  732  896  830  472  190  207  729 
  1 |   420496,  420509,         0,   1,         51  ,    1551,      13      |  234  253  257  258  214  926  727  893  826  468  187  204  724
 ----
-<1>  this counter should be zero 
+<1>  These counters should be zero 
 
 anchor:fedora21_example[]
 

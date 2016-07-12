@@ -3042,8 +3042,6 @@ Scenario 2: Received pacekt with seq num 10 and then packet with seq num 15. We 
 Scenario 2 continue: Received packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1.
   (We assume here that one of the packets we considered as dropped before, actually arrived out of order).
 
-TBD need to update Python API with with this information
-
 ==== Tutorial: HLT traffic profile 
 
 The traffic_config API has set of arguments for specifying streams - in particular, the packet template, which field, and how to send it.
