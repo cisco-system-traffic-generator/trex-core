@@ -3386,7 +3386,9 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 
 
     if ( !CTRexExtendedDriverDb::Ins()->is_driver_exists(dev_info.driver_name) ){
-        printf(" ERROR driver name  %s is not supported \n",dev_info.driver_name);
+        printf(" Error: driver %s is not supported. Please consult the documentation for a list of supported drivers\n"
+               ,dev_info.driver_name);
+        exit(1);
     }
 
     int i;
