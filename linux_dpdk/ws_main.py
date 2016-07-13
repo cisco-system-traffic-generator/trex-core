@@ -234,7 +234,7 @@ version_src = SrcGroup(
     ])
 
 
-dpdk_src = SrcGroup(dir='src/dpdk22/',
+dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
                  'drivers/net/af_packet/rte_eth_af_packet.c',
                  'drivers/net/cxgbe/base/t4_hw.c',
@@ -273,6 +273,7 @@ dpdk_src = SrcGroup(dir='src/dpdk22/',
                  'drivers/net/enic/enic_ethdev.c',
                  'drivers/net/enic/enic_main.c',
                  'drivers/net/enic/enic_res.c',
+                 'drivers/net/enic/enic_rxtx.c',
                  'drivers/net/fm10k/base/fm10k_api.c',
                  'drivers/net/fm10k/base/fm10k_common.c',
                  'drivers/net/fm10k/base/fm10k_mbx.c',
@@ -298,7 +299,7 @@ dpdk_src = SrcGroup(dir='src/dpdk22/',
                  'drivers/net/ixgbe/ixgbe_fdir.c',
                  'drivers/net/ixgbe/ixgbe_pf.c',
                  'drivers/net/ixgbe/ixgbe_rxtx.c',
-                 'drivers/net/ixgbe/ixgbe_rxtx_vec.c',
+                 'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
                  'drivers/net/i40e/base/i40e_adminq.c',
                  'drivers/net/i40e/base/i40e_common.c',
                  'drivers/net/i40e/base/i40e_dcb.c',
@@ -306,7 +307,7 @@ dpdk_src = SrcGroup(dir='src/dpdk22/',
                  'drivers/net/i40e/base/i40e_hmc.c',
                  'drivers/net/i40e/base/i40e_lan_hmc.c',
                  'drivers/net/i40e/base/i40e_nvm.c',
-                 'drivers/net/i40e/i40e_ethdev_vf.c',
+#                 'drivers/net/i40e/i40e_ethdev_vf.c',
                  'drivers/net/i40e/i40e_pf.c',
                  'drivers/net/i40e/i40e_rxtx.c',
                  'drivers/net/i40e/i40e_rxtx_vec.c',
@@ -322,6 +323,8 @@ dpdk_src = SrcGroup(dir='src/dpdk22/',
                  '/drivers/net/vmxnet3/vmxnet3_ethdev.c',
                  '/drivers/net/vmxnet3/vmxnet3_rxtx.c',
                  'lib/librte_cfgfile/rte_cfgfile.c',
+                 'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
+                 'lib/librte_eal/common/arch/x86/rte_spinlock.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
@@ -355,14 +358,17 @@ dpdk_src = SrcGroup(dir='src/dpdk22/',
                  'lib/librte_eal/linuxapp/eal/eal_pci.c',
                  'lib/librte_eal/linuxapp/eal/eal_pci_uio.c',
                  'lib/librte_eal/linuxapp/eal/eal_pci_vfio.c',
-                 'lib/librte_eal/linuxapp/eal/eal_pci_vfio_mp_sync.c',
                  'lib/librte_eal/linuxapp/eal/eal_thread.c',
                  'lib/librte_eal/linuxapp/eal/eal_timer.c',
+                 'lib/librte_eal/linuxapp/eal/eal_vfio_mp_sync.c',
+                 'lib/librte_eal/linuxapp/eal/eal_vfio.c',
                  'lib/librte_ether/rte_ethdev.c',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
                  'lib/librte_mempool/rte_mempool.c',
+                 'lib/librte_mempool/rte_mempool_ops.c',
+                 'lib/librte_mempool/rte_mempool_ring.c',
                  'lib/librte_pipeline/rte_pipeline.c',
                  'lib/librte_ring/rte_ring.c',
             ]);
@@ -404,7 +410,7 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
-                '-include','../src/pal/linux_dpdk/dpdk22/rte_config.h'
+                '-include','../src/pal/linux_dpdk/dpdk0716/rte_config.h'
                ]
 
 common_flags_new = common_flags + [
@@ -446,117 +452,113 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../external_libs/zmq/include/
                    ../external_libs/json/
 
-../src/dpdk22/drivers/
-../src/dpdk22/drivers/net/
-../src/dpdk22/drivers/net/af_packet/
-../src/dpdk22/drivers/net/bnx2x/
-../src/dpdk22/drivers/net/bonding/
-../src/dpdk22/drivers/net/cxgbe/
-../src/dpdk22/drivers/net/cxgbe/base/
-../src/dpdk22/drivers/net/e1000/
-../src/dpdk22/drivers/net/e1000/base/
-../src/dpdk22/drivers/net/fm10k/
-../src/dpdk22/drivers/net/fm10k/base/
-../src/dpdk22/drivers/net/i40e/
-../src/dpdk22/drivers/net/i40e/base/
-../src/dpdk22/drivers/net/ixgbe/
-../src/dpdk22/drivers/net/ixgbe/base/
-../src/dpdk22/drivers/net/mlx4/
-../src/dpdk22/drivers/net/mlx5/
-../src/dpdk22/drivers/net/mpipe/
-../src/dpdk22/drivers/net/null/
-../src/dpdk22/drivers/net/pcap/
-../src/dpdk22/drivers/net/ring/
-../src/dpdk22/drivers/net/szedata2/
-../src/dpdk22/drivers/net/virtio/
-../src/dpdk22/drivers/net/xenvirt/
-../src/dpdk22/lib/
-../src/dpdk22/lib/librte_acl/
-../src/dpdk22/lib/librte_cfgfile/
-../src/dpdk22/lib/librte_compat/
-../src/dpdk22/lib/librte_distributor/
-../src/dpdk22/lib/librte_eal/
-../src/dpdk22/lib/librte_eal/common/
-../src/dpdk22/lib/librte_eal/common/include/
-../src/dpdk22/lib/librte_eal/common/include/arch/
-../src/dpdk22/lib/librte_eal/common/include/arch/x86/
-../src/dpdk22/lib/librte_eal/common/include/generic/
-../src/dpdk22/lib/librte_eal/linuxapp/
-../src/dpdk22/lib/librte_eal/linuxapp/eal/
-../src/dpdk22/lib/librte_eal/linuxapp/eal/include/
-../src/dpdk22/lib/librte_eal/linuxapp/eal/include/exec-env/
-../src/dpdk22/lib/librte_eal/linuxapp/igb_uio/
-../src/dpdk22/lib/librte_eal/linuxapp/xen_dom0/
-../src/dpdk22/lib/librte_ether/
-../src/dpdk22/lib/librte_hash/
-../src/dpdk22/lib/librte_kvargs/
-../src/dpdk22/lib/librte_mbuf/
-../src/dpdk22/lib/librte_mempool/
-../src/dpdk22/lib/librte_pipeline/
-../src/dpdk22/lib/librte_ring/
-../src/dpdk22/lib/librte_net/
-../src/dpdk22/
+../src/dpdk/drivers/net/af_packet/
+../src/dpdk/drivers/net/bnx2x/
+../src/dpdk/drivers/net/bonding/
+../src/dpdk/drivers/net/cxgbe/
+../src/dpdk/drivers/net/cxgbe/base/
+../src/dpdk/drivers/net/e1000/
+../src/dpdk/drivers/net/e1000/base/
+../src/dpdk/drivers/net/fm10k/
+../src/dpdk/drivers/net/fm10k/base/
+../src/dpdk/drivers/net/i40e/
+../src/dpdk/drivers/net/i40e/base/
+../src/dpdk/drivers/net/ixgbe/
+../src/dpdk/drivers/net/ixgbe/base/
+../src/dpdk/drivers/net/mlx4/
+../src/dpdk/drivers/net/mlx5/
+../src/dpdk/drivers/net/mpipe/
+../src/dpdk/drivers/net/null/
+../src/dpdk/drivers/net/pcap/
+../src/dpdk/drivers/net/ring/
+../src/dpdk/drivers/net/szedata2/
+../src/dpdk/drivers/net/virtio/
+../src/dpdk/drivers/net/xenvirt/
+../src/dpdk/lib/librte_acl/
+../src/dpdk/lib/librte_cfgfile/
+../src/dpdk/lib/librte_compat/
+../src/dpdk/lib/librte_distributor/
+../src/dpdk/lib/librte_eal/
+../src/dpdk/lib/librte_eal/common/
+../src/dpdk/lib/librte_eal/common/include/
+../src/dpdk/lib/librte_eal/common/include/arch/
+../src/dpdk/lib/librte_eal/common/include/arch/x86/
+../src/dpdk/lib/librte_eal/common/include/generic/
+../src/dpdk/lib/librte_eal/linuxapp/
+../src/dpdk/lib/librte_eal/linuxapp/eal/
+../src/dpdk/lib/librte_eal/linuxapp/eal/include/
+../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
+../src/dpdk/lib/librte_eal/linuxapp/igb_uio/
+../src/dpdk/lib/librte_eal/linuxapp/xen_dom0/
+../src/dpdk/lib/librte_ether/
+../src/dpdk/lib/librte_hash/
+../src/dpdk/lib/librte_kvargs/
+../src/dpdk/lib/librte_mbuf/
+../src/dpdk/lib/librte_mempool/
+../src/dpdk/lib/librte_net/
+../src/dpdk/lib/librte_pipeline/
+../src/dpdk/lib/librte_ring/
               ''';
 
 dpdk_includes_path =''' ../src/ 
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk22
-../src/dpdk22/drivers/
-../src/dpdk22/drivers/net/
-../src/dpdk22/drivers/net/af_packet/
-../src/dpdk22/drivers/net/bnx2x/
-../src/dpdk22/drivers/net/bonding/
-../src/dpdk22/drivers/net/cxgbe/
-../src/dpdk22/drivers/net/cxgbe/base/
-../src/dpdk22/drivers/net/e1000/
-../src/dpdk22/drivers/net/e1000/base/
-../src/dpdk22/drivers/net/enic/
-../src/dpdk22/drivers/net/enic/base/
-../src/dpdk22/drivers/net/fm10k/
-../src/dpdk22/drivers/net/fm10k/base/
-../src/dpdk22/drivers/net/i40e/
-../src/dpdk22/drivers/net/i40e/base/
-../src/dpdk22/drivers/net/ixgbe/
-../src/dpdk22/drivers/net/ixgbe/base/
-../src/dpdk22/drivers/net/mlx4/
-../src/dpdk22/drivers/net/mlx5/
-../src/dpdk22/drivers/net/mpipe/
-../src/dpdk22/drivers/net/null/
-../src/dpdk22/drivers/net/pcap/
-../src/dpdk22/drivers/net/ring/
-../src/dpdk22/drivers/net/virtio/
-../src/dpdk22/drivers/net/vmxnet3/
-../src/dpdk22/drivers/net/vmxnet3/base
-../src/dpdk22/drivers/net/xenvirt/
-../src/dpdk22/lib/
-../src/dpdk22/lib/librte_acl/
-../src/dpdk22/lib/librte_cfgfile/
-../src/dpdk22/lib/librte_compat/
-../src/dpdk22/lib/librte_distributor/
-../src/dpdk22/lib/librte_eal/
-../src/dpdk22/lib/librte_eal/common/
-../src/dpdk22/lib/librte_eal/common/include/
-../src/dpdk22/lib/librte_eal/common/include/arch/
-../src/dpdk22/lib/librte_eal/common/include/arch/x86/
-../src/dpdk22/lib/librte_eal/common/include/generic/
-../src/dpdk22/lib/librte_eal/linuxapp/
-../src/dpdk22/lib/librte_eal/linuxapp/eal/
-../src/dpdk22/lib/librte_eal/linuxapp/eal/include/
-../src/dpdk22/lib/librte_eal/linuxapp/eal/include/exec-env/
-../src/dpdk22/lib/librte_eal/linuxapp/igb_uio/
-../src/dpdk22/lib/librte_eal/linuxapp/xen_dom0/
-../src/dpdk22/lib/librte_ether/
-../src/dpdk22/lib/librte_hash/
-../src/dpdk22/lib/librte_kvargs/
-../src/dpdk22/lib/librte_mbuf/
-../src/dpdk22/lib/librte_mempool/
-../src/dpdk22/lib/librte_pipeline/
-../src/dpdk22/lib/librte_ring/
-../src/dpdk22/lib/librte_net/
-../src/dpdk22/lib/librte_port/
-../src/dpdk22/lib/librte_pipeline/
-../src/dpdk22/lib/librte_table/
-../src/dpdk22/      
+                        ../src/pal/linux_dpdk/dpdk
+../src/dpdk/drivers/
+../src/dpdk/drivers/net/
+../src/dpdk/drivers/net/af_packet/
+../src/dpdk/drivers/net/bnx2x/
+../src/dpdk/drivers/net/bonding/
+../src/dpdk/drivers/net/cxgbe/
+../src/dpdk/drivers/net/cxgbe/base/
+../src/dpdk/drivers/net/e1000/
+../src/dpdk/drivers/net/e1000/base/
+../src/dpdk/drivers/net/enic/
+../src/dpdk/drivers/net/enic/base/
+../src/dpdk/drivers/net/fm10k/
+../src/dpdk/drivers/net/fm10k/base/
+../src/dpdk/drivers/net/i40e/
+../src/dpdk/drivers/net/i40e/base/
+../src/dpdk/drivers/net/ixgbe/
+../src/dpdk/drivers/net/ixgbe/base/
+../src/dpdk/drivers/net/mlx4/
+../src/dpdk/drivers/net/mlx5/
+../src/dpdk/drivers/net/mpipe/
+../src/dpdk/drivers/net/null/
+../src/dpdk/drivers/net/pcap/
+../src/dpdk/drivers/net/ring/
+../src/dpdk/drivers/net/virtio/
+../src/dpdk/drivers/net/vmxnet3/
+../src/dpdk/drivers/net/vmxnet3/base
+../src/dpdk/drivers/net/xenvirt/
+../src/dpdk/lib/
+../src/dpdk/lib/librte_acl/
+../src/dpdk/lib/librte_cfgfile/
+../src/dpdk/lib/librte_compat/
+../src/dpdk/lib/librte_distributor/
+../src/dpdk/lib/librte_eal/
+../src/dpdk/lib/librte_eal/common/
+../src/dpdk/lib/librte_eal/common/include/
+../src/dpdk/lib/librte_eal/common/include/arch/
+../src/dpdk/lib/librte_eal/common/include/arch/x86/
+../src/dpdk/lib/librte_eal/common/include/generic/
+../src/dpdk/lib/librte_eal/linuxapp/
+../src/dpdk/lib/librte_eal/linuxapp/eal/
+../src/dpdk/lib/librte_eal/linuxapp/eal/include/
+../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
+../src/dpdk/lib/librte_eal/linuxapp/igb_uio/
+../src/dpdk/lib/librte_eal/linuxapp/xen_dom0/
+../src/dpdk/lib/librte_ether/
+../src/dpdk/lib/librte_hash/
+../src/dpdk/lib/librte_kvargs/
+../src/dpdk/lib/librte_mbuf/
+../src/dpdk/lib/librte_mempool/
+../src/dpdk/lib/librte_pipeline/
+../src/dpdk/lib/librte_ring/
+../src/dpdk/lib/librte_net/
+../src/dpdk/lib/librte_port/
+../src/dpdk/lib/librte_pipeline/
+../src/dpdk/lib/librte_table/
+../src/dpdk/      
 ''';
 
 
