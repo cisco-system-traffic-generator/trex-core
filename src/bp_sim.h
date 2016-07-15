@@ -63,6 +63,10 @@ limitations under the License.
 
 #include <trex_stateless_dp_core.h>
 
+#ifdef RTE_DPDK
+#	include <rte_ip.h>
+#endif /* RTE_DPDK */
+
 class CGenNodePCAP;
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
@@ -697,6 +701,14 @@ public:
 
     bool getCoreDumpEnable(){
         return (btGetMaskBit32(m_flags1, 7, 7) ? true : false);
+    }
+
+    void setChecksumOffloadEnable(bool enable) {
+        btSetMaskBit32(m_flags1, 8, 8, (enable ? 1 : 0) );
+    }
+
+    bool getChecksumOffloadEnable(){
+        return (btGetMaskBit32(m_flags1, 8, 8) ? true : false);
     }
 
 public:
@@ -3130,7 +3142,15 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
             }
         }
 
+#ifdef RTE_DPDK
+        if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+            ipv4->myChecksum = 0;
+        } else {
+            ipv4->updateCheckSum();
+        }
+#else
         ipv4->updateCheckSum();
+#endif
     }
 
 
@@ -3146,16 +3166,36 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
             m_tcp->setDestPort(src_port);
             m_tcp->setAckNumber(m_tcp->getAckNumber() + tcp_seq_diff_client);
         }
+
+#ifdef RTE_DPDK
+        if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+            /* set pseudo-header checksum */
+            m_tcp->setChecksum(PKT_NTOHS(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4->getPointer(),
+                                                             PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM)));
+        }
+#endif
     }else {
         if ( m_pkt_indication.m_desc.IsUdp() ){
             UDPHeader * m_udp =(UDPHeader *)(p +m_pkt_indication.getFastTcpOffset() );
             BP_ASSERT(m_udp);
-            m_udp->setChecksum(0);
+
             if ( port_dir ==  CLIENT_SIDE ) {
                 m_udp->setSourcePort(src_port);
             }else{
                 m_udp->setDestPort(src_port);
             }
+
+#ifdef RTE_DPDK
+        if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+            /* set pseudo-header checksum */
+            m_udp->setChecksum(PKT_NTOHS(rte_ipv4_phdr_cksum((struct ipv4_hdr *) ipv4->getPointer(),
+                                                             PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM)));
+        } else {
+            m_udp->setChecksum(0);
+        }
+#else
+        m_udp->setChecksum(0);
+#endif
         }else{
 #ifdef _DEBUG
             if (!m_pkt_indication.m_desc.IsIcmp()) {
@@ -3285,6 +3325,22 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
     memcpy(p,m_packet->raw,len);
+
+#ifdef RTE_DPDK
+    if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+        if (m_pkt_indication.m_desc.IsTcp()) {
+            m->l2_len = 14;
+            m->l3_len = 20;
+            m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
+        } else {
+            if (m_pkt_indication.m_desc.IsUdp()) {
+                m->l2_len = 14;
+                m->l3_len = 20;
+                m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM;
+            }
+        }
+    }
+#endif
 
     update_pkt_info(p,node);
 

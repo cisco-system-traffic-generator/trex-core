@@ -50,6 +50,7 @@
 #include <rte_mbuf.h>
 #include <rte_random.h>
 #include <rte_version.h>
+#include <rte_ip.h>
 
 #include "bp_sim.h"
 #include "os_time.h"
@@ -554,7 +555,8 @@ enum { OPT_HELP,
        OPT_PREFIX,
        OPT_SEND_DEBUG_PKT,
        OPT_NO_WATCHDOG,
-       OPT_ALLOW_COREDUMP
+       OPT_ALLOW_COREDUMP,
+       OPT_CHECKSUM_OFFLOAD,
 
 };
 
@@ -618,6 +620,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_MBUF_FACTOR     , "--mbuf-factor",  SO_REQ_SEP },
         { OPT_NO_WATCHDOG ,     "--no-watchdog",  SO_NONE  },
         { OPT_ALLOW_COREDUMP ,  "--allow-coredump",  SO_NONE  },
+        { OPT_CHECKSUM_OFFLOAD, "--checksum-offload", SO_NONE },
 
 
         SO_END_OF_OPTIONS
@@ -724,7 +727,8 @@ static int usage(){
     printf(" --allow-coredump           : allow a creation of core dump \n");
     printf("                             \n");
     printf(" --vm-sim                   : simulate vm with driver of one input queue and one output queue \n");
-    
+    printf("                             \n");
+    printf(" --checksum-offload         : enable IP, TCP and UDP tx checksum offloading with DPDK. This requires all used interfaces to support this \n");
     printf("  \n");
     printf(" Examples: ");
     printf(" basic trex run for 10 sec and multiplier of x10 \n");
@@ -979,6 +983,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_SEND_DEBUG_PKT:
                 sscanf(args.OptionArg(),"%d", &tmp_data);
                 po->m_debug_pkt_proto = (uint8_t)tmp_data;
+                break;
+
+            case OPT_CHECKSUM_OFFLOAD:
+                po->preview.setChecksumOffloadEnable(true);
                 break;
 
 
@@ -1327,6 +1335,19 @@ void CPhyEthIF::configure(uint16_t nb_rx_queue,
     /* get device info */
     rte_eth_dev_info_get(m_port_id, &m_dev_info);
 
+    if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+		/* check if the device supports TCP and UDP checksum offloading */
+		if ((m_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM) == 0) {
+			rte_exit(EXIT_FAILURE, "Device does not support UDP checksum offload: "
+					 "port=%u\n",
+					 m_port_id);
+		}
+		if ((m_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) == 0) {
+			rte_exit(EXIT_FAILURE, "Device does not support TCP checksum offload: "
+					 "port=%u\n",
+					 m_port_id);
+		}
+    }
 }
 
 
