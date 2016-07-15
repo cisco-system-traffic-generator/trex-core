@@ -117,15 +117,12 @@ private:
     /* write fields are first */
     volatile bool   m_active;
     volatile bool   m_tickled;
-    dsec_t          m_ts;
-
     int             m_handle;
+    dsec_t          m_ts;
     double          m_timeout_sec;
     pthread_t       m_tid;
     std::string     m_name;
 
-    /* for for a full cacheline */
-    uint8_t         pad[15];
 
 } __rte_cache_aligned;
 
@@ -203,6 +200,5 @@ private:
     static bool                g_signal_init;
 };
 
-static_assert(sizeof(TrexMonitor) == RTE_CACHE_LINE_SIZE, "sizeof(TrexMonitor) != RTE_CACHE_LINE_SIZE" );
 
 #endif /* __TREX_WATCHDOG_H__ */
