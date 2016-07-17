@@ -64,9 +64,9 @@
 #include "publisher/trex_publisher.h"
 #include "../linux_dpdk/version.h"
 extern "C" {
-#include "dpdk22/drivers/net/ixgbe/base/ixgbe_type.h"
+#include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
 }
-#include "dpdk22/drivers/net/e1000/base/e1000_regs.h"
+#include "dpdk/drivers/net/e1000/base/e1000_regs.h"
 #include "global_io_mode.h"
 #include "utl_term_io.h"
 #include "msg_manager.h"
@@ -306,17 +306,7 @@ public:
         m_if_per_card = 4;
     }
 
-    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
-        int speed;
-
-        rte_eth_get_speed(port_id, &speed);
-        if (speed == 10) {
-            return TrexPlatformApi::SPEED_10G;
-        } else {
-            return TrexPlatformApi::SPEED_40G;
-        }
-    }
-
+    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id);
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBase40G() );
     }
@@ -3282,7 +3272,6 @@ int  CGlobalTRex::ixgbe_start(void){
     return (0);
 }
 
-
 bool CGlobalTRex::Create(){
     CFlowsYamlInfo     pre_yaml_info;
 
@@ -5351,6 +5340,16 @@ CFlowStatParser *CTRexExtendedDriverBase10G::get_flow_stat_parser() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TrexPlatformApi::driver_speed_e CTRexExtendedDriverBase40G::get_driver_speed(uint8_t port_id) {
+        CPhyEthIF *phy_if = &g_trex.m_ports[port_id];
+
+        if (phy_if->m_dev_info.speed_capa & ETH_LINK_SPEED_40G) {
+            return TrexPlatformApi::SPEED_40G;
+        } else {
+            return TrexPlatformApi::SPEED_10G;
+        }
+    }
+
 void CTRexExtendedDriverBase40G::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(_if->get_port_id());
 }
@@ -5409,7 +5408,7 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
     case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
         filter.input.flow.ip4_flow.ttl=ttl;
         filter.input.flow.ip4_flow.ip_id = ip_id;
-        filter.input.flow.ip4_flow.l4_protocol = IPPROTO_ICMP; // In this case we want filter for icmp packets
+        filter.input.flow.ip4_flow.proto = IPPROTO_ICMP; // In this case we want filter for icmp packets
         break;
     case RTE_ETH_FLOW_NONFRAG_IPV4_UDP:
     case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
@@ -5419,11 +5418,11 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
         break;
     case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
     case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
-        filter.input.flow.ipv6_flow.hop_limit=ttl;
+        filter.input.flow.ipv6_flow.hop_limits=ttl;
         break;
     case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
-        filter.input.flow.ipv6_flow.hop_limit=ttl;
-        filter.input.flow.ipv6_flow.l4_protocol = IPPROTO_ICMP; // In the future we want to support this
+        filter.input.flow.ipv6_flow.hop_limits=ttl;
+        filter.input.flow.ipv6_flow.proto = IPPROTO_ICMP; // In the future we want to support this
         break;
     }
 
@@ -5579,36 +5578,19 @@ int CTRexExtendedDriverBase40G::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd
 }
 
 void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-
     struct rte_eth_stats stats1;
     rte_eth_stats_get(_if->get_port_id(), &stats1);
 
-
     stats->ipackets     =  stats1.ipackets;
     stats->ibytes       =  stats1.ibytes ;
-
     stats->opackets     =  stats1.opackets;
     stats->obytes       =  stats1.obytes + (stats1.opackets<<2);
-
     stats->f_ipackets   = 0;
     stats->f_ibytes     = 0;
-
-
-    stats->ierrors      =  stats1.imissed + stats1.ibadcrc +
-        stats1.ibadlen      +
-        stats1.ierrors      +
-        stats1.oerrors      +
-        stats1.rx_nombuf    +
-        stats1.tx_pause_xon +
-        stats1.rx_pause_xon +
-        stats1.tx_pause_xoff+
-        stats1.rx_pause_xoff ;
-
-
+    stats->ierrors      =  stats1.imissed + stats1.ierrors + stats1.rx_nombuf;
     stats->oerrors      =  stats1.oerrors;;
     stats->imcasts      =  0;
     stats->rx_nombuf    =  stats1.rx_nombuf;
-
 }
 
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
@@ -5667,15 +5649,10 @@ void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSt
     stats->f_ibytes     = 0;
 
 
-    stats->ierrors      =  stats1.imissed + stats1.ibadcrc +
-        stats1.ibadlen      +
+    stats->ierrors      =  stats1.imissed +
         stats1.ierrors      +
         stats1.oerrors      +
-        stats1.rx_nombuf    +
-        stats1.tx_pause_xon +
-        stats1.rx_pause_xon +
-        stats1.tx_pause_xoff+
-        stats1.rx_pause_xoff ;
+        stats1.rx_nombuf;
 
 
     stats->oerrors      =  stats1.oerrors;;
