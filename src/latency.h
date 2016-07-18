@@ -353,10 +353,17 @@ public:
     void  stop();
     bool  is_active();
     void set_ip(uint32_t client_ip,
+                size_t num_clients,
                 uint32_t server_ip,
+                size_t num_servers,
                 uint32_t mask_dual_port){
+        m_client_ip = client_ip;
+        m_num_clients = num_clients;
+        m_server_ip = server_ip;
+        m_num_servers = num_servers;
         m_pkt_gen.set_ip(client_ip,server_ip,mask_dual_port);
     }
+    void set_gre_info(CFlowGenListGre *gre_info) { m_gre_info = gre_info; }
     void Dump(FILE *fd); // dump all
     void DumpShort(FILE *fd); // dump short histogram of latency 
 
@@ -389,6 +396,7 @@ public:
 private:
     void  tickle();
     void  send_pkt_all_ports();
+    void  send_arps(void);
     void  try_rx();
     void  try_rx_queues();
     void  run_rx_queue_msgs(uint8_t thread_id,
@@ -417,6 +425,11 @@ private:
      TrexMonitor             m_monitor;
 
      volatile bool           m_do_stop __rte_cache_aligned ;
+     uint32_t                m_client_ip;
+     size_t                  m_num_clients;
+     uint32_t                m_server_ip;
+     size_t                  m_num_servers;
+     CFlowGenListGre         *m_gre_info;
 };
 
 #endif
