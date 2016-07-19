@@ -1479,6 +1479,40 @@ rte_eth_link_get_nowait(uint8_t port_id, struct rte_eth_link *eth_link)
 	}
 }
 
+// TREX_PATCH
+// return in stats, statistics starting from start, for len counters.
+int
+rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+
+    // Only xl710 support this
+    i40e_trex_fdir_stats_get(dev, stats, start, len);
+
+    return 0;
+}
+
+// TREX_PATCH
+// zero statistics counters, starting from start, for len counters.
+int
+rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+
+    // Only xl710 support this
+    i40e_trex_fdir_stats_reset(dev, stats, start, len);
+
+    return 0;
+}
+
 int
 rte_eth_stats_get(uint8_t port_id, struct rte_eth_stats *stats)
 {

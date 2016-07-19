@@ -755,6 +755,62 @@ static inline void i40e_flex_payload_reg_init(struct i40e_hw *hw)
 
 #define I40E_FLOW_CONTROL_ETHERTYPE  0x8808
 
+#define TREX_PATCH
+#ifdef TREX_PATCH
+
+// 0 - statfull mode. 1 stateless.
+static int trex_mode=0;
+void i40e_set_trex_mode(int mode) {
+    trex_mode = mode;
+}
+
+static void i40e_dump_filter_regs(struct i40e_hw *hw)
+{
+    int reg_nums[] = {31, 33, 34, 35, 41, 43};
+    int i;
+    uint32_t reg;
+
+    for (i =0; i < sizeof (reg_nums)/sizeof(int); i++) {
+	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 0));
+        printf("I40E_PRTQF_FD_INSET(%d, 0): 0x%08x\n", reg_nums[i], reg);
+	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 1));
+        printf("I40E_PRTQF_FD_INSET(%d, 1): 0x%08x\n", reg_nums[i], reg);
+    }
+}
+
+static inline void i40e_filter_fields_reg_init(struct i40e_hw *hw)
+{
+	uint32_t reg;
+
+	I40E_WRITE_REG(hw, I40E_GLQF_ORT(12), 0x00000062);
+	I40E_WRITE_REG(hw, I40E_GLQF_PIT(2), 0x000024A0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(31, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(33, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(41, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(41, 1), 0x00080000);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(43, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(43, 1), 0x00080000);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(34, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(34, 1), 0x00040000);
+        // filter IP according to ttl and L4 protocol
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(35, 0), 0);
+    if (trex_mode == 1) {
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(35, 1), 0x00100000);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(31, 1), 0x00100000);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(33, 1), 0x00100000);
+    } else {
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(35, 1), 0x00040000);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(31, 1), 0x00040000);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(33, 1), 0x00040000);
+    }
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(44, 0), 0);
+	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(44, 1), 0x00080000);
+	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0, 34), 0x000DFF00);
+	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0,44), 0x000C00FF);
+	I40E_WRITE_FLUSH(hw);
+}
+#endif //TREX_PATCH
+
 /*
  * Add a ethertype filter to drop all flow control frames transmitted
  * from VSIs.
@@ -1006,10 +1062,14 @@ eth_i40e_dev_init(struct rte_eth_dev *dev)
 	 * for flexible payload by software.
 	 * It should be removed once issues are fixed in NVM.
 	 */
+#ifdef TREX_PATCH
+	i40e_filter_fields_reg_init(hw);
+#else
 	i40e_flex_payload_reg_init(hw);
 
 	/* Initialize the input set for filters (hash and fd) to default value */
 	i40e_filter_input_set_init(pf);
+#endif
 
 	/* Initialize the parameters for adminq */
 	i40e_init_adminq_parameter(hw);
@@ -2293,9 +2353,11 @@ i40e_read_stats_registers(struct i40e_pf *pf, struct i40e_hw *hw)
 			    I40E_GLPRT_PTC9522L(hw->port),
 			    pf->offset_loaded, &os->tx_size_big,
 			    &ns->tx_size_big);
+#ifndef TREX_PATCH
 	i40e_stat_update_32(hw, I40E_GLQF_PCNT(pf->fdir.match_counter_index),
 			   pf->offset_loaded,
 			   &os->fd_sb_match, &ns->fd_sb_match);
+#endif
 	/* GLPRT_MSPDC not supported */
 	/* GLPRT_XEC not supported */
 
@@ -2303,6 +2365,49 @@ i40e_read_stats_registers(struct i40e_pf *pf, struct i40e_hw *hw)
 
 	if (pf->main_vsi)
 		i40e_update_vsi_stats(pf->main_vsi);
+}
+
+// TREX_PATCH
+int
+i40e_trex_get_speed(struct rte_eth_dev *dev)
+{
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    if (i40e_is_40G_device(hw->device_id)) {
+        return 40;
+    } else {
+        return 10;
+    }
+}
+
+//TREX_PATCH
+// fill stats array with fdir rules match count statistics
+// Notice that we read statistics from start to start + len, but we fill the stats are
+//  starting from 0 with len values
+void
+i40e_trex_fdir_stats_get(struct rte_eth_dev *dev, uint32_t *stats, uint32_t start, uint32_t len)
+{
+    int i;
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    for (i = 0; i < len; i++) {
+        stats[i] = I40E_READ_REG(hw, I40E_GLQF_PCNT(i + start));
+    }
+}
+
+// TREX_PATCH
+void
+i40e_trex_fdir_stats_reset(struct rte_eth_dev *dev, uint32_t *stats, uint32_t start, uint32_t len)
+{
+    int i;
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    for (i = 0; i < len; i++) {
+        if (stats) {
+            stats[i] = I40E_READ_REG(hw, I40E_GLQF_PCNT(i + start));
+        }
+        I40E_WRITE_REG(hw, I40E_GLQF_PCNT(i + start), 0xffffffff);
+    }
 }
 
 /* Get all statistics of a port */
@@ -2321,10 +2426,17 @@ i40e_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 			pf->main_vsi->eth_stats.rx_multicast +
 			pf->main_vsi->eth_stats.rx_broadcast -
 			pf->main_vsi->eth_stats.rx_discards;
+#ifndef TREX_PATCH
 	stats->opackets = pf->main_vsi->eth_stats.tx_unicast +
 			pf->main_vsi->eth_stats.tx_multicast +
 			pf->main_vsi->eth_stats.tx_broadcast;
 	stats->ibytes   = ns->eth.rx_bytes;
+#else
+    /* Hanoch: move to global transmit and not pf->vsi and we have two high and low priorty */
+    stats->opackets = ns->eth.tx_unicast +ns->eth.tx_multicast +ns->eth.tx_broadcast;
+	stats->ibytes   = pf->main_vsi->eth_stats.rx_bytes;
+#endif
+
 	stats->obytes   = ns->eth.tx_bytes;
 	stats->oerrors  = ns->eth.tx_errors +
 			pf->main_vsi->eth_stats.tx_errors;
@@ -2628,10 +2740,10 @@ i40e_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 
 	if (i40e_is_40G_device(hw->device_id))
 		/* For XL710 */
-		dev_info->speed_capa = ETH_LINK_SPEED_1G | ETH_LINK_SPEED_10G;
+		dev_info->speed_capa = ETH_LINK_SPEED_40G;
 	else
 		/* For X710 */
-		dev_info->speed_capa = ETH_LINK_SPEED_10G | ETH_LINK_SPEED_40G;
+		dev_info->speed_capa = ETH_LINK_SPEED_1G | ETH_LINK_SPEED_10G;
 }
 
 static int
@@ -4214,6 +4326,29 @@ i40e_update_default_filter_setting(struct i40e_vsi *vsi)
 	return i40e_vsi_add_mac(vsi, &filter);
 }
 
+#ifdef TREX_PATCH
+#define LOW_LATENCY_WORKAROUND
+#ifdef LOW_LATENCY_WORKAROUND
+static int
+i40e_vsi_update_tc_max_bw(struct i40e_vsi *vsi, u16 credit){
+    struct i40e_hw *hw = I40E_VSI_TO_HW(vsi);
+    int ret;
+
+    if (!vsi->seid) {
+        PMD_DRV_LOG(ERR, "seid not valid");
+        return -EINVAL;
+    }
+
+    ret = i40e_aq_config_vsi_bw_limit(hw, vsi->seid, credit,0, NULL);
+    if (ret != I40E_SUCCESS) {
+        PMD_DRV_LOG(ERR, "Failed to configure TC BW");
+        return ret;
+    }
+    return (0);
+}
+#endif
+#endif
+
 /*
  * i40e_vsi_get_bw_config - Query VSI BW Information
  * @vsi: the VSI to be queried
@@ -4289,7 +4424,8 @@ i40e_enable_pf_lb(struct i40e_pf *pf)
 
 	/* Use the FW API if FW >= v5.0 */
 	if (hw->aq.fw_maj_ver < 5) {
-		PMD_INIT_LOG(ERR, "FW < v5.0, cannot enable loopback");
+        //TREX_PATCH - changed from ERR to INFO. Most of our customers do not have latest FW
+		PMD_INIT_LOG(INFO, "FW < v5.0, cannot enable loopback");
 		return;
 	}
 
@@ -4896,6 +5032,38 @@ i40e_pf_setup(struct i40e_pf *pf)
 		return I40E_ERR_NOT_READY;
 	}
 	pf->main_vsi = vsi;
+
+#ifdef TREX_PATCH
+#ifdef LOW_LATENCY_WORKAROUND
+    /*
+     Workaround for low latency issue.
+     It seems RR does not work as expected both from same QSet and from different QSet
+     Quanta could be very high and this creates very high latency, especially with long packet size (9K)
+     This is a workaround limit the main (bulk) VSI to 99% of the BW and by that support low latency (suggested by Intel)
+     ETS with with strict priority and 127 credit does not work .
+    */
+
+    if (hw->phy.link_info.link_speed == I40E_LINK_SPEED_10GB) {
+        i40e_vsi_update_tc_max_bw(vsi,199);
+    }else{
+        if (hw->phy.link_info.link_speed == I40E_LINK_SPEED_40GB) {
+            i40e_vsi_update_tc_max_bw(vsi,799);
+        }else{
+            PMD_DRV_LOG(ERR, "Unknown phy speed %d",hw->phy.link_info.link_speed);
+        }
+    }
+
+    /* add for low latency a new VSI for Queue set */
+    vsi = i40e_vsi_setup(pf, I40E_VSI_VMDQ2, vsi, 0);
+    if (!vsi) {
+        PMD_DRV_LOG(ERR, "Setup of low latency vsi failed");
+        return I40E_ERR_NOT_READY;
+    }
+
+    pf->ll_vsi = vsi;
+
+#endif
+#endif
 
 	/* Configure filter control */
 	memset(&settings, 0, sizeof(settings));
@@ -9131,6 +9299,7 @@ i40e_dcb_hw_configure(struct i40e_pf *pf,
  *
  * Returns 0 on success, negative value on failure
  */
+//TREX_PATCH - changed all ERR to INFO in below func
 static int
 i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 {
@@ -9139,7 +9308,7 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 	int ret = 0;
 
 	if ((pf->flags & I40E_FLAG_DCB) == 0) {
-		PMD_INIT_LOG(ERR, "HW doesn't support DCB");
+		PMD_INIT_LOG(INFO, "HW doesn't support DCB");
 		return -ENOTSUP;
 	}
 
@@ -9181,13 +9350,13 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 						I40E_APP_PROTOID_FCOE;
 			ret = i40e_set_dcb_config(hw);
 			if (ret) {
-				PMD_INIT_LOG(ERR, "default dcb config fails."
+				PMD_INIT_LOG(INFO, "default dcb config fails."
 					" err = %d, aq_err = %d.", ret,
 					  hw->aq.asq_last_status);
 				return -ENOSYS;
 			}
 		} else {
-			PMD_INIT_LOG(ERR, "DCBX configuration failed, err = %d,"
+			PMD_INIT_LOG(INFO, "DCBX configuration failed, err = %d,"
 					  " aq_err = %d.", ret,
 					  hw->aq.asq_last_status);
 			return -ENOTSUP;
@@ -9200,12 +9369,12 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 		ret = i40e_init_dcb(hw);
 		if (!ret) {
 			if (hw->dcbx_status == I40E_DCBX_STATUS_DISABLED) {
-				PMD_INIT_LOG(ERR, "HW doesn't support"
+				PMD_INIT_LOG(INFO, "HW doesn't support"
 						  " DCBX offload.");
 				return -ENOTSUP;
 			}
 		} else {
-			PMD_INIT_LOG(ERR, "DCBX configuration failed, err = %d,"
+			PMD_INIT_LOG(INFO, "DCBX configuration failed, err = %d,"
 					  " aq_err = %d.", ret,
 					  hw->aq.asq_last_status);
 			return -ENOTSUP;
