@@ -5233,17 +5233,18 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules_stateless(CPhyEthIF * _
     _if->pci_reg_write( E1000_IMIREXT(0), 0x00081000);
 
     uint8_t len = 24;
-    uint32_t mask = 0x1 | 0x2; // first two rules
+    uint32_t mask = 0;
     int rule_id;
 
-    // clear rules 0, 1 registers
-    for (rule_id = 0 ; rule_id < 2; rule_id++) {
+    // clear registers of rules. Just in case.
+    for (rule_id = 0 ; rule_id < 8; rule_id++) {
         for (int i=0; i<0xff; i+=4) {
             _if->pci_reg_write( (E1000_FHFT(rule_id)+i) , 0);
         }
     }
 
     rule_id = 0;
+    mask |= 0x1 << rule_id;
     // filter for byte 18 of packet (msb of IP ID) should equal ff
     _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16)) ,  0x00ff0000);
     _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 8) , 0x04); /* MASK */
@@ -5253,8 +5254,9 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules_stateless(CPhyEthIF * _
     // FLEX_PRIO[[18:16] = 1, RQUEUE[10:8] = 1
     _if->pci_reg_write( (E1000_FHFT(rule_id) + 0xFC) , (1 << 16) | (1 << 8) | len);
 
-    // same like 0, but with vlan. type should be vlan. Inside vlan, should be IP with lsb of IP ID equals 0xff
+    // same as 0, but with vlan. type should be vlan. Inside vlan, should be IP with lsb of IP ID equals 0xff
     rule_id = 1;
+    mask |= 0x1 << rule_id;
     // filter for byte 22 of packet (msb of IP ID) should equal ff
     _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 4) ,  0x00ff0000);
     _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 8) , 0x40 | 0x03); /* MASK */
@@ -5264,6 +5266,34 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules_stateless(CPhyEthIF * _
     // + bytes 16 + 17 (vlan type) should indicate IP.
     _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) ) ,  0x00000080);
     // Was written together with IP ID filter
+    // _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 8) , 0x03); /* MASK */
+    // FLEX_PRIO[[18:16] = 1, RQUEUE[10:8] = 1
+    _if->pci_reg_write( (E1000_FHFT(rule_id) + 0xFC) , (1 << 16) | (1 << 8) | len);
+
+    rule_id = 2;
+    mask |= 0x1 << rule_id;
+    // ipv6 flow stat
+    // filter for byte 16 of packet (part of flow label) should equal 0xff
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16)) ,  0x000000ff);
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 8) , 0x01); /* MASK */
+    // + bytes 12 + 13 (ether type) should indicate IPv6.
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 4) ,  0x0000dd86);
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 8) , 0x30); /* MASK */
+    // FLEX_PRIO[[18:16] = 1, RQUEUE[10:8] = 1
+    _if->pci_reg_write( (E1000_FHFT(rule_id) + 0xFC) , (1 << 16) | (1 << 8) | len);
+
+    rule_id = 3;
+    mask |= 0x1 << rule_id;
+    // same as 2, with vlan. Type is vlan. Inside vlan, IPv6 with flow label second bits 4-11 equals 0xff
+    // filter for byte 20 of packet (part of flow label) should equal 0xff
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 4) ,  0x000000ff);
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 8) , 0x10 | 0x03); /* MASK */
+    // + bytes 12 + 13 (ether type) should indicate VLAN.
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 4) ,  0x00000081);
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 8) , 0x30); /* MASK */
+    // + bytes 16 + 17 (vlan type) should indicate IP.
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) ) ,  0x0000dd86);
+    // Was written together with flow label filter
     // _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 8) , 0x03); /* MASK */
     // FLEX_PRIO[[18:16] = 1, RQUEUE[10:8] = 1
     _if->pci_reg_write( (E1000_FHFT(rule_id) + 0xFC) , (1 << 16) | (1 << 8) | len);
