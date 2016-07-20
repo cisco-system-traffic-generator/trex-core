@@ -4519,35 +4519,36 @@ int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx
 
 // If needed, send packets to rx core for processing.
 // This is relevant only in VM case, where we receive packets to the working DP core (only 1 DP core in this case)
-bool CCoreEthIF::process_rx_pkt(pkt_dir_t   dir,
-                                rte_mbuf_t * m){
+bool CCoreEthIF::process_rx_pkt(pkt_dir_t dir, rte_mbuf_t * m) {
+    CFlowStatParser parser;
+    uint32_t ip_id;
 
-    CSimplePacketParser parser(m);
-    if ( !parser.Parse()  ){
+    if (parser.parse(rte_pktmbuf_mtod(m, uint8_t*), rte_pktmbuf_pkt_len(m)) != 0) {
         return false;
     }
     bool send=false;
 
     // e1000 on ESXI hands us the packet with the ethernet FCS
-    if (parser.getPktSize() < m->pkt_len) {
-        rte_pktmbuf_trim(m, m->pkt_len - parser.getPktSize());
+    if (parser.get_pkt_size() < rte_pktmbuf_pkt_len(m)) {
+        rte_pktmbuf_trim(m, rte_pktmbuf_pkt_len(m) - parser.get_pkt_size());
     }
 
     if ( get_is_stateless() ) {
         // In stateless RX, we only care about flow stat packets
-        if ((parser.getIpId() & 0xff00) == IP_ID_RESERVE_BASE) {
+        if ((parser.get_ip_id(ip_id) == 0) && ((ip_id & 0xff00) == IP_ID_RESERVE_BASE)) {
             send = true;
         }
     } else {
         CLatencyPktMode *c_l_pkt_mode = g_trex.m_mg.c_l_pkt_mode;
-        bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & parser.IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len());
+        bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt((IPHeader *)parser.get_l4()) &
+            CCPortLatency::IsLatencyPkt(parser.get_l4() + c_l_pkt_mode->l4_header_len());
 
         if (is_lateancy_pkt) {
             send = true;
         } else {
             if ( get_is_rx_filter_enable() ) {
                 uint8_t max_ttl = 0xff - get_rx_check_hops();
-                uint8_t pkt_ttl = parser.getTTl();
+                uint8_t pkt_ttl = parser.get_ttl();
                 if ( (pkt_ttl==max_ttl) || (pkt_ttl==(max_ttl-1) ) ) {
                     send=true;
                 }
@@ -5637,7 +5638,7 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statfull(CPhyEthIF * _
 
 const uint32_t FDIR_TEMP_HW_ID = 511;
 const uint32_t FDIR_PAYLOAD_RULES_HW_ID = 510;
-extern const uint16_t FLOW_STAT_PAYLOAD_IP_ID;
+extern const uint32_t FLOW_STAT_PAYLOAD_IP_ID;
 int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     if (get_is_stateless()) {
         uint32_t port_id = _if->get_port_id();

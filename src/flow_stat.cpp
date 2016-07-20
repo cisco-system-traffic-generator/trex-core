@@ -63,7 +63,7 @@ stream_del: HW_ID_INIT
 static const uint16_t HW_ID_INIT = UINT16_MAX;
 static const uint16_t HW_ID_FREE = UINT16_MAX - 1;
 static const uint8_t PAYLOAD_RULE_PROTO = 255;
-const uint16_t FLOW_STAT_PAYLOAD_IP_ID = IP_ID_RESERVE_BASE + MAX_FLOW_STATS;
+const uint32_t FLOW_STAT_PAYLOAD_IP_ID = IP_ID_RESERVE_BASE + MAX_FLOW_STATS;
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -691,7 +691,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
             return 0;
         }
 
-        uint16_t ip_id;
+        uint32_t ip_id;
         if (m_parser->get_ip_id(ip_id) < 0) {
             return 0; // if we could not find the ip id, no need to fix
         }

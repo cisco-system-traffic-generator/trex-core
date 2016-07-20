@@ -37,7 +37,7 @@
 #define IP_ID_RESERVE_BASE 0xff00
 #define FLOW_STAT_PAYLOAD_MAGIC 0xAB
 #define FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ 0x01
-extern const uint16_t FLOW_STAT_PAYLOAD_IP_ID;
+extern const uint32_t FLOW_STAT_PAYLOAD_IP_ID;
 
 typedef std::map<uint32_t, uint16_t> flow_stat_map_t;
 typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;

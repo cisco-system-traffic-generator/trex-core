@@ -21,6 +21,7 @@ limitations under the License.
 */
 #include "latency.h"
 #include "bp_sim.h"
+#include "flow_stat_parser.h"
 #include "utl_json.h"
 #include "trex_watchdog.h"
 
@@ -371,19 +372,12 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
     }    
     CLatencyPktMode *c_l_pkt_mode = m_parent->c_l_pkt_mode;
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
-
-    /* check if CRC was extracted */
-    if ( parser.getPktSize() == pkt_size-4) {
-        // CRC was not extracted by driver (VM E1000 driver issue) extract it
-        pkt_size=pkt_size-4;
-    }
-
     uint16_t vlan_offset=parser.m_vlan_offset;
     uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
 
     rx_p = (CRx_check_header *)0;
 
-    bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & parser.IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len());
+    bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len());
 
     if ( ! is_lateancy_pkt) {
 

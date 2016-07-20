@@ -20,16 +20,19 @@
 */
 
 #include <netinet/in.h>
-#include <common/basic_utils.h>
-#include <common/Network/Packet/IPHeader.h>
-#include <common/Network/Packet/TcpHeader.h>
-#include <common/Network/Packet/IPv6Header.h>
-#include <common/Network/Packet/EthernetHeader.h>
-#include <flow_stat_parser.h>
+#include "common/basic_utils.h"
+#include "common/Network/Packet/EthernetHeader.h"
+#include "common/Network/Packet/IPHeader.h"
+#include "common/Network/Packet/IPv6Header.h"
+#include "common/Network/Packet/TcpHeader.h"
+#include "flow_stat_parser.h"
 
 void CFlowStatParser::reset() {
     m_ipv4 = 0;
+    m_ipv6 = 0;
     m_l4_proto = 0;
+    m_l4 = 0;
+    m_vlan_offset = 0;
     m_stat_supported = false;
 }
 
@@ -44,15 +47,32 @@ int CFlowStatParser::parse(uint8_t *p, uint16_t len) {
     switch( ether->getNextProtocol() ) {
     case EthernetHeader::Protocol::IP :
         m_ipv4 = (IPHeader *)(p + ETH_HDR_LEN);
+        m_l4 = ((uint8_t *)m_ipv4) + m_ipv4->getHeaderLength();
+        m_l4_proto = m_ipv4->getProtocol();
+        m_stat_supported = true;
+        break;
+    case EthernetHeader::Protocol::IPv6 :
+        m_ipv6 = (IPv6Header *)(p + ETH_HDR_LEN);
+        m_l4 = ((uint8_t *)m_ipv6) + m_ipv6->getHeaderLength();
+        m_l4_proto = m_ipv6->getNextHdr();
         m_stat_supported = true;
         break;
     case EthernetHeader::Protocol::VLAN :
+        m_vlan_offset = 4;
         min_len += 4;
         if (len < min_len)
             return -1;
         switch ( ether->getVlanProtocol() ){
         case EthernetHeader::Protocol::IP:
-            m_ipv4 = (IPHeader *)(p + 18);
+            m_ipv4 = (IPHeader *)(p + ETH_HDR_LEN + 4);
+            m_l4 = ((uint8_t *)m_ipv4) + m_ipv4->getHeaderLength();
+            m_l4_proto = m_ipv4->getProtocol();
+            m_stat_supported = true;
+            break;
+        case EthernetHeader::Protocol::IPv6 :
+            m_ipv6 = (IPv6Header *)(p + ETH_HDR_LEN + 4);
+            m_l4 = ((uint8_t *)m_ipv6) + m_ipv6->getHeaderLength();
+            m_l4_proto = m_ipv6->getNextHdr();
             m_stat_supported = true;
             break;
         default:
@@ -70,33 +90,68 @@ int CFlowStatParser::parse(uint8_t *p, uint16_t len) {
     return 0;
 }
 
-int CFlowStatParser::get_ip_id(uint16_t &ip_id) {
-    if (! m_ipv4)
-        return -1;
+int CFlowStatParser::get_ip_id(uint32_t &ip_id) {
+    if (m_ipv4) {
+        ip_id = m_ipv4->getId();
+        return 0;
+    }
 
-    ip_id = m_ipv4->getId();
+    if (m_ipv6) {
+        ip_id = m_ipv6->getFlowLabel();
+        return 0;
+    }
 
-    return 0;
+    return -1;
 }
 
-int CFlowStatParser::set_ip_id(uint16_t new_id) {
-    if (! m_ipv4)
-        return -1;
+int CFlowStatParser::set_ip_id(uint32_t new_id) {
+    if (m_ipv4) {
+        // Updating checksum, not recalculating, so if someone put bad checksum on purpose, it will stay bad
+        m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getId()), PKT_NTOHS(new_id));
+        m_ipv4->setId(new_id);
+        return 0;
+    }
 
-    // Updating checksum, not recalculating, so if someone put bad checksum on purpose, it will stay bad
-    m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getId()), PKT_NTOHS(new_id));
-    m_ipv4->setId(new_id);
-
-    return 0;
+    if (m_ipv6) {
+        m_ipv6->setFlowLabel(new_id);
+        return 0;
+    }
+    return -1;
 }
 
 int CFlowStatParser::get_l4_proto(uint8_t &proto) {
-    if (! m_ipv4)
-        return -1;
+    if (m_ipv4) {
+        proto = m_ipv4->getProtocol();
+        return 0;
+    }
 
-    proto = m_ipv4->getProtocol();
+    if (m_ipv6) {
+        proto = m_ipv6->getNextHdr();
+        return 0;
+    }
 
-    return 0;
+    return -1;
+}
+
+uint16_t CFlowStatParser::get_pkt_size() {
+    uint16_t ip_len=0;
+
+    if (m_ipv4) {
+        ip_len = m_ipv4->getTotalLength();
+    } else if (m_ipv6) {
+        ip_len = m_ipv6->getHeaderLength() + m_ipv6->getPayloadLen();
+    }
+    return ( ip_len + m_vlan_offset + ETH_HDR_LEN);
+}
+
+uint8_t CFlowStatParser::get_ttl(){
+    if (m_ipv4) {
+        return ( m_ipv4->getTimeToLive() );
+    }
+    if (m_ipv6) {
+        return ( m_ipv6->getHopLimit() );
+    }
+    return (0);
 }
 
 // calculate the payload len. Do not want to do this in parse(), since this is required only in
@@ -105,21 +160,33 @@ int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload
     uint16_t l2_header_len;
     uint16_t l3_header_len;
     uint16_t l4_header_len;
+    uint8_t l4_proto = 0;
+    uint8_t *p_l3 = NULL;
     uint8_t *p_l4 = NULL;
     TCPHeader *p_tcp = NULL;
-    if (!m_ipv4) {
+    if (!m_ipv4 && !m_ipv6) {
         payload_len = 0;
         return -1;
     }
 
-    l2_header_len = ((uint8_t *)m_ipv4) - p;
-    l3_header_len = m_ipv4->getHeaderLength();
-    switch (m_ipv4->getProtocol()) {
+    if (m_ipv4) {
+        l2_header_len = ((uint8_t *)m_ipv4) - p;
+        l3_header_len = m_ipv4->getHeaderLength();
+        l4_proto = m_ipv4->getProtocol();
+        p_l3 = (uint8_t *)m_ipv4;
+    } else if (m_ipv6) {
+        l2_header_len = ((uint8_t *)m_ipv6) - p;
+        l3_header_len = IPV6_HDR_LEN;
+        l4_proto = m_ipv6->getNextHdr();
+        p_l3 = (uint8_t *)m_ipv6;
+    }
+
+    switch (l4_proto) {
     case IPPROTO_UDP:
         l4_header_len = 8;
         break;
     case IPPROTO_TCP:
-        p_l4 = ((uint8_t *)m_ipv4) + l3_header_len;
+        p_l4 = p_l3 + l3_header_len;
         if ((p_l4 + TCP_HEADER_LEN) > (p + len)) {
             //Not enough space for TCP header
             payload_len = 0;
@@ -129,8 +196,8 @@ int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload
         l4_header_len = p_tcp->getHeaderLength();
         break;
     case IPPROTO_ICMP:
-    l4_header_len = 8;
-    break;
+        l4_header_len = 8;
+        break;
     default:
         l4_header_len = 0;
     }
@@ -149,7 +216,7 @@ static const uint16_t TEST_IP_ID = 0xabcd;
 static const uint8_t TEST_L4_PROTO = IPPROTO_UDP;
 
 int CFlowStatParser::test() {
-    uint16_t ip_id = 0;
+    uint32_t ip_id = 0;
     uint8_t l4_proto;
     uint8_t test_pkt[] = {
         // ether header
@@ -262,4 +329,59 @@ int C82599Parser::parse(uint8_t *p, uint16_t len) {
     }
 
     return 0;
+}
+
+bool CSimplePacketParser::Parse(){
+
+    rte_mbuf_t * m=m_m;
+    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+    EthernetHeader *m_ether = (EthernetHeader *)p;
+    IPHeader * ipv4=0;
+    IPv6Header * ipv6=0;
+    m_vlan_offset=0;
+    uint8_t protocol = 0;
+
+    // Retrieve the protocol type from the packet
+    switch( m_ether->getNextProtocol() ) {
+    case EthernetHeader::Protocol::IP :
+        // IPv4 packet
+        ipv4=(IPHeader *)(p+14);
+        m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
+        protocol = ipv4->getProtocol();
+        break;
+    case EthernetHeader::Protocol::IPv6 :
+        // IPv6 packet
+        ipv6=(IPv6Header *)(p+14);
+        m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
+        protocol = ipv6->getNextHdr();
+        break;
+    case EthernetHeader::Protocol::VLAN :
+        m_vlan_offset = 4;
+        switch ( m_ether->getVlanProtocol() ){
+        case EthernetHeader::Protocol::IP:
+            // IPv4 packet
+            ipv4=(IPHeader *)(p+18);
+            m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
+            protocol = ipv4->getProtocol();
+            break;
+        case EthernetHeader::Protocol::IPv6 :
+            // IPv6 packet
+            ipv6=(IPv6Header *)(p+18);
+            m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
+            protocol = ipv6->getNextHdr();
+            break;
+        default:
+        break;
+        }
+        default:
+        break;
+    }
+    m_protocol =protocol;
+    m_ipv4=ipv4;
+    m_ipv6=ipv6;
+
+    if ( protocol == 0 ){
+        return (false);
+    }
+    return (true);
 }

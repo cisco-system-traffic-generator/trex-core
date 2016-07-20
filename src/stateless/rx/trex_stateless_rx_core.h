@@ -151,8 +151,8 @@ class CRxCoreStateless {
     void flush_rx();
     int try_rx();
     void try_rx_queues();
-    bool is_flow_stat_id(uint16_t id);
-    bool is_flow_stat_payload_id(uint16_t id);
+    bool is_flow_stat_id(uint32_t id);
+    bool is_flow_stat_payload_id(uint32_t id);
     uint16_t get_hw_id(uint16_t id);
 
  private:

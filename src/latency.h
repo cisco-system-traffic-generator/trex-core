@@ -21,8 +21,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <bp_sim.h>
-#include <flow_stat.h>
+#include "bp_sim.h"
+#include "flow_stat.h"
 
 #define L_PKT_SUBMODE_NO_REPLY 1
 #define L_PKT_SUBMODE_REPLY 2
@@ -59,18 +59,15 @@ private:
     ipaddr_t            m_client_ip;
     ipaddr_t            m_server_ip;
     uint32_t            m_dual_port_mask;
-
     CGenNode            m_dummy_node;
     CFlowPktInfo        m_pkt_info;
     CPacketIndication   m_pkt_indication;
     CCapPktRaw *        m_packet;
 };
 
-
 #define LATENCY_MAGIC 0x12345600
 
 struct  latency_header {
-
     uint64_t time_stamp;
     uint32_t magic;
     uint32_t seq;
@@ -80,72 +77,9 @@ struct  latency_header {
     }
 };
 
-class CSimplePacketParser {
-public:
-
-    CSimplePacketParser(rte_mbuf_t * m){
-        m_m=m;
-        m_l4 = NULL;
-    }
-
-    bool Parse();
-    uint8_t getTTl();
-    uint16_t getIpId();
-    uint16_t getPktSize();
-
-    // Check if packet contains latency data
-    inline bool IsLatencyPkt(uint8_t *p) {
-	if (! p)
-	    return false;
-
-        latency_header * h=(latency_header *)(p);
-        if ( (h->magic & 0xffffff00) != LATENCY_MAGIC ){
-            return false;
-        }
-
-        return true;
-    }
-
-    // Check if this packet contains NAT info in TCP ack
-    // first - set to true if this is the first packet of the flow. false otherwise.
-    //         relevant only if return value is true
-    inline bool IsNatInfoPkt(bool &first) {
-        if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
-            return false;
-        }
-        if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
-            return false;
-        }
-        // If we are here, relevant fields from tcp header are guaranteed to be in first mbuf
-        // We want to handle SYN and SYN+ACK packets
-        TCPHeader *tcp = (TCPHeader *)m_l4;
-        if (! tcp->getSynFlag())
-            return false;
-
-        if (! tcp->getAckFlag()) {
-            first = true;
-        } else {
-            first = false;
-        }
-        return true;
-    }
-
-public:
-    IPHeader *      m_ipv4;
-    IPv6Header *    m_ipv6;
-    uint8_t         m_protocol;
-    uint16_t        m_vlan_offset;
-    uint16_t        m_option_offset;
-    uint8_t *       m_l4;
-private: 
-    rte_mbuf_t *    m_m ;
-};
-
-
-
 class CLatencyManager ;
 
-// per port 
+// per port
 class CCPortLatency {
 public:
     bool Create(CLatencyManager * parent,
@@ -165,7 +99,7 @@ public:
                 return(true);
             else
                 return(false);
-        }        
+        }
 
         if ( !CGlobalInfo::is_learn_mode() ) {
             return(true);
@@ -175,34 +109,23 @@ public:
     uint32_t external_nat_ip(){
         return (m_nat_external_ip);
     }
-
     void update_packet(rte_mbuf_t * m, int port_id);
-
     bool do_learn(uint32_t external_ip);
-
-    bool check_packet(rte_mbuf_t * m,
-                      CRx_check_header * & rx_p);
+    bool check_packet(rte_mbuf_t * m, CRx_check_header * & rx_p);
     bool check_rx_check(rte_mbuf_t * m);
-
-
-	bool dump_packet(rte_mbuf_t * m);
-
+    bool dump_packet(rte_mbuf_t * m);
     void DumpCounters(FILE *fd);
     void dump_counters_json(std::string & json );
-
     void DumpShort(FILE *fd);
     void dump_json(std::string & json );
     void dump_json_v2(std::string & json );
-
     uint32_t get_jitter_usec(void){
         return ((uint32_t)(m_jitter.get_jitter()*1000000.0));
     }
-
-
     static void DumpShortHeader(FILE *fd);
 
     bool is_any_err(){
-        if (  (m_tx_pkt_ok == m_rx_port->m_pkt_ok ) && 
+        if (  (m_tx_pkt_ok == m_rx_port->m_pkt_ok ) &&
 
               ((m_unsup_prot+
                 m_no_magic+
@@ -217,25 +140,35 @@ public:
     uint16_t get_icmp_tx_seq() {return m_icmp_tx_seq;}
     uint16_t get_icmp_rx_seq() {return m_icmp_rx_seq;}
 
+    // Check if packet contains latency data
+    static inline bool IsLatencyPkt(uint8_t *p) {
+        if (! p)
+            return false;
+
+        latency_header * h=(latency_header *)(p);
+        if ( (h->magic & 0xffffff00) != LATENCY_MAGIC ){
+            return false;
+        }
+
+        return true;
+    }
+
 private:
     std::string get_field(std::string name,float f);
 
-    
+
 private:
      CLatencyManager * m_parent;
      CCPortLatency *   m_rx_port; /* corespond rx port  */
-     bool              m_nat_learn;  
+     bool              m_nat_learn;
      bool              m_nat_can_send;
      uint32_t          m_nat_external_ip;
-
      uint32_t m_tx_seq;
      uint32_t m_rx_seq;
-
      uint8_t  m_pad;
      uint8_t  m_id;
      uint16_t m_payload_offset;
      uint16_t m_l4_offset;
-
      uint16_t m_pkt_size;
      // following two variables are for the latency ICMP reply mode.
      // if we want to pass through firewall, we want to send reply only after we got request with same seq num
@@ -248,7 +181,6 @@ private:
 public:
      uint64_t m_tx_pkt_ok;
      uint64_t m_tx_pkt_err;
-
      uint64_t m_pkt_ok;
      uint64_t m_unsup_prot;
      uint64_t m_no_magic;
@@ -263,10 +195,10 @@ public:
 
 
 class CPortLatencyHWBase {
-public:
+ public:
     virtual int tx(rte_mbuf_t * m)=0;
     virtual rte_mbuf_t * rx()=0;
-    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, 
+    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts,
                                uint16_t nb_pkts){
         return(0);
     }
@@ -274,7 +206,7 @@ public:
 
 
 class CLatencyManagerCfg {
-public:
+ public:
     CLatencyManagerCfg (){
         m_max_ports=0;
         m_cps=0.0;
@@ -283,24 +215,22 @@ public:
         m_server_ip.v4=0x20000000;
         m_dual_port_mask=0x01000000;
     }
+
+ public:
     uint32_t             m_max_ports;
     double               m_cps;// CPS
     CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
     ipaddr_t             m_client_ip;
     ipaddr_t             m_server_ip;
     uint32_t             m_dual_port_mask;
-
 };
-
 
 class CLatencyManagerPerPort {
 public:
      CCPortLatency          m_port;
      CPortLatencyHWBase  *  m_io;
      uint32_t               m_flag;
-
 };
-
 
 class CLatencyPktMode {
  public:
@@ -358,10 +288,10 @@ public:
         m_pkt_gen.set_ip(client_ip,server_ip,mask_dual_port);
     }
     void Dump(FILE *fd); // dump all
-    void DumpShort(FILE *fd); // dump short histogram of latency 
+    void DumpShort(FILE *fd); // dump short histogram of latency
 
     void DumpRxCheck(FILE *fd); // dump all
-    void DumpShortRxCheck(FILE *fd); // dump short histogram of latency 
+    void DumpShortRxCheck(FILE *fd); // dump short histogram of latency
     void dump_nat_flow_table(FILE *fd);
     void rx_check_dump_json(std::string & json);
     uint16_t get_latency_header_offset(){
@@ -370,7 +300,7 @@ public:
     void update();
     void update_fast();
 
-    void dump_json(std::string & json ); // dump to json 
+    void dump_json(std::string & json ); // dump to json
     void dump_json_v2(std::string & json );
     void DumpRxCheckVerification(FILE *fd,uint64_t total_tx_rx_check);
     void set_mask(uint32_t mask){
@@ -391,26 +321,24 @@ private:
     void  send_pkt_all_ports();
     void  try_rx();
     void  try_rx_queues();
-    void  run_rx_queue_msgs(uint8_t thread_id,
-                                             CNodeRing * r);
-	void  wait_for_rx_dump();
-    void  handle_rx_pkt(CLatencyManagerPerPort * lp,
-                        rte_mbuf_t * m);
+    void  run_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
+    void  wait_for_rx_dump();
+    void  handle_rx_pkt(CLatencyManagerPerPort * lp, rte_mbuf_t * m);
     /* messages handlers */
-    void handle_latency_pkt_msg(uint8_t thread_id,
-                               CGenNodeLatencyPktInfo * msg);
+    void handle_latency_pkt_msg(uint8_t thread_id, CGenNodeLatencyPktInfo * msg);
 
+ private:
      pqueue_t                m_p_queue; /* priorty queue */
      bool                    m_is_active;
      CLatencyPktInfo         m_pkt_gen;
      CLatencyManagerPerPort  m_ports[TREX_MAX_PORTS];
-     uint64_t                m_d_time; // calc tick betwen sending 
+     uint64_t                m_d_time; // calc tick betwen sending
      double                  m_cps;
      double                  m_delta_sec;
-     uint64_t                m_start_time; // calc tick betwen sending 
+     uint64_t                m_start_time; // calc tick betwen sending
      uint32_t                m_port_mask;
      uint32_t                m_max_ports;
-     RxCheckManager 	     m_rx_check_manager;
+     RxCheckManager          m_rx_check_manager;
      CNatRxManager           m_nat_check_manager;
      CCpuUtlDp               m_cpu_dp_u;
      CCpuUtlCp               m_cpu_cp_u;
@@ -420,4 +348,3 @@ private:
 };
 
 #endif
-

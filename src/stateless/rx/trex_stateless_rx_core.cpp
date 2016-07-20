@@ -191,7 +191,7 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
     CFlowStatParser parser;
 
     if (parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len) == 0) {
-        uint16_t ip_id;
+        uint32_t ip_id;
         if (parser.get_ip_id(ip_id) == 0) {
             if (is_flow_stat_id(ip_id)) {
                 uint16_t hw_id;
@@ -387,12 +387,12 @@ int CRxCoreStateless::try_rx() {
     return total_pkts;
 }
 
-bool CRxCoreStateless::is_flow_stat_id(uint16_t id) {
-    if ((id & 0xff00) == IP_ID_RESERVE_BASE) return true;
+bool CRxCoreStateless::is_flow_stat_id(uint32_t id) {
+    if ((id & 0x000fff00) == IP_ID_RESERVE_BASE) return true;
     return false;
 }
 
-bool CRxCoreStateless::is_flow_stat_payload_id(uint16_t id) {
+bool CRxCoreStateless::is_flow_stat_payload_id(uint32_t id) {
     if (id == FLOW_STAT_PAYLOAD_IP_ID) return true;
     return false;
 }
