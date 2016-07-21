@@ -396,6 +396,10 @@ class CCmdArgParser(argparse.ArgumentParser):
         self.cmd_name = kwargs.get('prog')
 
 
+    # hook this to the logger
+    def _print_message(self, message, file=None):
+        self.stateless_client.logger.log(message)
+
     def has_ports_cfg (self, opts):
         return hasattr(opts, "all_ports") or hasattr(opts, "ports")
 

@@ -455,14 +455,25 @@ class TrexTUI():
         self.pm = TrexTUIPanelManager(self)
                     
 
-    def clear_screen (self):
-        #os.system('clear')
-        # maybe this is faster ?
-        sys.stdout.write("\x1b[2J\x1b[H")
+    def clear_screen (self, lines = 50):
+        # reposition the cursor
+        sys.stdout.write("\x1b[0;0H")
+
+        # clear all lines
+        for i in range(lines):
+            sys.stdout.write("\x1b[0K")
+            if i < (lines - 1):
+                sys.stdout.write("\n")
+
+        # reposition the cursor
+        sys.stdout.write("\x1b[0;0H")
+
+        #sys.stdout.write("\x1b[2J\x1b[H")
 
 
     def show (self, client, show_log = False, locked = False):
         with AsyncKeys(client, locked) as async_keys:
+            sys.stdout.write("\x1bc")
             self.async_keys = async_keys
             self.show_internal(show_log, locked)
 
@@ -473,7 +484,7 @@ class TrexTUI():
         self.pm.init(show_log, locked)
 
         self.state = self.STATE_ACTIVE
-        self.draw_policer = 0
+        self.last_redraw_ts = 0
 
         try:
             while True:
@@ -481,7 +492,11 @@ class TrexTUI():
                 status = self.async_keys.tick(self.pm)
 
                 self.draw_screen(status)
+
+                # speedup for keys, slower for no keys
                 if status == AsyncKeys.STATUS_NONE:
+                    time.sleep(0.01)
+                else:
                     time.sleep(0.001)
 
                 # regular state
@@ -518,17 +533,10 @@ class TrexTUI():
 
     # draw once
     def draw_screen (self, status):
+        t = time.time() - self.last_redraw_ts
+        redraw = (t >= 0.5) or (status == AsyncKeys.STATUS_REDRAW_ALL)
 
-        # only redraw the keys line
-        if status == AsyncKeys.STATUS_REDRAW_KEYS:
-            self.clear_screen()
-            sys.stdout.write(self.last_snap)
-            self.async_keys.draw()
-            sys.stdout.flush()
-            return
-
-        if (self.draw_policer >= 500) or (status == AsyncKeys.STATUS_REDRAW_ALL):
-
+        if redraw:
             # capture stdout to a string
             old_stdout = sys.stdout
             sys.stdout = mystdout = StringIO()
@@ -543,10 +551,16 @@ class TrexTUI():
             sys.stdout.write(mystdout.getvalue())
            
             sys.stdout.flush()
+            self.last_redraw_ts = time.time()
 
-            self.draw_policer = 0
-        else:
-            self.draw_policer += 1 
+        elif status == AsyncKeys.STATUS_REDRAW_KEYS:
+            sys.stdout.write("\x1b[4A")
+
+            self.async_keys.draw()
+            sys.stdout.flush()
+
+        return
+
 
 
     def get_state (self):
@@ -586,10 +600,21 @@ class AsyncKeys:
         new_settings[6][termios.VMIN] = 0  # cc
         new_settings[6][termios.VTIME] = 0 # cc
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
+
+        # huge buffer - no print without flush
+        tmp_fd = os.dup(sys.stdout.fileno())
+        sys.stdout.close()
+        sys.stdout = os.fdopen(tmp_fd, 'w', 80 * 25 * 2)
+
         return self
 
     def __exit__ (self, type, value, traceback):
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
+
+        # restore sys.stdout
+        tmp_fd = os.dup(sys.stdout.fileno())
+        sys.stdout.close()
+        sys.stdout = os.fdopen(tmp_fd, 'w', -1)
 
 
     def is_legend_mode (self):
@@ -759,20 +784,14 @@ class AsyncKeysEngineConsole:
 
         # TAB
         elif ch == '\t':
-            cur = self.lines[self.line_index].get()
-            if not cur:
+            tokens = self.lines[self.line_index].get().split()
+            if not tokens:
                 return
 
-            matching_cmds = [x for x in self.ac if x.startswith(cur)]
-            
-            common = os.path.commonprefix([x for x in self.ac if x.startswith(cur)])
-            if common:
-                if len(matching_cmds) == 1:
-                    self.lines[self.line_index].set(common + ' ')
-                    self.last_status = ''
-                else:
-                    self.lines[self.line_index].set(common)
-                    self.last_status = 'ambigious: '+ ' '.join([format_text(cmd, 'bold') for cmd in matching_cmds])
+            if len(tokens) == 1:
+                self.handle_tab_names(tokens[0])
+            else:
+                self.handle_tab_files(tokens)
 
 
         # simple char
@@ -780,6 +799,86 @@ class AsyncKeysEngineConsole:
             self.lines[self.line_index] += ch
 
         return AsyncKeys.STATUS_REDRAW_KEYS
+
+
+    # handle TAB key for completing function names
+    def handle_tab_names (self, cur):
+        matching_cmds = [x for x in self.ac if x.startswith(cur)]
+
+        common = os.path.commonprefix([x for x in self.ac if x.startswith(cur)])
+        if common:
+            if len(matching_cmds) == 1:
+                self.lines[self.line_index].set(common + ' ')
+                self.last_status = ''
+            else:
+                self.lines[self.line_index].set(common)
+                self.last_status = 'ambigious: '+ ' '.join([format_text(cmd, 'bold') for cmd in matching_cmds])
+
+
+    # handle TAB for completing filenames
+    def handle_tab_files (self, tokens):
+        # we support only start command with files
+        if tokens[0] != 'start':
+            return
+
+        # '-f' with no paramters - no partial and use current dir
+        if tokens[-1] == '-f':
+            partial = ''
+            d = '.'
+
+        # got a partial path
+        elif tokens[-2] == '-f':
+            partial = tokens.pop()
+
+            # check for dirs
+            dirname, basename = os.path.dirname(partial), os.path.basename(partial)
+            if os.path.isdir(dirname):
+                d = dirname
+                partial = basename
+            else:
+                d = '.'
+        else:
+            return
+
+        # fetch all dirs and files matching wildcard
+        files = []
+        for x in os.listdir(d):
+            if os.path.isdir(os.path.join(d, x)):
+                files.append(x + '/')
+            elif x.endswith('.py') or x.endswith('yaml') or x.endswith('pcap') or x.endswith('cap'):
+                files.append(x)
+
+        # dir might not have the files
+        if not files:
+            self.last_status = format_text('no loadble files under path', 'bold')
+            return
+
+
+        # find all the matching files
+        matching_files = [x for x in files if x.startswith(partial)] if partial else files
+
+        # do we have a longer common than partial ?
+        common = os.path.commonprefix([x for x in files if x.startswith(partial)])
+        if not common:
+            common = partial
+
+        tokens.append(os.path.join(d, common) if d is not '.' else common)
+
+        # reforge the line
+        newline = ' '.join(tokens)
+
+        if len(matching_files) == 1:
+            if os.path.isfile(tokens[-1]):
+                newline += ' '
+
+            self.lines[self.line_index].set(newline)
+            self.last_status = ''
+        else:
+            self.lines[self.line_index].set(newline)
+            self.last_status = '    '.join([format_text(f, 'bold') for f in matching_files[:5]])
+            if len(matching_files) > 5:
+                self.last_status += ' ... [{0} more matches]'.format(len(matching_files) - 5)
+
 
 
     def split_cmd (self, cmd):
@@ -828,8 +927,8 @@ class AsyncKeysEngineConsole:
 
     def draw (self):
         sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
-        sys.stdout.write("status: {0}\n".format(self.last_status))
-        sys.stdout.write("\ntui>")
+        sys.stdout.write("status: \x1b[0K{0}\n".format(self.last_status))
+        sys.stdout.write("\ntui>\x1b[0K")
         self.lines[self.line_index].draw()
 
 
