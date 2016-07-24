@@ -408,8 +408,15 @@ void StreamVm::build_flow_var_table() {
             }
 
             /* expected packet size calculation */
-            uint16_t range = var.m_ins.m_ins_flowv->m_max_value - var.m_ins.m_ins_flowv->m_min_value;
-            m_expected_pkt_size = var.m_ins.m_ins_flowv->m_min_value + g_fastrand_util.calc_fastrand_avg(range);
+
+            /* for random packet size - we need to find the average */
+            if (var.m_ins.m_ins_flowv->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM) {
+                uint16_t range = var.m_ins.m_ins_flowv->m_max_value - var.m_ins.m_ins_flowv->m_min_value;
+                m_expected_pkt_size = var.m_ins.m_ins_flowv->m_min_value + g_fastrand_util.calc_fastrand_avg(range);
+            } else {
+                m_expected_pkt_size = (var.m_ins.m_ins_flowv->m_min_value + var.m_ins.m_ins_flowv->m_max_value) / 2.0;
+            }
+            
         }
     }
 
