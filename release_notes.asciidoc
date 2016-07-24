@@ -23,17 +23,29 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.06  ==
+
+* Support EPIC-EM scale Stateful VLAN/IP/MAC mapping.
+* TCP SYN Randomization learning support for advanced ASA stateful testing - link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
+* Advanced to latest DPDK 16.07RC3 - fix some XL710 driver performance issues
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-229[trex-229] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-227[trex-227] 
+
+
 == Release 2.05  ==
 
 
 === fix issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-221] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-220] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-219] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-218] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-217] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-216] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-220[trex-220] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-219[trex-219] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-218[trex-218] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-217[trex-217] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-216[trex-216] 
 
 
 == Release 2.04  ==
