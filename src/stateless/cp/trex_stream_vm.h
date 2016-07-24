@@ -1417,7 +1417,7 @@ public:
         m_prefix_size=0;
         m_bss=0;
         m_pkt_size=0;
-        m_expected_pkt_size=0;
+        m_expected_pkt_size=0.0;
         m_cur_var_offset=0;
 
         m_is_random_var=false;
@@ -1435,7 +1435,7 @@ public:
      * if the VM changes the packet length (random) 
      * 
      */
-    uint16_t calc_expected_pkt_size(uint16_t regular_pkt_size) const;
+    double calc_expected_pkt_size(uint16_t regular_pkt_size) const;
 
 
 
@@ -1576,7 +1576,7 @@ private:
     uint16_t                           m_prefix_size;
 
     uint16_t                           m_pkt_size;
-    uint16_t                           m_expected_pkt_size;
+    double                             m_expected_pkt_size;
 
     uint16_t                           m_cur_var_offset;
     uint16_t                           m_max_field_update; /* the location of the last byte that is going to be changed in the packet */ 

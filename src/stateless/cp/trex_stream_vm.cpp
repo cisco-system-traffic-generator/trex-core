@@ -27,7 +27,64 @@ limitations under the License.
 #include <common/Network/Packet/IPHeader.h>
 #include <common/basic_utils.h>
 
+/**
+ * provides some tools for the fast rand function 
+ * that is used by the datapath 
+ * some features of this function is different 
+ * from a regular random 
+ * (such as average can be off by few percents) 
+ * 
+ * @author imarom (7/24/2016)
+ */
+class FastRandUtils {
+public:
 
+    /**
+     * searches the target in the cache 
+     * if not found iterativly calculate it 
+     * and add it to the cache 
+     * 
+     */
+    double calc_fastrand_avg(uint16_t target) {
+        auto search = m_avg_cache.find(target);
+        if (search != m_avg_cache.end()) {
+            return search->second;
+        }
+
+        /* not found - calculate it */
+        double avg = iterate_calc(target);
+
+        /* if there is enough space - to the cache */
+        if (m_avg_cache.size() <= G_MAX_CACHE_SIZE) {
+            m_avg_cache[target] = avg;
+        }
+
+        return avg;
+    }
+
+private:
+
+    /**
+     * hard calculate a value using iterations
+     * 
+     */
+    double iterate_calc(uint16_t target) {
+         const int num_samples = 10000;
+         uint64_t tmp = 0;
+         uint32_t seed = 1;
+
+         for (int i = 0; i < num_samples; i++) {
+             tmp += fastrand(seed) % (target + 1);
+         }
+
+         return (tmp / double(num_samples));
+    }
+
+    std::unordered_map<uint16_t, double> m_avg_cache;
+    static const uint16_t G_MAX_CACHE_SIZE = 9230;
+};
+
+static FastRandUtils g_fastrand_util;
 
 
 void StreamVmInstructionFixChecksumIpv4::Dump(FILE *fd){
@@ -350,9 +407,11 @@ void StreamVm::build_flow_var_table() {
                 var.m_ins.m_ins_flowv->m_min_value =60;
             }
 
-            m_expected_pkt_size = (var.m_ins.m_ins_flowv->m_min_value + var.m_ins.m_ins_flowv->m_max_value) / 2;
+            /* expected packet size calculation */
+            uint16_t range = var.m_ins.m_ins_flowv->m_max_value - var.m_ins.m_ins_flowv->m_min_value;
+            m_expected_pkt_size = var.m_ins.m_ins_flowv->m_min_value + g_fastrand_util.calc_fastrand_avg(range);
         }
-    }/* for */
+    }
 
 }
 
@@ -962,7 +1021,7 @@ StreamVm::~StreamVm() {
  * calculate expected packet size of stream's VM
  * 
  */
-uint16_t 
+double
 StreamVm::calc_expected_pkt_size(uint16_t regular_pkt_size) const {
 
     /* if no packet size change - simply return the regular packet size */
