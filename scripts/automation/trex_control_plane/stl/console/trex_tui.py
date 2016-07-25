@@ -619,19 +619,15 @@ class AsyncKeys:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
 
         # huge buffer - no print without flush
-        tmp_fd = os.dup(sys.stdout.fileno())
-        sys.stdout.close()
-        sys.stdout = os.fdopen(tmp_fd, 'w', 80 * 25 * 2)
-
+        sys.stdout = open('/dev/stdout', 'w', TrexTUI.MIN_COLS * TrexTUI.MIN_COLS * 2)
         return self
 
     def __exit__ (self, type, value, traceback):
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
 
         # restore sys.stdout
-        tmp_fd = os.dup(sys.stdout.fileno())
         sys.stdout.close()
-        sys.stdout = os.fdopen(tmp_fd, 'w', -1)
+        sys.stdout = sys.__stdout__
 
 
     def is_legend_mode (self):
