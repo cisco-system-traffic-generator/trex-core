@@ -691,6 +691,9 @@ TrexStatelessPort::calculate_effective_factor_internal(const TrexPortMultiplier 
     case TrexPortMultiplier::MUL_BPS:
         return m_graph_obj->get_factor_bps_l2(mul.m_value);
 
+    case TrexPortMultiplier::MUL_BPSL1:
+        return m_graph_obj->get_factor_bps_l1(mul.m_value);
+
     case TrexPortMultiplier::MUL_PPS:
         return m_graph_obj->get_factor_pps(mul.m_value);
 
@@ -741,7 +744,7 @@ TrexStatelessPort::delete_streams_graph() {
  * port multiplier
  * 
  **************************/
-const std::initializer_list<std::string> TrexPortMultiplier::g_types = {"raw", "bps", "pps", "percentage"};
+const std::initializer_list<std::string> TrexPortMultiplier::g_types = {"raw", "bps", "bpsl1", "pps", "percentage"};
 const std::initializer_list<std::string> TrexPortMultiplier::g_ops   = {"abs", "add", "sub"};
 
 TrexPortMultiplier::
@@ -754,6 +757,9 @@ TrexPortMultiplier(const std::string &type_str, const std::string &op_str, doubl
 
     } else if (type_str == "bps") {
         type = MUL_BPS;
+
+    } else if (type_str == "bpsl1") {
+        type = MUL_BPSL1;
 
     } else if (type_str == "pps") {
         type = MUL_PPS;

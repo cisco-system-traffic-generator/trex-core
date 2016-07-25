@@ -96,78 +96,74 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 # value should be divided
 def decode_multiplier(val, allow_update = False, divide_count = 1):
 
+    factor_table = {None: 1, 'k': 1e3, 'm': 1e6, 'g': 1e9}
+    pattern = "^(\d+(\.\d+)?)(((k|m|g)?(bpsl1|pps|bps))|%)?"
+
     # do we allow updates ?  +/-
     if not allow_update:
-        match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
+        pattern += "$"
+        match = re.match(pattern, val)
         op = None
     else:
-        match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)([\+\-])?$", val)
+        pattern += "([\+\-])?$"
+        match = re.match(pattern, val)
         if match:
-            op  = match.group(4)
+            op  = match.group(7)
         else:
             op = None
 
     result = {}
 
-    if match:
-
-        value = float(match.group(1))
-        unit = match.group(3)
-        
-
-        
-        # raw type (factor)
-        if not unit:
-            result['type'] = 'raw'
-            result['value'] = value
-
-        elif unit == 'bps':
-            result['type'] = 'bps'
-            result['value'] = value
-
-        elif unit == 'kbps':
-            result['type'] = 'bps'
-            result['value'] = value * 1000
-
-        elif unit == 'mbps':
-            result['type'] = 'bps'
-            result['value'] = value * 1000 * 1000
-
-        elif unit == 'gbps':
-            result['type'] = 'bps'
-            result['value'] = value * 1000 * 1000 * 1000
-
-        elif unit == 'pps':
-            result['type'] = 'pps'
-            result['value'] = value
-
-        elif unit == "kpps":
-            result['type'] = 'pps'
-            result['value'] = value * 1000
-
-        elif unit == "mpps":
-            result['type'] = 'pps'
-            result['value'] = value * 1000 * 1000
-
-        elif unit == "%":
-            result['type'] = 'percentage'
-            result['value']  = value
-
-
-        if op == "+":
-            result['op'] = "add"
-        elif op == "-":
-            result['op'] = "sub"
-        else:
-            result['op'] = "abs"
-
-        if result['op'] != 'percentage':
-            result['value'] = result['value'] / divide_count
-
-        return result
-
-    else:
+    if not match:
         return None
+
+    # value in group 1
+    value = float(match.group(1))
+
+    # decode unit as whole
+    unit = match.group(3)
+
+    # k,m,g
+    factor = match.group(5)
+
+    # type of multiplier
+    m_type = match.group(6)
+
+    # raw type (factor)
+    if not unit:
+        result['type'] = 'raw'
+        result['value'] = value
+
+    # percentage
+    elif unit == '%':
+        result['type'] = 'percentage'
+        result['value']  = value
+
+    elif m_type == 'bps':
+        result['type'] = 'bps'
+        result['value'] = value * factor_table[factor]
+
+    elif m_type == 'pps':
+        result['type'] = 'pps'
+        result['value'] = value * factor_table[factor]
+
+    elif m_type == 'bpsl1':
+        result['type'] = 'bpsl1'
+        result['value'] = value * factor_table[factor]
+
+
+    if op == "+":
+        result['op'] = "add"
+    elif op == "-":
+        result['op'] = "sub"
+    else:
+        result['op'] = "abs"
+
+    if result['op'] != 'percentage':
+        result['value'] = result['value'] / divide_count
+
+    return result
+
 
 
 def match_multiplier(val):
