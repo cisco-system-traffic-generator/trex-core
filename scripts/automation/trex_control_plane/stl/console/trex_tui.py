@@ -5,6 +5,7 @@ import time
 from collections import OrderedDict, deque
 import datetime
 import readline
+from texttable import ansi_len
 
 if sys.version_info > (3,0):
     from io import StringIO
@@ -449,6 +450,17 @@ class TrexTUI():
     STATE_RECONNECT  = 2
     is_graph = False
 
+    MIN_ROWS = 50
+    MIN_COLS = 111
+
+    class ScreenSizeException(Exception):
+        def __init__ (self, cols, rows):
+            msg = "TUI requires console screen size of at least {0}x{1}, current is {2}x{3}".format(TrexTUI.MIN_COLS,
+                                                                                                    TrexTUI.MIN_ROWS,
+                                                                                                    cols,
+                                                                                                    rows)
+            super(TrexTUI.ScreenSizeException, self).__init__(msg)
+
     def __init__ (self, stateless_client):
         self.stateless_client = stateless_client
 
@@ -472,6 +484,11 @@ class TrexTUI():
 
 
     def show (self, client, show_log = False, locked = False):
+        
+        rows, cols = os.popen('stty size', 'r').read().split()
+        if (int(rows) < TrexTUI.MIN_ROWS) or (int(cols) < TrexTUI.MIN_COLS):
+            raise self.ScreenSizeException(rows = rows, cols = cols)
+
         with AsyncKeys(client, locked) as async_keys:
             sys.stdout.write("\x1bc")
             self.async_keys = async_keys
@@ -691,16 +708,22 @@ class AsyncKeysEngineConsole:
         self.async = async
         self.lines = deque(maxlen = 100)
 
-        self.ac = {'start' : client.start_line,
-                   'stop'  : client.stop_line,
-                   'pause' : client.pause_line,
-                   'resume': client.resume_line,
-                   'update': client.update_line,
-                   'quit'  : self.action_quit,
-                   'q'     : self.action_quit,
-                   'exit'  : self.action_quit,
-                   'help'  : self.action_help,
-                   '?'     : self.action_help}
+        self.generate_prompt = client.generate_prompt
+
+        self.ac = {'start'        : client.start_line,
+                   'stop'         : client.stop_line,
+                   'pause'        : client.pause_line,
+                   'resume'       : client.resume_line,
+                   'update'       : client.update_line,
+                   'connect'      : client.connect_line,
+                   'disconnect'   : client.disconnect_line,
+                   'acquire'      : client.acquire_line,
+                   'release'      : client.release_line,
+                   'quit'         : self.action_quit,
+                   'q'            : self.action_quit,
+                   'exit'         : self.action_quit,
+                   'help'         : self.action_help,
+                   '?'            : self.action_help}
 
         # fetch readline history and add relevants
         for i in range(0, readline.get_current_history_length()):
@@ -916,6 +939,7 @@ class AsyncKeysEngineConsole:
             line.invalidate()
 
         assert(self.lines[0].modified == False)
+        color = None
         if not func:
             self.last_status = "unknown command: '{0}'".format(format_text(cmd.split()[0], 'bold'))
         else:
@@ -923,12 +947,16 @@ class AsyncKeysEngineConsole:
                 self.last_status = func_rc
             else:
                 self.last_status = format_text("[OK]", 'green') if func_rc else format_text(str(func_rc).replace('\n', ''), 'red')
+                color = 'red'
 
+        # trim too long lines
+        if ansi_len(self.last_status) > 100:
+            self.last_status = format_text(self.last_status[:100] + "...", color, 'bold')
 
     def draw (self):
         sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
         sys.stdout.write("status: \x1b[0K{0}\n".format(self.last_status))
-        sys.stdout.write("\ntui>\x1b[0K")
+        sys.stdout.write("\n{0}\x1b[0K".format(self.generate_prompt(prefix = 'tui')))
         self.lines[self.line_index].draw()
 
 

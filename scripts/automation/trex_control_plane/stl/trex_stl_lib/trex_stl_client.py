@@ -2442,7 +2442,7 @@ class STLClient(object):
     def ping_line (self, line):
         '''pings the server'''
         self.ping()
-        return True
+        return RC_OK()
 
     @__console
     def connect_line (self, line):
@@ -2454,14 +2454,13 @@ class STLClient(object):
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         self.connect()
         self.acquire(ports = opts.ports, force = opts.force)
 
-        # true means print time
-        return True
+        return RC_OK()
 
 
     @__console
@@ -2476,19 +2475,19 @@ class STLClient(object):
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         # filter out all the already owned ports
         ports = list_difference(opts.ports, self.get_acquired_ports())
         if not ports:
-            self.logger.log("acquire - all port(s) {0} are already acquired".format(opts.ports))
-            return
+            msg = "acquire - all of port(s) {0} are already acquired".format(opts.ports)
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_ERR(msg)
 
         self.acquire(ports = ports, force = opts.force)
 
-        # true means print time
-        return True
+        return RC_OK()
 
 
     #
@@ -2502,23 +2501,24 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         ports = list_intersect(opts.ports, self.get_acquired_ports())
         if not ports:
             if not opts.ports:
-                self.logger.log("release - no acquired ports")
-                return
+                msg = "release - no acquired ports"
+                self.logger.log(format_text(msg, 'bold'))
+                return RC_ERR(msg)
             else:
-                self.logger.log("release - none of port(s) {0} are acquired".format(opts.ports))
-                return
+                msg = "release - none of port(s) {0} are acquired".format(opts.ports)
+                self.logger.log(format_text(msg, 'bold'))
+                return RC_ERR(msg)
 
         
         self.release(ports = ports)
 
-        # true means print time
-        return True
+        return RC_OK()
 
 
     @__console
@@ -2530,23 +2530,23 @@ class STLClient(object):
                                          self.reacquire_line.__doc__)
 
         opts = parser.parse_args(line.split())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         # find all the on-owned ports under your name
         my_unowned_ports = list_difference([k for k, v in self.ports.items() if v.get_owner() == self.username], self.get_acquired_ports())
         if not my_unowned_ports:
-            self.logger.log("reacquire - no unowned ports under '{0}'".format(self.username))
-            return
+            msg = "reacquire - no unowned ports under '{0}'".format(self.username)
+            self.logger.log(msg)
+            return RC_ERR(msg)
 
         self.acquire(ports = my_unowned_ports, force = True)
-        return True
+        return RC_OK()
 
 
     @__console
     def disconnect_line (self, line):
         self.disconnect()
-        
 
 
     @__console
@@ -2559,13 +2559,12 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         self.reset(ports = opts.ports)
 
-        # true means print time
-        return True
+        return RC_OK()
 
 
 
@@ -2586,8 +2585,8 @@ class STLClient(object):
                                          parsing_opts.DRY_RUN)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-        if opts is None:
-            return RC_ERR("invalid arguments for 'start'")
+        if not opts:
+            return opts
 
         active_ports = list_intersect(self.get_active_ports(), opts.ports)
         if active_ports:
@@ -2663,8 +2662,8 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
-        if opts is None:
-            return RC_ERR("invalid arguments for 'stop'")
+        if not opts:
+            return opts
 
 
         # find the relevant ports
@@ -2681,7 +2680,6 @@ class STLClient(object):
         # call API
         self.stop(ports)
 
-        # true means print time
         return RC_OK()
 
 
@@ -2697,8 +2695,8 @@ class STLClient(object):
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
-        if opts is None:
-            return RC_ERR("invalid arguments for 'update'")
+        if not opts:
+            return opts
 
 
         # find the relevant ports
@@ -2714,7 +2712,6 @@ class STLClient(object):
 
         self.update(ports, opts.mult, opts.total, opts.force)
 
-        # true means print time
         return RC_OK()
 
 
@@ -2727,8 +2724,8 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_transmitting_ports(), verify_acquired = True)
-        if opts is None:
-            return RC_ERR("invalid arguments for 'pause'")
+        if not opts:
+            return opts
 
         # check for already paused case
         if opts.ports and is_sub_list(opts.ports, self.get_paused_ports()):
@@ -2749,7 +2746,6 @@ class STLClient(object):
 
         self.pause(ports)
 
-        # true means print time
         return RC_OK()
 
 
@@ -2762,8 +2758,8 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_paused_ports(), verify_acquired = True)
-        if opts is None:
-            return RC_ERR("invalid arguments for 'resume'")
+        if not opts:
+            return opts
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_paused_ports())
@@ -2794,8 +2790,8 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split())
 
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         self.clear_stats(opts.ports)
 
@@ -2814,8 +2810,8 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split())
 
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         # determine stats mask
         mask = self.__get_mask_keys(**self.__filter_namespace_args(opts, trex_stl_stats.ALL_STATS_OPTS))
@@ -2845,8 +2841,8 @@ class STLClient(object):
 
         opts = parser.parse_args(line.split())
 
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         streams = self._get_streams(opts.ports, set(opts.streams))
         if not streams:
@@ -2872,8 +2868,8 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         self.validate(opts.ports)
 
@@ -2897,8 +2893,8 @@ class STLClient(object):
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         active_ports = list(set(self.get_active_ports()).intersection(opts.ports))
 
@@ -2906,7 +2902,7 @@ class STLClient(object):
             if not opts.force:
                 msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
                 self.logger.log(format_text(msg, 'bold'))
-                return
+                return RC_ERR(msg)
             else:
                 self.stop(active_ports)
 
@@ -2930,7 +2926,7 @@ class STLClient(object):
 
         
 
-        return True
+        return RC_OK()
 
 
 
@@ -2945,8 +2941,8 @@ class STLClient(object):
                                          parsing_opts.PROMISCUOUS_SWITCH)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         # if no attributes - fall back to printing the status
         if opts.prom is None:
@@ -2954,7 +2950,7 @@ class STLClient(object):
             return
 
         self.set_port_attr(opts.ports, opts.prom)
-
+        return RC_OK()
     
 
     @__console
@@ -2967,8 +2963,8 @@ class STLClient(object):
                                          parsing_opts.FILE_PATH)
 
         opts = parser.parse_args(line.split())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
         info = STLProfile.get_info(opts.file[0])
 
@@ -3024,8 +3020,8 @@ class STLClient(object):
                                          *x)
 
         opts = parser.parse_args(line.split())
-        if opts is None:
-            return
+        if not opts:
+            return opts
 
 
         ev_type_filter = []
@@ -3046,3 +3042,15 @@ class STLClient(object):
         if opts.clear:
             self.clear_events()
          
+    def generate_prompt (self, prefix = 'trex'):
+        if not self.is_connected():
+            return "{0}(offline)>".format(prefix)
+
+        elif not self.get_acquired_ports():
+            return "{0}(read-only)>".format(prefix)
+
+        elif self.is_all_ports_acquired():
+            return "{0}>".format(prefix)
+
+        else:
+            return "{0} {1}>".format(prefix, self.get_acquired_ports())

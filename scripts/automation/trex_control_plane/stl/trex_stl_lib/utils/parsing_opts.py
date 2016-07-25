@@ -1,6 +1,9 @@
 import argparse
 from collections import namedtuple
 from .common import list_intersect, list_difference
+from .text_opts import format_text
+from ..trex_stl_types import *
+
 import sys
 import re
 import os
@@ -400,6 +403,11 @@ class CCmdArgParser(argparse.ArgumentParser):
     def _print_message(self, message, file=None):
         self.stateless_client.logger.log(message)
 
+    def error(self, message):
+        self.print_usage()
+        self._print_message(('%s: error: %s\n') % (self.prog, message))
+        raise ValueError(message)
+
     def has_ports_cfg (self, opts):
         return hasattr(opts, "all_ports") or hasattr(opts, "ports")
 
@@ -407,7 +415,7 @@ class CCmdArgParser(argparse.ArgumentParser):
         try:
             opts = super(CCmdArgParser, self).parse_args(args, namespace)
             if opts is None:
-                return None
+                return RC_ERR("'{0}' - invalid arguments".format(self.cmd_name))
 
             if not self.has_ports_cfg(opts):
                 return opts
@@ -422,8 +430,9 @@ class CCmdArgParser(argparse.ArgumentParser):
             # so maybe we have ports configured
             invalid_ports = list_difference(opts.ports, self.stateless_client.get_all_ports())
             if invalid_ports:
-                self.stateless_client.logger.log("{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports))
-                return None
+                msg = "{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports)
+                self.stateless_client.logger.log(format_text(msg, 'bold'))
+                return RC_ERR(msg)
 
             # verify acquired ports
             if verify_acquired:
@@ -431,21 +440,25 @@ class CCmdArgParser(argparse.ArgumentParser):
 
                 diff = list_difference(opts.ports, acquired_ports)
                 if diff:
-                    self.stateless_client.logger.log("{0} - port(s) {1} are not acquired".format(self.cmd_name, diff))
-                    return None
+                    msg = "{0} - port(s) {1} are not acquired".format(self.cmd_name, diff)
+                    self.stateless_client.logger.log(format_text(msg, 'bold'))
+                    return RC_ERR(msg)
 
                 # no acquire ports at all
                 if not acquired_ports:
-                    self.stateless_client.logger.log("{0} - no acquired ports".format(self.cmd_name))
-                    return None
-
+                    msg = "{0} - no acquired ports".format(self.cmd_name)
+                    self.stateless_client.logger.log(format_text(msg, 'bold'))
+                    return RC_ERR(msg)
 
 
             return opts
 
+        except ValueError as e:
+            return RC_ERR("'{0}' - {1}".format(self.cmd_name, str(e)))
+
         except SystemExit:
             # recover from system exit scenarios, such as "help", or bad arguments.
-            return None
+            return RC_ERR("'{0}' - {1}".format(self.cmd_name, "no action"))
 
 
 def get_flags (opt):
