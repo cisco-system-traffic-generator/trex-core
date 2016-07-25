@@ -95,8 +95,6 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
 
     def test_static_routing_imix (self):
-        self.skip('Skip due to an issue with trex09 ')
-
         if self.is_loopback:
             self.skip('In loopback mode the test is same as test_routing_imix')
         # test initializtion
