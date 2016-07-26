@@ -622,11 +622,13 @@ if __name__ == '__main__':
 
     last_status = category_dict_status.get(scenario, 'Successful') # assume last is passed if no history
     if err or len(error_tests): # has fails
+        exit_status = 1
         if is_good_status(last_status):
             current_status = 'Failure'
         else:
             current_status = 'Still Failing'
     else:
+        exit_status = 0
         if is_good_status(last_status):
             current_status = 'Successful'
         else:
@@ -652,3 +654,6 @@ if __name__ == '__main__':
     with open(args.output_titlefile, 'w') as f:
         print('Writing output file: %s' % args.output_titlefile)
         f.write(mailtitle_output)
+
+# exit
+    sys.exit(exit_status)
