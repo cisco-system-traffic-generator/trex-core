@@ -776,12 +776,12 @@ class CTRexStats(object):
 
         return value
 
-    def get(self, field, format=False, suffix=""):
+    def get(self, field, format=False, suffix="", opts = None):
         value = self._get(self.latest_stats, field)
         if value == None:
             return 'N/A'
 
-        return value if not format else format_num(value, suffix)
+        return value if not format else format_num(value, suffix = suffix, opts = opts)
 
 
     def get_rel(self, field, format=False, suffix=""):
@@ -1020,13 +1020,19 @@ class CPortStats(CTRexStats):
         else:
             state = format_text(state, 'bold')
 
+        # default rate format modifiers
+        rate_format = {'bpsl1': None, 'bps': None, 'pps': None, 'percentage': 'bold'}
+
         # mark owned ports by color
         if self._port_obj:
             owner = self._port_obj.get_owner()
+            rate_format[self._port_obj.last_factor_type] = ('blue', 'bold')
             if self._port_obj.is_acquired():
                 owner = format_text(owner, 'green')
+
         else:
             owner = ''
+
 
         return {"owner": owner,
                 "state": "{0}".format(state),
@@ -1038,21 +1044,19 @@ class CPortStats(CTRexStats):
                 "-----": " ",
 
                 "Tx bps L1": "{0} {1}".format(self.get_trend_gui("m_total_tx_bps_L1", show_value = False),
-                                               self.get("m_total_tx_bps_L1", format = True, suffix = "bps")),
+                                               self.get("m_total_tx_bps_L1", format = True, suffix = "bps", opts = rate_format['bpsl1'])),
 
                 "Tx bps L2": "{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
-                                               self.get("m_total_tx_bps", format = True, suffix = "bps")),
+                                                self.get("m_total_tx_bps", format = True, suffix = "bps", opts = rate_format['bps'])),
 
-                "Line Util.": "{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False),
-                                                format_text(
-                                                    self.get("m_percentage", format = True, suffix = "%") if self._port_obj else "",
-                                                    'bold')) if self._port_obj else "",
+                "Line Util.": "{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False) if self._port_obj else "",
+                                               self.get("m_percentage", format = True, suffix = "%", opts = rate_format['percentage']) if self._port_obj else ""),
 
                 "Rx bps": "{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
                                             self.get("m_total_rx_bps", format = True, suffix = "bps")),
                   
                 "Tx pps": "{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
-                                            self.get("m_total_tx_pps", format = True, suffix = "pps")),
+                                            self.get("m_total_tx_pps", format = True, suffix = "pps", opts = rate_format['pps'])),
 
                 "Rx pps": "{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
                                             self.get("m_total_rx_pps", format = True, suffix = "pps")),

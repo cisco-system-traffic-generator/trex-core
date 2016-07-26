@@ -68,7 +68,7 @@ class Port(object):
         self.has_rx_streams = False
 
         self.owner = ''
-
+        self.last_factor_type = None
 
     # decorator to verify port is up
     def up(func):
@@ -417,6 +417,9 @@ class Port(object):
             self.state = last_state
             return self.err(rc.err())
 
+        # save this for TUI
+        self.last_factor_type = mul['type']
+
         return self.ok()
 
 
@@ -424,7 +427,7 @@ class Port(object):
     # with force ignores the cached state and sends the command
     @owned
     def stop (self, force = False):
-        
+
         # if not is not active and not force - go back
         if not self.is_active() and not force:
             return self.ok()
@@ -437,10 +440,11 @@ class Port(object):
             return self.err(rc.err())
 
         self.state = self.STATE_STREAMS
+        self.last_factor_type = None
 
         # timestamp for last tx
         self.tx_stopped_ts = datetime.now()
-
+        
         return self.ok()
 
 
@@ -534,6 +538,9 @@ class Port(object):
         rc = self.transmit("update_traffic", params)
         if rc.bad():
             return self.err(rc.err())
+
+        # save this for TUI
+        self.last_factor_type = mul['type']
 
         return self.ok()
 
@@ -712,6 +719,7 @@ class Port(object):
         # until thread is locked - order is important
         self.tx_stopped_ts = datetime.now()
         self.state = self.STATE_STREAMS
+        self.last_factor_type = None
 
     # rest of the events are used for TUI / read only sessions
     def async_event_port_stopped (self):

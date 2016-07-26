@@ -573,7 +573,8 @@ class TRexConsole(TRexGeneralCmd):
         
         try:
             with self.stateless_client.logger.supress():
-                self.tui.show(self.stateless_client, locked = opts.locked)
+                self.tui.show(self.stateless_client, self.save_console_history, locked = opts.locked)
+
         except self.tui.ScreenSizeException as e:
             print(format_text(str(e) + "\n", 'bold'))
 

@@ -24,6 +24,16 @@ class TUIQuit(Exception):
 # for STL exceptions
 from trex_stl_lib.api import *
 
+def ascii_split (s):
+    output = []
+
+    lines = s.split('\n')
+    for elem in lines:
+        if ansi_len(elem) > 0:
+            output.append(elem)
+
+    return output
+
 class SimpleBar(object):
     def __init__ (self, desc, pattern):
         self.desc = desc
@@ -483,13 +493,13 @@ class TrexTUI():
         #sys.stdout.write("\x1b[2J\x1b[H")
 
 
-    def show (self, client, show_log = False, locked = False):
+    def show (self, client, save_console_history, show_log = False, locked = False):
         
         rows, cols = os.popen('stty size', 'r').read().split()
         if (int(rows) < TrexTUI.MIN_ROWS) or (int(cols) < TrexTUI.MIN_COLS):
             raise self.ScreenSizeException(rows = rows, cols = cols)
 
-        with AsyncKeys(client, locked) as async_keys:
+        with AsyncKeys(client, save_console_history, locked) as async_keys:
             sys.stdout.write("\x1bc")
             self.async_keys = async_keys
             self.show_internal(show_log, locked)
@@ -597,8 +607,8 @@ class AsyncKeys:
     STATUS_REDRAW_KEYS = 1
     STATUS_REDRAW_ALL  = 2
 
-    def __init__ (self, client, locked = False):
-        self.engine_console = AsyncKeysEngineConsole(self, client)
+    def __init__ (self, client, save_console_history, locked = False):
+        self.engine_console = AsyncKeysEngineConsole(self, client, save_console_history)
         self.engine_legend  = AsyncKeysEngineLegend(self)
         self.locked = locked
 
@@ -700,11 +710,12 @@ class AsyncKeysEngineLegend:
 
 # console engine
 class AsyncKeysEngineConsole:
-    def __init__ (self, async, client):
+    def __init__ (self, async, client, save_console_history):
         self.async = async
         self.lines = deque(maxlen = 100)
 
-        self.generate_prompt = client.generate_prompt
+        self.generate_prompt       = client.generate_prompt
+        self.save_console_history  = save_console_history
 
         self.ac = {'start'        : client.start_line,
                    'stop'         : client.stop_line,
@@ -929,6 +940,7 @@ class AsyncKeysEngineConsole:
         self.lines.appendleft(empty_line)
         self.line_index = 0
         readline.add_history(cmd)
+        self.save_console_history()
 
         # back to readonly
         for line in self.lines:
@@ -939,15 +951,28 @@ class AsyncKeysEngineConsole:
         if not func:
             self.last_status = "unknown command: '{0}'".format(format_text(cmd.split()[0], 'bold'))
         else:
+            # internal commands
             if isinstance(func_rc, str):
                 self.last_status = func_rc
+
+            # RC response
             else:
-                self.last_status = format_text("[OK]", 'green') if func_rc else format_text(str(func_rc).replace('\n', ''), 'red')
-                color = 'red'
+                # success
+                if func_rc:
+                    self.last_status = format_text("[OK]", 'green')
+
+                # errors
+                else:
+                    err_msgs = ascii_split(str(func_rc))
+                    self.last_status = format_text(err_msgs[0], 'red')
+                    if len(err_msgs) > 1:
+                        self.last_status += " [{0} more errors messages]".format(len(err_msgs) - 1)
+                    color = 'red'
 
         # trim too long lines
-        if ansi_len(self.last_status) > 100:
-            self.last_status = format_text(self.last_status[:100] + "...", color, 'bold')
+        if ansi_len(self.last_status) > TrexTUI.MIN_COLS:
+            self.last_status = format_text(self.last_status[:TrexTUI.MIN_COLS] + "...", color, 'bold')
+
 
     def draw (self):
         sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
