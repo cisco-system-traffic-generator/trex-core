@@ -1658,14 +1658,38 @@ class STLClient(object):
 
         """
 
-        self.logger.pre_cmd( "Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
-                                                                               self.connection_info['sync_port']))
+        self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
+                                                                              self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
         
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
+
+    @__api_check(True)
+    def server_shutdown (self, force = False):
+        """
+            Sends the server a request for total shutdown
+
+            :parameters:
+                force - shutdown server even if some ports are owned by another
+                        user
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        self.logger.pre_cmd("Sending shutdown request for the server")
+
+        rc = self._transmit("shutdown", params = {'force': force, 'user': self.username})
+
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
 
     @__api_check(True)
     def get_active_pgids(self):
@@ -2107,7 +2131,7 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 
-        validate_type('pcap_filename', pcap_filename, str)
+        validate_type('pcap_filename', pcap_filename, basestring)
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
         validate_type('speedup',  speedup, (float, int))
         validate_type('count',  count, int)
@@ -2174,7 +2198,7 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 
-        validate_type('pcap_filename', pcap_filename, str)
+        validate_type('pcap_filename', pcap_filename, basestring)
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
         validate_type('speedup',  speedup, (float, int))
         validate_type('count',  count, int)
@@ -2442,6 +2466,21 @@ class STLClient(object):
     def ping_line (self, line):
         '''pings the server'''
         self.ping()
+        return RC_OK()
+
+    @__console
+    def shutdown_line (self, line):
+        '''shutdown the server'''
+        parser = parsing_opts.gen_parser(self,
+                                         "shutdown",
+                                         self.shutdown_line.__doc__,
+                                         parsing_opts.FORCE)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+        self.server_shutdown(force = opts.force)    
         return RC_OK()
 
     @__console

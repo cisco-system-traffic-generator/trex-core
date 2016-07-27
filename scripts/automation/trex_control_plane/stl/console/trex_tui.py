@@ -720,6 +720,7 @@ class AsyncKeysEngineConsole:
         self.ac = {'start'        : client.start_line,
                    'stop'         : client.stop_line,
                    'pause'        : client.pause_line,
+                   'push'         : client.push_line,
                    'resume'       : client.resume_line,
                    'update'       : client.update_line,
                    'connect'      : client.connect_line,
@@ -847,8 +848,9 @@ class AsyncKeysEngineConsole:
 
     # handle TAB for completing filenames
     def handle_tab_files (self, tokens):
-        # we support only start command with files
-        if tokens[0] != 'start':
+
+        # only commands with files
+        if tokens[0] not in {'start', 'push'}:
             return
 
         # '-f' with no paramters - no partial and use current dir

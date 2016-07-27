@@ -92,6 +92,32 @@ TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 }
 
 /**
+ * shutdown command
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdShutdown::_run(const Json::Value &params, Json::Value &result) {
+
+    const string &user = parse_string(params, "user", result);
+    bool force = parse_bool(params, "force", result);
+
+    /* verify every port is either free or owned by the issuer */
+    for (auto port : get_stateless_obj()->get_port_list()) {
+        TrexPortOwner &owner = port->get_owner();
+        if ( (!owner.is_free()) && (!owner.is_owned_by(user)) && !force) {
+            std::stringstream ss;
+            ss << "port " << int(port->get_port_id()) << " is owned by '" << owner.get_name() << "' - specify 'force' for override";
+            generate_execute_err(result, ss.str());
+        }
+    }
+
+    /* signal that we got a shutdown request */
+    get_stateless_obj()->get_platform_api()->mark_for_shutdown("server received RPC 'shutdown' request");
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
  * query command
  */
 trex_rpc_cmd_rc_e

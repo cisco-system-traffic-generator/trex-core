@@ -68,6 +68,8 @@ TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
  */
 TrexStateless::~TrexStateless() {
 
+    shutdown();
+
     /* release memory for ports */
     for (auto port : m_ports) {
         delete port;
@@ -75,15 +77,33 @@ TrexStateless::~TrexStateless() {
     m_ports.clear();
 
     /* stops the RPC server */
-    m_rpc_server->stop();
-    delete m_rpc_server;
+    if (m_rpc_server) {
+        delete m_rpc_server;
+        m_rpc_server = NULL;
+    }
 
-    m_rpc_server = NULL;
-
-    delete m_platform_api;
-    m_platform_api = NULL;
+    if (m_platform_api) {
+        delete m_platform_api;
+        m_platform_api = NULL;
+    }
 }
 
+/**
+* shutdown the server
+*/
+void TrexStateless::shutdown() {
+
+    /* stop ports */
+    for (TrexStatelessPort *port : m_ports) {
+        /* safe to call stop even if not active */
+        port->stop_traffic();
+    }
+
+    /* shutdown the RPC server */
+    if (m_rpc_server) {
+        m_rpc_server->stop();
+    }
+}
 
 /**
  * starts the control plane side

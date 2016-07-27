@@ -67,6 +67,8 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
 
     register_command(new TrexRpcCmdValidate());
     register_command(new TrexRpcCmdPushRemote());
+
+    register_command(new TrexRpcCmdShutdown());
 }
 
 

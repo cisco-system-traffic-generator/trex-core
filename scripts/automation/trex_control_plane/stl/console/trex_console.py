@@ -279,6 +279,11 @@ class TRexConsole(TRexGeneralCmd):
         self.stateless_client.ping_line(line)
 
 
+    @verify_connected
+    def do_shutdown (self, line):
+        '''Sends the server a shutdown request\n'''
+        self.stateless_client.shutdown_line(line)
+
     # set verbose on / off
     def do_verbose(self, line):
         '''Shows or set verbose mode\n'''

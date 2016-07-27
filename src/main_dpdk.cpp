@@ -20,6 +20,7 @@
 */
 #include <assert.h>
 #include <pthread.h>
+#include <signal.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <string.h>
@@ -2486,40 +2487,40 @@ public:
     void DumpAllPorts(FILE *fd);
     void dump_json(std::string & json, bool baseline);
 private:
-    std::string get_field(std::string name,float &f);
-    std::string get_field(std::string name,uint64_t &f);
-    std::string get_field_port(int port,std::string name,float &f);
-    std::string get_field_port(int port,std::string name,uint64_t &f);
+    std::string get_field(const char *name, float &f);
+    std::string get_field(const char *name, uint64_t &f);
+    std::string get_field_port(int port, const char *name, float &f);
+    std::string get_field_port(int port, const char *name, uint64_t &f);
 
 };
 
-std::string CGlobalStats::get_field(std::string name,float &f){
+std::string CGlobalStats::get_field(const char *name, float &f){
     char buff[200];
     if(f <= -10.0 or f >= 10.0)
-        snprintf(buff, sizeof(buff), "\"%s\":%.1f,",name.c_str(),f);
+        snprintf(buff, sizeof(buff), "\"%s\":%.1f,",name,f);
     else
-        snprintf(buff, sizeof(buff), "\"%s\":%.3e,",name.c_str(),f);
+        snprintf(buff, sizeof(buff), "\"%s\":%.3e,",name,f);
     return (std::string(buff));
 }
 
-std::string CGlobalStats::get_field(std::string name,uint64_t &f){
+std::string CGlobalStats::get_field(const char *name, uint64_t &f){
     char buff[200];
-    snprintf(buff,  sizeof(buff), "\"%s\":%llu,",name.c_str(), (unsigned long long)f);
+    snprintf(buff,  sizeof(buff), "\"%s\":%llu,", name, (unsigned long long)f);
     return (std::string(buff));
 }
 
-std::string CGlobalStats::get_field_port(int port,std::string name,float &f){
+std::string CGlobalStats::get_field_port(int port, const char *name, float &f){
     char buff[200];
     if(f <= -10.0 or f >= 10.0)
-        snprintf(buff,  sizeof(buff), "\"%s-%d\":%.1f,",name.c_str(),port,f);
+        snprintf(buff,  sizeof(buff), "\"%s-%d\":%.1f,", name, port, f);
     else
-        snprintf(buff, sizeof(buff), "\"%s-%d\":%.3e,",name.c_str(),port,f);
+        snprintf(buff, sizeof(buff), "\"%s-%d\":%.3e,", name, port, f);
     return (std::string(buff));
 }
 
-std::string CGlobalStats::get_field_port(int port,std::string name,uint64_t &f){
+std::string CGlobalStats::get_field_port(int port, const char *name, uint64_t &f){
     char buff[200];
-    snprintf(buff, sizeof(buff), "\"%s-%d\":%llu,",name.c_str(),port, (unsigned long long)f);
+    snprintf(buff, sizeof(buff), "\"%s-%d\":%llu,",name, port, (unsigned long long)f);
     return (std::string(buff));
 }
 
@@ -2538,8 +2539,8 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
     snprintf(ts_buff , sizeof(ts_buff), "\"ts\":{\"value\":%lu, \"freq\":%lu},", os_get_hr_tick_64(), os_get_hr_freq());
     json+= std::string(ts_buff);
 
-#define GET_FIELD(f) get_field(std::string(#f),f)
-#define GET_FIELD_PORT(p,f) get_field_port(p,std::string(#f),lp->f)
+#define GET_FIELD(f) get_field(#f, f)
+#define GET_FIELD_PORT(p,f) get_field_port(p, #f, lp->f)
 
     json+=GET_FIELD(m_cpu_util);
     json+=GET_FIELD(m_cpu_util_raw);
@@ -2781,6 +2782,7 @@ public:
         m_expected_cps=0.0;
         m_expected_bps=0.0;
         m_trex_stateless = NULL;
+        m_mark_for_shutdown = false;
     }
 
     bool Create();
@@ -2795,13 +2797,35 @@ public:
     bool is_all_links_are_up(bool dump=false);
     int  reset_counters();
 
+    /**
+     * mark for shutdown 
+     * on the next check - the control plane will 
+     * call shutdown() 
+     */
+    void mark_for_shutdown(const char *cause) {
+        printf("\n *** TRex shutting down - cause: '%s'\n", cause);
+        m_mark_for_shutdown = true;
+    }
+
 private:
+    void register_signals();
+
     /* try to stop all datapath cores and RX core */
     void try_stop_all_cores();
     /* send message to all dp cores */
     int  send_message_all_dp(TrexStatelessCpToDpMsgBase *msg);
     int  send_message_to_rx(TrexStatelessCpToRxMsgBase *msg);
     void check_for_dp_message_from_core(int thread_id);
+
+    bool is_marked_for_shutdown() const {
+        return m_mark_for_shutdown;
+    }
+
+    /**
+     * shutdown sequence
+     * 
+     */
+    void shutdown();
 
 public:
     void check_for_dp_messages();
@@ -2898,6 +2922,7 @@ private:
     std::mutex          m_cp_lock;
 
     TrexMonitor         m_monitor;
+    bool                m_mark_for_shutdown;
 
 public:
     TrexStateless       *m_trex_stateless;
@@ -3272,8 +3297,31 @@ int  CGlobalTRex::ixgbe_start(void){
     return (0);
 }
 
+static void trex_termination_handler(int signum);
+
+void CGlobalTRex::register_signals() {
+    struct sigaction action;
+
+    /* handler */
+    action.sa_handler = trex_termination_handler;
+
+    /* blocked signals during handling */
+    sigemptyset(&action.sa_mask);
+    sigaddset(&action.sa_mask, SIGINT);
+    sigaddset(&action.sa_mask, SIGTERM);
+
+    /* no flags */
+    action.sa_flags = 0;
+
+    /* register */
+    sigaction(SIGINT,  &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
+}
+
 bool CGlobalTRex::Create(){
     CFlowsYamlInfo     pre_yaml_info;
+
+    register_signals();
 
     m_stats_cnt =0;
     if (!get_is_stateless()) {
@@ -3908,17 +3956,16 @@ CGlobalTRex::handle_slow_path(bool &was_stopped) {
 
     if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ) {
         if ( m_io_modes.handle_io_modes() ) {
-            printf(" CTRL -C ... \n");
-            was_stopped=true;
+            mark_for_shutdown("CTRL + C detected");
             return false;
         }
     }
 
     if ( sanity_check() ) {
-        printf(" Test was stopped \n");
-        was_stopped=true;
+        mark_for_shutdown("Test was stopped");
         return false;
     }
+
     if (m_io_modes.m_g_mode != CTrexGlobalIoMode::gDISABLE ) {
         fprintf(stdout,"\033[2J");
         fprintf(stdout,"\033[2H");
@@ -4032,6 +4079,41 @@ CGlobalTRex::handle_fast_path() {
     return true;
 }
 
+
+/**
+ * shutdown sequence
+ * 
+ */
+void CGlobalTRex::shutdown() {
+
+    /* first stop the WD */
+    TrexWatchDog::getInstance().stop();
+
+    /* stateless shutdown */
+    if (get_is_stateless()) {
+        m_trex_stateless->shutdown();
+    }
+
+    if (!is_all_cores_finished()) {
+        try_stop_all_cores();
+    }
+
+    m_mg.stop();
+
+    delay(1000);
+
+    /* shutdown drivers */
+    for (int i = 0; i < m_max_ports; i++) {
+        rte_eth_dev_stop(i);
+    }
+
+    if (is_marked_for_shutdown()) {
+        /* we should stop latency and exit to stop agents */
+        exit(-1);
+    }
+}
+
+
 int CGlobalTRex::run_in_master() {
     bool was_stopped=false;
 
@@ -4052,7 +4134,7 @@ int CGlobalTRex::run_in_master() {
 
     TrexWatchDog::getInstance().start();
 
-    while ( true ) {
+    while (!is_marked_for_shutdown()) {
 
         /* fast path */
         if (!handle_fast_path()) {
@@ -4079,22 +4161,9 @@ int CGlobalTRex::run_in_master() {
     /* on exit release the lock */
     cp_lock.unlock();
 
-    /* first stop the WD */
-    TrexWatchDog::getInstance().stop();
-
-    if (!is_all_cores_finished()) {
-        /* probably CLTR-C */
-        try_stop_all_cores();
-    }
-
-    m_mg.stop();
-
-
-    delay(1000);
-    if ( was_stopped ){
-        /* we should stop latency and exit to stop agents */
-        exit(-1);
-    }
+    /* shutdown everything gracefully */
+    shutdown();
+   
     return (0);
 }
 
@@ -5702,6 +5771,37 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
     return(r);
 }
 
+/**
+ * handle a signal for termination
+ * 
+ * @author imarom (7/27/2016)
+ * 
+ * @param signum 
+ */
+static void trex_termination_handler(int signum) {
+    std::stringstream ss;
+
+    /* be sure that this was given on the main process */
+    assert(rte_eal_process_type() == RTE_PROC_PRIMARY);
+
+    const char *signame = "";
+    switch (signum) {
+    case SIGINT:
+        signame = "SIGINT";
+        break;
+
+    case SIGTERM:
+        signame = "SIGTERM";
+        break;
+
+    default:
+        assert(0);
+    }
+    
+    ss << "receieved signal '" << signame << "'";
+    g_trex.mark_for_shutdown(ss.str().c_str());
+}
+
 /***********************************************************
  * platfrom API object
  * TODO: REMOVE THIS TO A SEPERATE FILE
@@ -5870,4 +5970,13 @@ int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
 
 CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
     return CTRexExtendedDriverDb::Ins()->get_drv()->get_flow_stat_parser();
+}
+
+/**
+ * marks the control plane for a total server shutdown
+ * 
+ * @author imarom (7/27/2016)
+ */
+void TrexDpdkPlatformApi::mark_for_shutdown(const char *cause) const {
+    g_trex.mark_for_shutdown(cause);
 }
