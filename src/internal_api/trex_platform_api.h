@@ -161,7 +161,7 @@ public:
     virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
     virtual int get_mbuf_util(Json::Value &result) const = 0;
     virtual CFlowStatParser *get_flow_stat_parser() const = 0;
-    virtual void mark_for_shutdown(const char *cause) const = 0;
+    virtual void mark_for_shutdown() const = 0;
 
     virtual ~TrexPlatformApi() {}
 };
@@ -197,7 +197,7 @@ public:
     int get_active_pgids(flow_stat_active_t &result) const;
     int get_cpu_util_full(cpu_util_full_t &result) const;
     int get_mbuf_util(Json::Value &result) const;
-    void mark_for_shutdown(const char *cause) const;
+    void mark_for_shutdown() const;
     CFlowStatParser *get_flow_stat_parser() const;
 };
 
@@ -267,7 +267,7 @@ public:
     int get_mbuf_util(Json::Value &result) const {return 0;}
     CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
 
-    void mark_for_shutdown(const char *cause) const {}
+    void mark_for_shutdown() const {}
 
 private:
     int m_dp_core_count;

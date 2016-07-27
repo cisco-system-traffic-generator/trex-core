@@ -111,7 +111,7 @@ TrexRpcCmdShutdown::_run(const Json::Value &params, Json::Value &result) {
     }
 
     /* signal that we got a shutdown request */
-    get_stateless_obj()->get_platform_api()->mark_for_shutdown("server received RPC 'shutdown' request");
+    get_stateless_obj()->get_platform_api()->mark_for_shutdown();
 
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);

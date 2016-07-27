@@ -2772,6 +2772,20 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
 class CGlobalTRex  {
 
 public:
+
+    /**
+     * different types of shutdown causes
+     */
+    typedef enum {
+        SHUTDOWN_NONE,
+        SHUTDOWN_TEST_ENDED,
+        SHUTDOWN_CTRL_C,
+        SHUTDOWN_SIGINT,
+        SHUTDOWN_SIGTERM,
+        SHUTDOWN_RPC_REQ
+    } shutdown_rc_e;
+
+
     CGlobalTRex (){
         m_max_ports=4;
         m_max_cores=1;
@@ -2782,7 +2796,7 @@ public:
         m_expected_cps=0.0;
         m_expected_bps=0.0;
         m_trex_stateless = NULL;
-        m_mark_for_shutdown = false;
+        m_mark_for_shutdown = SHUTDOWN_NONE;
     }
 
     bool Create();
@@ -2802,9 +2816,13 @@ public:
      * on the next check - the control plane will 
      * call shutdown() 
      */
-    void mark_for_shutdown(const char *cause) {
-        printf("\n *** TRex shutting down - cause: '%s'\n", cause);
-        m_mark_for_shutdown = true;
+    void mark_for_shutdown(shutdown_rc_e rc) {
+
+        if (is_marked_for_shutdown()) {
+            return;
+        }
+
+        m_mark_for_shutdown = rc;
     }
 
 private:
@@ -2818,7 +2836,7 @@ private:
     void check_for_dp_message_from_core(int thread_id);
 
     bool is_marked_for_shutdown() const {
-        return m_mark_for_shutdown;
+        return (m_mark_for_shutdown != SHUTDOWN_NONE);
     }
 
     /**
@@ -2842,8 +2860,8 @@ public:
     int run_in_rx_core();
     int run_in_master();
 
-    bool handle_fast_path();
-    bool handle_slow_path(bool &was_stopped);
+    void handle_fast_path();
+    void handle_slow_path();
 
     int stop_master();
     /* return the minimum number of dp cores needed to support the active ports
@@ -2922,7 +2940,8 @@ private:
     std::mutex          m_cp_lock;
 
     TrexMonitor         m_monitor;
-    bool                m_mark_for_shutdown;
+
+    shutdown_rc_e       m_mark_for_shutdown;
 
 public:
     TrexStateless       *m_trex_stateless;
@@ -3949,21 +3968,21 @@ CGlobalTRex::publish_async_barrier(uint32_t key) {
 }
 
 
-bool
-CGlobalTRex::handle_slow_path(bool &was_stopped) {
+void
+CGlobalTRex::handle_slow_path() {
     m_stats_cnt+=1;
 
 
     if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ) {
         if ( m_io_modes.handle_io_modes() ) {
-            mark_for_shutdown("CTRL + C detected");
-            return false;
+            mark_for_shutdown(SHUTDOWN_CTRL_C);
+            return;
         }
     }
 
     if ( sanity_check() ) {
-        mark_for_shutdown("Test was stopped");
-        return false;
+        mark_for_shutdown(SHUTDOWN_TEST_ENDED);
+        return;
     }
 
     if (m_io_modes.m_g_mode != CTrexGlobalIoMode::gDISABLE ) {
@@ -4054,12 +4073,10 @@ CGlobalTRex::handle_slow_path(bool &was_stopped) {
 
     /* publish data */
     publish_async_data(false);
-
-    return true;
 }
 
 
-bool
+void
 CGlobalTRex::handle_fast_path() {
     /* check from messages from DP */
     check_for_dp_messages();
@@ -4073,10 +4090,8 @@ CGlobalTRex::handle_fast_path() {
     }
 
     if ( is_all_cores_finished() ) {
-        return false;
+        mark_for_shutdown(SHUTDOWN_TEST_ENDED);
     }
-
-    return true;
 }
 
 
@@ -4085,6 +4100,37 @@ CGlobalTRex::handle_fast_path() {
  * 
  */
 void CGlobalTRex::shutdown() {
+    std::stringstream ss;
+    ss << " *** TRex is shutting down - cause: '";
+
+    switch (m_mark_for_shutdown) {
+    
+    case SHUTDOWN_TEST_ENDED:
+        ss << "test has ended'";
+        break;
+
+    case SHUTDOWN_CTRL_C:
+        ss << "CTRL + C detected'";
+        break;
+
+    case SHUTDOWN_SIGINT:
+        ss << "received signal SIGINT'";
+        break;
+            
+    case SHUTDOWN_SIGTERM:
+        ss << "received signal SIGTERM'";
+        break;
+
+    case SHUTDOWN_RPC_REQ:
+        ss << "server received RPC 'shutdown' request'";
+        break;
+
+    default:
+        assert(0);
+    }
+
+    /* report */
+    std::cout << ss.str() << "\n";
 
     /* first stop the WD */
     TrexWatchDog::getInstance().stop();
@@ -4104,10 +4150,10 @@ void CGlobalTRex::shutdown() {
 
     /* shutdown drivers */
     for (int i = 0; i < m_max_ports; i++) {
-        rte_eth_dev_stop(i);
+        m_ports[i].stop();
     }
 
-    if (is_marked_for_shutdown()) {
+    if (m_mark_for_shutdown != SHUTDOWN_TEST_ENDED) {
         /* we should stop latency and exit to stop agents */
         exit(-1);
     }
@@ -4115,7 +4161,6 @@ void CGlobalTRex::shutdown() {
 
 
 int CGlobalTRex::run_in_master() {
-    bool was_stopped=false;
 
     if ( get_is_stateless() ) {
         m_trex_stateless->launch_control_plane();
@@ -4137,15 +4182,11 @@ int CGlobalTRex::run_in_master() {
     while (!is_marked_for_shutdown()) {
 
         /* fast path */
-        if (!handle_fast_path()) {
-            break;
-        }
+        handle_fast_path();
 
         /* slow path */
         if (slow_path_counter >= SLOWPATH_DELAY_MS) {
-            if (!handle_slow_path(was_stopped)) {
-                break;
-            }
+            handle_slow_path();
             slow_path_counter = 0;
         }
 
@@ -5784,22 +5825,19 @@ static void trex_termination_handler(int signum) {
     /* be sure that this was given on the main process */
     assert(rte_eal_process_type() == RTE_PROC_PRIMARY);
 
-    const char *signame = "";
     switch (signum) {
     case SIGINT:
-        signame = "SIGINT";
+        g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGINT);
         break;
 
     case SIGTERM:
-        signame = "SIGTERM";
+        g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGTERM);
         break;
 
     default:
         assert(0);
     }
     
-    ss << "receieved signal '" << signame << "'";
-    g_trex.mark_for_shutdown(ss.str().c_str());
 }
 
 /***********************************************************
@@ -5977,6 +6015,6 @@ CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
  * 
  * @author imarom (7/27/2016)
  */
-void TrexDpdkPlatformApi::mark_for_shutdown(const char *cause) const {
-    g_trex.mark_for_shutdown(cause);
+void TrexDpdkPlatformApi::mark_for_shutdown() const {
+    g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
 }
