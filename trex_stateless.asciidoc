@@ -2889,7 +2889,7 @@ in the "Per stream statistics" section is also available.
 * Packets must contain at least 16 bytes payload.
 * Each stream must have unique pg_id number. This also means that a given "latency collecting" stream can't be transmitted from two interfaces in parallel (internally it means that there are two streams). 
 * Maximum number of concurrent streams (with different pg_id) on which latency info may be collected: 128 (This is in addition to the streams which collect per stream statistics).
-* Global multiplier does not apply to this type of stream because those streams are process by software.   
+* Global multiplier does not apply to this type of stream because those streams are process by software.
 
 
 [NOTE] 
