@@ -237,35 +237,40 @@ def check_update(dbMD5,fieldMD5):
     if fieldMD5_parsed == currentFieldMD5:
         resField = pktResult('Success',0,'None').convert2tuple()
     else:
-        resField = pktResult('Fail',0,'Field DB is not up to date').convert2tuple()
+        resField = pktResult('Fail',-1,'Field DB is not up to date').convert2tuple()
     if dbMD5_parsed == currentDBMD5:
         resDB = pktResult('Success',0,'None').convert2tuple()
     else:
-        resDB = pktResult('Fail',0,'Protocol DB is not up to date').convert2tuple()
+        resDB = pktResult('Fail',-1,'Protocol DB is not up to date').convert2tuple()
     return json.dumps([resField,resDB])
 
 #pkt_desc as json
 #dictionary of offsets per protocol. tuple for each field: (name, offset, size) at json format
 def get_all_pkt_offsets(pkt_desc):
     pkt_desc= json.loads(pkt_desc)
-    pkt_protocols = pkt_desc.split('/')
-    scapy_pkt = eval(pkt_desc)
-    total_protocols = len(pkt_protocols)
-    res = {}
-    for i in range(total_protocols):
-        fields = []
-        for field in scapy_pkt.fields_desc:
-            size = field.get_size_bytes()
-            if field.name is 'load':
-                size = len(scapy_pkt)
-            fields.append([field.name, field.offset, size])
-        res[pkt_protocols[i]] = fields
-        scapy_pkt=scapy_pkt.payload
-    return json.dumps(res)
+    try:
+        pkt_protocols = pkt_desc.split('/')
+        scapy_pkt = eval(pkt_desc)
+        total_protocols = len(pkt_protocols)
+        res = {}
+        for i in range(total_protocols):
+            fields = []
+            for field in scapy_pkt.fields_desc:
+                size = field.get_size_bytes()
+                if field.name is 'load':
+                    size = len(scapy_pkt)
+                fields.append([field.name, field.offset, size])
+            res[pkt_protocols[i]] = fields
+            scapy_pkt=scapy_pkt.payload
+        pktRes = pktResult('Success',0,'None').convert2tuple()
+        FinalRes = [pktRes,res]
+        return json.dumps(FinalRes)
+    except:
+        pktRes = pktResult('Pkt build Failed',str(sys.exc_info()[0]),str(sys.exc_info()[1])).convert2tuple()
+        res = [pktRes,{}]
+        res = json.dumps(res)
+        return res
 
-
-
-def get_supported_cmds():
 
 
 
