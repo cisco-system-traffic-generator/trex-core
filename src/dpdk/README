@@ -1,0 +1,5 @@
+We were based on v16.07-rc3 (608487f3fc96704271c624d0f3fe9d7fb2187aea - hash in DPDK repository)
+We copied the files we needed here (a551c94a6069f30617825f9046d36099846ab7ec - This repository)
+Changes we did to DPDK files are in 8b0119ed99f893106a560ccb9db31c99e1d293eb
+Then took tag v16.07 (20e2b6eba13d9eb61b23ea75f09f2aa966fa6325 - in DPDK repo)
+merged it to our repository

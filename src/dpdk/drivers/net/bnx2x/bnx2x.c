@@ -4507,7 +4507,7 @@ static void bnx2x_handle_fp_tq(struct bnx2x_fastpath *fp, int scan_fp)
 	}
 
 	bnx2x_ack_sb(sc, fp->igu_sb_id, USTORM_ID,
-		   le16toh(fp->fp_hc_idx), IGU_INT_ENABLE, 1);
+		   le16toh(fp->fp_hc_idx), IGU_INT_DISABLE, 1);
 }
 
 /*
@@ -8886,7 +8886,7 @@ int bnx2x_alloc_hsi_mem(struct bnx2x_softc *sc)
 /***************************/
 
 		if (bnx2x_dma_alloc(sc, FW_BUF_SIZE, &sc->gz_buf_dma,
-				  "fw_dec_buf", RTE_CACHE_LINE_SIZE) != 0) {
+				  "fw_buf", RTE_CACHE_LINE_SIZE) != 0) {
 			sc->spq = NULL;
 			sc->sp = NULL;
 			sc->eq = NULL;

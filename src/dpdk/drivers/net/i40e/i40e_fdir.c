@@ -1152,7 +1152,8 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 #ifdef TREX_PATCH
 			rte_cpu_to_le_32((fdir_action->stat_count_index <<
 #else
-			rte_cpu_to_le_32((pf->fdir.match_counter_index <<
+			rte_cpu_to_le_32(
+			((uint32_t)pf->fdir.match_counter_index <<
 #endif
 			I40E_TXD_FLTR_QW1_CNTINDEX_SHIFT) &
 			I40E_TXD_FLTR_QW1_CNTINDEX_MASK);

@@ -193,7 +193,8 @@ virtqueue_enqueue_recv_refill(struct virtqueue *vq, struct rte_mbuf *cookie)
 
 	start_dp = vq->vq_ring.desc;
 	start_dp[idx].addr =
-		MBUF_DATA_DMA_ADDR(cookie, vq->offset) - hw->vtnet_hdr_size;
+		VIRTIO_MBUF_ADDR(cookie, vq) +
+		RTE_PKTMBUF_HEADROOM - hw->vtnet_hdr_size;
 	start_dp[idx].len =
 		cookie->buf_len - RTE_PKTMBUF_HEADROOM + hw->vtnet_hdr_size;
 	start_dp[idx].flags =  VRING_DESC_F_WRITE;
@@ -265,7 +266,7 @@ virtqueue_enqueue_xmit(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 	}
 
 	do {
-		start_dp[idx].addr  = MBUF_DATA_DMA_ADDR(cookie, vq->offset);
+		start_dp[idx].addr  = VIRTIO_MBUF_DATA_DMA_ADDR(cookie, vq);
 		start_dp[idx].len   = cookie->data_len;
 		start_dp[idx].flags = cookie->next ? VRING_DESC_F_NEXT : 0;
 		idx = start_dp[idx].next;
@@ -467,13 +468,19 @@ void
 virtio_dev_rx_queue_release(void *rxq)
 {
 	struct virtnet_rx *rxvq = rxq;
-	struct virtqueue *vq = rxvq->vq;
-	/* rxvq is freed when vq is freed, and as mz should be freed after the
+	struct virtqueue *vq;
+	const struct rte_memzone *mz;
+
+	if (rxvq == NULL)
+		return;
+
+	/*
+	 * rxvq is freed when vq is freed, and as mz should be freed after the
 	 * del_queue, so we reserve the mz pointer first.
 	 */
-	const struct rte_memzone *mz = rxvq->mz;
+	vq = rxvq->vq;
+	mz = rxvq->mz;
 
-	/* no need to free rxq as vq and rxq are allocated together */
 	virtio_dev_queue_release(vq);
 	rte_memzone_free(mz);
 }
@@ -553,12 +560,20 @@ void
 virtio_dev_tx_queue_release(void *txq)
 {
 	struct virtnet_tx *txvq = txq;
-	struct virtqueue *vq = txvq->vq;
-	/* txvq is freed when vq is freed, and as mz should be freed after the
+	struct virtqueue *vq;
+	const struct rte_memzone *mz;
+	const struct rte_memzone *hdr_mz;
+
+	if (txvq == NULL)
+		return;
+
+	/*
+	 * txvq is freed when vq is freed, and as mz should be freed after the
 	 * del_queue, so we reserve the mz pointer first.
 	 */
-	const struct rte_memzone *hdr_mz = txvq->virtio_net_hdr_mz;
-	const struct rte_memzone *mz = txvq->mz;
+	vq = txvq->vq;
+	mz = txvq->mz;
+	hdr_mz = txvq->virtio_net_hdr_mz;
 
 	virtio_dev_queue_release(vq);
 	rte_memzone_free(mz);
