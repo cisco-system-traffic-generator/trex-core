@@ -338,9 +338,7 @@ bool CCPortLatency::dump_packet(rte_mbuf_t * m){
 	uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     utl_DumpBuffer(stdout,p,pkt_size,0);
     return (0);
-
-
-
+#if 0
     if (pkt_size < ( sizeof(CRx_check_header)+14+20) ) {
         assert(0);
     }
@@ -348,16 +346,8 @@ bool CCPortLatency::dump_packet(rte_mbuf_t * m){
 
     lp->dump(stdout);
 
-
-	uint16_t vlan_offset=0;
-	if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-		vlan_offset=4;
-	}
-
-    (void)vlan_offset;
-
-//	utl_DumpBuffer(stdout,p,pkt_size,0);
 	return (0);
+#endif
 
 }
 
@@ -446,7 +436,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
                         m_no_ipv4_option++;
                         return (false);
                     }
-                    m_parent->get_nat_manager()->handle_packet_ipv4(lp,parser.m_ipv4);
+                    m_parent->get_nat_manager()->handle_packet_ipv4(lp, parser.m_ipv4, true);
                     opt_len -= CNatOption::noOPTION_LEN;
                     opt_ptr += CNatOption::noOPTION_LEN;
                     break;
@@ -455,10 +445,11 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
                     return (false);
             } // End of switch
         } // End of while
-	if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)
-	    && parser.IsNatInfoPkt()) {
-		m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4);
-	}
+
+        bool first;
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP) && parser.IsNatInfoPkt(first)) {
+            m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4, first);
+        }
 
         return (true);
     } // End of check for non-latency packet
@@ -564,9 +555,6 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
     if ( CGlobalInfo::is_learn_mode() ){
         m_nat_check_manager.Create();
     }
-
-    m_watchdog        = NULL;
-    m_watchdog_handle = -1;
 
     return (true);
 }
@@ -718,12 +706,10 @@ void  CLatencyManager::reset(){
 }
 
 void CLatencyManager::tickle() {
-    if (m_watchdog) {
-        m_watchdog->tickle(m_watchdog_handle);
-    }
+    m_monitor.tickle();
 }
 
-void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
+void  CLatencyManager::start(int iter, bool activate_watchdog) {
     m_do_stop =false;
     m_is_active =false;
     int cnt=0;
@@ -740,9 +726,9 @@ void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
     m_p_queue.push(node);
     bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable()?true:false;
 
-    if (watchdog) {
-        m_watchdog        = watchdog;
-        m_watchdog_handle = watchdog->register_monitor("STF RX CORE", 1);
+    if (activate_watchdog) {
+        m_monitor.create("STF RX CORE", 1);
+        TrexWatchDog::getInstance().register_monitor(&m_monitor);
     }
 
     while (  !m_p_queue.empty() ) {
@@ -812,8 +798,8 @@ void  CLatencyManager::start(int iter, TrexWatchDog *watchdog) {
     }
 
     /* disable the monitor */
-    if (m_watchdog) {
-        m_watchdog->disable_monitor(m_watchdog_handle);
+    if (activate_watchdog) {
+        m_monitor.disable();
     }
 
 }
@@ -923,6 +909,10 @@ void CLatencyManager::DumpShortRxCheck(FILE *fd){
     if ( get_is_rx_check_mode() ) {
         m_rx_check_manager.DumpShort(fd);
     }
+}
+
+void CLatencyManager::dump_nat_flow_table(FILE *fd) {
+    m_nat_check_manager.Dump(fd);
 }
 
 void CLatencyManager::rx_check_dump_json(std::string & json){

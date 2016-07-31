@@ -1,10 +1,12 @@
+# Example showing how to define stream for latency measurement, and how to parse the latency information
+
 import stl_path
 from trex_stl_lib.api import *
 
 import time
 import pprint
 
-def rx_example (tx_port, rx_port, burst_size, bw):
+def rx_example (tx_port, rx_port, burst_size, pps):
 
     print("\nGoing to inject {0} packets on port {1} - checking RX stats on port {2}\n".format(burst_size, tx_port, rx_port))
 
@@ -19,7 +21,7 @@ def rx_example (tx_port, rx_port, burst_size, bw):
                        packet = pkt,
                        flow_stats = STLFlowLatencyStats(pg_id = 5),
                        mode = STLTXSingleBurst(total_pkts = total_pkts,
-                                               percentage = bw))
+                                               pps = pps))
 
         # connect to server
         c.connect()
@@ -32,7 +34,7 @@ def rx_example (tx_port, rx_port, burst_size, bw):
 
         print("\nInjecting {0} packets on port {1}\n".format(total_pkts, tx_port))
 
-        rc = rx_iteration(c, tx_port, rx_port, total_pkts, pkt.get_pkt_len(), bw)
+        rc = rx_iteration(c, tx_port, rx_port, total_pkts, pkt.get_pkt_len())
         if not rc:
             passed = False
 
@@ -44,12 +46,12 @@ def rx_example (tx_port, rx_port, burst_size, bw):
         c.disconnect()
 
     if passed:
-        print("\nTest has passed :-)\n")
+        print("\nTest passed :-)\n")
     else:
-        print("\nTest has failed :-(\n")
+        print("\nTest failed :-(\n")
 
 # RX one iteration
-def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
+def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     
     c.clear_stats()
 
@@ -58,7 +60,8 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
 
     stats = c.get_stats()
     flow_stats = stats['flow_stats'].get(5)
-    lat_stats = stats['latency'].get(5)
+    global_lat_stats = stats['latency']
+    lat_stats = global_lat_stats.get(5)
     if not flow_stats:
         print("no flow stats available")
         return False
@@ -74,6 +77,8 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     dup = lat_stats['err_cntrs']['dup']
     sth = lat_stats['err_cntrs']['seq_too_high']
     stl = lat_stats['err_cntrs']['seq_too_low']
+    old_flow = global_lat_stats['global']['old_flow']
+    bad_hdr = global_lat_stats['global']['bad_hdr']
     lat = lat_stats['latency']
     jitter = lat['jitter']
     avg = lat['average']
@@ -89,6 +94,10 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
             return False
 
     print('Error counters: dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl))
+    if old_flow:
+        print ('Packets arriving too late after flow stopped: {0}'.format(old_flow))
+    if bad_hdr:
+        print ('Latency packets with corrupted info: {0}'.format(bad_hdr))
     print('Latency info:')
     print("  Maximum latency(usec): {0}".format(tot_max))
     print("  Minimum latency(usec): {0}".format(tot_min))
@@ -114,7 +123,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     else:
         print("TX pkts match   - {0}".format(tx_pkts))
 
-    if tx_bytes != (total_pkts * pkt_len):
+    if tx_bytes != (total_pkts * (pkt_len + 4)): # +4 for ethernet CRC
         print("TX bytes mismatch - got: {0}, expected: {1}".format(tx_bytes, (total_pkts * pkt_len)))
         pprint.pprint(flow_stats)
         return False
@@ -131,5 +140,5 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     return True
 
 # run the tests
-rx_example(tx_port = 1, rx_port = 0, burst_size = 500000, bw = 50)
+rx_example(tx_port = 0, rx_port = 1, burst_size = 1000, pps = 1000)
 

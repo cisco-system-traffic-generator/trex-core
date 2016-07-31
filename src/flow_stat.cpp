@@ -227,7 +227,7 @@ CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint8_t proto) {
               << std::endl;
 #endif
 
-    CFlowStatUserIdInfo *new_id = new CFlowStatUserIdInfo(proto);
+    CFlowStatUserIdInfo *new_id;
 
     if (proto == PAYLOAD_RULE_PROTO) {
         new_id = new CFlowStatUserIdInfoPayload(proto);
@@ -390,7 +390,8 @@ uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
 
 /************** class CFlowStatHwIdMap ***************/
 CFlowStatHwIdMap::CFlowStatHwIdMap() {
-    m_map = NULL;
+    m_map = NULL; // must call create in order to work with the class
+    m_num_free = 0; // to make coverity happy, init this here too.
 }
 
 CFlowStatHwIdMap::~CFlowStatHwIdMap() {
@@ -466,10 +467,21 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_hw_id_map_payload.create(MAX_FLOW_STATS_PAYLOAD);
     memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
     memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
+    m_num_ports = 0; // need to call create to init
 }
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {
     delete m_parser;
+#ifdef TREX_SIM
+    // In simulator, nobody handles the messages to RX, so need to free them to have clean valgrind run.
+    if (m_ring_to_rx) {
+        CGenNode *msg = NULL;
+        while (! m_ring_to_rx->isEmpty()) {
+            m_ring_to_rx->Dequeue(msg);
+            delete msg;
+        }
+    }
+#endif
 }
 
 void CFlowStatRuleMgr::create() {
@@ -480,7 +492,7 @@ void CFlowStatRuleMgr::create() {
     m_api = tstateless->get_platform_api();
     assert(m_api);
     m_api->get_interface_stat_info(0, num_counters, cap);
-    m_api->get_port_num(m_num_ports);
+    m_api->get_port_num(m_num_ports); // This initialize m_num_ports
     for (uint8_t port = 0; port < m_num_ports; port++) {
         assert(m_api->reset_hw_flow_stats(port) == 0);
     }
@@ -537,7 +549,20 @@ void CFlowStatRuleMgr::init_stream(TrexStream * stream) {
     stream->m_rx_check.m_hw_id = HW_ID_INIT;
 }
 
+int CFlowStatRuleMgr::verify_stream(TrexStream * stream) {
+    return add_stream_internal(stream, false);
+}
+
 int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
+    return add_stream_internal(stream, true);
+}
+
+/* 
+ * Helper function for adding/verifying streams
+ * stream - stream to act on
+ * do_action - if false, just verify. Do not change any state, or add to database.
+ */
+int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
     stream_dump(stream);
@@ -570,7 +595,9 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
         }
 
         // throws exception if there is error
-        m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
+        if (do_action) {
+            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
+        }
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
         uint16_t payload_len;
@@ -582,14 +609,17 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
                               + " payload bytes for payload rules. Packet only has " + std::to_string(payload_len) + " bytes"
                               , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
         }
-        m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, PAYLOAD_RULE_PROTO);
+        if (do_action) {
+            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, PAYLOAD_RULE_PROTO);
+        }
         break;
     default:
         throw TrexFStatEx("Wrong rule_type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
         break;
     }
-
-    stream->m_rx_check.m_hw_id = HW_ID_FREE;
+    if (do_action) {
+        stream->m_rx_check.m_hw_id = HW_ID_FREE;
+    }
     return 0;
 }
 
@@ -754,10 +784,6 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         m_parser->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
         stream->m_rx_check.m_hw_id = hw_id;
     } else {
-        struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
-            (stream->m_pkt.binary + stream->m_pkt.len - sizeof(struct flow_stat_payload_header));
-        fsp_head->hw_id = hw_id;
-        fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
         m_parser->set_ip_id(FLOW_STAT_PAYLOAD_IP_ID);
         // for payload rules, we use the range right after ip id rules
         stream->m_rx_check.m_hw_id = hw_id + MAX_FLOW_STATS;
@@ -770,6 +796,9 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     if (m_num_started_streams == 0) {
         send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+        //also good time to zero global counters
+        memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
+        memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
 
         // wait to make sure that message is acknowledged. RX core might be in deep sleep mode, and we want to
         // start transmitting packets only after it is working, otherwise, packets will get lost.
@@ -884,7 +913,7 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
     m_num_started_streams--;
     assert (m_num_started_streams >= 0);
     if (m_num_started_streams == 0) {
-        send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core shoulde get into idle loop.
+        send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
     }
     return 0;
 }
@@ -921,6 +950,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
     rfc2544_info_t rfc2544_info[MAX_FLOW_STATS_PAYLOAD];
+    CRxCoreErrCntrs rx_err_cntrs;
     Json::FastWriter writer;
     Json::Value s_root;
     Json::Value l_root;
@@ -947,6 +977,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     }
 
     m_api->get_rfc2544_info(rfc2544_info, 0, m_max_hw_id_payload, false);
+    m_api->get_rx_err_cntrs(&rx_err_cntrs);
 
     // read hw counters, and update
     for (uint8_t port = 0; port < m_num_ports; port++) {
@@ -1020,10 +1051,21 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     // general per port data
     for (uint8_t port = 0; port < m_num_ports; port++) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
-            if (m_rx_cant_count_err[port] != 0)
-                s_data_section["port_data"][str_port]["rx_err"] = m_rx_cant_count_err[port];
-            if (m_tx_cant_count_err[port] != 0)
-                s_data_section["port_data"][str_port]["tx_err"] = m_tx_cant_count_err[port];
+            if ((m_rx_cant_count_err[port] != 0) || baseline)
+                s_data_section["global"]["rx_err"][str_port] = m_rx_cant_count_err[port];
+            if ((m_tx_cant_count_err[port] != 0) || baseline)
+                s_data_section["global"]["tx_err"][str_port] = m_tx_cant_count_err[port];
+    }
+
+    // payload rules rx errors
+    uint64_t tmp_cnt;
+    tmp_cnt = rx_err_cntrs.get_bad_header();
+    if (tmp_cnt || baseline) {
+        l_data_section["global"]["bad_hdr"] = Json::Value::UInt64(tmp_cnt);
+    }
+    tmp_cnt = rx_err_cntrs.get_old_flow();
+    if (tmp_cnt || baseline) {
+        l_data_section["global"]["old_flow"] = Json::Value::UInt64(tmp_cnt);
     }
 
     flow_stat_user_id_map_it_t it;

@@ -1,3 +1,5 @@
+# Example showing how to define stream for getting per flow statistics, and how to parse the received statistics
+
 import stl_path
 from trex_stl_lib.api import *
 
@@ -27,18 +29,14 @@ def rx_example (tx_port, rx_port, burst_size, bw):
         # prepare our ports
         c.reset(ports = [tx_port, rx_port])
 
-        # add both streams to ports
+        # add stream to port
         c.add_streams([s1], ports = [tx_port])
 
-        print("\ninjecting {0} packets on port {1}\n".format(total_pkts, tx_port))
+        print("\ngoing to inject {0} packets on port {1}\n".format(total_pkts, tx_port))
 
-        for i in range(0, 10):
-            print("\nStarting iteration: {0}:".format(i))
-            rc = rx_iteration(c, tx_port, rx_port, total_pkts, pkt.get_pkt_len(), bw)
-            if not rc:
-                passed = False
-                break
-
+        rc = rx_iteration(c, tx_port, rx_port, total_pkts, s1.get_pkt_len())
+        if not rc:
+            passed = False
 
     except STLError as e:
         passed = False
@@ -48,19 +46,21 @@ def rx_example (tx_port, rx_port, burst_size, bw):
         c.disconnect()
 
     if passed:
-        print("\nTest has passed :-)\n")
+        print("\nTest passed :-)\n")
     else:
-        print("\nTest has failed :-(\n")
+        print("\nTest failed :-(\n")
 
 # RX one iteration
-def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
-    
+def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
+    ret = True
+
     c.clear_stats()
 
     c.start(ports = [tx_port])
     c.wait_on_traffic(ports = [tx_port])
 
-    flow_stats = c.get_stats()['flow_stats'].get(5)
+    global_flow_stats = c.get_stats()['flow_stats']
+    flow_stats = global_flow_stats.get(5)
     if not flow_stats:
         print("no flow stats available")
         return False
@@ -78,26 +78,33 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len, bw):
     if tx_pkts != total_pkts:
         print("TX pkts mismatch - got: {0}, expected: {1}".format(tx_pkts, total_pkts))
         pprint.pprint(flow_stats)
-        return False
+        ret = False
     else:
         print("TX pkts match   - {0}".format(tx_pkts))
 
     if tx_bytes != (total_pkts * pkt_len):
         print("TX bytes mismatch - got: {0}, expected: {1}".format(tx_bytes, (total_pkts * pkt_len)))
         pprint.pprint(flow_stats)
-        return False
+        ret = False
     else:
         print("TX bytes match  - {0}".format(tx_bytes))
 
     if rx_pkts != total_pkts:
         print("RX pkts mismatch - got: {0}, expected: {1}".format(rx_pkts, total_pkts))
         pprint.pprint(flow_stats)
-        return False
+        ret = False
     else:
         print("RX pkts match   - {0}".format(rx_pkts))
 
-    return True
+
+    for field in ['rx_err', 'tx_err']:
+        for port in global_flow_stats['global'][field].keys():
+            if global_flow_stats['global'][field][port] != 0:
+                print ("\n{0} on port {1}: {2} - You should consider increasing rx_delay_ms value in wait_on_traffic"
+                       .format(field, port, global_flow_stats['global'][field][port]))
+
+    return ret
 
 # run the tests
-rx_example(tx_port = 1, rx_port = 2, burst_size = 500000, bw = 50)
+rx_example(tx_port = 0, rx_port = 1, burst_size = 500, bw = 50)
 

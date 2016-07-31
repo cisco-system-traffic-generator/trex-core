@@ -12,12 +12,11 @@ from glob import glob
 import signal
 
 sys.path.append(os.path.join('automation', 'trex_control_plane', 'server'))
+import CCustomLogger
 import outer_packages
 from singleton_daemon import SingletonDaemon, register_socket, run_command
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import termstyle
-
-logger = logging.getLogger('Master daemon')
 
 ### Server functions ###
 
@@ -84,28 +83,26 @@ def start_master_daemon():
     proc.start()
     for i in range(50):
         if master_daemon.is_running():
-            print(termstyle.green('Master daemon is started.'))
-            os._exit(0)
+            return True
         sleep(0.1)
     fail(termstyle.red('Master daemon failed to run. Please look in log: %s' % logging_file))
 
 def set_logger():
+    log_dir = os.path.dirname(logging_file)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     if os.path.exists(logging_file):
         if os.path.exists(logging_file_bu):
             os.unlink(logging_file_bu)
         os.rename(logging_file, logging_file_bu)
-    hdlr = logging.FileHandler(logging_file)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt = '%Y-%m-%d %H:%M:%S')
-    hdlr.setFormatter(formatter)
-    logger.addHandler(hdlr) 
-    logger.setLevel(logging.INFO)
+    CCustomLogger.setup_daemon_logger('Master daemon', logging_file)
 
 def start_master_daemon_func():
     try:
         set_logger()
         register_socket(master_daemon.tag)
         server = SimpleJSONRPCServer(('0.0.0.0', master_daemon.port))
-        logger.info('Started master daemon (port %s)' % master_daemon.port)
+        logging.info('Started master daemon (port %s)' % master_daemon.port)
         server.register_function(add)
         server.register_function(check_connectivity)
         server.register_function(get_trex_path)
@@ -121,14 +118,16 @@ def start_master_daemon_func():
         server.register_function(stl_rpc_proxy.start, 'start_stl_rpc_proxy')
         server.register_function(stl_rpc_proxy.stop, 'stop_stl_rpc_proxy')
         server.register_function(server.funcs.keys, 'get_methods') # should be last
-        signal.signal(signal.SIGTSTP, stop_handler)
-        signal.signal(signal.SIGTERM, stop_handler)
+        signal.signal(signal.SIGTSTP, stop_handler) # ctrl+z
+        signal.signal(signal.SIGTERM, stop_handler) # kill
         server.serve_forever()
+    except KeyboardInterrupt:
+        logging.info('Ctrl+C')
     except Exception as e:
-        logger.error('Closing due to error: %s' % e)
+        logging.error('Closing due to error: %s' % e)
 
-def stop_handler(*args, **kwargs):
-    logger.info('Got killed explicitly.')
+def stop_handler(signalnum, *args, **kwargs):
+    logging.info('Got signal %s, exiting.' % signalnum)
     sys.exit(0)
 
 # returns True if given path is under current dir or /tmp
@@ -182,7 +181,7 @@ parser.add_argument('--type', '--daemon-type', '--daemon_type', choices = daemon
                     action = 'store', help = 'Specify daemon type to start/stop etc.\nDefault is master_daemon.')
 
 args = parser.parse_args()
-args.trex_dir = os.path.normpath(args.trex_dir)
+args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
 stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'stl', 'examples')
@@ -193,6 +192,7 @@ master_daemon      = SingletonDaemon('Master daemon', 'trex_master_daemon', args
 tmp_dir = '/tmp/trex-tmp'
 logging_file = '/var/log/trex/master_daemon.log'
 logging_file_bu = '/var/log/trex/master_daemon.log_bu'
+os.chdir('/')
 
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
@@ -221,13 +221,21 @@ if args.action != 'show':
         raise Exception('%s does not have function %s' % (daemon.name, args.action))
     try:
         func()
-    except Exception as e:
-        print(termstyle.red(e))
-        sys.exit(1)
+    except:
+        try: # give it another try
+            sleep(1)
+            func()
+        except Exception as e:
+            print(termstyle.red(e))
+            sys.exit(1)
 
-# prints running status
-if daemon.is_running():
-    print(termstyle.green('%s is running' % daemon.name))
+passive = {'start': 'started', 'restart': 'restarted', 'stop': 'stopped', 'show': 'running'}
+
+if args.action in ('show', 'start', 'restart') and daemon.is_running() or \
+    args.action == 'stop' and not daemon.is_running():
+    print(termstyle.green('%s is %s' % (daemon.name, passive[args.action])))
+    os._exit(0)
 else:
-    print(termstyle.red('%s is NOT running' % daemon.name))
+    print(termstyle.red('%s is NOT %s' % (daemon.name, passive[args.action])))
+    os._exit(-1)
 

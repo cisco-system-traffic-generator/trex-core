@@ -27,7 +27,10 @@ class TextCodesStripper:
     def strip (s):
         return re.sub(TextCodesStripper.pattern, '', s)
 
-def format_num (size, suffix = "", compact = True, opts = ()):
+def format_num (size, suffix = "", compact = True, opts = None):
+    if opts is None:
+        opts = ()
+
     txt = "NaN"
 
     if type(size) == str:
@@ -60,6 +63,9 @@ def format_num (size, suffix = "", compact = True, opts = ()):
 def format_time (t_sec):
     if t_sec < 0:
         return "infinite"
+
+    if t_sec == 0:
+        return "zero"
 
     if t_sec < 1:
         # low numbers

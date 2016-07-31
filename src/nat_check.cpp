@@ -41,7 +41,8 @@ void CGenNodeNatInfo::dump(FILE *fd){
     int i;
     for (i=0; i<m_cnt; i++) {
         CNatFlowInfo * lp=&m_data[i];
-        fprintf (fd," id:%d , external ip:%08x:%x , ex_port: %04x , fid: %d \n",i,lp->m_external_ip,lp->m_external_ip_server,lp->m_external_port,lp->m_fid);
+        fprintf (fd," id:%d , external ip:%08x , ex_port: %04x , TCP seq:%x fid: %d \n"
+                 , i, lp->m_external_ip, lp->m_external_port, lp->m_tcp_seq, lp->m_fid);
     }
 }
 
@@ -50,7 +51,6 @@ void CGenNodeNatInfo::init(){
     m_pad=0;
     m_cnt=0;
 }
-
 
 void CNatStats::reset(){
     m_total_rx=0;
@@ -147,14 +147,17 @@ void CNatRxManager::get_info_from_tcp_ack(uint32_t tcp_ack, uint32_t &fid, uint8
  *   option - pointer to our proprietary NAT info IP option.
  *      If it is NULL, the NAT info is in the TCP ACK number
  *   ipv4 - pointer to ipv4 header to extract info from.
+ *   is_first - Is this the first packet of the flow or second. To handle firewalls that do
+ *              TCP seq randomization on the server->client side, we also look at the second
+ *              packet of the flow (SYN+ACK), and extract its seq num.
  */
-void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4) {
+void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4, bool is_first) {
     CNatPerThreadInfo * thread_info;
     uint32_t fid=0;
+    uint32_t tcp_seq;
 
     /* Extract info from the packet ! */
     uint32_t ext_ip   = ipv4->getSourceIp();
-    uint32_t ext_ip_server = ipv4->getDestIp();
     uint8_t proto     = ipv4->getProtocol();
     /* must be TCP/UDP this is the only supported proto */
     if (!( (proto==6) || (proto==17) )){
@@ -165,21 +168,48 @@ void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4) {
     TCPHeader *tcp = (TCPHeader *) (((char *)ipv4)+ ipv4->getHeaderLength());
     uint16_t ext_port = tcp->getSourcePort();
 
+    tcp_seq = tcp->getSeqNumber();
+
     if (option) {
 	thread_info = get_thread_info(option->get_thread_id());
 	fid = option->get_fid();
     } else {
-	uint8_t thread_id;
-	get_info_from_tcp_ack(tcp->getAckNumber(), fid, thread_id);
-	thread_info = get_thread_info(thread_id);
+        uint8_t thread_id;
+
+        if (is_first) {
+            uint32_t tcp_ack = tcp->getAckNumber();
+            get_info_from_tcp_ack(tcp_ack, fid, thread_id);
+            thread_info = get_thread_info(thread_id);
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                uint32_t dst_ip = ipv4->getDestIp();
+                uint16_t dst_port = tcp->getDestPort();
+                uint64_t map_key = (dst_ip << 16) + dst_port;
+                double time_stamp = now_sec();
+                m_ft.insert(map_key, tcp_ack, time_stamp);
+                m_ft.clear_old(time_stamp - 1);
+            }
+        } else {
+            uint32_t val;
+            // server->client packet. IP/port reversed in regard to first SYN packet
+            uint64_t map_key = (ext_ip << 16) + ext_port;
+            if (m_ft.erase(map_key, val)) {
+                get_info_from_tcp_ack(val, fid, thread_id);
+                thread_info = get_thread_info(thread_id);
+            } else {
+                // flow was not found in the table
+                thread_info = 0;
+            }
+        }
     }
+
 
     if (unlikely(!thread_info)) {
         return;
     }
 
 #ifdef NAT_TRACE_
-    printf("rx msg ext ip : %08x:%08x ext port : %04x  flow_id : %d \n",ext_ip,ext_ip_server,ext_port, fid);
+    printf("rx msg ext ip: %08x ext port: %04x TCP Seq: %08x flow_id : %d (%s) \n", ext_ip, ext_port, tcp_seq, fid
+           , is_first ? "first":"second");
 #endif
 
     CGenNodeNatInfo * node=thread_info->m_cur_nat_msg;
@@ -194,9 +224,13 @@ void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4) {
     CNatFlowInfo * msg=node->get_next_msg();
 
     /* fill the message */
-    msg->m_external_ip   = ext_ip;
-    msg->m_external_ip_server = ext_ip_server;
-    msg->m_external_port = ext_port;
+    if (is_first) {
+        msg->m_external_ip   = ext_ip;
+        msg->m_external_port = ext_port;
+    } else {
+        msg->m_external_port = TCPHeader::TCP_INVALID_PORT;
+    }
+    msg->m_tcp_seq = tcp_seq;
     msg->m_fid           = fid;
     msg->m_pad           = 0xee; 
 
@@ -221,7 +255,8 @@ void CNatStats::Dump(FILE *fd){
 
 
 void CNatRxManager::Dump(FILE *fd){
-    m_stats.Dump(stdout);
+    m_stats.Dump(fd);
+    m_ft.dump(fd);
 }
 
 void CNatRxManager::DumpShort(FILE *fd){

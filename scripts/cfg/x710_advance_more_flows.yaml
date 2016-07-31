@@ -1,0 +1,41 @@
+- port_limit    : 4
+  version       : 2
+  interfaces    : ["02:00.0","02:00.1","84:00.0","84:00.1"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status
+  c : 4
+  #port_bandwidth_gb : 40
+  port_bandwidth_gb : 10
+
+  port_info       :  # set eh mac addr
+
+          - dest_mac        :   [0x68, 0x05, 0xca, 0x32, 0x0c, 0x39]
+            src_mac         :   [0x68, 0x05, 0xca, 0x32, 0x15, 0xb0]
+
+
+          - dest_mac        :   [0x68, 0x05, 0xca, 0x32, 0x0c, 0x38]
+            src_mac         :   [0x68, 0x05, 0xca, 0x32, 0x15, 0xb1]
+
+          - dest_mac        :   [0x68, 0x05, 0xca, 0x32, 0x15, 0xb1]
+            src_mac         :   [0x68, 0x05, 0xca, 0x32, 0x0c, 0x38]
+
+          - dest_mac        :   [0x68, 0x05, 0xca, 0x32, 0x15, 0xb0]
+            src_mac         :   [0x68, 0x05, 0xca, 0x32, 0x0c, 0x39]
+
+
+  platform :
+        master_thread_id  : 0
+        latency_thread_id : 8
+        dual_if   :
+             - socket   : 0
+               threads  : [1, 2, 3, 4, 5, 6, 7]
+             - socket   : 1
+               threads  : [9, 10, 11, 12, 13, 14, 15]
+
+
+
+  memory    :                                          
+        dp_flows    : 10048576
+        
+        
+             
+
+

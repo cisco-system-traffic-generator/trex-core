@@ -85,6 +85,7 @@ public:
 
     CSimplePacketParser(rte_mbuf_t * m){
         m_m=m;
+        m_l4 = NULL;
     }
 
     bool Parse();
@@ -106,19 +107,27 @@ public:
     }
 
     // Check if this packet contains NAT info in TCP ack
-    inline bool IsNatInfoPkt() {
-	if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
-	    return false;
-	}
-	if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
-	    return false;
-	}
-	// If we are here, relevant fields from tcp header are guaranteed to be in first mbuf 
-	TCPHeader *tcp = (TCPHeader *)m_l4;
-	if (!tcp->getSynFlag() || (tcp->getAckNumber() == 0)) {
-	    return false;
-	}
-	return true;
+    // first - set to true if this is the first packet of the flow. false otherwise.
+    //         relevant only if return value is true
+    inline bool IsNatInfoPkt(bool &first) {
+        if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
+            return false;
+        }
+        if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
+            return false;
+        }
+        // If we are here, relevant fields from tcp header are guaranteed to be in first mbuf
+        // We want to handle SYN and SYN+ACK packets
+        TCPHeader *tcp = (TCPHeader *)m_l4;
+        if (! tcp->getSynFlag())
+            return false;
+
+        if (! tcp->getAckFlag()) {
+            first = true;
+        } else {
+            first = false;
+        }
+        return true;
     }
 
 public:
@@ -269,6 +278,7 @@ public:
     CLatencyManagerCfg (){
         m_max_ports=0;
         m_cps=0.0;
+        memset(m_ports, 0, sizeof(m_ports));
         m_client_ip.v4=0x10000000;
         m_server_ip.v4=0x20000000;
         m_dual_port_mask=0x01000000;
@@ -339,7 +349,7 @@ public:
     bool Create(CLatencyManagerCfg * cfg);
     void Delete();
     void  reset();
-    void  start(int iter, TrexWatchDog *watchdog);
+    void  start(int iter, bool activate_watchdog);
     void  stop();
     bool  is_active();
     void set_ip(uint32_t client_ip,
@@ -352,6 +362,7 @@ public:
 
     void DumpRxCheck(FILE *fd); // dump all
     void DumpShortRxCheck(FILE *fd); // dump short histogram of latency 
+    void dump_nat_flow_table(FILE *fd);
     void rx_check_dump_json(std::string & json);
     uint16_t get_latency_header_offset(){
         return ( m_pkt_gen.get_payload_offset() );
@@ -403,8 +414,7 @@ private:
      CNatRxManager           m_nat_check_manager;
      CCpuUtlDp               m_cpu_dp_u;
      CCpuUtlCp               m_cpu_cp_u;
-     TrexWatchDog            *m_watchdog;
-     int                     m_watchdog_handle;
+     TrexMonitor             m_monitor;
 
      volatile bool           m_do_stop __rte_cache_aligned ;
 };

@@ -56,7 +56,8 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
     std::stringstream ss;
     int zmq_rc;
 
-    m_watchdog_handle = m_watchdog->register_monitor(m_name, 1);
+    m_monitor.create(m_name, 1);
+    TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
     /* create a socket based on the configuration */
 
@@ -102,7 +103,7 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
     zmq_close(m_socket);
 
     /* done */
-    m_watchdog->disable_monitor(m_watchdog_handle);
+    m_monitor.disable();
 }
 
 bool
@@ -115,7 +116,7 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
     assert(rc == 0);
 
     while (true) {
-        m_watchdog->tickle(m_watchdog_handle);
+        m_monitor.tickle();
 
         rc = zmq_msg_recv (&zmq_msg, m_socket, 0);
         if (rc != -1) {
@@ -200,22 +201,23 @@ void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::s
 
     int index = 0;
 
-    /* expcetion safe */
-    std::unique_lock<std::mutex> lock(*m_lock);
-
     /* for every command parsed - launch it */
     for (auto command : commands) {
         Json::Value single_response;
 
+        /* the command itself should be protected */
+        std::unique_lock<std::mutex> lock(*m_lock);
         command->execute(single_response);
+        lock.unlock();
+
         delete command;
 
         response_json[index++] = single_response;
 
+        /* batch is like getting all the messages one by one - it should not be considered as stuck thread */
+        /* need to think if this is a good thing */
+        //m_monitor.tickle();
     }
-
-    /* done with the lock */
-    lock.unlock();
 
     /* write the JSON to string and sever on ZMQ */
 

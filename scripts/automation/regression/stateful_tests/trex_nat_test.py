@@ -93,6 +93,9 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     def test_nat_simple_mode2(self):
         self.nat_simple_helper(learn_mode=2)
 
+    def test_nat_simple_mode3(self):
+        self.nat_simple_helper(learn_mode=3)
+
     def nat_simple_helper(self, learn_mode=1):
         # test initializtion
         self.router.configure_basic_interfaces()

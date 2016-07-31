@@ -2,15 +2,22 @@ from trex_stl_lib.api import *
 
 
 # split the range of IP to cores 
+# add tunable by fsize to change the size of the frame 
+# latency frame is always 64 
+# trex>start -f stl/udp_1pkt_src_ip_split_latency.py -t fsize=64 -m 30% --port 0 --force
 #
+#
+
 class STLS1(object):
 
     def __init__ (self):
         self.fsize  =64;
+        self.lfsize  =64;
+
 
     def create_stream (self, dir,port_id):
-        # create a base packet and pad it to size
-        size = self.fsize - 4; # no FCS
+        # Create base packet and pad it to size
+        size = self.fsize - 4; # HW will add 4 bytes ethernet FCS
 
         if dir==0:
             src_ip="16.0.0.1"
@@ -22,6 +29,7 @@ class STLS1(object):
         base_pkt = Ether()/IP(src=src_ip,dst=dst_ip)/UDP(dport=12,sport=1025)
 
         pad = max(0, size - len(base_pkt)) * 'x'
+        pad_latency = max(0, (self.lfsize-4) - len(base_pkt)) * 'x'
                              
         vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
                                             max_value="10.0.0.255", size=4, step=1,op="inc"),
@@ -39,8 +47,7 @@ class STLS1(object):
 
 
                   # latency stream   
-                  STLStream(packet = STLPktBuilder(pkt = "yaml/udp_64B_no_crc.pcap", 
-                            path_relative_to_profile = True), 
+                  STLStream(packet = STLPktBuilder(pkt = base_pkt/pad_latency),
                             mode = STLTXCont(pps=1000),
                             flow_stats = STLFlowLatencyStats(pg_id = 12+port_id))
   
@@ -48,7 +55,9 @@ class STLS1(object):
         return stream
 
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, direction = 0, fsize = 64,lfsize = 64, **kwargs):
+        self.fsize  =fsize;
+        self.lfsize =lfsize
         return self.create_stream(direction,kwargs['port_id'])
 
 

@@ -48,12 +48,13 @@ public:
     enum Chars{
         ccHELP='h',
         ccGDISABLE='d',
-        ccGNORAML='n',
+        ccGNORAML='0',
         ccGPP='p',
         ccGAP='a',
         ccGL='l',
         ccGRC='r',
-        ccMem='m'
+        ccMem='m',
+        ccNat='n'
     };
 
     enum CliDumpMode {
@@ -67,7 +68,8 @@ public:
       gDISABLE=0, // no print at all 
       gHELP=1,    // help
       gNORMAL=2,   // normal 
-      gMem=3
+      gMem=3,
+      gNAT
 
     };
 
@@ -104,12 +106,20 @@ public:
     };
     typedef uint8_t RxCheckMode_t;
 
+    enum NatMode {
+        natDISABLE = 0,
+        natENABLE  = 1,
+        natLAST = 2
+    };
+    typedef uint8_t NatMode_t;
+
     Global_t                m_g_mode;
     bool                    m_g_disable_first;
     PerPortCountersMode_t   m_pp_mode;
     AllPortCountersMode_t   m_ap_mode;
     LatecnyMode_t           m_l_mode;
     RxCheckMode_t           m_rc_mode;
+    NatMode_t               m_nat_mode;
 
 public:
     void set_mode(CliDumpMode  mode);

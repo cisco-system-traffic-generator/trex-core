@@ -24,9 +24,18 @@ limitations under the License.
 
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
+
+typedef struct rte_mbuf  rte_mbuf_t;
 
 #define MAGIC0 0xAABBCCDD
 #define MAGIC2 0x11223344
+
+#define IND_ATTACHED_MBUF    (1ULL << 62) /**< Indirect attached mbuf */
+#define RTE_MBUF_INDIRECT(mb)   ((mb)->ol_flags & IND_ATTACHED_MBUF)
+#define RTE_MBUF_TO_BADDR(mb)       (((struct rte_mbuf *)(mb)) + 1)
+#define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
+
 
 struct rte_mempool {
     uint32_t  magic;
@@ -35,9 +44,6 @@ struct rte_mempool {
     uint32_t  _id;
     int size;
 };
-
-
-
 
 struct rte_mbuf {
     uint32_t magic;
@@ -55,32 +61,15 @@ struct rte_mbuf {
     uint32_t pkt_len;       /**< Total pkt len: sum of all segment data_len. */
 
     uint32_t magic2;
-    uint32_t refcnt_reserved;     /**< Do not use this field */
+    uint16_t refcnt_reserved;
+    uint64_t ol_flags;        /**< Offload features. */
 } ;
-
-
-typedef struct rte_mbuf  rte_mbuf_t;
 
 typedef struct rte_mempool rte_mempool_t;
 
 #define RTE_PKTMBUF_HEADROOM  0
 
 void utl_rte_mempool_delete(rte_mempool_t  * &pool);
-
-rte_mempool_t * utl_rte_mempool_create(const char  *name,
-                                      unsigned n, 
-                                      unsigned elt_size,
-                                      unsigned cache_size,
-                                      uint32_t _id ,
-                                      int socket_id
-                                       );
-
-rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
-                                               unsigned n, 
-                                               unsigned elt_size,
-                                               unsigned cache_size,
-                                               uint32_t _id ,
-                                               int socket_id);
 
 inline unsigned rte_mempool_count(rte_mempool_t  *mp){
     return (10);
@@ -106,9 +95,6 @@ void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *md);
 void rte_pktmbuf_free_seg(rte_mbuf_t *m);
 
 uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value);
-
-rte_mbuf_t * utl_rte_pktmbuf_add_after(rte_mbuf_t *m1,rte_mbuf_t *m2);
-rte_mbuf_t * utl_rte_pktmbuf_add_after2(rte_mbuf_t *m1,rte_mbuf_t *m2);
 
 void rte_pktmbuf_dump(const struct rte_mbuf *m, unsigned dump_len);
 
@@ -166,22 +152,6 @@ rte_lcore_to_socket_id(unsigned lcore_id){
 
 uint64_t rte_rand(void);
 
-
-static inline void utl_rte_pktmbuf_add_last(rte_mbuf_t *m,rte_mbuf_t *m_last){
-
-	//there could be 2 cases supported 
-	//1. one mbuf 
-	//2. two mbug where last is indirect 
-
-	if ( m->next == NULL ) {
-		utl_rte_pktmbuf_add_after2(m,m_last);
-	}else{
-		m->next->next=m_last;
-		m->pkt_len += m_last->data_len;
-		m->nb_segs = 3;
-	}
-}
-
 static inline void rte_pktmbuf_refcnt_update(struct rte_mbuf *m, int16_t v)
 {
 	do {
@@ -189,8 +159,16 @@ static inline void rte_pktmbuf_refcnt_update(struct rte_mbuf *m, int16_t v)
 	} while ((m = m->next) != NULL);
 }
 
+static inline void utl_rte_check(rte_mempool_t * mp){
+    assert(mp->magic  == MAGIC0);
+    assert(mp->magic2 == MAGIC2);
+}
 
-
+static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
+    utl_rte_check(m->pool);
+    assert(m->magic == MAGIC0);
+    assert(m->magic2== MAGIC2);
+}
 
 #define __rte_cache_aligned 
 
@@ -198,5 +176,8 @@ static inline void rte_pktmbuf_refcnt_update(struct rte_mbuf *m, int16_t v)
 #define CACHE_LINE_SIZE 64
 #define RTE_CACHE_LINE_SIZE 64
 #define SOCKET_ID_ANY 0
+
+// has to be after the definition of rte_mbuf and other utility functions
+#include "common_mbuf.h"
 
 #endif

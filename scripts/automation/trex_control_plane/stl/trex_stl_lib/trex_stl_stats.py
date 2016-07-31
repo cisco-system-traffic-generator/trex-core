@@ -11,7 +11,6 @@ import datetime
 import time
 import re
 import math
-import copy
 import threading
 import pprint
 
@@ -22,13 +21,16 @@ PORT_STATUS = 'ps'
 STREAMS_STATS = 's'
 LATENCY_STATS = 'ls'
 LATENCY_HISTOGRAM = 'lh'
+CPU_STATS = 'c'
+MBUF_STATS = 'm'
 
-ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH, LATENCY_HISTOGRAM]
+ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH, LATENCY_HISTOGRAM, CPU_STATS, MBUF_STATS]
 COMPACT = [GLOBAL_STATS, PORT_STATS]
 GRAPH_PORT_COMPACT = [GLOBAL_STATS, PORT_GRAPH]
 SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS] # stream stats
 LS_COMPAT = [GLOBAL_STATS, LATENCY_STATS] # latency stats
 LH_COMPAT = [GLOBAL_STATS, LATENCY_HISTOGRAM] # latency histogram
+UT_COMPAT = [GLOBAL_STATS, CPU_STATS, MBUF_STATS] # utilization
 
 ExportableStats = namedtuple('ExportableStats', ['raw_data', 'text_table'])
 
@@ -104,6 +106,13 @@ def calculate_diff_raw (samples):
 
     return total
 
+get_number_of_bytes_cache = {}
+# get number of bytes: '64b'->64, '9kb'->9000 etc.
+def get_number_of_bytes(val):
+    if val not in get_number_of_bytes_cache:
+        get_number_of_bytes_cache[val] = int(val[:-1].replace('k', '000'))
+    return get_number_of_bytes_cache[val]
+
 # a simple object to keep a watch over a field
 class WatchedField(object):
 
@@ -138,11 +147,12 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, async_monitor):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, async_monitor):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
         self._rx_stats_ref = rx_stats_ref
         self._latency_stats_ref = latency_stats_ref
+        self._util_stats_ref = util_stats_ref
         self._async_monitor = async_monitor
 
     def generate_single_statistic(self, port_id_list, statistic_type):
@@ -166,6 +176,12 @@ class CTRexInfoGenerator(object):
 
         elif statistic_type == LATENCY_HISTOGRAM:
             return self._generate_latency_histogram()
+
+        elif statistic_type == CPU_STATS:
+            return self._generate_cpu_util_stats()
+
+        elif statistic_type == MBUF_STATS:
+            return self._generate_mbuf_util_stats()
 
         else:
             # ignore by returning empty object
@@ -403,6 +419,73 @@ class CTRexInfoGenerator(object):
         header = ["PG ID"] + [key for key in pg_ids]
         stats_table.header(header)
         return {"latency_histogram": ExportableStats(None, stats_table)}
+
+    def _generate_cpu_util_stats(self):
+        util_stats = self._util_stats_ref.get_stats(use_1sec_cache = True)
+        stats_table = text_tables.TRexTextTable()
+        if util_stats:
+            if 'cpu' not in util_stats:
+                raise Exception("Excepting 'cpu' section in stats %s" % util_stats)
+            cpu_stats = util_stats['cpu']
+            hist_len = len(cpu_stats[0])
+            avg_len = min(5, hist_len)
+            show_len = min(15, hist_len)
+            stats_table.header(['Thread', 'Avg', 'Latest'] + list(range(-1, 0 - show_len, -1)))
+            stats_table.set_cols_align(['l'] + ['r'] * (show_len + 1))
+            stats_table.set_cols_width([8, 3, 6] + [3] * (show_len - 1))
+            stats_table.set_cols_dtype(['t'] * (show_len + 2))
+            for i in range(min(14, len(cpu_stats))):
+                avg = int(round(sum(cpu_stats[i][:avg_len]) / avg_len))
+                stats_table.add_row([i, avg] + cpu_stats[i][:show_len])
+        else:
+            stats_table.add_row(['No Data.'])
+        return {'cpu_util(%)': ExportableStats(None, stats_table)}
+
+    def _generate_mbuf_util_stats(self):
+        util_stats = self._util_stats_ref.get_stats(use_1sec_cache = True)
+        stats_table = text_tables.TRexTextTable()
+        if util_stats:
+            if 'mbuf_stats' not in util_stats:
+                raise Exception("Excepting 'mbuf_stats' section in stats %s" % util_stats)
+            mbuf_stats = util_stats['mbuf_stats']
+            for mbufs_per_socket in mbuf_stats.values():
+                first_socket_mbufs = mbufs_per_socket
+                break
+            if not self._util_stats_ref.mbuf_types_list:
+                mbuf_keys = list(first_socket_mbufs.keys())
+                mbuf_keys.sort(key = get_number_of_bytes)
+                self._util_stats_ref.mbuf_types_list = mbuf_keys
+            types_len = len(self._util_stats_ref.mbuf_types_list)
+            stats_table.set_cols_align(['l'] + ['r'] * (types_len + 1))
+            stats_table.set_cols_width([10] + [7] * (types_len + 1))
+            stats_table.set_cols_dtype(['t'] * (types_len + 2))
+            stats_table.header([''] + self._util_stats_ref.mbuf_types_list + ['RAM(MB)'])
+            total_list = []
+            sum_totals = 0
+            for mbuf_type in self._util_stats_ref.mbuf_types_list:
+                sum_totals += first_socket_mbufs[mbuf_type][1] * get_number_of_bytes(mbuf_type) + 64
+                total_list.append(first_socket_mbufs[mbuf_type][1])
+            sum_totals *= len(list(mbuf_stats.values()))
+            total_list.append(int(sum_totals/1e6))
+            stats_table.add_row(['Total:'] + total_list)
+            stats_table.add_row(['Used:'] + [''] * (types_len + 1))
+            for socket_name in sorted(list(mbuf_stats.keys())):
+                mbufs = mbuf_stats[socket_name]
+                socket_show_name = socket_name.replace('cpu-', '').replace('-', ' ').capitalize() + ':'
+                sum_used = 0
+                used_list = []
+                percentage_list = []
+                for mbuf_type in self._util_stats_ref.mbuf_types_list:
+                    used = mbufs[mbuf_type][1] - mbufs[mbuf_type][0]
+                    sum_used += used * get_number_of_bytes(mbuf_type) + 64
+                    used_list.append(used)
+                    percentage_list.append('%s%%' % int(100 * used / mbufs[mbuf_type][1]))
+                used_list.append(int(sum_used/1e6))
+                stats_table.add_row([socket_show_name] + used_list)
+                stats_table.add_row(['Percent:'] + percentage_list + [''])
+        else:
+            stats_table.add_row(['No Data.'])
+        return {'mbuf_util': ExportableStats(None, stats_table)}
 
     @staticmethod
     def _get_rational_block_char(value, range_start, interval):
@@ -693,12 +776,12 @@ class CTRexStats(object):
 
         return value
 
-    def get(self, field, format=False, suffix=""):
+    def get(self, field, format=False, suffix="", opts = None):
         value = self._get(self.latest_stats, field)
         if value == None:
             return 'N/A'
 
-        return value if not format else format_num(value, suffix)
+        return value if not format else format_num(value, suffix = suffix, opts = opts)
 
 
     def get_rel(self, field, format=False, suffix=""):
@@ -937,13 +1020,19 @@ class CPortStats(CTRexStats):
         else:
             state = format_text(state, 'bold')
 
+        # default rate format modifiers
+        rate_format = {'bpsl1': None, 'bps': None, 'pps': None, 'percentage': 'bold'}
+
         # mark owned ports by color
         if self._port_obj:
             owner = self._port_obj.get_owner()
+            rate_format[self._port_obj.last_factor_type] = ('blue', 'bold')
             if self._port_obj.is_acquired():
                 owner = format_text(owner, 'green')
+
         else:
             owner = ''
+
 
         return {"owner": owner,
                 "state": "{0}".format(state),
@@ -955,21 +1044,19 @@ class CPortStats(CTRexStats):
                 "-----": " ",
 
                 "Tx bps L1": "{0} {1}".format(self.get_trend_gui("m_total_tx_bps_L1", show_value = False),
-                                               self.get("m_total_tx_bps_L1", format = True, suffix = "bps")),
+                                               self.get("m_total_tx_bps_L1", format = True, suffix = "bps", opts = rate_format['bpsl1'])),
 
                 "Tx bps L2": "{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
-                                               self.get("m_total_tx_bps", format = True, suffix = "bps")),
+                                                self.get("m_total_tx_bps", format = True, suffix = "bps", opts = rate_format['bps'])),
 
-                "Line Util.": "{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False),
-                                                format_text(
-                                                    self.get("m_percentage", format = True, suffix = "%") if self._port_obj else "",
-                                                    'bold')) if self._port_obj else "",
+                "Line Util.": "{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False) if self._port_obj else "",
+                                               self.get("m_percentage", format = True, suffix = "%", opts = rate_format['percentage']) if self._port_obj else ""),
 
                 "Rx bps": "{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
                                             self.get("m_total_rx_bps", format = True, suffix = "bps")),
                   
                 "Tx pps": "{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
-                                            self.get("m_total_tx_pps", format = True, suffix = "pps")),
+                                            self.get("m_total_tx_pps", format = True, suffix = "pps", opts = rate_format['pps'])),
 
                 "Rx pps": "{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
                                             self.get("m_total_rx_pps", format = True, suffix = "pps")),
@@ -1010,6 +1097,13 @@ class CLatencyStats(CTRexStats):
             snapshot = {}
         output = {}
 
+        output['global'] = {}
+        for field in ['bad_hdr', 'old_flow']:
+            if 'global' in snapshot and field in snapshot['global']:
+                output['global'][field] = snapshot['global'][field]
+            else:
+                output['global'][field] = 0
+
         # we care only about the current active keys
         pg_ids = list(filter(is_intable, snapshot.keys()))
 
@@ -1036,6 +1130,7 @@ class CLatencyStats(CTRexStats):
                     output[int_pg_id]['latency']['total_min'] = min_val
                 else:
                     output[int_pg_id]['latency']['total_min'] = StatNotAvailable('total_min')
+                    output[int_pg_id]['latency']['histogram'] = {}
 
         self.latest_stats = output
         return True
@@ -1046,12 +1141,7 @@ class CRxStats(CTRexStats):
     def __init__(self, ports):
         super(CRxStats, self).__init__()
         self.ports = ports
-        self.ports_speed = {}
 
-    def get_ports_speed(self):
-        for port in self.ports:
-            self.ports_speed[str(port)] = self.ports[port].get_speed_bps()
-        self.ports_speed['total'] = sum(self.ports_speed.values())
 
     # calculates a diff between previous snapshot
     # and current one
@@ -1111,6 +1201,14 @@ class CRxStats(CTRexStats):
         # copy timestamp field
         output['ts'] = current['ts']
 
+        # global (not per pg_id) error counters
+        output['global'] = {}
+        for field in ['rx_err', 'tx_err']:
+            output['global'][field] = {}
+            if 'global' in current and field in current['global']:
+                for port in current['global'][field]:
+                    output['global'][field][int(port)] = current['global'][field][port]
+
         # we care only about the current active keys
         pg_ids = list(filter(is_intable, current.keys()))
 
@@ -1169,8 +1267,8 @@ class CRxStats(CTRexStats):
             return
 
         # TX
-        self.get_ports_speed()
         for port in pg_current['tx_pkts'].keys():
+
             prev_tx_pps   = pg_prev['tx_pps'].get(port)
             now_tx_pkts   = pg_current['tx_pkts'].get(port)
             prev_tx_pkts  = pg_prev['tx_pkts'].get(port)
@@ -1179,19 +1277,20 @@ class CRxStats(CTRexStats):
             prev_tx_bps   = pg_prev['tx_bps'].get(port)
             now_tx_bytes  = pg_current['tx_bytes'].get(port)
             prev_tx_bytes = pg_prev['tx_bytes'].get(port)
+
             pg_current['tx_bps'][port], pg_current['tx_bps_lpf'][port] = self.calc_bps(prev_tx_bps, now_tx_bytes, prev_tx_bytes, diff_sec)
 
             if pg_current['tx_bps'].get(port) != None and pg_current['tx_pps'].get(port) != None:
                 pg_current['tx_bps_L1'][port] = calc_bps_L1(pg_current['tx_bps'][port], pg_current['tx_pps'][port])
                 pg_current['tx_bps_L1_lpf'][port] = calc_bps_L1(pg_current['tx_bps_lpf'][port], pg_current['tx_pps_lpf'][port])
-                pg_current['tx_line_util'][port] = 100.0 * pg_current['tx_bps_L1'][port] / self.ports_speed[port]
             else:
                 pg_current['tx_bps_L1'][port] = None
                 pg_current['tx_bps_L1_lpf'][port] = None
-                pg_current['tx_line_util'][port] = None
+
 
         # RX
         for port in pg_current['rx_pkts'].keys():
+
             prev_rx_pps   = pg_prev['rx_pps'].get(port)
             now_rx_pkts   = pg_current['rx_pkts'].get(port)
             prev_rx_pkts  = pg_prev['rx_pkts'].get(port)
@@ -1204,11 +1303,9 @@ class CRxStats(CTRexStats):
             if pg_current['rx_bps'].get(port) != None and pg_current['rx_pps'].get(port) != None:
                 pg_current['rx_bps_L1'][port] = calc_bps_L1(pg_current['rx_bps'][port], pg_current['rx_pps'][port])
                 pg_current['rx_bps_L1_lpf'][port] = calc_bps_L1(pg_current['rx_bps_lpf'][port], pg_current['rx_pps_lpf'][port])
-                pg_current['rx_line_util'][port] = 100.0 * pg_current['rx_bps_L1'][port] / self.ports_speed[port]
             else:
                 pg_current['rx_bps_L1'][port] = None
                 pg_current['rx_bps_L1_lpf'][port] = None
-                pg_current['rx_line_util'][port] = None
 
 
     def calc_pps (self, prev_bw, now, prev, diff_sec):
@@ -1259,6 +1356,9 @@ class CRxStats(CTRexStats):
         for pg_id, value in self.latest_stats.items():
             # skip non ints
             if not is_intable(pg_id):
+                # 'global' stats are in the same level of the pg_ids. We do want them to go to the user
+                if pg_id == 'global':
+                    stats[pg_id] = value
                 continue
             # bare counters
             stats[int(pg_id)] = {}
@@ -1271,7 +1371,7 @@ class CRxStats(CTRexStats):
                         stats[int(pg_id)][field][int(port)] = val if val != 'N/A' else StatNotAvailable(field)
 
             # BW values
-            for field in ['tx_pps', 'tx_bps', 'tx_bps_L1', 'rx_pps', 'rx_bps', 'rx_bps_L1', 'tx_line_util', 'rx_line_util']:
+            for field in ['tx_pps', 'tx_bps', 'tx_bps_L1', 'rx_pps', 'rx_bps', 'rx_bps_L1']:
                 val = self.get([pg_id, field, 'total'])
                 stats[int(pg_id)][field] = {'total': val if val != 'N/A' else StatNotAvailable(field)}
                 for port in value[field].keys():
@@ -1281,7 +1381,27 @@ class CRxStats(CTRexStats):
 
         return stats
 
+class CUtilStats(CTRexStats):
 
+    def __init__(self, client):
+        super(CUtilStats, self).__init__()
+        self.client = client
+        self.history = deque(maxlen = 1)
+        self.mbuf_types_list = None
+        self.last_update_ts = 0
+
+    def get_stats(self, use_1sec_cache = False):
+        time_now = time.time()
+        if self.last_update_ts + 1 < time_now or not self.history or not use_1sec_cache:
+            if self.client.is_connected():
+                rc = self.client._transmit('get_utilization')
+                if not rc:
+                    raise Exception(rc)
+                self.last_update_ts = time_now
+                self.history.append(rc.data())
+            else:
+                self.history.append({})
+        return self.history[-1]
 
 if __name__ == "__main__":
     pass

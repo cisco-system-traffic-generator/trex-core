@@ -334,10 +334,6 @@ static void rte_stats_dump(const struct rte_eth_stats &stats) {
     rte_stat_dump_array(stats.q_ibytes, "queue rx bytes", RTE_ETHDEV_QUEUE_STAT_CNTRS);
     rte_stat_dump_array(stats.q_obytes, "queue tx bytes", RTE_ETHDEV_QUEUE_STAT_CNTRS);
     rte_stat_dump_array(stats.q_errors, "queue dropped", RTE_ETHDEV_QUEUE_STAT_CNTRS);
-    rte_stat_dump_one(stats.ilbpackets, "rx loopback");
-    rte_stat_dump_one(stats.olbpackets, "tx loopback");
-    rte_stat_dump_one(stats.ilbbytes, "rx bytes loopback");
-    rte_stat_dump_one(stats.olbbytes, "tx bytes loopback");
 }
 
 int CTrexDebug::test_send(uint pkt_type) {

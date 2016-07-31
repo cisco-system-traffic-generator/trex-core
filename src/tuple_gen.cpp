@@ -25,6 +25,7 @@ limitations under the License.
 #include "tuple_gen.h"
 #include <string.h>
 #include "utl_yaml.h"
+#include "bp_sim.h"
 
 void CServerPool::Create(IP_DIST_t  dist_value,
             uint32_t min_ip,
@@ -52,97 +53,117 @@ void CServerPool::Create(IP_DIST_t  dist_value,
 
 
 
-void CClientPool::Create(IP_DIST_t  dist_value,
-            uint32_t min_ip,
-            uint32_t max_ip,
-            double l_flow,
-            double t_cps,
-            CFlowGenListMac* mac_info,
-            bool has_mac_map,
-            uint16_t tcp_aging, 
-            uint16_t udp_aging) {
-    assert(max_ip>=min_ip);
+void CClientPool::Create(IP_DIST_t       dist_value,
+                         uint32_t        min_ip,
+                         uint32_t        max_ip,
+                         double          l_flow,
+                         double          t_cps,
+                         ClientCfgDB     &client_info,
+                         uint16_t        tcp_aging,
+                         uint16_t        udp_aging) {
+
+    assert(max_ip >= min_ip);
+
     set_dist(dist_value);
-    uint32_t total_ip = max_ip - min_ip +1;
-    uint32_t avail_ip = total_ip;
-    if (has_mac_map && (mac_info!=NULL)) {
-        for(int idx=0;idx<total_ip;idx++){
-            mac_addr_align_t *mac_adr = NULL;
-            mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
-            if (mac_adr == NULL) {
-                avail_ip--;
-            }
-        }
-    }
-    if (avail_ip!=0) {
-        m_ip_info.resize(avail_ip);
+
+    uint32_t total_ip  = max_ip - min_ip +1;
+    bool is_long_range = total_ip > (l_flow * t_cps / MAX_PORT);
+
+    m_ip_info.resize(total_ip);
+
+    /* if client info is empty - flat allocation o.w use configured clients */
+    if (client_info.is_empty()) {
+        allocate_simple_clients(min_ip, total_ip, is_long_range);
     } else {
-        printf("\n Error, invalid mac file is configured.\n");
-        assert(0);
+        allocate_configured_clients(min_ip, total_ip, is_long_range, client_info);
     }
 
-    int skip_cnt=0;
-    if (total_ip > ((l_flow*t_cps/MAX_PORT))) {
-        if (has_mac_map) {
-            skip_cnt=0;
-            for(int idx=0;idx<total_ip;idx++){
-                mac_addr_align_t *mac_adr = NULL;
-                mac_adr = mac_info->get_mac_addr_by_ip( min_ip+idx);
-                if (mac_adr != NULL) {
-                    m_ip_info[idx-skip_cnt] = new CClientInfoL(has_mac_map);
-                    m_ip_info[idx-skip_cnt]->set_ip(min_ip+idx);
-                    m_ip_info[idx-skip_cnt]->set_mac(mac_adr);
-                } else {
-                    skip_cnt++;
-                }
-            }
-        } else {
-            for(int idx=0;idx<total_ip;idx++){
-                m_ip_info[idx] = new CClientInfoL(has_mac_map);
-                m_ip_info[idx]->set_ip(min_ip+idx);
-            }
-        } 
-    } else {
-        if (has_mac_map) {
-            skip_cnt=0;
-            for(int idx=0;idx<total_ip;idx++){
-                mac_addr_align_t *mac_adr = NULL;
-                mac_adr = mac_info->get_mac_addr_by_ip(min_ip+idx);
-                if (mac_adr != NULL) {
-                    m_ip_info[idx-skip_cnt] = new CClientInfo(has_mac_map);
-                    m_ip_info[idx-skip_cnt]->set_ip(min_ip+idx);
-                    m_ip_info[idx-skip_cnt]->set_mac(mac_adr);
-                } else {
-                    skip_cnt++;
-                }
-            }
-        } else {
-            for(int idx=0;idx<total_ip;idx++){
-                m_ip_info[idx] = new CClientInfo(has_mac_map);
-                m_ip_info[idx]->set_ip(min_ip+idx);
-            }
-        } 
- 
-    }
     m_tcp_aging = tcp_aging;
     m_udp_aging = udp_aging;
-    CreateBase();
+
+    CreateBase(); 
+}
+
+/**
+ * simple allocation of a client - no configuration was provided
+ * 
+ * @author imarom (27-Jun-16)
+ * 
+ * @param ip 
+ * @param index 
+ * @param is_long_range 
+ */
+void CClientPool::allocate_simple_clients(uint32_t  min_ip,
+                                          uint32_t  total_ip,
+                                          bool      is_long_range) {
+
+    /* simple creation of clients - no extended info */
+    for (uint32_t i = 0; i < total_ip; i++) {
+        uint32_t ip = min_ip + i;
+        if (is_long_range) {
+            m_ip_info[i] = new CSimpleClientInfo<CIpInfoL>(ip);
+        } else {
+            m_ip_info[i] = new CSimpleClientInfo<CIpInfo>(ip);
+        }
+    }
+
+}
+
+/**
+ * simple allocation of a client - no configuration was provided
+ * 
+ * @author imarom (27-Jun-16)
+ * 
+ * @param ip 
+ * @param index 
+ * @param is_long_range 
+ */
+void CClientPool::allocate_configured_clients(uint32_t        min_ip,
+                                              uint32_t        total_ip,
+                                              bool            is_long_range,
+                                              ClientCfgDB     &client_info) {
+
+    for (uint32_t i = 0; i < total_ip; i++) {
+        uint32_t ip = min_ip + i;
+
+        /* lookup for the right group of clients */
+        ClientCfgEntry *group = client_info.lookup(ip);
+        if (!group) {
+            std::stringstream ss;
+            ss << "client configuration error: could not map IP '" << ip_to_str(ip) << "' to a group\n";
+            throw std::runtime_error(ss.str());
+        }
+
+        ClientCfg info;
+        group->assign(info);
+
+        if (is_long_range) {
+            m_ip_info[i] = new CConfiguredClientInfo<CIpInfoL>(ip, info);
+        } else {
+            m_ip_info[i] = new CConfiguredClientInfo<CIpInfo>(ip, info);
+        }
+    }
 }
 
 
-bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t  client_dist,
-                                          uint32_t min_client,
-                                          uint32_t max_client,
-                                          double l_flow,
-                                          double t_cps,
-                                          CFlowGenListMac* mac_info, 
-                                          uint16_t tcp_aging,
-                                          uint16_t udp_aging){
+bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
+                                          uint32_t        min_client,
+                                          uint32_t        max_client,
+                                          double          l_flow,
+                                          double          t_cps,
+                                          ClientCfgDB     &client_info,
+                                          uint16_t        tcp_aging,
+                                          uint16_t        udp_aging) {
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
-    pool->Create(client_dist, min_client, max_client,
-                 l_flow, t_cps, mac_info, m_has_mac_mapping,
-                 tcp_aging, udp_aging);
+    pool->Create(client_dist,
+                 min_client,
+                 max_client,
+                 l_flow,
+                 t_cps,
+                 client_info,
+                 tcp_aging,
+                 udp_aging);
 
     m_client_pool.push_back(pool);
     return(true);
@@ -170,19 +191,17 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
 
 
 bool CTupleGeneratorSmart::Create(uint32_t _id,
-                                  uint32_t thread_id,
-                                  bool has_mac)
+                                  uint32_t thread_id)
+                                  
 {
     m_thread_id     = thread_id;
     m_id = _id;
     m_was_init=true;
-    m_has_mac_mapping = has_mac;
     return(true);
 }
 
 void CTupleGeneratorSmart::Delete(){
     m_was_init=false;
-    m_has_mac_mapping = false;
 
     for (int idx=0;idx<m_client_pool.size();idx++) {
         m_client_pool[idx]->Delete();

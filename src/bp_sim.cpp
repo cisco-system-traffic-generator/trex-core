@@ -498,40 +498,23 @@ void CRteMemPool::dump_in_case_of_error(FILE *fd){
     dump(fd);
 }
 
-std::string CRteMemPool::add_to_json(
-                              std::string name,
-                              rte_mempool_t * pool,
-                              bool last){
+void CRteMemPool::add_to_json(Json::Value &json, std::string name, rte_mempool_t * pool){
     uint32_t p_free = rte_mempool_count(pool);
     uint32_t p_size = pool->size;
-    char buff[200];
-    sprintf(buff,"\"%s\":[%llu,%llu]",name.c_str(),(unsigned long long)p_free,(unsigned long long)p_size);
-    std::string json = std::string(buff) + (last?std::string(""):std::string(","));
-    return (json);
+    json[name].append((unsigned long long)p_free);
+    json[name].append((unsigned long long)p_size);
 }
 
 
-std::string CRteMemPool::dump_as_json(uint8_t id,bool last){
-
-    char buff[200];
-    sprintf(buff,"\"socket-%d\":{", (int)id);
-
-    std::string json=std::string(buff);
-
-    json+=add_to_json("64b",m_small_mbuf_pool);
-    json+=add_to_json("128b",m_mbuf_pool_128);
-    json+=add_to_json("256b",m_mbuf_pool_256);
-    json+=add_to_json("512b",m_mbuf_pool_512);
-    json+=add_to_json("1024b",m_mbuf_pool_1024);
-    json+=add_to_json("2048b",m_mbuf_pool_2048);
-    json+=add_to_json("4096b",m_mbuf_pool_4096);
-    json+=add_to_json("9kb",m_mbuf_pool_9k,true);
-
-    json+="}" ;
-    if (last==false) {
-        json+="," ;
-    }
-    return (json);
+void CRteMemPool::dump_as_json(Json::Value &json){
+    add_to_json(json, "64b", m_small_mbuf_pool);
+    add_to_json(json, "128b", m_mbuf_pool_128);
+    add_to_json(json, "256b", m_mbuf_pool_256);
+    add_to_json(json, "512b", m_mbuf_pool_512);
+    add_to_json(json, "1024b", m_mbuf_pool_1024);
+    add_to_json(json, "2048b", m_mbuf_pool_2048);
+    add_to_json(json, "4096b", m_mbuf_pool_4096);
+    add_to_json(json, "9kb", m_mbuf_pool_9k);
 }
 
 
@@ -548,30 +531,24 @@ void CRteMemPool::dump(FILE *fd){
     DUMP_MBUF("mbuf_9k",m_mbuf_pool_9k);
 
 }
+
 ////////////////////////////////////////
 
-
-std::string CGlobalInfo::dump_pool_as_json(void){
-
-    std::string json="\"mbuf_stats\":{";
+void CGlobalInfo::dump_pool_as_json(Json::Value &json){
     CPlatformSocketInfo * lpSocket =&m_socket;
-    int last_socket=-1;
 
-    /* calc the last socket */
-    int i;
-    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
+    for (int i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
         if (lpSocket->is_sockets_enable((socket_id_t)i)) {
-            last_socket=i;
+            std::string socket_id = "cpu-socket-" + std::to_string(i);
+            m_mem_pool[i].dump_as_json(json["mbuf_stats"][socket_id]);
         }
     }
+}
 
-    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
-        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
-            json+=m_mem_pool[i].dump_as_json(i,last_socket==i?true:false);
-        }
-    }
-    json+="},";
-    return json;
+std::string CGlobalInfo::dump_pool_as_json_str(void){
+    Json::Value json;
+    dump_pool_as_json(json);
+    return (json.toStyledString());
 }
 
 void CGlobalInfo::free_pools(){
@@ -745,7 +722,7 @@ std::string double_to_human_str(double num,
     if (etype ==KBYE_1024){
         f=1024.0;
     }
-    while ((abs_num > f ) && (i< max_cnt)){
+    while ((abs_num > f ) && (i < max_cnt - 1)){
         abs_num/=f;
         div*=f;
         i++;
@@ -771,9 +748,8 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," 1g mode         : %d\n", (int)get_1g_mode() );
     fprintf(fd," zmq_publish     : %d\n", (int)get_zmq_publish_enable() );
     fprintf(fd," vlan_enable     : %d\n", (int)get_vlan_mode_enable() );
+    fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
     fprintf(fd," mbuf_cache_disable  : %d\n", (int)isMbufCacheDisabled() );
-    fprintf(fd," mac_ip_features : %d\n", (int)get_mac_ip_features_enable()?1:0 );
-    fprintf(fd," mac_ip_map : %d\n", (int)get_mac_ip_mapping_enable()?1:0 );
     fprintf(fd," vm mode         : %d\n", (int)get_vm_one_queue_enable()?1:0 );
 }
 
@@ -785,8 +761,10 @@ void CFlowGenStats::clear(){
    m_total_close_flows =0;
    m_nat_lookup_no_flow_id=0;
    m_nat_lookup_remove_flow_id=0;
+   m_nat_lookup_wait_ack_state = 0;
    m_nat_lookup_add_flow_id=0;
    m_nat_flow_timeout=0;
+   m_nat_flow_timeout_wait_ack = 0;
    m_nat_flow_learn_error=0;
 }
 
@@ -815,9 +793,12 @@ void CFlowGenStats::dump(FILE *fd){
 
    DP(m_nat_lookup_no_flow_id);
    DP(m_nat_lookup_remove_flow_id);
+   DP(m_nat_lookup_wait_ack_state);
    DP(m_nat_lookup_add_flow_id);
    DP(m_nat_flow_timeout);
+   DP(m_nat_flow_timeout_wait_ack);
    DP_name("active_nat",(m_nat_lookup_add_flow_id-m_nat_lookup_remove_flow_id));
+   DP_name("active_nat_wait_syn", (m_nat_lookup_add_flow_id - m_nat_lookup_wait_ack_state));
    DP(m_nat_flow_learn_error);
 }
 
@@ -1962,42 +1943,115 @@ typedef CTmpFlowInfo * flow_tmp_t;
 typedef std::map<uint16_t, flow_tmp_t> flow_tmp_map_t;
 typedef flow_tmp_map_t::iterator flow_tmp_map_iter_t;
 
-
-
-bool CCapFileFlowInfo::is_valid_template_load_time(std::string & err){
-    err="";
+enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_load_time(){
    int i;
     for (i=0; i<Size(); i++) {
         CFlowPktInfo * lp= GetPacket((uint32_t)i);
         CPacketIndication * lpd=&lp->m_pkt_indication;
         if ( lpd->getEtherOffset() !=0 ){
-            err=" supported template Ether offset start is 0 \n";
-            return (false);
+            fprintf(stderr, "Error: Bad CAP file. Ether offset start is not 0 in packet %d \n", i+1);
+            return kPktNotSupp;
         }
-        if ( lpd->getIpOffset() !=14 ){
-            err=" supported template ip offset is 14 \n";
-            return (false);
-        }
-        if ( lpd->is_ipv6() ){
-            if ( lpd->getTcpOffset() != (14+40) ){
-                err=" supported template tcp/udp offset is 54, no ipv6 option header is supported \n";
-                return (false);
+
+        if  ( CGlobalInfo::is_learn_mode() ) {
+            // We change TCP ports. Need them to be in first 64 byte mbuf.
+            // Since we also add IP option, and rx-check feature might add another IP option, better not allow
+            // OP options in this mode. If needed this limitation can be refined a bit.
+            if ( lpd->getTcpOffset() - lpd->getIpOffset() != 20 ) {
+                fprintf(stderr, "Error: Bad CAP file. In learn (NAT) mode, no IP options allowed \n");
+                return kIPOptionNotAllowed;
             }
-        }else{
-            if ( lpd->getTcpOffset() != (14+20) ){
-                err=" supported template tcp/udp offset is 34, no ipv4 option is allowed in this version \n";
-                return (false);
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+                if (lpd->getIpProto() != IPPROTO_TCP && !lpd->m_desc.IsInitSide()) {
+                    fprintf(stderr, "Error: In the chosen learn mode, all packets from server to client in CAP file should be TCP.\n");
+                    fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                    return kNoTCPFromServer;
+                }
             }
         }
     }
 
     if  ( CGlobalInfo::is_learn_mode() ) {
-        if ( GetPacket(0)->m_pkt_indication.m_desc.IsPluginEnable() ) {
-            err="plugins are not supported with --learn mode \n";
-            return(false);
+        CPacketIndication &pkt_0_indication = GetPacket(0)->m_pkt_indication;
+
+        if ( pkt_0_indication.m_desc.IsPluginEnable() ) {
+            fprintf(stderr, "Error: plugins are not supported with --learn mode \n");
+            return kPlugInWithLearn;
+        }
+
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                if (Size() < 3) {
+                    fprintf(stderr
+                            , "Error: In the chosen learn mode, need at least the 3 TCP handshake packets.\n");
+                    fprintf(stderr
+                            , "       Please give different CAP file, or try different --learn-mode\n");
+                    return kTCPLearnModeBadFlow;
+                }
+            }
+            CPacketIndication &pkt_1_indication = GetPacket(1)->m_pkt_indication;
+
+
+            // verify first packet is TCP SYN from client
+            TCPHeader *tcp = (TCPHeader *)(pkt_0_indication.getBasePtr() + pkt_0_indication.getTcpOffset());
+            if ( (! pkt_0_indication.m_desc.IsInitSide()) || (! tcp->getSynFlag()) ) {
+                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet should be SYN from client side.\n");
+                fprintf(stderr, "       In cap file, first packet side direction is %s. TCP header is:\n"
+                        , pkt_0_indication.m_desc.IsInitSide() ? "outside":"inside");
+                tcp->dump(stderr);
+                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                return kNoSyn;
+            }
+
+            // We want at least the TCP flags to be inside first mbuf
+            if (pkt_0_indication.getTcpOffset() + 14 > FIRST_PKT_SIZE) {
+                fprintf(stderr
+                        , "Error: In the chosen learn mode, TCP flags offset should be less than %d, but it is %d.\n"
+                        , FIRST_PKT_SIZE, pkt_0_indication.getTcpOffset() + 14);
+                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                return kTCPOffsetTooBig;
+            }
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                // To support TCP seq randomization from server to client, we need second packet in flow to be the server SYN+ACK
+                bool error = false;
+                if (pkt_1_indication.getIpProto() != IPPROTO_TCP) {
+                    error = true;
+                } else {
+                    TCPHeader *tcp = (TCPHeader *)(pkt_1_indication.getBasePtr() + pkt_1_indication.getTcpOffset());
+                    if ( (! tcp->getSynFlag()) ||  (! tcp->getAckFlag()) || ( pkt_1_indication.m_desc.IsInitSide())) {
+                        error = true;
+                    }
+                }
+                if (error) {
+                    fprintf(stderr, "Error: In the chosen learn mode, second packet should be SYN+ACK from server.\n");
+                    fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
+                    return kNoTCPSynAck;
+                }
+
+                CPacketIndication &pkt_2_indication = GetPacket(2)->m_pkt_indication;
+                if ( (! pkt_2_indication.m_desc.IsInitSide()) ) {
+                    fprintf(stderr
+                            , "Error: Wrong third packet. In the chosen learn mode, need at least the 3 TCP handshake packets.\n");
+                    fprintf(stderr
+                            , "       Please give different CAP file, or try different --learn-mode\n");
+                    return kTCPLearnModeBadFlow;
+                }
+                if ((pkt_0_indication.m_cap_ipg < (double)LEARN_MODE_MIN_IPG / 1000)
+                    || (pkt_1_indication.m_cap_ipg < (double)LEARN_MODE_MIN_IPG / 1000)) {
+                    fprintf(stderr
+                            , "Error: Bad cap file timings. In the chosen learn mode");
+                    fprintf(stderr, "IPG between TCP handshake packets should be at least %d msec.\n", LEARN_MODE_MIN_IPG);
+                    fprintf(stderr, "       Current delay is %f between second and first, %f between third and second"
+                            , pkt_0_indication.m_cap_ipg, pkt_1_indication.m_cap_ipg);
+                    fprintf(stderr
+                            , "       Please give different CAP file, try different --learn-mode, or edit ipg parameters in template file\n");
+                    return kTCPIpgTooLow;
+                }
+            }
         }
     }
-    return(true);
+
+    return(kOK);
 }
 
 
@@ -2085,6 +2139,13 @@ void CCapFileFlowInfo::update_info(){
         if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ){
             lp->mask_as_learn();
         }
+
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+            // In this mode, we need to see the SYN+ACK as well.
+            lp = GetPacket(1);
+            assert(lp);
+            lp->m_pkt_indication.setTTL(TTL_RESERVE_DUPLICATE);
+        }
     }
 
     if ( ft.empty() )
@@ -2124,7 +2185,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     m_total_errors=0;
     CFlow * first_flow=0;
     bool first_flow_fif_is_swap=false;
-
     bool time_was_set=false;
     double last_time=0.0;
     CCapPktRaw raw_packet;
@@ -2199,35 +2259,10 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                             m_total_errors++;
                         }
                     }
-
-                    if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
-                        // in this mode, first TCP packet must be SYN from client.
-                        if (pkt_indication.getIpProto() == IPPROTO_TCP) {
-                            TCPHeader *tcp = (TCPHeader *)(pkt_indication.getBasePtr() + pkt_indication.getTcpOffset());
-                            if ( (! pkt_indication.m_desc.IsInitSide()) || (! tcp->getSynFlag()) ) {
-                                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet should be SYN from client side.\n");
-                                fprintf(stderr, "       In cap file, first packet side direction is %s. TCP header is:\n", pkt_indication.m_desc.IsInitSide() ? "outside":"inside");
-                                tcp->dump(stderr);
-                                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-
-                                return kNoSyn;
-                            }
-                            // We want at least the TCP flags to be inside first mbuf
-                            if (pkt_indication.getTcpOffset() + 14 > FIRST_PKT_SIZE) {
-                                fprintf(stderr, "Error: In the chosen learn mode, first TCP packet TCP flags offset should be less than %d, but it is %d.\n"
-                                       , FIRST_PKT_SIZE, pkt_indication.getTcpOffset() + 14);
-                                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-                                return kTCPOffsetTooBig;
-                            }
-                        }
-                    }
-
                 }else{ /* no FIF */
-
                     pkt_indication.m_desc.SetFlowId(lpflow->flow_id);
 
                     if ( multi_flow_enable ==false ){
-
                         if (lpflow == first_flow) {
                             // add to
                             bool init_side=
@@ -2249,16 +2284,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
                     }
                 }
-
-                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
-                    // This test must be down here, after initializing init side indication
-                    if (pkt_indication.getIpProto() != IPPROTO_TCP && !pkt_indication.m_desc.IsInitSide()) {
-                        fprintf(stderr, "Error: In the chosen learn mode, all packets from server to client in CAP file should be TCP.\n");
-                        fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-                        return kNoTCPFromServer;
-                    }
-                }
-
             }else{
                 fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
                 return kPktNotSupp;
@@ -2268,7 +2293,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
             return kPktProcessFail;
         }
     }
-
 
     /* set the last */
     CFlowPktInfo * last_pkt =GetPacket((uint32_t)(Size()-1));
@@ -2282,9 +2306,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
         lp_prev->m_pkt_indication.m_cap_ipg = lp->m_pkt_indication.m_cap_ipg-
                                               lp_prev->m_pkt_indication.m_cap_ipg;
-
-
-
         if ( lp->m_pkt_indication.m_desc.IsInitSide() !=
              lp_prev->m_pkt_indication.m_desc.IsInitSide()) {
             lp_prev->m_pkt_indication.m_desc.SetRtt(true);
@@ -2447,26 +2468,6 @@ void CCapFileFlowInfo::RemoveAll(){
 
 void CCapFileFlowInfo::Delete(){
     RemoveAll();
-}
-
-void operator >> (const YAML::Node& node, mac_mapping_t &fi) {
-    utl_yaml_read_ip_addr(node,"ip", fi.ip);
-    const YAML::Node& mac_info = node["mac"];
-    for(unsigned i=0;i<mac_info.size();i++) {
-        const YAML::Node & node_2 =mac_info;
-        uint32_t value;
-        node_2[i]  >> value;
-        fi.mac.mac[i] = value;
-    }
-}
-
-void operator >> (const YAML::Node& node, std::map<uint32_t, mac_addr_align_t> &mac_info) {
-    const YAML::Node& mac_node = node["items"];
-    mac_mapping_t mac_mapping;
-    for (unsigned i=0;i<mac_node.size();i++) {
-        mac_node[i] >> mac_mapping;
-        mac_info[mac_mapping.ip] = mac_mapping.mac;
-    }
 }
 
 void operator >> (const YAML::Node& node, CFlowYamlDpPkt & fi) {
@@ -3166,11 +3167,8 @@ bool CFlowGeneratorRec::Create(CFlowYamlInfo * info,
     int res=m_flow_info.load_cap_file(info->m_name.c_str(),_id,m_info->m_plugin_id);
     if ( res==0 ) {
         fixup_ipg_if_needed();
-        std::string  err;
-        /* verify that template are valid */
-        bool is_valid=m_flow_info.is_valid_template_load_time(err);
-        if (!is_valid) {
-            printf("\n ERROR template file is not valid  '%s' \n",err.c_str());
+
+        if (m_flow_info.is_valid_template_load_time() != 0) {
             return (false);
         }
         m_flow_info.update_info();
@@ -3324,9 +3322,6 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_max_threads=max_threads;
     m_thread_id=thread_id;
 
-    m_watchdog        = NULL;
-    m_watchdog_handle = -1;
-
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
     uint32_t socket_id=rte_lcore_to_socket_id(m_core_id);
@@ -3351,7 +3346,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     /* split the clients to threads */
     CTupleGenYamlInfo * tuple_gen = &m_flow_list->m_yaml_info.m_tuple_gen;
 
-    m_smart_gen.Create(0,m_thread_id,m_flow_list->get_is_mac_conf());
+    m_smart_gen.Create(0,m_thread_id);
 
     /* split the clients to threads using the mask */
     CIpPortion  portion;
@@ -3361,14 +3356,14 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                   portion);
 
         m_smart_gen.add_client_pool(tuple_gen->m_client_pool[i].m_dist,
-                        portion.m_ip_start,
-                        portion.m_ip_end,
-                        get_longest_flow(i,true),
-                        get_total_kcps(i,true)*1000,
-                        &m_flow_list->m_mac_info,
-                        tuple_gen->m_client_pool[i].m_tcp_aging_sec,
-                        tuple_gen->m_client_pool[i].m_udp_aging_sec
-                        );
+                                    portion.m_ip_start,
+                                    portion.m_ip_end,
+                                    get_longest_flow(i,true),
+                                    get_total_kcps(i,true)*1000,
+                                    m_flow_list->m_client_config_info,
+                                    tuple_gen->m_client_pool[i].m_tcp_aging_sec,
+                                    tuple_gen->m_client_pool[i].m_udp_aging_sec
+                                    );
     }
     for (int i=0;i<tuple_gen->m_server_pool.size();i++) {
         split_ips(m_thread_id, m_max_threads, getDualPortId(),
@@ -3747,11 +3742,11 @@ inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
     }
     return (0);
 }
-                                           
+
 
 
 template<int SCH_MODE>
-inline int CNodeGenerator::flush_file_realtime(dsec_t max_time, 
+inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                                         dsec_t d_time,
                                         bool always,
                                         CFlowGenListPerThread * thread,
@@ -3770,9 +3765,9 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
 
     sch_state_t state = scINIT;
     node = m_p_queue.top();
-    n_time = node->m_time + offset; 
+    n_time = node->m_time + offset;
     cur_time = now_sec();
-    
+
     while (state!=scTERMINATE) {
 
          switch (state) {
@@ -3798,7 +3793,7 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                          break;
                      }
                      node = m_p_queue.top();
-                     n_time = node->m_time + offset; 
+                     n_time = node->m_time + offset;
 
                      if ((n_time-cur_time)>EAT_WINDOW_DTIME) {
                        state=scINIT;
@@ -3808,7 +3803,7 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                  break;
 
          case scWAIT:
-                do_sleep(cur_time,thread,n_time); // estimate  loop 
+                do_sleep(cur_time,thread,n_time); // estimate  loop
                 state=scWORK;
                 break;
          default:
@@ -3819,7 +3814,7 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
     return (teardown(thread,always,old_offset,offset));
 }
 
-FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time, 
+FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time,
                                         dsec_t d_time,
                                         bool always,
                                         CFlowGenListPerThread * thread,
@@ -3846,7 +3841,7 @@ FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time,
     return (teardown(thread,always,old_offset,0));
 }
 
-int CNodeGenerator::flush_file(dsec_t max_time, 
+int CNodeGenerator::flush_file(dsec_t max_time,
                                dsec_t d_time,
                                bool always,
                                CFlowGenListPerThread * thread,
@@ -3867,7 +3862,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 
 void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread) {
 
-    /*repeat and NAT is not supported */
+    /*repeat and NAT is not supported together */
     if ( node->is_nat_first_state()  ) {
         node->set_nat_wait_state();
         flush_one_node_to_file(node);
@@ -3878,7 +3873,7 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
         if ( node->is_nat_wait_state() ) {
             if (node->is_responder_pkt()) {
                 m_p_queue.pop();
-                /* time out, need to free the flow and remove the association , we didn't get convertion yet*/
+                /* time out, need to free the flow and remove the association , we didn't get conversion yet*/
                 thread->terminate_nat_flows(node);
                 return;
 
@@ -3889,7 +3884,22 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
                 #endif
             }
         } else {
-            assert(0);
+            if ( node->is_nat_wait_ack_state() ) {
+                if (node->is_initiator_pkt()) {
+                    m_p_queue.pop();
+                    /* time out, need to free the flow and remove the association , we didn't get conversion yet*/
+                    thread->terminate_nat_flows(node);
+                    return;
+
+                } else {
+                    flush_one_node_to_file(node);
+#ifdef _DEBUG
+                    update_stats(node);
+#endif
+                }
+            } else {
+                assert(0);
+            }
         }
     }
     m_p_queue.pop();
@@ -4169,6 +4179,11 @@ int CFlowGenListPerThread::reschedule_flow(CGenNode *node){
 void CFlowGenListPerThread::terminate_nat_flows(CGenNode *p){
     m_stats.m_nat_flow_timeout++;
     m_stats.m_nat_lookup_remove_flow_id++;
+    if (p->is_nat_wait_ack_state()) {
+        m_stats.m_nat_flow_timeout_wait_ack++;
+    } else {
+        m_stats.m_nat_lookup_wait_ack_state++;
+    }
     m_flow_id_to_node_lookup.remove_no_lookup(p->get_short_fid());
     free_last_flow_node( p);
 }
@@ -4193,38 +4208,74 @@ void CFlowGenListPerThread::handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg)
     m_node_gen.m_v_if->send_one_pkt((pkt_dir_t)msg->m_dir,msg->m_pkt);
 }
 
-
 void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
     int i;
+    bool first = true, second = true;
+
     for (i=0; i<msg->m_cnt; i++) {
+        first = true;
+        second = true;
         CNatFlowInfo * nat_msg=&msg->m_data[i];
         CGenNode * node=m_flow_id_to_node_lookup.lookup(nat_msg->m_fid);
         if (!node) {
-            /* this should be move to a notification module */
-            #ifdef NAT_TRACE_
+            /* this should be moved to a notification module */
+#ifdef NAT_TRACE_
             printf(" ERORR not valid flow_id %d probably flow was aged  \n",nat_msg->m_fid);
-            #endif
+#endif
             m_stats.m_nat_lookup_no_flow_id++;
             continue;
         }
-        #ifdef NAT_TRACE_
-        printf(" %.03f  RX :set node %p:%x  %x:%x:%x \n",now_sec() ,node,nat_msg->m_fid,nat_msg->m_external_ip,nat_msg->m_external_ip_server,nat_msg->m_external_port);
-        #endif
-        node->set_nat_ipv4_addr(nat_msg->m_external_ip);
-        node->set_nat_ipv4_port(nat_msg->m_external_port);
-        node->set_nat_ipv4_addr_server(nat_msg->m_external_ip_server);
 
-        assert(node->is_nat_wait_state());
-        if ( CGlobalInfo::is_learn_verify_mode() ){
-            if (!node->is_external_is_eq_to_internal_ip() ){
-                m_stats.m_nat_flow_learn_error++;
+        // Calculate diff between tcp seq of SYN packet, and TCP ack of SYN+ACK packet
+        // For supporting firewalls who do TCP seq num randomization
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+            if (node->is_nat_wait_state()) {
+                char *syn_pkt = node->m_flow_info->GetPacket(0)->m_packet->raw;
+                TCPHeader *tcp = (TCPHeader *)(syn_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
+                node->set_nat_tcp_seq_diff_client(nat_msg->m_tcp_seq - tcp->getSeqNumber());
+                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                    node->set_nat_wait_ack_state();
+                    m_stats.m_nat_lookup_wait_ack_state++;
+                    second = false;
+                } else {
+                    node->set_nat_learn_state();
+                }
+            } else {
+                char *syn_ack_pkt = node->m_flow_info->GetPacket(1)->m_packet->raw;
+                TCPHeader *tcp = (TCPHeader *)(syn_ack_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
+                node->set_nat_tcp_seq_diff_server(nat_msg->m_tcp_seq - tcp->getSeqNumber());
+                assert(node->is_nat_wait_ack_state());
+                node->set_nat_learn_state();
+                first = false;
+            }
+        } else {
+            assert(node->is_nat_wait_state());
+            node->set_nat_learn_state();
+        }
+
+        if (first) {
+#ifdef NAT_TRACE_
+            printf(" %.03f  RX :set node %p:%x  %x:%x TCP diff %x\n"
+                   , now_sec(), node,nat_msg->m_fid, nat_msg->m_external_ip, nat_msg->m_external_port
+                   , node->get_nat_tcp_seq_diff_client());
+#endif
+
+            node->set_nat_ipv4_addr(nat_msg->m_external_ip);
+            node->set_nat_ipv4_port(nat_msg->m_external_port);
+
+            if ( CGlobalInfo::is_learn_verify_mode() ){
+                if (!node->is_external_is_eq_to_internal_ip() ||
+                    node->get_nat_tcp_seq_diff_client() != 0) {
+                    m_stats.m_nat_flow_learn_error++;
+                }
             }
         }
-        node->set_nat_learn_state();
-        /* remove from the hash */
-        m_flow_id_to_node_lookup.remove_no_lookup(nat_msg->m_fid);
-        m_stats.m_nat_lookup_remove_flow_id++;
 
+        if (second) {
+            /* remove from the hash */
+            m_flow_id_to_node_lookup.remove_no_lookup(nat_msg->m_fid);
+            m_stats.m_nat_lookup_remove_flow_id++;
+        }
     }
 }
 
@@ -4320,12 +4371,19 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         fprintf(stderr," nothing to generate no template loaded \n");
         return;
     }
+
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
     dsec_t d_time_flow=get_delta_flow_is_sec();
-    m_cur_time_sec =  0.01+m_thread_id*m_flow_list->get_delta_flow_is_sec();
+
+    m_cur_time_sec =  0.01 + m_thread_id*m_flow_list->get_delta_flow_is_sec();
+
+
     if ( CGlobalInfo::is_realtime()  ){
-        m_cur_time_sec += now_sec() + 0.5 ;
+        if (m_cur_time_sec > 0.2 ) {
+            m_cur_time_sec =  0.01 + m_thread_id*0.01;
+        }
+        m_cur_time_sec += now_sec() + 0.1 ;
     }
     dsec_t c_stop_sec = m_cur_time_sec + m_yaml_info.m_duration_sec;
     m_stop_time_sec =c_stop_sec;
@@ -4415,31 +4473,10 @@ void CFlowGenList::clean_p_thread_info(void){
     m_threads_info.clear();
 }
 
-
-
-int CFlowGenList::load_from_mac_file(std::string file_name) {
-    if ( !utl_is_file_exists (file_name)  ){
-         printf(" ERROR no mac_file is set,  file %s does not exist \n",file_name.c_str());
-         exit(-1);
-     }
-    m_mac_info.set_configured(true);
-
-     try {
-        std::ifstream fin((char *)file_name.c_str());
-        YAML::Parser parser(fin);
-        YAML::Node doc;
-
-        parser.GetNextDocument(doc);
-        doc[0] >> m_mac_info.get_mac_info();
-     } catch ( const std::exception& e ) {
-         std::cout << e.what() << "\n";
-         m_mac_info.clear();
-         exit(-1);
-     }
-
-     return (0);
+int CFlowGenList::load_client_config_file(std::string file_name) {
+    m_client_config_info.load_yaml_file(file_name);
+    return (0);
 }
-
 
 int CFlowGenList::load_from_yaml(std::string file_name,
                                  uint32_t num_threads){
@@ -4516,6 +4553,16 @@ double CFlowGenList::GetCpuUtil(){
     for (i=0; i<(int)m_threads_info.size(); i++) {
         CFlowGenListPerThread * lp=m_threads_info[i];
         c+=lp->m_cpu_cp_u.GetVal();
+    }
+    return (c/m_threads_info.size());
+}
+
+double CFlowGenList::GetCpuUtilRaw(){
+    int i;
+    double c=0.0;
+    for (i=0; i<(int)m_threads_info.size(); i++) {
+        CFlowGenListPerThread * lp=m_threads_info[i];
+        c+=lp->m_cpu_cp_u.GetValRaw();
     }
     return (c/m_threads_info.size());
 }
@@ -4751,21 +4798,20 @@ bool CParserOption::is_valid_opt_val(int val, int min, int max, const std::strin
 
 void CParserOption::dump(FILE *fd){
     preview.Dump(fd);
-    fprintf(fd," cfg file    : %s \n",cfg_file.c_str());
-    fprintf(fd," mac file    : %s \n",mac_file.c_str());
-    fprintf(fd," out file    : %s \n",out_file.c_str());
-    fprintf(fd," duration    : %.0f \n",m_duration);
-    fprintf(fd," factor      : %.0f \n",m_factor);
-    fprintf(fd," mbuf_factor : %.0f \n",m_mbuf_factor);
-    fprintf(fd," latency     : %d pkt/sec \n",m_latency_rate);
-    fprintf(fd," zmq_port    : %d \n",m_zmq_port);
-    fprintf(fd," telnet_port : %d \n",m_telnet_port);
-    fprintf(fd," expected_ports : %d \n",m_expected_portd);
+    fprintf(fd," cfg file        : %s \n",cfg_file.c_str());
+    fprintf(fd," mac file        : %s \n",client_cfg_file.c_str());
+    fprintf(fd," out file        : %s \n",out_file.c_str());
+    fprintf(fd," client cfg file : %s \n",out_file.c_str());
+    fprintf(fd," duration        : %.0f \n",m_duration);
+    fprintf(fd," factor          : %.0f \n",m_factor);
+    fprintf(fd," mbuf_factor     : %.0f \n",m_mbuf_factor);
+    fprintf(fd," latency         : %d pkt/sec \n",m_latency_rate);
+    fprintf(fd," zmq_port        : %d \n",m_zmq_port);
+    fprintf(fd," telnet_port     : %d \n",m_telnet_port);
+    fprintf(fd," expected_ports  : %d \n",m_expected_portd);
     if (preview.get_vlan_mode_enable() ) {
-       fprintf(fd," vlans       : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
+       fprintf(fd," vlans     : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
     }
-   fprintf(fd," mac spreading: %d \n",(int)m_mac_splitter);
-
 
     int i;
     for (i = 0; i < TREX_MAX_PORTS; i++) {
@@ -4775,6 +4821,15 @@ void CParserOption::dump(FILE *fd){
         fprintf(fd,"  src:");
         dump_mac_addr(fd,lp->u.m_mac.src);
         fprintf(fd,"\n");
+    }
+}
+
+void CParserOption::verify() {
+    /* check for mutual exclusion options */
+    if (preview.get_is_client_cfg_enable()) {
+        if (preview.get_vlan_mode_enable() || preview.get_mac_ip_overide_enable()) {
+            throw std::runtime_error("VLAN / MAC override cannot be combined with client configuration");
+        }
     }
 }
 
@@ -4994,29 +5049,28 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
         bool is_const = false;
         if (m) {
             is_const = true;
+            rte_pktmbuf_refcnt_update(m,1);
         }else{
             m=node_sl->alloc_node_with_vm();
             assert(m);
         }
 
-        if (node_sl->is_stat_needed()) {
+        if (node_sl->is_stat_needed() && (node_sl->get_stat_hw_id() >= MAX_FLOW_STATS) ) {
+            /* latency packet. flow stat without latency handled like normal packet in simulation */
             uint16_t hw_id = node_sl->get_stat_hw_id();
-            if (hw_id >= MAX_FLOW_STATS) {
-                rte_mbuf_t *mi;
-                struct flow_stat_payload_header *fsp_head;
-                mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
-                fsp_head->seq = 0x12345678;
-                fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
-                fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
-                fsp_head->time_stamp = 0x8899aabbccddeeff;
-                fill_raw_packet(m,(CGenNode *)node_sl,dir);
-                rte_pktmbuf_free(mi);
-            }
+            rte_mbuf_t *mi;
+            struct flow_stat_payload_header *fsp_head;
+            mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
+            fsp_head->seq = 0x12345678;
+            fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
+            fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+            fsp_head->flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
+            fsp_head->time_stamp = 0x8899aabbccddeeff;
+            fill_raw_packet(mi, (CGenNode *)node_sl, dir);
+            rte_pktmbuf_free(mi);
         } else {
             fill_raw_packet(m,(CGenNode *)node_sl,dir);
-            if (! is_const) {
-                rte_pktmbuf_free(m);
-            }
+            rte_pktmbuf_free(m);
         }
     }
         /* check that we have mbuf  */
@@ -5065,37 +5119,68 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
     return (0);
 }
 
+void CErfIF::add_vlan(uint16_t vlan_id) {
+    uint8_t *buffer =(uint8_t *)m_raw->raw;
 
+    uint16_t vlan_protocol = EthernetHeader::Protocol::VLAN;
+    uint32_t vlan_tag = (vlan_protocol << 16) | vlan_id;
+    vlan_tag = PKT_HTONL(vlan_tag);
 
-int CErfIF::send_node(CGenNode * node){
+    /* insert vlan tag and adjust packet size */
+    memcpy(cbuff+4, buffer + 12, m_raw->pkt_len - 12);
+    memcpy(cbuff, &vlan_tag, 4);
+    memcpy(buffer + 12, cbuff, m_raw->pkt_len - 8);
 
-    if ( m_preview_mode->getFileWrite() ){
+    m_raw->pkt_len += 4;
+}
 
-    CFlowPktInfo * lp=node->m_pkt_info;
-    rte_mbuf_t * m=lp->generate_new_mbuf(node);
-    pkt_dir_t dir=node->cur_interface_dir();
+void CErfIF::apply_client_config(const ClientCfg *cfg, pkt_dir_t dir) {
+    assert(cfg);
+    uint8_t *p = (uint8_t *)m_raw->raw;
 
-    fill_raw_packet(m,node,dir);
+    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
+
+    /* dst mac */
+    if (cfg_dir.has_dst_mac_addr()) {
+        memcpy(p, cfg_dir.get_dst_mac_addr(), 6);
+    }
+
+    /* src mac */
+    if (cfg_dir.has_src_mac_addr()) {
+        memcpy(p + 6, cfg_dir.get_src_mac_addr(), 6);
+    }
+
+    /* VLAN */
+    if (cfg_dir.has_vlan()) {
+        add_vlan(cfg_dir.get_vlan());
+    }
+}
+
+int CErfIF::send_node(CGenNode *node){
+
+    if (!m_preview_mode->getFileWrite()) {
+        return (0);
+    }
+
+    CFlowPktInfo *lp = node->m_pkt_info;
+    rte_mbuf_t   *m  = lp->generate_new_mbuf(node);
+    pkt_dir_t    dir = node->cur_interface_dir();
+
+    fill_raw_packet(m, node, dir);
 
     /* update mac addr dest/src 12 bytes */
     uint8_t *p=(uint8_t *)m_raw->raw;
     int p_id=(int)dir;
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
-    /* If vlan is enabled, add vlan header */
-    if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-            /* retrieve vlan ID and  form vlan tag */
-            uint8_t vlan_port = (node->m_src_ip &1);
-            uint16_t vlan_protocol = EthernetHeader::Protocol::VLAN;
-            uint16_t vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
-            uint32_t vlan_tag = (vlan_protocol << 16) | vlan_id;
-            vlan_tag = PKT_HTONL(vlan_tag);
+    /* if a client configuration was provided - apply the config */
+    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+        apply_client_config(node->m_client_cfg, dir);
 
-            /* insert vlan tag and adjust packet size */
-            memcpy(cbuff+4, p+12, m_raw->pkt_len-12);
-            memcpy(cbuff, &vlan_tag, 4);
-            memcpy(p+12, cbuff, m_raw->pkt_len-8);
-            m_raw->pkt_len += 4;
+    } else if (CGlobalInfo::m_options.preview.get_vlan_mode_enable()) {
+        uint8_t vlan_port = (node->m_src_ip & 1);
+        uint16_t vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
+        add_vlan(vlan_id);
     }
 
     //utl_DumpBuffer(stdout,p,  12,0);
@@ -5104,8 +5189,8 @@ int CErfIF::send_node(CGenNode * node){
     BP_ASSERT(rc == 0);
 
     rte_pktmbuf_free(m);
-   }
-   return (0);
+
+    return (0);
 }
 
 int CErfIF::flush_tx_queue(void){
@@ -6435,7 +6520,7 @@ void CGenNodeBase::free_base(){
         CGenNodePCAP *p = (CGenNodePCAP *)this;
         p->destroy();
         return;
-    } 
+    }
 
     if ( m_type == COMMAND ) {
          CGenNodeCommand* p=(CGenNodeCommand*)this;
@@ -6443,4 +6528,3 @@ void CGenNodeBase::free_base(){
     }
 
 }
-

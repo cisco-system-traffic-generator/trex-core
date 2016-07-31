@@ -112,6 +112,7 @@ main_src = SrcGroup(dir='src',
              'utl_yaml.cpp',
              'rx_check_header.cpp',
              'nat_check.cpp',
+             'nat_check_flow_table.cpp',
              'timer_wheel_pq.cpp',
              'time_histogram.cpp',
              'utl_json.cpp',
@@ -122,8 +123,10 @@ main_src = SrcGroup(dir='src',
              'flow_stat.cpp',
              'flow_stat_parser.cpp',
              'trex_watchdog.cpp',
+             'trex_client_config.cpp',
              'pal/linux/pal_utl.cpp',
              'pal/linux/mbuf.cpp',
+             'pal/common/common_mbuf.cpp',
              'sim/trex_sim_stateless.cpp',
              'sim/trex_sim_stateful.cpp'
              ]);
@@ -254,6 +257,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 
 
 includes_path =''' ../src/pal/linux/
+                   ../src/pal/common/
                    ../src/
                    ../src/rpc-server/
                    ../src/stateless/cp/

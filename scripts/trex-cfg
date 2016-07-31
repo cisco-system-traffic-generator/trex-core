@@ -11,7 +11,7 @@ fi
 
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} != 'x86_64' ]; then
-  echo "ERROR, only 64bit OS are supported, please reinstall x86 64 bit OS"
+  echo "ERROR, only 64bit operating systems are supported, please reinstall x86 64 bit OS"
   exit 1
 fi
 
@@ -20,7 +20,7 @@ fi
 if [ -d /mnt/huge ]; then
   echo >> /dev/null
 else
-  echo "Create huge node"                                
+  echo "Creating huge node"
   mkdir -p /mnt/huge
 fi
 
@@ -38,19 +38,27 @@ for file in /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepag
 done
 
 if ! lsmod | grep -q igb_uio  ;  then
-    echo "Load the drivers for the first time "
+    echo "Loading kernel drivers for the first time"
     modprobe uio
+    if [ $? -ne 0 ]; then
+        echo "Failed inserting uio module, please check if it is installed"
+        exit 1
+    fi
     km=ko/$SYS/igb_uio.ko
     if [ -e $km ] ; then 
         insmod $km
+        if [ $? -ne 0 ]; then
+            echo "Failed inserting igb_uio module"
+            exit 1
+        fi
     else
-        echo "ERROR kernel module is not supported for this OS"
-        echo "Please run the following commands: "
+        echo "ERROR: We don't have precompiled igb_uio.ko module for your kernel version"
+        echo "You can try compiling yourself, using the following commands:"
         echo "\$cd ko/src  "
         echo "\$make  "
         echo "\$make install  "
         echo "\$cd -  "
-        echo "and try to run it again "
+        echo "Then try to run Trex again"
         exit 1
     fi
 fi
@@ -60,5 +68,3 @@ PARENT_ARGS="$0 $@"
 if ! ./dpdk_setup_ports.py --parent "$PARENT_ARGS";  then
     exit 1
 fi
-
-

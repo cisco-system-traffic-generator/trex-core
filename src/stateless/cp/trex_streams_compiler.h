@@ -141,7 +141,7 @@ private:
                               bool                                   all_continues);
 
 
-    void compile_stream(TrexStream *stream,
+    void compile_stream(const TrexStream *stream,
                         double factor,
                         uint8_t dp_core_count,
                         std::vector<TrexStreamsCompiledObj *> &objs,

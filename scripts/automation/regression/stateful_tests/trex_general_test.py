@@ -139,41 +139,42 @@ class CTRexGeneral_Test(unittest.TestCase):
         if res[name] != float(val):
             self.fail('TRex results[%s]==%f and not as expected %f ' % (name, res[name], val))
 
-    def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 30, maximal_cpu = 85):
-            #cpu_util = float(trex_res.get_last_value("trex-global.data.m_cpu_util"))
-            cpu_util = sum(trex_res.get_value_list("trex-global.data.m_cpu_util")[-4:-1]) / 3.0 # mean of 3 values before last
+    def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 10, maximal_cpu = 85):
+        cpu_util          = trex_res.get_avg_steady_state_value('trex-global.data.m_cpu_util_raw')
+        trex_tx_bps       = trex_res.get_avg_steady_state_value('trex-global.data.m_tx_bps')
+        expected_norm_cpu = self.get_benchmark_param('bw_per_core')
+        cores             = self.get_benchmark_param('cores')
+        ports_count       = trex_res.get_ports_count()
+        test_norm_cpu     = trex_tx_bps / (cpu_util * ports_count * cores * 2.5e6)
 
-            if '1G' in self.modes:
-                minimal_cpu /= 10.0
+        if '1G' in self.modes:
+            minimal_cpu /= 10.0
 
-            if not self.is_virt_nics:
-                if cpu_util > maximal_cpu:
-                    self.fail("CPU is too high (%s%%), probably queue full." % cpu_util )
-                #if cpu_util < minimal_cpu:
-                #    self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
+        if not self.is_virt_nics:
+            if cpu_util > maximal_cpu:
+                self.fail("CPU is too high (%s%%), probably queue full." % cpu_util )
+            #if cpu_util < minimal_cpu:
+            #    self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
-            test_norm_cpu  = sum(trex_res.get_value_list("trex-global.data.m_bw_per_core")[-4:-1]) / 3.0
+        print("TRex CPU utilization: %g%%, norm_cpu is : %g Gb/core" % (round(cpu_util, 2), round(test_norm_cpu, 2)))
 
-            print("TRex CPU utilization: %g%%, norm_cpu is : %g Gb/core" % (round(cpu_util, 2), round(test_norm_cpu)))
+        if not expected_norm_cpu:
+            expected_norm_cpu = 1
 
-            expected_norm_cpu = self.get_benchmark_param('bw_per_core')
-            if not expected_norm_cpu:
-                expected_norm_cpu = 1
+        calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
+        print('Err percent: %s' % calc_error_precent)
+        #if calc_error_precent > err and cpu_util > 10:
+        #    self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
 
-            calc_error_precent = abs(100.0 * test_norm_cpu / expected_norm_cpu - 100)
-            print('Err percent: %s' % calc_error_precent)
-            #if calc_error_precent > err and cpu_util > 10:
-            #    self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
-
-            # report benchmarks
-            if self.GAManager:
-                try:
-                    setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
-                    self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
-                    self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
-                    self.GAManager.emptyAndReportQ()
-                except Exception as e:
-                    print('Sending GA failed: %s' % e)
+        # report benchmarks
+        if self.GAManager:
+            try:
+                setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
+                self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
+                self.GAManager.emptyAndReportQ()
+            except Exception as e:
+                print('Sending GA failed: %s' % e)
 
     def check_results_gt (self, res, name, val):
         if res is None:

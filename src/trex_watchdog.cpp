@@ -37,7 +37,7 @@ limitations under the License.
 #include  <stdexcept>
 
 
-static TrexWatchDog::monitor_st *global_monitor;
+static TrexMonitor *global_monitor;
 
 const char *get_exe_name();
 
@@ -92,7 +92,7 @@ std::string Backtrace(int skip = 1)
     /* add the addr2line info */
     std::stringstream addr2line;
 
-    addr2line << "/usr/bin/addr2line -e " << get_exe_name() << " ";
+    addr2line << "/usr/bin/addr2line -s -e " << get_exe_name() << " ";
     for (int i = skip; i < nFrames; i++) {
         addr2line << callstack[i] << " ";
     }
@@ -113,7 +113,7 @@ static void _callstack_signal_handler(int signr, siginfo_t *info, void *secret) 
 
     double now = now_sec();
 
-    ss << "WATCHDOG: task '" << global_monitor->name << "' has not responded for more than " << (now - global_monitor->ts) << " seconds - timeout is " << global_monitor->timeout_sec << " seconds";
+    ss << "WATCHDOG: task '" << global_monitor->get_name() << "' has not responded for more than " << global_monitor->get_interval(now) << " seconds - timeout is " << global_monitor->get_timeout_sec() << " seconds";
 
     std::string backtrace = Backtrace();
     ss << "\n\n*** traceback follows ***\n\n" << backtrace << "\n";
@@ -121,153 +121,65 @@ static void _callstack_signal_handler(int signr, siginfo_t *info, void *secret) 
     throw std::runtime_error(ss.str());
 }
 
+/**************************************
+ * Trex Monitor object
+ *************************************/
+
+void TrexMonitor::create(const std::string &name, double timeout_sec) {
+    m_active       = true;   
+    m_tid          = pthread_self();
+    m_name         = name;
+    m_timeout_sec  = timeout_sec;
+    m_tickled      = true;
+    m_ts           = 0;
+}
+
+/**************************************
+ * Trex watchdog
+ *************************************/
 
 void TrexWatchDog::init(bool enable){
-    m_enable =enable;
+    m_enable = enable;
     if (m_enable) {
         register_signal();
     } 
 }
 
-
-void TrexWatchDog::mark_pending_monitor(int count) {
-    if (!m_enable){
-        return;
-    }
-
-    std::unique_lock<std::mutex> lock(m_lock);
-    m_pending += count;
-    lock.unlock();
-}
-
-void TrexWatchDog::block_on_pending(int max_block_time_ms) {
-
-    if (!m_enable){
-        return;
-    }
-
-    int timeout_msec = max_block_time_ms;
-
-    std::unique_lock<std::mutex> lock(m_lock);
-
-    while (m_pending > 0) {
-
-        lock.unlock();
-        delay(1);
-        lock.lock();
-
-        timeout_msec -= 1;
-        if (timeout_msec == 0) {
-            throw TrexException("WATCHDOG: block on pending monitors timed out");
-        }
-    }
-
-    /* lock will be released */
-}
-
 /**
  * register a monitor 
- * must be called from the relevant thread 
- *  
  * this function is thread safe 
  * 
- * @author imarom (01-Jun-16)
- * 
- * @param name 
- * @param timeout_sec 
- * 
- * @return int 
  */
-int TrexWatchDog::register_monitor(const std::string &name, double timeout_sec) {
+void TrexWatchDog::register_monitor(TrexMonitor *monitor) {
     if (!m_enable){
-        return 0;
+        return;
     }
-    monitor_st monitor;
-
-
-    /* cannot add monitors while active */
-    assert(m_active == false);
-
-    monitor.active       = true;   
-    monitor.tid          = pthread_self();
-    monitor.name         = name;
-    monitor.timeout_sec  = timeout_sec;
-    monitor.tickled      = true;
-    monitor.ts           = 0;
 
     /* critical section start */
     std::unique_lock<std::mutex> lock(m_lock);
 
-    /* make sure no double register */
-    for (auto &m : m_monitors) {
-        if (m.tid == pthread_self()) {
+    /* sanity - not a must but why not... */
+    for (int i = 0; i < m_mon_count; i++) {
+        if ( (monitor == m_monitors[i]) || (m_monitors[i]->get_tid() == pthread_self()) ) {
             std::stringstream ss;
             ss << "WATCHDOG: double register detected\n\n" << Backtrace();
             throw TrexException(ss.str());
         }
     }
 
-    monitor.handle = m_monitors.size();
-    m_monitors.push_back(monitor);
+    /* check capacity */
+    if (m_mon_count == MAX_MONITORS) {
+        std::stringstream ss;
+        ss << "WATCHDOG: too many registered monitors\n\n" << Backtrace();
+        throw TrexException(ss.str());
+    }
 
-    assert(m_pending > 0);
-    m_pending--;
+    /* add monitor */
+    m_monitors[m_mon_count++] = monitor;
 
     /* critical section end */
     lock.unlock();
 
-    return monitor.handle;
-}
-
-/**
- * will disable the monitor - it will no longer be watched
- * 
- */
-void TrexWatchDog::disable_monitor(int handle) {
-    if (!m_enable){
-        return ;
-    }
-
-    assert(handle < m_monitors.size());
-
-    m_monitors[handle].active = false;
-}
-
-/**
- * thread safe function
- * 
- */
-void TrexWatchDog::tickle(int handle) {
-    if (!m_enable){
-        return ;
-    }
-    assert(handle < m_monitors.size());
-
-    /* not nesscary but write gets cache invalidate for nothing */
-    if (m_monitors[handle].tickled) {
-        return;
-    }
-
-    m_monitors[handle].tickled = true;
-}
-
-void TrexWatchDog::register_signal() {
-    /* do this once */
-    if (g_signal_init) {
-        return;
-    }
-
-    /* register a handler on SIG ALARM */
-    struct sigaction sa;
-    memset (&sa, '\0', sizeof(sa));
-
-    sa.sa_flags = SA_SIGINFO;
-    sa.sa_sigaction = _callstack_signal_handler;
-
-    int rc = sigaction(SIGALRM , &sa, NULL);
-    assert(rc == 0);
-
-    g_signal_init = true;
 }
 
 void TrexWatchDog::start() {
@@ -275,11 +187,6 @@ void TrexWatchDog::start() {
     if (!m_enable){
         return ;
     }
-
-    block_on_pending();
-
-    /* no pending monitors */
-    assert(m_pending == 0);
 
     m_active = true;
     m_thread = new std::thread(&TrexWatchDog::_main, this);
@@ -289,6 +196,7 @@ void TrexWatchDog::start() {
 }
 
 void TrexWatchDog::stop() {
+
     if (!m_enable){
         return ;
     }
@@ -310,42 +218,42 @@ void TrexWatchDog::stop() {
  */
 void TrexWatchDog::_main() {
 
-    assert(m_enable==true);
-
-    /* reset all the monitors */
-    for (auto &monitor : m_monitors) {
-        monitor.tickled = true;
-    }
+    assert(m_enable == true);
 
     /* start main loop */
     while (m_active) {
 
         dsec_t now = now_sec();
 
-        for (auto &monitor : m_monitors) {
+        /* to be on the safe side - read the count with a lock */
+        std::unique_lock<std::mutex> lock(m_lock);
+        int count = m_mon_count;
+        lock.unlock();
+
+        for (int i = 0; i < count; i++) {
+            TrexMonitor *monitor = m_monitors[i];
 
             /* skip non active monitors */
-            if (!monitor.active) {
+            if (!monitor->is_active()) {
                 continue;
             }
 
             /* if its own - turn it off and write down the time */
-            if (monitor.tickled) {
-                monitor.tickled = false;
-                monitor.ts      = now;
+            if (monitor->is_tickled()) {
+                monitor->reset(now);
                 continue;
             }
 
-            /* the bit is off - check the time first */
-            if ( (now - monitor.ts) > monitor.timeout_sec ) {
-                global_monitor = &monitor;
+            /* if the monitor has expired - crash */
+            if (monitor->is_expired(now)) {
+                global_monitor = monitor;
 
-                pthread_kill(monitor.tid, SIGALRM);
+                pthread_kill(monitor->get_tid(), SIGALRM);
 
                 /* nothing to do more... the other thread will terminate, but if not - we terminate */
                 sleep(5);
-                printf("\n\n*** WATCHDOG violation detected on task '%s' which have failed to response to the signal ***\n\n", monitor.name.c_str());
-                exit(1);
+                fprintf(stderr, "\n\n*** WATCHDOG violation detected on task '%s' which have failed to response to the signal ***\n\n", monitor->get_name().c_str());
+                abort();
             }
 
         }
@@ -355,4 +263,25 @@ void TrexWatchDog::_main() {
     }
 }
 
+
+void TrexWatchDog::register_signal() {
+    /* do this once */
+    if (g_signal_init) {
+        return;
+    }
+
+    /* register a handler on SIG ALARM */
+    struct sigaction sa;
+    memset (&sa, '\0', sizeof(sa));
+
+    sa.sa_flags = SA_SIGINFO;
+    sa.sa_sigaction = _callstack_signal_handler;
+
+    int rc = sigaction(SIGALRM , &sa, NULL);
+    assert(rc == 0);
+
+    g_signal_init = true;
+}
+
 bool TrexWatchDog::g_signal_init = false;
+

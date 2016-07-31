@@ -10,14 +10,12 @@ class STLExamples_Test(CStlGeneral_Test):
     def explicitSetUp(self):
         # examples connect by their own
         if self.is_connected():
-            self.recover_after_trex_210_issue()
             CTRexScenario.stl_trex.disconnect()
 
     def explicitTearDown(self):
         # connect back at end of tests
         if not self.is_connected():
             self.stl_trex.connect()
-        self.recover_after_trex_210_issue()
 
     def test_stl_examples(self):
         examples_dir = '../trex_control_plane/stl/examples'

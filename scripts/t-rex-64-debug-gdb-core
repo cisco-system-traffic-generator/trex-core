@@ -1,0 +1,12 @@
+#! /bin/bash
+export LD_LIBRARY_PATH=`pwd`
+/bin/gdb ./_t-rex-64-debug $@ 
+RESULT=$?
+
+if [ $RESULT -ne 0 ]; then
+  exit $RESULT
+fi
+
+
+
+

@@ -39,6 +39,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdGetCmds());
     register_command(new TrexRpcCmdGetVersion());
     register_command(new TrexRpcCmdGetActivePGIds());
+    register_command(new TrexRpcCmdGetUtilization());
     register_command(new TrexRpcCmdGetSysInfo());
     register_command(new TrexRpcCmdGetOwner());
     register_command(new TrexRpcCmdAcquire());
@@ -66,6 +67,8 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
 
     register_command(new TrexRpcCmdValidate());
     register_command(new TrexRpcCmdPushRemote());
+
+    register_command(new TrexRpcCmdShutdown());
 }
 
 

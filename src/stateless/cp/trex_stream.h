@@ -558,7 +558,7 @@ public:
     StreamVmDp   *m_vm_dp;
 
     CStreamPktData   m_pkt;
-    uint16_t         m_expected_pkt_len;
+    double           m_expected_pkt_len;
 
     /* pkt */
 

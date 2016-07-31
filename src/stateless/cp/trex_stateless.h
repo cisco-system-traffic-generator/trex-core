@@ -132,6 +132,11 @@ public:
 
 
     /**
+     * shutdown the server
+     */
+    void shutdown();
+
+    /**
      * fetch all the stats
      * 
      */
@@ -188,6 +193,7 @@ protected:
 
     /* API */
     APIClass                              m_api_classes[APIClass::API_CLASS_TYPE_MAX];
+
 };
 
 /**

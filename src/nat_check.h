@@ -21,6 +21,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <map>
 #include "msg_manager.h"
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
@@ -28,6 +29,7 @@ limitations under the License.
 #include <common/Network/Packet/IPv6Header.h>
 #include <common/Network/Packet/EthernetHeader.h>
 #include "os_time.h"
+#include "nat_check_flow_table.h"
 
 // 2msec timeout                                            
 #define MAX_TIME_MSG_IN_QUEUE_SEC  ( 0.002 )
@@ -121,7 +123,7 @@ private:
 
 struct CNatFlowInfo {
     uint32_t m_external_ip;
-    uint32_t m_external_ip_server;
+    uint32_t m_tcp_seq;
     uint32_t m_fid;
     uint16_t m_external_port;
     uint16_t m_pad;
@@ -210,13 +212,12 @@ public:
     void Dump(FILE *fd);
 };
 
-
 class CNatRxManager {
 
 public:
     bool Create();
     void Delete();
-    void handle_packet_ipv4(CNatOption * option, IPHeader * ipv4);
+    void handle_packet_ipv4(CNatOption * option, IPHeader * ipv4, bool is_first);
     void handle_aging();
     void Dump(FILE *fd);
     void DumpShort(FILE *fd);
@@ -232,6 +233,7 @@ private:
     uint8_t               m_max_threads;
     CNatPerThreadInfo   * m_per_thread;
     CNatStats             m_stats;
+    CNatCheckFlowTable    m_ft;
 };
 
 

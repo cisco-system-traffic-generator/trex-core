@@ -38,7 +38,8 @@ class CTRexScenario:
     is_copied        = False
     GAManager        = None
     no_daemon        = False
-    router_image     = None
+    debug_image      = False
+    test             = None
 
 class CTRexRunner:
     """This is an instance for generating a CTRexRunner"""

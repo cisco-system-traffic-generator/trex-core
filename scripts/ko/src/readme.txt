@@ -5,7 +5,7 @@
 Fedora
   $sudo yum install kernel-headers
 or
-Ubunto   
+Ubuntu   
   $sudo apt-get install linux-headers-$(uname -r)
 
 2. from this dir do this

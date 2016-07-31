@@ -18,6 +18,7 @@ limitations under the License.
 #include <stdio.h>
 #include <string>
 #include <sstream>
+#include <sys/resource.h>
 
 bool utl_is_file_exists (const std::string& name) {
     if (FILE *file = fopen(name.c_str(), "r")) {
@@ -198,3 +199,40 @@ utl_generate_random_str(unsigned int &seed, int len) {
     return (ss.str());
 }
 
+/**
+ * define the coredump size 
+ * allowed when crashing 
+ * 
+ * @param size - -1 means unlimited
+ * @param map_huge_pages - should the core map the huge TLB 
+ *                       pages
+ */
+void utl_set_coredump_size(long size, bool map_huge_pages) {
+    int mask;
+    struct rlimit core_limits;
+    
+    if (size == -1) {
+        core_limits.rlim_cur = core_limits.rlim_max = RLIM_INFINITY;
+    } else {
+        core_limits.rlim_cur = core_limits.rlim_max = size;
+    }
+
+    setrlimit(RLIMIT_CORE, &core_limits);
+
+    /* set core dump mask */
+    FILE *fp = fopen("/proc/self/coredump_filter", "wb");
+    if (!fp) {
+        printf("failed to open /proc/self/coredump_filter\n");
+        exit(-1);
+    }
+
+    /* huge pages is the 5th bit */
+    if (map_huge_pages) {
+        mask = 0x33;
+    } else {
+        mask = 0x13;
+    }
+    
+    fprintf(fp, "%08x\n", mask);
+    fclose(fp);
+}

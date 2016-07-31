@@ -116,7 +116,7 @@ TrexRpcZip::compress(const std::string &input, std::string &output) {
     header->magic      = htonl(G_HEADER_MAGIC);
     header->uncmp_size = htonl(input.size());
     
-    output.append((const char *)header, bound_size);
+    output.append((const char *)header, sizeof(header_st) + destLen);
 
     delete [] buffer;
 

@@ -241,20 +241,7 @@ class TRexConsole(TRexGeneralCmd):
 
 
     def postcmd(self, stop, line):
-
-        if not self.stateless_client.is_connected():
-            self.prompt = "trex(offline)>"
-            self.supported_rpc = None
-
-        elif not self.stateless_client.get_acquired_ports():
-            self.prompt = "trex(read-only)>"
-
-        elif self.stateless_client.is_all_ports_acquired():
-            self.prompt = "trex>"
-
-        else:
-            self.prompt = "trex {0}>".format(self.stateless_client.get_acquired_ports())
-
+        self.prompt = self.stateless_client.generate_prompt(prefix = 'trex')
         return stop
 
 
@@ -292,6 +279,11 @@ class TRexConsole(TRexGeneralCmd):
         self.stateless_client.ping_line(line)
 
 
+    @verify_connected
+    def do_shutdown (self, line):
+        '''Sends the server a shutdown request\n'''
+        self.stateless_client.shutdown_line(line)
+
     # set verbose on / off
     def do_verbose(self, line):
         '''Shows or set verbose mode\n'''
@@ -316,25 +308,21 @@ class TRexConsole(TRexGeneralCmd):
         self.do_history("-h")
 
     def do_shell (self, line):
-        return self.do_history(line)
+        self.do_history(line)
 
     def do_push (self, line):
         '''Push a local PCAP file\n'''
-        return self.stateless_client.push_line(line)
-
-    #def do_push_remote (self, line):
-    #    '''Push a remote accessible PCAP file\n'''
-    #    return self.stateless_client.push_remote_line(line)
+        self.stateless_client.push_line(line)
 
     def help_push (self):
-        return self.do_push("-h")
+        self.do_push("-h")
 
     def do_portattr (self, line):
         '''Change/show port(s) attributes\n'''
-        return self.stateless_client.set_port_attr_line(line)
+        self.stateless_client.set_port_attr_line(line)
 
     def help_portattr (self):
-        return self.do_portattr("-h")
+        self.do_portattr("-h")
 
     @verify_connected
     def do_map (self, line):
@@ -459,7 +447,6 @@ class TRexConsole(TRexGeneralCmd):
 
         self.stateless_client.start_line(line)
 
-        
 
 
     def help_start(self):
@@ -549,7 +536,7 @@ class TRexConsole(TRexGeneralCmd):
 
     def do_events (self, line):
         '''shows events recieved from server\n'''
-        return self.stateless_client.get_events_line(line)
+        self.stateless_client.get_events_line(line)
 
 
     def complete_profile(self, text, line, begidx, endidx):
@@ -563,11 +550,11 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_tui (self, line):
         '''Shows a graphical console\n'''
-
         parser = parsing_opts.gen_parser(self,
                                          "tui",
                                          self.do_tui.__doc__,
-                                         parsing_opts.XTERM)
+                                         parsing_opts.XTERM,
+                                         parsing_opts.LOCKED)
 
         opts = parser.parse_args(line.split())
         if opts is None:
@@ -581,16 +568,20 @@ class TRexConsole(TRexGeneralCmd):
             info = self.stateless_client.get_connection_info()
 
             exe = './trex-console --top -t -q -s {0} -p {1} --async_port {2}'.format(info['server'], info['sync_port'], info['async_port'])
-            cmd = ['/usr/bin/xterm', '-geometry', '111x49', '-sl', '0', '-title', 'trex_tui', '-e', exe]
+            cmd = ['/usr/bin/xterm', '-geometry', '{0}x{1}'.format(self.tui.MIN_COLS, self.tui.MIN_ROWS), '-sl', '0', '-title', 'trex_tui', '-e', exe]
 
             # detach child
             self.terminal = subprocess.Popen(cmd, preexec_fn = os.setpgrp)
 
             return
 
+        
+        try:
+            with self.stateless_client.logger.supress():
+                self.tui.show(self.stateless_client, self.save_console_history, locked = opts.locked)
 
-        with self.stateless_client.logger.supress():
-            self.tui.show()
+        except self.tui.ScreenSizeException as e:
+            print(format_text(str(e) + "\n", 'bold'))
 
 
     def help_tui (self):
@@ -872,7 +863,8 @@ def main():
 
         # TUI
         if options.tui:
-            console.do_tui("-x" if options.xtui else "")
+            console.do_tui("-x" if options.xtui else "-l")
+
         else:
             console.start()
             

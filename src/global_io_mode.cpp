@@ -103,6 +103,14 @@ bool CTrexGlobalIoMode::handle_io_modes(void){
                 m_g_mode=gNORMAL;
             }
             break;
+        case ccNat:
+            m_g_mode=gNAT;
+            m_nat_mode++;
+            if (m_nat_mode==natLAST) {
+                m_nat_mode = natDISABLE;
+                m_g_mode = gNORMAL;
+            }
+            break;
         }
 
 
@@ -121,17 +129,18 @@ void CTrexGlobalIoMode::Dump(FILE *fd){
 }
 
 void CTrexGlobalIoMode::DumpHelp(FILE *fd){
-        fprintf(fd,"Help for Interactive Commands - Trex \n" );
-        fprintf(fd,"  d  : Toggle, Disable all -> Noraml \n");
-        fprintf(fd,"  n  : Default mode all in Normal mode \n");
-        fprintf(fd,"  h  : Toggle, Help->Normal  \n");
-        fprintf(fd,"\n");
-        fprintf(fd,"  p  : Per ports    Toggle mode, disable -> table -> normal \n");
-        fprintf(fd,"  a  : Global ports Toggle mode, disable -> enable \n");
-        fprintf(fd,"  l  : Latency      Toggle mode, disable -> enable -> enhanced  \n");
-        fprintf(fd,"  r  : Rx check  Toggle mode, disable -> enable -> enhanced  \n");
-        fprintf(fd,"  m  : memory stats , disable -> enable   \n");
-        fprintf(fd,"  Press h or 1 to go back to Normal mode \n");
+        fprintf(fd, "Help for Interactive Commands\n" );
+        fprintf(fd, "  %c  : Toggle, Disable all/Default \n", ccGDISABLE);
+        fprintf(fd, "  %c  : Go back to default mode \n", ccGNORAML);
+        fprintf(fd, "  %c  : Toggle, Help/Default  \n", ccHELP);
+        fprintf(fd, "\n");
+        fprintf(fd, "  %c  : Per ports    toggle disable -> table -> normal \n", ccGPP);
+        fprintf(fd, "  %c  : Global ports toggle disable/enable \n", ccGAP);
+        fprintf(fd, "  %c  : Latency      toggle disable -> enable -> enhanced  \n", ccGL);
+        fprintf(fd, "  %c  : Rx check  toggle disable -> enable -> enhanced  \n", ccGRC);
+        fprintf(fd, "  %c  : Memory stats toggle disable/enable   \n", ccMem);
+        fprintf(fd, "  %c  : NAT pending flows toggle disable/enable   \n", ccNat);
+        fprintf(fd, "  Press %c or %c to go back to Normal mode \n", ccHELP, ccGNORAML);
 }
 
 

@@ -27,30 +27,11 @@ limitations under the License.
 
 #include "mbuf.h"
 #include <stdio.h>
-#include <assert.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include "sanb_atomic.h"
 
-
-#define RTE_MBUF_TO_BADDR(mb)       (((struct rte_mbuf *)(mb)) + 1)
-#define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
-
-
 void rte_pktmbuf_detach(struct rte_mbuf *m);
-
-
-
-void utl_rte_check(rte_mempool_t * mp){
-    assert(mp->magic  == MAGIC0);
-    assert(mp->magic2 == MAGIC2);
-}
-
-void utl_rte_pktmbuf_check(struct rte_mbuf *m){
-    utl_rte_check(m->pool);
-    assert(m->magic == MAGIC0);
-    assert(m->magic2== MAGIC2);
-}
 
 rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                                                unsigned n,
@@ -95,8 +76,9 @@ void utl_rte_mempool_delete(rte_mempool_t * & pool){
 uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
 {
     utl_rte_pktmbuf_check(m);
-    uint32_t a=sanb_atomic_add_return_32_old(&m->refcnt_reserved, value);
-    return (a);
+    m->refcnt_reserved = (uint16_t)(m->refcnt_reserved + value);
+    assert(m->refcnt_reserved >= 0);
+	return m->refcnt_reserved;
 }
 
 
@@ -109,7 +91,7 @@ void rte_pktmbuf_reset(struct rte_mbuf *m)
     m->pkt_len = 0;
     m->nb_segs = 1;
     m->in_port = 0xff;
-    m->refcnt_reserved=1;
+    m->ol_flags = 0;
 
     #if RTE_PKTMBUF_HEADROOM > 0
     m->data_off = (RTE_PKTMBUF_HEADROOM <= m->buf_len) ?
@@ -136,7 +118,7 @@ rte_mbuf_t *rte_pktmbuf_alloc(rte_mempool_t *mp){
     m->magic  = MAGIC0;
     m->magic2 = MAGIC2;
     m->pool   = mp;
-    m->refcnt_reserved =0;
+    m->refcnt_reserved = 1;
 
     m->buf_len    = buf_len;
     m->buf_addr   =(char *)((char *)m+sizeof(rte_mbuf_t)+RTE_PKTMBUF_HEADROOM) ;
@@ -146,27 +128,25 @@ rte_mbuf_t *rte_pktmbuf_alloc(rte_mempool_t *mp){
     return (m);
 }
 
-
-void rte_pktmbuf_free_seg(rte_mbuf_t *m){
+void rte_pktmbuf_free_seg(rte_mbuf_t *m) {
 
     utl_rte_pktmbuf_check(m);
-    uint32_t old=sanb_atomic_dec2zero32(&m->refcnt_reserved);
-    if (old == 1) {
-        struct rte_mbuf *md = RTE_MBUF_FROM_BADDR(m->buf_addr);
 
-        if ( md != m ) {
+	if (rte_mbuf_refcnt_update(m, -1) == 0) {
+        /* if this is an indirect mbuf, then
+         *  - detach mbuf
+         *  - free attached mbuf segment
+         */
+
+        if (RTE_MBUF_INDIRECT(m)) {
+            struct rte_mbuf *md = RTE_MBUF_FROM_BADDR(m->buf_addr);
             rte_pktmbuf_detach(m);
-            if (rte_mbuf_refcnt_update(md, -1) == 0) {
+            if (rte_mbuf_refcnt_update(md, -1) == 0)
                 free(md);
-            }
-
         }
-
         free(m);
     }
 }
-
-
 
 void rte_pktmbuf_free(rte_mbuf_t *m){
 
@@ -331,19 +311,6 @@ rte_pktmbuf_dump(const struct rte_mbuf *m, unsigned dump_len)
     }
 }
 
-
-rte_mbuf_t * utl_rte_pktmbuf_add_after2(rte_mbuf_t *m1,rte_mbuf_t *m2){
-    utl_rte_pktmbuf_check(m1);
-    utl_rte_pktmbuf_check(m2);
-
-    m1->next=m2;
-    m1->pkt_len += m2->data_len;
-    m1->nb_segs = m2->nb_segs + 1;
-    return (m1);
-}
-
-
-
 void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *md)
 {
 
@@ -355,6 +322,7 @@ void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *md)
     mi->next = NULL;
     mi->data_len = md->data_len;
     mi->pkt_len  = mi->data_len;
+    mi->ol_flags = mi->ol_flags | IND_ATTACHED_MBUF;
     mi->nb_segs = 1;
 }
 
@@ -376,31 +344,12 @@ void rte_pktmbuf_detach(struct rte_mbuf *m)
 
 
     m->data_len = 0;
+	m->ol_flags = 0;
 }
-
-
-
-
-
-rte_mbuf_t * utl_rte_pktmbuf_add_after(rte_mbuf_t *m1,rte_mbuf_t *m2){
-
-    utl_rte_pktmbuf_check(m1);
-    utl_rte_pktmbuf_check(m2);
-
-    rte_mbuf_refcnt_update(m2,1);
-    m1->next=m2;
-    m1->pkt_len += m2->data_len;
-    m1->nb_segs = m2->nb_segs + 1;
-    return (m1);
-}
-
 
 uint64_t rte_rand(void){
     return ( rand() );
 }
-
-
-
 
 
 #ifdef ONLY_A_TEST

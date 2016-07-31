@@ -477,6 +477,7 @@ public:
     enum mul_type_e {
         MUL_FACTOR,
         MUL_BPS,
+        MUL_BPSL1,
         MUL_PPS,
         MUL_PERCENTAGE
     };

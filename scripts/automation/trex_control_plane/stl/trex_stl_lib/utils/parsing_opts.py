@@ -1,6 +1,9 @@
 import argparse
 from collections import namedtuple
 from .common import list_intersect, list_difference
+from .text_opts import format_text
+from ..trex_stl_types import *
+
 import sys
 import re
 import os
@@ -33,12 +36,15 @@ NO_PROMISCUOUS = 20
 PROMISCUOUS_SWITCH = 21
 TUNABLES = 22
 REMOTE_FILE = 23
+LOCKED = 24
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
 PORT_STATUS = 52
 STREAMS_STATS = 53
 STATS_MASK = 54
+CPU_STATS = 55
+MBUF_STATS = 56
 
 STREAMS_MASK = 60
 # ALL_STREAMS = 61
@@ -90,82 +96,74 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 # value should be divided
 def decode_multiplier(val, allow_update = False, divide_count = 1):
 
-    # must be string
-    if not isinstance(val, str):
-        return None
+    factor_table = {None: 1, 'k': 1e3, 'm': 1e6, 'g': 1e9}
+    pattern = "^(\d+(\.\d+)?)(((k|m|g)?(bpsl1|pps|bps))|%)?"
 
     # do we allow updates ?  +/-
     if not allow_update:
-        match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)$", val)
+        pattern += "$"
+        match = re.match(pattern, val)
         op = None
     else:
-        match = re.match("^(\d+(\.\d+)?)(bps|kbps|mbps|gbps|pps|kpps|mpps|%?)([\+\-])?$", val)
+        pattern += "([\+\-])?$"
+        match = re.match(pattern, val)
         if match:
-            op  = match.group(4)
+            op  = match.group(7)
         else:
             op = None
 
     result = {}
 
-    if match:
-
-        value = float(match.group(1))
-        unit = match.group(3)
-        
-
-        
-        # raw type (factor)
-        if not unit:
-            result['type'] = 'raw'
-            result['value'] = value
-
-        elif unit == 'bps':
-            result['type'] = 'bps'
-            result['value'] = value
-
-        elif unit == 'kbps':
-            result['type'] = 'bps'
-            result['value'] = value * 1000
-
-        elif unit == 'mbps':
-            result['type'] = 'bps'
-            result['value'] = value * 1000 * 1000
-
-        elif unit == 'gbps':
-            result['type'] = 'bps'
-            result['value'] = value * 1000 * 1000 * 1000
-
-        elif unit == 'pps':
-            result['type'] = 'pps'
-            result['value'] = value
-
-        elif unit == "kpps":
-            result['type'] = 'pps'
-            result['value'] = value * 1000
-
-        elif unit == "mpps":
-            result['type'] = 'pps'
-            result['value'] = value * 1000 * 1000
-
-        elif unit == "%":
-            result['type'] = 'percentage'
-            result['value']  = value
-
-
-        if op == "+":
-            result['op'] = "add"
-        elif op == "-":
-            result['op'] = "sub"
-        else:
-            result['op'] = "abs"
-
-        if result['op'] != 'percentage':
-            result['value'] = result['value'] / divide_count
-
-        return result
-
-    else:
+    if not match:
         return None
+
+    # value in group 1
+    value = float(match.group(1))
+
+    # decode unit as whole
+    unit = match.group(3)
+
+    # k,m,g
+    factor = match.group(5)
+
+    # type of multiplier
+    m_type = match.group(6)
+
+    # raw type (factor)
+    if not unit:
+        result['type'] = 'raw'
+        result['value'] = value
+
+    # percentage
+    elif unit == '%':
+        result['type'] = 'percentage'
+        result['value']  = value
+
+    elif m_type == 'bps':
+        result['type'] = 'bps'
+        result['value'] = value * factor_table[factor]
+
+    elif m_type == 'pps':
+        result['type'] = 'pps'
+        result['value'] = value * factor_table[factor]
+
+    elif m_type == 'bpsl1':
+        result['type'] = 'bpsl1'
+        result['value'] = value * factor_table[factor]
+
+
+    if op == "+":
+        result['op'] = "add"
+    elif op == "-":
+        result['op'] = "sub"
+    else:
+        result['op'] = "abs"
+
+    if result['op'] != 'percentage':
+        result['value'] = result['value'] / divide_count
+
+    return result
+
 
 
 def match_multiplier(val):
@@ -244,25 +242,23 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'type': int}),
 
               PROMISCUOUS: ArgumentPack(['--prom'],
-                                        {'help': "sets port promiscuous on",
+                                        {'help': "Sets port promiscuous on",
                                          'dest': "prom",
                                          'default': None,
                                          'action': "store_true"}),
 
-
               TUNABLES: ArgumentPack(['-t'],
-                                     {'help': "sets tunable for a profile",
+                                     {'help': "Sets tunables for a profile. Example: '-t fsize=100,pg_id=7'",
+                                      'metavar': 'T1=VAL[,T2=VAL ...]',
                                       'dest': "tunables",
                                       'default': None,
                                       'type': decode_tunables}),
 
-
               NO_PROMISCUOUS: ArgumentPack(['--no_prom'],
-                                           {'help': "sets port promiscuous off",
+                                           {'help': "Sets port promiscuous off",
                                             'dest': "prom",
                                             'default': None,
                                             'action': "store_false"}),
-
 
               PORT_LIST: ArgumentPack(['--port', '-p'],
                                         {"nargs": '+',
@@ -325,6 +321,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'default': False,
                                    'help': "Starts TUI in xterm window"}),
 
+              LOCKED: ArgumentPack(['-l', '--locked'],
+                                   {'action': 'store_true',
+                                    'dest': 'locked',
+                                    'default': False,
+                                    'help': "Locks TUI on legend mode"}),
 
               FULL_OUTPUT: ArgumentPack(['--full'],
                                          {'action': 'store_true',
@@ -345,6 +346,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               STREAMS_STATS: ArgumentPack(['-s'],
                                           {'action': 'store_true',
                                            'help': "Fetch only streams stats"}),
+
+              CPU_STATS: ArgumentPack(['-c'],
+                                      {'action': 'store_true',
+                                       'help': "Fetch only CPU utilization stats"}),
+
+              MBUF_STATS: ArgumentPack(['-m'],
+                                       {'action': 'store_true',
+                                        'help': "Fetch only MBUF utilization stats"}),
 
               STREAMS_MASK: ArgumentPack(['--streams'],
                                          {"nargs": '+',
@@ -371,7 +380,9 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               STATS_MASK: ArgumentGroup(MUTEX, [GLOBAL_STATS,
                                                 PORT_STATS,
                                                 PORT_STATUS,
-                                                STREAMS_STATS],
+                                                STREAMS_STATS,
+                                                CPU_STATS,
+                                                MBUF_STATS],
                                         {})
               }
 
@@ -384,6 +395,15 @@ class CCmdArgParser(argparse.ArgumentParser):
         self.cmd_name = kwargs.get('prog')
 
 
+    # hook this to the logger
+    def _print_message(self, message, file=None):
+        self.stateless_client.logger.log(message)
+
+    def error(self, message):
+        self.print_usage()
+        self._print_message(('%s: error: %s\n') % (self.prog, message))
+        raise ValueError(message)
+
     def has_ports_cfg (self, opts):
         return hasattr(opts, "all_ports") or hasattr(opts, "ports")
 
@@ -391,7 +411,7 @@ class CCmdArgParser(argparse.ArgumentParser):
         try:
             opts = super(CCmdArgParser, self).parse_args(args, namespace)
             if opts is None:
-                return None
+                return RC_ERR("'{0}' - invalid arguments".format(self.cmd_name))
 
             if not self.has_ports_cfg(opts):
                 return opts
@@ -406,8 +426,9 @@ class CCmdArgParser(argparse.ArgumentParser):
             # so maybe we have ports configured
             invalid_ports = list_difference(opts.ports, self.stateless_client.get_all_ports())
             if invalid_ports:
-                self.stateless_client.logger.log("{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports))
-                return None
+                msg = "{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports)
+                self.stateless_client.logger.log(format_text(msg, 'bold'))
+                return RC_ERR(msg)
 
             # verify acquired ports
             if verify_acquired:
@@ -415,21 +436,25 @@ class CCmdArgParser(argparse.ArgumentParser):
 
                 diff = list_difference(opts.ports, acquired_ports)
                 if diff:
-                    self.stateless_client.logger.log("{0} - port(s) {1} are not acquired".format(self.cmd_name, diff))
-                    return None
+                    msg = "{0} - port(s) {1} are not acquired".format(self.cmd_name, diff)
+                    self.stateless_client.logger.log(format_text(msg, 'bold'))
+                    return RC_ERR(msg)
 
                 # no acquire ports at all
                 if not acquired_ports:
-                    self.stateless_client.logger.log("{0} - no acquired ports".format(self.cmd_name))
-                    return None
-
+                    msg = "{0} - no acquired ports".format(self.cmd_name)
+                    self.stateless_client.logger.log(format_text(msg, 'bold'))
+                    return RC_ERR(msg)
 
 
             return opts
 
+        except ValueError as e:
+            return RC_ERR("'{0}' - {1}".format(self.cmd_name, str(e)))
+
         except SystemExit:
             # recover from system exit scenarios, such as "help", or bad arguments.
-            return None
+            return RC_ERR("'{0}' - {1}".format(self.cmd_name, "no action"))
 
 
 def get_flags (opt):

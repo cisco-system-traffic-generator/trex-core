@@ -67,6 +67,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcPublishNow,         "publish_now",          2, false,
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCmds,         "get_supported_cmds",   0, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetVersion,      "get_version",          0, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetActivePGIds,  "get_active_pgids",     0, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetUtilization,  "get_utilization",      0, false, APIClass::API_CLASS_TYPE_CORE);
 
 TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdGetSysInfo, "get_system_info", 0, false, APIClass::API_CLASS_TYPE_CORE, 
 
@@ -131,6 +132,8 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdUpdateTraffic, "update_traffic", 3, true, APIClass
 TREX_RPC_CMD_DEFINE(TrexRpcCmdValidate, "validate", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdPushRemote, "push_remote", 6, true, APIClass::API_CLASS_TYPE_CORE);
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdShutdown, "shutdown", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
 #endif /* __TREX_RPC_CMD_H__ */
 
