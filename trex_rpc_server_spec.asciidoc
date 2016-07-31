@@ -7,20 +7,9 @@ The TRex RPC Server
 :numbered:
 :web_server_url: https://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
-:toclevels: 4
+:toclevels: 7
 
-++++
-<script>
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-  ga('create', 'UA-75220362-1', 'auto');
-  ga('send', 'pageview');
-
-</script>
-++++
+include::trex_ga.asciidoc[]
 
 == Change log
 
@@ -49,7 +38,9 @@ The TRex RPC Server
 | 1.5    | Hanoch Haim (hhaim)
 |
 - add more instructions (v1.92)
-
+| 1.6    | Itay Marom (imarom)
+|
+- added API synchronization
 |=================
 
 
@@ -168,11 +159,80 @@ image::images/rpc_states.png[title="Port States",align="left",width=150, link="i
 == RPC Commands
 The following RPC commands are supported
 
+=== API Synchronization
+* *Name* - 'api_sync'
+* *API Class* - 'None'
+* *Valid States* - 'not relevant'
+* *Description* - Sync with server about API classes. This allows the server and the client
+                  to be sure they are fully synced.
+		  The return values are used for furthur communication with the server.
+		  every API from a specific class requires its corresponding api_h parameter
+		  added to the specific parameters of the function.
+* *Parameters* - 
+** *api_vers* [list] - A list of objects of type xref:api_class['api_class']
+* *Result* ['object'] - A list of objects of type xref:api_class_rc['api_class_rc']
+
+.Object type 'api_class' 
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| type            | string  | name of the API class
+| major           | int     | major version
+| minor           | int     | minor version
+|=================
+
+.Object type 'api_class_rc' 
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| type            | string  | name of the API class
+| api_h           | string  | API handler for this API class
+|=================
+
+Example:
+
+[source,bash]
+----
+'Request':
+
+{
+    "id": "6d4e9gs3",
+    "jsonrpc": "2.0",
+    "method": "api_sync",
+    "params": {
+        "api_vers": [
+            {
+	        "type": "core"
+                "major": 1,
+                "minor": 0,
+            }
+        ]
+    }
+}
+
+'Response':
+
+{
+    "id": "6d4e9gs3",
+    "jsonrpc": "2.0",
+    "result": {
+        "api_vers": [
+         {
+	    "type": "core"
+            "api_h": "SPhoCDIV",
+         }
+        ]
+    }
+}
+
+----
+
 === Ping
 * *Name* - 'ping'
+* *API Class* - 'None'
 * *Valid States* - 'not relevant'
 * *Description* - Pings the TRex server
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - {}
 
 Example:
@@ -200,9 +260,10 @@ Example:
 
 === Get Server Supported Commands
 * *Name* - 'get_supported_cmds'
+* *API Class* - 'core'
 * *Valid States* - 'not relevant'
 * *Description* - Queries the server for all the supported commands
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['array'] - A list of all the supported commands by the server
 
 Example:
@@ -215,7 +276,9 @@ Example:
     "jsonrpc": "2.0",
     "id": 1,
     "method": "get_supported_cmds",
-    "params": null
+    "params": {
+	"api_h": "SPhoCDIV"
+    }
 }
 
 
@@ -241,9 +304,10 @@ Example:
 
 === Get Version
 * *Name* - 'get_version'
+* *API Class* - 'core'
 * *Valid States* - 'not relevant'
 * *Description* - Queries the server for version information
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - See table below
 
 .Object type 'return values for get_version' 
@@ -265,7 +329,9 @@ Example:
     "id": "wapkk8m6",
     "jsonrpc": "2.0",
     "method": "get_version",
-    "params": null
+    "params": {
+	"api_h": "SPhoCDIV"
+    }
 }
 
 
@@ -286,8 +352,9 @@ Example:
 
 === Get System Info
 * *Name* - 'get_system_info'
+* *API Class* - 'core'
 * *Description* - Queries the server for system properties
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - See table below
 
 .return value: 'get_system_info'
@@ -321,7 +388,9 @@ Example:
     "id": "zweuldlh",
     "jsonrpc": "2.0",
     "method": "get_system_info",
-    "params": null
+    "params": {
+	"api_h": "SPhoCDIV"
+    }
 }
 
 'Response':
@@ -363,9 +432,10 @@ Example:
 
 === Get Port Status
 * *Name* - 'get_port_status'
+* *API Class* - 'core'
 * *Valid States* - 'all'
 * *Description* - Queries the server for status
-* *Paramters* -
+* *Parameters* -
 ** *port_id* ['int'] - port id to query for owner
 * *Result* ['object'] - see below
 
@@ -379,6 +449,7 @@ Example:
     "jsonrpc": "2.0",
     "method": "get_port_status",
     "params": {
+	"api_h": "SPhoCDIV",
         "port_id": 2
     }
 }
@@ -408,9 +479,10 @@ Example:
 
 === Acquire
 * *Name* - 'Acquire'
+* *API Class* - 'core'
 * *Valid States* - 'all'
 * *Description* - Takes ownership over the port
-* *Paramters* -
+* *Parameters* -
 ** *port_id* ['int'] - port id to take ownership
 ** *user* ['string'] - User name aquiring the system
 ** *force* ['boolean'] - force action even if another user is holding the port
@@ -426,8 +498,9 @@ Example:
     "jsonrpc": "2.0",
     "method": "Acquire",
     "params": {
-	"user": "itay"
-	"port_id": 1
+	"api_h": "SPhoCDIV",
+	"user": "itay",
+	"port_id": 1,
         "force": false,
     }
 }
@@ -446,9 +519,10 @@ Example:
 
 === Release
 * *Name* - 'release'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Release owernship over the device
-* *Paramters* -
+* *Parameters* -
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id to release
 * *Result* ['object'] - {}
@@ -463,7 +537,8 @@ Example:
     "jsonrpc": "2.0",
     "method": "release",
     "params": {
-        "handler": "37JncCHr"
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
 	"port_id": 1
     }
 }
@@ -480,17 +555,20 @@ Example:
 
 
 === Add Stream
+
 * *Name* - 'add_stream'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Adds a stream to a port
-* *Paramters* 
+* *Parameters* 
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id associated with this stream
 ** *stream_id* ['int'] - stream id associated with the stream object
 ** *stream* - object of type xref:stream_obj['stream']
 * *Result* ['object'] - {}
 
-==== Object type 'stream' anchor:stream_obj[]
+
+The object type 'stream' anchor:stream_obj[]
 
 Add_stream gets a single parameter of type object.
 
@@ -513,7 +591,10 @@ The format of that object is as follows:
 | rx_stats        | object  | object of type xref:rx_stats_obj['rx_stats']
 |=================
 
-===== Object type 'packet' anchor:packet_obj[]
+==== packet
+
+anchor:packet_obj[]
+
 packet contains binary and meta data
 
 .Object type 'packet'
@@ -524,7 +605,10 @@ packet contains binary and meta data
 | meta        | string      | meta data object. opaque to the RPC server. will be passed on queries
 |=================
 
-===== Object type 'mode' anchor:mode_obj[]
+==== mode
+
+anchor:mode_obj[]
+
 mode object can be 'one' of the following objects:
 
 .Object type 'rate' 
@@ -566,9 +650,9 @@ mode object can be 'one' of the following objects:
 | count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
 |=================
 
-===== Object type 'vm' anchor:vm_obj[]
+==== vm
 
-an Object that include instructions array and properties of the field engine program 
+an Object that include instructions array and properties of the field engine program  anchor:vm_obj[]
 
 .Object type 'packet'
 [options="header",cols="1,1,3"]
@@ -583,6 +667,8 @@ an Object that include instructions array and properties of the field engine pro
 Array of VM instruction objects to be used with this stream
 Any element in the array can be one of the following object types:
 
+===== fix_checksum_ipv4
+
 .Object type 'vm - fix_checksum_ipv4'
 [options="header",cols="1,1,3"]
 |=================
@@ -590,6 +676,8 @@ Any element in the array can be one of the following object types:
 | type        | string      | ''fix_checksum_ipv4''
 | pkt_offset  | uint16      | offset of the field to fix 
 |=================
+
+===== flow_var
 
 .Object type 'vm - flow_var'
 [options="header",cols="1,1,3"]
@@ -605,6 +693,8 @@ Any element in the array can be one of the following object types:
 | step        | uint64_t as string          | step, how much to inc or dec. 1 is the default (in case of 'random' this field is not used) 
 |=================
 
+===== write_flow_var
+
 .Object type 'vm - write_flow_var'
 [options="header",cols="1,1,3"]
 |=================
@@ -616,6 +706,8 @@ Any element in the array can be one of the following object types:
 | is_big_endian | boolean     | should write as big endian or little 
 |=================
 
+===== trim_pkt_size
+
 .Object type 'vm - trim_pkt_size'
 [options="header",cols="1,1,3"]
 |=================
@@ -623,6 +715,9 @@ Any element in the array can be one of the following object types:
 | type          | string      | ''trim_pkt_size''
 | name          | string      | flow var name to take the new trim packet size from. The var size should be valid packet size and less than template packet size. see `stl/udp_rand_size.yaml` for an example
 |=================
+
+
+===== tuple_flow_var
 
 .Object type 'vm - tuple_flow_var'
 [options="header",cols="1,1,3"]
@@ -668,6 +763,7 @@ an example of tuple_flow_var variable
 
 The variable name.port and name.ip could be written to any offset in the packet (usualy to src_ip and src_port as client) 
 
+===== write_mask_flow_var
 
 .Object type 'vm - write_mask_flow_var'
 [options="header",cols="1,1,3"]
@@ -728,11 +824,13 @@ an example of tuple_flow_var variable
 The use cases of this instruction is to write to a bit field (valn/mpls)
 
 
-
 TIP: For more information and examples on VM objects please refer to:
 link:vm_doc.html[VM examples]
 
-===== Object type 'rx_stats' anchor:rx_stats_obj[]
+==== rx_stats
+
+anchor:rx_stats_obj[]
+
 Describes rx stats for the stream
 
 {zwsp} +
@@ -740,11 +838,11 @@ Describes rx stats for the stream
 IMPORTANT: In case rx_stats is enabled, meta data will be written in the end of the packet.
 please also consider the following constraints:
 
-==== Constrains
+===== Constrains
 * *performance* - this will have performance impact as rx packets will be examined
 * *override* - up to 10 bytes at the end of the packet will be overidden by the meta data required
 
-==== The bytes needed for activating 'rx_stats':
+===== The bytes needed for activating rx_stats
 
 * *stream_id* consumes 2 bytes
 * *seq_enabled* consumes 4 bytes
@@ -780,6 +878,7 @@ This could be stream_id different from the stream object which contains the rx_s
     "jsonrpc": "2.0",
     "method": "add_stream",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
 	"stream_id": 502
@@ -828,10 +927,12 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 
 === Remove Stream
+
 * *Name* - 'remove_stream'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Removes a stream from a port
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port assosicated with the stream.
 ** *stream_id* ['int'] - stream to remove
@@ -848,6 +949,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "remove_stream",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
         "stream_id": 502
@@ -867,9 +969,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream ID List
 * *Name* - 'get_stream_list'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - fetch all the assoicated streams for a port
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port to query for registered streams
 
@@ -885,6 +988,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "get_stream_list",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1
     }
@@ -906,9 +1010,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream
 * *Name* - 'get_stream'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - get a specific stream object
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port for the associated stream
 ** *stream_id* ['int'] - the requested stream id
@@ -925,6 +1030,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "get_stream",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
         "stream_id": 7
@@ -964,9 +1070,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Remove All Streams
 * *Name* - 'remove_all_streams'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - remove all streams from a port
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port for the associated stream
 
@@ -983,6 +1090,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "remove_all_streams",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 2
     }
@@ -1002,9 +1110,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Start Traffic
 * *Name* - 'start_traffic'
+* *API Class* - 'core'
 * *Valid States* - 'owned'
 * *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to start traffic
 
@@ -1020,6 +1129,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "start_traffic",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 3
     }
@@ -1037,9 +1147,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Stop Traffic
 * *Name* - 'stop_traffic'
+* *API Class* - 'core'
 * *Valid States* - 'active'
 * *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
-* *Paramters*
+* *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to stop traffic
 
@@ -1055,6 +1166,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "stop_traffic",
     "params": {
+	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 3
     }
@@ -1071,11 +1183,54 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 ----
 
+
+=== Remove RX Filters
+* *Name* - 'remove_rx_filters'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Post to calling stop, the client should call this function to remove
+                  any RX filters that were attached.
+		  this is because the server cannot know when it is safe to remove those
+		  (after stop some packets might take time to get to arrive - RTT)
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to remove all RX filters
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1jwrw9nx",
+    "jsonrpc": "2.0",
+    "method": "remove_rx_filters",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "ywVlqZa8",
+        "port_id": 3
+    }
+}
+
+'Response':
+
+{
+    "id": "1jwrw9nx",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+
+----
+
 === Get Global Stats
 * *Name* - 'get_global_stats'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get machine global stats
-* *Paramters* - None
+* *Parameters* - None
 
 * *Result* ['object'] - See Below
 
@@ -1098,9 +1253,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Port Stats
 * *Name* - 'get_port_stats'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
-* *Paramters*
+* *Parameters*
 ** *port_id* [int] - The port id for query
 
 * *Result* ['object'] - See Below
@@ -1124,9 +1280,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 === Get Stream Stats
 * *Name* - 'get_steram_stats'
+* *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
 * *Description* - Get port stats
-* *Paramters*
+* *Parameters*
 ** *port_id* [int] - The port id for query
 ** *stream_id* [int] - The stream id for query
 
@@ -1148,6 +1305,69 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 |=================
 
 
+=== Get Utilization
+* *Name* - 'get_utilization'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Get the CPU and MBUFs utilization.
+* *Parameters* - None
+* *Result* ['object'] -
+** *cpu* - The CPU utilization per DP thread (in their order). Each element is array of history (most latest is first in array, interval between values is 1 sec, values are integers 0-100).
+** *mbuf_stats* - The MBUFs are per CPU socket, per bucket of sizes: 64b, 9kb etc. Each bucket is array of 2 values: first is number of free elements and second is total.
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "vlxrc9r6",
+    "jsonrpc": "2.0",
+    "method": "get_utilization",
+    "params": {
+        "api_h": "2AIar0tl"
+    }
+}
+
+
+
+'Response':
+
+{'id': 'vlxrc9r6',
+ 'jsonrpc': '2.0',
+ 'result': {'cpu': [[30, 33, 28, 21, 30, 35, 33, 38, 29, 25, 37, 35, 31, 34, 35, 37, 26, 31, 26, 27],
+                    [37, 31, 24, 21, 26, 32, 34, 36, 27, 28, 36, 33, 35, 35, 35, 36, 30, 39, 35, 40],
+                    [32, 34, 25, 29, 28, 44, 37, 40, 32, 33, 38, 33, 33, 35, 33, 25, 22, 26, 27, 31],
+                    [28, 33, 17, 21, 27, 36, 30, 30, 27, 25, 36, 35, 38, 43, 41, 28, 31, 32, 31, 41],
+                    [27, 31, 27, 32, 26, 36, 27, 33, 30, 29, 29, 28, 30, 36, 33, 31, 26, 30, 25, 35],
+                    [31, 31, 21, 24, 23, 31, 28, 33, 33, 33, 31, 21, 30, 33, 31, 23, 27, 29, 36, 36],
+                    [27, 32, 38, 23, 35, 44, 38, 28, 29, 31, 38, 38, 31, 32, 32, 33, 24, 28, 29, 32],
+                    [26, 26, 24, 30, 36, 36, 33, 26, 37, 24, 29, 40, 39, 37, 36, 26, 26, 25, 38, 25],
+                    [27, 37, 33, 25, 28, 37, 39, 30, 31, 26, 34, 27, 37, 31, 28, 33, 36, 39, 27, 38],
+                    [31, 31, 31, 26, 31, 28, 31, 35, 24, 25, 31, 24, 34, 30, 31, 35, 29, 30, 28, 30],
+                    [28, 40, 24, 27, 30, 26, 34, 27, 28, 31, 41, 29, 35, 33, 35, 35, 31, 31, 30, 39],
+                    [20, 34, 29, 27, 34, 25, 28, 43, 26, 26, 36, 31, 28, 36, 39, 26, 18, 24, 29, 26],
+                    [26, 29, 34, 25, 26, 42, 30, 38, 30, 26, 37, 29, 43, 36, 36, 29, 27, 37, 33, 28],
+                    [29, 30, 30, 27, 34, 34, 32, 34, 26, 28, 37, 28, 36, 38, 29, 35, 26, 32, 28, 37]],
+            'mbuf_stats': {'cpu-socket-0': {'1024b': [73696, 73710],
+                                            '128b': [98280, 98280],
+                                            '2048b': [98266, 98280],
+                                            '256b': [73710, 73710],
+                                            '4096b': [1152, 1152],
+                                            '512b': [73710, 73710],
+                                            '64b': [191468, 196560],
+                                            '9kb': [6912, 8960]},
+                           'cpu-socket-1': {'1024b': [73696, 73710],
+                                            '128b': [98280, 98280],
+                                            '2048b': [98266, 98280],
+                                            '256b': [73710, 73710],
+                                            '4096b': [1152, 1152],
+                                            '512b': [73710, 73710],
+                                            '64b': [191429, 196560],
+                                            '9kb': [6912, 8960]}}}}
+
+----
+
 == Typical Transactions Examples
 the following examples represents common scenarios.
 commands in [...] represents 'meta commands'
@@ -1166,7 +1386,7 @@ over the server and preparing to perform work
 * *get_stream_list* - for every port, get the list and sync the GUI
 * *get_stream* - for every stream in a port list, get the stream info and sync the GUI
 
-=== Simple Traffic With Adding / Editing Streams
+=== Simple Traffic With Adding/Editing Streams
 
 describes a simple scenario where a user wants to
 add or edit one or more streams to one or more ports
@@ -1222,6 +1442,7 @@ On the following example, there's no VM instructions, rx_stats option is disable
   "jsonrpc" : "2.0",
   "method" : "add_stream",
   "params" : {
+     "api_h": "SPhoCDIV",
      "handler" : "37JncCHr",
      "port_id" : 1,
      "stream" : {
@@ -1302,6 +1523,7 @@ Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `s
       "jsonrpc" : "2.0",
       "method" : "add_stream",
       "params" : {
+	 "api_h": "SPhoCDIV",
          "handler" : "2JjzhMai",
          "port_id" : 3,
          "stream" : {
@@ -1344,6 +1566,7 @@ Ontop, this stream is the last stream of the sequence, so `next_stream_id` of `s
       "jsonrpc" : "2.0",
       "method" : "add_stream",
       "params" : {
+         "api_h": "SPhoCDIV",
          "handler" : "2JjzhMai",
          "port_id" : 3,
          "stream" : {

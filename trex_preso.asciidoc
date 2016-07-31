@@ -8,21 +8,11 @@ TRex realistic traffic generator
 :deckjs_theme: swiss
 :deckjs_transition: horizontal-slide
 :scrollable:
-:web_server_url: http://trex-tgn.cisco.com/trex
+:web_server_url: https://trex-tgn.cisco.com/trex
 
 
-++++
-<script>
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+include::trex_ga.asciidoc[]
 
-  ga('create', 'UA-75220362-1', 'auto');
-  ga('send', 'pageview');
-
-</script>
-++++
 
 == What problem is being solved?
 
@@ -39,10 +29,10 @@ TRex realistic traffic generator
 
 ++++++++++++++++++
 <script type="text/javascript"
-  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
 </script>
 
-<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
 
 <script src="my_chart.js"></script>
 
@@ -121,6 +111,17 @@ html, body {
     $('h3').html('<font size="4">Hanoch Haim v1.2</font>');
     $('h4').html('<font size="4">04/2015</font>');
  </script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-75220362-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
 
 ++++++++++++++++++
 

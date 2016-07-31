@@ -10,18 +10,8 @@ ifndef::backend-docbook[]
 <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
 ++++++++++++++
 
-++++
-<script>
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+include::trex_ga.asciidoc[]
 
-  ga('create', 'UA-75220362-1', 'auto');
-  ga('send', 'pageview');
-
-</script>
-++++
 
 == TRex release notes ==
 endif::backend-docbook[]
@@ -33,6 +23,127 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.06  ==
+
+* Support EPIC-EM scale Stateful VLAN/IP/MAC mapping.
+* TCP SYN Randomization learning support for advanced ASA stateful testing - link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
+* Advanced to latest DPDK 16.07RC3 - fix some XL710 driver performance issues
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-229[trex-229] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-227[trex-227] 
+
+
+== Release 2.05  ==
+
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-221] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-220[trex-220] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-219[trex-219] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-218[trex-218] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-217[trex-217] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-216[trex-216] 
+
+
+== Release 2.04  ==
+
+* Watchdog support
+* Ability to export core file 
+* Optimized the case of Latency stream, Field Engine and 9K template packets 
+
+=== fix issues: ===
+
+* XL710/X710 present high latency with 9K packets  link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
+* The latency seq number gets out of sync link:http://trex-tgn.cisco.com/youtrack/issue/trex-215[trex-215]
+* Port/Latency stats should be with FCS  link:http://trex-tgn.cisco.com/youtrack/issue/trex-213[trex-213]
+* Stateless Unicode is not accepted for multiplier API see  link:https://github.com/cisco-system-traffic-generator/trex-core/issues/15[github-issue15]
+
+
+== Release 2.03  ==
+
+* More accurate stateless latency/more TUI support
+* Speedup DPDK XL710 fdir driver
+
+=== fix issues: ===
+
+* Disconnect issue link:http://trex-tgn.cisco.com/youtrack/issue/trex-210[trex-210]
+
+
+== Release 2.02  ==
+
+* The python latency statistic is compatible to JSON for easy manipulation 
+* Add latency minimum value Python API taken from histogram 
+
+=== fix issues: ===
+
+* Fix corruption of mbuf in case of with high rate latency stream. 
+
+== Release 2.01  ==
+
+* First release of latency/jitter per stream see link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[here] 
+* Ability to send server side pcap file - unlimited pcap file size see link:/cp_stl_docs/_modules/trex_stl_lib/trex_stl_client.html#STLClient.push_remote[here] and link:trex_stateless.html#_pcap_based_traffic_tutorials[PCAP tutorial]
+* Significatly improve performance for both Stateful and Stateless - in some cases up to x2 due to Scheduler/CPU utilization rewrite 
+* CPU utilization estimation is done differently 
+* Ability to significatly improve performance for Stateless profile with Field engine (up to x5, 22MPPS) see link:trex_stateless.html#_tutorial_field_engine_significantly_improve_performance[here]
+* Add documentation index link:index.html[index]
+* Fix documentation Table of Content javascript 
+* Update Stateless presentation link:http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Statelss presenation]
+* Stateful Python server API - Add support for iterator of remote file for Stateful GUI
+
+=== fix issues: ===
+
+* Performance issue, link:http://trex-tgn.cisco.com/youtrack/issue/trex-207[trex-207]
+* Sporadic timeout on wait_on_traffic() API see link:http://trex-tgn.cisco.com/youtrack/issue/trex-209[trex-209] 
+
+== Release 2.00  ==
+
+* Console 
+** Support partial port acquire using new CLI switch `-a ACQUIRE` (first phase)
+** Add tx/rx graphs 
+* Python API: add an API for reading events as warning/errors
+* HLTAPI support for per stream stats  
+* support VALN mode for per stream stats for 82599 using `--vlan` switch at server invocation
+* A peek into TRex stateless GUI version for evaluation still without many features like packet builder, advance packet builder, per stream stats link:https://www.dropbox.com/s/vs9gojtdc5ewv05/setupCiscoTrex1.96-SNAPSHOT.exe?dl=0[TRex Stateless GUI Download]
+** Only pcap file packet builder is supported in this version 
+
+image::images/trex_stl_gui.png[title="TRex Stateless GUI",align="left",width=600, link="images/trex_stl_gui.png"]
+
+=== fix issues: ===
+
+* X710/XL710 per stream hardware stats 
+** link:http://trex-tgn.cisco.com/youtrack/issue/trex-199[trex-199]
+** Fix issue of RX bytes 
+** Fix issue with mbuf leak
+* Packet Memory shortage fix link:http://trex-tgn.cisco.com/youtrack/issue/trex-197[trex-197]
+* Python Examples - move all examples to be 16.0.0.x/48.0.0.x for some refactor 
+
+
+== Release 1.99  ==
+
+
+* The Client package includes Console/examples 
+* Client API verification mechanism. The client should match the server version range 
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]
+* Python2/Python3 client API hardening 
+* Per stream statistics in software hardening - add support for wait on rx packets
+
+
+== Release 1.98  ==
+
+* Minor Console issue 
+* [red]*Image is broken* see link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]  
+
+== Release 1.97  ==
+
+* Support pyATS with Python 3/32bit
+* Per stream statistic supported by software for I350/82559/VXNET3 
+* [red]*Image is broken* see link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]  
 
 == Release 1.96  ==
 

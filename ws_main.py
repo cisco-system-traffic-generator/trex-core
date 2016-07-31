@@ -12,10 +12,171 @@ APPNAME='wafdocs'
 import os, re, shutil
 import shlex
 import subprocess
+import json
+
 
 
 top = '.'
 out = 'build'
+
+from HTMLParser import HTMLParser
+
+class CTocNode:
+    def __init__ (self):
+        self.name="root"
+        self.level=1; # 1,2,3,4
+        self.link=None;
+        self.parent=None
+        self.childs=[]; # link to CTocNode
+
+    def get_link (self):
+        if self.link==None:
+            name=self.name
+            l=name.split('.');
+            l=l[-1].lower()
+            s='';
+            for c in l:
+                if c.isalpha() or c.isspace():
+                    s+=c
+    
+            return  '#_'+'_'.join(s.lower().split());
+        else:
+            return '#'+self.link
+
+
+
+    def add_new_child (self,name,level,link):
+        n=CTocNode();
+        n.name=name;
+        n.link=link
+        n.level=level;
+        n.parent=self;
+        self.childs.append(n);
+        return n
+
+    def to_json_childs (self):
+        l=[]
+        for obj in self.childs:
+            l.append(obj.to_json());
+        return (l);
+
+    def to_open (self):
+        if self.level <3:
+            return True
+        else:
+            return False
+
+
+    def to_json (self):
+        d={"text" : self.name,
+           "link" : self.get_link(),
+           "state"       : {
+                "opened"    : self.to_open()
+                }
+          }
+        if len(self.childs)>0 :
+            d["children"]= self.to_json_childs()
+        return d
+
+
+
+class TocHTMLParser(HTMLParser):
+
+    def __init__ (self):
+        HTMLParser.__init__(self);
+        self.state=0;
+        self.root=CTocNode()
+        self.root.parent=self.root
+        self.level=2;
+        self.attrs=None
+        self.d={};
+        self.last_level=1
+        self.set_level(1,self.root)
+
+
+    def set_level (self,level,node):
+        assert(node!=None);
+        assert(isinstance(node,CTocNode)==True); 
+        self.d[str(level)]=node
+
+        # in case we change from high to low level remove the higher level 
+        if level<self.last_level:
+            for l in range(level+1,self.last_level+1):
+                self.d.pop(str(l),None)
+
+
+
+    def _get_level (self,level):
+        k=str(level)
+        if self.d.has_key(k):
+            n=self.d[k]
+            assert(n!=None);
+            return n
+        else:
+            return None
+
+    def get_level (self,level):
+        for l in range(level,0,-1):
+            n=self._get_level(l)
+            if n != None:
+                return n
+        assert(0);
+
+
+    def is_header (self,tag):
+        if len(tag)==2 and tag[0]=='h' and tag[1].isdigit() and (int(tag[1])>1):
+            return (True);
+
+    def handle_starttag(self, tag, attrs):
+        if self.is_header (tag):
+            self.attrs=attrs
+            self.state=True;
+            self.level=int(tag[1]);
+
+    def handle_endtag(self, tag):
+        if self.is_header (tag):
+            self.state=False;
+
+    def get_id (self):
+        if self.attrs:
+            for obj in self.attrs:
+                if obj[0]=='id':
+                    return obj[1] 
+        else:
+            return None
+
+
+    def handle_data(self, data):
+        if self.state:
+            
+           level=self.level
+
+           cnode=self.get_level(level-1)
+
+           n=cnode.add_new_child(data,level,self.get_id());
+           assert(n!=None);
+           self.set_level(level,n) 
+           self.last_level=level
+
+    def dump_as_json (self):
+        return json.dumps(self.root.to_json_childs(), sort_keys=False, indent=4)
+
+
+
+
+def create_toc_json (input_file,output_file):
+    f = open (input_file)
+    l=f.readlines()
+    f.close();
+    html_input = ''.join(l)
+    parser = TocHTMLParser()
+    parser.feed(html_input);
+    f = open (output_file,'w')
+    f.write(parser.dump_as_json());
+    f.close();
+
+
+
 
 re_xi = re.compile('''^(include|image)::([^.]*.(asciidoc|\\{PIC\\}))\[''', re.M)
 def ascii_doc_scan(self):
@@ -93,14 +254,474 @@ def configure(conf):
 def convert_to_pdf(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
-    return (0)
+    return  os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
+
+
+TOC_HEAD = """
+
+<body class="book">
+<div id="toc-section">
+        <div id="toctitle">
+            <img class="trex_logo" src="images/trex_logo_toc.png"/>
+            Table of Contents
+        </div>
+
+        <div id="toggle">
+          <img src="images/icons/toggle.png" title="click to toggle table of contents"/>
+        </div>
+        
+        <div id="toc">
+          <div id="nav-tree">
+          
+          </div>
+        </div>
+</div>
+
+<div id="content-section">
+
+    <!-- load the theme CSS file -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" rel="stylesheet"/>
+    
+    <link href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
+    
+    <!-- include the jQuery library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.1/jquery.min.js">
+    </script>
+    
+    <!-- include the jQuery UI library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js">
+    </script>
+    
+    <!-- include the minified jstree source -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/jstree.min.js">
+    </script>
+
+    <!-- Hide TOC on mobile -->
+    <script>
+    
+      // Hide TOC when it is mobile
+      checkMobile();
+    
+      // Hide TOC by default if it is mobile
+      function checkMobile(){
+        if(isMobileDevice()){
+          hideTOC();
+        }
+      }
+    
+      // Check it it it is running on mobile device
+      function isMobileDevice() {
+          if(
+              navigator.userAgent.match(/Android/i) ||
+              navigator.userAgent.match(/BlackBerry/i) ||
+              navigator.userAgent.match(/iPhone|iPad|iPod/i) ||
+              navigator.userAgent.match(/Opera Mini/i) ||
+              navigator.userAgent.match(/IEMobile/i) ||
+              navigator.userAgent.match(/iPhone|iPad|iPod/i)
+            )
+          {
+            return true;
+          }
+          else
+          {
+            return false;
+          }
+      }
+    
+      // Hide TOC - for the first time in mobile
+      function hideTOC(){
+          $("#toc").hide();
+          $("#toctitle").hide();
+          // Show the show/hide button
+          $("#toggle").css("right", "-40px");
+          // Fil width
+          $("body").css("margin-left", "50px");
+      }
+    
+    </script>
+
+  <div id="content-section-inner">
+
+"""
+
+TOC_END = """
+
+  </div>
+  <!-- End Of Inner Content Section -->
+</div>
+<!-- End of Content Section -->
+
+</body>
+
+<style type="text/css">
+    #toc {
+      margin-bottom: 2.5em;
+    }
+    
+    #toctitle {
+      color: #527bbd;
+      font-size: 1.1em;
+      font-weight: bold;
+      margin-top: 1.0em;
+      margin-bottom: 0.1em;
+    }
+
+    @media screen {
+      body {
+        margin-left: 20em;
+      }
+    
+      #toc {
+        position: fixed;
+        top: 51px;
+        left: 0;
+        bottom: 0;
+        width: 18em;
+        padding-bottom: 1.5em;
+        margin: 0;
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        border-right: solid 2px #cfcfcf;
+        background-color: #FAFAFA;
+        white-space: nowrap;
+      }
+    
+      #toctitle {
+        font-size: 17px !important;
+        color: #4d4d4d !important;
+        margin-top: 0px;
+        height: 36px;
+        line-height: 36px;
+        background-color: #e4e2e2;
+        padding: 8px 0px 7px 45px;
+        white-space: nowrap;
+        left: 0px;
+        display: block;
+        position: fixed;
+        z-index: 100;
+        width: 245px;
+        top: 0px;
+        overflow: hidden;
+      }
+      
+      #toc .toclevel1 {
+        margin-top: 0.5em;
+      }
+    
+      #toc .toclevel2 {
+        margin-top: 0.25em;
+        display: list-item;
+        color: #aaaaaa;
+      }
+    
+    }
+
+
+  /* Custom for Nave Tree */
+  #nav-tree{
+    margin-left: 10px !important;
+  }
+  
+  #nav-tree ul > li {
+    color: #000 !important;
+  }
+  
+  .jstree-wholerow.jstree-wholerow-clicked {
+    background-image: url('images/icons/selected_tab_bg.png');
+    background-repeat: repeat-x;
+    color: #fff !important;
+    text-shadow: 0px 1px 1px rgba(0, 0, 0, 1.0);
+  }
+
+        /* For side bar */
+  .ui-resizable-e{
+    height: 100%;
+    width: 4px !important;
+    position: fixed !important;
+    top: 0px !important;
+    cursor: e-resize !important;
+    background: url('images/splitbar.png') repeat scroll right center transparent !important;
+  }
+
+  .jstree-default .jstree-themeicon{
+    display: none !important;
+  }
+
+
+  .jstree-anchor {
+    font-size: 12px !important;
+    color: #91A501 !important;
+  }
+
+
+  .jstree-clicked{
+    color: white !important;
+  }
+  
+
+  #toggle {
+    position: fixed;
+    top: 14px;
+    left: 10px;
+    z-index: 210;
+    width: 24px;
+  }
+
+  #toggle img {
+    opacity:0.3;
+  }
+
+  #toggle img:hover {
+    opacity:0.9;
+  }
+
+  .trex_logo{
+    top: 6px;
+    position: relative;
+  }
+
+   html{
+    overflow: hidden;
+  }
+
+  body{
+    margin-right: 0px !important;
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+  }
+
+  #toc-section{
+    position: absolute;
+    z-index: 200;
+  }
+
+  #content-section{
+    overflow: auto;
+  }
+
+  #content-section-inner{
+    max-width: 50em;
+  }
+
+
+ </style>
+
+
+
+<script>
+
+      $(document).ready(function(){
+          var isOpen = true;
+
+        // Initialize NavTree
+        initializeNavTree();
+        // Drag TOC left and right
+        initResizable();
+        // Toggle TOC whe clicking on the menu icon
+        toggleTOC();
+        // Handle Mobile - close TOC
+        checkMobile();
+
+        function initializeNavTree() {
+
+          // TOC tree options
+          var toc_tree = $('#nav-tree');        
+
+          var toc_tree_options = {
+            'core' : {
+              "animation" :false,
+              "themes" : { "stripes" : false },
+              'data' : {
+                "url" : "./input_replace_me.json",  
+                "dataType" : "json" // needed only if you do not supply JSON headers
+              }
+            }
+            ,
+            "plugins" : [ "wholerow" ]
+          };
+
+          $('#nav-tree').jstree(toc_tree_options) ;
+
+          toc_tree.on("changed.jstree", function (e, data) {
+            window.location.href = data.instance.get_selected(true)[0].original.link;
+          });
+        }
+        
+        function initResizable() {
+          var toc = $("#toc");
+          var body = $("body");
+
+          // On resize
+          $("#toc").resizable({
+              resize: function(e, ui) {
+                  resized();
+              },
+              handles: 'e'
+          });
+          
+        // On zoom changed
+          $(window).resize(function() {
+            if(isOpen){
+                resized();
+            }
+          });
+
+
+         // Do it for the first time
+            var tocWidth = $(toc).outerWidth();
+            var windowHeight = $(window).height();
+            $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
+            $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
+            $("#toc-section").css({"height":windowHeight + "px"});
+            $("#content-section").css({"height":windowHeight + "px"});
+       
+        }
+
+        function resized(){
+          var body = $("body");
+          var tocWidth = $(toc).outerWidth();
+          var windowHeight = $(window).height();
+
+          body.css({"marginLeft":parseInt(tocWidth)+20+"px"});
+          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
+          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
+          $("#toc-section").css({"height":windowHeight + "px"});
+          $("#content-section").css({"height":windowHeight + "px"});
+          
+        }
+
+
+        function toggleTOC(){
+          $( "#toggle" ).click(function() {
+            if ( isOpen ) {
+              // Close it
+               closTOC();
+            } else {
+              // Open it
+              openTOC();
+            }
+            // Toggle status
+            isOpen = !isOpen;
+          });
+        }
+
+
+        // Close TOC by default if it is mobile
+        function checkMobile(){
+          if(isMobileDevice()){
+            isOpen=false;
+            $(".ui-resizable-e").hide();
+          }
+        }
+
+        // Check it it it is running on mobile device
+        function isMobileDevice() {
+            if(
+                navigator.userAgent.match(/Android/i) ||
+                navigator.userAgent.match(/BlackBerry/i) ||
+                navigator.userAgent.match(/iPhone|iPad|iPod/i) ||
+                navigator.userAgent.match(/Opera Mini/i) ||
+                navigator.userAgent.match(/IEMobile/i) || 
+                navigator.userAgent.match(/iPhone|iPad|iPod/i)
+              )
+            {
+              return true;
+            }
+            else
+            {
+              return false;
+            }
+        }
+
+        // Close TOC
+        function closTOC(){
+            $("#toc").hide("slide", 500);
+            $("#toctitle").hide("slide", 500);
+            if(!isMobileDevice()){
+                $(".ui-resizable-e").hide("slide", 500);
+            }
+            // Show the show/hide button
+            $("#toggle").css("right", "-40px");
+            // Fil width
+            $("body").animate({"margin-left": "50px"}, 500);
+        }
+
+        // Open TOC
+        function openTOC(){
+            $("#toc").show("slide", 500);
+            $("#toctitle").show("slide", 500);
+            if(!isMobileDevice()){
+              $(".ui-resizable-e").show("slide", 500);
+            }
+            // Show the show/hide button
+            $("#toggle").css("right", "15px");
+            // Minimize page width
+            $("body").animate({"margin-left": $(toc).outerWidth()+20+"px"}, 500);
+        }
+
+      });
+
+</script>
+
+"""
+
+def do_replace (input_file,contents,look,str_replaced):
+    if contents.count(look)!=1 :
+        raise Exception('Cannot find {0} in file {1} '.format(look,input_file))
+
+    return  contents.replace(look, str_replaced)
+
+
+
+def toc_fixup_file (input_file,
+                    out_file, 
+                    json_file_name
+                    ):
+
+    file = open(input_file)
+    contents = file.read()
+
+    contents = do_replace(input_file,contents,'<body class="book">', TOC_HEAD);
+    contents = do_replace(input_file,contents,'</body>', TOC_END)
+    contents = do_replace(input_file,contents,'input_replace_me.json', json_file_name)
+
+    file = open(out_file,'w')
+    file.write(contents)
+    file.close();
+
+
+
+def convert_to_html_toc_book(task):
+
+    input_file = task.inputs[0].abspath()
+
+    json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
+    tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
+    json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
+
+    cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book  -o {2} {3}'.format(
+            task.env['ASCIIDOC'],
+            task.inputs[1].abspath(),
+            tmp,
+            task.inputs[0].abspath());
+
+    res= os.system( cmd )
+    if res !=0 :
+        return (1)
+
+    create_toc_json(tmp,json_out_file)
+
+    toc_fixup_file(tmp,task.outputs[0].abspath(),json_out_file_short);
+
+    return os.system('rm {0}'.format(tmp));
+
+
+
 
 def convert_to_pdf_book(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
-    return (0)
+    return os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
 
 
 def ensure_dir(f):
@@ -209,6 +830,14 @@ def build_cp(bld,dir,root,callback):
 
 
 
+
+
+
+
+
+
+
+
 def build(bld):
     bld(rule=my_copy, target='symbols.lang')
 
@@ -239,7 +868,7 @@ def build(bld):
 
     if os.path.exists('build/hlt_args.asciidoc'):
         bld.add_manual_dependency(
-            bld.path.find_node('draft_trex_stateless.asciidoc'),
+            bld.path.find_node('trex_stateless.asciidoc'),
             'build/hlt_args.asciidoc')
 
     bld(rule='${ASCIIDOC}  -b deckjs -o ${TGT} ${SRC[0].abspath()}',
@@ -252,10 +881,6 @@ def build(bld):
     bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='release_notes.asciidoc waf.css', target='release_notes.html', scan=ascii_doc_scan)
                 
-
-    bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
-        source='trex_book.asciidoc waf.css', target='trex_manual.html', scan=ascii_doc_scan)
-
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
 
@@ -264,8 +889,9 @@ def build(bld):
 
     bld(rule=convert_to_pdf_book,source='trex_book.asciidoc waf.css', target='trex_book.pdf', scan=ascii_doc_scan)
 
-    bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
+    bld(rule=convert_to_pdf_book,source='trex_stateless.asciidoc waf.css', target='trex_stateless.pdf', scan=ascii_doc_scan)
                 
+    bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_pdf_book,source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.pdf', scan=ascii_doc_scan)
 
@@ -273,17 +899,25 @@ def build(bld):
     
     bld(rule=convert_to_pdf_book, source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.pdf', scan=ascii_doc_scan)
 
-    bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
-        source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html', scan=ascii_doc_scan)
+    # with nice TOC 
+    bld(rule=convert_to_html_toc_book,
+        source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html',scan=ascii_doc_scan)
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_book.asciidoc waf.css', target='trex_manual.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html',scan=ascii_doc_scan);
+
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='vm_doc.asciidoc waf.css', target='vm_doc.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='packet_builder_yaml.asciidoc waf.css', target='packet_builder_yaml.html', scan=ascii_doc_scan)
-        
-    bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
-        source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='trex_scapy_rpc_server.asciidoc waf.css', target='trex_scapy_rpc_server.html', scan=ascii_doc_scan)
@@ -296,6 +930,9 @@ def build(bld):
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='trex_console.asciidoc waf.css', target='trex_console.html', scan=ascii_doc_scan)
+
+    bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true  -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+        source='trex_index.asciidoc waf.css', target='index.html', scan=ascii_doc_scan)
 
     build_cp(bld,'cp_docs','doc',build_cp_docs)
 
@@ -366,18 +1003,31 @@ def release(bld):
 def publish(bld):
     # copy all the files to our web server 
     remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../doc/')
-    os.system('rsync -av --rsh=ssh build/ %s' % (remote_dir))
+    os.system('rsync -av --del --rsh=ssh build/ %s' % (remote_dir))
 
 
 def publish_ext(bld):
    from_ = 'build/'
-   os.system('rsync -avz -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/doc/' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ) )
+   os.system('rsync -avz --del -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/doc/' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ) )
    
 
+def publish_test(bld):
+    # copy all the files to our web server 
+    remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../test/')
+    os.system('rsync -av --del --rsh=ssh build/ %s' % (remote_dir))
 
 
+
+def publish_both(bld):
+    publish(bld)
+    publish_ext(bld)
 
          
-               
+def test(bld):
+    # copy all the files to our web server 
+    toc_fixup_file ('build/trex_stateless.tmp',
+                    'build/trex_stateless.html',
+                    'trex_stateless.json')
+
 
 
