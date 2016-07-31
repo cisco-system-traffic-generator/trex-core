@@ -3225,6 +3225,8 @@ bool  CNodeGenerator::Create(CFlowGenListPerThread  *  parent){
    m_socket_id =0;
    m_is_realtime =CGlobalInfo::is_realtime();
    m_realtime_his.Create();
+   m_flow_sync_node = NULL;
+
    return(true);
 }
 
@@ -3747,10 +3749,10 @@ inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
 
 template<int SCH_MODE>
 inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
-                                        dsec_t d_time,
-                                        bool always,
-                                        CFlowGenListPerThread * thread,
-                                        double &old_offset){
+                                               dsec_t d_time,
+                                               bool always,
+                                               CFlowGenListPerThread * thread,
+                                               double &old_offset) {
     CGenNode * node;
     dsec_t offset=0.0;
     dsec_t cur_time;
@@ -3772,35 +3774,43 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
 
          switch (state) {
          case scINIT:
-                cur_time = now_sec();
-                {
-                    dsec_t dt = cur_time - n_time ;
-                    if (dt>0) {
-                        state=scWORK;
-                        if (dt > BURST_OFFSET_DTIME) {
-                            offset += dt;
-                        }
-                    }else{
-                        state=scWAIT;
+            cur_time = now_sec();
+            {
+                dsec_t dt = cur_time - n_time ;
+                if (dt>0) {
+                    state=scWORK;
+                    if (dt > BURST_OFFSET_DTIME) {
+                        handle_time_strech(cur_time, dt, offset, thread);
                     }
-                } ;
-                break;
-         case scWORK:
-                 do {
-                     bool s=do_work<SCH_MODE>(node,thread,d_time,always);
-                     if (s) { // can we remove this IF ?
-                         state=scTERMINATE;
-                         break;
-                     }
-                     node = m_p_queue.top();
-                     n_time = node->m_time + offset;
+                } else {
+                    state = scWAIT;
+                }
+            }
+            break;
 
-                     if ((n_time-cur_time)>EAT_WINDOW_DTIME) {
-                       state=scINIT;
-                       break;
-                     }
-                 } while ( true  );
-                 break;
+         case scWORK:
+            {
+                int node_count = 0;
+                do {
+
+                    bool s=do_work<SCH_MODE>(node,thread,d_time,always);
+                    if (s) { // can we remove this IF ?
+                        state=scTERMINATE;
+                        break;
+                    }
+                    node = m_p_queue.top();
+                    n_time = node->m_time + offset;
+                    node_count++;
+
+                    /* we either out of the time frame or every 1024 nodes we get out for time checking */
+                    if ( ( (n_time - cur_time) > EAT_WINDOW_DTIME ) || (node_count > 1024) ) {
+                        state = scINIT;
+                        break;
+                    }
+
+                } while (true);
+                break;
+            }
 
          case scWAIT:
                 do_sleep(cur_time,thread,n_time); // estimate  loop
@@ -3814,11 +3824,35 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
     return (teardown(thread,always,old_offset,offset));
 }
 
-FORCE_NO_INLINE int CNodeGenerator::flush_file_sim(dsec_t max_time,
-                                        dsec_t d_time,
-                                        bool always,
-                                        CFlowGenListPerThread * thread,
-                                        double &old_offset){
+/**
+ * when time is streched - the flow_sync node 
+ * might be postpond too much 
+ * this can result a watchdog crash and lack 
+ * of responsivness from the DP core 
+ * (no handling of messages) 
+ * 
+ * @author imarom (7/31/2016)
+ * 
+ */
+FORCE_NO_INLINE void CNodeGenerator::handle_time_strech(dsec_t cur_time,
+                                                        dsec_t dt,
+                                                        dsec_t &offset,
+                                                        CFlowGenListPerThread *thread) {
+
+    /* check if flow sync message was delayed too much */
+    if ( (cur_time - m_flow_sync_node->m_time) > SYNC_TIME_OUT ) {
+        handle_maintenance(thread);
+    }
+
+    /* fix the time offset */
+    offset += dt;
+}
+
+int CNodeGenerator::flush_file_sim(dsec_t max_time,
+                                   dsec_t d_time,
+                                   bool always,
+                                   CFlowGenListPerThread * thread,
+                                   double &old_offset){
     CGenNode * node;
 
     if (!always) {
@@ -3913,17 +3947,15 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
 
 void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
 
-    /* tickle the watchdog */
-    thread->tickle();
-
+    
     /* flow sync message is a sync point for time */
     thread->m_cur_time_sec = node->m_time;
 
     /* first pop the node */
     m_p_queue.pop();
 
-    thread->check_msgs(); /* check messages */
-    m_v_if->flush_tx_queue(); /* flush pkt each timeout */
+    /* call all the maintenance required */
+    handle_maintenance(thread);
 
     /* exit in case this is the last node*/
     if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
@@ -3936,6 +3968,15 @@ void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thr
     }
 
 }
+
+void
+CNodeGenerator::handle_maintenance(CFlowGenListPerThread *thread) {
+
+    thread->tickle();         /* tickle the watchdog */
+    thread->check_msgs();     /* check messages */
+    m_v_if->flush_tx_queue(); /* flush pkt each timeout */
+}
+
 
 void CNodeGenerator::handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
     m_p_queue.pop();
@@ -4403,6 +4444,8 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     node= create_node() ;
     node->m_type = CGenNode::FLOW_SYNC;
     node->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
+
+    m_node_gen.m_flow_sync_node = node;
     m_node_gen.add_node(node);
 
     #ifdef _DEBUG

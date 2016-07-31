@@ -2067,7 +2067,7 @@ public:
    #define BURST_OFFSET_DTIME    (100.0/1000000) 
    #define EAT_WINDOW_DTIME      (15.0/1000000) 
    #define WAIT_WINDOW_SIZE      (-1.0/1000000)
-
+   
     bool  Create(CFlowGenListPerThread  *  parent);
     void  Delete();
 
@@ -2173,11 +2173,15 @@ private:
                             bool always,
                             CFlowGenListPerThread * thread,
                             double &old_offset);
+
+        FORCE_NO_INLINE void handle_time_strech(dsec_t cur_time, dsec_t dt, dsec_t &offset,  CFlowGenListPerThread * thread);
+
 private:        
     void handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
     void handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread);
     void handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
     void handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread);
+    void handle_maintenance(CFlowGenListPerThread *thread);
 
 public:
     pqueue_t                  m_p_queue;
@@ -2190,6 +2194,7 @@ public:
     uint64_t                  m_non_active;
     uint64_t                  m_limit;
     CTimeHistogram            m_realtime_his;
+    const CGenNode           *m_flow_sync_node;
 };
 
 
