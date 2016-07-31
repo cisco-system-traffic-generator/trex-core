@@ -5,7 +5,7 @@ The TRex RPC Server
 :revnumber: 1.1
 :quotes.++:
 :numbered:
-:web_server_url: http://trex-tgn.cisco.com/trex
+:web_server_url: https://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 :toclevels: 4
 
