@@ -173,7 +173,7 @@ class CTRexServer(object):
         try:
             with open(filepath, 'rb') as f:
                 file_content = f.read()
-                return binascii.b2a_base64(file_content)
+                return binascii.b2a_base64(file_content).decode(errors='replace')
         except Exception as e:
             err_str = "Can't get requested file %s: %s" % (filepath, e)
             logger.error(err_str)
