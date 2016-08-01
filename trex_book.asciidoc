@@ -577,8 +577,9 @@ image:images/vSwitch_networks.png[title="vSwitch_networks"]
 [NOTE]
 =====================================================================
 Current limitation: The following command does not function as expected:
+[subs="quotes"]
 ....
-sudo ./t-rex-64 -f cap2/dns.yaml --lm 1 --lo -l 1000 -d 100
+sudo ./t-rex-64 -f cap2/dns.yaml *--lm 1 --lo* -l 1000 -d 100
 ....
 The vSwitch does not "know" where to route the packet. This is expected to be fixed when TRex supports ARP.
 =====================================================================
