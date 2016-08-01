@@ -1,7 +1,9 @@
 #! /usr/bin/python
 # hhaim 
-import sys,site
-site.addsitedir('python-lib') 
+import sys
+import os
+python_ver = 'python%s' % sys.version_info[0]
+sys.path.append(os.path.join('external_libs', 'pyyaml-3.11', python_ver))
 import yaml
 import os.path
 import os
@@ -71,19 +73,19 @@ Other network devices
         try:
           stream = open(fcfg, 'r')
           self.m_cfg_dict= yaml.load(stream)
-        except Exception,e:
-          print e;
+        except Exception as e:
+          print(e);
           raise e
 
         stream.close();
         cfg_dict = self.m_cfg_dict[0]
-        if not cfg_dict.has_key('version') :
+        if 'version' not in cfg_dict:
             self.raise_error ("Configuration file %s is old, should include version field\n" % fcfg )
 
         if int(cfg_dict['version'])<2 :
             self.raise_error ("Configuration file %s is old, should include version field with value greater than 2\n" % fcfg)
 
-        if not self.m_cfg_dict[0].has_key('interfaces') :
+        if 'interfaces' not in self.m_cfg_dict[0]:
             self.raise_error ("Configuration file %s is old, should include interfaces field even number of elemets" % fcfg)
 
         if_list=self.m_cfg_dict[0]['interfaces']
@@ -97,8 +99,8 @@ Other network devices
 
 
     def do_bind_one (self,key):
-        cmd='./dpdk_nic_bind.py --bind=igb_uio %s ' % ( key)
-        print cmd
+        cmd='%s dpdk_nic_bind.py --bind=igb_uio %s ' % (sys.executable, key)
+        print(cmd)
         res=os.system(cmd);
         if res!=0:
             raise DpdkSetup('')
@@ -135,12 +137,12 @@ Other network devices
 
         for obj in if_list:
             key= self.pci_name_to_full_name (obj)
-            if not self.m_devices.has_key(key) :
+            if key not in self.m_devices:
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
 
 
-            if self.m_devices[key].has_key('Driver_str'):
+            if 'Driver_str' in self.m_devices[key]:
                 if self.m_devices[key]['Driver_str'] !='igb_uio' :
                     self.do_bind_one (key)
             else:
@@ -148,7 +150,7 @@ Other network devices
 
 
     def do_create (self):
-        print " not supported yet !"
+        print(" not supported yet !")
 
 
 def parse_parent_cfg (parent_cfg):
@@ -220,7 +222,7 @@ def main ():
         process_options ()
 
         if map_driver.args.show:
-            res=os.system('./dpdk_nic_bind.py --status');
+            res=os.system('%s dpdk_nic_bind.py --status' % sys.executable);
             return(res);
 
         obj =CIfMap(map_driver.cfg_file);
@@ -229,8 +231,8 @@ def main ():
             obj.do_create();
         else:
             obj.do_run();
-    except Exception,e:
-      print e
+    except Exception as e:
+      print(e)
       exit(-1)
 
 main();

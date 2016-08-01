@@ -2,11 +2,12 @@
 
 import sys
 import os
+python_ver = 'python%s' % sys.version_info.major
 
 CURRENT_PATH         = os.path.dirname(os.path.realpath(__file__))                
 ROOT_PATH            = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir))     # path to trex_control_plane directory
 PATH_TO_PYTHON_LIB   = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pardir, 'external_libs'))
-PATH_TO_PLATFORM_LIB = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyzmq-14.5.0', 'python2', 'fedora18', '64bit'))
+PATH_TO_PLATFORM_LIB = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyzmq-14.5.0', python_ver , 'fedora18', '64bit'))
 
 SERVER_MODULES = ['enum34-1.0.4',
                   'zmq',

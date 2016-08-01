@@ -62,7 +62,7 @@ def get_daemon_pid():
 
 def show_daemon_status():
     if get_daemon_pid():
-        print(termstyle.red('TRex server daemon is running'))
+        print(termstyle.green('TRex server daemon is running'))
     else:
         print(termstyle.red('TRex server daemon is NOT running'))
 
@@ -96,6 +96,7 @@ def start_live():
 def restart_daemon():
     if get_daemon_pid():
         kill_daemon()
+        sleep(0.5)
     start_daemon()
 
 def kill_daemon():

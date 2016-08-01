@@ -109,7 +109,7 @@ class CTRexServer(object):
         # initialize the server instance with given resources
         register_socket('trex_daemon_server')
         try:
-            print "Firing up TRex REST daemon @ port {trex_port} ...\n".format( trex_port = self.trex_daemon_port )
+            print("Firing up TRex REST daemon @ port {trex_port} ...\n".format( trex_port = self.trex_daemon_port ))
             logger.info("Firing up TRex REST daemon @ port {trex_port} ...".format( trex_port = self.trex_daemon_port ))
             logger.info("current working dir is: {0}".format(self.TREX_PATH) )
             logger.info("current files dir is  : {0}".format(self.trex_files_path) )
@@ -119,7 +119,7 @@ class CTRexServer(object):
         except socket.error as e:
             if e.errno == errno.EADDRINUSE:
                 logger.error("TRex server requested address already in use. Aborting server launching.")
-                print "TRex server requested address already in use. Aborting server launching."
+                print("TRex server requested address already in use. Aborting server launching.")
                 raise socket.error(errno.EADDRINUSE, "TRex daemon requested address already in use. "
                                                      "Server launch aborted. Please make sure no other process is "
                                                      "using the desired server properties.")
@@ -142,6 +142,7 @@ class CTRexServer(object):
         self.server.register_function(self.get_running_info)
         self.server.register_function(self.get_running_status)
         self.server.register_function(self.get_trex_cmds)
+        self.server.register_function(self.get_trex_config)
         self.server.register_function(self.get_trex_daemon_log)
         self.server.register_function(self.get_trex_log)
         self.server.register_function(self.get_trex_version)
@@ -215,6 +216,11 @@ class CTRexServer(object):
         logger.info("Processing get_trex_log() command.")
         return self._pull_file('/tmp/trex.txt')
 
+    # get /etc/trex_cfg.yaml
+    def get_trex_config(self):
+        logger.info("Processing get_trex_config() command.")
+        return self._pull_file('/etc/trex_cfg.yaml')
+
     # get daemon log /var/log/trex/trex_daemon_server.log
     def get_trex_daemon_log (self):
         logger.info("Processing get_trex_daemon_log() command.")
@@ -229,11 +235,11 @@ class CTRexServer(object):
                 search_result = re.search('\n\s*(Version\s*:.+)', stdout, re.DOTALL)
                 if not search_result:
                     raise Exception('Could not determine version from ./t-rex-64 --help')
-                self.trex_version = binascii.b2a_base64(search_result.group(1))
+                self.trex_version = binascii.b2a_base64(search_result.group(1).encode(errors='replace'))
             if base64:
-                return self.trex_version
+                return self.trex_version.decode(errors='replace')
             else:
-                return binascii.a2b_base64(self.trex_version)
+                return binascii.a2b_base64(self.trex_version).decode(errors='replace')
         except Exception as e:
             err_str = "Can't get trex version, error: %s" % e
             logger.error(err_str)
@@ -245,6 +251,14 @@ class CTRexServer(object):
             # in case TRex process is currently running, stop it before terminating server process
             self.stop_trex(self.trex.get_seq())
         sys.exit(0)
+
+    def assert_zmq_ok(self):
+        if self.trex.zmq_error:
+            raise Exception('ZMQ thread got error: %s' % self.trex.zmq_error)
+        if not self.zmq_monitor.is_alive():
+            if self.trex.get_status() != TRexStatus.Idle:
+                self.force_trex_kill()
+            raise Exception('ZMQ thread is dead.')
 
     def is_running (self):
         run_status = self.trex.get_status()
@@ -309,8 +323,8 @@ class CTRexServer(object):
                 assert(self.__reservation is None)
                 return False
 
-            
     def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False, trex_args = ''):
+        self.assert_zmq_ok()
         with self.start_lock:
             logger.info("Processing start_trex() command.")
             if self.is_reserved():
@@ -337,6 +351,7 @@ class CTRexServer(object):
                             break
                         else:
                             time.sleep(0.5)
+                            self.assert_zmq_ok()
 
                     # check for TRex run started normally
                     if trex_state == TRexStatus.Starting:   # reached timeout
@@ -403,12 +418,15 @@ class CTRexServer(object):
         trex_state = None
         start_time = time.time()
         while (time.time() - start_time) < timeout :
+            self.assert_zmq_ok()
             trex_state = self.trex.get_status()
             if trex_state != TRexStatus.Starting:
                 return
+            sleep(0.1)
         return Fault(-12, 'TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
 
     def get_running_info (self):
+        self.assert_zmq_ok()
         logger.info("Processing get_running_info() command.")
         return self.trex.get_running_info()
 
@@ -441,7 +459,7 @@ class CTRexServer(object):
 
         # adding additional options to the command
         trex_cmd_options = ''
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             tmp_key = key.replace('_','-').lstrip('-')
             dash = ' -' if (len(key)==1) else ' --'
             if value is True:
@@ -474,13 +492,13 @@ class CTRexServer(object):
     def __check_trex_path_validity(self):
         # check for executable existance
         if not os.path.exists(self.TREX_PATH+'/t-rex-64'):
-            print "The provided TRex path do not contain an executable TRex file.\nPlease check the path and retry."
+            print("The provided TRex path do not contain an executable TRex file.\nPlease check the path and retry.")
             logger.error("The provided TRex path do not contain an executable TRex file")
             exit(-1)
         # check for executable permissions
         st = os.stat(self.TREX_PATH+'/t-rex-64')
         if not bool(st.st_mode & (stat.S_IXUSR ) ):
-            print "The provided TRex path do not contain an TRex file with execution privileges.\nPlease check the files permissions and retry."
+            print("The provided TRex path do not contain an TRex file with execution privileges.\nPlease check the files permissions and retry.")
             logger.error("The provided TRex path do not contain an TRex file with execution privileges")
             exit(-1)
         else:
@@ -490,16 +508,16 @@ class CTRexServer(object):
         # first, check for path existance. otherwise, try creating it with appropriate credentials
         if not os.path.exists(self.trex_files_path):
             try:
-                os.makedirs(self.trex_files_path, 0660)
+                os.makedirs(self.trex_files_path, 0o660)
                 return
             except os.error as inst:
-                print "The provided files path does not exist and cannot be created with needed access credentials using root user.\nPlease check the path's permissions and retry."
+                print("The provided files path does not exist and cannot be created with needed access credentials using root user.\nPlease check the path's permissions and retry.")
                 logger.error("The provided files path does not exist and cannot be created with needed access credentials using root user.")
                 exit(-1)
         elif os.access(self.trex_files_path, os.W_OK):
             return
         else:
-            print "The provided files path has insufficient access credentials for root user.\nPlease check the path's permissions and retry."
+            print("The provided files path has insufficient access credentials for root user.\nPlease check the path's permissions and retry.")
             logger.error("The provided files path has insufficient access credentials for root user")
             exit(-1)
 
@@ -511,6 +529,7 @@ class CTRex(object):
         self.session        = None
         self.zmq_monitor    = None
         self.zmq_dump       = None
+        self.zmq_error      = None
         self.seq            = None
         self.expect_trex    = threading.Event()
         self.encoder        = JSONEncoder()

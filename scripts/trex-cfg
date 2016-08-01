@@ -65,6 +65,5 @@ fi
 
 # try to bind the ports from the configuration file (new DPDK)
 PARENT_ARGS="$0 $@"
-if ! ./dpdk_setup_ports.py --parent "$PARENT_ARGS";  then
-    exit 1
-fi
+(/usr/bin/python -V &> /dev/null && ./dpdk_setup_ports.py --parent "$PARENT_ARGS") ||
+    (/usr/bin/python3 -V &> /dev/null && /usr/bin/python3 dpdk_setup_ports.py --parent "$PARENT_ARGS") || exit 1

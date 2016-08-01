@@ -140,6 +140,7 @@ class SingletonDaemon(object):
     def restart(self, timeout = 15):
         if self.is_running():
             self.kill(timeout)
+            sleep(0.5)
         return self.start(timeout)
 
 

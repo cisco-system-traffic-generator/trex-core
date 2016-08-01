@@ -54,7 +54,7 @@ def import_module_list(modules_list):
             print("Unable to find required module library: '{0}'".format(p['name']))
             print("Please provide the correct path using TREX_STL_EXT_PATH variable")
             print("current path used: '{0}'".format(full_path))
-            exit(0)
+            exit(1)
 
         sys.path.insert(1, full_path)
 
