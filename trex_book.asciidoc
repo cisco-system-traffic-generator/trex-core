@@ -196,12 +196,9 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 ** `> sudo yum update kernel`
 ** `> sudo yum update kernel-devel`
 ** `> sudo yum update kernel-headers`
-* For Intel XL710 NICs, verify that the NVM is v4.42 or v4.53. xref:xl710-firmware[Info].
+* For Intel XL710 NICs, verify that the NVM is v5.04 . xref:xl710-firmware[Info].
 **  `> sudo ./t-rex-64 -f cap2/dns.yaml -d 0 *-v 6* --nc | grep NVM` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc`
+    `PMD:  FW 5.0 API 1.5 NVM 05.00.04  eetrack 800013fc` 
 =====================================
 
 // above, maybe rename the bullet points "NIC usage notes"? should we create a subsection for NICs? Maybe it would be under "2.1 Hardware recommendations" as a subsection.
