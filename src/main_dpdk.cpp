@@ -99,6 +99,8 @@ extern "C" {
 typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
 struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
 extern "C" void i40e_set_trex_mode(int mode);
+extern "C" int rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uint8_t *port_id);
+void reorder_dpdk_ports();
 
 #define RTE_TEST_TX_DESC_DEFAULT 512
 #define RTE_TEST_RX_DESC_DROP    0
@@ -4934,6 +4936,7 @@ int main_test(int argc , char * argv[]){
         rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
     }
 
+    reorder_dpdk_ports();
     time_init();
 
     /* check if we are in simulation mode */
@@ -5025,6 +5028,37 @@ void wait_x_sec(int sec) {
     }
     printf("\n");
     fflush(stdout);
+}
+
+/*
+Changes the order of rte_eth_devices array elements
+to be consistent with our /etc/trex_cfg.yaml
+*/
+void reorder_dpdk_ports() {
+    rte_eth_dev rte_eth_devices_temp[RTE_MAX_ETHPORTS];
+    uint8_t m_port_map[RTE_MAX_ETHPORTS];
+    struct rte_pci_addr addr;
+    uint8_t port_id;
+
+    // gather port relation information and save current array to temp
+    for (int i=0; i<(int)global_platform_cfg_info.m_if_list.size(); i++) {
+        memcpy(&rte_eth_devices_temp[i], &rte_eth_devices[i], sizeof rte_eth_devices[i]);
+        if (eal_parse_pci_BDF(global_platform_cfg_info.m_if_list[i].c_str(), &addr) != 0 && eal_parse_pci_DomBDF(global_platform_cfg_info.m_if_list[i].c_str(), &addr) != 0) {
+            printf("Failed mapping TRex port id to DPDK id: %d\n", i);
+            exit(1);
+        }
+        rte_eth_dev_get_port_by_addr(&addr, &port_id);
+        m_port_map[port_id] = i;
+        // print the relation in verbose mode
+        if ( CGlobalInfo::m_options.preview.getVMode() > 0){
+            printf("TRex cfg port id: %d <-> DPDK port id: %d\n", i, port_id);
+        }
+    }
+
+    // actual reorder
+    for (int i=0; i<(int)global_platform_cfg_info.m_if_list.size(); i++) {
+        memcpy(&rte_eth_devices[m_port_map[i]], &rte_eth_devices_temp[i], sizeof rte_eth_devices_temp[i]);
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
