@@ -3225,7 +3225,7 @@ bool  CNodeGenerator::Create(CFlowGenListPerThread  *  parent){
    m_socket_id =0;
    m_is_realtime =CGlobalInfo::is_realtime();
    m_realtime_his.Create();
-   m_flow_sync_node = NULL;
+   m_last_sync_time_sec = 0;
 
    return(true);
 }
@@ -3840,7 +3840,7 @@ FORCE_NO_INLINE void CNodeGenerator::handle_time_strech(dsec_t cur_time,
                                                         CFlowGenListPerThread *thread) {
 
     /* check if flow sync message was delayed too much */
-    if ( (cur_time - m_flow_sync_node->m_time) > SYNC_TIME_OUT ) {
+    if ( (cur_time - m_last_sync_time_sec) > SYNC_TIME_OUT ) {
         handle_maintenance(thread);
     }
 
@@ -3975,6 +3975,9 @@ CNodeGenerator::handle_maintenance(CFlowGenListPerThread *thread) {
     thread->tickle();         /* tickle the watchdog */
     thread->check_msgs();     /* check messages */
     m_v_if->flush_tx_queue(); /* flush pkt each timeout */
+
+    /* save last sync time as realtime */
+    m_last_sync_time_sec = now_sec();
 }
 
 
@@ -4445,7 +4448,6 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     node->m_type = CGenNode::FLOW_SYNC;
     node->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
 
-    m_node_gen.m_flow_sync_node = node;
     m_node_gen.add_node(node);
 
     #ifdef _DEBUG

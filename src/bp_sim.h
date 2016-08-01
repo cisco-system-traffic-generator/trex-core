@@ -2194,7 +2194,8 @@ public:
     uint64_t                  m_non_active;
     uint64_t                  m_limit;
     CTimeHistogram            m_realtime_his;
-    const CGenNode           *m_flow_sync_node;
+
+    dsec_t                    m_last_sync_time_sec;
 };
 
 

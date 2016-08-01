@@ -695,7 +695,6 @@ TrexStatelessDpCore::start_scheduler() {
     node_sync->m_type = CGenNode::FLOW_SYNC;
     node_sync->m_time = m_core->m_cur_time_sec + SYNC_TIME_OUT;
 
-    m_core->m_node_gen.m_flow_sync_node = node_sync;
     m_core->m_node_gen.add_node(node_sync);
 
     double old_offset = 0.0;
