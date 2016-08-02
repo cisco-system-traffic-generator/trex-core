@@ -1422,7 +1422,12 @@ void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
 
 
 void CPhyEthIF::stop(){
+#if 0
+    // allowing this causes bad things to happen. Especially on X710 cards.
+    // See trex-237 for details
     rte_eth_dev_stop(m_port_id);
+    rte_eth_dev_close(m_port_id);
+#endif
 }
 
 
