@@ -2195,12 +2195,7 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 			I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 		vsi = &vf->vsi;
 	} else {
-        // TREX_PATCH
-#ifdef LOW_LATENCY_WORKAROUND
-		vsi = i40e_pf_tx_get_vsi_by_qindex(pf, queue_idx);
-#else
 		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
-#endif
     }
 
 	if (vsi == NULL) {
@@ -2417,8 +2412,13 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		struct i40e_vf *vf =
 			I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 		vsi = &vf->vsi;
-	} else
+	} else {
+#ifdef LOW_LATENCY_WORKAROUND
+		vsi = i40e_pf_tx_get_vsi_by_qindex(pf, queue_idx);
+#else
 		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
+#endif
+    }
 
 	if (vsi == NULL) {
 		PMD_DRV_LOG(ERR, "VSI is NULL, or queue index (%u) "
