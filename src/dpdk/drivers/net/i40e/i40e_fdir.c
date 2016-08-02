@@ -755,7 +755,11 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		ip6->vtc_flow =
 			rte_cpu_to_be_32(I40E_FDIR_IPv6_DEFAULT_VTC_FLOW |
 					 (fdir_input->flow.ipv6_flow.tc <<
-					  I40E_FDIR_IPv6_TC_OFFSET));
+					  I40E_FDIR_IPv6_TC_OFFSET)
+#ifdef TREX_PATCH
+                             | (fdir_input->flow.ipv6_flow.flow_label & 0x000fffff)
+#endif
+                             );
 		ip6->payload_len =
 			rte_cpu_to_be_16(I40E_FDIR_IPv6_PAYLOAD_LEN);
 		ip6->proto = fdir_input->flow.ipv6_flow.proto ?

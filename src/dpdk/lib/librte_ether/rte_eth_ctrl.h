@@ -464,6 +464,8 @@ struct rte_eth_ipv6_flow {
 	uint8_t  tc;             /**< Traffic class to match. */
 	uint8_t  proto;          /**< Protocol, next header to match. */
 	uint8_t  hop_limits;     /**< Hop limits to match. */
+	// TREX_PATCH (flow_label)
+	uint32_t flow_label;     /**<flow label to match. */
 };
 
 /**

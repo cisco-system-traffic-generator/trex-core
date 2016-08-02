@@ -344,7 +344,8 @@ public:
     virtual CFlowStatParser *get_flow_stat_parser();
 
 private:
-    virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl, uint16_t ip_id, int queue, uint16_t stat_idx);
+    virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl
+                               , uint16_t ip_id, uint16_t l4_proto, int queue, uint16_t stat_idx);
     virtual int configure_rx_filter_rules_statfull(CPhyEthIF * _if);
 
 private:
@@ -4163,7 +4164,6 @@ void CGlobalTRex::shutdown() {
     for (int i = 0; i < m_max_ports; i++) {
         m_ports[i].stop();
     }
-
     if (m_mark_for_shutdown != SHUTDOWN_TEST_ENDED) {
         /* we should stop latency and exit to stop agents */
         exit(-1);
@@ -5264,7 +5264,7 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules_stateless(CPhyEthIF * _
     _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 4) ,  0x00000081);
     _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 8) , 0x30); /* MASK */
     // + bytes 16 + 17 (vlan type) should indicate IP.
-    _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) ) ,  0x00000080);
+    _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) ) ,  0x00000008);
     // Was written together with IP ID filter
     // _if->pci_reg_write( (E1000_FHFT(rule_id)+(2*16) + 8) , 0x03); /* MASK */
     // FLEX_PRIO[[18:16] = 1, RQUEUE[10:8] = 1
@@ -5553,12 +5553,18 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
 }
 
 // What is the type of the rule the respective hw_id counter counts.
-static uint16_t fdir_hw_id_rule_type[512];
+struct fdir_hw_id_params_t {
+    uint16_t rule_type;
+    uint16_t l4_proto;
+};
+
+static struct fdir_hw_id_params_t fdir_hw_id_rule_params[512];
 
 /* Add rule to send packets with protocol 'type', and ttl 'ttl' to rx queue 1 */
 // ttl is used in statefull mode, and ip_id in stateless. We configure the driver registers so that only one of them applies.
 // So, the rule will apply if packet has either the correct ttl or IP ID, depending if we are in statfull or stateless.
-void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl, uint16_t ip_id, int queue, uint16_t stat_idx) {
+void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl
+                                               , uint16_t ip_id, uint16_t l4_proto, int queue, uint16_t stat_idx) {
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
     static int filter_soft_id = 0;
 
@@ -5585,28 +5591,27 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
     filter.input.flow_type = type;
 
     if (op == RTE_ETH_FILTER_ADD) {
-        fdir_hw_id_rule_type[stat_idx] = type;
+        fdir_hw_id_rule_params[stat_idx].rule_type = type;
+        fdir_hw_id_rule_params[stat_idx].l4_proto = l4_proto;
     }
 
     switch (type) {
-    case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
-        filter.input.flow.ip4_flow.ttl=ttl;
-        filter.input.flow.ip4_flow.ip_id = ip_id;
-        filter.input.flow.ip4_flow.proto = IPPROTO_ICMP; // In this case we want filter for icmp packets
-        break;
     case RTE_ETH_FLOW_NONFRAG_IPV4_UDP:
     case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
     case RTE_ETH_FLOW_NONFRAG_IPV4_SCTP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
         filter.input.flow.ip4_flow.ttl=ttl;
         filter.input.flow.ip4_flow.ip_id = ip_id;
+        if (l4_proto != 0)
+            filter.input.flow.ip4_flow.proto = l4_proto;
         break;
     case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
     case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
-        filter.input.flow.ipv6_flow.hop_limits=ttl;
-        break;
     case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
         filter.input.flow.ipv6_flow.hop_limits=ttl;
-        filter.input.flow.ipv6_flow.proto = IPPROTO_ICMP; // In the future we want to support this
+        filter.input.flow.ipv6_flow.flow_label = ip_id;
+        if (l4_proto != 0)
+            filter.input.flow.ipv6_flow.proto = l4_proto;
         break;
     }
 
@@ -5640,7 +5645,7 @@ int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(uint8_t port_id, enum 
         rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
         break;
     }
-    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, MAIN_DPDK_DATA_Q, rule_id);
+    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, proto, MAIN_DPDK_DATA_Q, rule_id);
     return 0;
 }
 
@@ -5652,17 +5657,15 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statfull(CPhyEthIF * _
     rte_eth_fdir_stats_reset(port_id, NULL, 0, 1);
     for (i = 0; i < 2; i++) {
         uint8_t ttl = TTL_RESERVE_DUPLICATE - i - hops;
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl, 0, MAIN_DPDK_RX_Q, 0);
-
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
+        /* Rules for latency measurement packets */
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, ttl, 0, IPPROTO_ICMP, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
     }
-
-    /* Configure rules for latency measurement packets */
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, TTL_RESERVE_DUPLICATE - hops, 0, MAIN_DPDK_RX_Q, 0);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, TTL_RESERVE_DUPLICATE - hops, 0, MAIN_DPDK_RX_Q, 0);
-
     return 0;
 }
 
@@ -5672,10 +5675,20 @@ extern const uint32_t FLOW_STAT_PAYLOAD_IP_ID;
 int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     if (get_is_stateless()) {
         uint32_t port_id = _if->get_port_id();
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, IPPROTO_ICMP, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
         rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, FDIR_TEMP_HW_ID, 1);
+
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, 0);
         return 0; // Other rules are configured dynamically in stateless
     } else {
         return configure_rx_filter_rules_statfull(_if);
@@ -5723,10 +5736,13 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
             uint32_t counter, temp_count;
             uint32_t hw_id = start - min + i;
 
-            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_type[hw_id], 0, IP_ID_RESERVE_BASE + i, MAIN_DPDK_DATA_Q, FDIR_TEMP_HW_ID);
+            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_params[hw_id].rule_type, 0
+                           , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DATA_Q
+                           , FDIR_TEMP_HW_ID);
             delay(100);
             rte_eth_fdir_stats_reset(port_id, &counter, hw_id, 1);
-            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_type[hw_id], 0, IP_ID_RESERVE_BASE + i, MAIN_DPDK_DATA_Q, hw_id);
+            add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_params[hw_id].rule_type, 0
+                           , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DATA_Q, hw_id);
             delay(100);
             rte_eth_fdir_stats_reset(port_id, &temp_count, FDIR_TEMP_HW_ID, 1);
             pkts[i] = counter + temp_count - prev_pkts[i];
