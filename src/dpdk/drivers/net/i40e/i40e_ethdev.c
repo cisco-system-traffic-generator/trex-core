@@ -4168,10 +4168,10 @@ i40e_veb_setup(struct i40e_pf *pf, struct i40e_vsi *vsi)
 	/* create floating veb if vsi is NULL */
 	if (vsi != NULL) {
 		ret = i40e_aq_add_veb(hw, veb->uplink_seid, vsi->seid,
-				      I40E_DEFAULT_TCMAP, false,
+				      vsi->enabled_tc, false,
 				      &veb->seid, false, NULL);
 	} else {
-		ret = i40e_aq_add_veb(hw, 0, 0, I40E_DEFAULT_TCMAP,
+		ret = i40e_aq_add_veb(hw, 0, 0, vsi->enabled_tc,
 				      true, &veb->seid, false, NULL);
 	}
 
@@ -4345,6 +4345,37 @@ i40e_vsi_update_tc_max_bw(struct i40e_vsi *vsi, u16 credit){
     }
     return (0);
 }
+
+static int
+i40e_vsi_update_tc_bandwidth_ex(struct i40e_vsi *vsi)
+{
+	struct i40e_hw *hw = I40E_VSI_TO_HW(vsi);
+	int i, ret;
+	struct i40e_aqc_configure_vsi_tc_bw_data tc_bw_data;
+
+	if (!vsi->seid) {
+		PMD_DRV_LOG(ERR, "seid not valid");
+		return -EINVAL;
+	}
+
+	memset(&tc_bw_data, 0, sizeof(tc_bw_data));
+	tc_bw_data.tc_valid_bits = 3;
+    tc_bw_data.tc_bw_credits[0]=1;
+    tc_bw_data.tc_bw_credits[1]=127;
+
+	ret = i40e_aq_config_vsi_tc_bw(hw, vsi->seid, &tc_bw_data, NULL);
+	if (ret != I40E_SUCCESS) {
+		PMD_DRV_LOG(ERR, "Failed to configure TC BW");
+		return ret;
+	}
+    vsi->enabled_tc=3;
+
+	(void)rte_memcpy(vsi->info.qs_handle, tc_bw_data.qs_handles,
+					sizeof(vsi->info.qs_handle));
+	return I40E_SUCCESS;
+}
+
+
 #endif
 #endif
 
@@ -5032,38 +5063,6 @@ i40e_pf_setup(struct i40e_pf *pf)
 		return I40E_ERR_NOT_READY;
 	}
 	pf->main_vsi = vsi;
-
-#ifdef TREX_PATCH
-#ifdef LOW_LATENCY_WORKAROUND
-    /*
-     Workaround for low latency issue.
-     It seems RR does not work as expected both from same QSet and from different QSet
-     Quanta could be very high and this creates very high latency, especially with long packet size (9K)
-     This is a workaround limit the main (bulk) VSI to 99% of the BW and by that support low latency (suggested by Intel)
-     ETS with with strict priority and 127 credit does not work .
-    */
-
-    if (hw->phy.link_info.link_speed == I40E_LINK_SPEED_10GB) {
-        i40e_vsi_update_tc_max_bw(vsi,199);
-    }else{
-        if (hw->phy.link_info.link_speed == I40E_LINK_SPEED_40GB) {
-            i40e_vsi_update_tc_max_bw(vsi,799);
-        }else{
-            PMD_DRV_LOG(ERR, "Unknown phy speed %d",hw->phy.link_info.link_speed);
-        }
-    }
-
-    /* add for low latency a new VSI for Queue set */
-    vsi = i40e_vsi_setup(pf, I40E_VSI_VMDQ2, vsi, 0);
-    if (!vsi) {
-        PMD_DRV_LOG(ERR, "Setup of low latency vsi failed");
-        return I40E_ERR_NOT_READY;
-    }
-
-    pf->ll_vsi = vsi;
-
-#endif
-#endif
 
 	/* Configure filter control */
 	memset(&settings, 0, sizeof(settings));
@@ -9334,8 +9333,16 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 			hw->local_dcbx_config.etscfg.willing = 0;
 			hw->local_dcbx_config.etscfg.maxtcs = 0;
 			hw->local_dcbx_config.etscfg.tcbwtable[0] = 100;
-			hw->local_dcbx_config.etscfg.tsatable[0] =
-						I40E_IEEE_TSA_ETS;
+			hw->local_dcbx_config.etscfg.tsatable[0] = I40E_IEEE_TSA_ETS;
+
+#ifdef LOW_LATENCY_WORKAROUND
+
+            hw->local_dcbx_config.etscfg.tcbwtable[1] = 0;
+            hw->local_dcbx_config.etscfg.tsatable[1] = I40E_IEEE_TSA_STRICT;
+            hw->local_dcbx_config.etscfg.prioritytable[1] = 1;
+#endif
+
+
 			hw->local_dcbx_config.etsrec =
 				hw->local_dcbx_config.etscfg;
 			hw->local_dcbx_config.pfc.willing = 0;
@@ -9355,6 +9362,15 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 					  hw->aq.asq_last_status);
 				return -ENOSYS;
 			}
+
+#ifdef LOW_LATENCY_WORKAROUND
+            if (i40e_vsi_update_tc_bandwidth_ex(pf->main_vsi) !=
+                I40E_SUCCESS) {
+                PMD_DRV_LOG(ERR, "Failed to update TC bandwidth");
+                return -ENOSYS;
+            }
+#endif
+
 		} else {
 			PMD_INIT_LOG(INFO, "DCBX configuration failed, err = %d,"
 					  " aq_err = %d.", ret,

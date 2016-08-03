@@ -1933,31 +1933,6 @@ i40e_xmit_pkts_simple(void *tx_queue,
 // TREX_PATCH
 // Based on i40e_pf_get_vsi_by_qindex. Return low latency VSI one queue.
 #define LOW_LATENCY_WORKAROUND
-#ifdef LOW_LATENCY_WORKAROUND
-static struct i40e_vsi*
-i40e_pf_tx_get_vsi_by_qindex(struct i40e_pf *pf, uint16_t queue_idx)
-{
-    // For last queue index, return low latency VSI
-    if (queue_idx == pf->dev_data->nb_tx_queues-1) {
-        return pf->ll_vsi;
-    }
-
-    /* the queue in MAIN VSI range */
-    if (queue_idx < pf->dev_data->nb_tx_queues)
-        return pf->main_vsi;
-
-
-    queue_idx -= pf->main_vsi->nb_qps;
-
-    /* queue_idx is greater than VMDQ VSIs range */
-    if (queue_idx > pf->nb_cfg_vmdq_vsi * pf->vmdq_nb_qps - 1) {
-        PMD_INIT_LOG(ERR, "queue_idx out of range. VMDQ configured?");
-        return NULL;
-    }
-
-    return pf->vmdq[queue_idx / pf->vmdq_nb_qps].vsi;
-}
-#endif
 
 /*
  * Find the VSI the queue belongs to. 'queue_idx' is the queue index
@@ -2301,6 +2276,11 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		ad->rx_bulk_alloc_allowed = false;
 	}
 
+    #ifdef LOW_LATENCY_WORKAROUND
+    rxq->dcb_tc =0;
+
+    #else
+
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
@@ -2313,6 +2293,7 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
 			rxq->dcb_tc = i;
 	}
+    #endif
 
 	return 0;
 }
@@ -2407,18 +2388,21 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	uint32_t ring_size;
 	uint16_t tx_rs_thresh, tx_free_thresh;
 	uint16_t i, base, bsf, tc_mapping;
+    u8 low_latency=0; 
 
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
 		struct i40e_vf *vf =
 			I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 		vsi = &vf->vsi;
 	} else {
-#ifdef LOW_LATENCY_WORKAROUND
-		vsi = i40e_pf_tx_get_vsi_by_qindex(pf, queue_idx);
-#else
 		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
-#endif
     }
+
+#ifdef LOW_LATENCY_WORKAROUND
+    if (queue_idx == pf->dev_data->nb_tx_queues-1) {
+        low_latency= 1;
+    }
+#endif
 
 	if (vsi == NULL) {
 		PMD_DRV_LOG(ERR, "VSI is NULL, or queue index (%u) "
@@ -2574,6 +2558,13 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	/* Use a simple TX queue without offloads or multi segs if possible */
 	i40e_set_tx_function_flag(dev, txq);
 
+#ifdef LOW_LATENCY_WORKAROUND
+    if (low_latency) {
+        txq->dcb_tc=1;
+    }else{
+        txq->dcb_tc=0;
+    }
+#else
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
@@ -2586,7 +2577,7 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
 			txq->dcb_tc = i;
 	}
-
+#endif
 	return 0;
 }
 
