@@ -547,6 +547,7 @@ class TrexTUI():
 
                     try:
                         self.stateless_client.connect()
+                        self.stateless_client.acquire()
                         self.state = self.STATE_ACTIVE
                     except STLError:
                         self.state = self.STATE_LOST_CONT
@@ -720,8 +721,10 @@ class AsyncKeysEngineConsole:
         self.ac = {'start'        : client.start_line,
                    'stop'         : client.stop_line,
                    'pause'        : client.pause_line,
+                   'clear'        : client.clear_stats_line,
                    'push'         : client.push_line,
                    'resume'       : client.resume_line,
+                   'reset'        : client.reset_line,
                    'update'       : client.update_line,
                    'connect'      : client.connect_line,
                    'disconnect'   : client.disconnect_line,

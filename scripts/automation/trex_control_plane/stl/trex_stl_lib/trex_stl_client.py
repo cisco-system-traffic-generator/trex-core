@@ -511,7 +511,7 @@ class STLClient(object):
         self.connected = False
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 1, 'minor': 3 } ]
+        self.api_vers = [ {'type': 'core', 'major': 2, 'minor': 3 } ]
         self.api_h = {'core': None}
 
         # logger
@@ -1018,7 +1018,7 @@ class STLClient(object):
                 try:
                     ret = f(*args, **kwargs)
                 except KeyboardInterrupt as e:
-                    raise STLError("Test was interrupted by a keyboard signal (probably ctrl + c)")
+                    raise STLError("Interrupted by a keyboard signal (probably ctrl + c)")
 
                 return ret
             return wrap2
@@ -2834,7 +2834,7 @@ class STLClient(object):
 
         self.clear_stats(opts.ports)
 
-
+        return RC_OK()
 
 
     @__console
