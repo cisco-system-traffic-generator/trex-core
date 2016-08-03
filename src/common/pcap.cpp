@@ -154,18 +154,18 @@ bool LibPCapReader::ReadPacket(CCapPktRaw *lpPacket)
    if (m_is_flip) {
 		flip(&pkt_header);
    }
-   if (pkt_header.len > READER_MAX_PACKET_SIZE) {
+   if (pkt_header.caplen > READER_MAX_PACKET_SIZE) {
        /* cannot read this packet */
        //printf("ERROR packet is too big, bigger than %d \n",READER_MAX_PACKET_SIZE);
        return false;
    }
 
-   lpPacket->pkt_len = fread(lpPacket->raw,1,pkt_header.len,m_file_handler);
+   lpPacket->pkt_len = fread(lpPacket->raw,1,pkt_header.caplen,m_file_handler);
 
    lpPacket->time_sec  = pkt_header.ts.sec;
    lpPacket->time_nsec = pkt_header.ts.msec*1000;
 
-   if ( lpPacket->pkt_len < pkt_header.len) {
+   if ( lpPacket->pkt_len < pkt_header.caplen) {
        lpPacket->pkt_len = 0;
 	   return false;
    }

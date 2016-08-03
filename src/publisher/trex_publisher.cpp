@@ -20,6 +20,7 @@ limitations under the License.
 */
 
 #include "trex_publisher.h"
+#include "trex_rpc_zip.h"
 #include <zmq.h>
 #include <assert.h>
 #include <sstream>
@@ -73,11 +74,30 @@ TrexPublisher::Delete(){
 
 
 void 
-TrexPublisher::publish_json(const std::string &s){
+TrexPublisher::publish_json(const std::string &s, uint32_t zip_threshold){
+
     if (m_publisher) {
-        int size = zmq_send (m_publisher, s.c_str(), s.length(), 0);
-        assert(size == s.length());
+        if ( (zip_threshold != 0) && (s.size() > zip_threshold) ) {
+            publish_zipped_json(s);
+        } else {
+            publish_raw_json(s);
+        }
     }
+}
+
+void 
+TrexPublisher::publish_zipped_json(const std::string &s) {
+    std::string compressed_msg;
+
+    TrexRpcZip::compress(s, compressed_msg);
+    int size = zmq_send (m_publisher, compressed_msg.c_str(), compressed_msg.length(), 0);
+    assert(size == compressed_msg.length());
+}
+
+void 
+TrexPublisher::publish_raw_json(const std::string &s) {
+     int size = zmq_send (m_publisher, s.c_str(), s.length(), 0);
+     assert(size == s.length());
 }
 
 void

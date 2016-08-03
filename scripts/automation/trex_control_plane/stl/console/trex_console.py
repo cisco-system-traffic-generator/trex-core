@@ -440,6 +440,7 @@ class TRexConsole(TRexGeneralCmd):
         if (l > 2) and (s[l - 2] in file_flags):
             return TRexConsole.tree_autocomplete(s[l - 1])
 
+    complete_push = complete_start
 
     @verify_connected
     def do_start(self, line):

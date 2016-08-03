@@ -38,7 +38,7 @@ public:
 
     virtual bool Create(uint16_t port, bool disable);
     virtual void Delete();
-    virtual void publish_json(const std::string &s);
+    virtual void publish_json(const std::string &s, uint32_t zip_threshold = MSG_COMPRESS_THRESHOLD);
 
     enum event_type_e {
         EVENT_PORT_STARTED          = 0,
@@ -71,9 +71,14 @@ public:
 
 private:
     void show_zmq_last_error(const std::string &err);
+    void publish_zipped_json(const std::string &s);
+    void publish_raw_json(const std::string &s);
+
 private:
     void * m_context;
     void * m_publisher;
+
+    static const int MSG_COMPRESS_THRESHOLD = 256;
 };
 
 #endif /* __TREX_PUBLISHER_H__ */

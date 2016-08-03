@@ -13,6 +13,7 @@ from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
 from .utils.text_opts import *
 from .trex_stl_stats import *
 from .trex_stl_types import *
+from .utils.zipmsg import ZippedMsg
 
 # basic async stats class
 class CTRexAsyncStats(object):
@@ -156,7 +157,9 @@ class CTRexAsyncClient():
         self.monitor = AsyncUtil()
 
         self.connected = False
- 
+
+        self.zipped = ZippedMsg()
+
     # connects the async channel
     def connect (self):
 
@@ -214,7 +217,7 @@ class CTRexAsyncClient():
         # done
         self.connected = False
 
-        
+
     # thread function
     def _run (self):
 
@@ -232,9 +235,16 @@ class CTRexAsyncClient():
             try:
 
                 with self.monitor:
-                    line = self.socket.recv_string()
+                    line = self.socket.recv()
                 
                 self.monitor.on_recv_msg(line)
+
+                # try to decomrpess
+                unzipped = self.zipped.decompress(line)
+                if unzipped:
+                    line = unzipped
+
+                line = line.decode()
 
                 self.last_data_recv_ts = time.time()
 

@@ -9,6 +9,7 @@ import struct
 
 from .trex_stl_types import *
 from .utils.common import random_id_gen
+from .utils.zipmsg import ZippedMsg
 
 class bcolors:
     BLUE = '\033[94m'
@@ -43,9 +44,6 @@ class BatchMessage(object):
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
 
-    MSG_COMPRESS_THRESHOLD = 4096
-    MSG_COMPRESS_HEADER_MAGIC = 0xABE85CEA
-
     def __init__ (self, default_server, default_port, client):
         self.client_api = client.api_h
         self.logger = client.logger
@@ -56,7 +54,7 @@ class JsonRpcClient(object):
         self.server = default_server
 
         self.id_gen = random_id_gen()
-
+        self.zipper = ZippedMsg()
 
     def get_connection_details (self):
         rc = {}
@@ -121,28 +119,7 @@ class JsonRpcClient(object):
 
         return self.send_msg(msg)
 
-
-    def compress_msg (self, msg):
-        # compress
-        compressed = zlib.compress(msg)
-        new_msg = struct.pack(">II", self.MSG_COMPRESS_HEADER_MAGIC, len(msg)) + compressed
-        return new_msg
-
-
-    def decompress_msg (self, msg):
-        if len(msg) < 8:
-            return None
-
-        t = struct.unpack(">II", msg[:8])
-        if (t[0] != self.MSG_COMPRESS_HEADER_MAGIC):
-            return None
-
-        x = zlib.decompress(msg[8:])
-        if len(x) != t[1]:
-            return None
-
-        return x
-
+   
     def send_msg (self, msg):
         # print before
         if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
@@ -151,10 +128,10 @@ class JsonRpcClient(object):
         # encode string to buffer
         buffer = msg.encode()
 
-        if len(buffer) > self.MSG_COMPRESS_THRESHOLD:
-            response = self.send_raw_msg(self.compress_msg(buffer))
+        if self.zipper.check_threshold(buffer):
+            response = self.send_raw_msg(self.zipper.compress(buffer))
             if response:
-                response = self.decompress_msg(response)
+                response = self.zipper.decompress(response)
         else:
             response = self.send_raw_msg(buffer)
 
