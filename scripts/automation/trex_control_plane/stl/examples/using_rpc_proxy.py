@@ -4,6 +4,7 @@ import argparse
 import sys
 import os
 from time import sleep
+from pprint import pprint
 
 # ext libs
 ext_libs = os.path.join(os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs')
@@ -74,13 +75,39 @@ if __name__ == '__main__':
 
     print('Sending pcap to ports %s' % ports)
     verify(server.push_remote(pcap_filename = 'stl/sample.pcap'))
+    sleep(3)
 
     print('Getting stats')
     res = verify(server.get_stats())
-    print('Stats: %s' % res[1])
+    pprint(res[1])
 
     print('Resetting all ports')
     verify(server.reset())
+
+    imix_path_1 = '../../../../stl/imix.py'
+    imix_path_2 = '../../stl/imix.py'
+    if os.path.exists(imix_path_1):
+        imix_path = imix_path_1
+    elif os.path.exists(imix_path_2):
+        imix_path = imix_path_2
+    else:
+        print('Could not find path of imix profile, skipping')
+        imix_path = None
+
+    if imix_path:
+        print('Adding profile %s' % imix_path)
+        verify(server.native_method(func_name = 'add_profile', filename = imix_path))
+
+        print('Start traffic for 5 sec')
+        verify(server.native_method('start'))
+        sleep(5)
+
+        print('Getting stats')
+        res = verify(server.get_stats())
+        pprint(res[1])
+
+        print('Resetting all ports')
+        verify(server.reset())
 
     print('Deleting Native Client instance')
     verify(server.native_proxy_del())
@@ -116,7 +143,7 @@ if __name__ == '__main__':
 
     print('Getting stats')
     res = verify_hlt(server.traffic_stats(mode = 'aggregate', port_handle = ports[:2]))
-    print(res)
+    pprint(res)
 
     print('Deleting HLTAPI Client instance')
     verify_hlt(server.hltapi_proxy_del())

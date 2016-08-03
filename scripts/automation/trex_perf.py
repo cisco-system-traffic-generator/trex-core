@@ -2,13 +2,14 @@
 import h_avc
 
 
-from trex_control_plane.client.trex_client import CTRexClient
 import ConfigParser
 import threading
 import time,signal
 import argparse
 import sys
 import os
+sys.path.append(os.path.join('trex_control_plane', 'stf', 'trex_stf_lib'))
+from trex_client import CTRexClient
 import subprocess
 from time import sleep
 import signal
@@ -54,7 +55,7 @@ class TrexRunException(Exception):
 
 def verify_glibc_version ():
     x = subprocess.check_output("/usr/bin/ldd --version", shell=True)
-    m = re.match("ldd \(GNU libc\) (.*)", x)
+    m = re.match("^ldd \([^\)]+\) (.*)", x)
     if not m:
         raise Exception("Cannot determine LDD version")
     current_version = m.group(1)

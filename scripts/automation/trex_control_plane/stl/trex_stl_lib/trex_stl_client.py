@@ -1536,7 +1536,6 @@ class STLClient(object):
     @__api_check(False)
     def connect (self):
         """
-        def connect(self):
 
             Connects to the TRex server
 
@@ -1828,6 +1827,33 @@ class STLClient(object):
 
         # return the stream IDs
         return rc.data()
+
+    @__api_check(True)
+    def add_profile(self, filename, ports = None, **kwargs):
+        """ |  Add streams from profile by its type. Supported types are:
+            |  .py
+            |  .yaml
+            |  .pcap file that converted to profile automatically
+
+            :parameters:
+                filename : string
+                    filename (with path) of the profile
+                ports : list
+                    list of ports to add the profile (default: all acquired)
+                kwargs : dict
+                    forward those key-value pairs to the profile (tunables)
+
+            :returns:
+                List of stream IDs in order of the stream list
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        validate_type('filename', filename, basestring)
+        profile = STLProfile.load(filename, **kwargs)
+        return self.add_streams(profile.get_streams(), ports)
 
 
     @__api_check(True)

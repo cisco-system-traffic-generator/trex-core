@@ -659,7 +659,7 @@ static int usage(){
     printf("  \n");
     printf(" --nc                       : If set, will not wait for all the flows to be closed, terminate faster- see manual for more information   \n");
     printf("  \n");
-    printf(" -d                         : duration of the test in sec. look for --nc  \n");
+    printf(" -d                         : duration of the test in sec (default is 3600). look also at --nc  \n");
     printf("  \n");
     printf(" -pm                        : platform factor ,in case you have splitter in the setup you can multiply the total results in this factor  \n");
     printf("    e.g --pm 2.0 will multiply all the results bps in this factor   \n");
@@ -1045,6 +1045,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     }
 
     if ( get_is_stateless() ) {
+        if ( po->m_duration ) {
+            parse_err("Duration is not supported with interactive mode ");
+        }
+
         if ( po->preview.get_is_rx_check_enable() ) {
             parse_err("Rx check is not supported with interactive mode ");
         }
@@ -1057,6 +1061,11 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             parse_err("Single core is not supported with interactive mode ");
         }
 
+    }
+    else {
+        if ( !po->m_duration ) {
+            po->m_duration = 3600.0;
+        }
     }
     return 0;
 }
@@ -1422,12 +1431,7 @@ void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
 
 
 void CPhyEthIF::stop(){
-#if 0
-    // allowing this causes bad things to happen. Especially on X710 cards.
-    // See trex-237 for details
     rte_eth_dev_stop(m_port_id);
-    rte_eth_dev_close(m_port_id);
-#endif
 }
 
 
