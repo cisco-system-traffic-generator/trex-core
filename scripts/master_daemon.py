@@ -33,7 +33,7 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not args.allow_update:
         raise Exception('Updating server not allowed')
     # getting new package
-    if package_path.startswith('http://'):
+    if package_path.startswith('http'):
         file_name = package_path.split('/')[-1]
         ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
     else:
@@ -52,10 +52,15 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
     if not len(unpacked_dirs) or len(unpacked_dirs) > 1:
         raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
+    cur_dir = args.trex_dir
+    if os.path.islink(cur_dir) or os.path.isfile(cur_dir)):
+        os.unlink(cur_dir)
+    if not os.path.exists(cur_dir):
+        os.makedirs(cur_dir)
+        os.chmod(cur_dir, 0o777)
+    bu_dir = '%s_BU%i' % (cur_dir, int(time()))
     try:
         # bu current dir
-        cur_dir = args.trex_dir
-        bu_dir = '%s_BU%i' % (cur_dir, int(time()))
         shutil.move(cur_dir, bu_dir)
         shutil.move(unpacked_dirs[0], cur_dir)
         # no errors, remove BU dir
