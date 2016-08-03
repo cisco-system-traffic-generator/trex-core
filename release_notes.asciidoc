@@ -26,12 +26,18 @@ endif::backend-docbook[]
 == Release 2.07  ==
 
 * DPDK 16.07 
-* ASYNC ZMQ is compressed now by default - improve response time see link:http://trex-tgn.cisco.com/youtrack/issue/trex-232[trex-232] - need to update the GUI
+* ASYNC ZMQ is compressed by default. It improves response time see link:http://trex-tgn.cisco.com/youtrack/issue/trex-232[trex-232] 
+** You will need to update the GUI
 * Support Ubuntu 16.01 - Stateful serverr is Python 3.0 and Python 3.5 for ZMQ library 
-* Stateless - support graceful shutdown 
+* Support graceful shutdown command 
 * Conosle Support L1 BPS  using `-m 10bpsl1` see link:http://trex-tgn.cisco.com/youtrack/issue/trex-230[trex-230] 
 * Improve TUI
 * Support IPV6 latency streams on XL710 - TBD need pointer to manual 
+
+[IMPORTANT]
+=====================================
+For XL710/X710 there is a need to upgrade the firmware to 5.04  
+=====================================
 
 === fix issues: ===
 
