@@ -31,7 +31,7 @@
 #include "main_dpdk.h"
 #include "debug.h"
 
-enum {    
+enum {
     D_PKT_TYPE_ICMP = 1,
     D_PKT_TYPE_UDP = 2,
     D_PKT_TYPE_TCP = 3,
@@ -39,13 +39,13 @@ enum {
     D_PKT_TYPE_IPV6 = 60,
     D_PKT_TYPE_HW_VERIFY = 100,
 
-} debug_pkt_types_t;
+};
 
 enum {
     DPF_VLAN = 0x1,
     DPF_QINQ = 0X2,
     DPF_RXCHECK = 0x4
-} debug_pkt_flags;
+};
 
 const uint8_t udp_pkt[] = {
     0x00,0x00,0x00,0x01,0x00,0x00,
