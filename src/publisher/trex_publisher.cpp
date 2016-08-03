@@ -77,7 +77,7 @@ void
 TrexPublisher::publish_json(const std::string &s, uint32_t zip_threshold){
 
     if (m_publisher) {
-        if ( (zip_threshold > 0) && (s.size() > zip_threshold) ) {
+        if ( (zip_threshold != 0) && (s.size() > zip_threshold) ) {
             publish_zipped_json(s);
         } else {
             publish_raw_json(s);
