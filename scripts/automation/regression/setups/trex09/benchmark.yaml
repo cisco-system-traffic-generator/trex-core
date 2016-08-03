@@ -34,18 +34,26 @@ test_ipv6_simple:
     bw_per_core         : 22.808
 
 
-test_rx_check_http:
+test_rx_check_http: &rx_http
     multiplier          : 90000
     cores               : 2
     rx_sample_rate      : 32
     bw_per_core         : 46.075
 
 
-test_rx_check_sfr:
+test_rx_check_http_ipv6:
+    <<                  : *rx_http
+    bw_per_core         : 49.237
+
+test_rx_check_sfr: &rx_sfr
     multiplier          : 50
     cores               : 3
     rx_sample_rate      : 32
     bw_per_core         : 20.469
+
+test_rx_check_sfr_ipv6:
+    <<                  : *rx_sfr
+    bw_per_core         : 19.198
 
 
 
