@@ -6,6 +6,7 @@ import zmq
 import threading
 import logging
 import CCustomLogger
+import zipmsg
 from json import JSONDecoder
 from common.trex_status_e import TRexStatus
 
@@ -24,6 +25,7 @@ class ZmqMonitorSession(threading.Thread):
         self.trexObj        = trexObj
         self.expect_trex    = self.trexObj.expect_trex     # used to signal if TRex is expected to run and if data should be considered
         self.decoder        = JSONDecoder()
+        self.zipped         = zipmsg.ZippedMsg()
         logger.info("ZMQ monitor initialization finished")
 
     def run(self):
@@ -60,14 +62,16 @@ class ZmqMonitorSession(threading.Thread):
         super(ZmqMonitorSession, self).join(timeout)
 
     def parse_and_update_zmq_dump(self, zmq_dump):
-        try:
-            dict_obj = self.decoder.decode(zmq_dump.decode(errors = 'replace'))
-        except ValueError:
-            logger.error("ZMQ dump failed JSON-RPC decode. Ignoring. Bad dump was: {dump}".format(dump=zmq_dump))
-            dict_obj = None
+        unzipped = self.zipped.decompress(zmq_dump)
+        if unzipped:
+            zmq_dump = unzipped
+        dict_obj = self.decoder.decode(zmq_dump.decode(errors = 'replace'))
+
+        if type(dict_obj) is not dict:
+            raise Exception('Expected ZMQ dump of type dict, got: %s' % type(dict_obj))
 
         # add to trex_obj zmq latest dump, based on its 'name' header
-        if dict_obj is not None and dict_obj != {}:
+        if dict_obj != {}:
             self.trexObj.zmq_dump[dict_obj['name']] = dict_obj
             if self.first_dump:
                 # change TRexStatus from starting to Running once the first ZMQ dump is obtained and parsed successfully
