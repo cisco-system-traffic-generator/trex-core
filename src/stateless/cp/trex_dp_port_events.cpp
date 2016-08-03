@@ -123,6 +123,20 @@ TrexDpPortEvents::on_core_reporting_in(int event_id, int thread_id, bool status)
 }
 
 
+/**
+ * return true if a core is still pending on an event 
+ */
+bool
+TrexDpPortEvents::is_core_pending_on_event(int event_id, int thread_id) {
+    TrexDpPortEvent *event = lookup(event_id);
+    /* event might have been deleted */
+    if (!event) {
+        return false;
+    }
+
+    return event->is_core_pending_on_event(thread_id);
+}
+
 /***************************
  * event
  * 
@@ -180,4 +194,8 @@ TrexDpPortEvent::on_core_reporting_in(int thread_id, bool status) {
     }
 }
 
-
+bool
+TrexDpPortEvent::is_core_pending_on_event(int thread_id) {
+    /* if the core has yet to mark its 'done' bit - it is still pending */
+    return !m_signal.at(thread_id);
+}

@@ -64,6 +64,7 @@ protected:
 private:
     void init(TrexStatelessPort *port, int event_id, int timeout_ms);
     bool on_core_reporting_in(int thread_id, bool status = true);
+    bool is_core_pending_on_event(int thread_id);
 
     std::unordered_map<int, bool>  m_signal;
     int                            m_pending_cnt;
@@ -108,6 +109,13 @@ public:
      * a core has reached the event 
      */
     void on_core_reporting_in(int event_id, int thread_id, bool status = true);
+
+    /**
+     * return true if core has yet to respond 
+     * to the event 
+     * 
+     */
+    bool is_core_pending_on_event(int event_id, int thread_id);
 
 private:
     TrexDpPortEvent *lookup(int event_id);

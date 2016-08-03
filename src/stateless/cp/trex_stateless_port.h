@@ -378,6 +378,7 @@ public:
 
 private:
 
+    bool is_core_active(int core_id);
 
     const std::vector<int> get_core_id_list () {
         return m_cores_id_list;
@@ -393,7 +394,7 @@ private:
      * send message to all cores using duplicate
      *
      */
-    void send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg);
+    void send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg, bool send_to_active_only = false);
 
     /**
      * send message to specific DP core

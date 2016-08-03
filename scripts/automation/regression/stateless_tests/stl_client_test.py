@@ -297,3 +297,30 @@ class STLClient_Test(CStlGeneral_Test):
 
         finally:
             self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
+
+
+    # see https://trex-tgn.cisco.com/youtrack/issue/trex-226
+    def test_latency_pause_resume (self):
+
+        try:    
+                                      
+            s1 = STLStream(name = 'latency',
+                           packet = self.pkt,
+                           mode = STLTXCont(percentage = self.percentage),
+                           flow_stats = STLFlowLatencyStats(pg_id = 1))
+
+            self.c.add_streams([s1], ports = self.tx_port)
+
+            self.c.clear_stats()
+
+            # mult has no meaning on latency - just messing around with the test
+            self.c.start(ports = self.tx_port, mult = "10mpps")
+
+            for i in range(100):
+                self.c.pause()
+                self.c.resume()
+
+            self.c.stop()
+
+        except STLError as e:
+            assert False , '{0}'.format(e)

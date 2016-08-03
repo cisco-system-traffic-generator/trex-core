@@ -394,6 +394,17 @@ TrexStatelessPort::common_port_stop_actions(bool async) {
 
 }
 
+/**
+ * core is considered active if it has a pending for async stop
+ * 
+ */
+bool
+TrexStatelessPort::is_core_active(int core_id) {
+    return ( (m_pending_async_stop_event != TrexDpPortEvents::INVALID_ID) &&
+             (m_dp_events.is_core_pending_on_event(m_pending_async_stop_event, core_id))
+           );
+}
+
 void
 TrexStatelessPort::pause_traffic(void) {
 
@@ -409,7 +420,9 @@ TrexStatelessPort::pause_traffic(void) {
 
     /* send a pause message */
     TrexStatelessCpToDpMsgBase *pause_msg = new TrexStatelessDpPause(m_port_id);
-    send_message_to_all_dp(pause_msg);
+
+    /* send message to all cores */
+    send_message_to_all_dp(pause_msg, true);
 
     /* make sure all DP cores paused */
     m_dp_events.barrier();
@@ -431,9 +444,8 @@ TrexStatelessPort::resume_traffic(void) {
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *resume_msg = new TrexStatelessDpResume(m_port_id);
 
-    send_message_to_all_dp(resume_msg);
+    send_message_to_all_dp(resume_msg, true);
     change_state(PORT_STATE_TX);
-
 
     Json::Value data;
     data["port_id"] = m_port_id;
@@ -609,9 +621,15 @@ TrexStatelessPort::encode_stats(Json::Value &port) {
 }
 
 void 
-TrexStatelessPort::send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg) {
+TrexStatelessPort::send_message_to_all_dp(TrexStatelessCpToDpMsgBase *msg, bool send_to_active_only) {
 
     for (auto core_id : m_cores_id_list) {
+
+        /* skip non active cores if requested */
+        if ( (send_to_active_only) && (!is_core_active(core_id)) ) {
+            continue;
+        }
+
         send_message_to_dp(core_id, msg->clone());
     }
 
