@@ -4351,7 +4351,8 @@ i40e_vsi_update_tc_bandwidth_ex(struct i40e_vsi *vsi)
 {
 	struct i40e_hw *hw = I40E_VSI_TO_HW(vsi);
 	int i, ret;
-	struct i40e_aqc_configure_vsi_tc_bw_data tc_bw_data;
+    struct i40e_aqc_configure_vsi_ets_sla_bw_data tc_bw_data;
+    struct i40e_aqc_configure_vsi_tc_bw_data * res_buffer;
 
 	if (!vsi->seid) {
 		PMD_DRV_LOG(ERR, "seid not valid");
@@ -4360,18 +4361,19 @@ i40e_vsi_update_tc_bandwidth_ex(struct i40e_vsi *vsi)
 
 	memset(&tc_bw_data, 0, sizeof(tc_bw_data));
 	tc_bw_data.tc_valid_bits = 3;
-    tc_bw_data.tc_bw_credits[0]=1;
-    tc_bw_data.tc_bw_credits[1]=127;
 
-	ret = i40e_aq_config_vsi_tc_bw(hw, vsi->seid, &tc_bw_data, NULL);
+    /* enable TC 0,1 */
+	ret = i40e_aq_config_vsi_ets_sla_bw_limit(hw, vsi->seid, &tc_bw_data, NULL);
 	if (ret != I40E_SUCCESS) {
 		PMD_DRV_LOG(ERR, "Failed to configure TC BW");
 		return ret;
 	}
+    
     vsi->enabled_tc=3;
-
-	(void)rte_memcpy(vsi->info.qs_handle, tc_bw_data.qs_handles,
+    res_buffer = ( struct i40e_aqc_configure_vsi_tc_bw_data *)&tc_bw_data;
+    (void)rte_memcpy(vsi->info.qs_handle, res_buffer->qs_handles,
 					sizeof(vsi->info.qs_handle));
+
 	return I40E_SUCCESS;
 }
 
