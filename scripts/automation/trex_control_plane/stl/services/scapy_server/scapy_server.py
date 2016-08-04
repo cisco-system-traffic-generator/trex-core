@@ -214,6 +214,7 @@ class scapy_service:
     def get_all_pkt_offsets(self,pkt_desc):
         pkt_protocols = pkt_desc.split('/')
         scapy_pkt = eval(pkt_desc)
+        scapy_pkt.build()
         total_protocols = len(pkt_protocols)
         res = {}
         for i in range(total_protocols):
