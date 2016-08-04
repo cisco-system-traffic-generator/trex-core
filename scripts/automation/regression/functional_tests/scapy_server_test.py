@@ -24,9 +24,9 @@ import binascii
 from scapy_server import *
 
 
-class scapy_server_tester(functional_general_test.CGeneralFunctional_Test):
+class scapy_service_tester(functional_general_test.CGeneralFunctional_Test):
     def setUp(self):
-        self.s = scapy_server()
+        self.s = scapy_service()
 
     def tearDown(self):
         pass
@@ -89,7 +89,7 @@ class scapy_server_tester(functional_general_test.CGeneralFunctional_Test):
         test_pkt = original_pkt
         original_pkt = eval(original_pkt)
         test_res = self.s.build_pkt(test_pkt)
-        test_pkt_buffer = test_res[1]
+        test_pkt_buffer = test_res['buffer']
         resT1 = (test_pkt_buffer == binascii.b2a_base64(str(original_pkt)))
         assert_equal(resT1,True)
 
@@ -98,20 +98,21 @@ class scapy_server_tester(functional_general_test.CGeneralFunctional_Test):
     def test_get_all_offsets(self,original_pkt = 'IP()'):
         test_pkt = original_pkt
         original_pkt = eval(original_pkt)
+        original_pkt.build()
         tested_offsets_by_layers = self.s.get_all_pkt_offsets(test_pkt)
         layers = (test_pkt).split('/')
         offsets_by_layers = {}
         for layer in layers:
-            fields_list = []
+            fields_dict = {}
             for f in original_pkt.fields_desc:
                 size = f.get_size_bytes()
                 if f.name is 'load':
                     size = len(original_pkt)
-                fields_list.append([f.name, f.offset, size])
+                fields_dict[f.name]= [f.offset, size]
             original_pkt = original_pkt.payload
             layer_name = layer.partition('(')[0] #clear layer name to include only alpha-numeric
             layer_name = re.sub(r'\W+', '',layer_name)
-            offsets_by_layers[layer_name] = fields_list
+            offsets_by_layers[layer_name] = fields_dict
         resT1 = (tested_offsets_by_layers == offsets_by_layers)
         assert_equal(resT1,True)
 

@@ -1,6 +1,8 @@
 
 import os
-stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir, 'trex_control_plane','stl','trex_stl_lib'))
+import sys
+stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir))
+sys.path.append(stl_pathname)
 import trex_stl_lib
 from trex_stl_lib.api import *
 from copy import deepcopy
@@ -31,7 +33,9 @@ f.write(a)
 f.close()
 """
 
-class scapy_server:
+class ScapyException(Exception): pass
+
+class scapy_service:
 
 #----------------------------------------------------------------------------------------------------
     class scapyRegex:
@@ -183,7 +187,7 @@ class scapy_server:
                 fieldDict[f] = self.scapyRegex(f).stringRegex()
         return fieldDict
 
-    def show2toDict(self,pkt):
+    def show2_to_dict(self,pkt):
         old_stdout = sys.stdout
         sys.stdout = mystdout = StringIO()
         pkt.show2()
@@ -195,8 +199,14 @@ class scapy_server:
             protocol_fields = listedShow2Data[i+1]
             protocol_fields = protocol_fields.split('\n')[1:-1]
             protocol_fields = [f.strip() for f in protocol_fields]
+            protocol_fields_dict = {}
+            for f in protocol_fields:
+                field_data = f.split('=')
+                if len(field_data)!= 1 :
+                    field_name = field_data[0].strip()
+                    protocol_fields_dict[field_name] = field_data[1].strip()
             layer_name = re.sub(r'\W+', '',listedShow2Data[i]) #clear layer name to include only alpha-numeric
-            show2Dict[layer_name] = protocol_fields
+            show2Dict[layer_name] = protocol_fields_dict
         return show2Dict
 
 #pkt_desc as string
@@ -207,12 +217,12 @@ class scapy_server:
         total_protocols = len(pkt_protocols)
         res = {}
         for i in range(total_protocols):
-            fields = []
+            fields = {}
             for field in scapy_pkt.fields_desc:
                 size = field.get_size_bytes()
                 if field.name is 'load':
                     size = len(scapy_pkt)
-                fields.append([field.name, field.offset, size])
+                fields[field.name]=[field.offset, size]
             layer_name = pkt_protocols[i].partition('(')[0] #clear layer name to include only alpha-numeric
             layer_name = re.sub(r'\W+', '',layer_name)
             res[layer_name] = fields
@@ -224,17 +234,20 @@ class scapy_server:
 
     def build_pkt(self,pkt_descriptor):
         pkt = eval(pkt_descriptor)
-        show2data = self.show2toDict(pkt)
+        show2data = self.show2_to_dict(pkt)
         bufferData = str(pkt) #pkt buffer
         bufferData = binascii.b2a_base64(bufferData)
         pkt_offsets = self.get_all_pkt_offsets(pkt_descriptor)
-        res = [show2data,bufferData,pkt_offsets]
+        res = {}
+        res['show2'] = show2data
+        res['buffer'] = bufferData
+        res['offsets'] = pkt_offsets
         return res
 
 
 #input: container
 #output: md5 encoded in base64
-    def getMD5(self,container):
+    def get_md5(self,container):
         container = json.dumps(container)
         m = hashlib.md5()
         m.update(container.encode('ascii'))
@@ -245,8 +258,8 @@ class scapy_server:
     def get_all(self):
         fields=self.get_all_fields()
         db=self.get_all_db()
-        fields_md5 = self.getMD5(fields)
-        db_md5 = self.getMD5(db)
+        fields_md5 = self.get_md5(fields)
+        db_md5 = self.get_md5(db)
         res = {}
         res['db'] = db
         res['fields'] = fields
@@ -258,18 +271,24 @@ class scapy_server:
     def check_update(self,db_md5,field_md5):
         fields=self.get_all_fields()
         db=self.get_all_db()
-        current_db_md5 = self.getMD5(db)
-        current_field_md5 = self.getMD5(fields)
+        current_db_md5 = self.get_md5(db)
+        current_field_md5 = self.get_md5(fields)
         res = []
         if field_md5 == current_field_md5:
             if db_md5 == current_db_md5:
                 return True
             else:
-                raise Exception("Protocol DB is not up to date")
+                raise ScapyException("Protocol DB is not up to date")
         else:
-            raise Exception("Fields DB is not up to date")
+            raise ScapyException("Fields DB is not up to date")
 
     def get_version(self):
         return {'built_by':'itraviv','version':'v1.0'}
+
+
+    def supported_methods(self,method_name):
+        if method_name in dir(scapy_service):
+            return True
+        return False
 
 
