@@ -138,17 +138,6 @@ private:
 
 public:
 
-
-
-    void set_random_seed(uint32_t seed){
-        uint32_t *p=get_random_bss_seed_memory();
-        *p=seed;
-    }
-
-    uint32_t* get_random_bss_seed_memory(){
-        return (uint32_t*)m_vm_flow_var;/* always the first 4 bytes */
-    }
-
     uint8_t             get_port_id(){
         return (m_port_id);
     }
@@ -444,7 +433,18 @@ public:
 
 private:
 
+    void generate_random_seed();
     void refresh_vm_bss();
+
+
+    void set_random_seed(uint32_t seed){
+        uint32_t *p=get_random_bss_seed_memory();
+        *p=seed;
+    }
+
+    uint32_t* get_random_bss_seed_memory(){
+        return (uint32_t*)m_vm_flow_var;/* always the first 4 bytes */
+    }
 
 
 } __rte_cache_aligned;

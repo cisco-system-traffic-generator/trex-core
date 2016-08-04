@@ -149,21 +149,37 @@ void CGenNodeStateless::Dump(FILE *fd){
 }
 
 
+void CGenNodeStateless::generate_random_seed() {
+    /* seed can be provided by the user */
+    uint32_t unique_seed;
+    if (m_ref_stream_info->m_random_seed) {
+        unique_seed = m_ref_stream_info->m_random_seed;
+    } else {
+        unsigned int tmp = (unsigned int)time(NULL);
+        unique_seed = rand_r(&tmp);
+    }
 
-void CGenNodeStateless::refresh_vm_bss(){
+    /* per thread divergence */
+    unique_seed = (unique_seed * ( (m_thread_id + 1) * 514229 ) ) & 0xFFFFFFFF;
+
+    /* set random */
+    set_random_seed(unique_seed);
+}
+
+
+void CGenNodeStateless::refresh_vm_bss() {
     if ( m_vm_flow_var ) {
         StreamVmDp  * vm_s=m_ref_stream_info->m_vm_dp;
         assert(vm_s);
         memcpy(m_vm_flow_var,vm_s->get_bss(),vm_s->get_bss_size());
 
-        if ( vm_s->is_random_seed() ){
-            /* if we have random seed for this program */
-            if (m_ref_stream_info->m_random_seed) {
-                set_random_seed(m_ref_stream_info->m_random_seed);
-            }
+        if ( vm_s->is_random_seed() ) {
+            generate_random_seed();
         }
+        
     }
 }
+
 
 
 /**
@@ -872,6 +888,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
     CGenNodeStateless *node = m_core->create_node_sl();
 
+    node->m_thread_id = m_thread_id;
     node->cache_mbuf_array_init();
     node->m_batch_size=0;
 
@@ -992,13 +1009,9 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         node->m_vm_program       = lpDpVm->get_program(); /* same ref to the program */
         node->m_vm_program_size  = lpDpVm->get_program_size();
 
-
-        /* set the random seed if was set */
-        if ( lpDpVm->is_random_seed() ){
-            /* if we have random seed for this program */
-            if (stream->m_random_seed) {
-                node->set_random_seed(stream->m_random_seed);
-            }
+        /* generate random seed if needed*/
+        if (lpDpVm->is_random_seed()) {
+            node->generate_random_seed();
         }
 
         /* we need to copy the object */
