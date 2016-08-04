@@ -33,11 +33,11 @@ endif::backend-docbook[]
 * Support graceful shutdown command 
 * Console -  support L1 BPS  using `-m 10bpsl1` see link:http://trex-tgn.cisco.com/youtrack/issue/trex-230[trex-230] 
 * Improve TUI refresh time 
-* Support IPV6 latency streams on XL710/X710 - TBD need pointer to manual 
+* Support IPV6 latency streams (support is available for all interface types except 82599) see link:https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors
 
 [IMPORTANT]
 =====================================
-For XL710/X710 there is a need to upgrade the firmware to 5.04  
+For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 =====================================
 
 === fix issues: ===
@@ -55,7 +55,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04
 
 == Release 2.06  ==
 
-* Support EPIC-EM scale Stateful VLAN/IP/MAC mapping.
+* Support APIC-EM scale Stateful VLAN/IP/MAC mapping.
 * TCP SYN Randomization learning support for advanced ASA stateful testing - link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
 * Advanced to latest DPDK 16.07RC3 - fix some XL710 driver performance issues
 
