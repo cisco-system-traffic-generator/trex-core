@@ -890,7 +890,7 @@ def build(bld):
     bld(rule=convert_to_pdf_book,source='trex_book.asciidoc waf.css', target='trex_book.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_pdf_book,source='trex_stateless.asciidoc waf.css', target='trex_stateless.pdf', scan=ascii_doc_scan)
-                
+
     bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_pdf_book,source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.pdf', scan=ascii_doc_scan)
@@ -908,6 +908,9 @@ def build(bld):
 
     bld(rule=convert_to_html_toc_book,
         source='trex_book.asciidoc waf.css', target='trex_manual.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_faq.asciidoc waf.css', target='trex_faq.html',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html',scan=ascii_doc_scan);
