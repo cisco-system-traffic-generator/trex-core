@@ -10,6 +10,7 @@ import sys
 import tempfile
 import hashlib
 import binascii
+from pprint import pprint
 
 
 try:
@@ -35,7 +36,7 @@ f.close()
 
 class ScapyException(Exception): pass
 
-class scapy_service:
+class Scapy_service:
 
 #----------------------------------------------------------------------------------------------------
     class scapyRegex:
@@ -44,18 +45,8 @@ class scapy_service:
             self.regex = regex
 
         def stringRegex(self):
-            return self.regex
-
-    class pktResult(BaseException):
-        def __init__(self,result,errorCode,errorDesc):
-            self.result = result
-            self.errorCode = errorCode
-            self.errorDesc = errorDesc
-        
-        def convert2tuple(self):
-            return tuple([self.result,self.errorCode,self.errorDesc])
+            return self.regex        
 #----------------------------------------------------------------------------------------------------
-
     def __init__(self):
         self.Raw = {'Raw':''}
         self.high_level_protocols = ['Raw']
@@ -65,37 +56,8 @@ class scapy_service:
         self.regexDB= {'MACField' : self.scapyRegex('MACField','^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$'),
               'IPField' : self.scapyRegex('IPField','^(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9])\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[0-9])$')}
         self.all_protocols = self.build_lib()
-        self.protocol_tree = self.build_tree()
+        self.protocol_tree = {'ALL':{'Ether':{'ARP':{},'IP':{'TCP':{'RAW':'payload'},'UDP':{'RAW':'payload'}}}}}
     
-#-------------------------------------------------------TREE IMPLEMENTATION ------------------------
-    class node(object):
-        def __init__(self, value):#, children = []):
-            self.value = value
-            self.children = []
-
-        def __str__(self, level=0):
-            ret = "\t"*level+repr(self.value)+"\n"
-            for child in self.children:
-                ret += child.__str__(level+1)
-            return ret
-
-    def build_nodes(self,data,dictionary):
-        n = self.node(data)
-        if len(dictionary)==0:
-            n.children=[]
-            return n
-        for obj in dictionary.keys():
-            if not (obj==''):
-                x = self.build_nodes(obj,dictionary[obj])
-                n.children.append(x)
-        return n
-
-    def build_tree(self):
-        root = self.node('ALL')
-        root.children = []
-        root = self.build_nodes('ALL',self.low_level_protocols)
-        return root
-
     def protocol_struct(self,protocol=''):
         if '_' in protocol:
             return []
@@ -142,27 +104,14 @@ class scapy_service:
         tupled_protocol = self.parse_entire_description(protocol_str)
         return tupled_protocol
 
-    def print_tree_level(self,root,level=0):
-        output = "\t"*level+str(root.value)
-        print (output)
-        if len(root.children)==0:
-            return
-        for child in root.children:
-            self.print_tree_level(child,level+1)
-
     def print_tree(self):
-        self.print_tree_level(self.protocol_tree)
+        pprint(self.protocol_tree)
 
     def get_all_protocols(self):
         return self.all_protocols
 
     def get_tree(self):
-        old_stdout = sys.stdout
-        sys.stdout = mystdout = StringIO()
-        print_tree(t)
-        sys.stdout = old_stdout
-        a= mystdout.getvalue()
-        return a
+        return self.protocol_tree
 
     def get_all_db(self):
         db = {}
@@ -230,7 +179,6 @@ class scapy_service:
             scapy_pkt=scapy_pkt.payload
         return res
 
-
 # pkt_descriptor in string format
 
     def build_pkt(self,pkt_descriptor):
@@ -245,7 +193,6 @@ class scapy_service:
         res['offsets'] = pkt_offsets
         return res
 
-
 #input: container
 #output: md5 encoded in base64
     def get_md5(self,container):
@@ -254,7 +201,6 @@ class scapy_service:
         m.update(container.encode('ascii'))
         res_md5 = binascii.b2a_base64(m.digest())
         return res_md5
-
 
     def get_all(self):
         fields=self.get_all_fields()
@@ -286,9 +232,8 @@ class scapy_service:
     def get_version(self):
         return {'built_by':'itraviv','version':'v1.0'}
 
-
     def supported_methods(self,method_name):
-        if method_name in dir(scapy_service):
+        if method_name in dir(Scapy_service):
             return True
         return False
 

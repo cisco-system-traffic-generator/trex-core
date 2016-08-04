@@ -26,7 +26,7 @@ from scapy_server import *
 
 class scapy_service_tester(functional_general_test.CGeneralFunctional_Test):
     def setUp(self):
-        self.s = scapy_service()
+        self.s = Scapy_service()
 
     def tearDown(self):
         pass

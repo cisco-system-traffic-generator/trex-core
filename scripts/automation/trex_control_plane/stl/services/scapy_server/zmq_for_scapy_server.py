@@ -27,7 +27,7 @@ class InvalidParams(Exception): pass
 
 class Scapy_wrapper:
     def __init__(self):
-        self.scapy_master = scapy_service()
+        self.scapy_master = Scapy_service()
 
     def parse_req_msg(self,JSON_req):
         try:
@@ -104,8 +104,7 @@ try:
             else:
                 result = eval('scapy_wrapper.scapy_master.'+method+'()')
             response = scapy_wrapper.create_success_response(result,req_id)
-        except:
-            print 'got exception'
+        except Exception as e:
             e = scapy_wrapper.getException()
             response = scapy_wrapper.error_handler(e)
         finally:
