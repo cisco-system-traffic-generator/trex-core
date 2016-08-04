@@ -2715,16 +2715,23 @@ trex>
 * With other NICs (examples: Intel I350, 82599), per stream statistics are implemented in software.
 * Implementation:
 ** User chooses 32-bit packet group ID (pg_id) for each stream that need statistic reporting. Same pg_id can be used for more than one stream. In this case, statistics for all streams with the same pg_id will be combined.
-** The IPv4 identification field of the stream is changed to a value within a reserved range (0xff00 to 0xffff). Note that if a stream for which no statistics are needed has an IPv4 Identification in the reserved range, it is changed (the left bit becomes 0).
+** The IPv4 identification  (or IPv6 flow label in case of IPv6 packet) field of the stream is changed to a value within the reserved range 0xff00 to 0xffff (0xff00 to 0xfffff in case of IPv6). Note that if a stream for which no statistics are needed has an IPv4 Id (or IPv6 flow label) in the reserved range, it is changed (the left bit becomes 0).
 ** Software implementation: Hardware rules are used to direct packets from relevant streams to rx thread, where they are counted. 
 ** Hardware implementation: Hardware rules are inserted to count packets from relevant streams.
 * Summed up statistics (per stream, per port) are sent using a link:http://zguide.zeromq.org/[ZMQ] async channel to clients.
 
 *Limitations*::
 
-* The feature supports 2 packet types:
+* The feature supports following packet types:
 ** IPv4 over Ethernet
-** IPv4 with one VLAN tag
+** IPv4 with one VLAN tag (except 82599 which does not support this type of packet)
+** IPv6 over Ethernet (except 82599 which does not support this type of packet)
+** IPv6 with one VLAN tag (except 82599 which does not support this type of packet)
+[NOTE]
+=====================================
+X710 support for IPv6 for this feature is not available yet. Will be added soon. Latency for X710 (next section) is supported.
+=====================================
+
 * Maximum number of concurrent streams (with different pg_id) on which statistics may be collected: 127
 
 Two examples follow, one using the console and the other using the Python API.
@@ -2876,27 +2883,25 @@ The following shows a flow_stats object for 3 PG IDs after a specific run:
 in the "Per stream statistics" section is also available.
 * Implementation:
 ** User chooses 32-bit packet group ID (pg_id) for each stream that need latency reporting. pg_id should be unique per stream.
-** The IPv4 identification field of the stream is changed to some defined constant value (in the reserved range described in the "per stream statistics" section), in order to signal the hardware to pass the stream to software.
+** The IPv4 identification field (or IPv6 flow label in case of IPv6 packet) of the stream is changed to some defined constant value (in the reserved range described in the "per stream statistics" section), in order to signal the hardware to pass the stream to software.
 ** Last 16 bytes of the packet payload is used to pass needed information. Information contains ID of the stream, packet sequence number (per stream), timestamp of packet transmission.
 
 * Gathered info (per stream) is sent using a link:http://zguide.zeromq.org/[ZMQ] async channel to clients.
 
 *Limitations*::
 
-* The feature supports two packet L3 header types:
+* The feature supports following packet types:
 ** IPv4 over Ethernet
 ** IPv4 with one VLAN tag (except 82599 which does not support this type of packet)
-* Packets must contain at least 16 bytes payload.
+** IPv6 over Ethernet (except 82599 which does not support this type of packet)
+** IPv6 with one VLAN tag (except 82599 which does not support this type of packet)
+* Packets must contain at least 16 bytes of payload.
 * Each stream must have unique pg_id number. This also means that a given "latency collecting" stream can't be transmitted from two interfaces in parallel (internally it means that there are two streams). 
 * Maximum number of concurrent streams (with different pg_id) on which latency info may be collected: 128 (This is in addition to the streams which collect per stream statistics).
-* Global multiplier does not apply to this type of stream because those streams are process by software.
-
-
-[NOTE] 
-=====================================================================
-IPv6 support is WIP, IPv6.flow_id would be the ID of the rule 
-=====================================================================
-
+* Global multiplier does not apply to this type of stream. The reason is that latency streams are processed by software, so multiplying them might accidently overwhelm the RX core.
+  This means that if you have profile with 1 latency stream, and 1 non latency stream, and you change the traffic multipler, latency stream keeps the same rate. If you want to change
+  the rate of a latency stream, you need to manually edit your profile file. Usually this is not necessary, since normally you stress the system using non latency stream, and (in parallel) measure latency 
+  using constant rate latency stream.
 
 Two examples follow, one using the console and the other using the Python API.
 
@@ -2964,12 +2969,6 @@ Latency Statistics (usec)
 <4> Jitter of latency measurements.
 <5> Indication of number of errors (it is the sum of seq_too_high and seq_too_low. You can see description in Python API doc below). In the future it will be possible to 'zoom in', to see specific counters.
     For now, if you need to see specific counters, you can use the Python API.
-
-
-[NOTE] 
-=====================================================================
-The global multiplier does not apply to this type of stream because those streams are process by software. so the rate would be constat
-=====================================================================
    
 
 An example of API usage is as follows
