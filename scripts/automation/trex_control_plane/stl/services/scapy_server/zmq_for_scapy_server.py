@@ -12,18 +12,10 @@ import zmq
 import inspect
 from scapy_server import *
 
-server_file_name = 'zmq_server_hello_world_server'
-
-context = zmq.Context()
-socket = context.socket(zmq.REP)
-socket.bind("tcp://*:5555")
-
-
 class ParseException(Exception): pass
 class InvalidRequest(Exception): pass
 class MethodNotFound(Exception): pass
 class InvalidParams(Exception): pass
-#def error_response()
 
 class Scapy_wrapper:
     def __init__(self):
@@ -63,8 +55,17 @@ class Scapy_wrapper:
     def create_success_response(self,result,req_id='null'):
         return {"jsonrpc": "2.0", "result": result, "id": req_id }
     
-    def getException(self):
+    def get_exception(self):
         return sys.exc_info()
+
+
+    def execute(self,method,params):
+        if len(params)>0:
+            result = eval('self.scapy_master.'+method+'(*'+str(params)+')')
+        else:
+            result = eval('self.scapy_master.'+method+'()')
+        return result
+
 
     def metaraise(self,exc_info):
         raise exc_info[0], exc_info[1], exc_info[2]
@@ -83,35 +84,39 @@ class Scapy_wrapper:
             response = self.create_error_response(-32603,'Invalid params',e.message)
         except SyntaxError as e:
             response = self.create_error_response(-32097,'SyntaxError')
-        except Exception as e:
+        except BaseException as e:
             response = self.create_error_response(-32098,'Scapy Server: '+str(e.message),req_id)
         finally:
             return response
         
+class Scapy_server():
+    def __init__(self,port):
+        self.scapy_wrapper = Scapy_wrapper()
+        self.port = port
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.REP)
+        self.socket.bind("tcp://*:"+str(port))
 
-scapy_wrapper = Scapy_wrapper()
-try:
-    while True:
-        #  Wait for next request from client
-        message = socket.recv()
-#       print("Received request: %s" % message)
-#       print ("message type is: %s" % type(message))
-#       print("message is now: %s" % message)
+    def activate(self):
         try:
-            method,params,req_id = scapy_wrapper.parse_req_msg(message)
-            if len(params)>0:
-                result = eval('scapy_wrapper.scapy_master.'+method+'(*'+str(params)+')')
-            else:
-                result = eval('scapy_wrapper.scapy_master.'+method+'()')
-            response = scapy_wrapper.create_success_response(result,req_id)
-        except Exception as e:
-            e = scapy_wrapper.getException()
-            response = scapy_wrapper.error_handler(e)
-        finally:
-            json_response = json.dumps(response)
-            time.sleep(1)
+            while True:
+                message = self.socket.recv()
+                try:
+                    method,params,req_id = self.scapy_wrapper.parse_req_msg(message)
+                    result = self.scapy_wrapper.execute(method,params)
+                    response = self.scapy_wrapper.create_success_response(result,req_id)
+                except Exception as e:
+                    exception_details = self.scapy_wrapper.get_exception()
+                    response = self.scapy_wrapper.error_handler(exception_details)
+                finally:
+                    json_response = json.dumps(response)
+                    time.sleep(1)
 
-        #  Send reply back to client
-            socket.send(json_response)
-except KeyboardInterrupt:
-        print('Ctrl+C pressed')
+                #  Send reply back to client
+                    self.socket.send(json_response)
+        except KeyboardInterrupt:
+                print('Terminated By Ctrl+C')
+
+
+s = Scapy_server(5555)
+s.activate()
