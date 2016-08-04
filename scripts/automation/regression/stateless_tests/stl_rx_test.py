@@ -29,6 +29,10 @@ class STLRX_Test(CStlGeneral_Test):
         self.cap = cap
 
         drv_name = port_info['driver']
+        if drv_name == "rte_ixgbe_pmd":
+            self.ipv6_support = False
+        else:
+            self.ipv6_support = True
         self.rate_percent = per_driver_params[drv_name][0]
         self.total_pkts = per_driver_params[drv_name][1]
         if len(per_driver_params[drv_name]) > 2:
@@ -245,12 +249,14 @@ class STLRX_Test(CStlGeneral_Test):
                 {'name': 'Flow stat. No latency', 'pkt': self.pkt, 'lat': False},
                 {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
 #Not supported yet  {'name': 'IPv6 flow stat. No latency', 'pkt': self.ipv6pkt, 'lat': False},
-                {'name': 'IPv6 latency, no field engine', 'pkt': self.ipv6pkt, 'lat': True},
                 {'name': 'Latency, short packet with field engine', 'pkt': self.vm_pkt, 'lat': True},
                 {'name': 'Latency, large packet field engine', 'pkt': self.vm_large_pkt, 'lat': True}
             ]
             if self.latency_9k_enable:
                 streams_data.append({'name': 'Latency, 9k packet with field engine', 'pkt': self.vm_9k_pkt, 'lat': True})
+
+            if self.ipv6_support:
+                streams_data.append({'name': 'IPv6 latency, no field engine', 'pkt': self.ipv6pkt, 'lat': True})
 
             streams = []
             for data in streams_data:
@@ -336,7 +342,7 @@ class STLRX_Test(CStlGeneral_Test):
 
 
 
-    # check low latency when you have stream of 9K stream 
+    # check low latency when you have stream of 9K stream
     def test_9k_stream(self):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
@@ -356,7 +362,7 @@ class STLRX_Test(CStlGeneral_Test):
             s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
             s_port=sorted(s_port)
             if self.speed == 40 :
-                # the NIC does not support all full rate in case both port works let's filter odd ports  
+                # the NIC does not support all full rate in case both port works let's filter odd ports
                 s_port=list(filter(lambda x: x % 2==0, s_port))
                 if len(s_port)==0:
                     s_port=[0];
@@ -449,7 +455,7 @@ class STLRX_Test(CStlGeneral_Test):
                 ls=stats['flow_stats'][5+ pid]
                 self.check_stats (stats,ls['rx_pkts']['total'], pkts,"ls['rx_pkts']['total']")
                 self.check_stats (stats,ls['rx_pkts'][dpid], pkts,"ls['rx_pkts'][dpid]")
-                
+
                 self.check_stats (stats,ls['tx_pkts']['total'], pkts,"ls['tx_pkts']['total']")
                 self.check_stats (stats,ls['tx_pkts'][pid], pkts,"ls['tx_pkts'][pid]")
 
@@ -476,7 +482,7 @@ class STLRX_Test(CStlGeneral_Test):
                 print(" test port {0} latency : {1} ".format(port,l))
                 self.send_1_burst(port,l,100)
 
-    
+
     # this test adds more and more latency streams and re-test with incremental
     def test_incremental_latency_streams (self):
         if self.is_virt_nics:
