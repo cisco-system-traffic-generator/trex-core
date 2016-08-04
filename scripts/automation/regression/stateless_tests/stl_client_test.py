@@ -313,8 +313,7 @@ class STLClient_Test(CStlGeneral_Test):
 
             self.c.clear_stats()
 
-            # mult has no meaning on latency - just messing around with the test
-            self.c.start(ports = self.tx_port, mult = "10mpps")
+            self.c.start(ports = self.tx_port)
 
             for i in range(100):
                 self.c.pause()
