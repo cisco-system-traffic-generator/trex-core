@@ -67,10 +67,11 @@ class STLBasic_Test(CStlGeneral_Test):
     def test_connectivity(self):
         if not self.is_loopback:
             try:
-                if CTRexScenario.router_cfg['forceImageReload']:
+                if CTRexScenario.router_cfg['forceCleanConfig']:
                     CTRexScenario.router.load_clean_config()
                 CTRexScenario.router.configure_basic_interfaces()
                 CTRexScenario.router.config_pbr(mode = "config")
+                CTRexScenario.router.config_ipv6_pbr(mode = "config")
             except Exception as e:
                 CTRexScenario.stl_init_error = 'Could not configure device, err: %s' % e
                 self.fail(CTRexScenario.stl_init_error)
