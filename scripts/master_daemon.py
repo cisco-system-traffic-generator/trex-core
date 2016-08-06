@@ -53,7 +53,7 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not len(unpacked_dirs) or len(unpacked_dirs) > 1:
         raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
     cur_dir = args.trex_dir
-    if os.path.islink(cur_dir) or os.path.isfile(cur_dir)):
+    if os.path.islink(cur_dir) or os.path.isfile(cur_dir):
         os.unlink(cur_dir)
     if not os.path.exists(cur_dir):
         os.makedirs(cur_dir)
