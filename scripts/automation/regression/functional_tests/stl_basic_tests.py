@@ -23,6 +23,7 @@ import os
 import subprocess
 import shlex
 from threading import Thread
+from collections import defaultdict
 
 @attr('run_on_trex')
 class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
@@ -82,8 +83,26 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def compare_caps (self, output, golden, max_diff_sec = 0.01):
-        pkts1 = list(RawPcapReader(output))
-        pkts2 = list(RawPcapReader(golden))
+        pkts1 = []
+        pkts2 = []
+        pkts_ts_buckets = defaultdict(list)
+
+        for pkt in RawPcapReader(output):
+            ts = pkt[1][0] * 1e6 + pkt[1][1]
+            pkts_ts_buckets[ts].append(pkt)
+        # don't take last ts bucket, it can be cut in middle and packets inside bucket might be different
+        #for ts in sorted(pkts_ts_buckets.keys())[:-1]:
+        for ts in sorted(pkts_ts_buckets.keys()):
+            pkts1.extend(sorted(pkts_ts_buckets[ts]))
+        pkts_ts_buckets.clear()
+
+        for pkt in RawPcapReader(golden):
+            ts = pkt[1][0] * 1e6 + pkt[1][1]
+            pkts_ts_buckets[ts].append(pkt)
+        # don't take last ts bucket, it can be cut in middle and packets inside bucket might be different
+        #for ts in sorted(pkts_ts_buckets.keys())[:-1]:
+        for ts in sorted(pkts_ts_buckets.keys()):
+            pkts2.extend(sorted(pkts_ts_buckets[ts]))
 
         assert_equal(len(pkts1), len(pkts2), 'Lengths of generated pcap (%s) and golden (%s) are different' % (output, golden))
 
@@ -276,8 +295,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ['hlt/hlt_udp_inc_dec_len_9k.py', '-m 1 -l 20', True, None],
             ['hlt/hlt_imix_default.py', '-m 1 -l 20', True, None],
             ['hlt/hlt_imix_4rates.py', '-m 1 -l 20', True, None],
-            #['hlt/hlt_david1.py', '-m 1 -l 20', True, None],
-            #['hlt/hlt_david2.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_david1.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_david2.py', '-m 1 -l 20', True, None],
             ['hlt/hlt_david3.py', '-m 1 -l 20', True, None],
             ['hlt/hlt_david4.py', '-m 1 -l 20', True, None],
             ['hlt/hlt_wentong1.py', '-m 1 -l 20', True, None],
