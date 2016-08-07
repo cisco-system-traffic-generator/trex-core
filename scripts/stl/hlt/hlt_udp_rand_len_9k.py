@@ -6,7 +6,7 @@ class STLS1(object):
     Create Eth/IP/UDP steam with random packet size (L3 size from 50 to 9*1024)
     '''
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, direction = 0, random_seed = 0, **kwargs):
         min_size = 50
         max_size = 9*1024
         return [STLHltStream(length_mode   = 'random',
@@ -20,6 +20,7 @@ class STLS1(object):
                              udp_dst_port  = 12,
                              rate_pps      = 1000,
                              ignore_macs   = True,
+                             consistent_random = (random_seed != 0)
                              )
                ]
 

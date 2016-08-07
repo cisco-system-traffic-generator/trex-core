@@ -117,7 +117,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                 raise AssertionError(errmsg)
 
 
-    def run_sim (self, yaml, output, options = "", silent = False, obj = None):
+    def run_sim (self, yaml, output, options = "", silent = False, obj = None, tunables = None):
         if output:
             user_cmd = "-f {0} -o {1} {2} -p {3}".format(yaml, output, options, self.scripts_path)
         else:
@@ -125,6 +125,11 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         if silent:
             user_cmd += " --silent"
+
+        if tunables:
+            user_cmd += " -t"
+            for k, v in tunables.items():
+                user_cmd += " {0}={1}".format(k, v)
 
         rc = trex_stl_sim.main(args = shlex.split(user_cmd))
         if obj:
@@ -134,7 +139,16 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
 
-    def run_py_profile_path (self, profile, options,silent = False, do_no_remove=False,compare =True, test_generated=True, do_no_remove_generated = False):
+    def run_py_profile_path (self,
+                             profile,
+                             options,
+                             silent = False,
+                             do_no_remove = False,
+                             compare = True,
+                             test_generated = True,
+                             do_no_remove_generated = False,
+                             tunables = None):
+
         print('Testing profile: %s' % profile)
         output_cap = "a.pcap"
         input_file =  os.path.join('stl/', profile)
@@ -142,7 +156,11 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         if os.path.exists(output_cap):
             os.unlink(output_cap)
         try:
-            rc = self.run_sim(input_file, output_cap, options, silent)
+            rc = self.run_sim(yaml     = input_file,
+                              output   = output_cap,
+                              options  = options,
+                              silent   = silent,
+                              tunables = tunables)
             assert_equal(rc, True, 'Simulation on profile %s failed.' % profile)
             #s='cp  '+output_cap+' '+golden_file;
             #print s
@@ -158,20 +176,21 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             try:
                 generated_filename = input_file.replace('.py', '_GENERATED.py').replace('.yaml', '_GENERATED.py')
                 if input_file.endswith('.py'):
-                    profile = STLProfile.load_py(input_file)
+                    profile = STLProfile.load_py(input_file, **(tunables if tunables else {}))
                 elif input_file.endswith('.yaml'):
                     profile = STLProfile.load_yaml(input_file)
                 
                 profile.dump_to_code(generated_filename)
 
-                rc = self.run_sim(generated_filename, output_cap, options, silent)
+                rc = self.run_sim(yaml     = generated_filename,
+                                  output   = output_cap,
+                                  options  = options,
+                                  silent   = silent)
                 assert_equal(rc, True, 'Simulation on profile %s (generated) failed.' % profile)
 
                 if compare:
                     self.compare_caps(output_cap, golden_file)
 
-            except Exception as e:
-                print(e)
 
             finally:
                 if not do_no_remove_generated:
@@ -187,12 +206,12 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         p = [
              ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
-             ["syn_attack.py","-m 1 -l 50",True],               # can't compare random now
+             ["syn_attack.py","-m 1 -l 50",True],               
              ["udp_1pkt_1mac.py","-m 1 -l 50",True],
              ["udp_1pkt_mac.py","-m 1 -l 50",True],
              ["udp_1pkt.py","-m 1 -l 50",True],
              ["udp_1pkt_tuple_gen.py","-m 1 -l 50",True],
-             ["udp_rand_len_9k.py","-m 1 -l 50",True],           # can't do the compare
+             ["udp_rand_len_9k.py","-m 1 -l 50",True],           
              ["udp_1pkt_mpls.py","-m 1 -l 50",True],
              ["udp_1pkt_mpls_vm.py","-m 1 ",True],
              ["imix.py","-m 1 -l 100",True],
@@ -254,31 +273,31 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def test_hlt_profiles (self):
         p = (
-            ['hlt/hlt_udp_inc_dec_len_9k.py', '-m 1 -l 20', True],
-            ['hlt/hlt_imix_default.py', '-m 1 -l 20', True],
-            ['hlt/hlt_imix_4rates.py', '-m 1 -l 20', True],
-            ['hlt/hlt_david1.py', '-m 1 -l 20', True],
-            ['hlt/hlt_david2.py', '-m 1 -l 20', True],
-            ['hlt/hlt_david3.py', '-m 1 -l 20', True],
-            ['hlt/hlt_david4.py', '-m 1 -l 20', True],
-            ['hlt/hlt_wentong1.py', '-m 1 -l 20', True],
-            ['hlt/hlt_wentong2.py', '-m 1 -l 20', True],
-            ['hlt/hlt_tcp_ranges.py', '-m 1 -l 20', True],
-            ['hlt/hlt_udp_ports.py', '-m 1 -l 20', True],
-            ['hlt/hlt_udp_random_ports.py', '-m 1 -l 20', True],
-            ['hlt/hlt_ip_ranges.py', '-m 1 -l 20', True],
-            ['hlt/hlt_framesize_vm.py', '-m 1 -l 20', True],
-            ['hlt/hlt_l3_length_vm.py', '-m 1 -l 20', True],
-            ['hlt/hlt_vlan_default.py', '-m 1 -l 20', True],
-            ['hlt/hlt_4vlans.py', '-m 1 -l 20', True],
-            ['hlt/hlt_vlans_vm.py', '-m 1 -l 20', True],
-            ['hlt/hlt_ipv6_default.py', '-m 1 -l 20', True],
-            ['hlt/hlt_ipv6_ranges.py', '-m 1 -l 20', True],
-            ['hlt/hlt_mac_ranges.py', '-m 1 -l 20', True],
+            ['hlt/hlt_udp_inc_dec_len_9k.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_imix_default.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_imix_4rates.py', '-m 1 -l 20', True, None],
+            #['hlt/hlt_david1.py', '-m 1 -l 20', True, None],
+            #['hlt/hlt_david2.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_david3.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_david4.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_wentong1.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_wentong2.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_tcp_ranges.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_udp_ports.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_udp_random_ports.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_ip_ranges.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_framesize_vm.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_l3_length_vm.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_vlan_default.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_4vlans.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_vlans_vm.py', '-m 1 -l 20', True, {'random_seed': 1}],
+            ['hlt/hlt_ipv6_default.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_ipv6_ranges.py', '-m 1 -l 20', True, None],
+            ['hlt/hlt_mac_ranges.py', '-m 1 -l 20', True, None],
             )
 
         for obj in p:
-            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True, do_no_remove_generated = False)
+            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True, do_no_remove_generated = True, tunables = obj[3])
 
     # valgrind tests - this runs in multi thread as it safe (no output)
     def test_valgrind_various_profiles (self):

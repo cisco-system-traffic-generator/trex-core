@@ -918,9 +918,9 @@ class STLProfile(object):
             imp.reload(module) # reload the update 
 
             t = STLProfile.get_module_tunables(module)
-            for arg in kwargs:
-                if not arg in t:
-                    raise STLError("Profile {0} does not support tunable '{1}' - supported tunables are: '{2}'".format(python_file, arg, t))
+            #for arg in kwargs:
+            #    if not arg in t:
+            #        raise STLError("Profile {0} does not support tunable '{1}' - supported tunables are: '{2}'".format(python_file, arg, t))
 
             streams = module.register().get_streams(direction = direction,
                                                     port_id = port_id,
