@@ -38,7 +38,7 @@ endif::backend-xhtml11[]
 This document assumes basic knowledge of TRex, and assumes that TRex is installed and configured.
 For information, see the link:trex_manual.html[manual], especially the material up to the link:trex_manual.html#_basic_usage[Basic Usage] section.
 
-== Stateless support (Alpha stage)
+== Stateless support (Beta stage)
 
 === High level functionality
 // maybe Feature overview

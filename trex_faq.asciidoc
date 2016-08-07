@@ -49,7 +49,7 @@ A feature that terminate TCP can't be tested yet
 
 ==== Who is using TRex?
 
-Cisco systems, Intel, Imperva,  Vasona networks
+Cisco systems, Intel, Imperva,  Vasona networks and probably more
 
 ==== Can TRex run on the hypervisor with virtual NICS?
 
@@ -68,11 +68,11 @@ The limitations:
 ==== Is Cisco VIC supported?
 No. The driver does not pass our regression 
 
-==== Do you have 100Gb/s NIC QSFP+ support?
+==== Is 100Gb/s NIC QSFP+ supported?
 Not yet, working on FM10K and Mellanox Connectx5 
 
-==== Do you have GUI?
-We are not developing it. Have a look here for one Stateless GUI from Exalt link:https://groups.google.com/forum/#!searchin/trex-tgn/sari%7Csort:relevance/trex-tgn/R92-N2Yjy2Q/DIUe06YCBgAJ[here]
+==== Is there a GUI?
+The core team is not developing it. Have a look link:https://groups.google.com/forum/#!searchin/trex-tgn/sari%7Csort:relevance/trex-tgn/R92-N2Yjy2Q/DIUe06YCBgAJ[here] for one Stateless GUI from Exalt 
 
 
 ==== What is the maximum number of ports per TRex application?
@@ -98,8 +98,21 @@ Two options:
 2. Open a defect here link:https://trex-tgn.cisco.com/youtrack[youtrack]
 
 
+==== I have X710 NIC with 4x10Gb/sec ports and I can't get line rate
+Correct. x710da4fh with 4 ports of 10gb can reached maximum of 40MPPS (total for all the ports) and not 60MPPS with small packets (64B)
+still it is better than x520 (559 based) than can give ~30MPPS for two ports with one NIC
+
+==== I have XL710 NIC with 2x40Gb/sec ports and I can't get line rate
+Correct. XL710-da2 with 2 ports of 40gb can reached maximum of 40MPPS/50Gb (total for all the ports) and not 60MPPS with small packets (64B)
+The two ports are for redundancy and can't reach 80Gb/sec line rate
+
 ==== I want to contribute 
 You are welcome, just create a gitHub pool request 
+
+==== What is the release process?
+It is a continuous integration - the latest version is under 24/7 regression on a few setups.  Once we have enough content we release it to GitHub with a new tag.
+We don't send an email for every new release as it could be too frequent for some. 
+
 
 ===  Stateful 
 
@@ -118,9 +131,17 @@ TRex performance depends on many factors:
 2. More concurrent flows will reduce the performance 
 3. Short flows with one/two packets (e.g. cap2/dns.yaml ) will give the worst performance 
 
-==== Do you have plans to add TCP stack?
-
+==== Is there a plan to add TCP stack?
 Yes
+
+==== How can I run the YAML profile and capture the results to a pcap file?
+you can use the simulator. see link:trex_manual.html#_simulator[simulator]
+The output of the simulator can be loaded to Excel. The CPS can be tuned
+
+==== I want to have more active flows, how can I do it
+Each profile will have the same active flows/Gb in TRex. DUT will have much more active flows in case of a UDP flow due to the nature of aging (DUT does not know when the flow ends while TRex knows)
+to artificialy increse the active flows - you can incress the IPG in the YAML file. or change the pcap file and 
+       
 
 
 ===  Stateless 
@@ -220,7 +241,7 @@ use `random_seed` per stream
 No. each stream has it own, seperate field engine program 
 
 
-==== Do you have plan to have LUAJit as a field engine program 
+==== Is there a plan to have LUAJit as a field engine program?
 
 It is a great idea to add it, we are looking for someone to contribute this support
 
@@ -261,6 +282,7 @@ There is a proxy over RPC that you can extend to your use cases. It has basic fu
 You could use it to send some pcap file via ports, or so-called python profiles, which you can configure by passing different variables (so-called tunabels) via the RPC.
 Take a look  link:trex_stateless.html#_using_stateless_client_via_json_rpc[using_stateless_client_via_json_rpc]
 You can even dump the profile as a string and move it to the proxy to run it (but it is a security hole as anything can be run on the TRex server)
+for more info see link:trex_stateless.html#_using_stateless_client_via_json_rpc[using_stateless_client_via_json_rpc]
 
 see link:https://github.com/zverevalexei/trex-http-proxy[here] for simple Web server proxy 
 
@@ -312,11 +334,9 @@ We are planning to add MACs to `./dpdk_setup_ports.py -s`
 =====================================
 
 ==== TRex traffic does not show up on Wireshark, so I can not capture the traffic from the TRex port
-
 TRex uses DPDK which takes ownership of the ports, so using Wireshark is not possible. You can use switch with port mirroring to capture the traffic.
 
 ==== How can I map betwean TRex ports-id (e.g. port 0) to physical router interface
-
 Load TRex in a stateless mode and run traffic from each port 
 
 
