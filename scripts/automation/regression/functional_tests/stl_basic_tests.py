@@ -218,8 +218,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_inc_len_9k.py","-m 1 -l 100",True],
              ["udp_1pkt_range_clients.py","-m 1 -l 100",True],
              ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True],
-             ["pcap.py", "-m 1", True],
-             ["pcap_with_vm.py", "-m 1", True],
+             ["pcap.py", "-m 1", True, False],
+             ["pcap_with_vm.py", "-m 1", True, False],
              ["flow_stats.py", "-m 1 -l 1", True],
              ["flow_stats_latency.py", "-m 1 -l 1", True],
 
@@ -231,10 +231,10 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["yaml/imix_1pkt_2.yaml","-m 1 -l 100",True],
              ["yaml/imix_1pkt_tuple_gen.yaml","-m 1 -l 100",True],
              ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True],
-             ["udp_1pkt_pcap.py","-m 1 -l 10",True],
-             ["udp_3pkt_pcap.py","-m 1 -l 10",True],
+             ["udp_1pkt_pcap.py","-m 1 -l 10",True, False],
+             ["udp_3pkt_pcap.py","-m 1 -l 10",True, False],
              #["udp_1pkt_simple.py","-m 1 -l 3",True],
-             ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True],
+             ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True, False],
              ["udp_1pkt_tuple_gen_split.py","-m 1 -c 2 -l 100",True],
              ["udp_1pkt_range_clients_split.py","-m 1 -c 2 -l 100",True],
              ["udp_1pkt_vxlan.py","-m 1 -c 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
@@ -249,8 +249,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_mac_mask1.py","-m 1 -l 20 ",True] ,
              ["udp_1pkt_mac_mask2.py","-m 1 -l 20 ",True],
              ["udp_1pkt_mac_mask3.py","-m 1 -l 20 ",True],
-             ["udp_1pkt_simple_test2.py","-m 1 -l 10 ",True], # test split of packet with ip option
-             ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True],
+             ["udp_1pkt_simple_test2.py","-m 1 -l 10 ",True, False], # test split of packet with ip option
+             ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True, False],
              ["udp_1pkt_mac_mask5.py","-m 1 -l 30 ",True],
              ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 50",True],
              ["udp_1pkt_src_ip_split.py","-m 1 -l 50 --cores 2",True]
@@ -297,7 +297,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             )
 
         for obj in p:
-            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True, do_no_remove_generated = True, tunables = obj[3])
+            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True, do_no_remove_generated = False, tunables = obj[3])
 
     # valgrind tests - this runs in multi thread as it safe (no output)
     def test_valgrind_various_profiles (self):
