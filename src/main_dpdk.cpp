@@ -550,7 +550,7 @@ enum { OPT_HELP,
        OPT_NO_WATCHDOG,
        OPT_ALLOW_COREDUMP,
        OPT_CHECKSUM_OFFLOAD,
-       OPT_NO_CLOSE,
+       OPT_CLOSE,
 };
 
 /* these are the argument types:
@@ -606,7 +606,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_WATCHDOG ,     "--no-watchdog",  SO_NONE  },
         { OPT_ALLOW_COREDUMP ,  "--allow-coredump",  SO_NONE  },
         { OPT_CHECKSUM_OFFLOAD, "--checksum-offload", SO_NONE },
-        { OPT_NO_CLOSE, "--no-close", SO_NONE },
+        { OPT_CLOSE, "--close-at-end", SO_NONE },
         SO_END_OF_OPTIONS
     };
 
@@ -698,8 +698,8 @@ static int usage(){
     printf(" --iom  [mode]              :  io mode for interactive mode [0- silent, 1- normal , 2- short]   \n");
     printf("                              this feature consume another thread  \n");
     printf("  \n");
-    printf(" --no-close                 : Do not call rte_eth_dev_stop and close at exit. Calling this might cause link down issues when\n");
-    printf("                               running new version, then going back to old version. Work around is to run new version once with --no-close\n");
+    printf(" --close-at-end             : Call rte_eth_dev_stop and close at exit. Calling these functions caused link down issues in older versions,\n");
+    printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him\n");
     printf("                               This it temporary option. Will be removed in the future.\n");
     printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
@@ -973,8 +973,8 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.setChecksumOffloadEnable(true);
                 break;
 
-            case OPT_NO_CLOSE:
-                po->preview.setNoCloseEnable(true);
+            case OPT_CLOSE:
+                po->preview.setCloseEnable(true);
                 break;
 
             default:
@@ -1424,7 +1424,7 @@ void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
 }
 
 void CPhyEthIF::stop(){
-    if (! CGlobalInfo::m_options.preview.getNoCloseEnable()) {
+    if (CGlobalInfo::m_options.preview.getCloseEnable()) {
         rte_eth_dev_stop(m_port_id);
         rte_eth_dev_close(m_port_id);
     }
