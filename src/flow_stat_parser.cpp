@@ -119,6 +119,20 @@ int CFlowStatParser::set_ip_id(uint32_t new_id) {
     return -1;
 }
 
+int CFlowStatParser::get_l3_proto(uint16_t &proto) {
+    if (m_ipv4) {
+        proto = EthernetHeader::Protocol::IP;
+        return 0;
+    }
+
+    if (m_ipv6) {
+        proto = EthernetHeader::Protocol::IPv6;
+        return 0;
+    }
+
+    return -1;
+}
+
 int CFlowStatParser::get_l4_proto(uint8_t &proto) {
     if (m_ipv4) {
         proto = m_ipv4->getProtocol();

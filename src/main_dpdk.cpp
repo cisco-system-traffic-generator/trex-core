@@ -136,7 +136,8 @@ public:
         return(false);
     }
     virtual int configure_rx_filter_rules(CPhyEthIF * _if)=0;
-    virtual int add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint8_t type, uint16_t proto, uint16_t id) {return -1;};
+    virtual int add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3, uint8_t l4
+                                          , uint8_t ipv6_next_h, uint16_t id) {return -1;};
     virtual bool is_hardware_support_drop_queue(){
         return(false);
     }
@@ -316,11 +317,10 @@ public:
 
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
-
     virtual void update_configuration(port_cfg_t * cfg);
-
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-    virtual int add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint8_t type, uint16_t proto, uint16_t id);
+    virtual int add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
+                                          , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id);
     virtual bool is_hardware_filter_is_supported(){
         return (true);
     }
@@ -1339,17 +1339,17 @@ void CPhyEthIF::configure(uint16_t nb_rx_queue,
     rte_eth_dev_info_get(m_port_id, &m_dev_info);
 
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
-		/* check if the device supports TCP and UDP checksum offloading */
-		if ((m_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM) == 0) {
-			rte_exit(EXIT_FAILURE, "Device does not support UDP checksum offload: "
-					 "port=%u\n",
-					 m_port_id);
-		}
-		if ((m_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) == 0) {
-			rte_exit(EXIT_FAILURE, "Device does not support TCP checksum offload: "
-					 "port=%u\n",
-					 m_port_id);
-		}
+        /* check if the device supports TCP and UDP checksum offloading */
+        if ((m_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM) == 0) {
+            rte_exit(EXIT_FAILURE, "Device does not support UDP checksum offload: "
+                     "port=%u\n",
+                     m_port_id);
+        }
+        if ((m_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) == 0) {
+            rte_exit(EXIT_FAILURE, "Device does not support TCP checksum offload: "
+                     "port=%u\n",
+                     m_port_id);
+        }
     }
 }
 
@@ -2176,7 +2176,7 @@ void CCoreEthIF::apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t
     /* VLAN */
     if (cfg_dir.has_vlan()) {
         add_vlan(m, cfg_dir.get_vlan());
-    }   
+    }
 }
 
 
@@ -2188,11 +2188,11 @@ void CCoreEthIF::add_vlan(rte_mbuf_t *m, uint16_t vlan_id) {
 
 /**
  * slow path features goes here (avoid multiple IFs)
- * 
+ *
  */
 void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir) {
 
-  
+
     /* MAC ovverride */
     if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_overide_enable() ) ) {
         /* client side */
@@ -2231,7 +2231,7 @@ int CCoreEthIF::send_node(CGenNode * node) {
     dir         = node->cur_interface_dir();
     single_port = node->get_is_all_flow_from_same_dir() ;
 
-   
+
     if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
         /* which vlan to choose 0 or 1*/
         uint8_t vlan_port = (node->m_src_ip &1);
@@ -2259,7 +2259,7 @@ int CCoreEthIF::send_node(CGenNode * node) {
     /* update mac addr dest/src 12 bytes */
     uint8_t *p   = rte_pktmbuf_mtod(m, uint8_t*);
     uint8_t p_id = lp_port->m_port->get_port_id();
-    
+
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
 
      /* when slowpath features are on */
@@ -2267,7 +2267,7 @@ int CCoreEthIF::send_node(CGenNode * node) {
         handle_slowpath_features(node, m, p, dir);
     }
 
-   
+
     if ( unlikely( node->is_rx_check_enabled() ) ) {
         lp_stats->m_tx_rx_check_pkt++;
         lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
@@ -2829,9 +2829,9 @@ public:
     int  reset_counters();
 
     /**
-     * mark for shutdown 
-     * on the next check - the control plane will 
-     * call shutdown() 
+     * mark for shutdown
+     * on the next check - the control plane will
+     * call shutdown()
      */
     void mark_for_shutdown(shutdown_rc_e rc) {
 
@@ -2858,7 +2858,7 @@ private:
 
     /**
      * shutdown sequence
-     * 
+     *
      */
     void shutdown();
 
@@ -4114,14 +4114,14 @@ CGlobalTRex::handle_fast_path() {
 
 /**
  * shutdown sequence
- * 
+ *
  */
 void CGlobalTRex::shutdown() {
     std::stringstream ss;
     ss << " *** TRex is shutting down - cause: '";
 
     switch (m_mark_for_shutdown) {
-    
+
     case SHUTDOWN_TEST_ENDED:
         ss << "test has ended'";
         break;
@@ -4133,7 +4133,7 @@ void CGlobalTRex::shutdown() {
     case SHUTDOWN_SIGINT:
         ss << "received signal SIGINT'";
         break;
-            
+
     case SHUTDOWN_SIGTERM:
         ss << "received signal SIGTERM'";
         break;
@@ -4220,7 +4220,7 @@ int CGlobalTRex::run_in_master() {
 
     /* shutdown everything gracefully */
     shutdown();
-   
+
     return (0);
 }
 
@@ -5635,22 +5635,42 @@ extern "C" int rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32
 // type - rule type. Currently we only support rules in IP ID.
 // proto - Packet protocol: UDP or TCP
 // id - Counter id in HW. We assume it is in the range 0..MAX_FLOW_STATS
-int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint8_t type, uint16_t proto, uint16_t id) {
+int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
+                                                          , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id) {
     uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + id;
     uint16_t rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
+    uint8_t next_proto;
 
-    switch(proto) {
-    case IPPROTO_TCP:
-        rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_TCP;
-        break;
-    case IPPROTO_UDP:
-        rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_UDP;
-        break;
-    default:
-        rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
-        break;
+    if (l3_proto == EthernetHeader::Protocol::IP) {
+        next_proto = l4_proto;
+        switch(l4_proto) {
+        case IPPROTO_TCP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_TCP;
+            break;
+        case IPPROTO_UDP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_UDP;
+            break;
+        default:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
+            break;
+        }
+    } else {
+        // IPv6
+        next_proto = ipv6_next_h;
+        switch(l4_proto) {
+        case IPPROTO_TCP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_TCP;
+            break;
+        case IPPROTO_UDP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_UDP;
+            break;
+        default:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
+            break;
+        }
     }
-    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, proto, MAIN_DPDK_DATA_Q, rule_id);
+
+    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, MAIN_DPDK_DATA_Q, rule_id);
     return 0;
 }
 
@@ -5909,10 +5929,10 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
 
 /**
  * handle a signal for termination
- * 
+ *
  * @author imarom (7/27/2016)
- * 
- * @param signum 
+ *
+ * @param signum
  */
 static void trex_termination_handler(int signum) {
     std::stringstream ss;
@@ -5932,7 +5952,7 @@ static void trex_termination_handler(int signum) {
     default:
         assert(0);
     }
-    
+
 }
 
 /***********************************************************
@@ -6061,14 +6081,16 @@ int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
     return g_trex.m_ports[port_id].reset_hw_flow_stats();
 }
 
-int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {
+int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                               , uint8_t ipv6_next_h, uint16_t id) const {
     return CTRexExtendedDriverDb::Ins()->get_drv()
-        ->add_del_rx_flow_stat_rule(port_id, RTE_ETH_FILTER_ADD, type, proto, id);
+        ->add_del_rx_flow_stat_rule(port_id, RTE_ETH_FILTER_ADD, l3_type, l4_proto, ipv6_next_h, id);
 }
 
-int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {
+int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                               , uint8_t ipv6_next_h, uint16_t id) const {
     return CTRexExtendedDriverDb::Ins()->get_drv()
-        ->add_del_rx_flow_stat_rule(port_id, RTE_ETH_FILTER_DELETE, type, proto, id);
+        ->add_del_rx_flow_stat_rule(port_id, RTE_ETH_FILTER_DELETE, l3_type, l4_proto, ipv6_next_h, id);
 }
 
 void TrexDpdkPlatformApi::set_promiscuous(uint8_t port_id, bool enabled) const {
@@ -6107,7 +6129,7 @@ CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
 
 /**
  * marks the control plane for a total server shutdown
- * 
+ *
  * @author imarom (7/27/2016)
  */
 void TrexDpdkPlatformApi::mark_for_shutdown() const {

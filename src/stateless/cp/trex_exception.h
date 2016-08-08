@@ -44,6 +44,7 @@ class TrexException : public std::runtime_error
         T_FLOW_STAT_UNSUPP_PKT_FORMAT,
         T_FLOW_STAT_BAD_RULE_TYPE,
         T_FLOW_STAT_BAD_RULE_TYPE_FOR_IF,
+        T_FLOW_STAT_FAILED_FIND_L3,
         T_FLOW_STAT_FAILED_FIND_L4,
         T_FLOW_STAT_PAYLOAD_TOO_SHORT,
         T_FLOW_STAT_NO_STREAMS_EXIST,

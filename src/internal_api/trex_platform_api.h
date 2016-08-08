@@ -32,7 +32,7 @@ limitations under the License.
 
 /**
  * Global stats
- * 
+ *
  * @author imarom (06-Oct-15)
  */
 
@@ -48,23 +48,23 @@ public:
         double m_rx_cpu_util;
         double m_tx_bps;
         double m_rx_bps;
-       
+
         double m_tx_pps;
         double m_rx_pps;
-       
+
         uint64_t m_total_tx_pkts;
         uint64_t m_total_rx_pkts;
-       
+
         uint64_t m_total_tx_bytes;
         uint64_t m_total_rx_bytes;
-       
+
         uint64_t m_tx_rx_errors;
     } m_stats;
 };
 
 /**
  * Per Interface stats
- * 
+ *
  * @author imarom (26-Oct-15)
  */
 class TrexPlatformInterfaceStats {
@@ -80,16 +80,16 @@ public:
 
         double m_tx_bps;
         double m_rx_bps;
-       
+
         double m_tx_pps;
         double m_rx_pps;
-       
+
         uint64_t m_total_tx_pkts;
         uint64_t m_total_rx_pkts;
-       
+
         uint64_t m_total_tx_bytes;
         uint64_t m_total_rx_bytes;
-       
+
         uint64_t m_tx_rx_errors;
     } m_stats;
 };
@@ -97,8 +97,8 @@ public:
 
 /**
  * low level API interface
- * can be implemented by DPDK or mock 
- *  
+ * can be implemented by DPDK or mock
+ *
  * @author imarom (25-Oct-15)
  */
 
@@ -110,7 +110,7 @@ public:
         IF_STAT_IPV6_FLOW_LABEL = 4,
         IF_STAT_RX_BYTES_COUNT = 8, // Card support counting rx bytes
     };
-    
+
     enum driver_speed_e {
         SPEED_INVALID,
         SPEED_1G,
@@ -126,7 +126,7 @@ public:
 
     /**
      * interface static info
-     * 
+     *
      */
     struct intf_info_st {
         std::string     driver_name;
@@ -152,8 +152,10 @@ public:
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const = 0;
     virtual int reset_hw_flow_stats(uint8_t port_id) const = 0;
     virtual void get_port_num(uint8_t &port_num) const = 0;
-    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
-    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const = 0;
+    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                      , uint8_t ipv6_next_h, uint16_t id) const = 0;
+    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                      , uint8_t ipv6_next_h, uint16_t id) const = 0;
     virtual void set_promiscuous(uint8_t port_id, bool enabled) const = 0;
     virtual bool get_promiscuous(uint8_t port_id) const = 0;
     virtual void flush_dp_messages() const = 0;
@@ -169,7 +171,7 @@ public:
 
 /**
  * DPDK implementation of the platform API
- * 
+ *
  * @author imarom (26-Oct-15)
  */
 class TrexDpdkPlatformApi : public TrexPlatformApi {
@@ -189,8 +191,10 @@ public:
     int get_rx_err_cntrs(void *rx_err_cntrs) const;
     int reset_hw_flow_stats(uint8_t port_id) const;
     void get_port_num(uint8_t &port_num) const;
-    int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
-    int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const;
+    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                      , uint8_t ipv6_next_h, uint16_t id) const;
+    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                      , uint8_t ipv6_next_h, uint16_t id) const;
     void set_promiscuous(uint8_t port_id, bool enabled) const;
     bool get_promiscuous(uint8_t port_id) const;
     void flush_dp_messages() const;
@@ -204,7 +208,7 @@ public:
 
 /**
  * for simulation
- * 
+ *
  * @author imarom (25-Feb-16)
  */
 class SimPlatformApi : public TrexPlatformApi {
@@ -250,12 +254,12 @@ public:
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const {return 0;};
     virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
     virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};
-    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
-    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint8_t type, uint16_t proto, uint16_t id) const {return 0;}
-
+    virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                      , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
+    virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                                      , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
     void set_promiscuous(uint8_t port_id, bool enabled) const {
     }
-
     bool get_promiscuous(uint8_t port_id) const {
         return false;
     }

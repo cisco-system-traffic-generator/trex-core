@@ -54,7 +54,8 @@ class STLRX_Test(CStlGeneral_Test):
                          );
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
-        self.ipv6pkt = STLPktBuilder(pkt = Ether()/IPv6(dst="2001:0:4137:9350:8000:f12a:b9c8:2815",src="2001:4860:0:2001::68")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
+        self.ipv6pkt = STLPktBuilder(pkt = Ether()/IPv6(dst="2001:0:4137:9350:8000:f12a:b9c8:2815",src="2001:4860:0:2001::68")
+                                     /IPv6ExtHdrHopByHop()/ICMP()/('Your_paylaod_comes_here'))
         self.large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000))
         self.pkt_9k = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000))
         self.vm_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")
@@ -248,11 +249,11 @@ class STLRX_Test(CStlGeneral_Test):
             streams_data = [
                 {'name': 'Flow stat. No latency', 'pkt': self.pkt, 'lat': False},
                 {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
-#Not supported yet  {'name': 'IPv6 flow stat. No latency', 'pkt': self.ipv6pkt, 'lat': False},
                 {'name': 'Latency, short packet with field engine', 'pkt': self.vm_pkt, 'lat': True},
                 {'name': 'Latency, large packet field engine', 'pkt': self.vm_large_pkt, 'lat': True}
             ]
             if self.latency_9k_enable:
+                streams_data.append({'name': 'IPv6 flow stat. No latency', 'pkt': self.ipv6pkt, 'lat': False})
                 streams_data.append({'name': 'Latency, 9k packet with field engine', 'pkt': self.vm_9k_pkt, 'lat': True})
 
             if self.ipv6_support:

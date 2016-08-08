@@ -87,13 +87,15 @@ inline std::string methodName(const std::string& prettyFunction)
 #endif
 
 /************** class CFlowStatUserIdInfo ***************/
-CFlowStatUserIdInfo::CFlowStatUserIdInfo(uint8_t proto) {
+CFlowStatUserIdInfo::CFlowStatUserIdInfo(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h) {
     memset(m_rx_cntr, 0, sizeof(m_rx_cntr));
     memset(m_rx_cntr_base, 0, sizeof(m_rx_cntr));
     memset(m_tx_cntr, 0, sizeof(m_tx_cntr));
     memset(m_tx_cntr_base, 0, sizeof(m_tx_cntr));
     m_hw_id = UINT16_MAX;
-    m_proto = proto;
+    m_l3_proto = l3_proto;
+    m_l4_proto = l4_proto;
+    m_ipv6_next_h = ipv6_next_h;
     m_ref_count = 1;
     m_trans_ref_count = 0;
     m_was_sent = false;
@@ -105,7 +107,7 @@ CFlowStatUserIdInfo::CFlowStatUserIdInfo(uint8_t proto) {
 }
 
 std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf) {
-    os << "hw_id:" << cf.m_hw_id << " proto:" << (uint16_t) cf.m_proto << " ref("
+    os << "hw_id:" << cf.m_hw_id << " l3 proto:" << (uint16_t) cf.m_l3_proto << " ref("
        << (uint16_t) cf.m_ref_count << "," << (uint16_t) cf.m_trans_ref_count << ")";
     os << " rx count (";
     os << cf.m_rx_cntr[0];
@@ -141,7 +143,7 @@ void CFlowStatUserIdInfo::add_stream(uint8_t proto) {
     std::cout << __METHOD_NAME__ << " proto:" << (uint16_t)proto << std::endl;
 #endif
 
-    if (proto != m_proto)
+    if (proto != m_l4_proto)
         throw TrexFStatEx("Can't use same pg_id for streams with different l4 protocol",
                                     TrexException::T_FLOW_STAT_PG_ID_DIFF_L4);
 
@@ -221,7 +223,7 @@ CFlowStatUserIdMap::find_user_id(uint32_t user_id) {
 }
 
 CFlowStatUserIdInfo *
-CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint8_t proto) {
+CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h) {
 #ifdef __DEBUG_FUNC_ENTRY__
     std::cout << __METHOD_NAME__ << " user id:" << user_id << " proto:" << (uint16_t)proto
               << std::endl;
@@ -229,10 +231,10 @@ CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint8_t proto) {
 
     CFlowStatUserIdInfo *new_id;
 
-    if (proto == PAYLOAD_RULE_PROTO) {
-        new_id = new CFlowStatUserIdInfoPayload(proto);
+    if (l4_proto == PAYLOAD_RULE_PROTO) {
+        new_id = new CFlowStatUserIdInfoPayload(l3_proto, l4_proto, ipv6_next_h);
     } else {
-        new_id = new CFlowStatUserIdInfo(proto);
+        new_id = new CFlowStatUserIdInfo(l3_proto, l4_proto, ipv6_next_h);
     }
     if (new_id != NULL) {
         std::pair<flow_stat_user_id_map_it_t, bool> ret;
@@ -249,9 +251,10 @@ CFlowStatUserIdMap::add_user_id(uint32_t user_id, uint8_t proto) {
     }
 }
 
-void CFlowStatUserIdMap::add_stream(uint32_t user_id, uint8_t proto) {
+void CFlowStatUserIdMap::add_stream(uint32_t user_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << user_id << " proto:" << (uint16_t)proto
+    std::cout << __METHOD_NAME__ << " user id:" << user_id << " l3 proto:" << (uint16_t)l3_proto
+              << " l4 proto:" << (uint16_t)l4_proto << " IPv6 next header:" << (uint16_t)ipv6_next_h
               << std::endl;
 #endif
 
@@ -259,9 +262,10 @@ void CFlowStatUserIdMap::add_stream(uint32_t user_id, uint8_t proto) {
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
-        c_user_id = add_user_id(user_id, proto); // throws exception on error
+        // throws exception on error
+        c_user_id = add_user_id(user_id, l3_proto, l4_proto, ipv6_next_h);
     } else {
-        c_user_id->add_stream(proto);
+        c_user_id->add_stream(l4_proto);
     }
 }
 
@@ -358,17 +362,6 @@ bool CFlowStatUserIdMap::is_started(uint32_t user_id) {
     }
 
     return c_user_id->is_started();
-}
-
-uint8_t CFlowStatUserIdMap::l4_proto(uint32_t user_id) {
-    CFlowStatUserIdInfo *c_user_id;
-
-    c_user_id = find_user_id(user_id);
-    if (! c_user_id) {
-        return 0;
-    }
-
-    return c_user_id->get_proto();
 }
 
 uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
@@ -557,7 +550,7 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
     return add_stream_internal(stream, true);
 }
 
-/* 
+/*
  * Helper function for adding/verifying streams
  * stream - stream to act on
  * do_action - if false, just verify. Do not change any state, or add to database.
@@ -589,14 +582,20 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 
     switch(rule_type) {
     case TrexPlatformApi::IF_STAT_IPV4_ID:
+        uint16_t l3_proto;
+        if (m_parser->get_l3_proto(l3_proto) < 0) {
+            throw TrexFStatEx("Failed determining l3 proto for packet", TrexException::T_FLOW_STAT_FAILED_FIND_L3);
+        }
         uint8_t l4_proto;
         if (m_parser->get_l4_proto(l4_proto) < 0) {
             throw TrexFStatEx("Failed determining l4 proto for packet", TrexException::T_FLOW_STAT_FAILED_FIND_L4);
         }
 
+
         // throws exception if there is error
         if (do_action) {
-            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l4_proto);
+            uint8_t ipv6_next_h = l4_proto; //??? just for now
+            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l3_proto, l4_proto, ipv6_next_h);
         }
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
@@ -610,7 +609,7 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
                               , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
         }
         if (do_action) {
-            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, PAYLOAD_RULE_PROTO);
+            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, 0, PAYLOAD_RULE_PROTO, 0);
         }
         break;
     default:
@@ -759,7 +758,10 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
                     m_max_hw_id = hw_id;
                 }
                 m_hw_id_map.map(hw_id, user_id);
-                add_hw_rule(hw_id, m_user_id_map.l4_proto(user_id));
+                CFlowStatUserIdInfo *uid_info = m_user_id_map.find_user_id(user_id);
+                if (uid_info != NULL) {
+                    add_hw_rule(hw_id, uid_info->get_l3_proto(), uid_info->get_l4_proto(), uid_info->get_ipv6_next_h());
+                }
             } else {
                 if (hw_id > m_max_hw_id_payload) {
                     m_max_hw_id_payload = hw_id;
@@ -821,9 +823,9 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     return 0;
 }
 
-int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint8_t proto) {
+int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h) {
     for (int port = 0; port < m_num_ports; port++) {
-        m_api->add_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
+        m_api->add_rx_flow_stat_rule(port, l3_proto, l4_proto, ipv6_next_h, hw_id);
     }
 
     return 0;
@@ -862,7 +864,6 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
     if (m_user_id_map.stop_stream(stream->m_rx_check.m_pg_id) == 0) {
         // last stream associated with the entry stopped transmittig.
         // remove user_id <--> hw_id mapping
-        uint8_t proto = m_user_id_map.l4_proto(stream->m_rx_check.m_pg_id);
         uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id);
         if (hw_id >= MAX_FLOW_STATS) {
             throw TrexFStatEx("Internal error in stop_stream. Got bad hw_id" + std::to_string(hw_id)
@@ -881,7 +882,8 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
             rfc2544_info_t rfc2544_info;
             for (uint8_t port = 0; port < m_num_ports; port++) {
                 if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
-                    m_api->del_rx_flow_stat_rule(port, FLOW_STAT_RULE_TYPE_IPV4_ID, proto, hw_id);
+                    m_api->del_rx_flow_stat_rule(port, p_user_id->get_l3_proto(), p_user_id->get_l4_proto()
+                                                 , p_user_id->get_ipv6_next_h(), hw_id);
                 }
                 m_api->get_flow_stats(port, &rx_cntr, (void *)&tx_cntr, hw_id, hw_id, true, rule_type);
                 // when stopping, always send counters for stopped stream one last time

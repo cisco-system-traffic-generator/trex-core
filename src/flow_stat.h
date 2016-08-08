@@ -268,7 +268,7 @@ class CFlowStatParser;
 
 class CFlowStatUserIdInfo {
  public:
-    CFlowStatUserIdInfo(uint8_t proto);
+    CFlowStatUserIdInfo(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     virtual ~CFlowStatUserIdInfo() {};
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
     void set_rx_cntr(uint8_t port, rx_per_flow_t val) {m_rx_cntr[port] = val;}
@@ -279,7 +279,9 @@ class CFlowStatUserIdInfo {
     uint16_t get_hw_id() {return m_hw_id;}
     virtual void reset_hw_id();
     bool is_hw_id() {return (m_hw_id != UINT16_MAX);}
-    uint64_t get_proto() {return m_proto;}
+    uint16_t get_l3_proto() {return m_l3_proto;}
+    uint8_t get_l4_proto() {return m_l4_proto;}
+    uint8_t get_ipv6_next_h() {return m_ipv6_next_h;}
     uint8_t get_ref_count() {return m_ref_count;}
     virtual void add_stream(uint8_t proto);
     int del_stream() {m_ref_count--; return m_ref_count;}
@@ -309,7 +311,9 @@ class CFlowStatUserIdInfo {
     tx_per_flow_t m_tx_cntr[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
     // How many packets transmitted with this user id, since stream creation, before stream start.
     tx_per_flow_t m_tx_cntr_base[TREX_MAX_PORTS];
-    uint8_t m_proto;      // protocol (UDP, TCP, other), associated with this user id.
+    uint16_t m_l3_proto;      // L3 protocol (IPv4, IPv6), associated with this user id.
+    uint8_t m_l4_proto;      // L4 protocol (UDP, TCP, other), associated with this user id.
+    uint8_t m_ipv6_next_h;   // In case of IPv6, what is the type of the first extension header
     uint8_t m_ref_count;  // How many streams with this user id exists
     uint8_t m_trans_ref_count;  // How many streams with this user id currently transmit
     bool m_was_sent; // Did we send this info to clients once?
@@ -320,7 +324,9 @@ typedef std::map<uint32_t, class CFlowStatUserIdInfo *>::iterator flow_stat_user
 
 class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
  public:
-    CFlowStatUserIdInfoPayload(uint8_t proto) : CFlowStatUserIdInfo(proto){m_rfc2544_support = true; clear();};
+    CFlowStatUserIdInfoPayload(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h)
+                               : CFlowStatUserIdInfo(l3_proto, l4_proto, ipv6_next_h)
+        {m_rfc2544_support = true; clear();}
     virtual void add_stream(uint8_t proto);
 
     void clear() {
@@ -408,14 +414,13 @@ class CFlowStatUserIdMap {
     bool is_empty() {return (m_map.empty() == true);};
     uint16_t get_hw_id(uint32_t user_id);
     CFlowStatUserIdInfo * find_user_id(uint32_t user_id);
-    CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint8_t proto);
-    void add_stream(uint32_t user_id, uint8_t proto);
+    CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
+    void add_stream(uint32_t user_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     int del_stream(uint32_t user_id);
     int start_stream(uint32_t user_id, uint16_t hw_id);
     int start_stream(uint32_t user_id);
     int stop_stream(uint32_t user_id);
     bool is_started(uint32_t user_id);
-    uint8_t l4_proto(uint32_t user_id);
     uint16_t unmap(uint32_t user_id);
     flow_stat_user_id_map_it_t begin() {return m_map.begin();}
     flow_stat_user_id_map_it_t end() {return m_map.end();}
@@ -464,7 +469,7 @@ class CFlowStatRuleMgr {
     void create();
     int compile_stream(const TrexStream * stream, CFlowStatParser *parser);
     int add_stream_internal(TrexStream * stream, bool do_action);
-    int add_hw_rule(uint16_t hw_id, uint8_t proto);
+    int add_hw_rule(uint16_t hw_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     void send_start_stop_msg_to_rx(bool is_start);
 
  private:
