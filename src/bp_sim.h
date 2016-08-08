@@ -711,6 +711,14 @@ public:
         return (btGetMaskBit32(m_flags1, 8, 8) ? true : false);
     }
 
+    void setNoCloseEnable(bool enable) {
+        btSetMaskBit32(m_flags1, 9, 9, (enable ? 1 : 0) );
+    }
+
+    bool getNoCloseEnable(){
+        return (btGetMaskBit32(m_flags1, 9, 9) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 

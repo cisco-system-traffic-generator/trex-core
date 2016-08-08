@@ -525,7 +525,6 @@ enum { OPT_HELP,
        OPT_LIMT_NUM_OF_PORTS,
        OPT_PLAT_CFG_FILE,
        OPT_MBUF_FACTOR,
-
        OPT_LATENCY,
        OPT_NO_CLEAN_FLOW_CLOSE,
        OPT_LATENCY_MASK,
@@ -551,9 +550,8 @@ enum { OPT_HELP,
        OPT_NO_WATCHDOG,
        OPT_ALLOW_COREDUMP,
        OPT_CHECKSUM_OFFLOAD,
-
+       OPT_NO_CLOSE,
 };
-
 
 /* these are the argument types:
    SO_NONE --    no argument needed
@@ -575,24 +573,17 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_FLIP_CLIENT_SERVER,"--flip",SO_NONE  },
         { OPT_FLOW_FLIP_CLIENT_SERVER,"-p",SO_NONE  },
         { OPT_FLOW_FLIP_CLIENT_SERVER_SIDE,"-e",SO_NONE  },
-
         { OPT_NO_CLEAN_FLOW_CLOSE,"--nc",SO_NONE  },
-
         { OPT_LIMT_NUM_OF_PORTS,"--limit-ports", SO_REQ_SEP },
         { OPT_CORES     , "-c",         SO_REQ_SEP },
         { OPT_NODE_DUMP , "-v",         SO_REQ_SEP },
         { OPT_LATENCY , "-l",         SO_REQ_SEP },
-
         { OPT_DURATION     , "-d",  SO_REQ_SEP },
         { OPT_PLATFORM_FACTOR     , "-pm",  SO_REQ_SEP },
-
         { OPT_PUB_DISABLE     , "-pubd",  SO_NONE },
-
-
         { OPT_BW_FACTOR     , "-m",  SO_REQ_SEP },
         { OPT_LATENCY_MASK     , "--lm",  SO_REQ_SEP },
         { OPT_ONLY_LATENCY, "--lo",  SO_NONE  },
-
         { OPT_1G_MODE,       "-1g",   SO_NONE   },
         { OPT_LATENCY_PREVIEW ,       "-k",   SO_REQ_SEP   },
         { OPT_WAIT_BEFORE_TRAFFIC ,   "-w",   SO_REQ_SEP   },
@@ -615,13 +606,9 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_WATCHDOG ,     "--no-watchdog",  SO_NONE  },
         { OPT_ALLOW_COREDUMP ,  "--allow-coredump",  SO_NONE  },
         { OPT_CHECKSUM_OFFLOAD, "--checksum-offload", SO_NONE },
-
-
+        { OPT_NO_CLOSE, "--no-close", SO_NONE },
         SO_END_OF_OPTIONS
     };
-
-
-
 
 static int usage(){
 
@@ -711,6 +698,9 @@ static int usage(){
     printf(" --iom  [mode]              :  io mode for interactive mode [0- silent, 1- normal , 2- short]   \n");
     printf("                              this feature consume another thread  \n");
     printf("  \n");
+    printf(" --no-close                 : Do not call rte_eth_dev_stop and close at exit. Calling this might cause link down issues when\n");
+    printf("                               running new version, then going back to old version. Work around is to run new version once with --no-close\n");
+    printf("                               This it temporary option. Will be removed in the future.\n");
     printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
     printf(" --prefix                   : for multi trex, each instance should have a different name \n");
@@ -983,6 +973,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.setChecksumOffloadEnable(true);
                 break;
 
+            case OPT_NO_CLOSE:
+                po->preview.setNoCloseEnable(true);
+                break;
 
             default:
                 usage();
@@ -1430,16 +1423,12 @@ void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
 
 }
 
-
 void CPhyEthIF::stop(){
-#if 0
-    // allowing this causes bad things to happen. Especially on X710 cards.
-    // See trex-237 for details
-    rte_eth_dev_stop(m_port_id);
-    rte_eth_dev_close(m_port_id);
-#endif
+    if (! CGlobalInfo::m_options.preview.getNoCloseEnable()) {
+        rte_eth_dev_stop(m_port_id);
+        rte_eth_dev_close(m_port_id);
+    }
 }
-
 
 void CPhyEthIF::start(){
 
