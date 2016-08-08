@@ -190,7 +190,7 @@ args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
 stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'stl', 'examples')
-stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy', args.stl_rpc_proxy_port, '%s rpc_proxy_server.py' % sys.executable, stl_rpc_proxy_dir)
+stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy', args.stl_rpc_proxy_port, 'sudo -u nobody %s rpc_proxy_server.py' % sys.executable, stl_rpc_proxy_dir)
 trex_daemon_server = SingletonDaemon('TRex daemon server', 'trex_daemon_server', args.trex_daemon_port, '%s trex_daemon_server start' % sys.executable, args.trex_dir)
 master_daemon      = SingletonDaemon('Master daemon', 'trex_master_daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.
 
