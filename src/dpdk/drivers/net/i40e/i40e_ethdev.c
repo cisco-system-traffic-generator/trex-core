@@ -756,6 +756,7 @@ static inline void i40e_flex_payload_reg_init(struct i40e_hw *hw)
 #define I40E_FLOW_CONTROL_ETHERTYPE  0x8808
 
 #define TREX_PATCH
+#define TREX_PATCH_LOW_LATENCY
 #ifdef TREX_PATCH
 
 // 0 - statfull mode. 1 stateless.
@@ -2371,19 +2372,6 @@ i40e_read_stats_registers(struct i40e_pf *pf, struct i40e_hw *hw)
 
 	if (pf->main_vsi)
 		i40e_update_vsi_stats(pf->main_vsi);
-}
-
-// TREX_PATCH
-int
-i40e_trex_get_speed(struct rte_eth_dev *dev)
-{
-    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-
-    if (i40e_is_40G_device(hw->device_id)) {
-        return 40;
-    } else {
-        return 10;
-    }
 }
 
 //TREX_PATCH
@@ -4174,10 +4162,18 @@ i40e_veb_setup(struct i40e_pf *pf, struct i40e_vsi *vsi)
 	/* create floating veb if vsi is NULL */
 	if (vsi != NULL) {
 		ret = i40e_aq_add_veb(hw, veb->uplink_seid, vsi->seid,
-				      vsi->enabled_tc, false,
+#ifdef TREX_PATCH_LOW_LATENCY
+                      vsi->enabled_tc, false,
+#else
+                      I40E_DEFAULT_TCMAP, false,
+#endif
 				      &veb->seid, false, NULL);
 	} else {
+#ifdef TREX_PATCH_LOW_LATENCY
 		ret = i40e_aq_add_veb(hw, 0, 0, vsi->enabled_tc,
+#else
+		ret = i40e_aq_add_veb(hw, 0, 0, I40E_DEFAULT_TCMAP,
+#endif
 				      true, &veb->seid, false, NULL);
 	}
 
@@ -4331,9 +4327,7 @@ i40e_update_default_filter_setting(struct i40e_vsi *vsi)
 	return i40e_vsi_add_mac(vsi, &filter);
 }
 
-#ifdef TREX_PATCH
-#define LOW_LATENCY_WORKAROUND
-#ifdef LOW_LATENCY_WORKAROUND
+#ifdef TREX_PATCH_LOW_LATENCY
 static int
 i40e_vsi_update_tc_max_bw(struct i40e_vsi *vsi, u16 credit){
     struct i40e_hw *hw = I40E_VSI_TO_HW(vsi);
@@ -4382,9 +4376,6 @@ i40e_vsi_update_tc_bandwidth_ex(struct i40e_vsi *vsi)
 
 	return I40E_SUCCESS;
 }
-
-
-#endif
 #endif
 
 /*
@@ -9342,15 +9333,11 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 			hw->local_dcbx_config.etscfg.maxtcs = 0;
 			hw->local_dcbx_config.etscfg.tcbwtable[0] = 100;
 			hw->local_dcbx_config.etscfg.tsatable[0] = I40E_IEEE_TSA_ETS;
-
-#ifdef LOW_LATENCY_WORKAROUND
-
+#ifdef TREX_PATCH_LOW_LATENCY
             hw->local_dcbx_config.etscfg.tcbwtable[1] = 0;
             hw->local_dcbx_config.etscfg.tsatable[1] = I40E_IEEE_TSA_STRICT;
             hw->local_dcbx_config.etscfg.prioritytable[1] = 1;
 #endif
-
-
 			hw->local_dcbx_config.etsrec =
 				hw->local_dcbx_config.etscfg;
 			hw->local_dcbx_config.pfc.willing = 0;
@@ -9370,15 +9357,13 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 					  hw->aq.asq_last_status);
 				return -ENOSYS;
 			}
-
-#ifdef LOW_LATENCY_WORKAROUND
+#ifdef TREX_PATCH_LOW_LATENCY
             if (i40e_vsi_update_tc_bandwidth_ex(pf->main_vsi) !=
                 I40E_SUCCESS) {
                 PMD_DRV_LOG(ERR, "Failed to update TC bandwidth");
                 return -ENOSYS;
             }
 #endif
-
 		} else {
 			PMD_INIT_LOG(INFO, "DCBX configuration failed, err = %d,"
 					  " aq_err = %d.", ret,

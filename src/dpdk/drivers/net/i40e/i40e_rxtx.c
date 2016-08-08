@@ -1930,10 +1930,6 @@ i40e_xmit_pkts_simple(void *tx_queue,
 	return nb_tx;
 }
 
-// TREX_PATCH
-// Based on i40e_pf_get_vsi_by_qindex. Return low latency VSI one queue.
-#define LOW_LATENCY_WORKAROUND
-
 /*
  * Find the VSI the queue belongs to. 'queue_idx' is the queue index
  * application used, which assume having sequential ones. But from driver's
@@ -2276,10 +2272,10 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		ad->rx_bulk_alloc_allowed = false;
 	}
 
-    #ifdef LOW_LATENCY_WORKAROUND
+#define TREX_PATCH_LOW_LATENCY
+#ifdef TREX_PATCH_LOW_LATENCY
     rxq->dcb_tc =0;
-
-    #else
+#else
 
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
@@ -2293,7 +2289,7 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
 			rxq->dcb_tc = i;
 	}
-    #endif
+#endif
 
 	return 0;
 }
@@ -2388,7 +2384,6 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	uint32_t ring_size;
 	uint16_t tx_rs_thresh, tx_free_thresh;
 	uint16_t i, base, bsf, tc_mapping;
-    u8 low_latency=0; 
 
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
 		struct i40e_vf *vf =
@@ -2398,9 +2393,10 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
     }
 
-#ifdef LOW_LATENCY_WORKAROUND
+#ifdef TREX_PATCH_LOW_LATENCY
+    u8 low_latency = 0;
     if (queue_idx == pf->dev_data->nb_tx_queues-1) {
-        low_latency= 1;
+        low_latency = 1;
     }
 #endif
 
@@ -2558,7 +2554,7 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	/* Use a simple TX queue without offloads or multi segs if possible */
 	i40e_set_tx_function_flag(dev, txq);
 
-#ifdef LOW_LATENCY_WORKAROUND
+#ifdef TREX_PATCH_LOW_LATENCY
     if (low_latency) {
         txq->dcb_tc=1;
     }else{
