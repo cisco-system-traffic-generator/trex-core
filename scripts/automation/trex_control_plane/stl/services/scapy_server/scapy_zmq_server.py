@@ -96,25 +96,6 @@ class Scapy_wrapper:
         finally:
             return response
 
-#arg1 is port number for the server to listen to
-def main(arg1=4507):
-    s = Scapy_server(arg1)
-    s.activate()
-
-if __name__=='__main__':
-    if len(sys.argv)>1:
-        parser = ArgumentParser(description=' Runs Scapy Server ')
-        parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
-                            help='Select port to which Scapy Server will listen to.\n default is 4507\n',action='store')
-        args = parser.parse_args()
-        port = args.scapy_port
-        sys.exit(main(port))
-    else:
-        sys.exit(main())
-
-
-
-
 class Scapy_server():
     def __init__(self, port=4507):
         self.scapy_wrapper = Scapy_wrapper()
@@ -157,4 +138,18 @@ class Scapy_server():
 
 
 
+#arg1 is port number for the server to listen to
+def main(arg1=4507):
+    s = Scapy_server(arg1)
+    s.activate()
 
+if __name__=='__main__':
+    if len(sys.argv)>1:
+        parser = ArgumentParser(description=' Runs Scapy Server ')
+        parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
+                            help='Select port to which Scapy Server will listen to.\n default is 4507\n',action='store')
+        args = parser.parse_args()
+        port = args.scapy_port
+        sys.exit(main(port))
+    else:
+        sys.exit(main())
