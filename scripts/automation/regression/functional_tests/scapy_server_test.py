@@ -25,14 +25,16 @@ from scapy_service import *
 from pprint import pprint
 import zmq
 import json
+import scapy_zmq_server
+import threading
 
 
 class Scapy_server_wrapper():
-    def __init__(self):
+    def __init__(self,dest_scapy_port=5555,server_ip_address='localhost'):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
-        self.dest_scapy_port =5555
-        self.socket.connect("tcp://10.56.216.133:"+str(self.dest_scapy_port)) #ip address of csi-trex-11
+        self.dest_scapy_port =dest_scapy_port
+        self.socket.connect("tcp://"+str(server_ip_address)+":"+str(self.dest_scapy_port)) #ip address of csi-trex-11
 
     def call_method(self,method_name,method_params):
         json_rpc_req = { "jsonrpc":"2.0","method": method_name ,"params": method_params, "id":"1"}
@@ -204,10 +206,27 @@ class scapy_service_tester(functional_general_test.CGeneralFunctional_Test):
 
 
 
+class scapy_server_thread(threading.Thread):
+    def __init__(self,thread_id,server_port=5555):
+        threading.Thread.__init__(self)
+        self.thread_id = thread_id
+        self.server_port = server_port
 
+    def run(self):
+        print '\nStarted scapy thread server'
+        scapy_zmq_server.main(self.server_port)
+        print 'Thread server closed'
+
+# Scapy_server_wrapper is the CLIENT for the scapy server, it wraps the CLIENT: its default port is set to 5555, default server ip set to localhost
 class scapy_server_tester(scapy_service_tester):
     def setUp(self):
-        self.s = Scapy_server_wrapper()
+        self.thread1 = scapy_server_thread(thread_id=1)
+        self.thread1.start()
+        self.s = Scapy_server_wrapper(dest_scapy_port=5555,server_ip_address='localhost') 
+
+    def tearDown(self):
+        self.s.call_method('shut_down',[])
+        self.thread1.join()
 
 
 
