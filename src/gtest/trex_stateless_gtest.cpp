@@ -3719,8 +3719,8 @@ class flow_stat_pkt_parse  : public testing::Test {
 };
 
 
-TEST_F(flow_stat_pkt_parse, x710_parser) {
-    CFlowStatParser parser;
+TEST_F(flow_stat_pkt_parse, parser) {
+    CFlowStatParserTest parser;
 
     parser.test();
 }

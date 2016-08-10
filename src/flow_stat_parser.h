@@ -30,6 +30,7 @@
 
 // Basic flow stat parser. Relevant for xl710/x710/x350 cards
 class CFlowStatParser {
+    friend class CFlowStatParserTest;
  public:
     virtual ~CFlowStatParser() {}
     virtual void reset();
@@ -42,7 +43,6 @@ class CFlowStatParser {
     virtual int get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload_len);
     virtual uint16_t get_pkt_size();
     virtual uint8_t get_ttl();
-    virtual int test();
     uint8_t *get_l3() {
         if (m_ipv4)
             return (uint8_t *)m_ipv4;
@@ -71,6 +71,10 @@ class CFlowStatParser {
         }
         return true;
     }
+
+ private:
+    char *create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t ttl
+                          , uint32_t ip_id, uint16_t flags, int &pkt_size);
 
  protected:
     IPHeader *m_ipv4;
@@ -132,7 +136,27 @@ class CSimplePacketParser {
     uint16_t        m_vlan_offset;
     uint8_t *       m_l4;
  private:
-    rte_mbuf_t *    m_m ;
+    rte_mbuf_t *    m_m;
+};
+
+class CFlowStatParserTest {
+    enum {
+        P_OK = 0x1,
+        P_BAD = 0x2,
+        P82599_OK = 0x4,
+        P82599_BAD = 0x8,
+        P82599_VLAN_OK = 0x10,
+        P82599_VLAN_BAD = 0x20,
+    };
+
+ public:
+    int test();
+
+ private:
+    int test_one_pkt(const char *name, uint16_t ether_type, uint8_t l4_proto, bool is_vlan, uint16_t verify_flags);
+    int verify_pkt(uint8_t *p, uint16_t pkt_size, uint16_t payload_len, uint32_t ip_id, uint8_t l4_proto, uint16_t flags);
+    int verify_pkt_one_parser(uint8_t * p, uint16_t pkt_size, uint16_t payload_len, uint32_t ip_id, uint8_t l4_proto
+                              , CFlowStatParser &parser, bool sup_pkt);
 };
 
 #endif
