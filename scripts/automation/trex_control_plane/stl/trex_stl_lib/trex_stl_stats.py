@@ -210,8 +210,11 @@ class CTRexInfoGenerator(object):
                              ("version", "{ver}, UUID: {uuid}".format(ver=global_stats.server_version.get("version", "N/A"),
                                                                       uuid="N/A")),
 
-                             ("cpu_util.", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_cpu_util")), [85, 100], [0, 85]),
-                                                              global_stats.get_trend_gui("m_cpu_util", use_raw = True))),
+                             ("cpu_util.", "{0}% @ {2} cores ({3} per port) {1}".format( format_threshold(round_float(global_stats.get("m_cpu_util")), [85, 100], [0, 85]),
+                                                                                         global_stats.get_trend_gui("m_cpu_util", use_raw = True),
+                                                                                         global_stats.system_info.get('dp_core_count'),
+                                                                                         global_stats.system_info.get('dp_core_count_per_port'),
+                                                                                         )),
 
                              ("rx_cpu_util.", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_rx_cpu_util")), [85, 100], [0, 85]),
                                                                 global_stats.get_trend_gui("m_rx_cpu_util", use_raw = True))),
@@ -234,7 +237,7 @@ class CTRexInfoGenerator(object):
                              ("total_pps", "{0} {1}".format( global_stats.get("m_tx_pps", format=True, suffix="pkt/sec"),
                                                               global_stats.get_trend_gui("m_tx_pps"))),
 
-                             ("  ", ""),
+                             #("  ", ""),
 
                              ("drop_rate", "{0}".format( format_num(global_stats.get("m_rx_drop_bps"),
                                                                     suffix = 'b/sec',
@@ -422,21 +425,39 @@ class CTRexInfoGenerator(object):
 
     def _generate_cpu_util_stats(self):
         util_stats = self._util_stats_ref.get_stats(use_1sec_cache = True)
+        
         stats_table = text_tables.TRexTextTable()
         if util_stats:
             if 'cpu' not in util_stats:
                 raise Exception("Excepting 'cpu' section in stats %s" % util_stats)
             cpu_stats = util_stats['cpu']
-            hist_len = len(cpu_stats[0])
+            hist_len = len(cpu_stats[0]["history"])
             avg_len = min(5, hist_len)
             show_len = min(15, hist_len)
             stats_table.header(['Thread', 'Avg', 'Latest'] + list(range(-1, 0 - show_len, -1)))
             stats_table.set_cols_align(['l'] + ['r'] * (show_len + 1))
-            stats_table.set_cols_width([8, 3, 6] + [3] * (show_len - 1))
+            stats_table.set_cols_width([10, 3, 6] + [3] * (show_len - 1))
             stats_table.set_cols_dtype(['t'] * (show_len + 2))
+
             for i in range(min(14, len(cpu_stats))):
-                avg = int(round(sum(cpu_stats[i][:avg_len]) / avg_len))
-                stats_table.add_row([i, avg] + cpu_stats[i][:show_len])
+                history = cpu_stats[i]["history"]
+                ports = cpu_stats[i]["ports"]
+                if not len(ports) == 2:
+                    sys.__stdout__.write(str(util_stats["cpu"]))
+                    exit(-1)
+
+                avg = int(round(sum(history[:avg_len]) / avg_len))
+
+                # decode active ports for core
+                if ports == [-1, -1]:
+                    interfaces = "(IDLE)"
+                elif not -1 in ports:
+                    interfaces = "({:},{:})".format(ports[0], ports[1])
+                else:
+                    interfaces = "({:})".format(ports[0] if ports[0] != -1 else ports[1])
+
+                thread = "{:2} {:^7}".format(i, interfaces)
+                stats_table.add_row([thread, avg] + history[:show_len])
         else:
             stats_table.add_row(['No Data.'])
         return {'cpu_util(%)': ExportableStats(None, stats_table)}
@@ -542,6 +563,7 @@ class CTRexInfoGenerator(object):
         per_field_stats = OrderedDict([("owner", []),
                                        ("state", []),
                                        ("speed", []),
+                                       ("CPU util.", []),
                                        ("--", []),
                                        ("Tx bps L2", []),
                                        ("Tx bps L1", []),
@@ -1037,7 +1059,8 @@ class CPortStats(CTRexStats):
         return {"owner": owner,
                 "state": "{0}".format(state),
                 "speed": self._port_obj.get_formatted_speed() if self._port_obj else '',
-
+                "CPU util.": "{0} {1}%".format(self.get_trend_gui("m_cpu_util", use_raw = True),
+                                               format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85])) if self._port_obj else '' ,
                 "--": " ",
                 "---": " ",
                 "----": " ",

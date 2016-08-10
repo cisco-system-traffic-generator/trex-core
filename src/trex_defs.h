@@ -39,9 +39,18 @@ limitations under the License.
     #define UINT64_MAX 0xFFFFFFFFFFFFFFFF
 #endif
 
+struct cpu_vct_st {
+    cpu_vct_st() {
+        m_port1 = -1;
+        m_port2 = -1;
+    }
+    std::vector<uint8_t> m_history;
+    int m_port1;
+    int m_port2;
+};
+
 typedef std::set<uint32_t> flow_stat_active_t;
 typedef std::set<uint32_t>::iterator flow_stat_active_it_t;
-typedef std::vector<std::vector<uint8_t>> cpu_util_full_t;
-typedef std::vector<uint8_t> cpu_vct_t;
+typedef std::vector<cpu_vct_st> cpu_util_full_t;
 
 #endif

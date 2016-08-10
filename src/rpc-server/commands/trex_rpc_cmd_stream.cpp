@@ -542,8 +542,13 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    double duration  = parse_double(params, "duration", result);
-    bool   force     = parse_bool(params, "force", result);
+    double    duration    = parse_double(params, "duration", result);
+    bool      force       = parse_bool(params, "force", result);
+    uint64_t  core_mask   = parse_uint64(params, "core_mask", result);
+
+    if (!TrexDPCoreMask::is_valid_mask(port->get_dp_core_count(), core_mask)) {
+        generate_parse_err(result, "invalid core mask provided");
+    }
 
     /* multiplier */
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
@@ -551,7 +556,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
     std::string op     = parse_string(mul_obj, "op", result);
     double      value  = parse_double(mul_obj, "value", result);
-
+    
     if ( value <=0 ){
         generate_parse_err(result, "multiplier can't be zero");
     }
@@ -563,7 +568,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     TrexPortMultiplier mul(type, op, value);
 
     try {
-        port->start_traffic(mul, duration, force);
+        port->start_traffic(mul, duration, force, core_mask);
 
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());

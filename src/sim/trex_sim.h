@@ -143,6 +143,7 @@ private:
     void prepare_control_plane();
     void prepare_dataplane();
     void execute_json(const std::string &json_filename);
+    void find_active_dp_cores();
 
     void run_dp(const std::string &out_filename);
 
@@ -179,6 +180,8 @@ private:
     int              m_dp_core_index;
     uint64_t         m_limit;
     bool             m_is_dry_run;
+
+    std::vector<uint8_t> m_active_dp_cores;
 };
 
 #endif /* __TREX_SIM_H__ */

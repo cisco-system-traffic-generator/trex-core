@@ -37,6 +37,7 @@ PROMISCUOUS_SWITCH = 21
 TUNABLES = 22
 REMOTE_FILE = 23
 LOCKED = 24
+PIN_CORES = 25
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -323,6 +324,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                      'default': False,
                                      'help': "Dry run - no traffic will be injected"}),
 
+              PIN_CORES: ArgumentPack(['--pin'],
+                                      {'action': 'store_true',
+                                       'dest': 'pin_cores',
+                                       'default': False,
+                                       'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boot for symetric profiles)"}),
 
               XTERM: ArgumentPack(['-x', '--xterm'],
                                   {'action': 'store_true',

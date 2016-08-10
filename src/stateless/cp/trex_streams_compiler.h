@@ -32,6 +32,66 @@ class TrexStreamsCompiler;
 class TrexStream;
 class GraphNodeMap;
 
+class TrexDPCoreMask {
+
+public:
+
+    TrexDPCoreMask(uint8_t dp_core_count, uint64_t dp_core_mask) {
+        assert(is_valid_mask(dp_core_count, dp_core_mask));
+
+        m_dp_core_count = dp_core_count;
+        m_dp_core_mask  = dp_core_mask;
+
+        for (int i = 0; i < m_dp_core_count; i++) {
+            if (is_core_active(i)) {
+                m_active_cores.push_back(i);
+            }
+        }
+    }
+
+   
+    uint8_t get_total_count() const {
+        return m_dp_core_count;
+    }
+
+    bool is_core_active(uint8_t core_id) const {
+        assert(core_id < m_dp_core_count);
+        return ( (1 << core_id) & m_dp_core_mask );
+    }
+
+    bool is_core_disabled(uint8_t core_id) const {
+        return (!is_core_active(core_id));
+    }
+
+    uint8_t get_active_count() const {
+        return m_active_cores.size();
+    }
+
+    const std::vector<uint8_t> & get_active_cores() const {
+        return m_active_cores;
+    }
+
+    static bool is_valid_mask(uint8_t dp_core_count, uint64_t dp_core_mask) {
+        if ( (dp_core_count < 1) || (dp_core_count > 64) ) {
+            return false;
+        }
+        /* highest bit pushed to left and then -1 will give all the other bits on */
+        return ( (dp_core_mask & ( (1 << dp_core_count) - 1 ) ) != 0);
+    }
+private:
+
+
+    uint8_t   m_dp_core_count;
+    uint64_t  m_dp_core_mask;
+
+    std::vector<uint8_t> m_active_cores;
+
+public:
+    static const uint64_t MASK_ALL = UINT64_MAX;
+
+};
+
+
 /**
  * compiled object for a table of streams
  * 
@@ -92,7 +152,7 @@ public:
     bool compile(uint8_t                                port_id,
                  const std::vector<TrexStream *>        &streams,
                  std::vector<TrexStreamsCompiledObj *>  &objs,
-                 uint8_t                                dp_core_count = 1,
+                 TrexDPCoreMask                         &core_mask,
                  double                                 factor = 1.0,
                  std::string                            *fail_msg = NULL);
 

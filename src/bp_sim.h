@@ -3835,6 +3835,45 @@ public:
         m_stateless_dp_info.stop_traffic(port_id, false, 0);
     }
 
+    /**
+     * return true if a core currently has some pending CP 
+     * messages 
+     */
+    bool are_any_pending_cp_messages() {
+        if (get_is_stateless()) {
+            return m_stateless_dp_info.are_any_pending_cp_messages();
+        } else {
+            /* for stateful this is always false */
+            return false;
+        }
+    }
+
+    /**
+     * a core provides services for two interfaces
+     * it can either be idle, active for one port 
+     * or active for both 
+     */
+    bool is_port_active(uint8_t port_id) {
+        /* for stateful (batch) core is always active,
+           for stateless relay the query to the next level
+         */
+        if (get_is_stateless()) {
+            return m_stateless_dp_info.is_port_active(port_id);
+        } else {
+            return true;
+        }
+    }
+
+
+    /**
+     * returns the two ports associated with this core
+     * 
+     */
+    void get_port_ids(uint8_t &p1, uint8_t &p2) {
+        p1 = 2 * getDualPortId();
+        p2 = p1 + 1;
+    }
+
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
     void DumpStats(FILE *fd);

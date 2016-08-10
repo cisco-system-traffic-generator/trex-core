@@ -375,19 +375,29 @@ bool
 TrexStreamsCompiler::compile(uint8_t                                port_id,
                              const std::vector<TrexStream *>        &streams,
                              std::vector<TrexStreamsCompiledObj *>  &objs,
-                             uint8_t                                dp_core_count,
+                             TrexDPCoreMask                         &core_mask,
                              double                                 factor,
                              std::string                            *fail_msg) {
 
-    assert(dp_core_count > 0);
+    assert(core_mask.get_active_count() > 0);
+
+    uint8_t indirect_core_count = core_mask.get_active_count();
+    std::vector<TrexStreamsCompiledObj *> indirect_objs(indirect_core_count);
+    
+    for (int i = 0; i < indirect_core_count; i++) {
+        indirect_objs[i] = NULL;
+    }
 
     try {
-        return compile_internal(port_id,
-                                streams,
-                                objs,
-                                dp_core_count,
-                                factor,
-                                fail_msg);
+        bool rc = compile_internal(port_id,
+                                   streams,
+                                   indirect_objs,
+                                   indirect_core_count,
+                                   factor,
+                                   fail_msg);
+        if (!rc) {
+            return rc;
+        }
 
     } catch (const TrexException &ex) {
         if (fail_msg) {
@@ -398,6 +408,21 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
         return false;
     }
 
+    /* prepare the result */
+    objs.resize(core_mask.get_total_count());
+    for (int i = 0; i < core_mask.get_total_count(); i++) {
+        objs.push_back(NULL);
+    }
+
+    uint8_t index = 0;
+    for (uint8_t active_core_id : core_mask.get_active_cores()) {
+        if (indirect_objs[index] == NULL) {
+            break;
+        }
+        objs[active_core_id] = indirect_objs[index++];
+    }
+
+    return true;
 }
 
 bool 
@@ -471,12 +496,7 @@ TrexStreamsCompiler::compile_on_single_core(uint8_t                             
     /* allocate object only for core 0 */
     TrexStreamsCompiledObj *obj = new TrexStreamsCompiledObj(port_id);
     obj->m_all_continues = all_continues;
-    objs.push_back(obj);
-
-    /* put NULL for the rest */
-    for (uint8_t i = 1; i < dp_core_count; i++) {
-        objs.push_back(NULL);
-    }
+    objs[0] = obj;
 
      /* compile all the streams */
     for (auto const stream : streams) {
@@ -508,7 +528,7 @@ TrexStreamsCompiler::compile_on_all_cores(uint8_t                               
     for (uint8_t i = 0; i < dp_core_count; i++) {
         TrexStreamsCompiledObj *obj = new TrexStreamsCompiledObj(port_id);
         obj->m_all_continues = all_continues;
-        objs.push_back(obj);
+        objs[i] = obj;
     }
 
     /* compile all the streams */

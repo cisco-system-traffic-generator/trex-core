@@ -241,7 +241,7 @@ TrexStatelessPort::release(void) {
  * 
  */
 void
-TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration, bool force) {
+TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration, bool force, uint64_t core_mask) {
 
     /* command allowed only on state stream */
     verify_state(PORT_STATE_STREAMS);
@@ -262,10 +262,12 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     std::string fail_msg;
 
     TrexStreamsCompiler compiler;
+    TrexDPCoreMask mask(get_dp_core_count(), core_mask);
+
     bool rc = compiler.compile(m_port_id,
                                feeder.get_streams(),
                                compiled_objs,
-                               get_dp_core_count(),
+                               mask,
                                factor,
                                &fail_msg);
 
@@ -282,7 +284,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
 
     /* update object status */
     m_factor = factor;
-    m_last_all_streams_continues = compiled_objs[0]->get_all_streams_continues();
+    m_last_all_streams_continues = compiled_objs[mask.get_active_cores()[0]]->get_all_streams_continues();
     m_last_duration = duration;
 
     change_state(PORT_STATE_TX);
@@ -484,7 +486,7 @@ TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
     }
 
     TrexStatelessCpToDpMsgBase *update_msg = new TrexStatelessDpUpdate(m_port_id, factor);
-    send_message_to_all_dp(update_msg);
+    send_message_to_all_dp(update_msg, true);
 
     m_factor *= factor;
 
@@ -820,13 +822,17 @@ TrexStatelessPort::validate(void) {
     }
 
     TrexStreamsCompiler compiler;
+
+    /* TODO: think of this mask...*/
+    TrexDPCoreMask core_mask(get_dp_core_count(), TrexDPCoreMask::MASK_ALL);
+
     std::vector<TrexStreamsCompiledObj *> compiled_objs;
 
     std::string fail_msg;
     bool rc = compiler.compile(m_port_id,
                                streams,
                                compiled_objs,
-                               get_dp_core_count(),
+                               core_mask,
                                1.0,
                                &fail_msg);
     if (!rc) {

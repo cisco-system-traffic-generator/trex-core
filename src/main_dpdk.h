@@ -55,13 +55,7 @@ class CPhyEthIF  {
         m_port_id=0;
         m_rx_queue=0;
     }
-    bool Create(uint8_t portid){
-        m_port_id      = portid;
-        m_last_rx_rate = 0.0;
-        m_last_tx_rate = 0.0;
-        m_last_tx_pps  = 0.0;
-        return (true);
-    }
+    bool Create(uint8_t portid);
     void Delete();
 
     void set_rx_queue(uint8_t rx_queue){
@@ -156,6 +150,9 @@ class CPhyEthIF  {
         return m_port_id;
     }
     int get_rx_stat_capabilities();
+
+    const std::vector<std::pair<uint8_t, uint8_t>> & get_core_list();
+
  private:
     uint8_t                  m_port_id;
     uint8_t                  m_rx_queue;
@@ -171,6 +168,10 @@ class CPhyEthIF  {
     float                    m_last_rx_rate;
     float                    m_last_tx_pps;
     float                    m_last_rx_pps;
+
+    /* holds the core ID list for this port - (core, dir) list*/
+    std::vector<std::pair<uint8_t, uint8_t>> m_core_id_list;
+
  public:
     struct rte_eth_dev_info  m_dev_info;
 };

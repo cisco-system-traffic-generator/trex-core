@@ -100,7 +100,7 @@ class Port(object):
 
     # decorator to check server is readable (port not down and etc.)
     def writeable(func):
-        def func_wrapper(*args):
+        def func_wrapper(*args, **kwargs):
             port = args[0]
 
             if not port.is_up():
@@ -112,7 +112,7 @@ class Port(object):
             if not port.is_writeable():
                 return port.err("{0} - port is not in a writeable state".format(func.__name__))
 
-            return func(*args)
+            return func(*args, **kwargs)
 
         return func_wrapper
 
@@ -396,16 +396,17 @@ class Port(object):
 
 
     @writeable
-    def start (self, mul, duration, force):
+    def start (self, mul, duration, force, mask):
 
         if self.state == self.STATE_IDLE:
             return self.err("unable to start traffic - no streams attached to port")
 
-        params = {"handler":  self.handler,
-                  "port_id":  self.port_id,
-                  "mul":      mul,
-                  "duration": duration,
-                  "force":    force}
+        params = {"handler":    self.handler,
+                  "port_id":    self.port_id,
+                  "mul":        mul,
+                  "duration":   duration,
+                  "force":      force,
+                  "core_mask":  mask if mask is not None else ((1 << 64) - 1)}
    
         # must set this before to avoid race with the async response
         last_state = self.state

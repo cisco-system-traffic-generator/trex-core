@@ -83,8 +83,12 @@ public:
 
     bool update_number_of_active_streams(uint32_t d);
 
-    state_e get_state() {
+    state_e get_state() const {
         return m_state;
+    }
+
+    bool is_active() const {
+        return (get_state() != ppSTATE_IDLE);
     }
 
     void set_event_id(int event_id) {
@@ -260,6 +264,11 @@ public:
         
     /* simply sends a message back (acts as a barrier for previous messages) */
     void barrier(uint8_t port_id, int event_id);
+
+    bool is_port_active(uint8_t port_id) {
+        return get_port_db(port_id)->is_active();
+    }
+
 
 private:
 

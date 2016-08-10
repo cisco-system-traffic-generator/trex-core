@@ -121,7 +121,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetStream, "get_stream", 3, false, APIClass::API_C
 
 
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic,    "start_traffic",     4, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdStartTraffic,    "start_traffic",     5, true, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdStopTraffic,     "stop_traffic",      1, true, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdRemoveRXFilters, "remove_rx_filters", 1, true, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdPauseTraffic,    "pause_traffic",     1, true, APIClass::API_CLASS_TYPE_CORE);

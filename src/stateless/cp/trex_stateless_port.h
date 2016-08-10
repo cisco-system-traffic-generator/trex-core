@@ -178,7 +178,7 @@ public:
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(const TrexPortMultiplier &mul, double duration, bool force = false);
+    void start_traffic(const TrexPortMultiplier &mul, double duration, bool force = false, uint64_t core_mask = UINT64_MAX);
 
     /**
      * stop traffic
@@ -376,11 +376,12 @@ public:
 
     void get_pci_info(std::string &pci_addr, int &numa_node);
 
+
 private:
 
     bool is_core_active(int core_id);
 
-    const std::vector<int> get_core_id_list () {
+    const std::vector<uint8_t> get_core_id_list () {
         return m_cores_id_list;
     }
 
@@ -446,7 +447,7 @@ private:
     uint16_t           m_rx_caps;
 
     /* holds the DP cores associated with this port */
-    std::vector<int>   m_cores_id_list;
+    std::vector<uint8_t>   m_cores_id_list;
 
     bool               m_last_all_streams_continues;
     double             m_last_duration;

@@ -453,6 +453,10 @@ class CCommLink(object):
 class STLClient(object):
     """TRex Stateless client object - gives operations per TRex/user"""
 
+    # different modes for attaching traffic to ports
+    CORE_MASK_SPLIT = 1
+    CORE_MASK_PIN   = 2
+
     def __init__(self,
                  username = common.get_current_user(),
                  server = "localhost",
@@ -675,14 +679,31 @@ class STLClient(object):
         return self.ports[port_id].get_stream_id_list()
 
 
-    def __start (self, multiplier, duration, port_id_list = None, force = False):
+    def __start (self,
+                 multiplier,
+                 duration,
+                 port_id_list,
+                 force,
+                 core_mask):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
+        ports_mask = {}
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].start(multiplier, duration, force))
+            # a pin mode was requested and we have
+            # the second port from the group in the start list
+            if (core_mask == self.CORE_MASK_PIN) and ( (port_id ^ 0x1) in port_id_list ):
+                ports_mask[port_id] = 0x55555555 if( port_id % 2) == 0 else 0xAAAAAAAA
+            else:
+                ports_mask[port_id] = None
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].start(multiplier,
+                                             duration,
+                                             force,
+                                             ports_mask[port_id]))
 
         return rc
 
@@ -800,13 +821,14 @@ class STLClient(object):
 
         self.server_version = rc.data()
         self.global_stats.server_version = rc.data()
-
+        
         # cache system info
         rc = self._transmit("get_system_info")
         if not rc:
             return rc
 
         self.system_info = rc.data()
+        self.global_stats.system_info = rc.data()
 
         # cache supported commands
         rc = self._transmit("get_supported_cmds")
@@ -1901,7 +1923,8 @@ class STLClient(object):
                mult = "1",
                force = False,
                duration = -1,
-               total = False):
+               total = False,
+               core_mask = CORE_MASK_SPLIT):
         """
             Start traffic on port(s)
 
@@ -1927,6 +1950,12 @@ class STLClient(object):
                     True: Divide bandwidth among the ports
                     False: Duplicate
 
+                core_mask: CORE_MASK_SPLIT, CORE_MASK_PIN
+                    Determine the allocation of cores per port
+                    In CORE_MASK_SPLIT all the traffic will be divided equally between all the cores
+                    associated with each port
+                    In CORE_MASK_PIN, for each dual ports (a group that shares the same cores)
+                    the cores will be divided half pinned for each port
 
             :raises:
                 + :exc:`STLError`
@@ -1964,7 +1993,7 @@ class STLClient(object):
 
         # start traffic
         self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(ports))
-        rc = self.__start(mult_obj, duration, ports, force)
+        rc = self.__start(mult_obj, duration, ports, force, core_mask)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -2647,7 +2676,8 @@ class STLClient(object):
                                          parsing_opts.DURATION,
                                          parsing_opts.TUNABLES,
                                          parsing_opts.MULTIPLIER_STRICT,
-                                         parsing_opts.DRY_RUN)
+                                         parsing_opts.DRY_RUN,
+                                         parsing_opts.PIN_CORES)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
@@ -2712,7 +2742,8 @@ class STLClient(object):
                        opts.mult,
                        opts.force,
                        opts.duration,
-                       opts.total)
+                       opts.total,
+                       core_mask = self.CORE_MASK_PIN if opts.pin_cores else self.CORE_MASK_SPLIT)
 
         return RC_OK()
 

@@ -62,10 +62,10 @@ uint8_t CCpuUtlCp::GetValRaw(){
 }
 
 /* get cpu % utilization history */
-void CCpuUtlCp::GetHistory(cpu_vct_t &cpu_vct){
-    cpu_vct.clear();
+void CCpuUtlCp::GetHistory(cpu_vct_st &cpu_vct){
+    cpu_vct.m_history.clear();
     for (int i = m_history_latest_index + m_history_size; i > m_history_latest_index; i--) {
-        cpu_vct.push_back(m_cpu_util[i % m_history_size]);
+        cpu_vct.m_history.push_back(m_cpu_util[i % m_history_size]);
     }
 }
 

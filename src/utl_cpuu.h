@@ -59,7 +59,7 @@ public:
     /* return cpu % */
     double GetVal();
     uint8_t GetValRaw();
-    void GetHistory(cpu_vct_t &cpu_vct);
+    void GetHistory(cpu_vct_st &cpu_vct);
 private:
     void AppendHistory(uint8_t);
     CCpuUtlDp *         m_dpcpu;

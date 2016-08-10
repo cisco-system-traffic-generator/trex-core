@@ -123,20 +123,37 @@ public:
 ************************/
 
 SimStateless::SimStateless() {
-    m_publisher         = NULL;
-    m_dp_to_cp_handler  = NULL;
-    m_verbose           = false;
-    m_dp_core_count     = -1;
-    m_dp_core_index     = -1;
-    m_port_count        = -1;
-    m_limit             = 0;
-    m_is_dry_run        = false;
+    m_publisher                   = NULL;
+    m_dp_to_cp_handler            = NULL;
+    m_verbose                     = false;
+    m_dp_core_count               = -1;
+    m_dp_core_index               = -1;
+    m_port_count                  = -1;
+    m_limit                       = 0;
+    m_is_dry_run                  = false;
 
     /* override ownership checks */
     TrexRpcCommand::test_set_override_ownership(true);
     TrexRpcCommand::test_set_override_api(true);
 }
 
+
+/**
+ * on the simulation we first construct CP and then DP 
+ * the only way to "assume" which DP will be active during 
+ * the run is by checking for pending CP messages on the cores 
+ * 
+ * @author imarom (8/10/2016)
+ */
+void
+SimStateless::find_active_dp_cores() {
+    for (int core_index = 0; core_index < m_dp_core_count; core_index++) {
+        CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
+        if (lpt->are_any_pending_cp_messages()) {
+            m_active_dp_cores.push_back(core_index);
+        }
+    }
+}
 
 int
 SimStateless::run(const string &json_filename,
@@ -167,6 +184,8 @@ SimStateless::run(const string &json_filename,
         std::cout << "*** test failed ***\n\n" << e.what() << "\n";
         return (-1);
     }
+
+    find_active_dp_cores();
 
     run_dp(out_filename);
 
@@ -353,14 +372,14 @@ SimStateless::run_dp(const std::string &out_filename) {
     show_intro(out_filename);
 
     if (is_multiple_capture()) {
-        for (int i = 0; i < m_dp_core_count; i++) {
+        for (int i : m_active_dp_cores) {
             std::stringstream ss;
             ss << out_filename << "-" << i;
             run_dp_core(i, ss.str(), core_stats, total);
         }
 
     } else {
-        for (int i = 0; i < m_dp_core_count; i++) {
+        for (int i : m_active_dp_cores) {
             run_dp_core(i, out_filename, core_stats, total);
         }
     }
@@ -414,9 +433,9 @@ SimStateless::get_limit_per_core(int core_index) {
     if (m_limit == 0) {
         return (0);
     } else {
-        uint64_t l = std::max((uint64_t)1, m_limit / m_dp_core_count);
-        if (core_index == 0) {
-            l += (m_limit % m_dp_core_count);
+        uint64_t l = std::max((uint64_t)1, m_limit / m_active_dp_cores.size());
+        if (core_index == m_active_dp_cores[0]) {
+            l += (m_limit % m_active_dp_cores.size());
         }
         return l;
     }

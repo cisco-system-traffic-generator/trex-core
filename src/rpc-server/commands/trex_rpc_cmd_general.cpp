@@ -199,10 +199,18 @@ TrexRpcCmdGetUtilization::_run(const Json::Value &params, Json::Value &result) {
     }
 
     for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
-        for (int history_id = 0; history_id < cpu_util_full[thread_id].size(); history_id++) {
-            section["cpu"][thread_id].append(cpu_util_full[thread_id][history_id]);
+
+        /* history */
+        for (int history_id = 0; history_id < cpu_util_full[thread_id].m_history.size(); history_id++) {
+            section["cpu"][thread_id]["history"].append(cpu_util_full[thread_id].m_history[history_id]);
         }
+
+        /* ports */
+        section["cpu"][thread_id]["ports"] = Json::arrayValue;
+        section["cpu"][thread_id]["ports"].append(cpu_util_full[thread_id].m_port1);
+        section["cpu"][thread_id]["ports"].append(cpu_util_full[thread_id].m_port2);
     }
+    
     return (TREX_RPC_CMD_OK);
 }
 
@@ -270,6 +278,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
     /* FIXME: core count */
     section["dp_core_count"] = main->get_dp_core_count();
+    section["dp_core_count_per_port"] = main->get_dp_core_count() / (main->get_port_count() / 2);
     section["core_type"] = get_cpu_model();
 
     /* ports */

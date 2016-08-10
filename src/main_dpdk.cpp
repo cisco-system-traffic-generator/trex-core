@@ -1316,6 +1316,8 @@ int CPhyEthIF::get_rx_stat_capabilities() {
     return get_ex_drv()->get_rx_stat_capabilities();
 }
 
+
+
 void CPhyEthIF::configure(uint16_t nb_rx_queue,
                           uint16_t nb_tx_queue,
                           const struct rte_eth_conf *eth_conf){
@@ -2436,6 +2438,8 @@ public:
 
     float     m_total_rx_bps;
     float     m_total_rx_pps;
+
+    float     m_cpu_util;
 };
 
 class CGlobalStats {
@@ -2601,6 +2605,7 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
         json+=GET_FIELD_PORT(i,m_total_tx_pps);
         json+=GET_FIELD_PORT(i,m_total_rx_bps);
         json+=GET_FIELD_PORT(i,m_total_rx_pps);
+        json+=GET_FIELD_PORT(i,m_cpu_util);
     }
     json+=m_template.dump_as_json("template");
     json+="\"unknown\":0}}"  ;
@@ -2906,6 +2911,7 @@ public:
     tx_per_flow_t get_flow_tx_stats(uint8_t port, uint16_t hw_id);
     tx_per_flow_t clear_flow_tx_stats(uint8_t port, uint16_t index, bool is_lat);
     void get_stats(CGlobalStats & stats);
+    float get_cpu_util_per_interface(uint8_t port_id);
     void dump_post_test_stats(FILE *fd);
     void dump_config(FILE *fd);
     void dump_links_status(FILE *fd);
@@ -3744,6 +3750,9 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         for (uint16_t flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS + max_stat_hw_id_seen_payload; flow++) {
             stats.m_port[i].m_tx_per_flow[flow].clear();
         }
+
+        stp->m_cpu_util = get_cpu_util_per_interface(i);
+
     }
 
     uint64_t total_open_flows=0;
@@ -3856,6 +3865,25 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     stats.m_tx_expected_cps        = m_expected_cps*pf;
     stats.m_tx_expected_pps        = m_expected_pps*pf;
     stats.m_tx_expected_bps        = m_expected_bps*pf;
+}
+
+float
+CGlobalTRex::get_cpu_util_per_interface(uint8_t port_id) {
+    CPhyEthIF * _if = &m_ports[port_id];
+
+    float    tmp = 0;
+    uint8_t  cnt = 0;
+    for (const auto &p : _if->get_core_list()) {
+        uint8_t core_id = p.first;
+        CFlowGenListPerThread *lp = m_fl.m_threads_info[core_id];
+        if (lp->is_port_active(port_id)) {
+            tmp += lp->m_cpu_cp_u.GetVal();
+            cnt++;
+        }
+    }
+
+    return ( (cnt > 0) ? (tmp / cnt) : 0);
+
 }
 
 bool CGlobalTRex::sanity_check(){
@@ -4441,6 +4469,36 @@ int CGlobalTRex::start_master_statefull() {
 
 ////////////////////////////////////////////
 static CGlobalTRex g_trex;
+
+bool CPhyEthIF::Create(uint8_t portid) {
+    m_port_id      = portid;
+    m_last_rx_rate = 0.0;
+    m_last_tx_rate = 0.0;
+    m_last_tx_pps  = 0.0;
+
+    return true;
+}
+
+const std::vector<std::pair<uint8_t, uint8_t>> &
+CPhyEthIF::get_core_list() {
+
+    /* lazy find */
+    if (m_core_id_list.size() == 0) {
+
+        for (uint8_t core_id = 0; core_id < g_trex.get_cores_tx(); core_id++) {
+
+            /* iterate over all the directions*/
+            for (uint8_t dir = 0 ; dir < CS_NUM; dir++) {
+                if (g_trex.m_cores_vif[core_id + 1]->get_ports()[dir].m_port->get_port_id() == m_port_id) {
+                    m_core_id_list.push_back(std::make_pair(core_id, dir));
+                }
+            }
+        }
+    }
+
+    return m_core_id_list;
+
+}
 
 int CPhyEthIF::reset_hw_flow_stats() {
     if (get_ex_drv()->hw_rx_stat_supported()) {
@@ -6015,25 +6073,17 @@ TrexDpdkPlatformApi::get_interface_stats(uint8_t interface_id, TrexPlatformInter
 
 uint8_t
 TrexDpdkPlatformApi::get_dp_core_count() const {
-    return CGlobalInfo::m_options.preview.getCores();
+    return CGlobalInfo::m_options.get_number_of_dp_cores_needed();
 }
 
 
 void
 TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
 
-    cores_id_list.clear();
+    CPhyEthIF *lpt = &g_trex.m_ports[port_id];
 
-    /* iterate over all DP cores */
-    for (uint8_t core_id = 0; core_id < g_trex.get_cores_tx(); core_id++) {
-
-        /* iterate over all the directions*/
-        for (uint8_t dir = 0 ; dir < CS_NUM; dir++) {
-            if (g_trex.m_cores_vif[core_id + 1]->get_ports()[dir].m_port->get_port_id() == port_id) {
-                cores_id_list.push_back(std::make_pair(core_id, dir));
-            }
-        }
-    }
+    /* copy data from the interface */
+    cores_id_list = lpt->get_core_list();
 }
 
 void
@@ -6133,10 +6183,23 @@ int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
 }
 
 int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const {
+    uint8_t p1;
+    uint8_t p2;
+
     cpu_util_full.resize((int)g_trex.m_fl.m_threads_info.size());
     for (int thread_id=0; thread_id<(int)g_trex.m_fl.m_threads_info.size(); thread_id++) {
-        CFlowGenListPerThread * lp=g_trex.m_fl.m_threads_info[thread_id];
-        lp->m_cpu_cp_u.GetHistory(cpu_util_full[thread_id]);
+
+        /* history */
+        CFlowGenListPerThread *lp = g_trex.m_fl.m_threads_info[thread_id];
+        cpu_vct_st &per_cpu = cpu_util_full[thread_id];
+        lp->m_cpu_cp_u.GetHistory(per_cpu);
+
+
+        /* active ports */
+        lp->get_port_ids(p1, p2);
+        per_cpu.m_port1 = (lp->is_port_active(p1) ? p1 : -1);
+        per_cpu.m_port2 = (lp->is_port_active(p2) ? p2 : -1);
+
     }
     return 0;
 }
@@ -6158,3 +6221,4 @@ CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
 void TrexDpdkPlatformApi::mark_for_shutdown() const {
     g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
 }
+
