@@ -36,6 +36,8 @@ class Scapy_wrapper:
                     req_id = req['id']
                 raise InvalidRequest(req_id)
             req_id = req['id']
+            if (req['method']=='shut_down'):
+                return 'shut_down',[],req_id
             if not (self.scapy_master.supported_methods(req['method'])):
                 raise MethodNotFound(req_id)
             scapy_method = eval("self.scapy_master."+req['method'])
@@ -94,14 +96,24 @@ class Scapy_wrapper:
         finally:
             return response
 
+#arg1 is port number for the server to listen to
+def main(arg1=4507):
+    s = Scapy_server(arg1)
+    s.activate()
+
+if __name__=='__main__':
+    if len(sys.argv)>1:
+        parser = ArgumentParser(description=' Runs Scapy Server ')
+        parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
+                            help='Select port to which Scapy Server will listen to.\n default is 4507\n',action='store')
+        args = parser.parse_args()
+        port = args.scapy_port
+        sys.exit(main(port))
+    else:
+        sys.exit(main())
 
 
-parser = ArgumentParser(description=' Runs Scapy Server ')
-parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
-                    help='Select port to which Scapy Server will listen to.\n default is 4507\n',action='store')
-args = parser.parse_args()
 
-port = args.scapy_port
 
 class Scapy_server():
     def __init__(self, port=4507):
@@ -120,7 +132,11 @@ class Scapy_server():
                 message = self.socket.recv()
                 try:
                     method,params,req_id = self.scapy_wrapper.parse_req_msg(message)
-                    result = self.scapy_wrapper.execute(method,params)
+                    if (method == 'shut_down'):
+                        print 'Shut down by remote user'
+                        result = 'Server shut down command received - server has shut down'
+                    else:
+                        result = self.scapy_wrapper.execute(method,params)
                     response = self.scapy_wrapper.create_success_response(result,req_id)
                 except Exception as e:
                     exception_details = self.scapy_wrapper.get_exception()
@@ -129,20 +145,16 @@ class Scapy_server():
                     json_response = json.dumps(response)
                 #  Send reply back to client
                     self.socket.send(json_response)
+                    if (method =='shut_down'):
+                        break
+
         except KeyboardInterrupt:
                 print('Terminated By Ctrl+C')
 
+        finally:
+            self.socket.close()
+            self.context.destroy()
 
-#s = Scapy_server(port)
-#s.activate()
 
-#arg1 is port number for the server to listen to
-def main(arg1=4507):
-    s = Scapy_server(arg1)
-    s.activate()
 
-if __name__=='__main__':
-    if len(sys.argv)>1:
-        sys.exit(main(int(sys.argv[2])))
-    else:
-        sys.exit(main())
+
