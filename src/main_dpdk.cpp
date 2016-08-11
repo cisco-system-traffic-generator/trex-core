@@ -5573,8 +5573,9 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
     memset(&filter,0,sizeof(struct rte_eth_fdir_filter));
 
 #if 0
-    printf("40g::%s rules: port:%d, type:%d ttl:%d, ip_id:%x, q:%d hw index:%d\n", (op == RTE_ETH_FILTER_ADD) ?  "add" : "del"
-           , port_id, type, ttl, ip_id, queue, stat_idx);
+    printf("40g::%s rules: port:%d type:%d ttl:%d ip_id:%x l4:%d q:%d hw index:%d\n"
+           , (op == RTE_ETH_FILTER_ADD) ?  "add" : "del"
+           , port_id, type, ttl, ip_id, l4_proto, queue, stat_idx);
 #endif
 
     filter.action.rx_queue = queue;
@@ -5604,8 +5605,7 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
     case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
         filter.input.flow.ipv6_flow.hop_limits=ttl;
         filter.input.flow.ipv6_flow.flow_label = ip_id;
-        if (l4_proto != 0)
-            filter.input.flow.ipv6_flow.proto = l4_proto;
+        filter.input.flow.ipv6_flow.proto = l4_proto;
         break;
     }
 

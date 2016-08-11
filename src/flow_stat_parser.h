@@ -77,6 +77,8 @@ class CFlowStatParser {
                           , uint32_t ip_id, uint16_t flags, int &pkt_size);
 
  protected:
+    uint8_t *m_start;
+    uint16_t m_len;
     IPHeader *m_ipv4;
     IPv6Header *m_ipv6;
     uint8_t *m_l4;
