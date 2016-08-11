@@ -223,8 +223,8 @@ class Scapy_service:
         current_db_md5 = self.get_md5(db)
         current_field_md5 = self.get_md5(fields)
         res = []
-        if field_md5 == current_field_md5:
-            if db_md5 == current_db_md5:
+        if (field_md5.decode("base64") == current_field_md5.decode("base64")):
+            if (db_md5.decode("base64") == current_db_md5.decode("base64")):
                 return True
             else:
                 raise ScapyException("Protocol DB is not up to date")
