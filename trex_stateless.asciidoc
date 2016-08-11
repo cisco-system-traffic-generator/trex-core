@@ -2718,7 +2718,7 @@ trex>
 ** The IPv4 identification  (or IPv6 flow label in case of IPv6 packet) field of the stream is changed to a value within the reserved range 0xff00 to 0xffff (0xff00 to 0xfffff in case of IPv6). Note that if a stream for which no statistics are needed has an IPv4 Id (or IPv6 flow label) in the reserved range, it is changed (the left bit becomes 0).
 ** Software implementation: Hardware rules are used to direct packets from relevant streams to rx thread, where they are counted. 
 ** Hardware implementation: Hardware rules are inserted to count packets from relevant streams.
-* Summed up statistics (per stream, per port) are sent using a link:http://zguide.zeromq.org/[ZMQ] async channel to clients.
+* Summed up statistics (per stream, per port) is sent using a link:http://zguide.zeromq.org/[ZMQ] async channel to clients.
 
 *Limitations*::
 
@@ -2727,10 +2727,6 @@ trex>
 ** IPv4 with one VLAN tag (except 82599 which does not support this type of packet)
 ** IPv6 over Ethernet (except 82599 which does not support this type of packet)
 ** IPv6 with one VLAN tag (except 82599 which does not support this type of packet)
-[NOTE]
-=====================================
-X710 support for IPv6 for this feature is not available yet. Will be added soon. Latency for X710 (next section) is supported.
-=====================================
 
 * Maximum number of concurrent streams (with different pg_id) on which statistics may be collected: 127
 
@@ -2903,7 +2899,7 @@ in the "Per stream statistics" section is also available.
   the rate of a latency stream, you need to manually edit your profile file. Usually this is not necessary, since normally you stress the system using non latency stream, and (in parallel) measure latency 
   using constant rate latency stream.
 
-Two examples follow, one using the console and the other using the Python API.
+Two examples follow. One using the console and the other using the Python API.
 
 *Console*::
 
