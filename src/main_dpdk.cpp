@@ -155,6 +155,7 @@ public:
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) { return -1;}
     virtual int get_stat_counters_num() {return 0;}
     virtual int get_rx_stat_capabilities() {return 0;}
+    virtual int verify_fw_ver(int i) {return 0;}
     virtual CFlowStatParser *get_flow_stat_parser();
 };
 
@@ -341,6 +342,7 @@ public:
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
     virtual bool flow_control_disable_supported(){return false;}
     virtual bool hw_rx_stat_supported(){return true;}
+    virtual int verify_fw_ver(int i);
     virtual CFlowStatParser *get_flow_stat_parser();
 
 private:
@@ -3487,6 +3489,14 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 
     CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
 
+    // check if firmware version is new enough
+    for (i = 0; i < m_max_ports; i++) {
+        if (CTRexExtendedDriverDb::Ins()->get_drv()->verify_fw_ver(i) < 0) {
+            // error message printed by verify_fw_ver
+            exit(1);
+        }
+    }
+
     m_port_cfg.update_var();
 
     if ( get_is_rx_filter_enable() ){
@@ -5810,6 +5820,30 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
     wait_x_sec(1 + CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
+}
+
+extern "C" int rte_eth_get_fw_ver(int port, uint32_t *ver);
+
+int CTRexExtendedDriverBase40G::verify_fw_ver(int port_id) {
+    uint32_t version;
+    int ret;
+
+    ret = rte_eth_get_fw_ver(port_id, &version);
+
+    if (ret == 0) {
+        printf("port %d: FW ver %02d.%02d.%02d\n", port_id, ((version >> 12) & 0xf), ((version >> 4) & 0xff)
+               ,(version & 0xf));
+
+        if ((((version >> 12) & 0xf) < 5)  || ((((version >> 12) & 0xf) == 5) && ((version >> 4 & 0xff) == 0)
+                                               && ((version & 0xf) < 4))) {
+            printf("Error: In this TRex version, X710 firmware must be at least 05.00.04\n");
+            printf("  Please refer to %s for upgrade instructions\n",
+                   "https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_firmware_update_to_xl710_x710");
+            exit(1);
+        }
+    }
+
+    return ret;
 }
 
 CFlowStatParser *CTRexExtendedDriverBase40G::get_flow_stat_parser() {

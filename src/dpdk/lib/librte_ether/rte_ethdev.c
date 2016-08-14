@@ -1514,6 +1514,20 @@ rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32_t start, uint3
     return 0;
 }
 
+// TREX_PATCH
+int
+rte_eth_get_fw_ver(int port_id, uint32_t *version)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+
+    // Only xl710 support this
+    return i40e_trex_get_fw_ver(dev, version);
+}
+
 int
 rte_eth_stats_get(uint8_t port_id, struct rte_eth_stats *stats)
 {

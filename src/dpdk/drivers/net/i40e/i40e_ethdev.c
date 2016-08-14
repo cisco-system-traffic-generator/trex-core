@@ -2404,6 +2404,16 @@ i40e_trex_fdir_stats_reset(struct rte_eth_dev *dev, uint32_t *stats, uint32_t st
     }
 }
 
+// TREX_PATCH
+int
+i40e_trex_get_fw_ver(struct rte_eth_dev *dev, uint32_t *nvm_ver)
+{
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    *nvm_ver = hw->nvm.version;
+    return 0;
+}
+
 /* Get all statistics of a port */
 static void
 i40e_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
