@@ -367,6 +367,8 @@ public:
         return (false);
     }
 
+    virtual int verify_fw_ver(int i) {return 0;}
+
     bool flow_control_disable_supported(){return false;}
 
     virtual void update_configuration(port_cfg_t * cfg);
