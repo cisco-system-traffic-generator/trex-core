@@ -511,6 +511,7 @@ class ScreenBuffer():
     # redraw the next screen
     def __redraw (self):
         buffer = StringIO()
+
         self.redraw_cb(buffer)
 
         with self.lock:
@@ -538,14 +539,18 @@ class TrexTUI():
                                                                                                     rows)
             super(TrexTUI.ScreenSizeException, self).__init__(msg)
 
+
     def __init__ (self, stateless_client):
         self.stateless_client = stateless_client
 
+        self.tui_global_lock = threading.Lock()
         self.pm = TrexTUIPanelManager(self)
         self.sb = ScreenBuffer(self.redraw_handler)
 
     def redraw_handler (self, buffer):
-        self.pm.show(show_legend = self.async_keys.is_legend_mode(), buffer = buffer)
+        # this is executed by the screen buffer - should be protected against TUI commands
+        with self.tui_global_lock:
+            self.pm.show(show_legend = self.async_keys.is_legend_mode(), buffer = buffer)
 
     def clear_screen (self, lines = 50):
         # reposition the cursor
@@ -560,7 +565,6 @@ class TrexTUI():
         # reposition the cursor
         sys.stdout.write("\x1b[0;0H")
 
-        #sys.stdout.write("\x1b[2J\x1b[H")
 
 
     def show (self, client, save_console_history, show_log = False, locked = False):
@@ -569,7 +573,7 @@ class TrexTUI():
         if (int(rows) < TrexTUI.MIN_ROWS) or (int(cols) < TrexTUI.MIN_COLS):
             raise self.ScreenSizeException(rows = rows, cols = cols)
 
-        with AsyncKeys(client, save_console_history, locked) as async_keys:
+        with AsyncKeys(client, save_console_history, self.tui_global_lock, locked) as async_keys:
             sys.stdout.write("\x1bc")
             self.async_keys = async_keys
             self.show_internal(show_log, locked)
@@ -583,7 +587,6 @@ class TrexTUI():
         self.state = self.STATE_ACTIVE
         self.last_redraw_ts = 0
 
-        
         try:
             self.sb.start()
 
@@ -597,32 +600,10 @@ class TrexTUI():
                 if status == AsyncKeys.STATUS_NONE:
                     time.sleep(0.001)
 
-                # regular state
-                if self.state == self.STATE_ACTIVE:
-                    # if no connectivity - move to lost connecitivty
-                    if not self.stateless_client.async_client.is_alive():
-                        self.stateless_client._invalidate_stats(self.pm.ports)
-                        self.state = self.STATE_LOST_CONT
-
-
-                # lost connectivity
-                elif self.state == self.STATE_LOST_CONT:
-                    # got it back
-                    if self.stateless_client.async_client.is_alive():
-                        # move to state reconnect
-                        self.state = self.STATE_RECONNECT
-
-
-                # restored connectivity - try to reconnect
-                elif self.state == self.STATE_RECONNECT:
-
-                    try:
-                        self.stateless_client.connect()
-                        self.stateless_client.acquire()
-                        self.state = self.STATE_ACTIVE
-                    except STLError:
-                        self.state = self.STATE_LOST_CONT
-
+                if self.tui_global_lock.locked():
+                    self.x += 1
+                with self.tui_global_lock:
+                    self.handle_state_machine()
 
         except TUIQuit:
             print("\nExiting TUI...")
@@ -631,6 +612,35 @@ class TrexTUI():
             self.sb.stop()
 
         print("")
+
+
+    # handle state machine
+    def handle_state_machine (self):
+       # regular state
+        if self.state == self.STATE_ACTIVE:
+            # if no connectivity - move to lost connecitivty
+            if not self.stateless_client.async_client.is_alive():
+                self.stateless_client._invalidate_stats(self.pm.ports)
+                self.state = self.STATE_LOST_CONT
+
+
+        # lost connectivity
+        elif self.state == self.STATE_LOST_CONT:
+            # got it back
+            if self.stateless_client.async_client.is_alive():
+                # move to state reconnect
+                self.state = self.STATE_RECONNECT
+
+
+        # restored connectivity - try to reconnect
+        elif self.state == self.STATE_RECONNECT:
+
+            try:
+                self.stateless_client.connect()
+                self.stateless_client.acquire()
+                self.state = self.STATE_ACTIVE
+            except STLError:
+                self.state = self.STATE_LOST_CONT
 
 
     # draw once
@@ -681,7 +691,9 @@ class AsyncKeys:
     STATUS_REDRAW_KEYS = 1
     STATUS_REDRAW_ALL  = 2
 
-    def __init__ (self, client, save_console_history, locked = False):
+    def __init__ (self, client, save_console_history, tui_global_lock, locked = False):
+        self.tui_global_lock = tui_global_lock
+
         self.engine_console = AsyncKeysEngineConsole(self, client, save_console_history)
         self.engine_legend  = AsyncKeysEngineLegend(self)
         self.locked = locked
@@ -880,7 +892,6 @@ class AsyncKeysEngineConsole:
 
     
     def handle_single_key (self, ch):
-
         # newline
         if ch == '\n':
             self.handle_cmd()
@@ -997,6 +1008,7 @@ class AsyncKeysEngineConsole:
 
 
     def handle_cmd (self):
+
         cmd = self.lines[self.line_index].get().strip()
         if not cmd:
             return
@@ -1005,7 +1017,8 @@ class AsyncKeysEngineConsole:
         
         func = self.ac.get(op)
         if func:
-            func_rc = func(param)
+            with self.async.tui_global_lock:
+                func_rc = func(param)
 
         # take out the empty line
         empty_line = self.lines.popleft()
@@ -1038,7 +1051,6 @@ class AsyncKeysEngineConsole:
                 # success
                 if func_rc:
                     self.last_status = format_text("[OK]", 'green')
-
                 # errors
                 else:
                     err_msgs = ascii_split(str(func_rc))
@@ -1046,6 +1058,8 @@ class AsyncKeysEngineConsole:
                     if len(err_msgs) > 1:
                         self.last_status += " [{0} more errors messages]".format(len(err_msgs) - 1)
                     color = 'red'
+
+
 
         # trim too long lines
         if ansi_len(self.last_status) > TrexTUI.MIN_COLS:

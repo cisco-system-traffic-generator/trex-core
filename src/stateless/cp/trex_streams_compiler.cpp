@@ -375,7 +375,7 @@ bool
 TrexStreamsCompiler::compile(uint8_t                                port_id,
                              const std::vector<TrexStream *>        &streams,
                              std::vector<TrexStreamsCompiledObj *>  &objs,
-                             TrexDPCoreMask                         &core_mask,
+                             const TrexDPCoreMask                   &core_mask,
                              double                                 factor,
                              std::string                            *fail_msg) {
 

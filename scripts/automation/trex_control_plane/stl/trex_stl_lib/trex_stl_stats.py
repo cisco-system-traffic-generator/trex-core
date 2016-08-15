@@ -1420,6 +1420,7 @@ class CUtilStats(CTRexStats):
                 self.history.append(rc.data())
             else:
                 self.history.append({})
+
         return self.history[-1]
 
 if __name__ == "__main__":

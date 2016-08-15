@@ -39,7 +39,8 @@ class TrexDPCoreMask {
 
 public:
 
-    TrexDPCoreMask(uint8_t dp_core_count, uint64_t dp_core_mask) {
+
+    TrexDPCoreMask(uint8_t dp_core_count, uint64_t dp_core_mask = UINT64_MAX) {
         assert(is_valid_mask(dp_core_count, dp_core_mask));
 
         m_dp_core_count = dp_core_count;
@@ -156,7 +157,7 @@ public:
     bool compile(uint8_t                                port_id,
                  const std::vector<TrexStream *>        &streams,
                  std::vector<TrexStreamsCompiledObj *>  &objs,
-                 TrexDPCoreMask                         &core_mask,
+                 const TrexDPCoreMask                   &core_mask = 1,
                  double                                 factor = 1.0,
                  std::string                            *fail_msg = NULL);
 
