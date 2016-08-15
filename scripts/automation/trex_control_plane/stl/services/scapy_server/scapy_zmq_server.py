@@ -106,16 +106,16 @@ class Scapy_server():
         self.IP_address = socket.gethostbyname(socket.gethostname())
 
     def activate(self):
-        print '***Scapy Server Started***\nListening on port: %d' % self.port
-        print 'Server IP address: %s' % self.IP_address
+        print ('***Scapy Server Started***\nListening on port: %d' % self.port)
+        print ('Server IP address: %s' % self.IP_address)
         try:
             while True:
                 message = self.socket.recv()
                 try:
                     method,params,req_id = self.scapy_wrapper.parse_req_msg(message)
                     if (method == 'shut_down'):
-                        print 'Shut down by remote user'
-                        result = 'Server shut down command received - server has shut down'
+                        print ('Shut down by remote user')
+                        result = 'Server shut down command received - server had shut down'
                     else:
                         result = self.scapy_wrapper.execute(method,params)
                     response = self.scapy_wrapper.create_success_response(result,req_id)
