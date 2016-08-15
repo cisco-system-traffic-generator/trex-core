@@ -38,6 +38,7 @@ TUNABLES = 22
 REMOTE_FILE = 23
 LOCKED = 24
 PIN_CORES = 25
+CORE_MASK = 26
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -48,6 +49,8 @@ CPU_STATS = 55
 MBUF_STATS = 56
 
 STREAMS_MASK = 60
+CORE_MASK_GROUP = 61
+
 # ALL_STREAMS = 61
 # STREAM_LIST_WITH_ALL = 62
 
@@ -193,6 +196,14 @@ def match_multiplier_strict(val):
 
     return val
 
+def hex_int (val):
+    pattern = r"0x[1-9a-fA-F][0-9a-fA-F]*"
+
+    if not re.match(pattern, val):
+        raise argparse.ArgumentTypeError("{0} is not a valid positive HEX formatted number".format(val))
+    
+    return int(val, 16)
+
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):
@@ -274,7 +285,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {"nargs": '+',
                                          'dest':'ports',
                                          'metavar': 'PORTS',
-                                          'type': int,
+                                         'type': int,
                                          'help': "A list of ports on which to apply the command",
                                          'default': []}),
 
@@ -323,12 +334,6 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                      'dest': 'dry',
                                      'default': False,
                                      'help': "Dry run - no traffic will be injected"}),
-
-              PIN_CORES: ArgumentPack(['--pin'],
-                                      {'action': 'store_true',
-                                       'dest': 'pin_cores',
-                                       'default': False,
-                                       'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boot for symetric profiles)"}),
 
               XTERM: ArgumentPack(['-x', '--xterm'],
                                   {'action': 'store_true',
@@ -379,6 +384,21 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           'default': []}),
 
 
+              PIN_CORES: ArgumentPack(['--pin'],
+                                      {'action': 'store_true',
+                                       'dest': 'pin_cores',
+                                       'default': False,
+                                       'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boot for symetric profiles)"}),
+
+              CORE_MASK: ArgumentPack(['--core_mask'],
+                                      {'action': 'store',
+                                       'nargs': '+',
+                                       'type': hex_int,
+                                       'dest': 'core_mask',
+                                       'default': None,
+                                       'help': "Core mask - only cores responding to the bit mask will be active"}),
+
+
               # promiscuous
               PROMISCUOUS_SWITCH: ArgumentGroup(MUTEX, [PROMISCUOUS,
                                                         NO_PROMISCUOUS],
@@ -398,7 +418,13 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                 STREAMS_STATS,
                                                 CPU_STATS,
                                                 MBUF_STATS],
-                                        {})
+                                        {}),
+
+
+              CORE_MASK_GROUP:  ArgumentGroup(MUTEX, [PIN_CORES,
+                                                      CORE_MASK],
+                                              {'required': False}),
+
               }
 
 

@@ -36,6 +36,8 @@ class Port(object):
     STATE_PAUSE        = 4
     STATE_PCAP_TX      = 5
 
+    MASK_ALL = ((1 << 64) - 1)
+
     PortState = namedtuple('PortState', ['state_id', 'state_name'])
     STATES_MAP = {STATE_DOWN: "DOWN",
                   STATE_IDLE: "IDLE",
@@ -406,7 +408,7 @@ class Port(object):
                   "mul":        mul,
                   "duration":   duration,
                   "force":      force,
-                  "core_mask":  mask if mask is not None else ((1 << 64) - 1)}
+                  "core_mask":  mask if mask is not None else self.MASK_ALL}
    
         # must set this before to avoid race with the async response
         last_state = self.state

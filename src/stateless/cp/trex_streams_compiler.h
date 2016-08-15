@@ -32,6 +32,9 @@ class TrexStreamsCompiler;
 class TrexStream;
 class GraphNodeMap;
 
+/**
+ * a mask object passed to compilation
+ */
 class TrexDPCoreMask {
 
 public:
@@ -42,6 +45,7 @@ public:
         m_dp_core_count = dp_core_count;
         m_dp_core_mask  = dp_core_mask;
 
+        /* create a vector of all the active cores */
         for (int i = 0; i < m_dp_core_count; i++) {
             if (is_core_active(i)) {
                 m_active_cores.push_back(i);
@@ -54,6 +58,10 @@ public:
         return m_dp_core_count;
     }
 
+    uint8_t get_active_count() const {
+        return m_active_cores.size();
+    }
+
     bool is_core_active(uint8_t core_id) const {
         assert(core_id < m_dp_core_count);
         return ( (1 << core_id) & m_dp_core_mask );
@@ -61,10 +69,6 @@ public:
 
     bool is_core_disabled(uint8_t core_id) const {
         return (!is_core_active(core_id));
-    }
-
-    uint8_t get_active_count() const {
-        return m_active_cores.size();
     }
 
     const std::vector<uint8_t> & get_active_cores() const {
@@ -78,8 +82,8 @@ public:
         /* highest bit pushed to left and then -1 will give all the other bits on */
         return ( (dp_core_mask & ( (1 << dp_core_count) - 1 ) ) != 0);
     }
-private:
 
+private:
 
     uint8_t   m_dp_core_count;
     uint64_t  m_dp_core_mask;

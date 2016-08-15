@@ -1,11 +1,18 @@
+from __future__ import print_function
+
 import termios
 import sys
 import os
 import time
+import threading
+
 from collections import OrderedDict, deque
+from texttable import ansi_len
+
+
 import datetime
 import readline
-from texttable import ansi_len
+
 
 if sys.version_info > (3,0):
     from io import StringIO
@@ -41,11 +48,11 @@ class SimpleBar(object):
         self.pattern_len = len(pattern)
         self.index = 0
 
-    def show (self):
+    def show (self, buffer):
         if self.desc:
-            print(format_text("{0} {1}".format(self.desc, self.pattern[self.index]), 'bold'))
+            print(format_text("{0} {1}".format(self.desc, self.pattern[self.index]), 'bold'), file = buffer)
         else:
-            print(format_text("{0}".format(self.pattern[self.index]), 'bold'))
+            print(format_text("{0}".format(self.pattern[self.index]), 'bold'), file = buffer)
 
         self.index = (self.index + 1) % self.pattern_len
 
@@ -59,7 +66,7 @@ class TrexTUIPanel(object):
         self.stateless_client = mng.stateless_client
         self.is_graph = False
 
-    def show (self):
+    def show (self, buffer):
         raise NotImplementedError("must implement this")
 
     def get_key_actions (self):
@@ -108,11 +115,11 @@ class TrexTUIDashBoard(TrexTUIPanel):
         return self.toggle_filter.filter_items()
 
 
-    def show (self):
+    def show (self, buffer):
         stats = self.stateless_client._get_formatted_stats(self.get_showed_ports())
         # print stats to screen
         for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+            text_tables.print_table_with_header(stat_data.text_table, stat_type, buffer = buffer)
 
 
     def get_key_actions (self):
@@ -203,11 +210,11 @@ class TrexTUIStreamsStats(TrexTUIPanel):
         self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
 
 
-    def show (self):
+    def show (self, buffer):
         stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.SS_COMPAT)
         # print stats to screen
         for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+            text_tables.print_table_with_header(stat_data.text_table, stat_type, buffer = buffer)
         pass
 
 
@@ -230,7 +237,7 @@ class TrexTUILatencyStats(TrexTUIPanel):
         self.is_histogram = False
 
 
-    def show (self):
+    def show (self, buffer):
         if self.is_histogram:
             stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LH_COMPAT)
         else:
@@ -241,7 +248,7 @@ class TrexTUILatencyStats(TrexTUIPanel):
                 untouched_header = ' (usec)'
             else:
                 untouched_header = ''
-            text_tables.print_table_with_header(stat_data.text_table, stat_type, untouched_header = untouched_header)
+            text_tables.print_table_with_header(stat_data.text_table, stat_type, untouched_header = untouched_header, buffer = buffer)
 
     def get_key_actions (self):
         return self.key_actions 
@@ -261,11 +268,11 @@ class TrexTUIUtilizationStats(TrexTUIPanel):
         super(TrexTUIUtilizationStats, self).__init__(mng, "ustats")
         self.key_actions = {}
 
-    def show (self):
+    def show (self, buffer):
         stats = self.stateless_client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.UT_COMPAT)
         # print stats to screen
         for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type)
+            text_tables.print_table_with_header(stat_data.text_table, stat_type, buffer = buffer)
 
     def get_key_actions (self):
         return self.key_actions 
@@ -279,16 +286,16 @@ class TrexTUILog():
     def add_event (self, msg):
         self.log.append("[{0}] {1}".format(str(datetime.datetime.now().time()), msg))
 
-    def show (self, max_lines = 4):
+    def show (self, buffer, max_lines = 4):
 
         cut = len(self.log) - max_lines
         if cut < 0:
             cut = 0
 
-        print(format_text("\nLog:", 'bold', 'underline'))
+        print(format_text("\nLog:", 'bold', 'underline'), file = buffer)
 
         for msg in self.log[cut:]:
-            print(msg)
+            print(msg, file = buffer)
 
 
 # a predicate to wrap function as a bool
@@ -366,14 +373,14 @@ class TrexTUIPanelManager():
                     self.legend += "{:}".format(x)
 
 
-    def print_connection_status (self):
+    def print_connection_status (self, buffer):
         if self.tui.get_state() == self.tui.STATE_ACTIVE:
-            self.conn_bar.show()
+            self.conn_bar.show(buffer = buffer)
         else:
-            self.dis_bar.show()
+            self.dis_bar.show(buffer = buffer)
 
-    def print_legend (self):
-        print(format_text(self.legend, 'bold'))
+    def print_legend (self, buffer):
+        print(format_text(self.legend, 'bold'), file = buffer)
 
 
     # on window switch or turn on / off of the TUI we call this
@@ -382,16 +389,16 @@ class TrexTUIPanelManager():
         self.locked = locked
         self.generate_legend()
 
-    def show (self, show_legend):
-        self.main_panel.show()
-        self.print_connection_status()
+    def show (self, show_legend, buffer):
+        self.main_panel.show(buffer)
+        self.print_connection_status(buffer)
 
         if show_legend:
             self.generate_legend()
-            self.print_legend()
+            self.print_legend(buffer)
 
         if self.show_log:
-            self.log.show()
+            self.log.show(buffer)
         
 
     def handle_key (self, ch):
@@ -452,6 +459,66 @@ class TrexTUIPanelManager():
         self.init(self.show_log)
         return ""
 
+
+
+# ScreenBuffer is a class designed to
+# avoid inline delays when reprinting the screen
+class ScreenBuffer():
+    def __init__ (self, redraw_cb):
+        self.snapshot = ''
+        self.lock = threading.Lock()
+
+        self.redraw_cb = redraw_cb
+        self.update_flag = False
+
+
+    def start (self):
+        self.active = True
+        self.t = threading.Thread(target = self.__handler)
+        self.t.setDaemon(True)
+        self.t.start()
+
+    def stop (self):
+        self.active = False
+        self.t.join()
+
+
+    # request an update
+    def update (self):
+        self.update_flag = True
+
+    # fetch the screen, return None if no new screen exists yet
+    def get (self):
+
+        if not self.snapshot:
+            return None
+
+        # we have a snapshot - fetch it
+        with self.lock:
+            x = self.snapshot
+            self.snapshot = None
+            return x
+
+
+    def __handler (self):
+
+        while self.active:
+            if self.update_flag:
+                self.__redraw()
+
+            time.sleep(0.01)
+
+    # redraw the next screen
+    def __redraw (self):
+        buffer = StringIO()
+        self.redraw_cb(buffer)
+
+        with self.lock:
+            self.snapshot = buffer.getvalue()
+            self.update_flag = False
+
+
+
 # shows a textual top style window
 class TrexTUI():
 
@@ -475,7 +542,10 @@ class TrexTUI():
         self.stateless_client = stateless_client
 
         self.pm = TrexTUIPanelManager(self)
-                    
+        self.sb = ScreenBuffer(self.redraw_handler)
+
+    def redraw_handler (self, buffer):
+        self.pm.show(show_legend = self.async_keys.is_legend_mode(), buffer = buffer)
 
     def clear_screen (self, lines = 50):
         # reposition the cursor
@@ -513,7 +583,10 @@ class TrexTUI():
         self.state = self.STATE_ACTIVE
         self.last_redraw_ts = 0
 
+        
         try:
+            self.sb.start()
+
             while True:
                 # draw and handle user input
                 status = self.async_keys.tick(self.pm)
@@ -522,8 +595,6 @@ class TrexTUI():
 
                 # speedup for keys, slower for no keys
                 if status == AsyncKeys.STATUS_NONE:
-                    time.sleep(0.01)
-                else:
                     time.sleep(0.001)
 
                 # regular state
@@ -556,40 +627,42 @@ class TrexTUI():
         except TUIQuit:
             print("\nExiting TUI...")
 
+        finally:
+            self.sb.stop()
+
         print("")
 
 
     # draw once
     def draw_screen (self, status):
+
         t = time.time() - self.last_redraw_ts
         redraw = (t >= 0.5) or (status == AsyncKeys.STATUS_REDRAW_ALL)
-
         if redraw:
-            # capture stdout to a string
-            old_stdout = sys.stdout
-            sys.stdout = mystdout = StringIO()
-            self.pm.show(show_legend = self.async_keys.is_legend_mode())
-            self.last_snap = mystdout.getvalue()
+            self.sb.update()
+            self.last_redraw_ts = time.time()
+        
 
-            self.async_keys.draw()
-            sys.stdout = old_stdout
+        x = self.sb.get()
 
+        # we have a new screen to draw
+        if x:
             self.clear_screen()
 
-            sys.stdout.write(mystdout.getvalue())
-           
+            sys.stdout.write(x)
+            self.async_keys.draw(sys.stdout)
             sys.stdout.flush()
-            self.last_redraw_ts = time.time()
 
+        # we only need to redraw the keys
         elif status == AsyncKeys.STATUS_REDRAW_KEYS:
             sys.stdout.write("\x1b[4A")
 
-            self.async_keys.draw()
+            self.async_keys.draw(sys.stdout)
             sys.stdout.flush()
 
         return
 
-
+     
 
     def get_state (self):
         return self.state
@@ -680,8 +753,8 @@ class AsyncKeys:
         return self.engine.tick(seq, pm)
 
 
-    def draw (self):
-        self.engine.draw()
+    def draw (self, buffer):
+        self.engine.draw(buffer)
  
 
     
@@ -705,7 +778,7 @@ class AsyncKeysEngineLegend:
         rc = pm.handle_key(seq)
         return AsyncKeys.STATUS_REDRAW_ALL if rc else AsyncKeys.STATUS_NONE
 
-    def draw (self):
+    def draw (self, buffer):
         pass
 
 
@@ -979,11 +1052,11 @@ class AsyncKeysEngineConsole:
             self.last_status = format_text(self.last_status[:TrexTUI.MIN_COLS] + "...", color, 'bold')
 
 
-    def draw (self):
-        sys.stdout.write("\nPress 'ESC' for navigation panel...\n")
-        sys.stdout.write("status: \x1b[0K{0}\n".format(self.last_status))
-        sys.stdout.write("\n{0}\x1b[0K".format(self.generate_prompt(prefix = 'tui')))
-        self.lines[self.line_index].draw()
+    def draw (self, buffer):
+        buffer.write("\nPress 'ESC' for navigation panel...\n")
+        buffer.write("status: \x1b[0K{0}\n".format(self.last_status))
+        buffer.write("\n{0}\x1b[0K".format(self.generate_prompt(prefix = 'tui')))
+        self.lines[self.line_index].draw(buffer)
 
 
 # a readline alike command line - can be modified during edit
@@ -1058,7 +1131,7 @@ class CmdLine(object):
     def go_right (self):
         self.cursor_index = min(len(self.get()), self.cursor_index + 1)
 
-    def draw (self):
-        sys.stdout.write(self.get())
-        sys.stdout.write('\b' * (len(self.get()) - self.cursor_index))
+    def draw (self, buffer):
+        buffer.write(self.get())
+        buffer.write('\b' * (len(self.get()) - self.cursor_index))
 

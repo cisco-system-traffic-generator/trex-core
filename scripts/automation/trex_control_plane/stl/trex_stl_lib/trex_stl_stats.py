@@ -442,10 +442,6 @@ class CTRexInfoGenerator(object):
             for i in range(min(14, len(cpu_stats))):
                 history = cpu_stats[i]["history"]
                 ports = cpu_stats[i]["ports"]
-                if not len(ports) == 2:
-                    sys.__stdout__.write(str(util_stats["cpu"]))
-                    exit(-1)
-
                 avg = int(round(sum(history[:avg_len]) / avg_len))
 
                 # decode active ports for core

@@ -1,6 +1,9 @@
+from __future__ import print_function
+
 import sys
 from texttable import Texttable
 from .text_opts import format_text
+
 
 class TRexTextTable(Texttable):
 
@@ -21,11 +24,11 @@ class TRexTextInfo(Texttable):
 def generate_trex_stats_table():
     pass
 
-def print_table_with_header(texttable_obj, header="", untouched_header=""):
+def print_table_with_header(texttable_obj, header="", untouched_header="", buffer=sys.stdout):
     header = header.replace("_", " ").title() + untouched_header
-    print(format_text(header, 'cyan', 'underline') + "\n")
+    print(format_text(header, 'cyan', 'underline') + "\n", file=buffer)
 
-    print((texttable_obj.draw() + "\n"))
+    print((texttable_obj.draw() + "\n"), file=buffer)
 
 if __name__ == "__main__":
     pass

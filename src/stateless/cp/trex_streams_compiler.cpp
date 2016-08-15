@@ -381,9 +381,13 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
 
     assert(core_mask.get_active_count() > 0);
 
+    /* create an indirect list which contains all
+       the active cores according to the mask
+     */
     uint8_t indirect_core_count = core_mask.get_active_count();
     std::vector<TrexStreamsCompiledObj *> indirect_objs(indirect_core_count);
     
+    /* zero all */
     for (int i = 0; i < indirect_core_count; i++) {
         indirect_objs[i] = NULL;
     }
@@ -416,6 +420,10 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
 
     uint8_t index = 0;
     for (uint8_t active_core_id : core_mask.get_active_cores()) {
+
+        /* the indirect compile might have decided to compile on one core only
+           (or any other number which is lower than all the actives)
+         */
         if (indirect_objs[index] == NULL) {
             break;
         }

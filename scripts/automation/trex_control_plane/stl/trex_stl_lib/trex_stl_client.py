@@ -690,20 +690,12 @@ class STLClient(object):
 
         rc = RC()
 
-        ports_mask = {}
-        for port_id in port_id_list:
-            # a pin mode was requested and we have
-            # the second port from the group in the start list
-            if (core_mask == self.CORE_MASK_PIN) and ( (port_id ^ 0x1) in port_id_list ):
-                ports_mask[port_id] = 0x55555555 if( port_id % 2) == 0 else 0xAAAAAAAA
-            else:
-                ports_mask[port_id] = None
 
         for port_id in port_id_list:
             rc.add(self.ports[port_id].start(multiplier,
                                              duration,
                                              force,
-                                             ports_mask[port_id]))
+                                             core_mask[port_id]))
 
         return rc
 
@@ -927,6 +919,37 @@ class STLClient(object):
         stats['latency'] = self.latency_stats.get_stats()
 
         return stats
+
+
+    def __decode_core_mask (self, ports, core_mask):
+
+        validate_type('core_mask', core_mask, (int, list))
+
+        # predefined modes
+        if isinstance(core_mask, int):
+            if core_mask not in [self.CORE_MASK_PIN, self.CORE_MASK_SPLIT]:
+                raise STLError("'core_mask' can be either CORE_MASK_PIN, CORE_MASK_SPLIT or a list of masks")
+
+            mask = {}
+            for port in ports:
+                # a pin mode was requested and we have
+                # the second port from the group in the start list
+                if (core_mask == self.CORE_MASK_PIN) and ( (port ^ 0x1) in ports ):
+                    mask[port] = 0x55555555 if( port % 2) == 0 else 0xAAAAAAAA
+                else:
+                    mask[port] = None
+
+            return mask
+
+        # list of masks
+        elif isinstance(core_mask, list):
+            if not ports:
+                raise STLError("'ports' must be specified explicitly when providing 'core_mask'")
+            if len(ports) != len(core_mask):
+                raise STLError("'core_mask' list must be the same length as 'ports' list")
+
+            return core_mask
+
 
 
     ############ functions used by other classes but not users ##############
@@ -1950,7 +1973,7 @@ class STLClient(object):
                     True: Divide bandwidth among the ports
                     False: Duplicate
 
-                core_mask: CORE_MASK_SPLIT, CORE_MASK_PIN
+                core_mask: CORE_MASK_SPLIT, CORE_MASK_PIN or a list of masks (one per port)
                     Determine the allocation of cores per port
                     In CORE_MASK_SPLIT all the traffic will be divided equally between all the cores
                     associated with each port
@@ -1962,6 +1985,10 @@ class STLClient(object):
 
         """
 
+        #########################
+        # decode core mask argument
+        core_mask = self.__decode_core_mask(ports, core_mask)
+        #######################
 
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
@@ -2677,11 +2704,20 @@ class STLClient(object):
                                          parsing_opts.TUNABLES,
                                          parsing_opts.MULTIPLIER_STRICT,
                                          parsing_opts.DRY_RUN,
-                                         parsing_opts.PIN_CORES)
+                                         parsing_opts.CORE_MASK_GROUP)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
+
+        # core mask
+        if opts.core_mask is not None:
+            core_mask =  opts.core_mask
+        else:
+            core_mask = self.CORE_MASK_PIN if opts.pin_cores else self.CORE_MASK_SPLIT
+
+        # just for sanity - will be checked on the API as well
+        self.__decode_core_mask(opts.ports, core_mask)
 
         active_ports = list_intersect(self.get_active_ports(), opts.ports)
         if active_ports:
@@ -2738,12 +2774,13 @@ class STLClient(object):
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)
         else:
+
             self.start(opts.ports,
                        opts.mult,
                        opts.force,
                        opts.duration,
                        opts.total,
-                       core_mask = self.CORE_MASK_PIN if opts.pin_cores else self.CORE_MASK_SPLIT)
+                       core_mask)
 
         return RC_OK()
 
