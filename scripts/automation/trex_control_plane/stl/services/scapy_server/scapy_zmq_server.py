@@ -72,13 +72,11 @@ class Scapy_wrapper:
         return result
 
 
-    def metaraise(self,exc_info):
-        raise exc_info[0], exc_info[1], exc_info[2]
-
-
-    def error_handler(self,exception_obj,req_id):
+    def error_handler(self,e,req_id):
+        print('exception message is %s' % e.message)
+        print('exception type is: %s' % type(e))
         try:
-            self.metaraise(exception_obj)
+            raise e
         except ParseException as e:
             response = self.create_error_response(-32700,'Parse error ',req_id)
         except InvalidRequest as e:
@@ -94,6 +92,7 @@ class Scapy_wrapper:
         except:
             response = self.create_error_response(-32096,'Scapy Server: Unknown Error',req_id)
         finally:
+            print(response)
             return response
 
 class Scapy_server():
@@ -112,6 +111,7 @@ class Scapy_server():
             while True:
                 message = self.socket.recv()
                 try:
+                    req_id = 'null'
                     method,params,req_id = self.scapy_wrapper.parse_req_msg(message)
                     if (method == 'shut_down'):
                         print ('Shut down by remote user')
@@ -120,8 +120,7 @@ class Scapy_server():
                         result = self.scapy_wrapper.execute(method,params)
                     response = self.scapy_wrapper.create_success_response(result,req_id)
                 except Exception as e:
-                    exception_details = self.scapy_wrapper.get_exception()
-                    response = self.scapy_wrapper.error_handler(exception_details,req_id)
+                    response = self.scapy_wrapper.error_handler(e,req_id)
                 finally:
                     json_response = json.dumps(response)
                 #  Send reply back to client
