@@ -943,8 +943,6 @@ class STLClient(object):
 
         # list of masks
         elif isinstance(core_mask, list):
-            if not ports:
-                raise STLError("'ports' must be specified explicitly when providing 'core_mask'")
             if len(ports) != len(core_mask):
                 raise STLError("'core_mask' list must be the same length as 'ports' list")
 
@@ -1985,19 +1983,18 @@ class STLClient(object):
 
         """
 
-        #########################
-        # decode core mask argument
-        core_mask = self.__decode_core_mask(ports, core_mask)
-        #######################
-
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
-
 
         validate_type('mult', mult, basestring)
         validate_type('force', force, bool)
         validate_type('duration', duration, (int, float))
         validate_type('total', total, bool)
+
+        #########################
+        # decode core mask argument
+        core_mask = self.__decode_core_mask(ports, core_mask)
+        #######################
 
         # verify multiplier
         mult_obj = parsing_opts.decode_multiplier(mult,
