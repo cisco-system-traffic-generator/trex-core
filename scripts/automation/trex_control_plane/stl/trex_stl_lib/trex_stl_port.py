@@ -710,7 +710,7 @@ class Port(object):
                                      ('L2 len',       len(obj['pkt']) + 4),
                                      ('mode',         obj['mode']),
                                      ('rate',         obj['rate']),
-                                     ('next_stream',  obj['next_id'])
+                                     ('next_stream',  obj['next_id'] if not '-1' else 'None')
                                     ])
     
         return {"streams" : OrderedDict(sorted(data.items())) }

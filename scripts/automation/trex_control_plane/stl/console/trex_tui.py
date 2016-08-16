@@ -600,8 +600,6 @@ class TrexTUI():
                 if status == AsyncKeys.STATUS_NONE:
                     time.sleep(0.001)
 
-                if self.tui_global_lock.locked():
-                    self.x += 1
                 with self.tui_global_lock:
                     self.handle_state_machine()
 

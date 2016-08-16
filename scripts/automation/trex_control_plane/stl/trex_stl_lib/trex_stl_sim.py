@@ -40,6 +40,8 @@ class BpSimException(Exception):
 
 # stateless simulation
 class STLSim(object):
+    MASK_ALL = ((1 << 64) - 1)
+
     def __init__ (self, bp_sim_path, handler = 0, port_id = 0, api_h = "dummy"):
 
         self.bp_sim_path = os.path.abspath(bp_sim_path)
@@ -61,7 +63,8 @@ class STLSim(object):
                             "force":  force,
                             "port_id": self.port_id,
                             "mul": parsing_opts.decode_multiplier(mult),
-                            "duration": duration}
+                            "duration": duration,
+                            "core_mask": self.MASK_ALL}
                  }
 
 

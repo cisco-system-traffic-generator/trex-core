@@ -246,6 +246,7 @@ void
 SimStateless::prepare_dataplane() {
     
     CGlobalInfo::m_options.m_expected_portd = m_port_count;
+    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
 
     assert(CMsgIns::Ins()->Create(m_dp_core_count));
     m_fl.Create();
