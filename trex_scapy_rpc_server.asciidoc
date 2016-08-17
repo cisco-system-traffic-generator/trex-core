@@ -37,128 +37,115 @@ The TRex Scapy RPC Server
 
 Anyone who wants to create,edit and assemble packets for TRex
 
-== RPC Support On TRex
-
-TRex implements a RPC protocol in order to config, view and
-in general execute remote calls on TRex
-
-In this document we will provide information on
-how a client can implement the protocol used to communicate with TRex
-
-In general, we will describe the following:
-
-* *Transport Layer* - The transport layer used to communicate with TRex server
-* *RPC Reprensentation Protocol* - The format in which remote procedures are carried
-
-=== Transport Layer
-
-TRex server transport layer is implemented using ZMQ.
-
-The default configuration is TCP on port 5555, however this is configurable.
-
-{zwsp} +
-The communication model is based on the request-reply ZMQ model:
-
-http://zguide.zeromq.org/page:all#Ask-and-Ye-Shall-Receive
-
-{zwsp} +
-
-for more on ZMQ and implementation please refer to:
-{zwsp} +
-http://zeromq.org/intro:read-the-manual
-
-=== RPC Reprensentation Protocol
-
-The RPC reprensentation protocol is JSON RPC v2.0.
-Every request and response will be encoded in a JSON RPC v2.0 format.
-
-{zwsp} +
-
-For more info on JSON RPC v2.0 spec please refer to:
-{zwsp} +
-
-http://www.jsonrpc.org/specification
-
-{zwsp} +
-
-Later on in the document we will describe all the supported commands.
-
-=== TRex Console
-
-To debug RPC it is possible to enable verbose command from Console see link:draft_trex_stateless.html#_console_commands[here]
-
-On the 'client' side:
-
-[source,bash]
-----
-TRex > verbose on
-
-verbose set to on
-
-TRex > ping
-
--> Pinging RPC server
-[verbose] Sending Request To Server:
-
-{
-    "id": "l0tog11a",
-    "jsonrpc": "2.0",
-    "method": "ping",
-    "params": null
-}
-
-[verbose] Server Response:
-
-{
-    "id": "l0tog11a",
-    "jsonrpc": "2.0",
-    "result": {}
-}
-
-[SUCCESS]
-
-----
-
-== RPC Server Component Position Illustration
-
-The following diagram illustres the RPC server component's place:
-
-image::images/rpc_server_big_picture.png[title="RPC Server Position",align="left",width=800, link="images/rpc_server_big_picture.png"]
-
-== RPC Server Port State Machine
-Any port on the server can be in numbered of states, each state provides other subset of the commands
-that are allowed to be executed.
-
-We define the following possible states:
-
-* *unowned* - The specific port is either unowned or another user is owning the port
-* *owned* - The specific port has been acquired by the client
-* *active* - The specific port is in the middle of injecting traffic - currently active
-
-Each port command will specify on which states it is possible to execute it.
-
-For port related commands valid only on 'owned' or 'active', a field called ''handler'' 'MUST' be passed
-along with the rest of the parameters.
 
 
-This will identify the connection:
+== Scapy RPC Server - Overview
+Scapy Server is implemented following the link:http://www.jsonrpc.org/specification[JSON-RPC 2.0 specification], +
+Therefore, requests and replies follow the JSON-RPC 2.0 spec. +
+The server operates on a Request-Response basis *over ZMQ*, and does not support batched commands handling. +
 
-image::images/rpc_states.png[title="Port States",align="left",width=150, link="images/rpc_states.png"]
+Read more about ZMQ link:http://zguide.zeromq.org/page:all[here]
+
+
+image::images/Scapy_JSON_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/Scapy_JSON_rpc_server.png"]
+
+=== Error Codes
+
+Error codes are given according to this table: [also follows the JSON-RPC spec, with added error codes]
+
+[options="header",cols="^1,^h,3a"]
+|=================
+| Error Code   |  Message                    |  Meaning
+| -32700       | Parse Error                 | Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
+| -32600       | Invalid Request             | The JSON sent is not a valid Request object.
+| -32601       | Method not found            | The method does not exist / is not available
+| -32603       | Invalid params              |  Invalid method parameter(s)
+| -32097       | Syntax Error                |  Syntax Error in input
+| -32098       |  Scapy Server: message | Scapy Server had an error while executing your command, described in the message given
+| -32096       | Scapy Server: Unknown Error | Scapy Server encountered an error that cannot be described
+
+
+|=================
+
+
 
 == Data Bases and Data Structures used in Scapy Server
 === Protocol Field Description
 This data sturcture contains the name of the field, its type and the default value assigned. +
  +
-has the following structure: +
+Has the following structure: +
+
+
 (field name, field type, default value) +
- +
-Example:
+
+[example]
+====
+*Example:* +
 this is the 'dst' field for the 'Ether' protocol
 [source,bash]
 ----
 ["dst","MACField","('00:00:00:01:00:00')"]
 
 ----
+====
+
+=== Offsets Dictionary and Offset Entry
+==== The *"Offset Entry"* data sturcture contains the offset of a field within the *layer*, and its size. +
+(both measured in Bytes)
+ +
+ +
+Has the following structure: +
+ +
+[field offset (within the layer), field size] +
+
+
+[example]
+====
+*Example:* +
+This is the 'src' field for the 'IP' protocol: +
+the offset within the layer is 16 bytes, and the size of the field is 4 bytes (as defined in the IP spec)
+[source,bash]
+----
+'dst': [16, 4]
+----
+====
+
+==== The *"Offsets Dictionary"* data sturcture simply maps the offsets for each layer according to name. +
+Has the following structure: +
+ +
+ 'field name' : [ field offset, field size ] // i.e Offset entry
+ +
+
+
+[example]
+====
+*Example:* +
+This is the Offsets Dictionary for the IP layer: +
+[source,bash]
+----
+'offsets': {'IP': {'chksum': [10, 2],
+                   'dst': [16, 4],
+                   'flags': [6, 0],
+                   'frag': [6, 0],
+                   'global_offset': 0,
+                   'id': [4, 2],
+                   'ihl': [0, 0],
+                   'len': [2, 2],
+                   'options': [20, 2],
+                   'proto': [9, 1],
+                   'src': [12, 4],
+                   'tos': [1, 1],
+                   'ttl': [8, 1],
+                   'version': [0, 0]
+                  }
+           }
+----
+====
+
+Each layer has a 'global_offset' key. this key represents the *offset of the layer within the packet*. +
+In the example above, the IP layer starts at offset 0, and the field src is at offset 12 within the packet. +
+In the general case, a field's offset within the *packet* is calculated this way: +
+ 'global_offset' + 'field_offset'
 
 
 === Protocol Dictionary
@@ -166,7 +153,10 @@ The protocol dictionary contains the names for all supported protocols and layer
 Each entry in this data base has the following format: +
 'Protocol Name' : 'Protocol Field Description' +
  +
-Example:
+
+[example]
+====
+*Example*: +
 [source,bash]
 ----
 { "Ether":[
@@ -191,7 +181,7 @@ Example:
   .
 }
 ----
-
+====
 === Fields Dictionary
 The fields dictionary contains mapping between a field's name and its regular expression, +
 Which has the following structure: +
@@ -217,9 +207,46 @@ The dictionary maintains its regular structure:
 == RPC Commands
 The following RPC commands are supported. please refer to data bases section for elaboration on given data bases
 
+=== Supported Methods
+* *Name* - supported_methods
+* *Description* - returns the list of all supported methods by Scapy Server and their parameters
+* *Parameters* - a single empty string ('') will return *ALL* supported methods. +
+ other string delivered as parameter will return True/False if the string matches a supported method name
+* *Result* - according to input: empty string will return list of supported methods, otherwise will return True/False as mentioned
+
+*Example:*
+
+[source, bash]
+----
+'Request':
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "supported_methods",
+        "params": [""]
+}
+
+'Result':
+{'id': '1',
+ 'jsonrpc': '2.0',
+ 'result': { .
+             .
+             .
+             .
+             'build_pkt': [1, [u'pkt_descriptor']],
+             'check_update': [2, [u'db_md5', u'field_md5']],
+             'get_all': [0, []],
+             'get_tree': [0, []],
+             'get_version': [0, []],
+             'supported_methods': [1, [u'method_name']]
+           }
+}
+----
+
+
+
 === GetAll
 * *Name* - 'get_all'
-* *Valid States* - 'not relevant'
 * *Description* - Returns the supported protocols library (DB) and Field-to-RegEx mapping library, and their MD5 
 * *Paramters* - None
 * *Result* ['object'] - JSON format of dictionary. see table below
@@ -230,70 +257,94 @@ The following RPC commands are supported. please refer to data bases section for
 | Key             | Key Type      | Value                           | Value Type 
 | db              | string        | supported protocols dictionary  | protocol dictionary
 | fields          | string        | Field-to-RegEx dictionary       | Field-to-RegEx dictionary
-| DB_md5          | string        |  MD5 of DB                      | JSON encoded in base64
-| fields_md5      | string        |  MD5 of fields                  | JSON encoded in base64
+| db_md5          | string        |  MD5 of DB                      | encoded in base64
+| fields_md5      | string        |  MD5 of fields                  | encoded in base64
 |=================
 
-Example:
+*Example:*
 
 [source,bash]
 ----
 'Request':
-
 {
     "jsonrpc": "2.0",
     "id": 1,
     "method": "get_all",
-    "params": null
+    "params": []
 }
 
 'Response':
-
 {
    "jsonrpc" : "2.0",
    "id" : 1,
-   "result" : '{"fields_md5": "\\"oO1qiSnnm2SdORUM7Ca/Aw==\\\\n\\"", "fields": {"IP6Field": "empty", "NTPTimestampField": "empty", "XShortEnumField": "empty", "BitField": "empty", "TruncPktLenField": "empty", "ByteField": "empty", "Emph": "empty", "NIReplyDataField": "empty", "IPField": "empty", "StrLenField": "empty", "ShortEnumField": "empty", "FieldLenField": "empty", "ConditionalField": "empty", "XShortField": "empty", "XByteField": "empty", "ARPSourceMACField": "empty", "_HopByHopOptionsField": "empty", "NIQueryCodeF.......}'
+   "result" : {'db': {'ARP': [('hwtype', 'XShortField', '(1)'),
+                              ('ptype', 'XShortEnumField', '(2048)'),
+                              ('hwlen', 'ByteField', '(6)'),
+                              ('plen', 'ByteField', '(4)'),
+                              ('op', 'ShortEnumField', '(1)'),
+                              ('hwsrc', 'ARPSourceMACField', '(None)'),
+                              ('psrc', 'SourceIPField', '(None)'),
+                              ('hwdst', 'MACField', "('00:00:00:00:00:00')"),
+                              ('pdst', 'IPField', "('0.0.0.0')")],
+                              .
+                              .
+                              .
+               'db_md5': 'Z+gRt88y7SC0bDu496/DQg==\n',
+               'fields': {'ARPSourceMACField': 'empty',
+                          'BCDFloatField': 'empty',
+                          'BitEnumField': 'empty',
+                          .
+                          .
+                          .
+
 }
 
 ----
 
 === Check if DataBase is updated
 * *Name* - 'check_update'
-* *Valid States* - 'not relevant'
 * *Description* - checks if both protocol database and fields database are up to date according to md5 comparison
-* *Paramters* - md5 of database, md5 of fields in *JSON format encoded base64*
-* *Result* ['object'] - Array of 2 objects of the following 3 tuple: ('result','error code','error description'), each for every database. in JSON format
-
-Example:
+* *Paramters* - md5 of database, md5 of fields
+* *Result* - upon failure: error code -32098 (see link:trex_scapy_rpc_server.html#_error_codes[RPC server error codes]) +
+             followed by a message: "Fields DB is not up to date" or "Protocol DB is not up to date" +
+             upon success: return 'true' as result (see below) +
+ +
+*Example:*
 
 [source,bash]
 ----
 'Request':
 
 {
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "check_update",
-    "params": {
-	"dbMD5": "'IlM5OXY3M2cxYUlEalNYcENhdmlmWGc9PVxuIg==\n'"
-	"fieldMD5": "'InMzdzBSaXAvQjFuK3p1ajF0NFcwbmc9PVxuIg==\n'"
-    }
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "check_update",
+        "params": ["md5_of_protocol_db", "md5_of_fields"]   
 }
 
-'Response':
+'Response': //on failure
 
 {
-    "jsonrpc": "2.0",
-    "id": 1,
-    "result": '[["Fail", -1, "Field DB is not up to date"], ["Success", 0, "None"]]'
+        "jsonrpc": "2.0",
+        "id": "1",
+        "error": {
+                  "code": -32098,
+                  "message:": "Scapy Server: Fields DB is not up to date"
+                 }
 }
 
+'Response': //on success
+
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "result": true
+}
 ----
 
 
 === Get Version
 * *Name* - 'get_version'
-* *Valid States* - 'not relevant'
 * *Description* - Queries the server for version information
 * *Paramters* - None
 * *Result* ['object'] - See table below
@@ -302,51 +353,62 @@ Example:
 [options="header",cols="1,1,3"]
 |=================
 | Field         | Type     | Description 
-| version       | string   | TRex version
-| build_date    | string   | build date
-| build_time    | string   | build time
+| version       | string   | Scapy Server version
 | built_by      | string   | who built this version
 |=================
 
+
+*Example:*
 [source,bash]
 ----
 
 'Request':
 
 {
-    "id": "wapkk8m6",
-    "jsonrpc": "2.0",
-    "method": "get_version",
-    "params": null
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "get_version", 
+        "params": []
 }
+
 
 
 'Response':
 
 {
-    "id": "wapkk8m6",
-    "jsonrpc": "2.0",
-    "result": {
-        "build_date": "Sep 16 2015",
-        "build_time": "12:33:01",
-        "built_by": "imarom",
-        "version": "v0.0"
-    }
+        "jsonrpc": "2.0",
+        "id": "1",
+        "result": {
+                "version": "v1.0",
+                "built_by": "itraviv"
+        }
 }
 
 ----
 
 === Build Packet
 * *Name* - 'build_pkt'
-* *Description* - Takes a JSON format string of a SCAPY packet and returns: +
-*1)* Result of packet assembly. +
-*2)* The show2 of the packet: detailed packet description (see SCAPY manual for more details). +
-*3)* Buffer of the packet: hexdump of the given packet *encoded in 'base64'*. +
-* *Paramters* - JSON string describing SCAPY packet
-* *Result* ['object'] - JSON format string: +
-  Upon Success returns: [ Result, show2data, bufferData ] +
-  Upon Failure returns: [[ Pkt build Failed, ErrorType, ErrorDescription], [] ,[]] +
+* *Description* - Takes a JSON format string of a SCAPY packet. +
+* *Return Value* - See table below
+* *Paramters* - string describing SCAPY packet
+* *Result* ['dictionary'] - a dictionary that contains:  + 
+* pkt buffer (Hexdump encoded in base64) + 
+* pkt offsets - each field within the packet has its offset within the layer, and the field size + 
+ the value returned is [ 'field offset' , 'field size' ] + 
+* pkt show2 - a detailed description of each field and its value
 
+
+
+.Object type 'return values for build_pkt' 
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type     | Description 
+| pkt buffer       | Hexdump encoded in base64   | The packet's dump
+| pkt offsets      | Dictionary of layers   | Each layer contains it's offsets within the layer, and a global offset within the packet
+| pkt show2        | Dictionary of layers | Each layer is a dictionary of fields, which contains the values for each field
+|=================
+
+*Example:* +
 Successful assembly of a packet: +
 [source,bash]
 ----
@@ -354,55 +416,93 @@ Successful assembly of a packet: +
 'Request':
 
 {
-    "id": "zweuldlh",
+    "id": "1",
     "jsonrpc": "2.0",
     "method": "build_pkt",
-    "params": "Ether()/IP(src='127.0.0.1')/TCP(sport=80)"
+    "params": ["Ether()/IP(src='127.0.0.1')/TCP(sport=80)"]
 }
 
 'Response':
 
 {
-    "id": "zweuldlh",
-    "jsonrpc": "2.0",
-    "result": {
-                '[["Success", 0, "None"],  //result               
-                
-                "\\"###[ Ethernet ]###      //show2 data
-                \\\\n     dst       = 00:00:00:01:00:00
-                \\\\n     src       =  00:00:00:02:00:00
-                \\\\n     type= IPv4
-                \\\\n###[ IP ]###
-                \\\\n     version   = 4L
-                \\\\n     ihl       = 5L
-                \\\\n     tos       = 0x0
-                \\\\n     len       = 40
-                \\\\n     id        = 1
-                \\\\n     flags     = 
-                \\\\n     frag      = 0L
-                \\\\n     ttl       = 64
-                \\\\n     proto     = tcp
-                \\\\n     chksum    = 0xcbcd
-                \\\\n     src       = 127.0.0.1
-                \\\\n     dst       = 48.0.0.1
-                \\\\n     \\\\\\\\options   \\\\\\\\
-                \\\\n     ###[ TCP ]###
-                \\\\n        sport     = 80
-                \\\\n        dport     = 80
-                \\\\n        seq       = 0
-                \\\\n        ack       = 0
-                \\\\n        dataofs   = 5L
-                \\\\n        reserved  = 0L
-                \\\\n        flags     = S
-                \\\\n        window    = 8192
-                \\\\n        chksum    = 0xe040
-                \\\\n        urgptr    = 0
-                \\\\n        options   = {}
-                \\\\n\\"",
-                //buffer data:
-                "\\"AAAAAQAAAAAAAgAACABFAAAoAAEAAEAGy81/AAABMAAAAQBQAFAAAAAAAAAAAFACIADgQAAA\\\\n\\""]' 
-        }
+    'id': '1',
+    'jsonrpc': '2.0',
+    'result': { 'buffer': 'AAAAAQAAAAAAAgAACABFAAAoAAEAAEAGy81/AAABMAAAAQBQAFAAAAAAAAAAAFACIADgQAAA\n',
+                'offsets':{
+                           'Ether': {
+                                     'dst': [0, 6],
+                                     'global_offset': 0,
+                                     'src': [6, 6],
+                                     'type': [12, 2]
+                                     },
+                           'IP': {
+                                     'chksum': [10, 2],
+                                     'dst': [16, 4],
+                                     'flags': [6, 0],
+                                     'frag': [6, 0],
+                                     'global_offset': 14,
+                                     'id': [4, 2],
+                                     'ihl': [0, 0],
+                                     'len': [2, 2],
+                                     'options': [20, 2],
+                                     'proto': [9, 1],
+                                     'src': [12, 4],
+                                     'tos': [1, 1],
+                                     'ttl': [8, 1],
+                                     'version': [0, 0]
+                                  },
+                           'TCP': {
+                                   'ack': [8, 4],
+                                   'chksum': [16, 2],
+                                   'dataofs': [12, 0],
+                                   'dport': [2, 2],
+                                   'flags': [13, 0],
+                                   'global_offset': 34,
+                                   'options': [20, 2],
+                                   'reserved': [12, 0],
+                                   'seq': [4, 4],
+                                   'sport': [0, 2],
+                                   'urgptr': [18, 2],
+                                   'window': [14, 2]
+                                   }
+                          },
+                'show2': {
+                                'Ethernet': {
+                                                'dst': '00:00:00:01:00:00',
+                                                'src': '00:00:00:02:00:00',
+                                                'type': '0x800'
+                                             },
+                                'IP': {
+                                                'chksum': '0xcbcd',
+                                                'dst': '48.0.0.1',
+                                                'flags': '',
+                                                'frag': '0L',
+                                                'id': '1',
+                                                'ihl': '5L',
+                                                'len': '40',
+                                                'proto': 'tcp',
+                                                'src': '127.0.0.1',
+                                                'tos': '0x0',
+                                                'ttl': '64',
+                                                'version': '4L'
+                                       },
+                                'TCP': {
+                                                 'ack': '0',
+                                                 'chksum': '0xe040',
+                                                 'dataofs': '5L',
+                                                 'dport': '80',
+                                                 'flags': 'S',
+                                                 'options': '{}',
+                                                 'reserved': '0L',
+                                                 'seq': '0',
+                                                 'sport': '80',
+                                                 'urgptr': '0',
+                                                 'window': '8192'
+                                        }
+                          }
+               }
 }
+
 
 ----
 
@@ -422,113 +522,52 @@ Unsuccessful assembly of a packet: +
 'Response':
 
 {
-    "id": "zweuldlh",
-    "jsonrpc": "2.0",
-    "result": {
-                '[["Pkt build Failed", "<type \'exceptions.NameError\'>", "name \'ETHER\' is not defined"], [], []]'
-    }
+    'id': 'zweuldlh',
+    'jsonrpc': '2.0',
+    'error': {
+                'code': -32098,
+                'message:': "Scapy Server: unsupported operand type(s) for -: 'Ether' and 'IP'"
+             }
 }
-
-----
-
-=== Get offsets of fields inside a given packet
-* *Name* - 'get_all_pkt_offsets'
-* *Description* - Returns offset and size for each field inside the given packet
-* *Paramters* - JSON string describing SCAPY packet
-* *Result* ['Array'] - JSON format Array of 2 objects: +
-*1)* Result object: (Result, ErrorType, ErrorDescription) '(when successful returns Success,0,None)' +
-*2)* Dictionary of offsets per layer: each layer holds an array of field names and offsets +
-'(when unsuccesful, returns an empty dictionary)' +
- +
-* Object describing field is formatted this way: ['field name','offset in layer','size in bytes'] +
-
-Successful call:
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "pbxny90u",
-    "jsonrpc": "2.0",
-    "method": "get_all_pkt_offsets",
-    "params": 'IP()'
-}
-
-'Response':
-
-{
-    "id": "pbxny90u",
-    "jsonrpc": "2.0",
-    "result": {'[
-                    ["Success", 0, "None"],
-                    {
-                    "IP()": 
-                    [["version", 0, 0], ["ihl", 0, 0], ["tos", 1, 1],
-                    ["len", 2, 2], ["id", 4, 2], ["flags", 6, 0],
-                    ["frag", 6, 0], ["ttl", 8, 1], ["proto", 9, 1],
-                    ["chksum", 10, 2], ["src", 12, 4], ["dst", 16, 4],
-                    ["options", 20, 2]]
-                    }
-                ]'
-              }
-}
-
-----
-Unsuccessful call:
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "pbxny90u",
-    "jsonrpc": "2.0",
-    "method": "get_all_pkt_offsets",
-    "params": 'IP()-ether~' //not a valid SCAPY packet string
-}
-
-'Response':
-
-{
-    "id": "pbxny90u",
-    "jsonrpc": "2.0",
-    "result": {
-                '[
-                ["Pkt build Failed", "<type \'exceptions.SyntaxError\'>",
-                "unexpected EOF while parsing (<string>, line 1)"],
-                {}
-                ]'
-              }
-}
-
+    
 ----
 
 === Get protocol tree hierarchy example
 * *Name* - 'get_tree'
-* *Description* - returns a JSON string of protocols ordered in an hierarchy tree +
+* *Description* - returns a dictionary of protocols ordered in an hierarchy tree +
 * *Paramters* - none
-* *Result* ['JSON string'] - JSON string of hierarchy tree for printing 
+* *Result* [dictionary] - example for packet layers that can be used to build a packet. ordered in an hierarchy tree 
+
+*Example:*
 
 [source,bash]
 ----
 
 'Request':
 
-{
-    "id": "b1tr56yz",
-    "jsonrpc": "2.0",
-    "method": "get_tree",
-    "params": null
+{       
+        "id": "1",
+        "jsonrpc": "2.0",
+        "method": "get_tree",
+        "params": []
 }
 
 
 'Response':
 
-{
-    "id": "b1tr56yz",
-    "jsonrpc": "2.0",
-    "result": "'"ALL\\n\\tEther\\n\\t\\tARP\\n\\t\\tIP\\n\\t\\t\\tUDP\\n\\t\\t\\t\\tRaw\\n\\t\\t\\tTCP\\n\\t\\t\\t\\tRaw\\n"'"
+{'id': '1',
+ 'jsonrpc': '2.0',
+ 'result': {'ALL': {
+                        'Ether': {'ARP': {},
+                                  'IP': {   'TCP': {'RAW': 'payload'},
+                                            'UDP': {'RAW': 'payload'}
+                                        }
+                                 }
+                    }
+           }
 }
-
 ----
+
+
+
+
