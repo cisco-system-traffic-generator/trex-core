@@ -196,12 +196,9 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 ** `> sudo yum update kernel`
 ** `> sudo yum update kernel-devel`
 ** `> sudo yum update kernel-headers`
-* For Intel XL710 NICs, verify that the NVM is v4.42 or v4.53. xref:xl710-firmware[Info].
+* For Intel XL710 NICs, verify that the NVM is v5.04 . xref:xl710-firmware[Info].
 **  `> sudo ./t-rex-64 -f cap2/dns.yaml -d 0 *-v 6* --nc | grep NVM` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc` +
-    `PMD:  FW 4.22 API 1.2 *NVM 04.04.02* eetrack 800013fc`
+    `PMD:  FW 5.0 API 1.5 NVM 05.00.04  eetrack 800013fc` 
 =====================================
 
 // above, maybe rename the bullet points "NIC usage notes"? should we create a subsection for NICs? Maybe it would be under "2.1 Hardware recommendations" as a subsection.
@@ -580,8 +577,9 @@ image:images/vSwitch_networks.png[title="vSwitch_networks"]
 [NOTE]
 =====================================================================
 Current limitation: The following command does not function as expected:
+[subs="quotes"]
 ....
-sudo ./t-rex-64 -f cap2/dns.yaml --lm 1 --lo -l 1000 -d 100
+sudo ./t-rex-64 -f cap2/dns.yaml *--lm 1 --lo* -l 1000 -d 100
 ....
 The vSwitch does not "know" where to route the packet. This is expected to be fixed when TRex supports ARP.
 =====================================================================
@@ -1897,43 +1895,5 @@ broadcast 16.255.255.255
 sudo arp -s 10.0.0.100 <Second TRex port MAC>
 sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
 ----
-
-===  Troubleshoot common problems, FAQ
-
-Q: During OS installation, screen is skewed / error "Out of range" / resolution not supported etc. +
-A:
-
-* Fedora - during installation, choose "Troubleshooting" -> Install in basic graphic mode
-* Ubuntu - try Ubuntu server, which has textual installation
-
-Q: How to determine relation between TRex ports and Router ports +
-A: Run the TRex with following command and check incoming packet on router interfaces: +
-sudo ./t-rex-64 -f cap2/dns.yaml --lm 1 --lo -l 1000 -d 100
-
-Q: How to determine relation between Virtual OS ports and Hypervisor ports +
-A: Compare the MACs address + name of interface, for example:
-
-* > ifconfig +
-*eth0*    Link encap:Ethernet  *HWaddr 00:0c:29:2a:99:b2* + 
-          ...
-
-* > sudo ./dpdk_setup_ports.py -s +
-*03:00.0* 'VMXNET3 Ethernet Controller' *if=eth0* drv=vmxnet3 unused=igb_uio
-
-[NOTE]
-=====================================
-If at TRex side the NICs are not visible to ifconfig, run: +
-....
-sudo ./dpdk_nic_bind.py -b <driver name> <1> <PCI address> <2>
-....
-
-<1> driver name - vmxnet3 for VMXNET3 and e1000 for E1000
-<2> 03:00.0 for example
-
-We are planning to add MACs to `./dpdk_setup_ports.py -s`
-=====================================
-
-Q: TRex traffic does not show up on Wireshark, so I can not capture the traffic from the TRex port +
-A: TRex uses DPDK which takes ownership of the ports, so using Wireshark is not possible. You can use switch with port mirroring to capture the traffic.
 
 

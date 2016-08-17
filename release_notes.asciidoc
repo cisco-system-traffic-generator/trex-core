@@ -23,9 +23,39 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.07  ==
+
+* DPDK 16.07 
+* ASYNC ZMQ is compressed by default. It improves response time see link:http://trex-tgn.cisco.com/youtrack/issue/trex-232[trex-232] 
+** You will need to update the GUI
+* Support Ubuntu 16.01 - Stateful serverr is Python 3.0 and Python 3.5 for ZMQ library 
+* XL710/X710 low latency was improved -  see link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
+* Support graceful shutdown command 
+* Console -  support L1 BPS  using `-m 10bpsl1` see link:http://trex-tgn.cisco.com/youtrack/issue/trex-230[trex-230] 
+* Improve TUI refresh time 
+* Support IPV6 latency streams (support is available for all interface types except 82599) see link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[IPV6 latency]
+
+[IMPORTANT]
+=====================================
+For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
+=====================================
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-223[trex-223] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-226[trex-226] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-224[trex-224] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-235[trex-235] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-236[trex-236] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-238[trex-238] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-233[trex-233] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-231[trex-231] 
+
+
 == Release 2.06  ==
 
-* Support EPIC-EM scale Stateful VLAN/IP/MAC mapping.
+* Support APIC-EM scale Stateful VLAN/IP/MAC mapping.
 * TCP SYN Randomization learning support for advanced ASA stateful testing - link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
 * Advanced to latest DPDK 16.07RC3 - fix some XL710 driver performance issues
 
