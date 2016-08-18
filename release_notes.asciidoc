@@ -38,6 +38,9 @@ $sudo ./dpdk_setup_ports.py  -c  03:00.0 03:00.1 # create optimum /etc/trex_cfg.
 *Yaroslav* TBD 
 
 * Basic Cisco VIC functionality works now. Advanced Stateless/Stateful functionality is still not supported.
+* Enforce latest firmware for XL710/X710 (5.04)
+* Add a way to stop/close NICS at TRex termination (link would be down) `-close-at-end`
+* IPv6 XL710 ICMP packets are supported now
 
 === fix issues: ===
 
