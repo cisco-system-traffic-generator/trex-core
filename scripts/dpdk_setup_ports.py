@@ -41,7 +41,7 @@ class ConfigCreator(object):
         include_lcores = [int(x) for x in include_lcores]
         exclude_lcores = [int(x) for x in exclude_lcores]
         self.has_zero_lcore = False
-        for cores in self.cpu_topology.values():
+        for numa, cores in self.cpu_topology.items():
             for core, lcores in cores.items():
                 for lcore in copy.copy(lcores):
                     if include_lcores and lcore not in include_lcores:
@@ -51,6 +51,12 @@ class ConfigCreator(object):
                 if 0 in lcores:
                     self.has_zero_lcore = True
                     cores[core].remove(0)
+                    zero_lcore_numa = numa
+                    zero_lcore_core = core
+                    zero_lcore_siblings = cores[core]
+        if self.has_zero_lcore:
+            del self.cpu_topology[zero_lcore_numa][zero_lcore_core]
+            self.cpu_topology[zero_lcore_numa][zero_lcore_core] = zero_lcore_siblings
         Device_str = None
         for interface in self.interfaces:
             for mandatory_interface_field in ConfigCreator.mandatory_interface_fields:
@@ -108,18 +114,24 @@ class ConfigCreator(object):
         if self.zmq_rpc_port:
             config_str += '  zmq_rpc_port: %s\n' % self.zmq_rpc_port
         config_str += '  port_info:\n'
-        for interface in self.interfaces:
-            config_str += ' '*6 + '- dest_mac: [%s]\n' % self._convert_mac(interface['dest_mac'])
+        for index, interface in enumerate(self.interfaces):
+            config_str += ' '*6 + '- dest_mac: [%s]' % self._convert_mac(interface['dest_mac'])
+            if interface.get('loopback_dest'):
+                config_str += " # MAC OF LOOPBACK TO IT'S DUAL INTERFACE\n"
+            else:
+                config_str += '\n'
             config_str += ' '*8 + 'src_mac:  [%s]\n' % self._convert_mac(interface['src_mac'])
-        config_str += '\n  platform:\n'
+            if index % 2:
+                config_str += '\n' # dual if barrier
+        config_str += '  platform:\n'
         if len(self.interfaces_per_numa.keys()) == 1 and -1 in self.interfaces_per_numa: # VM, use any cores, 1 core per dual_if
             lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores])
             config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop())
-            config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool.pop()
+            config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool.pop(0)
             config_str += ' '*6 + 'dual_if:\n'
             for i in range(0, len(self.interfaces), 2):
                 config_str += ' '*8 + '- socket: 0\n'
-                config_str += ' '*10 + 'threads: [%s]\n\n' % lcores_pool.pop()
+                config_str += ' '*10 + 'threads: [%s]\n\n' % lcores_pool.pop(0)
         else:
             # we will take common minimum among all NUMAs, to satisfy all
             lcores_per_dual_if = 99
@@ -137,14 +149,14 @@ class ConfigCreator(object):
             for i in range(0, len(self.interfaces), 2):
                 numa = self.interfaces[i]['NUMA']
                 dual_if_section += ' '*8 + '- socket: %s\n' % numa
-                lcores_for_this_dual_if = [str(lcores_pool[numa].pop()) for _ in range(lcores_per_dual_if)]
+                lcores_for_this_dual_if = [str(lcores_pool[numa].pop(0)) for _ in range(lcores_per_dual_if)]
                 if not lcores_for_this_dual_if:
                     raise DpdkSetup('Not enough cores at NUMA %s. This NUMA has %s processing units and %s interfaces.' % (numa, len(self.lcores_per_numa[numa]), self.interfaces_per_numa[numa]))
                 dual_if_section += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
             # take the cores left to master and rx
             lcores_pool_left = [lcore for lcores in lcores_pool.values() for lcore in lcores]
-            config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool_left.pop())
-            config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool_left.pop()
+            config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool_left.pop(0))
+            config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool_left.pop(0)
             # add the dual_if section
             config_str += dual_if_section
 
@@ -358,6 +370,7 @@ Other network devices
             dual_index = i + 1 - (i % 2) * 2
             if 'dest_mac' not in wanted_interfaces[dual_index]:
                 wanted_interfaces[dual_index]['dest_mac'] = interface['MAC'] # loopback
+                wanted_interfaces[dual_index]['loopback_dest'] = True
 
         cpu_topology_file = '/proc/cpuinfo'
         # physical processor -> physical core -> logical processing units (threads)
@@ -401,11 +414,17 @@ Examples:
 To unbind the interfaces using the trex configuration file 
   sudo ./dpdk_set_ports.py -l
 
-To create a default config file 
+To create a default config file (example1)
   sudo ./dpdk_setup_ports.py -c 02:00.0 02:00.1 -o /etc/trex_cfg.yaml
+
+To create a default config file (example2)
+  sudo ./dpdk_setup_ports.py -c eth1 eth2 --dest-macs 11:11:11:11:11:11 22:22:22:22:22:22 --dump
 
 To show interfaces status
   sudo ./dpdk_set_ports.py -s
+
+To see more detailed info on interfaces (table):
+  sudo ./dpdk_set_ports.py -t
 
     """,
     description=" unbind dpdk interfaces ",
@@ -472,7 +491,7 @@ To show interfaces status
      )
 
     parser.add_argument('--version', action='version',
-                        version="0.1" )
+                        version="0.2" )
 
     map_driver.args = parser.parse_args();
     if map_driver.args.parent :

@@ -35,8 +35,10 @@
 import sys, os, getopt, subprocess, shlex
 from os.path import exists, abspath, dirname, basename
 from distutils.util import strtobool
-sys.path.append(os.path.join('external_libs', 'texttable-0.8.4'))
+text_tables_path = os.path.join('external_libs', 'texttable-0.8.4')
+sys.path.append(text_tables_path)
 import texttable
+sys.path.remove(text_tables_path)
 import re
 
 # The PCI device class for ETHERNET devices
@@ -506,7 +508,7 @@ def get_macs_from_trex(pci_addr_list):
             print("Could not run TRex to get MAC info about interfaces, check if it's already running.")
         else:
             print('Error upon running TRex to get MAC info:\n%s.' % stdout)
-        return {}
+        sys.exit(1)
     pci_mac_str = 'PCI: (\S+).+?MAC: (\S+)'
     pci_mac_re = re.compile(pci_mac_str)
     for line in stdout.splitlines():

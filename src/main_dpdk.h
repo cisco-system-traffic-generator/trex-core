@@ -122,8 +122,10 @@ class CPhyEthIF  {
     }
     void flush_dp_rx_queue(void);
     void flush_rx_queue(void);
-    int add_rx_flow_stat_rule(uint8_t type, uint16_t proto, uint16_t id);
-    int del_rx_flow_stat_rule(uint8_t type, uint16_t proto, uint16_t id);
+    int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                          , uint8_t ipv6_next_h, uint16_t id) const;
+    int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+                          , uint8_t ipv6_next_h, uint16_t id) const;
     inline uint16_t  tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
         return rte_eth_tx_burst(m_port_id, queue_id, tx_pkts, nb_pkts);
     }
