@@ -223,6 +223,45 @@ After stretching TRex to its maximum CPS capacity, consider the following: DUT w
 In order to artificialy increse the length of the active flows in TRex, you can config larger IPG in the YAML file. This will cause each flow to last longer. Alternatively, you can increase IPG in your PCAP file as well.
 
 
+==== How do I support more active flows?
+The default maximum supported flows are 1M total (TRex prospective). DUT could have much more due to aging. When active flows are more than 1M flows there is message that there is no enough memory. 
+
+[source,Python]
+--------
+Active-flows    :  1045562  Clients :    80120   Socket-util : 0.0207 %
+--------
+
+Look link:trex_manual.html#_memory_section_configuration[here]
+
+This example support 10M flows 
+
+[source,Python]
+--------
+- port_limit    : 2
+  version       : 2
+  interfaces    : ['04:00.0', '0c:00.0']   # list of the interfaces to bind run ./dpdk_nic_bind.py --status 
+  port_info       :  # set eh mac addr 
+
+          - dest_mac        :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x84]
+            src_mac         :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x83]
+            
+          - dest_mac        :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x83]
+            src_mac         :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x84]
+
+  memory    :                                          
+        dp_flows    : 10048576   <1>
+--------
+<1> 10M flows
+
+
+==== ERROR The number of ips should be at least number of threads 
+The range of clients and servers should be at least the number of threads. 
+The number of threads is equal (dual_ports) * (-c value)
+
+==== Incoming frames are from type SCTP why?
+Default latency packets are SCTP, you can remove `-l 1000` or change it to ICMP see manual for more info 
+ 
+
 ===  Stateless 
 
 ==== How do I get started with stateless mode?
