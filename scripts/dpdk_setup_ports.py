@@ -21,7 +21,7 @@ class ConfigCreator(object):
 
     # cpu_topology - dict: physical processor -> physical core -> logical processing unit (thread)
     # interfaces - array of dicts per interface, should include "mandatory_interface_fields" values
-    def __init__(self, cpu_topology, interfaces, include_lcores = [], exclude_lcores = [], only_first_thread = False, zmq_rpc_port = None, zmq_pub_port = None, prefix = None):
+    def __init__(self, cpu_topology, interfaces, include_lcores = [], exclude_lcores = [], only_first_thread = False, zmq_rpc_port = None, zmq_pub_port = None, prefix = None, ignore_numa = False):
         self.cpu_topology = copy.deepcopy(cpu_topology)
         self.interfaces   = copy.deepcopy(interfaces)
         del cpu_topology
@@ -82,10 +82,9 @@ class ConfigCreator(object):
         if system_lcores < minimum_required_lcores:
             raise DpdkSetup('Your system should have at least %s cores for %s interfaces, and it has: %s.' %
                     (minimum_required_lcores, len(self.interfaces), system_lcores + (0 if self.has_zero_lcore else 1)))
-        #if not stateless_only:
         interfaces_per_numa = defaultdict(int)
         for i in range(0, len(self.interfaces), 2):
-            if self.interfaces[i]['NUMA'] != self.interfaces[i+1]['NUMA']:
+            if self.interfaces[i]['NUMA'] != self.interfaces[i+1]['NUMA'] and not ignore_numa:
                 raise DpdkSetup('NUMA of each pair of interfaces should be same, got NUMA %s for client interface %s, NUMA %s for server interface %s' %
                         (self.interfaces[i]['NUMA'], self.interfaces[i]['Slot_str'], self.interfaces[i+1]['NUMA'], self.interfaces[i+1]['Slot_str']))
             interfaces_per_numa[self.interfaces[i]['NUMA']] += 2
@@ -94,6 +93,7 @@ class ConfigCreator(object):
         self.prefix              = prefix
         self.zmq_pub_port        = zmq_pub_port
         self.zmq_rpc_port        = zmq_rpc_port
+        self.ignore_numa         = ignore_numa
 
     def _convert_mac(self, mac_string):
         if not ConfigCreator.mac_re.match(mac_string):
@@ -123,42 +123,43 @@ class ConfigCreator(object):
             config_str += ' '*8 + 'src_mac:  [%s]\n' % self._convert_mac(interface['src_mac'])
             if index % 2:
                 config_str += '\n' # dual if barrier
-        config_str += '  platform:\n'
-        if len(self.interfaces_per_numa.keys()) == 1 and -1 in self.interfaces_per_numa: # VM, use any cores, 1 core per dual_if
-            lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores])
-            config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop())
-            config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool.pop(0)
-            config_str += ' '*6 + 'dual_if:\n'
-            for i in range(0, len(self.interfaces), 2):
-                config_str += ' '*8 + '- socket: 0\n'
-                config_str += ' '*10 + 'threads: [%s]\n\n' % lcores_pool.pop(0)
-        else:
-            # we will take common minimum among all NUMAs, to satisfy all
-            lcores_per_dual_if = 99
-            extra_lcores = 1 if self.has_zero_lcore else 2
-            # worst case 3 iterations, to ensure master and "rx" have cores left
-            while (lcores_per_dual_if * sum(self.interfaces_per_numa.values()) / 2) + extra_lcores > sum([len(lcores) for lcores in self.lcores_per_numa.values()]):
-                lcores_per_dual_if -= 1
-                for numa, cores in self.lcores_per_numa.items():
-                    if not self.interfaces_per_numa[numa]:
-                        continue
-                    lcores_per_dual_if = min(lcores_per_dual_if, int(2 * len(cores) / self.interfaces_per_numa[numa]))
-            lcores_pool = copy.deepcopy(self.lcores_per_numa)
-            # first, allocate lcores for dual_if section
-            dual_if_section = ' '*6 + 'dual_if:\n'
-            for i in range(0, len(self.interfaces), 2):
-                numa = self.interfaces[i]['NUMA']
-                dual_if_section += ' '*8 + '- socket: %s\n' % numa
-                lcores_for_this_dual_if = [str(lcores_pool[numa].pop(0)) for _ in range(lcores_per_dual_if)]
-                if not lcores_for_this_dual_if:
-                    raise DpdkSetup('Not enough cores at NUMA %s. This NUMA has %s processing units and %s interfaces.' % (numa, len(self.lcores_per_numa[numa]), self.interfaces_per_numa[numa]))
-                dual_if_section += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
-            # take the cores left to master and rx
-            lcores_pool_left = [lcore for lcores in lcores_pool.values() for lcore in lcores]
-            config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool_left.pop(0))
-            config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool_left.pop(0)
-            # add the dual_if section
-            config_str += dual_if_section
+        if not self.ignore_numa:
+            config_str += '  platform:\n'
+            if len(self.interfaces_per_numa.keys()) == 1 and -1 in self.interfaces_per_numa: # VM, use any cores, 1 core per dual_if
+                lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores])
+                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop())
+                config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool.pop(0)
+                config_str += ' '*6 + 'dual_if:\n'
+                for i in range(0, len(self.interfaces), 2):
+                    config_str += ' '*8 + '- socket: 0\n'
+                    config_str += ' '*10 + 'threads: [%s]\n\n' % lcores_pool.pop(0)
+            else:
+                # we will take common minimum among all NUMAs, to satisfy all
+                lcores_per_dual_if = 99
+                extra_lcores = 1 if self.has_zero_lcore else 2
+                # worst case 3 iterations, to ensure master and "rx" have cores left
+                while (lcores_per_dual_if * sum(self.interfaces_per_numa.values()) / 2) + extra_lcores > sum([len(lcores) for lcores in self.lcores_per_numa.values()]):
+                    lcores_per_dual_if -= 1
+                    for numa, cores in self.lcores_per_numa.items():
+                        if not self.interfaces_per_numa[numa]:
+                            continue
+                        lcores_per_dual_if = min(lcores_per_dual_if, int(2 * len(cores) / self.interfaces_per_numa[numa]))
+                lcores_pool = copy.deepcopy(self.lcores_per_numa)
+                # first, allocate lcores for dual_if section
+                dual_if_section = ' '*6 + 'dual_if:\n'
+                for i in range(0, len(self.interfaces), 2):
+                    numa = self.interfaces[i]['NUMA']
+                    dual_if_section += ' '*8 + '- socket: %s\n' % numa
+                    lcores_for_this_dual_if = [str(lcores_pool[numa].pop(0)) for _ in range(lcores_per_dual_if)]
+                    if not lcores_for_this_dual_if:
+                        raise DpdkSetup('Not enough cores at NUMA %s. This NUMA has %s processing units and %s interfaces.' % (numa, len(self.lcores_per_numa[numa]), self.interfaces_per_numa[numa]))
+                    dual_if_section += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
+                # take the cores left to master and rx
+                lcores_pool_left = [lcore for lcores in lcores_pool.values() for lcore in lcores]
+                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool_left.pop(0))
+                config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool_left.pop(0)
+                # add the dual_if section
+                config_str += dual_if_section
 
         # verify config is correct YAML format
         try:
@@ -394,7 +395,7 @@ Other network devices
                 cpu_topology[numa][core].append(int(lcore_dict['processor']))
 
         config = ConfigCreator(cpu_topology, wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
-                               only_first_thread = map_driver.args.no_ht,
+                               only_first_thread = map_driver.args.no_ht, ignore_numa = map_driver.args.ignore_numa,
                                prefix = map_driver.args.prefix, zmq_rpc_port = map_driver.args.zmq_rpc_port, zmq_pub_port = map_driver.args.zmq_pub_port)
         config.create_config(filename = map_driver.args.o, print_config = map_driver.args.dump)
 
@@ -480,6 +481,10 @@ To see more detailed info on interfaces (table):
 
     parser.add_argument("--zmq-rpc-port", default=None, action='store',
                       help="""Advanced option: ZMQ RPC port to be used in TRex config in case of parallel instances.""",
+     )
+
+    parser.add_argument("--ignore-numa", default=False, action='store_true',
+                      help="""Advanced option: Ignore NUMAs for config creation. Use this option only if you have to, as it will reduce performance.""",
      )
 
     parser.add_argument("-s", "--show", action='store_true',
