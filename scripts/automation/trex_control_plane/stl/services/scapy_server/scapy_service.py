@@ -2,7 +2,7 @@
 import os
 import sys
 stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir))
-additional_stl_udp_pkts = os.path.abspath(os.path.join(os.pardir, os.pardir,'stl'))
+additional_stl_udp_pkts = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir, os.pardir,'stl'))
 sys.path.append(stl_pathname)
 sys.path.append(additional_stl_udp_pkts)
 import trex_stl_lib
@@ -26,7 +26,8 @@ except ImportError:
 
 
 class Scapy_service_api():
-    """ get_all(self) 
+    def get_all(self):
+        """ get_all(self) 
 
         Sends all the protocols and fields that Scapy Service supports.
         also sends the md5 of the Protocol DB and Fields DB used to check if the DB's are up to date
@@ -42,11 +43,11 @@ class Scapy_service_api():
         Raises
         ------
         Raises an exception when a DB error occurs (i.e a layer is not loaded properly and has missing components)
-    """
-    def get_all(self):
+        """
         pass
 
-    """ check_update(self,db_md5,field_md5) 
+    def check_update(self,db_md5,field_md5):        
+        """ check_update(self,db_md5,field_md5) 
         Checks if the Scapy Service running on the server has a newer version of the databases that the client has
 
         Parameters
@@ -61,13 +62,12 @@ class Scapy_service_api():
         Raises
         ------
         Raises an exception (ScapyException) when protocol DB/Fields DB is not up to date
-
-    """
-
-    def check_update(self,db_md5,field_md5):        
+        """
         pass
 
-    """ build_pkt(self,pkt_descriptor) -> Dictionary (of Offsets,Show2 and Buffer)
+
+    def build_pkt(self,pkt_descriptor):
+        """ build_pkt(self,pkt_descriptor) -> Dictionary (of Offsets,Show2 and Buffer)
         
         Performs calculations on the given packet and returns results for that packet.
     
@@ -85,11 +85,12 @@ class Scapy_service_api():
         ------
         will raise an exception when the Scapy string format is illegal, contains syntax error, contains non-supported
         protocl, etc.
-    """
-    def build_pkt(self,pkt_descriptor):
+        """
         pass
 
-    """ get_tree(self) -> Dictionary describing an example of hierarchy in layers
+
+    def get_tree(self):
+        """ get_tree(self) -> Dictionary describing an example of hierarchy in layers
 
         Scapy service holds a tree of layers that can be stacked to a recommended packet
         according to the hierarchy
@@ -105,8 +106,7 @@ class Scapy_service_api():
         Raises
         ------
         None
-    """
-    def get_tree(self):
+        """
         pass
 
 
