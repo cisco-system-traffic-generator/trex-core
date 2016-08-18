@@ -27,7 +27,7 @@ class Scapy_wrapper:
     def parse_req_msg(self,JSON_req):
         try:
             req = json.loads(JSON_req)
-            req_id='null'
+            req_id=b'null'
             if (type(req)!= type({})):
                 raise ParseException(req_id)
             json_rpc_keys = ['jsonrpc','id','method']
@@ -57,7 +57,7 @@ class Scapy_wrapper:
     def create_error_response(self,error_code,error_msg,req_id='null'):
         return {"jsonrpc": "2.0", "error": {"code": error_code, "message:": error_msg}, "id": req_id}
         
-    def create_success_response(self,result,req_id='null'):
+    def create_success_response(self,result,req_id=b'null'):
         return {"jsonrpc": "2.0", "result": result, "id": req_id }
     
     def get_exception(self):
@@ -73,8 +73,6 @@ class Scapy_wrapper:
 
 
     def error_handler(self,e,req_id):
-        print('exception message is %s' % e.message)
-        print('exception type is: %s' % type(e))
         try:
             raise e
         except ParseException as e:
@@ -87,12 +85,12 @@ class Scapy_wrapper:
             response = self.create_error_response(-32603,'Invalid params',req_id)
         except SyntaxError as e:
             response = self.create_error_response(-32097,'SyntaxError',req_id)
-        except BaseException as e:
-            response = self.create_error_response(-32098,'Scapy Server: '+str(e.message),req_id)
-        except:
-            response = self.create_error_response(-32096,'Scapy Server: Unknown Error',req_id)
+        except Exception as e:
+            if hasattr(e,'message'):
+                response = self.create_error_response(-32098,'Scapy Server: '+str(e.message),req_id)
+            else:
+                response = self.create_error_response(-32096,'Scapy Server: Unknown Error',req_id)            
         finally:
-            print(response)
             return response
 
 class Scapy_server():
@@ -109,7 +107,7 @@ class Scapy_server():
         print ('Server IP address: %s' % self.IP_address)
         try:
             while True:
-                message = self.socket.recv()
+                message = self.socket.recv_string()
                 try:
                     req_id = 'null'
                     method,params,req_id = self.scapy_wrapper.parse_req_msg(message)
@@ -124,12 +122,12 @@ class Scapy_server():
                 finally:
                     json_response = json.dumps(response)
                 #  Send reply back to client
-                    self.socket.send(json_response)
-                    if (method =='shut_down'):
+                    self.socket.send_string(json_response)
+                    if (method == 'shut_down'):
                         break
 
         except KeyboardInterrupt:
-                print('Terminated By Ctrl+C')
+                print(b'Terminated By Ctrl+C')
 
         finally:
             self.socket.close()

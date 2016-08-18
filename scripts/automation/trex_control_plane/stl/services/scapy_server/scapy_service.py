@@ -134,26 +134,32 @@ class Scapy_service(Scapy_service_api):
         self.all_protocols = self._build_lib()
         self.protocol_tree = {'ALL':{'Ether':{'ARP':{},'IP':{'TCP':{'RAW':'payload'},'UDP':{'RAW':'payload'}}}}}
     
-    def _protocol_struct(self,protocol=''):
+
+    def _all_protocol_structs(self):
+        old_stdout = sys.stdout
+        sys.stdout = mystdout = StringIO()
+        ls()
+        sys.stdout = old_stdout
+        all_protocol_data= mystdout.getvalue()
+        return all_protocol_data
+
+    def _protocol_struct(self,protocol):
         if '_' in protocol:
             return []
         if not protocol=='':
             if protocol not in self.all_protocols:
                 return 'protocol not supported'
-            protocol = eval(protocol)
+        protocol = eval(protocol)
         old_stdout = sys.stdout
         sys.stdout = mystdout = StringIO()
-        if not protocol=='':
-            ls(protocol)
-        else:
-            ls()
+        ls(protocol)
         sys.stdout = old_stdout
         protocol_data= mystdout.getvalue()
         return protocol_data
 
     def _build_lib(self):
-        lib = self._protocol_struct()
-        lib = lib.split('\n')
+        lib = self._all_protocol_structs()
+        lib = lib.splitlines()
         all_protocols=[]
         for entry in lib:
             entry = entry.split(':')
@@ -195,11 +201,11 @@ class Scapy_service(Scapy_service_api):
         for pro in self.all_protocols:
             details = self._get_protocol_details(pro)
             for i in range(0,len(details),1):
-                if len(details[i]) is 3:
+                if len(details[i]) == 3:
                     fields.append(details[i][1])
-        uniqeFields = list(set(fields))
+        uniqueFields = list(set(fields))
         fieldDict = {}
-        for f in uniqeFields:
+        for f in uniqueFields:
             if f in self.regexDB:
                 fieldDict[f] = self.regexDB[f].stringRegex()
             else:
@@ -261,14 +267,18 @@ class Scapy_service(Scapy_service_api):
         return res_md5
 
     def get_version(self):
-        return {'built_by':'itraviv','version':'v1.0'}
+        return {'built_by':'itraviv','version':'v1.01'}
 
     def supported_methods(self,method_name=''):
         if method_name=='':
             methods = {}
             for f in dir(Scapy_service):
                 if inspect.ismethod(eval('Scapy_service.'+f)):
-                    methods[f] = inspect.getargspec(eval('Scapy_service.'+f))[0]
+                    param_list = inspect.getargspec(eval('Scapy_service.'+f))[0]
+                    del param_list[0] #deleting the parameter "self" that appears in every method 
+                                      #because the server automatically operates on an instance,
+                                      #and this can cause confusion
+                    methods[f] = (len(param_list), param_list)
             return methods
         if method_name in dir(Scapy_service):
             return True

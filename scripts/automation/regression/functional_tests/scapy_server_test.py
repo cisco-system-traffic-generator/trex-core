@@ -1,13 +1,15 @@
 # scapy server unit test
 
 import sys,os
+from nose.plugins.skip import SkipTest
+if sys.version_info.major == 3:
+    raise SkipTest("Python3 currently not supported")
 scapy_server_path = os.path.abspath(os.path.join(os.pardir, 'trex_control_plane', 'stl', 'services','scapy_server'))
 stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir, 'trex_control_plane','stl'))
 sys.path.append(scapy_server_path)
 sys.path.append(stl_pathname)
 
 
-#import stl_path
 import trex_stl_lib
 from trex_stl_lib.api import *
 from copy import deepcopy
