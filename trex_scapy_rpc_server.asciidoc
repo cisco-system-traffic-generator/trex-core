@@ -603,9 +603,36 @@ Server IP address: 10.0.0.1
 ----
 
 ==== Running Scapy ZMQ Server from the Python interpreter
-Run the Python Interpreter (Scapy Server currently supports Python2)
+* Run the Python Interpreter (Scapy Server currently supports Python2)
+* Import the scapy_zmq_server.py file
+* Create a Scapy_server Object with argument as port number. default argument is port 4507
+* Invoke method activate. this is blocking because the server is listening on the port
 
+[source,bash]
+----
+user$ python
+>>> from scapy_zmq_server import *
+>>> s = Scapy_server() // starts with port 4507
+>>> s = Scapy_server(5555) //starts with port 5555
+>>> s.activate()
+***Scapy Server Started***
+Listening on port: 5555
+Server IP address: 10.0.0.1
 
+----
+
+==== Shutting down Scapy ZMQ Server
+There are 2 ways to shut down the server:
+
+* The server can be shut down using the keyboard interrupt Ctrl+C
+* The server can be shut down remotely with the method "shut_down" with no arguments
+
+[source,bash]
+----
+//Sending Request: {"params": [], "jsonrpc": "2.0", "method": "shut_down", "id": "1"}
+//Will result in this print by the server:
+Server: Shut down by remote user
+----
 
 
 
