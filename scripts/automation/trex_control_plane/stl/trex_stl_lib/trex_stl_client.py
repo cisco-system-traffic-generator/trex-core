@@ -923,30 +923,32 @@ class STLClient(object):
 
     def __decode_core_mask (self, ports, core_mask):
 
-        validate_type('core_mask', core_mask, (int, list))
-
         # predefined modes
         if isinstance(core_mask, int):
             if core_mask not in [self.CORE_MASK_PIN, self.CORE_MASK_SPLIT]:
                 raise STLError("'core_mask' can be either CORE_MASK_PIN, CORE_MASK_SPLIT or a list of masks")
 
-            mask = {}
+            decoded_mask = {}
             for port in ports:
                 # a pin mode was requested and we have
                 # the second port from the group in the start list
                 if (core_mask == self.CORE_MASK_PIN) and ( (port ^ 0x1) in ports ):
-                    mask[port] = 0x55555555 if( port % 2) == 0 else 0xAAAAAAAA
+                    decoded_mask[port] = 0x55555555 if( port % 2) == 0 else 0xAAAAAAAA
                 else:
-                    mask[port] = None
+                    decoded_mask[port] = None
 
-            return mask
+            return decoded_mask
 
         # list of masks
         elif isinstance(core_mask, list):
             if len(ports) != len(core_mask):
                 raise STLError("'core_mask' list must be the same length as 'ports' list")
+            
+            decoded_mask = {}
+            for i, port in enumerate(ports):
+                decoded_mask[port] = core_mask[i]
 
-            return core_mask
+            return decoded_mask
 
 
 
@@ -1990,10 +1992,11 @@ class STLClient(object):
         validate_type('force', force, bool)
         validate_type('duration', duration, (int, float))
         validate_type('total', total, bool)
+        validate_type('core_mask', core_mask, (int, list))
 
         #########################
         # decode core mask argument
-        core_mask = self.__decode_core_mask(ports, core_mask)
+        decoded_mask = self.__decode_core_mask(ports, core_mask)
         #######################
 
         # verify multiplier
@@ -2017,7 +2020,7 @@ class STLClient(object):
 
         # start traffic
         self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(ports))
-        rc = self.__start(mult_obj, duration, ports, force, core_mask)
+        rc = self.__start(mult_obj, duration, ports, force, decoded_mask)
         self.logger.post_cmd(rc)
 
         if not rc:

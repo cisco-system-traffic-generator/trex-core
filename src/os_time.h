@@ -23,7 +23,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include <time.h>
-
+#include "pal_utl.h"
 
 uint32_t 	 os_get_time_msec();
 uint32_t 	 os_get_time_freq();
