@@ -47,7 +47,7 @@ The server operates on a Request-Response basis *over ZMQ*, and does not support
 Read more about ZMQ link:http://zguide.zeromq.org/page:all[here]
 
 
-image::images/Scapy_JSON_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/Scapy_JSON_rpc_server.png"]
+image::images/scapy_json_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/Scapy_JSON_rpc_server.png"]
 
 === Error Codes
 
@@ -567,6 +567,47 @@ Unsuccessful assembly of a packet: +
            }
 }
 ----
+
+
+== Usage of Scapy RPC Server
+Notice the existance of the following files: 
+
+* scapy_service.py 
+* scapy_zmq_server.py 
+* scapy_zmq_client.py 
+
+=== Scapy_zmq_server.py
+In this section we will see how to bring up the Scapy ZMQ server.
+There are 2 ways to run this server:
+
+* Through command line
+* Through Python interpreter
+
+==== Running Scapy ZMQ Server from command line
+Run the file scapy_zmq_server.py with the argument -s to declare the port that the server will listen to. +
+Running the file without the "-s" argument will use *port 4507 by default*. +
+ +
+Notice:
+
+* The Server's IP will be the IP address of the local host.
+* The Server will accept requests from *any* IP address on that port.
+
+[source,bash]
+----
+user$ python scapy_zmq_server.py -s 5555
+
+***Scapy Server Started***
+Listening on port: 5555
+Server IP address: 10.0.0.1
+
+----
+
+==== Running Scapy ZMQ Server from the Python interpreter
+Run the Python Interpreter (Scapy Server currently supports Python2)
+
+
+
+
 
 
 
