@@ -8,7 +8,8 @@ scapy_server_path = os.path.abspath(os.path.join(os.pardir, 'trex_control_plane'
 stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir, 'trex_control_plane','stl'))
 sys.path.append(scapy_server_path)
 sys.path.append(stl_pathname)
-
+additional_stl_udp_pkts = os.path.abspath(os.path.join(os.pardir, os.pardir,'stl'))
+sys.path.append(additional_stl_udp_pkts)
 
 import trex_stl_lib
 from trex_stl_lib.api import *
