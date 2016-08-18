@@ -544,7 +544,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     double    duration    = parse_double(params, "duration", result);
     bool      force       = parse_bool(params, "force", result);
-    uint64_t  core_mask   = parse_uint64(params, "core_mask", result);
+    uint64_t  core_mask   = parse_uint64(params, "core_mask", result, TrexDPCoreMask::MASK_ALL);
 
     if (!TrexDPCoreMask::is_valid_mask(port->get_dp_core_count(), core_mask)) {
         generate_parse_err(result, "invalid core mask provided");

@@ -40,7 +40,7 @@ class TrexDPCoreMask {
 public:
 
 
-    TrexDPCoreMask(uint8_t dp_core_count, uint64_t dp_core_mask = UINT64_MAX) {
+    TrexDPCoreMask(uint8_t dp_core_count, uint64_t dp_core_mask = MASK_ALL) {
         assert(is_valid_mask(dp_core_count, dp_core_mask));
 
         m_dp_core_count = dp_core_count;

@@ -102,6 +102,7 @@ public:
     virtual ~TrexRpcCommand() {}
 
 protected:
+    static const int PARAM_COUNT_IGNORE = -1;
 
     /**
      * different types of fields
