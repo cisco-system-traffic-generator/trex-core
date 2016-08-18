@@ -121,8 +121,6 @@ struct port_cfg_t;
 class CTRexExtendedDriverBase {
 public:
 
-    virtual TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) = 0;
-
     /* by default NIC driver adds CRC */
     virtual bool has_crc_added() {
         return true;
@@ -164,10 +162,6 @@ class CTRexExtendedDriverBase1G : public CTRexExtendedDriverBase {
 
 public:
     CTRexExtendedDriverBase1G(){
-    }
-
-    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
-        return TrexPlatformApi::SPEED_1G;
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -213,10 +207,6 @@ public:
     CTRexExtendedDriverBase1GVm(){
         /* we are working in mode that we have 1 queue for rx and one queue for tx*/
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
-    }
-
-    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
-        return TrexPlatformApi::SPEED_1G;
     }
 
     virtual bool has_crc_added() {
@@ -267,10 +257,6 @@ public:
     CTRexExtendedDriverBase10G(){
     }
 
-    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id) {
-        return TrexPlatformApi::SPEED_10G;
-    }
-
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBase10G() );
     }
@@ -311,7 +297,6 @@ public:
         m_if_per_card = 4;
     }
 
-    TrexPlatformApi::driver_speed_e get_driver_speed(uint8_t port_id);
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBase40G() );
     }
@@ -514,6 +499,7 @@ enum { OPT_HELP,
        OPT_MODE_BATCH,
        OPT_MODE_INTERACTIVE,
        OPT_NODE_DUMP,
+       OPT_DUMP_INTERFACES,
        OPT_UT,
        OPT_FILE_OUT,
        OPT_REAL_TIME,
@@ -581,6 +567,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_LIMT_NUM_OF_PORTS,"--limit-ports", SO_REQ_SEP },
         { OPT_CORES     , "-c",         SO_REQ_SEP },
         { OPT_NODE_DUMP , "-v",         SO_REQ_SEP },
+        { OPT_DUMP_INTERFACES , "--dump-interfaces",         SO_MULTI },
         { OPT_LATENCY , "-l",         SO_REQ_SEP },
         { OPT_DURATION     , "-d",  SO_REQ_SEP },
         { OPT_PLATFORM_FACTOR     , "-pm",  SO_REQ_SEP },
@@ -776,6 +763,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
     bool latency_was_set=false;
     (void)latency_was_set;
+    char ** rgpszArg = NULL;
 
     int a=0;
     int node_dump=0;
@@ -896,6 +884,19 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 a=atoi(args.OptionArg());
                 node_dump=1;
                 po->preview.setFileWrite(false);
+                break;
+            case OPT_DUMP_INTERFACES:
+                if (first_time) {
+                    rgpszArg = args.MultiArg(1);
+                    while (rgpszArg != NULL) {
+                        po->dump_interfaces.push_back(rgpszArg[0]);
+                        rgpszArg = args.MultiArg(1);
+                    }
+                }
+                if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
+                    parse_err("Please specify single run mode");
+                }
+                po->m_run_mode = CParserOption::RUN_MODE_DUMP_INFO;
                 break;
             case OPT_MBUF_FACTOR:
                 sscanf(args.OptionArg(),"%f", &po->m_mbuf_factor);
@@ -4891,9 +4892,17 @@ int  update_dpdk_args(void){
     global_dpdk_args_num = 7;
 
     /* add white list */
-    for (int i=0; i<(int)global_platform_cfg_info.m_if_list.size(); i++) {
-        global_dpdk_args[global_dpdk_args_num++]=(char *)"-w";
-        global_dpdk_args[global_dpdk_args_num++]=(char *)global_platform_cfg_info.m_if_list[i].c_str();
+    if (lpop->m_run_mode == CParserOption::RUN_MODE_DUMP_INFO and lpop->dump_interfaces.size()) {
+        for (int i=0; i<(int)lpop->dump_interfaces.size(); i++) {
+            global_dpdk_args[global_dpdk_args_num++]=(char *)"-w";
+            global_dpdk_args[global_dpdk_args_num++]=(char *)lpop->dump_interfaces[i].c_str();
+        }
+    }
+    else {
+        for (int i=0; i<(int)global_platform_cfg_info.m_if_list.size(); i++) {
+            global_dpdk_args[global_dpdk_args_num++]=(char *)"-w";
+            global_dpdk_args[global_dpdk_args_num++]=(char *)global_platform_cfg_info.m_if_list[i].c_str();
+        }
     }
 
 
@@ -4951,6 +4960,22 @@ int sim_load_list_of_cap_files(CParserOption * op){
     return (0);
 }
 
+void dump_interfaces_info() {
+    printf("Showing interfaces info.\n");
+    uint8_t m_max_ports = rte_eth_dev_count();
+    struct ether_addr mac_addr;
+    char mac_str[ETHER_ADDR_FMT_SIZE];
+    struct rte_pci_addr pci_addr;
+
+    for (uint8_t port_id=0; port_id<m_max_ports; port_id++) {
+        // PCI and MAC
+        pci_addr = rte_eth_devices[port_id].pci_dev->addr;
+        rte_eth_macaddr_get(port_id, &mac_addr);
+        ether_format_addr(mac_str, sizeof mac_str, &mac_addr);
+        printf("PCI: %04x:%02x:%02x.%d - MAC: %s\n",
+            pci_addr.domain, pci_addr.bus, pci_addr.devid, pci_addr.function, mac_str);
+    }
+}
 
 int main_test(int argc , char * argv[]){
 
@@ -5015,7 +5040,10 @@ int main_test(int argc , char * argv[]){
         printf(" You might need to run ./trex-cfg  once  \n");
         rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
     }
-
+    if (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_DUMP_INFO) {
+        dump_interfaces_info();
+        exit(0);
+    }
     reorder_dpdk_ports();
     time_init();
 
@@ -5593,17 +5621,6 @@ CFlowStatParser *CTRexExtendedDriverBase10G::get_flow_stat_parser() {
     return parser;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-TrexPlatformApi::driver_speed_e CTRexExtendedDriverBase40G::get_driver_speed(uint8_t port_id) {
-        CPhyEthIF *phy_if = &g_trex.m_ports[port_id];
-
-        if (phy_if->m_dev_info.speed_capa & ETH_LINK_SPEED_40G) {
-            return TrexPlatformApi::SPEED_40G;
-        } else {
-            return TrexPlatformApi::SPEED_10G;
-        }
-    }
-
 void CTRexExtendedDriverBase40G::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(_if->get_port_id());
 }
@@ -6099,7 +6116,8 @@ TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id, intf_info_st &info
     struct ether_addr rte_mac_addr;
 
     info.driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
-    info.speed       = CTRexExtendedDriverDb::Ins()->get_drv()->get_driver_speed(interface_id);
+    g_trex.m_ports[interface_id].update_link_status_nowait();
+    g_trex.m_ports[interface_id].get_link_speed(&info.speed);
     info.has_crc     = CTRexExtendedDriverDb::Ins()->get_drv()->has_crc_added();
 
     /* mac INFO */

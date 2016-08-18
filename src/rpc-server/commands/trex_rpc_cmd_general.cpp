@@ -289,7 +289,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["ports"] = Json::arrayValue;
 
     for (int i = 0; i < main->get_port_count(); i++) {
-        TrexPlatformApi::driver_speed_e speed;
+        uint32_t speed;
         string driver;
         string hw_macaddr;
         string src_macaddr;
@@ -325,27 +325,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
             section["ports"][i]["rx"]["caps"].append("rx_bytes");
         }
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();
-
-
-        switch (speed) {
-        case TrexPlatformApi::SPEED_1G:
-            section["ports"][i]["speed"]   = 1;
-            break;
-
-        case TrexPlatformApi::SPEED_10G:
-            section["ports"][i]["speed"]   = 10;
-            break;
-
-        case TrexPlatformApi::SPEED_40G:
-            section["ports"][i]["speed"]   = 40;
-            break;
-
-        default:
-            /* unknown value */
-            section["ports"][i]["speed"]   = 0;
-            break;
-        }
-
+        section["ports"][i]["speed"] = (uint16_t) speed / 1000;
 
     }
 

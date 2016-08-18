@@ -111,13 +111,6 @@ public:
         IF_STAT_RX_BYTES_COUNT = 8, // Card support counting rx bytes
     };
 
-    enum driver_speed_e {
-        SPEED_INVALID,
-        SPEED_1G,
-        SPEED_10G,
-        SPEED_40G,
-    };
-
     struct mac_cfg_st {
         uint8_t hw_macaddr[6];
         uint8_t src_macaddr[6];
@@ -130,7 +123,7 @@ public:
      */
     struct intf_info_st {
         std::string     driver_name;
-        driver_speed_e  speed;
+        uint32_t        speed;
         mac_cfg_st      mac_info;
         std::string     pci_addr;
         int             numa_node;
@@ -228,7 +221,7 @@ public:
     virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const {
 
         info.driver_name = "TEST";
-        info.speed = TrexPlatformApi::SPEED_10G;
+        info.speed = 10000;
         info.has_crc = true;
         info.numa_node = 0;
 

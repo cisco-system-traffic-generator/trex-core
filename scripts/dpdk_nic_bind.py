@@ -32,9 +32,12 @@
 #   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-import sys, os, getopt, subprocess
+import sys, os, getopt, subprocess, shlex
 from os.path import exists, abspath, dirname, basename
 from distutils.util import strtobool
+sys.path.append(os.path.join('external_libs', 'texttable-0.8.4'))
+import texttable
+import re
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
@@ -48,6 +51,7 @@ dpdk_drivers = [ "igb_uio", "vfio-pci", "uio_pci_generic" ]
 # command-line arg flags
 b_flag = None
 status_flag = False
+table_flag = False
 force_flag = False
 args = []
 
@@ -80,6 +84,9 @@ Options:
             e.g. unused=igb_uio
         NOTE: if this flag is passed along with a bind/unbind option, the status
         display will always occur after the other operations have taken place.
+
+    -t, --table:
+        Similar to --status, but gives more info: NUMA, MAC etc.
 
     -b driver, --bind=driver:
         Select the driver to use or \"none\" to unbind the device
@@ -275,6 +282,18 @@ def get_nic_details():
                 modules.remove(devices[d]["Driver_str"])
                 devices[d]["Module_str"] = ",".join(modules)
 
+        # get MAC from Linux if available
+        mac_file = '/sys/bus/pci/devices/%s/net/%s/address' % (devices[d]['Slot'], devices[d]['Interface'])
+        if os.path.exists(mac_file):
+            with open(mac_file) as f:
+                devices[d]['MAC'] = f.read().strip()
+
+        # get NUMA from Linux if available
+        numa_node_file = '/sys/bus/pci/devices/%s/numa_node' % devices[d]['Slot']
+        if os.path.exists(numa_node_file):
+            with open(numa_node_file) as f:
+                devices[d]['NUMA'] = int(f.read().strip())
+
 def dev_id_from_dev_name(dev_name):
     '''Take a device "name" - a string passed in by user to identify a NIC
     device, and determine the device id - i.e. the domain:bus:slot.func - for
@@ -403,7 +422,7 @@ def bind_all(dev_list, driver, force=False):
     """Bind method, takes a list of device locations"""
     global devices
 
-    dev_list = map(dev_id_from_dev_name, dev_list)
+    dev_list = list(map(dev_id_from_dev_name, dev_list))
 
     for d in dev_list:
         bind_one(d, driver, force)
@@ -474,11 +493,61 @@ def show_status():
     display_devices("Other network devices", no_drv,\
                     "unused=%(Module_str)s")
 
+def get_macs_from_trex(pci_addr_list):
+    if not pci_addr_list:
+        return {}
+    pci_mac_dict = {}
+    run_command = 'sudo ./t-rex-64 --dump-interfaces %s' % ' '.join(pci_addr_list)
+    proc = subprocess.Popen(shlex.split(run_command), stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, universal_newlines = True)
+    stdout, _ = proc.communicate()
+    if proc.returncode:
+        if 'PANIC in rte_eal_init' in stdout:
+            print("Could not run TRex to get MAC info about interfaces, check if it's already running.")
+        else:
+            print('Error upon running TRex to get MAC info:\n%s.' % stdout)
+        return {}
+    pci_mac_str = 'PCI: (\S+).+?MAC: (\S+)'
+    pci_mac_re = re.compile(pci_mac_str)
+    for line in stdout.splitlines():
+        match = pci_mac_re.match(line)
+        if match:
+            pci = match.group(1)
+            mac = match.group(2)
+            if pci not in pci_addr_list: # sanity check, should not happen
+                print('Internal error while getting MACs of DPDK bound interfaces, unknown PCI: %s' % pci)
+                return {}
+            pci_mac_dict[pci] = mac
+    return pci_mac_dict
+
+def show_table():
+    '''Function called when the script is passed the "--table" option.
+    Similar to show_status() function, but shows more info: NUMA etc.'''
+    global dpdk_drivers
+    dpdk_drv = []
+    for d in devices.keys():
+        if devices[d].get("Driver_str") in dpdk_drivers:
+            dpdk_drv.append(d)
+
+    for pci, mac in get_macs_from_trex(dpdk_drv).items():
+        if pci not in dpdk_drv: # sanity check, should not happen
+            print('Internal error while getting MACs of DPDK bound interfaces, unknown PCI: %s' % pci)
+            return
+        devices[pci]['MAC'] = mac
+        
+    table = texttable.Texttable(max_width=-1)
+    table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux interface', 'Active'])
+    for id, pci in enumerate(sorted(devices.keys())):
+        d = devices[pci]
+        table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
+    print(table.draw())
+
 def parse_args():
     '''Parses the command-line arguments given by the user and takes the
     appropriate action for each'''
     global b_flag
     global status_flag
+    global table_flag
     global force_flag
     global args
     if len(sys.argv) <= 1:
@@ -486,8 +555,8 @@ def parse_args():
         sys.exit(0)
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "b:us",
-                               ["help", "usage", "status", "force",
+        opts, args = getopt.getopt(sys.argv[1:], "b:ust",
+                               ["help", "usage", "status", "table", "force",
                                 "bind=", "unbind"])
     except getopt.GetoptError as error:
         print(str(error))
@@ -500,6 +569,8 @@ def parse_args():
             sys.exit(0)
         if opt == "--status" or opt == "-s":
             status_flag = True
+        if opt == "--table" or opt == "-t":
+            table_flag = True
         if opt == "--force":
             force_flag = True
         if opt == "-b" or opt == "-u" or opt == "--bind" or opt == "--unbind":
@@ -515,10 +586,11 @@ def do_arg_actions():
     '''do the actual action requested by the user'''
     global b_flag
     global status_flag
+    global table_flag
     global force_flag
     global args
 
-    if b_flag is None and not status_flag:
+    if b_flag is None and not status_flag and not table_flag:
         print("Error: No action specified for devices. Please give a -b or -u option")
         print("Run '%s --usage' for further information" % sys.argv[0])
         sys.exit(1)
@@ -536,6 +608,10 @@ def do_arg_actions():
         if b_flag is not None:
             get_nic_details() # refresh if we have changed anything
         show_status()
+    if table_flag:
+        if b_flag is not None:
+            get_nic_details() # refresh if we have changed anything
+        show_table()
 
 def main():
     '''program main function'''

@@ -573,7 +573,7 @@ TrexStatelessPort::get_max_stream_id() const {
 }
 
 void
-TrexStatelessPort::get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed) {
+TrexStatelessPort::get_properties(std::string &driver, uint32_t &speed) {
 
     driver = m_api_info.driver_name;
     speed  = m_api_info.speed;
@@ -657,19 +657,7 @@ TrexStatelessPort::send_message_to_rx(TrexStatelessCpToRxMsgBase *msg) {
 
 uint64_t
 TrexStatelessPort::get_port_speed_bps() const {
-    switch (m_api_info.speed) {
-    case TrexPlatformApi::SPEED_1G:
-        return (1LLU * 1000 * 1000 * 1000);
-
-    case TrexPlatformApi::SPEED_10G:
-        return (10LLU * 1000 * 1000 * 1000);
-
-    case TrexPlatformApi::SPEED_40G:
-        return (40LLU * 1000 * 1000 * 1000);
-
-    default:
-        return 0;
-    }
+    return (uint64_t) m_api_info.speed * 1000 * 1000;
 }
 
 static inline double

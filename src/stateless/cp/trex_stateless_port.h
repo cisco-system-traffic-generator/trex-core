@@ -256,7 +256,7 @@ public:
      * @param driver
      * @param speed
      */
-    void get_properties(std::string &driver, TrexPlatformApi::driver_speed_e &speed);
+    void get_properties(std::string &driver, uint32_t &speed);
 
 
 

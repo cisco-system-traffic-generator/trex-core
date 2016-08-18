@@ -90,6 +90,9 @@ class CPhyEthIF  {
     bool is_link_up(){
         return (m_link.link_status?true:false);
     }
+    void get_link_speed(uint32_t *link_speed){
+        *link_speed = m_link.link_speed;
+    }
     void dump_link(FILE *fd);
     void disable_flow_control();
     void set_promiscuous(bool enable);
@@ -119,10 +122,8 @@ class CPhyEthIF  {
     }
     void flush_dp_rx_queue(void);
     void flush_rx_queue(void);
-    int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
-                          , uint8_t ipv6_next_h, uint16_t id) const;
-    int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
-                          , uint8_t ipv6_next_h, uint16_t id) const;
+    int add_rx_flow_stat_rule(uint8_t type, uint16_t proto, uint16_t id);
+    int del_rx_flow_stat_rule(uint8_t type, uint16_t proto, uint16_t id);
     inline uint16_t  tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
         return rte_eth_tx_burst(m_port_id, queue_id, tx_pkts, nb_pkts);
     }
@@ -154,9 +155,9 @@ class CPhyEthIF  {
     const std::vector<std::pair<uint8_t, uint8_t>> & get_core_list();
 
  private:
+    struct rte_eth_link      m_link;
     uint8_t                  m_port_id;
     uint8_t                  m_rx_queue;
-    struct rte_eth_link      m_link;
     uint64_t                 m_sw_try_tx_pkt;
     uint64_t                 m_sw_tx_drop_pkt;
     CBwMeasure               m_bw_tx;

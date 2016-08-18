@@ -764,7 +764,8 @@ public:
     enum trex_run_mode_e {
         RUN_MODE_INVALID,
         RUN_MODE_BATCH,
-        RUN_MODE_INTERACTIVE
+        RUN_MODE_INTERACTIVE,
+        RUN_MODE_DUMP_INFO,
     };
 
     enum trex_learn_mode_e {
@@ -837,6 +838,7 @@ public:
 
     std::string        out_file;
     std::string        prefix;
+    std::vector<std::string> dump_interfaces;
 
 
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
