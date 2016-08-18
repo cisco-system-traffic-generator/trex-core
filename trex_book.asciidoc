@@ -227,6 +227,7 @@ NOTE: Purchase the 10Gb/sec SFP+ separately. Cisco would be fine with TRex (but 
 ==== Supported versions
 
 Supported Linux versions:
+
 * Fedora 20-23, 64-bit kernel (not 32-bit)
 * Ubuntu 14.04.1 LTS, 64-bit kernel (not 32-bit)
 * Ubuntu 16.xx LTS, 64-bit kernel (not 32-bit) 

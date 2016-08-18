@@ -25,8 +25,8 @@ endif::backend-docbook[]
 
 == Release 2.08  ==
 
-* Scapy server for GUI packet crafting, see  link:trex_scapy_rpc_server.html[trex_scapy_rpc_server]
-* Client.start Python API supports Core mask  - significantly improve the Stateless performance. TBD- Itay to update the pointer here  
+* Scapy JSON-RPC server for GUI packet crafting, see  link:trex_scapy_rpc_server.html[trex_scapy_rpc_server]
+* Client.start Python API supports Core mask  - significantly improve the Stateless performance. link:cp_stl_docs/_modules/trex_stl_lib/trex_stl_client.html#STLClient.start[start API],  *TBD*- Itay to update the pointer here  
 * Upgrade the ./dpdk_setup_ports.py script. It simplifies the way to create first time *optimized* config file (/etc/trex_cfg.yaml)
 
 [source,bash]
@@ -34,6 +34,8 @@ endif::backend-docbook[]
 $sudo ./dpdk_setup_ports.py script -t            # show the list of ports 
 $sudo ./dpdk_setup_ports.py  -c  03:00.0 03:00.1 # create optimum /etc/trex_cfg.yaml file 
 ----
+
+*Yaroslav* TBD 
 
 * Basic Cisco VIC functionality works now. Advanced Stateless/Stateful functionality is still not supported.
 

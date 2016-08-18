@@ -80,7 +80,9 @@ link:../client_gui/[stateful GUI]
 |=================
 | Description  |    Name 
 | Stateless server RPC specification    | 
-link:trex_rpc_server_spec.html[server.html] 
+link:trex_rpc_server_spec.html[stl_rpc_server.html] 
+| Scapy server RPC specification    | 
+link:trex_scapy_rpc_server.html[scapy_rpc_spec.html] 
 | How to build    | 
 link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 |=================
