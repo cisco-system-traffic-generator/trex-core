@@ -165,6 +165,17 @@ void delay(int msec){
     nanosleep(&time1,&remain);
 }
 
+/**
+ * more accurate sleep by doing spin
+ * 
+ */
+static inline
+void delay_spin(double sec) {
+    double target = now_sec() + sec;
 
+    while (now_sec() < target) {
+        rte_pause();
+    }
+}
 
 #endif

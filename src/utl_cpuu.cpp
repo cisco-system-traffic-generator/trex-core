@@ -42,10 +42,11 @@ void CCpuUtlCp::Update(){
     if ( m_dpcpu->sample_data() ) {
         m_work++;
     }
-    if (m_ticks==100) {
+    if (m_ticks==100000) {
         /* LPF*/
-        m_cpu_util_lpf = (m_cpu_util_lpf*0.75)+((double)m_work*0.25);
-        AppendHistory(m_work);
+        double work = (m_work / double(m_ticks)) * 100;
+        m_cpu_util_lpf = (m_cpu_util_lpf*0.75)+(work*0.25);
+        AppendHistory(work);
         m_ticks=0;
         m_work=0;
     }

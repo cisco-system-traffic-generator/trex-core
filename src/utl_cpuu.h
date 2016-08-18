@@ -47,7 +47,7 @@ public:
 
 
 private:
-    uint8_t m_data;
+    volatile uint8_t m_data;
 } __rte_cache_aligned; 
 
 class CCpuUtlCp {
@@ -62,9 +62,9 @@ public:
     void GetHistory(cpu_vct_st &cpu_vct);
 private:
     void AppendHistory(uint8_t);
-    CCpuUtlDp *         m_dpcpu;
-    uint8_t             m_ticks;
-    uint8_t             m_work;
+    CCpuUtlDp *          m_dpcpu;
+    uint32_t             m_ticks;
+    uint32_t             m_work;
 
     static const int    m_history_size=20;
     uint8_t             m_cpu_util[m_history_size]; // history as cyclic array

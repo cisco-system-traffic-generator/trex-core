@@ -4126,14 +4126,20 @@ void
 CGlobalTRex::handle_fast_path() {
     /* check from messages from DP */
     check_for_dp_messages();
-    // update CPU%
-    m_fl.UpdateFast();
 
-    if (get_is_stateless()) {
-        m_rx_sl.update_cpu_util();
-    }else{
-        m_mg.update_fast();
+    /* measure CPU utilization by sampling (we sample 1000 to get an accurate sampling) */
+    for (int i = 0; i < 1000; i++) {
+        m_fl.UpdateFast();
+
+        if (get_is_stateless()) {
+            m_rx_sl.update_cpu_util();
+        }else{
+            m_mg.update_fast();
+        }
+
+        rte_pause();
     }
+
 
     if ( is_all_cores_finished() ) {
         mark_for_shutdown(SHUTDOWN_TEST_ENDED);

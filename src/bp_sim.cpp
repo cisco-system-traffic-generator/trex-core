@@ -4615,8 +4615,7 @@ double CFlowGenList::GetCpuUtilRaw(){
 
 void CFlowGenList::UpdateFast(){
 
-    int i;
-    for (i=0; i<(int)m_threads_info.size(); i++) {
+    for (int i=0; i<(int)m_threads_info.size(); i++) {
         CFlowGenListPerThread * lp=m_threads_info[i];
         lp->Update();
     }

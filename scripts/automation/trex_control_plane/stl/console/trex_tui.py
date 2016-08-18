@@ -515,9 +515,31 @@ class ScreenBuffer():
         self.redraw_cb(buffer)
 
         with self.lock:
-            self.snapshot = buffer.getvalue()
+            self.snapshot = buffer
             self.update_flag = False
 
+# a policer class to make sure no too-fast redraws
+# occurs - it filters fast bursts of redraws
+class RedrawPolicer():
+    def __init__ (self, rate):
+        self.ts = 0
+        self.marked = False
+        self.rate = rate
+        self.force = False
+
+    def mark_for_redraw (self, force = False):
+        self.marked = True
+        if force:
+            self.force = True
+
+    def should_redraw (self):
+        dt = time.time() - self.ts
+        return self.force or (self.marked and (dt > self.rate))
+
+    def reset (self, restart = False):
+        self.ts = time.time()
+        self.marked = restart
+        self.force = False
 
 
 # shows a textual top style window
@@ -530,6 +552,7 @@ class TrexTUI():
 
     MIN_ROWS = 50
     MIN_COLS = 111
+
 
     class ScreenSizeException(Exception):
         def __init__ (self, cols, rows):
@@ -585,7 +608,12 @@ class TrexTUI():
         self.pm.init(show_log, locked)
 
         self.state = self.STATE_ACTIVE
-        self.last_redraw_ts = 0
+
+        # create print policers
+        self.full_redraw = RedrawPolicer(0.5)
+        self.keys_redraw = RedrawPolicer(0.05)
+        self.full_redraw.mark_for_redraw()
+
 
         try:
             self.sb.start()
@@ -594,11 +622,10 @@ class TrexTUI():
                 # draw and handle user input
                 status = self.async_keys.tick(self.pm)
 
-                self.draw_screen(status)
-
-                # speedup for keys, slower for no keys
-                if status == AsyncKeys.STATUS_NONE:
-                    time.sleep(0.001)
+                # prepare the next frame
+                self.prepare(status)
+                time.sleep(0.01)
+                self.draw_screen()
 
                 with self.tui_global_lock:
                     self.handle_state_machine()
@@ -611,6 +638,7 @@ class TrexTUI():
 
         print("")
 
+        
 
     # handle state machine
     def handle_state_machine (self):
@@ -641,34 +669,44 @@ class TrexTUI():
                 self.state = self.STATE_LOST_CONT
 
 
-    # draw once
-    def draw_screen (self, status):
+    # logic before printing
+    def prepare (self, status):
+        if status == AsyncKeys.STATUS_REDRAW_ALL:
+            self.full_redraw.mark_for_redraw(force = True)
 
-        t = time.time() - self.last_redraw_ts
-        redraw = (t >= 0.5) or (status == AsyncKeys.STATUS_REDRAW_ALL)
-        if redraw:
+        elif status == AsyncKeys.STATUS_REDRAW_KEYS:
+            self.keys_redraw.mark_for_redraw()
+
+        if self.full_redraw.should_redraw():
             self.sb.update()
-            self.last_redraw_ts = time.time()
-        
+            self.full_redraw.reset(restart = True)
 
+        return
+
+
+    # draw once
+    def draw_screen (self):
+
+        # check for screen buffer's new screen
         x = self.sb.get()
 
         # we have a new screen to draw
         if x:
             self.clear_screen()
-
-            sys.stdout.write(x)
-            self.async_keys.draw(sys.stdout)
+            
+            self.async_keys.draw(x)
+            sys.stdout.write(x.getvalue())
             sys.stdout.flush()
 
-        # we only need to redraw the keys
-        elif status == AsyncKeys.STATUS_REDRAW_KEYS:
+        # maybe we need to redraw the keys
+        elif self.keys_redraw.should_redraw():
             sys.stdout.write("\x1b[4A")
-
             self.async_keys.draw(sys.stdout)
             sys.stdout.flush()
 
-        return
+            # reset the policer for next time
+            self.keys_redraw.reset()
+
 
      
 
