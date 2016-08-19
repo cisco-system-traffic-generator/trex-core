@@ -538,7 +538,7 @@ def show_table():
         devices[pci]['MAC'] = mac
         
     table = texttable.Texttable(max_width=-1)
-    table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux interface', 'Active'])
+    table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux IF', 'Active'])
     for id, pci in enumerate(sorted(devices.keys())):
         d = devices[pci]
         table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
