@@ -43,6 +43,7 @@ $sudo ./dpdk_setup_ports.py  -c  03:00.0 03:00.1 # create optimum /etc/trex_cfg.
 === fix issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-240[trex-240] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-242[trex-242]
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-246[trex-246] 
 
 == Release 2.07  ==
