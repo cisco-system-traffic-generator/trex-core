@@ -31,8 +31,8 @@ endif::backend-docbook[]
 
 [source,bash]
 ----
-$sudo ./dpdk_setup_ports.py script -t            # show the list of ports 
-$sudo ./dpdk_setup_ports.py  -c  03:00.0 03:00.1 # create optimum /etc/trex_cfg.yaml file 
+$sudo ./dpdk_setup_ports.py -t            # show the list of ports 
+$sudo ./dpdk_setup_ports.py  -c  03:00.0 03:00.1 -o /etc/trex_cfg.yaml # create optimum /etc/trex_cfg.yaml file 
 ----
 
 * Basic Cisco VIC functionality works now. Advanced Stateless/Stateful functionality is still not supported.
