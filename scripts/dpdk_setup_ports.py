@@ -248,7 +248,7 @@ Other network devices
 
         try:
           stream = open(fcfg, 'r')
-          self.m_cfg_dict= yaml.load(stream)
+          self.m_cfg_dict= yaml.safe_load(stream)
         except Exception as e:
           print(e);
           raise e
@@ -365,6 +365,8 @@ Other network devices
 
         dest_macs = map_driver.args.dest_macs
         for i, interface in enumerate(wanted_interfaces):
+            if 'MAC' not in interface:
+                raise DpdkSetup('Cound not determine MAC of interface: %s. Please verify with -t flag.' % wanted_interfaces[i]['Interface_argv'])
             interface['src_mac'] = interface['MAC']
             if isinstance(dest_macs, list) and len(dest_macs) > i:
                 interface['dest_mac'] = dest_macs[i]
@@ -524,9 +526,7 @@ def main ():
             obj.do_create();
         else:
             obj.do_run();
-    except Exception as e:
-        #debug
-        #traceback.print_exc()
+    except DpdkSetup as e:
         print(e)
         exit(-1)
 
