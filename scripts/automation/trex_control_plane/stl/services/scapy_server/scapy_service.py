@@ -269,8 +269,8 @@ class Scapy_service(Scapy_service_api):
     def get_version(self):
         return {'built_by':'itraviv','version':'v1.01'}
 
-    def supported_methods(self,method_name=''):
-        if method_name=='':
+    def supported_methods(self,method_name='all'):
+        if method_name=='all':
             methods = {}
             for f in dir(Scapy_service):
                 if inspect.ismethod(eval('Scapy_service.'+f)):

@@ -73,6 +73,7 @@ class Scapy_wrapper:
 
 
     def error_handler(self,e,req_id):
+        response = []
         try:
             raise e
         except ParseException as e:
@@ -108,7 +109,11 @@ class Scapy_server():
         try:
             while True:
                 message = self.socket.recv_string()
+                if args.verbose:
+                    print('Received Message: %s \n' % message)
                 try:
+                    params = []
+                    method=''
                     req_id = 'null'
                     method,params,req_id = self.scapy_wrapper.parse_req_msg(message)
                     if (method == 'shut_down'):
@@ -121,6 +126,8 @@ class Scapy_server():
                     response = self.scapy_wrapper.error_handler(e,req_id)
                 finally:
                     json_response = json.dumps(response)
+                    if args.verbose:
+                        print('Sending Message: %s \n' % json_response)
                 #  Send reply back to client
                     self.socket.send_string(json_response)
                     if (method == 'shut_down'):
@@ -145,6 +152,7 @@ if __name__=='__main__':
         parser = ArgumentParser(description=' Runs Scapy Server ')
         parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
                             help='Select port to which Scapy Server will listen to.\n default is 4507\n',action='store')
+        parser.add_argument('-v','--verbose',help='Print Client-Server Request-Reply logging',action='store_true',default = False)
         args = parser.parse_args()
         port = args.scapy_port
         sys.exit(main(port))
