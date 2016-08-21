@@ -2721,7 +2721,10 @@ $.sudo /t-rex-64 -f cap2/imix_64.yaml -c 4 -m 1 -d 100 -l 1000
 |========================  
 
 
-=== Stateless traffic generation 
+=== Mimicking stateless traffic under stateful mode
+[NOTE]
+TRex now supports a true stateless traffic generation.
+If you are looking for stateless traffic, please visit the following link: xref:trex_stateless.html[TRex Stateless Support]
 
 With this feature you can "repeat" flows and create stateless, *IXIA* like streams. 
 After injecting the number of flows defined by `limit`, TRex repeats the same flows. If all template has a `limit` the CPS will be zero after a time as there are no new flows after the first iteration.
