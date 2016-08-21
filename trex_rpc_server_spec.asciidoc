@@ -1115,6 +1115,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to start traffic
+** *core_mask* ['uint64'] [*optional*] - a non zero mask to specify which cores will be active during TX, if no value is provided, the value is all bits on (MAX_UINT64)
 
 * *Result* ['object'] - {}
 
@@ -1128,9 +1129,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "start_traffic",
     "params": {
-	"api_h": "SPhoCDIV",
+        "api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 3
+        "core_mask": 0xff
     }
 
 'Response':

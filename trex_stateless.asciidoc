@@ -3673,6 +3673,195 @@ try:
 
 ----
 
+=== Performance Tweaking
+In this section we provide some advanced features to help get the most of TRex performance.
+The reason that those features are not active out of the box because they might have
+some impact on other areas and in general, might sacrafice one or more properties
+that requires the user to explicitly give up on those.
+
+==== Caching MBUFs
+*<TBD>*
+
+==== Core masking per interface
+By default, TRex will regard any TX command with a **greedy approach**:
+All the DP cores associated with this port will be assigned in order to produce the maximum
+throughput.
+
+image::images/core_mask_split.png[title="Greedy Approach - Splitting",align="left",width={p_width}, link="images/core_mask_split.png"]
+
+However, in some cases it might be beneficial to provide a port with a subset of the cores to use.
+
+
+For example, when injecting traffic on two ports and the following conditions are met:
+
+* the two ports are adjacent
+* the profile is symmetric
+
+Due to TRex architecture, adjacent ports (e.g. port 0 & port 1) shares the same cores,
+and using the greedy approach will cause all the cores to transmit on both port 0 and port 1.
+
+When the profile is *symmetric* it will be wiser to pin half the cores to port 0 and half
+the cores to port 1 and thus avoid cache trashing and bouncing.
+If the profile is not symmetric, the static pinning may deny CPU cycles from the more congested port.
+
+image::images/core_mask_pin.png[title="Pinning Cores To Ports",align="left",width={p_width}, link="images/core_mask_pin.png"]
+
+TRex provides this in two ways:
+
+
+==== Predefind modes
+
+As said above, the default mode is 'split' mode, but you can provide a predefined mode called 'pin'.
+This can be done by both API and from the console:
+
+[source,bash]
+----
+
+trex>start -f stl/syn_attack.py -m 40mpps --total -p 0 1 --pin        <-- provide '--pin' to the command
+
+Removing all streams from port(s) [0, 1]:                    [SUCCESS]
+
+
+Attaching 1 streams to port(s) [0]:                          [SUCCESS]
+
+
+Attaching 1 streams to port(s) [1]:                          [SUCCESS]
+
+
+Starting traffic on port(s) [0, 1]:                          [SUCCESS]
+
+60.20 [ms]
+
+trex>
+
+----
+
+[source,bash]
+----
+
+We can see in the CPU util. available from the TUI window,
+that each core was reserverd for an interface:
+
+Global Stats:
+
+Total Tx L2  : 20.49 Gb/sec
+Total Tx L1  : 26.89 Gb/sec
+Total Rx     : 20.49 Gb/sec
+Total Pps    : 40.01 Mpkt/sec       <-- performance meets the requested rate
+Drop Rate    : 0.00 b/sec
+Queue Full   : 0 pkts
+
+
+Cpu Util(%)
+
+  Thread   | Avg | Latest | -1  | -2  | -3  | -4  | -5  | -6  | -7  | -8 
+
+ 0   (0)   |  92 |     92 |  92 |  91 |  91 |  92 |  91 |  92 |  93 |  94
+ 1 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+ 2   (1)   |  96 |     95 |  95 |  96 |  96 |  96 |  96 |  95 |  94 |  95
+ 3 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+ 4   (0)   |  92 |     93 |  93 |  91 |  91 |  93 |  93 |  93 |  93 |  93
+ 5 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+ 6   (1)   |  88 |     88 |  88 |  88 |  88 |  88 |  88 |  88 |  87 |  87
+ 7 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+
+----
+
+
+If we had used the *default mode*, the table should have looked like this, and yield
+much worse performance:
+
+[source,bash]
+----
+
+Global Stats:
+
+Total Tx L2  : 12.34 Gb/sec
+Total Tx L1  : 16.19 Gb/sec
+Total Rx     : 12.34 Gb/sec
+Total Pps    : 24.09 Mpkt/sec       <-- performance is quite low than requested
+Drop Rate    : 0.00 b/sec
+Queue Full   : 0 pkts
+
+Cpu Util(%)
+
+  Thread   | Avg | Latest | -1  | -2  | -3  | -4  | -5  | -6  | -7  | -8  
+
+ 0  (0,1)  | 100 |    100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 
+ 1 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 
+ 2  (0,1)  | 100 |    100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 
+ 3 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 
+ 4  (0,1)  | 100 |    100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 
+ 5 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 
+ 6  (0,1)  | 100 |    100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 
+ 7 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 
+
+----
+
+This feature is also available from the Python API by providing:
+*CORE_MASK_SPLIT* or *CORE_MASK_PIN* to the start API.
+
+
+==== Manual mask
+Sometimes for debug purposes or for a more advanced core scheduling you might want
+to provide a manual masking that will guide the server on which cores to use.
+
+For example, let's assume we have a profile that utilize 95% of the traffic on one side,
+and in the other direction it provides 5% of the traffic.
+Let's assume also we have 8 cores assigned to the two interfaces.
+
+We want to assign 3 cores to interface 0 and 1 core only to interface 1.
+
+We can provide this line to the console (or for the API by providing a list of masks to the start
+command):
+
+[source,bash]
+----
+trex>start -f stl/syn_attack.py -m 10mpps --total -p 0 1 --core_mask 0xE 0x1
+
+Removing all streams from port(s) [0, 1]:                    [SUCCESS]
+
+
+Attaching 1 streams to port(s) [0]:                          [SUCCESS]
+
+
+Attaching 1 streams to port(s) [1]:                          [SUCCESS]
+
+
+Starting traffic on port(s) [0, 1]:                          [SUCCESS]
+
+37.19 [ms]
+
+trex>                   
+----
+
+The following output is received on the TUI CPU util window:
+
+[source,bash]
+----
+
+Total Tx L2  : 5.12 Gb/sec
+Total Tx L1  : 6.72 Gb/sec
+Total Rx     : 5.12 Gb/sec
+Total Pps    : 10.00 Mpkt/sec
+Drop Rate    : 0.00 b/sec
+Queue Full   : 0 pkts
+
+Cpu Util(%)
+
+  Thread   | Avg | Latest | -1  | -2  | -3  | -4  | -5  | -6  | -7  | -8 
+
+ 0   (1)   |  45 |     45 |  45 |  45 |  45 |  45 |  46 |  45 |  46 |  45
+ 1 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+ 2   (0)   |  15 |     15 |  14 |  15 |  15 |  14 |  14 |  14 |  14 |  14
+ 3 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+ 4   (0)   |  14 |     14 |  14 |  14 |  14 |  14 |  14 |  14 |  15 |  14
+ 5 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+ 6   (0)   |  15 |     15 |  15 |  15 |  15 |  15 |  15 |  15 |  15 |  15
+ 7 (IDLE)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+
+----
+
 === Reference
 
 Additional profiles and examples are available in the `stl/hlt` folder.
