@@ -78,8 +78,7 @@ Has the following structure: +
 
 (field name, field type, default value) +
 
-[example]
-====
+
 *Example:* +
 this is the 'dst' field for the 'Ether' protocol
 [source,bash]
@@ -87,7 +86,7 @@ this is the 'dst' field for the 'Ether' protocol
 ["dst","MACField","('00:00:00:01:00:00')"]
 
 ----
-====
+
 
 === Offsets Dictionary and Offset Entry
 ==== The *"Offset Entry"* data sturcture contains the offset of a field within the *layer*, and its size. +
@@ -99,8 +98,7 @@ Has the following structure: +
 [field offset (within the layer), field size] +
 
 
-[example]
-====
+
 *Example:* +
 This is the 'src' field for the 'IP' protocol: +
 the offset within the layer is 16 bytes, and the size of the field is 4 bytes (as defined in the IP spec)
@@ -108,7 +106,6 @@ the offset within the layer is 16 bytes, and the size of the field is 4 bytes (a
 ----
 'dst': [16, 4]
 ----
-====
 
 ==== The *"Offsets Dictionary"* data sturcture simply maps the offsets for each layer according to name. +
 Has the following structure: +
@@ -117,8 +114,7 @@ Has the following structure: +
  +
 
 
-[example]
-====
+
 *Example:* +
 This is the Offsets Dictionary for the IP layer: +
 [source,bash]
@@ -140,7 +136,7 @@ This is the Offsets Dictionary for the IP layer: +
                   }
            }
 ----
-====
+
 
 Each layer has a 'global_offset' key. this key represents the *offset of the layer within the packet*. +
 In the example above, the IP layer starts at offset 0, and the field src is at offset 12 within the packet. +
@@ -154,8 +150,7 @@ Each entry in this data base has the following format: +
 'Protocol Name' : 'Protocol Field Description' +
  +
 
-[example]
-====
+
 *Example*: +
 [source,bash]
 ----
@@ -181,7 +176,7 @@ Each entry in this data base has the following format: +
   .
 }
 ----
-====
+
 === Fields Dictionary
 The fields dictionary contains mapping between a field's name and its regular expression, +
 Which has the following structure: +
@@ -534,9 +529,10 @@ Unsuccessful assembly of a packet: +
 
 === Get protocol tree hierarchy example
 * *Name* - 'get_tree'
-* *Description* - returns a dictionary of protocols ordered in an hierarchy tree +
-* *Paramters* - none
-* *Result* [dictionary] - example for packet layers that can be used to build a packet. ordered in an hierarchy tree 
+* *Description* - returns a *suggested* dictionary of protocols ordered in a hierarchy tree. +
+User can still create non valid hierarchies. (such as Ether()/DNS()/IP())
+* *Parameters* - none
+* *Result* [dictionary] - Example for packet layers that can be used to build a packet. Ordered in an hierarchy tree.
 
 *Example:*
 
@@ -606,7 +602,7 @@ Server IP address: 10.0.0.1
 * Run the Python Interpreter (Scapy Server currently supports Python2)
 * Import the scapy_zmq_server.py file
 * Create a Scapy_server Object with argument as port number. default argument is port 4507
-* Invoke method activate. this is blocking because the server is listening on the port
+* Invoke method activate(). (This method is blocking because the server is listening on the port).
 
 [source,bash]
 ----
