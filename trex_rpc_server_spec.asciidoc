@@ -83,14 +83,13 @@ http://zeromq.org/intro:read-the-manual
 The RPC reprensentation protocol is JSON RPC v2.0.
 Every request and response will be encoded in a JSON RPC v2.0 format.
 
-{zwsp} +
-
+{zwsp}+
 For more info on JSON RPC v2.0 spec please refer to:
-{zwsp} +
+{zwsp}+
 
 http://www.jsonrpc.org/specification
 
-{zwsp} +
+{zwsp}+
 
 Later on in the document we will describe all the supported commands.
 
