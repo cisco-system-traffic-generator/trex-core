@@ -317,6 +317,51 @@ def dev_id_from_dev_name(dev_name):
         "Please specify device in \"bus:slot.func\" format" % dev_name)
     sys.exit(1)
 
+def get_igb_uio_usage():
+    for driver in dpdk_drivers:
+        refcnt_file = '/sys/module/%s/refcnt' % driver
+        if not os.path.exists(refcnt_file):
+            continue
+        with open(refcnt_file) as f:
+            ref_cnt = int(f.read().strip())
+            if ref_cnt:
+                return True
+    return False
+
+def get_pid_using_pci(pci_list):
+    if not isinstance(pci_list, list):
+        pci_list = [pci_list]
+    pci_list = map(dev_id_from_dev_name, pci_list)
+    for pid in os.listdir('/proc'):
+        try:
+            int(pid)
+        except ValueError:
+            continue
+        with open('/proc/%s/maps' % pid) as f:
+            f_cont = f.read()
+        for pci in pci_list:
+            if '/%s/' % pci in f_cont:
+                with open('/proc/%s/status' % pid) as f:
+                    for line in f.readlines():
+                        key, val = line.split(':', 1)
+                        if key.strip() == 'Tgid' and val.strip() == pid:
+                            return int(pid)
+
+def read_pid_cmdline(pid):
+    cmdline_file = '/proc/%s/cmdline' % pid
+    if not os.path.exists(cmdline_file):
+        return None
+    with open(cmdline_file, 'rb') as f:
+        return f.read().replace(b'\0', b' ').decode()
+
+def confirm(msg, default = False):
+    try:
+        if not os.isatty(1):
+            return default
+        return strtobool(raw_input(msg))
+    except:
+        return default
+
 def unbind_one(dev_id, force):
     '''Unbind the device identified by "dev_id" from its current driver'''
     dev = devices[dev_id]
@@ -325,16 +370,21 @@ def unbind_one(dev_id, force):
             (dev[b"Slot"], dev[b"Device_str"], dev[b"Interface"]))
         return
 
-    # prevent us disconnecting ourselves
-    if dev["Active"] and not force:
-        print("netstat indicates that interface %s is active." % dev_id)
-        result = None
-        try:
-            result = strtobool(raw_input("Confirm unbind (y/N)"))
-        finally:
-            if not result:
+    if not force and dev.get('Driver_str') in dpdk_drivers and get_igb_uio_usage():
+        pid = get_pid_using_pci(dev_id)
+        if pid:
+            cmdline = read_pid_cmdline(pid)
+            print('Interface %s is in use by process:\n%s' % (dev_id, cmdline))
+            if not confirm('Unbinding might hang the process. Confirm unbind (y/N)'):
                 print('Not unbinding.')
                 return
+
+    # prevent us disconnecting ourselves
+    if dev["Active"] and not force:
+        print('netstat indicates that interface %s is active.' % dev_id)
+        if not confirm('Confirm unbind (y/N)'):
+            print('Not unbinding.')
+            return
 
     # write to /sys to unbind
     filename = "/sys/bus/pci/drivers/%s/unbind" % dev["Driver_str"]
@@ -355,13 +405,9 @@ def bind_one(dev_id, driver, force):
     # prevent disconnection of our ssh session
     if dev["Active"] and not force:
         print("netstat indicates that interface %s is active" % dev_id)
-        result = None
-        try:
-            result = strtobool(raw_input("Confirm bind (y/N)"))
-        finally:
-            if not result:
-                print('Not binding.')
-                return
+        if not confirm("Confirm bind (y/N)"):
+            print('Not binding.')
+            return
 
     # unbind any existing drivers we don't want
     if has_driver(dev_id):
@@ -370,6 +416,15 @@ def bind_one(dev_id, driver, force):
             return
         else:
             saved_driver = dev["Driver_str"]
+            if not force and get_igb_uio_usage():
+                pid = get_pid_using_pci(dev_id)
+                if pid:
+                    cmdline = read_pid_cmdline(pid)
+                    print('Interface %s is in use by process:\n%s' % (dev_id, cmdline))
+                    if not confirm('Binding to other driver might hang the process. Confirm unbind (y/N)'):
+                        print('Not binding.')
+                        return
+
             unbind_one(dev_id, force)
             dev["Driver_str"] = "" # clear driver string
 
@@ -507,7 +562,7 @@ def get_macs_from_trex(pci_addr_list):
         if 'PANIC in rte_eal_init' in stdout:
             print("Could not run TRex to get MAC info about interfaces, check if it's already running.")
         else:
-            print('Error upon running TRex to get MAC info:\n%s.' % stdout)
+            print('Error upon running TRex to get MAC info:\n%s' % stdout)
         sys.exit(1)
     pci_mac_str = 'PCI: (\S+).+?MAC: (\S+)'
     pci_mac_re = re.compile(pci_mac_str)

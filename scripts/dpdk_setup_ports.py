@@ -239,7 +239,6 @@ Other network devices
         raise DpdkSetup(s)
 
     def load_config_file (self):
-        #return
 
         fcfg=self.m_cfg_file
 
@@ -302,30 +301,60 @@ Other network devices
 
 
     def run_dpdk_lspci (self):
-            dpdk_nic_bind.get_nic_details()
-            self.m_devices= dpdk_nic_bind.devices
+        dpdk_nic_bind.get_nic_details()
+        self.m_devices= dpdk_nic_bind.devices
 
     def do_run (self):
         self.run_dpdk_lspci ()
-        if map_driver.dump_interfaces is None or (map_driver.dump_interfaces is [] and map_driver.parent_cfg):
+        if map_driver.dump_interfaces is None or (map_driver.dump_interfaces == [] and map_driver.parent_cfg):
             self.load_config_file()
             if_list=self.m_cfg_dict[0]['interfaces']
         else:
             if_list = map_driver.dump_interfaces
+            if not if_list:
+                for dev in self.m_devices.values():
+                    if dev.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
+                        if_list.append(dev['Slot'])
 
-        for obj in if_list:
-            key= self.pci_name_to_full_name (obj)
+        if_list = list(map(self.pci_name_to_full_name, if_list))
+        for key in if_list:
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
 
 
             if 'Driver_str' in self.m_devices[key]:
-                if self.m_devices[key]['Driver_str'] !='igb_uio' :
+                if self.m_devices[key]['Driver_str'] not in dpdk_nic_bind.dpdk_drivers :
                     self.do_bind_one (key)
             else:
                 self.do_bind_one (key)
 
+        if if_list and map_driver.args.parent and dpdk_nic_bind.get_igb_uio_usage():
+            pid = dpdk_nic_bind.get_pid_using_pci(if_list)
+            cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
+            print('Some or all of given interfaces are in use by following process:\n%s' % cmdline)
+            if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
+                sys.exit(1)
+
+
+    def do_return_to_linux(self):
+        if not self.m_devices:
+            self.run_dpdk_lspci()
+        dpdk_interfaces = []
+        for device in self.m_devices.values():
+            if device.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
+                dpdk_interfaces.append(device['Slot'])
+        if not dpdk_interfaces:
+            print('No DPDK bound interfaces.')
+            return
+        if dpdk_nic_bind.get_igb_uio_usage():
+            pid = dpdk_nic_bind.get_pid_using_pci(dpdk_interfaces)
+            if pid:
+                cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
+                print('DPDK interfaces are in use. Unbinding them might cause following process to hang:\n%s' % cmdline)
+                if not dpdk_nic_bind.confirm('Confirm (y/N):'):
+                    return
+        print('TODO: unbind %s' % dpdk_interfaces)
 
     def do_create(self):
         create_interfaces = map_driver.args.create_interfaces
@@ -357,7 +386,7 @@ Other network devices
             if 'Driver_str' not in interface:
                 self.do_bind_one(interface['Slot'])
                 dpdk_bound.append(interface['Slot'])
-            elif interface['Driver_str'] == 'igb_uio':
+            elif interface['Driver_str'] in dpdk_nic_bind.dpdk_drivers:
                 dpdk_bound.append(interface['Slot'])
         if dpdk_bound:
             for pci, mac in dpdk_nic_bind.get_macs_from_trex(dpdk_bound).items():
@@ -414,7 +443,7 @@ def process_options ():
 Examples:
 ---------
 
-To unbind the interfaces using the trex configuration file 
+To return to Linux the DPDK bound interfaces (for ifconfig etc.)
   sudo ./dpdk_set_ports.py -l
 
 To create a default config file (example1)
@@ -433,8 +462,8 @@ To see more detailed info on interfaces (table):
     description=" unbind dpdk interfaces ",
     epilog=" written by hhaim");
 
-    parser.add_argument("-l", "--load", action='store_true',
-                      help=""" unbind the interfaces using the configuration file given  """,
+    parser.add_argument("-l", "--linux", action='store_true',
+                      help=""" Return all DPDK interfaces to Linux driver """,
      )
 
     parser.add_argument("--cfg",
@@ -524,6 +553,8 @@ def main ():
 
         if map_driver.args.create_interfaces is not None:
             obj.do_create();
+        elif map_driver.args.linux:
+            obj.do_return_to_linux();
         else:
             obj.do_run();
     except DpdkSetup as e:
