@@ -40,6 +40,7 @@ sys.path.append(text_tables_path)
 import texttable
 sys.path.remove(text_tables_path)
 import re
+import termios
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
@@ -341,26 +342,33 @@ def get_pid_using_pci(pci_list):
             f_cont = f.read()
         for pci in pci_list:
             if '/%s/' % pci in f_cont:
-                with open('/proc/%s/status' % pid) as f:
-                    for line in f.readlines():
-                        key, val = line.split(':', 1)
-                        if key.strip() == 'Tgid' and val.strip() == pid:
-                            return int(pid)
+                return int(pid)
 
 def read_pid_cmdline(pid):
     cmdline_file = '/proc/%s/cmdline' % pid
     if not os.path.exists(cmdline_file):
         return None
     with open(cmdline_file, 'rb') as f:
-        return f.read().replace(b'\0', b' ').decode()
+        return f.read().replace(b'\0', b' ').decode(errors = 'replace')
 
 def confirm(msg, default = False):
     try:
         if not os.isatty(1):
             return default
+        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
         return strtobool(raw_input(msg))
     except:
         return default
+
+def read_line(msg = '', default = ''):
+    try:
+        if not os.isatty(1):
+            return default
+        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+        return raw_input(msg).strip()
+    except KeyboardInterrupt:
+        print('')
+        sys.exit(1)
 
 def unbind_one(dev_id, force):
     '''Unbind the device identified by "dev_id" from its current driver'''
@@ -550,10 +558,10 @@ def show_status():
     display_devices("Other network devices", no_drv,\
                     "unused=%(Module_str)s")
 
-def get_macs_from_trex(pci_addr_list):
+def get_info_from_trex(pci_addr_list):
     if not pci_addr_list:
         return {}
-    pci_mac_dict = {}
+    pci_info_dict = {}
     run_command = 'sudo ./t-rex-64 --dump-interfaces %s' % ' '.join(pci_addr_list)
     proc = subprocess.Popen(shlex.split(run_command), stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, universal_newlines = True)
@@ -564,18 +572,19 @@ def get_macs_from_trex(pci_addr_list):
         else:
             print('Error upon running TRex to get MAC info:\n%s' % stdout)
         sys.exit(1)
-    pci_mac_str = 'PCI: (\S+).+?MAC: (\S+)'
+    pci_mac_str = 'PCI: (\S+).+?MAC: (\S+).+?Driver: (\S+)'
     pci_mac_re = re.compile(pci_mac_str)
     for line in stdout.splitlines():
         match = pci_mac_re.match(line)
         if match:
             pci = match.group(1)
-            mac = match.group(2)
             if pci not in pci_addr_list: # sanity check, should not happen
-                print('Internal error while getting MACs of DPDK bound interfaces, unknown PCI: %s' % pci)
-                return {}
-            pci_mac_dict[pci] = mac
-    return pci_mac_dict
+                print('Internal error while getting info of DPDK bound interfaces, unknown PCI: %s' % pci)
+                sys.exit(1)
+            pci_info_dict[pci] = {}
+            pci_info_dict[pci]['MAC'] = match.group(2)
+            pci_info_dict[pci]['TRex_Driver'] = match.group(3)
+    return pci_info_dict
 
 def show_table():
     '''Function called when the script is passed the "--table" option.
@@ -586,11 +595,11 @@ def show_table():
         if devices[d].get("Driver_str") in dpdk_drivers:
             dpdk_drv.append(d)
 
-    for pci, mac in get_macs_from_trex(dpdk_drv).items():
+    for pci, info in get_info_from_trex(dpdk_drv).items():
         if pci not in dpdk_drv: # sanity check, should not happen
             print('Internal error while getting MACs of DPDK bound interfaces, unknown PCI: %s' % pci)
             return
-        devices[pci]['MAC'] = mac
+        devices[pci].update(info)
         
     table = texttable.Texttable(max_width=-1)
     table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux IF', 'Active'])

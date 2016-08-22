@@ -4968,12 +4968,13 @@ void dump_interfaces_info() {
     struct rte_pci_addr pci_addr;
 
     for (uint8_t port_id=0; port_id<m_max_ports; port_id++) {
-        // PCI and MAC
+        // PCI, MAC and Driver
         pci_addr = rte_eth_devices[port_id].pci_dev->addr;
         rte_eth_macaddr_get(port_id, &mac_addr);
         ether_format_addr(mac_str, sizeof mac_str, &mac_addr);
-        printf("PCI: %04x:%02x:%02x.%d - MAC: %s\n",
-            pci_addr.domain, pci_addr.bus, pci_addr.devid, pci_addr.function, mac_str);
+        printf("PCI: %04x:%02x:%02x.%d - MAC: %s - Driver: %s\n",
+            pci_addr.domain, pci_addr.bus, pci_addr.devid, pci_addr.function, mac_str,
+            rte_eth_devices[port_id].pci_dev->driver->name);
     }
 }
 
