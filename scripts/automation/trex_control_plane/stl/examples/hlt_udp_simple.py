@@ -70,7 +70,7 @@ if __name__ == "__main__":
     print('Connecting to TRex')
     res = hltapi.connect(device = args.server, port_list = [0, 1], reset = True, break_locks = True)
     check_res(res)
-    ports = res['port_handle']
+    ports = list(res['port_handle'].values())
     if len(ports) < 2:
         error('Should have at least 2 ports for this test')
     print('Connected, acquired ports: %s' % ports)
@@ -103,6 +103,10 @@ if __name__ == "__main__":
     res = hltapi.traffic_stats(mode = 'aggregate', port_handle = ports[:2])
     check_res(res)
     print_brief_stats(res)
+
+    print('Removing all streams from port 0')
+    res = hltapi.traffic_config(mode = 'remove', port_handle = ports[0], stream_id = 'all')
+    check_res(res)
     
     res = hltapi.cleanup_session(port_handle = 'all')
     check_res(res)
