@@ -386,19 +386,29 @@ Other network devices
                 for line in lcore.split('\n'):
                     key, val = line.split(':', 1)
                     lcore_dict[key.strip()] = val.strip()
-                numa = int(lcore_dict['physical id'])
+                if 'processor' not in lcore_dict:
+                    continue
+                numa = int(lcore_dict.get('physical id', -1))
                 if numa not in cpu_topology:
                     cpu_topology[numa] = OrderedDict()
-                core = int(lcore_dict['core id'])
+                core = int(lcore_dict.get('core id', lcore_dict['processor']))
                 if core not in cpu_topology[numa]:
                     cpu_topology[numa][core] = []
                 cpu_topology[numa][core].append(int(lcore_dict['processor']))
+        if not cpu_topology:
+            raise DpdkSetup('Cound not determine CPU topology from %s' % cpu_topology_file)
         return cpu_topology
 
     # input: list of different descriptions of interfaces: index, pci, name etc.
     # binds to dpdk not bound to any driver wanted interfaces
     # output: list of maps of devices in dpdk_* format (self.m_devices.values())
     def _get_wanted_interfaces(self, input_interfaces):
+        if type(input_interfaces) is not list:
+            raise DpdkSetup('type of input interfaces should be list')
+        if not len(input_interfaces):
+            raise DpdkSetup('Please specify interfaces to use in the config')
+        if len(input_interfaces) % 2:
+            raise DpdkSetup('Please specify even number of interfaces')
         wanted_interfaces = []
         sorted_pci = sorted(self.m_devices.keys())
         for interface in input_interfaces:
@@ -406,7 +416,7 @@ Other network devices
             try:
                 interface = int(interface)
                 if interface < 0 or interface >= len(sorted_pci):
-                    raise DpdkSetup('Index of an interface should be in range 0:%s' % (len(sorted_pci) - 1))
+                    raise DpdkSetup('Index of an interfaces should be in range 0:%s' % (len(sorted_pci) - 1))
                 dev = self.m_devices[sorted_pci[interface]]
             except ValueError:
                 for d in self.m_devices.values():
@@ -433,17 +443,10 @@ Other network devices
         return wanted_interfaces
 
     def do_create(self):
-        create_interfaces = map_driver.args.create_interfaces
-        if type(create_interfaces) is not list:
-            raise DpdkSetup('type of map_driver.args.create_interfaces should be list')
-        if not len(create_interfaces):
-            raise DpdkSetup('Please specify interfaces to use in the config')
-        if len(create_interfaces) % 2:
-            raise DpdkSetup('Please specify even number of interfaces')
         # gather info about NICS from dpdk_nic_bind.py
         if not self.m_devices:
             self.run_dpdk_lspci()
-        wanted_interfaces = self._get_wanted_interfaces(create_interfaces)
+        wanted_interfaces = self._get_wanted_interfaces(map_driver.args.create_interfaces)
 
         dest_macs = map_driver.args.dest_macs
         for i, interface in enumerate(wanted_interfaces):
@@ -463,25 +466,53 @@ Other network devices
         config.create_config(filename = map_driver.args.o, print_config = map_driver.args.dump)
 
     def do_interactive_create(self):
+        ignore_numa = False
+        cpu_topology = self._get_cpu_topology()
+        total_lcores = sum([len(lcores) for cores in cpu_topology.values() for lcores in cores.values()])
+        if total_lcores < 1:
+            print('Script could not determine cores of the system, exiting.')
+            sys.exit(1)
+        elif total_lcores < 2:
+            if dpdk_nic_bind.confirm("You have only 1 core and can't run TRex at all. Ignore and continue? (y/N): "):
+                ignore_numa = True
+            else:
+                sys.exit(1)
+        elif total_lcores < 3:
+            if dpdk_nic_bind.confirm("You have only 2 cores and will be able to run only Stateful without latency checks.\nIgnore and continue? (y/N): "):
+                ignore_numa = True
+            else:
+                sys.exit(1)
         if not self.m_devices:
             self.run_dpdk_lspci()
         dpdk_nic_bind.show_table()
-        print('Please choose interfaces either by ID, PCI or Linux IF.')
+        print('Please choose even number of interfaces either by ID or PCI or Linux IF (look at columns above).')
         print('Stateful will use order of interfaces: Client1 Server1 Client2 Server2 etc. for flows.')
         print('Stateless can be in any order.')
-        print('Try to set each pair of interfaces on same NUMA for performance.')
-        input = dpdk_nic_bind.read_line('List of interfaces: ')
-        create_interfaces = input.replace(',', ' ').replace(';', ' ').split()
-        if not len(create_interfaces):
-            raise DpdkSetup('Please specify interfaces to use in the config')
-        if len(create_interfaces) % 2:
-            raise DpdkSetup('Please specify even number of interfaces')
-        wanted_interfaces = self._get_wanted_interfaces(create_interfaces)
-        ConfigCreator._verify_devices_same_type(wanted_interfaces)
+        numa = None
+        for dev in self.m_devices.values():
+            if numa is None:
+                numa = dev['NUMA']
+            elif numa != dev['NUMA']:
+                print('Try to choose each pair of interfaces to be on same NUMA within the pair for performance.')
+                break
+        while True:
+            try:
+                input = dpdk_nic_bind.read_line('Enter list of interfaces in line (for example: 1 3) : ')
+                create_interfaces = input.replace(',', ' ').replace(';', ' ').split()
+                wanted_interfaces = self._get_wanted_interfaces(create_interfaces)
+                ConfigCreator._verify_devices_same_type(wanted_interfaces)
+            except Exception as e:
+                print(e)
+                continue
+            break
         print('')
 
-        dest_macs = map_driver.args.dest_macs
-        ignore_numa = False
+        for interface in wanted_interfaces:
+            if interface['Active']:
+                print('Interface %s is active. Using it by TRex might close ssh connections etc.' % interface['Interface_argv'])
+                if not dpdk_nic_bind.confirm('Ignore and continue? (y/N): '):
+                    sys.exit(1)
+
         for i, interface in enumerate(wanted_interfaces):
             if 'MAC' not in interface:
                 raise DpdkSetup('Cound not determine MAC of interface: %s. Please verify with -t flag.' % interface['Interface_argv'])
@@ -492,29 +523,30 @@ Other network devices
                 print('NUMA is different at pair of interfaces: %s and %s. It will reduce performance.' % (interface['Interface_argv'], dual_int['Interface_argv']))
                 if dpdk_nic_bind.confirm('Ignore and continue? (y/N): '):
                     ignore_numa = True
+                    print('')
                 else:
                     return
-            if isinstance(dest_macs, list) and len(dest_macs):
-                dest_mac = dest_macs.pop(0)
-                loopback_dest = False
-                print('For interface %s, take destination MAC from --dest-mac argument (%s)' % (interface['Interface_argv'], dest_mac))
-            else:
-                dest_mac = dual_int['MAC']
-                loopback_dest = True
-                print("For interface %s, take destination MAC of it's dual interface %s (%s). Change it in case of router DUT." % (interface['Interface_argv'], dual_int['Interface_argv'], dest_mac))
-            try:
-                input_mac = dpdk_nic_bind.read_line('Press ENTER to confirm or enter new destination MAC: ')
-                if input_mac:
-                    ConfigCreator._convert_mac(input_mac) # verify format
-                    dest_mac = input_mac
-                    loopback_dest = False
-            except KeyboardInterrupt:
-                print('')
-                return
+            dest_mac = dual_int['MAC']
+            loopback_dest = True
+            print("For interface %s, assuming loopback to it's dual interface %s." % (interface['Interface_argv'], dual_int['Interface_argv']))
+            if dpdk_nic_bind.confirm("Destination MAC is %s. Change it to MAC of DUT? (y/N)." % dest_mac):
+                while True:
+                    input_mac = dpdk_nic_bind.read_line('Please enter new destination MAC of interface %s: ' % interface['Interface_argv'])
+                    try:
+                        if input_mac:
+                            ConfigCreator._convert_mac(input_mac) # verify format
+                            dest_mac = input_mac
+                            loopback_dest = False
+                        else:
+                            print('Leaving the loopback MAC.')
+                    except Exception as e:
+                        print(e)
+                        continue
+                    break
             wanted_interfaces[i]['dest_mac'] = dest_mac
             wanted_interfaces[i]['loopback_dest'] = loopback_dest
 
-        config = ConfigCreator(self._get_cpu_topology(), wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
+        config = ConfigCreator(cpu_topology, wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
                                only_first_thread = map_driver.args.no_ht, ignore_numa = map_driver.args.ignore_numa or ignore_numa,
                                prefix = map_driver.args.prefix, zmq_rpc_port = map_driver.args.zmq_rpc_port, zmq_pub_port = map_driver.args.zmq_pub_port)
         if dpdk_nic_bind.confirm('Print preview of generated config? (Y/n)', default = True):
@@ -663,6 +695,7 @@ def main ():
             obj.do_return_to_linux();
         else:
             obj.do_run();
+        print('')
     except DpdkSetup as e:
         print(e)
         exit(-1)

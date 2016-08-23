@@ -58,6 +58,11 @@ table_flag = False
 force_flag = False
 args = []
 
+try:
+    raw_input
+except: # Python3
+    raw_input = input
+
 def usage():
     '''Print usage information for the program'''
     argv0 = basename(sys.argv[0])
@@ -352,19 +357,22 @@ def read_pid_cmdline(pid):
         return f.read().replace(b'\0', b' ').decode(errors = 'replace')
 
 def confirm(msg, default = False):
+    if not os.isatty(1):
+        return default
+    termios.tcflush(sys.stdin, termios.TCIOFLUSH)
     try:
-        if not os.isatty(1):
-            return default
-        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
         return strtobool(raw_input(msg))
-    except:
+    except KeyboardInterrupt:
+        print('')
+        sys.exit(1)
+    except Exception:
         return default
 
 def read_line(msg = '', default = ''):
+    if not os.isatty(1):
+        return default
+    termios.tcflush(sys.stdin, termios.TCIOFLUSH)
     try:
-        if not os.isatty(1):
-            return default
-        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
         return raw_input(msg).strip()
     except KeyboardInterrupt:
         print('')
