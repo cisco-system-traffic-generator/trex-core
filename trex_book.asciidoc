@@ -860,60 +860,135 @@ asr1k(config)#ipv6 route 5000::/64 3001::2
 <5> PBR configuraion
 
 
-=== Source MAC address mapping using a file 
+=== Client clustering configuration
+Trex supports testing a complex topology by a feature called "client clustering".
+This feature allows a more detailed clustering of clients.
 
-Extends the source MAC address replacment capability. Enables mapping between IPv4->MAC using the `--mac` CLI switch. The file format is YAML.
+Let's assume the following topology:
 
-*Example:*::
-[source,bash]
-----
-$sudo ./t-rex-64 -f cap2/sfr_delay_10_1g.yaml -c 4  -l 100 -d 100000 -m 30  --mac cap2/test_example.yaml
-----
+image:images/client_clustering_topology.png[title="Client Clustering"]
 
-*MAC file structure:*::
 
-[source,python]
-----
-- items :
-    - ip : "16.0.0.1"
-      mac : [0x16,0x1,0x4,0x5,0x6,0x7]
-    - ip : "16.0.0.2"
-      mac : [0x16,0x2,0x0,0x1,0x0,0x0]
-----
+We would like to configure two clusters and direct traffic to them.
 
-*Limitations:*::
+Using a config file, you can instruct TRex to generate clients
+with specific configuration per cluster.
 
-. It is assumed that most clients have a MAC address. At least 90% of IPs should have MAC address mapping.
+A cluster configuration includes:
 
-=== Destination MAC address spreading 
+* IP start range
+* IP end range
+* Initator side configuration
+* Responder side configuration
 
-anchor:mac_spread[] 
+[NOTE]
+It is important to state that this is *complimentry* to the client generator
+configured per profile - it only defines how the generator will be clustered.
 
-Using this option, one can send traffic to few destination devices. In normal mode, all packets are sent to the port destination MAC address.
-To enable this option, add `--mac-spread` to the command line.
+Let's take a look at an example:
 
-Example:
+We have a profile which defines a client generator:
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -m 1000 -c 4 -l 100 --mac-spread 2
+$more cap2/dns.yaml 
+- duration : 10.0
+  generator :  
+          distribution : "seq"           
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"   
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.0.255"   
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 1
+          udp_aging      : 1
+  mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
+  cap_info : 
+     - name: cap2/dns.pcap
+       cps : 1.0          
+       ipg : 10000        
+       rtt : 10000        
+       w   : 1            
 ----
-In this example, TRex sends to port destination MAC and port destination MAC +1. Using a switch, you can connect TRex to multiple devices under test (DUTs). 
-All of the DUTs return the traffic only to the correct port source address.
-// above, i removed "should" - verify accuracy
+
+We would like to create two clusters of 4 devices each.
+We would also like to divide *80%* of the traffic to the upper cluster
+and *20%* to the lower cluster.
+
+We create a cluster configuration file in YAML:
 
 [source,bash]
 ----
-        switch A                   switch A
-         |                            |
-         |   D0+0   -> DUT0  <- D1+0  |
-TRex(0) -|                            |-TRex(1)
-         |                            |
-         |   D0+1  ->  DUT1  <- D1+1  |
-                                      |
+#
+# Client configuration example file
+# The file must contain the following fields
+#
+# 'vlan'   - is the entire configuration under VLAN
+#            if so, each client group must include vlan
+#            configuration
+#
+# 'groups' - each client group must contain a range of IP
+#            and initiator and responder maps
+#            'count' represents the number of MAC devices
+#            on the group.
+#
+# initiator and responder can contain 'vlan', 'src_mac', 'dst_mac'
+#
+
+# each group contains a double way VLAN configuration
+vlan: true                           <1>
+
+groups:
+
+-    ip_start  : 16.0.0.1            <2>
+     ip_end    : 16.0.0.204
+     initiator :                     <3>
+                 vlan    : 100
+                 dst_mac : "00:00:00:01:00:00"
+     responder :                     <4>
+                 vlan    : 200
+                 dst_mac : "00:00:00:01:00:00"
+
+     count     : 4
+
+-    ip_start  : 16.0.0.205
+     ip_end    : 16.0.0.255
+     initiator :
+                 vlan    : 101
+                 dst_mac : "01:00:00:00:01:01"
+
+     responder:
+                 vlan    : 201
+                 dst_mac : "01:00:00:00:02:01"
+
+     count     : 4
 
 ----
 
+The above configuration will divide the generator range of 255 clients to two clusters,
+where each has 4 devices and VLAN on both ways.
+
+MACs will be allocated incrementaly with a wrap around.
+
+e.g.
+
+* 16.0.0.1 --> 00:00:00:01:00:00 
+* 16.0.0.2 --> 00:00:00:01:00:01
+* 16.0.0.3 --> 00:00:00:01:00:03
+* 16.0.0.4 --> 00:00:00:01:00:04
+* 16.0.0.5 --> 00:00:00:01:00:00
+* 16.0.0.6 --> 00:00:00:01:00:01
+
+and so on.
+
+*Usage:*
+
+[source,bash]
+----
+sudo ./t-rex-64 -f cap2/dns.yaml --client_cfg my_cfg.yaml -c 4 -d 100
+----
 
 === NAT support 
 
