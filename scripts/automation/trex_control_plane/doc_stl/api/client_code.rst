@@ -14,6 +14,10 @@ In addition to the Python API, a console-based API interface is also available.
 Python-like example::
     
    c.start(ports = [0, 1], mult = "5mpps", duration = 10)
+
+   c.start(ports = [0, 1], mult = "5mpps", duration = 10, core_mask = [0x1,0xe] )
+
+   c.start(ports = [0, 1], mult = "5mpps", duration = 10, core_mask = core_mask=STLClient.CORE_MASK_PIN )
    
 Console-like example::
 
@@ -94,6 +98,7 @@ STLClient snippet
 
     finally:
         c.disconnect()
+
 
 
 .. code-block:: python
@@ -217,4 +222,35 @@ Example 4: Load profile from a file::
     finally:
         c.disconnect()
         
+
+.. code-block:: python
+    :caption: Example 5: pin cores to ports
+
+    c = STLClient()
+
+    try:
+        # connect to server
+        c.connect()
+
+        # prepare our ports (my machine has 0 <--> 1 with static route)
+        c.reset(ports = [0, 1])
+
+        # add both streams to ports
+        c.add_streams(s1, ports = [0])
+
+        # clear the stats before injecting
+        c.clear_stats()
+
+        c.start(ports = [0, 1], mult = "5mpps", duration = 10, core_mask = [0x1,0x2]) # pin core to ports for better performance 
+
+        # block until done
+        c.wait_on_traffic(ports = [0, 1])
+
+        # check for any warnings
+	if c.get_warnings():
+	    # handle warnings here
+	    pass
+
+    finally:
+        c.disconnect()
 
