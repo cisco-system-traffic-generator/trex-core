@@ -42,7 +42,7 @@ Error codes are given according to this table: [also follows the JSON-RPC spec, 
 [options="header",cols="^1,^h,3a"]
 |=================
 | Error Code   |  Message                    |  Meaning
-| -32700       | Parse Error                 | Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
+| -32700       | Parse Error                 | Invalid JSON was received by the server. An error occurred on the server while parsing the JSON input.
 | -32600       | Invalid Request             | The JSON sent is not a valid Request object.
 | -32601       | Method not found            | The method does not exist / is not available
 | -32603       | Invalid params              |  Invalid method parameter(s)
@@ -57,7 +57,7 @@ Error codes are given according to this table: [also follows the JSON-RPC spec, 
 
 == Data Bases and Data Structures used in Scapy Server
 === Protocol Field Description
-This data sturcture contains the name of the field, its type and the default value assigned. +
+This data structure contains the name of the field, its type and the default value assigned. +
  +
 Has the following structure: +
 
@@ -75,7 +75,7 @@ this is the 'dst' field for the 'Ether' protocol
 
 
 === Offsets Dictionary and Offset Entry
-==== The *"Offset Entry"* data sturcture contains the offset of a field within the *layer*, and its size. +
+==== The *"Offset Entry"* data structure contains the offset of a field within the *layer*, and it's size. +
 (both measured in Bytes)
  +
  +
@@ -87,7 +87,7 @@ Has the following structure: +
 
 *Example:* +
 This is the 'src' field for the 'IP' protocol: +
-the offset within the layer is 16 bytes, and the size of the field is 4 bytes (as defined in the IP spec)
+The offset within the layer is 16 bytes, and the size of the field is 4 bytes (as defined in the IP spec)
 [source,bash]
 ----
 'dst': [16, 4]
@@ -124,15 +124,15 @@ This is the Offsets Dictionary for the IP layer: +
 ----
 
 
-Each layer has a 'global_offset' key. this key represents the *offset of the layer within the packet*. +
-In the example above, the IP layer starts at offset 0, and the field src is at offset 12 within the packet. +
+Each layer has a 'global_offset' key. This key represents the *offset of the layer within the packet*. +
+In the example above, the IP layer starts at offset 0, and the field 'src' is at offset 12 within the packet. +
 In the general case, a field's offset within the *packet* is calculated this way: +
  'global_offset' + 'field_offset'
 
 
 === Protocol Dictionary
 The protocol dictionary contains the names for all supported protocols and layers for building packets. +
-Each entry in this data base has the following format: +
+Each entry in this database has the following format: +
 'Protocol Name' : 'Protocol Field Description' +
  +
 
@@ -165,7 +165,7 @@ Each entry in this data base has the following format: +
 
 === Fields Dictionary
 The fields dictionary contains mapping between a field's name and its regular expression, +
-Which has the following structure: +
+which has the following structure: +
 (field name, field RegEx) +
 
 Example: this is the Regex for the 'MACField' protocol
@@ -186,14 +186,15 @@ The dictionary maintains its regular structure:
 ----
 
 == RPC Commands
-The following RPC commands are supported. please refer to data bases section for elaboration on given data bases
+The following RPC commands are supported. Please refer to databases section for elaboration for each database.
 
 === Supported Methods
 * *Name* - supported_methods
 * *Description* - returns the list of all supported methods by Scapy Server and their parameters
-* *Parameters* - a single empty string ('') will return *ALL* supported methods. +
+* *Parameters* - the parameter ('all') will return *ALL* supported methods. +
  other string delivered as parameter will return True/False if the string matches a supported method name
-* *Result* - according to input: empty string will return list of supported methods, otherwise will return True/False as mentioned
+* *Result* - according to input: 'all' string will return list of supported methods, otherwise will return True/False as mentioned. +
+ The returned dictionary describes for each method it's number of parameters followed by a list of their names.
 
 *Example:*
 
@@ -204,7 +205,7 @@ The following RPC commands are supported. please refer to data bases section for
         "jsonrpc": "2.0",
         "id": "1",
         "method": "supported_methods",
-        "params": [""]
+        "params": ["all"]
 }
 
 'Result':
@@ -282,10 +283,10 @@ The following RPC commands are supported. please refer to data bases section for
 
 ----
 
-=== Check if DataBase is updated
+=== Check if Database is updated
 * *Name* - 'check_update'
 * *Description* - checks if both protocol database and fields database are up to date according to md5 comparison
-* *Paramters* - md5 of database, md5 of fields
+* *Parameters* - md5 of database, md5 of fields
 * *Result* - upon failure: error code -32098 (see link:trex_scapy_rpc_server.html#_error_codes[RPC server error codes]) +
              followed by a message: "Fields DB is not up to date" or "Protocol DB is not up to date" +
              upon success: return 'true' as result (see below) +
