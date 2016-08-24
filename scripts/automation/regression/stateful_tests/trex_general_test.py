@@ -145,7 +145,11 @@ class CTRexGeneral_Test(unittest.TestCase):
         expected_norm_cpu = self.get_benchmark_param('bw_per_core')
         cores             = self.get_benchmark_param('cores')
         ports_count       = trex_res.get_ports_count()
-        test_norm_cpu     = trex_tx_bps / (cpu_util * ports_count * cores * 2.5e6)
+        if not (cpu_util and ports_count and cores):
+            print("Can't calculate CPU benchmark, need to divide by zero: cpu util: %s, ports: %s, cores: %s" % (cpu_util, ports_count, cores))
+            test_norm_cpu = -1
+        else:
+            test_norm_cpu = trex_tx_bps / (cpu_util * ports_count * cores * 2.5e6)
 
         if '1G' in self.modes:
             minimal_cpu /= 10.0
@@ -157,6 +161,8 @@ class CTRexGeneral_Test(unittest.TestCase):
             #    self.fail("CPU is too low (%s%%), can't verify performance in such low CPU%%." % cpu_util )
 
         print("TRex CPU utilization: %g%%, norm_cpu is : %g Gb/core" % (round(cpu_util, 2), round(test_norm_cpu, 2)))
+        if test_norm_cpu < 0:
+            return
 
         if not expected_norm_cpu:
             expected_norm_cpu = 1
