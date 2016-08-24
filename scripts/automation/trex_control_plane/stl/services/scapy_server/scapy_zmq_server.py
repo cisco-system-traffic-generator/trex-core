@@ -13,6 +13,8 @@ import inspect
 from scapy_service import *
 from argparse import *
 import socket
+import logging
+import logging.handlers
 
 
 class ParseException(Exception): pass
@@ -55,7 +57,7 @@ class Scapy_wrapper:
             raise ParseException(req_id)
 
     def create_error_response(self,error_code,error_msg,req_id='null'):
-        return {"jsonrpc": "2.0", "error": {"code": error_code, "message:": error_msg}, "id": req_id}
+        return {"jsonrpc": "2.0", "error": {"code": error_code, "message": error_msg}, "id": req_id}
         
     def create_success_response(self,result,req_id=b'null'):
         return {"jsonrpc": "2.0", "result": result, "id": req_id }
@@ -102,39 +104,55 @@ class Scapy_server():
         self.socket = self.context.socket(zmq.REP)
         self.socket.bind("tcp://*:"+str(port))
         self.IP_address = socket.gethostbyname(socket.gethostname())
+        self.logger = logging.getLogger('scapy_logger')
+        self.logger.setLevel(logging.INFO)
+        console_h = logging.StreamHandler(sys.__stdout__)
+        formatter = logging.Formatter(fmt='%(asctime)s %(message)s',datefmt='%d-%m-%Y %H:%M:%S')
+        if args.log:
+            logfile_h = logging.FileHandler('scapy_server.log')
+            logfile_h.setLevel(logging.INFO)
+            logfile_h.setFormatter(formatter)
+            self.logger.addHandler(logfile_h)
+        if args.verbose:
+            console_h.setLevel(logging.INFO)
+        else:
+            console_h.setLevel(logging.WARNING)
+        console_h.setFormatter(formatter)
+        self.logger.addHandler(console_h)
+
 
     def activate(self):
-        print ('***Scapy Server Started***\nListening on port: %d' % self.port)
-        print ('Server IP address: %s' % self.IP_address)
+        self.logger.info('***Scapy Server Started***')
+        self.logger.info('Listening on port: %d' % self.port)
+        self.logger.info('Server IP address: %s' % self.IP_address)
         try:
             while True:
                 message = self.socket.recv_string()
-                if args.verbose:
-                    print('Received Message: %s \n' % message)
+                self.logger.info('Received Message: %s' % message)
                 try:
                     params = []
                     method=''
                     req_id = 'null'
                     method,params,req_id = self.scapy_wrapper.parse_req_msg(message)
                     if (method == 'shut_down'):
-                        print ('Shut down by remote user')
+                        self.logger.info('Shut down by remote user')
                         result = 'Server shut down command received - server had shut down'
                     else:
                         result = self.scapy_wrapper.execute(method,params)
                     response = self.scapy_wrapper.create_success_response(result,req_id)
                 except Exception as e:
                     response = self.scapy_wrapper.error_handler(e,req_id)
+                    self.logger.info('ERROR %s: %s',response['error']['code'], response['error']['message'])
                 finally:
                     json_response = json.dumps(response)
-                    if args.verbose:
-                        print('Sending Message: %s \n' % json_response)
+                    self.logger.info('Sending Message: %s' % json_response)
                 #  Send reply back to client
                     self.socket.send_string(json_response)
                     if (method == 'shut_down'):
                         break
 
         except KeyboardInterrupt:
-                print(b'Terminated By Ctrl+C')
+                self.logger.info(b'Terminated By local user')
 
         finally:
             self.socket.close()
@@ -151,8 +169,10 @@ if __name__=='__main__':
     if len(sys.argv)>1:
         parser = ArgumentParser(description=' Runs Scapy Server ')
         parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
-                            help='Select port to which Scapy Server will listen to.\n default is 4507\n',action='store')
-        parser.add_argument('-v','--verbose',help='Print Client-Server Request-Reply logging',action='store_true',default = False)
+                            help='Select port to which Scapy Server will listen to.\n default is 4507.',action='store')
+        parser.add_argument('-v','--verbose',help='Print Client-Server Request-Reply information to console.',action='store_true',default = False)
+        parser.add_argument('-l','--log',help='Log every activity of the server to the log file scapy_server.log .The log does not discard older entries, the file is not limited by size.',
+                            action='store_true',default = False)
         args = parser.parse_args()
         port = args.scapy_port
         sys.exit(main(port))
