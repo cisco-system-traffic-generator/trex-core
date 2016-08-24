@@ -33,7 +33,7 @@ The server operates on a Request-Response basis *over ZMQ*, and does not support
 
 Read more about ZMQ link:http://zguide.zeromq.org/page:all[here]
 
-image::images/Scapy_JSON_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/Scapy_JSON_rpc_server.png"]
+image::images/Scapy_JSON_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/scapy_json_rpc_server.png"]
 
 === Error Codes
 
