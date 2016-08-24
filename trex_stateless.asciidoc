@@ -1767,6 +1767,8 @@ The following example demonstrates varies the packet size randomly, as follows:
 
 ==== Tutorial: Field Engine, Significantly improve performance 
 
+anchor:trex_cache_mbuf[]
+
 The following example demonstrates a way to significantly improve Field Engine performance in case it is needed. 
 
 Field Engine has a cost of CPU instructions and CPU memory bandwidth. There is a way to significantly improve performance by caching the packets and run the Field Engine offline(before sending the packets). 
@@ -3680,7 +3682,10 @@ some impact on other areas and in general, might sacrafice one or more propertie
 that requires the user to explicitly give up on those.
 
 ==== Caching MBUFs
-*<TBD>*
+
+
+see xref:trex_cache_mbuf[here]
+
 
 ==== Core masking per interface
 By default, TRex will regard any TX command with a **greedy approach**:
@@ -3735,6 +3740,22 @@ Starting traffic on port(s) [0, 1]:                          [SUCCESS]
 trex>
 
 ----
+
+
+.API example to PIN cores 
+[source,python]
+----
+ c.start(ports = [port_a, port_b], mult = rate,core_mask=STLClient.CORE_MASK_PIN) <1>      
+----       
+<1> core_mask = STLClient.CORE_MASK_PIN 
+
+.API example to MASK cores 
+[source,python]
+----
+ c.start(ports = [port_a, port_b], mult = rate, core_mask=[0x1,0x2])<1>
+----       
+<1> DP Core 0 (mask==1) is assign to port 1 and DP core 1 (mask==2) is for port 2
+
 
 [source,bash]
 ----
@@ -3834,6 +3855,14 @@ Starting traffic on port(s) [0, 1]:                          [SUCCESS]
 
 trex>                   
 ----
+
+[source,python]
+----
+ c.start(ports = [port_a, port_b], mult = rate,core_mask=[0x0xe,0x1]) <1>
+----       
+<1> mask of cores per port
+
+
 
 The following output is received on the TUI CPU util window:
 

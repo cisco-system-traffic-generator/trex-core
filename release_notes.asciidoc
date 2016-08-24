@@ -26,7 +26,7 @@ endif::backend-docbook[]
 == Release 2.08  ==
 
 * Scapy JSON-RPC server for GUI packet crafting, see  link:trex_scapy_rpc_server.html[trex_scapy_rpc_server]
-* Client.start Python API supports Core mask  - significantly improve the Stateless performance. link:cp_stl_docs/_modules/trex_stl_lib/trex_stl_client.html#STLClient.start[start API],  *TBD*- Itay to update the pointer here  
+* Client.start Python API supports Core mask  - significantly improve the Stateless performance. link:cp_stl_docs/_modules/trex_stl_lib/trex_stl_client.html#STLClient.start[start API],  and link:trex_stateless.html#_core_masking_per_interface[core_masking]
 * Upgrade the ./dpdk_setup_ports.py script. It simplifies the way to create first time *optimized* config file (/etc/trex_cfg.yaml). More info at the manual: link:trex_manual.html#_script_for_creating_config_file[Script for creating config file]
 
 [source,bash]
@@ -37,7 +37,7 @@ $sudo ./dpdk_setup_ports.py -i            # interactive creation of config file
 $sudo ./dpdk_setup_ports.py -c 03:00.0 03:00.1 -o /etc/trex_cfg.yaml # create optimum /etc/trex_cfg.yaml file
 ----
 
-* Basic Cisco VIC functionality works now. Advanced Stateless/Stateful functionality is still not supported.
+* Preliminary Cisco VIC support. Advanced Stateless/Stateful functionality is still not supported.
 * Enforce latest firmware for XL710/X710 (5.04)
 * Add a way to stop/close NICS at TRex termination (link would be down) `-close-at-end`
 * IPv6 XL710 ICMP packets are supported now
