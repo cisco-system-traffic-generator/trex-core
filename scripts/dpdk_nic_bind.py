@@ -41,6 +41,7 @@ import texttable
 sys.path.remove(text_tables_path)
 import re
 import termios
+import getpass
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
@@ -544,6 +545,8 @@ def show_status():
     to the user what devices are bound to the igb_uio driver, the kernel driver
     or to no driver'''
     global dpdk_drivers
+    if not devices:
+        get_nic_details()
     kernel_drv = []
     dpdk_drv = []
     no_drv = []
@@ -598,6 +601,8 @@ def show_table():
     '''Function called when the script is passed the "--table" option.
     Similar to show_status() function, but shows more info: NUMA etc.'''
     global dpdk_drivers
+    if not devices:
+        get_nic_details()
     dpdk_drv = []
     for d in devices.keys():
         if devices[d].get("Driver_str") in dpdk_drivers:
@@ -695,4 +700,7 @@ def main():
     do_arg_actions()
 
 if __name__ == "__main__":
+    if getpass.getuser() != 'root':
+        print('Please run this program as root/with sudo')
+        exit(1)
     main()

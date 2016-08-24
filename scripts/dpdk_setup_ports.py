@@ -13,6 +13,7 @@ import shlex
 import traceback
 from collections import defaultdict, OrderedDict
 from distutils.util import strtobool
+import getpass
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'src_mac', 'dest_mac', 'Device_str', 'NUMA']
@@ -678,12 +679,12 @@ def main ():
         process_options ()
 
         if map_driver.args.show:
-            res=os.system('%s dpdk_nic_bind.py --status' % sys.executable);
-            return(res);
+            dpdk_nic_bind.show_status()
+            return
 
         if map_driver.args.table:
-            res=os.system('%s dpdk_nic_bind.py -t' % sys.executable);
-            return(res);
+            dpdk_nic_bind.show_table()
+            return
 
         obj =CIfMap(map_driver.cfg_file);
 
@@ -701,5 +702,8 @@ def main ():
         exit(-1)
 
 if __name__ == '__main__':
+    if getpass.getuser() != 'root':
+        print('Please run this program as root/with sudo')
+        exit(1)
     main()
 

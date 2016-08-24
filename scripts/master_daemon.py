@@ -10,6 +10,7 @@ from argparse import *
 from time import time, sleep
 from glob import glob
 import signal
+from functools import partial
 
 sys.path.append(os.path.join('automation', 'trex_control_plane', 'server'))
 import CCustomLogger
@@ -102,26 +103,39 @@ def set_logger():
         os.rename(logging_file, logging_file_bu)
     CCustomLogger.setup_daemon_logger('Master daemon', logging_file)
 
+def log_usage(name, func, *args, **kwargs):
+    log_string = name
+    if args:
+        log_string += ', args: ' + repr(args)
+    if kwargs:
+        log_string += ', kwargs: ' + repr(kwargs)
+    logging.info(log_string)
+    return func(*args, **kwargs)
+
 def start_master_daemon_func():
+    funcs_by_name = {}
+    # master_daemon functions
+    funcs_by_name['add'] = add
+    funcs_by_name['check_connectivity'] = check_connectivity
+    funcs_by_name['get_trex_path'] = get_trex_path
+    funcs_by_name['update_trex'] = update_trex
+    # trex_daemon_server
+    funcs_by_name['is_trex_daemon_running'] = trex_daemon_server.is_running
+    funcs_by_name['restart_trex_daemon'] = trex_daemon_server.restart
+    funcs_by_name['start_trex_daemon'] = trex_daemon_server.start
+    funcs_by_name['stop_trex_daemon'] = trex_daemon_server.stop
+    # stl rpc proxy
+    funcs_by_name['is_stl_rpc_proxy_running'] = stl_rpc_proxy.is_running
+    funcs_by_name['restart_stl_rpc_proxy'] = stl_rpc_proxy.restart
+    funcs_by_name['start_stl_rpc_proxy'] = stl_rpc_proxy.start
+    funcs_by_name['stop_stl_rpc_proxy'] = stl_rpc_proxy.stop
     try:
         set_logger()
         register_socket(master_daemon.tag)
         server = SimpleJSONRPCServer(('0.0.0.0', master_daemon.port))
         logging.info('Started master daemon (port %s)' % master_daemon.port)
-        server.register_function(add)
-        server.register_function(check_connectivity)
-        server.register_function(get_trex_path)
-        server.register_function(update_trex)
-        # trex_daemon_server
-        server.register_function(trex_daemon_server.is_running, 'is_trex_daemon_running')
-        server.register_function(trex_daemon_server.restart, 'restart_trex_daemon')
-        server.register_function(trex_daemon_server.start, 'start_trex_daemon')
-        server.register_function(trex_daemon_server.stop, 'stop_trex_daemon')
-        # stl rpc proxy
-        server.register_function(stl_rpc_proxy.is_running, 'is_stl_rpc_proxy_running')
-        server.register_function(stl_rpc_proxy.restart, 'restart_stl_rpc_proxy')
-        server.register_function(stl_rpc_proxy.start, 'start_stl_rpc_proxy')
-        server.register_function(stl_rpc_proxy.stop, 'stop_stl_rpc_proxy')
+        for name, func in funcs_by_name.items():
+            server.register_function(partial(log_usage, name, func), name)
         server.register_function(server.funcs.keys, 'get_methods') # should be last
         signal.signal(signal.SIGTSTP, stop_handler) # ctrl+z
         signal.signal(signal.SIGTERM, stop_handler) # kill
