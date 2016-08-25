@@ -459,7 +459,7 @@ Run this command to see list of all interfaces and related information:
 sudo ./dpdk_setup_ports.py -t
 ----
 
-* In case of Loopback, no need to provide destination MACs. +
+* In case of *Loopback* and/or only *L1-L2 Switches* on the way, no need to provide destination MACs. +
 Will be assumed connection 0&#8596;1, 2&#8596;3 etc. +
 Just run:
 
@@ -468,14 +468,12 @@ Just run:
 sudo ./dpdk_setup_ports.py -c <TRex interface 0> <TRex interface 1> ...
 ----
 
-* In case of router (or other next hop device), should be specified MACs of router interfaces as destination.
+* In case of *Router* (or other next hop device, such as *L3 Switch*), should be specified MACs of router interfaces as destination.
 
 [source,bash]
 ----
 sudo ./dpdk_setup_ports.py -c <TRex interface 0> <TRex interface 1> ... --dest-macs <Router interface 0 MAC> <Router interface 1 MAC> ...
 ----
-
-* In case of Switch, it's NICs should be transparent to config: if DUT is router, use Router's MACs. If loopback, use TRex MACs. (See previous bullets)
 
 .Additional arguments to creating script (dpdk_setup_ports.py -c)
 [options="header",cols="2,5,3",width="100%"]
