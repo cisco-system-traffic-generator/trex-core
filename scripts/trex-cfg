@@ -37,6 +37,8 @@ for file in /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepag
     fi
 done
 
+PATH=$PATH:/sbin;/usr/sbin
+
 if ! lsmod | grep -q igb_uio  ;  then
     echo "Loading kernel drivers for the first time"
     modprobe uio
