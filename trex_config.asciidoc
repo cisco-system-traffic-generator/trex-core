@@ -116,7 +116,7 @@ image::images/TrexConfig.png[title="TRex/Router setup"]
 == TRex configuration 
 
 * TRex act as both client and server side 
-* TRex port mac addrees should configure correctly, so packet generated from port 1 will get to 2 and vice-versa
+* TRex port mac address should configure correctly, so packet generated from port 1 will get to 2 and vice-versa
 * To use the config file you can add this switch `--cfg [file]` 
 * Or edit the configuration file in `/etc/trex_cfg.yaml`
 
@@ -130,14 +130,14 @@ image::images/TrexConfig.png[title="TRex/Router setup"]
       src_mac         :   [0x0,0x0,0x0,0x4,0x0,0x00] <4>
 ----
 <1>  Correspond to TRex port 0 - should be Router TenG 0/0/0 mac-address
-<2>  Should be distinc mac-addrees, router should be configure to sent to this mac-addrees
+<2>  Should be distinc mac-address, router should be configure to sent to this mac-address
 <3>  Correspond to TRex port 1 - should be Router TenG 0/0/1 mac-address
-<4>  Should be distinc mac-addrees, router should be configure to sent to this mac-addrees
+<4>  Should be distinc mac-address, router should be configure to sent to this mac-address
 
 
 == Router configuration PBR part 1
 
-* Router moves packets from port 0->1 and 1->0 without looking into IP addrees.
+* Router moves packets from port 0->1 and 1->0 without looking into IP address.
 
 * TenG 0/0/0 <-> TenG 0/0/1
 
@@ -161,11 +161,11 @@ interface TenGigabitEthernet0/0/1
  load-interval 30
 !
 ----
-<1> Configure mac-addrees to match TRex destination port-0
+<1> Configure mac-address to match TRex destination port-0
 <2> Set MTU 
-<3> Set an ip addrees ( routing can't work without this)
+<3> Set an ip address ( routing can't work without this)
 <4> Configure PBR policy - see next slide
-<5> Configure mac-addrees to match TRex destination port-1
+<5> Configure mac-address to match TRex destination port-1
 
 == Router configuration PBR part 2
 
@@ -186,16 +186,16 @@ route-map p2_to_p1 permit 10
 
 == Router configuration PBR part 3
 
-* What about destination mac-address it should be TRex source mac-addrees?
-* The folowing configuration addrees it
+* What about destination mac-address it should be TRex source mac-address?
+* The folowing configuration address it
 
 [source,python]
 ----
  arp 11.11.11.12 0000.0002.0000 ARPA  <1>
  arp 12.11.11.12 0000.0004.0000 ARPA  <2>
 ----
-<1> Destination mac-addrees of packets sent from If 0/0/0 is matched to TRex source mac-address port-0
-<2> Destination mac-addrees of packets sent from If 0/0/1 is matched to TRex source mac-address port-1
+<1> Destination mac-address of packets sent from If 0/0/0 is matched to TRex source mac-address port-0
+<2> Destination mac-address of packets sent from If 0/0/1 is matched to TRex source mac-address port-1
 
 == Static-route configuration - TRex 
 
@@ -233,8 +233,8 @@ interface TenGigabitEthernet0/0/1
  mtu 4000 
  ip address 22.11.11.11 255.255.255.0
 !         
-ip route 16.0.0.0 255.0.0.0 22.11.11.12  <1>
-ip route 48.0.0.0 255.0.0.0 11.11.11.12  <2>
+ip route 16.0.0.0 255.0.0.0 11.11.11.12  <1>
+ip route 48.0.0.0 255.0.0.0 22.11.11.12  <2>
 ----
 <1> Match the range of TRex YAML ( client side 0/0/0 )
 <2> Match the range of TRex YAML ( server side 0/0/1)
@@ -294,7 +294,7 @@ csi-mcp-asr1k-40(config)#ipv6 route 4000::/64 2001::2
 csi-mcp-asr1k-40(config)#ipv6 route 5000::/64 3001::2 
 ----
 <1> Enable ipv6
-<2> Add  ipv6 addrees
+<2> Add  ipv6 address
 <3> Add pbr 
 <4> Enable ipv6 routing 
 <5> Mac-addr setting should be like TRex

@@ -248,7 +248,7 @@ def options(opt):
 
 def configure(conf):
     conf.find_program('asciidoc', path_list='/usr/bin/', var='ASCIIDOC')
-    conf.find_program('sphinx-build', path_list='/usr/local/bin/', var='SPHINX')
+    conf.find_program('sphinx-build', path_list='~/.local/bin /usr/local/bin/ /usr/bin', var='SPHINX')
     pass;
 
 def convert_to_pdf(task):
@@ -797,7 +797,8 @@ def build_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc'))
-    build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -W -b {bld} {src} {dst}".format(
+    build_doc_cmd = shlex.split("{sph} -W -b {bld} {src} {dst}".format(
+        sph= task.env['SPHINX'],
         bld= "html", 
         src= ".", 
         dst= out_dir)
@@ -811,7 +812,8 @@ def build_stl_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_stl'))
-    build_doc_cmd = shlex.split("/usr/local/bin/sphinx-build -W -b {bld} {src} {dst}".format(
+    build_doc_cmd = shlex.split("{sph} -W -b {bld} {src} {dst}".format(
+        sph= task.env['SPHINX'],
         bld= "html", 
         src= ".", 
         dst= out_dir)
