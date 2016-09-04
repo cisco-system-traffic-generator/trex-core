@@ -504,9 +504,8 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename,
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "push_remote");
 
     /* check that file exists */
-    CCapReaderBase *reader;
     std::stringstream ss;
-    reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
+    CCapReaderBase *reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
     if (!reader) {
         throw TrexException(ss.str());
     }

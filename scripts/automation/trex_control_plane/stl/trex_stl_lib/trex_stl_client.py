@@ -2234,6 +2234,9 @@ class STLClient(object):
 
         # for dual mode check that all are masters
         if is_dual:
+            if not pcap_filename.endswith('erf'):
+                raise STLError("dual mode: only ERF format is supported for dual mode")
+
             for port in ports:
                 master = port
                 slave = port ^ 0x1

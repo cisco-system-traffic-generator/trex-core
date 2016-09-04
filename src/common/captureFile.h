@@ -183,6 +183,9 @@ public:
      * open file for reading.
      */
 	virtual bool Create(char * name, int loops = 0) = 0;
+
+    virtual capture_type_e get_type() = 0;
+
 protected:
     int 		m_loops;
     uint64_t 	m_file_size;

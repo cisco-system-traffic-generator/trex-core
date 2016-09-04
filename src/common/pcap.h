@@ -79,8 +79,12 @@ public:
      *         otherwise (reached eof)
 	 */
 	virtual bool ReadPacket(CCapPktRaw *lpPacket); 
-        virtual void Rewind();
+    virtual void Rewind();
 
+
+    virtual capture_type_e get_type() {
+        return LIBPCAP;
+    }
 
 private:
 	LibPCapReader(LibPCapReader &);

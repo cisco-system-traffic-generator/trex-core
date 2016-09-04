@@ -248,6 +248,11 @@ public:
     bool Create(char *filename, int loops = 0);
     void Delete();
     virtual bool ReadPacket(CCapPktRaw * lpPacket);
+
+    virtual capture_type_e get_type() {
+        return ERF;
+    }
+
 private:
     FILE * m_handle;
 };

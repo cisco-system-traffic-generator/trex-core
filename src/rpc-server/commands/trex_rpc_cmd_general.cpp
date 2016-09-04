@@ -525,7 +525,17 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
         if (!slave->get_owner().verify(slave_handler)) {
             generate_execute_err(result, "incorrect or missing slave port handler");
         }
+
+        std::stringstream ss;
+        CCapReaderBase *reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
+        if (!reader) {
+            generate_execute_err(result, ss.str());
+        }
+        if (reader->get_type() != ERF) {
+            generate_execute_err(result, "dual mode is only supported on ERF format");
+        }
     }
+
 
     try {
         port->push_remote(pcap_filename, ipg_usec, speedup, count, duration, is_dual);

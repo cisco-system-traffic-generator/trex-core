@@ -317,7 +317,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               DUAL: ArgumentPack(['--dual'],
                                  {"action": "store_true",
                                   'default': False,
-                                  'help': "Transmit in a dual mode - requires a slave attached to the port"}),
+                                  'help': "Transmit in a dual mode - requires ownership on the adjacent port"}),
 
               FILE_PATH: ArgumentPack(['-f'],
                                       {'metavar': 'FILE',
