@@ -1,5 +1,13 @@
 #! /bin/bash
-python2.7 waf-1.6.8 $@
-sts=$?
-exit $sts
+
+if python2.7 waf-1.9.3 --help &> /dev/null ; then
+    python2.7 waf-1.9.3 $@
+    exit $?
+elif python3 waf-1.9.3 --help &> /dev/null ; then
+    python3 waf-1.9.3 $@
+    exit $?
+else
+    echo Required Python versions at least 2.7 or 3
+    exit 1
+fi
 

@@ -7,7 +7,6 @@
 VERSION='0.0.1'
 APPNAME='cxx_test'
 import os;
-import commands;
 import shutil;
 import copy;
 import re
@@ -84,7 +83,7 @@ class SrcGroups:
 
 def options(opt):
     opt.load('compiler_cxx')
-    opt.load('compiler_cc')
+    opt.load('compiler_c')
     opt.add_option('--pkg-dir', '--pkg_dir', dest='pkg_dir', default=False, action='store', help="Destination folder for 'pkg' option.")
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
@@ -93,6 +92,17 @@ def configure(conf):
     conf.load('g++')
     conf.load('gcc')
 
+def getstatusoutput(cmd):
+    """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""
+    try:
+        data = subprocess.check_output(cmd, shell=True, universal_newlines=True, stderr=subprocess.STDOUT)
+        status = 0
+    except subprocess.CalledProcessError as ex:
+        data = ex.output
+        status = ex.returncode
+    if data[-1:] == '\n':
+        data = data[:-1]
+    return status, data
 
 main_src = SrcGroup(dir='src',
         src_list=[
@@ -748,7 +758,7 @@ def build_type(bld,build_obj):
 
 
 def post_build(bld):
-    print "copy objects"
+    print("copy objects")
     exec_p ="../scripts/"
     for obj in build_types:
         install_single_system(bld, exec_p, obj);
@@ -768,14 +778,14 @@ def install_single_system (bld, exec_p, build_obj):
     src_file =  os.path.realpath(o+build_obj.get_target())
     if os.path.exists(src_file):
         dest_file = exec_p +build_obj.get_target()
-        print dest_file
+        print(dest_file)
         if not os.path.lexists(dest_file):
             relative_path = os.path.relpath(src_file, exec_p)
             os.symlink(relative_path, dest_file);
 
 
 def pre_build(bld):
-    print "update version files"
+    print("update version files")
     create_version_files ()
 
 
@@ -796,7 +806,7 @@ def get_build_num ():
 def create_version_files ():
     git_sha="N/A"
     try:
-      r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")
+      r=getstatusoutput("git log --pretty=format:'%H' -n 1")
       if r[0]==0:
           git_sha=r[1]
     except :
@@ -840,17 +850,17 @@ def build_test(bld):
 def _copy_single_system (bld, exec_p, build_obj):
     o='build_dpdk/linux_dpdk/';
     src_file =  os.path.realpath(o+build_obj.get_target())
-    print src_file;
+    print(src_file)
     if os.path.exists(src_file):
         dest_file = exec_p +build_obj.get_target()
-        print dest_file
+        print(dest_file)
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
 def _copy_single_system1 (bld, exec_p, build_obj):
     o='../scripts/';
     src_file =  os.path.realpath(o+build_obj.get_target()[1:])
-    print src_file;
+    print(src_file)
     if os.path.exists(src_file):
         dest_file = exec_p +build_obj.get_target()[1:]
         os.system("cp %s %s " %(src_file,dest_file));
@@ -892,7 +902,7 @@ class Env(object):
     def get_env(name) :
         s= os.environ.get(name);
         if s == None:
-            print "You should define $",name
+            print("You should define $ %s" % name)
             raise Exception("Env error");
         return (s);
     
@@ -972,7 +982,7 @@ def release(bld, custom_dir = None):
     else:
         check_release_permission()
         exec_p = Env().get_release_path()
-    print "copy images and libs"
+    print("copy images and libs")
     os.system(' mkdir -p '+exec_p);
 
     for obj in build_types:
@@ -1039,7 +1049,7 @@ def publish_ext(bld, custom_source = None):
     else:
         from_ = exec_p+'/'+release_name;
     cmd='rsync -avz --progress -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/release/%s' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ,release_name)
-    print cmd
+    print(cmd)
     os.system( cmd )
     os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
     os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
@@ -1067,30 +1077,30 @@ def show(bld):
 
     # last passed nightly
     command = 'timeout 10 git show %s --quiet' % last_passed_commit
-    result, output = commands.getstatusoutput(command)
+    result, output = getstatusoutput(command)
     if result == 0:
-        print 'Last passed regression commit:\n%s\n' % output
+        print('Last passed regression commit:\n%s\n' % output)
     else:
         raise Exception('Error getting commit info with command: %s' % command)
 
     # brief list of 5 commits before passed
-    result, output = commands.getstatusoutput('git --version')
+    result, output = getstatusoutput('git --version')
     if result != 0 or output.startswith('git version 1'):
         # old format, no color etc.
         command = "timeout 10 git log --no-merges -n 5 --pretty=format:'%%h  %%an  %%ci  %%s' %s^@" % last_passed_commit
     else:
         # new format, with color, padding, truncating etc.
         command = "timeout 10 git log --no-merges -n 5 --pretty=format:'%%C(auto)%%h%%Creset  %%<(10,trunc)%%an  %%ci  %%<(100,trunc)%%s' %s^@ " % last_passed_commit
-    result, output = commands.getstatusoutput(command)
+    result, output = getstatusoutput(command)
     if result == 0:
-        print output
+        print(output)
     else:
         raise Exception('Error getting commits info with command: %s' % command)
 
 def test (bld):
-    r=commands.getstatusoutput("git log --pretty=format:'%H' -n 1")
+    r=getstatusoutput("git log --pretty=format:'%H' -n 1")
     if r[0]==0:
-        print r[1]
+        print(r[1])
 
 
 

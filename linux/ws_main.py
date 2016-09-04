@@ -9,7 +9,6 @@ VERSION='0.0.1'
 APPNAME='cxx_test'
 
 import os;
-import commands;
 import shutil;
 import copy;
 from distutils.version import StrictVersion
@@ -76,8 +75,8 @@ def verify_cc_version (env):
     ver = '.'.join(env['CC_VERSION'])
 
     if StrictVersion(ver) < REQUIRED_CC_VERSION:
-        print "\nMachine GCC version too low '{0}' - required at least '{1}'".format(ver, REQUIRED_CC_VERSION)
-        print "\n*** please set a compiler using CXX / AR enviorment variables ***\n"
+        print("\nMachine GCC version too low '{0}' - required at least '{1}'".format(ver, REQUIRED_CC_VERSION))
+        print( "\n*** please set a compiler using CXX / AR enviorment variables ***\n")
         exit(-1)
 
 
@@ -425,7 +424,7 @@ def build_type(bld,build_obj):
 
 
 def post_build(bld):
-    print "copy objects"
+    print("copy objects")
 
     exec_p ="../scripts/"
 
