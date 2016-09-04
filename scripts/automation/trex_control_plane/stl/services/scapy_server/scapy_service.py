@@ -2,20 +2,20 @@
 import os
 import sys
 stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir))
-additional_stl_udp_pkts = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir, os.pardir,'stl'))
 sys.path.append(stl_pathname)
-sys.path.append(additional_stl_udp_pkts)
-import trex_stl_lib
+
 from trex_stl_lib.api import *
-from copy import deepcopy
-import sys
 import tempfile
 import hashlib
 import binascii
 from pprint import pprint
-from scapy.layers.dns import *
-from udp_1pkt_vxlan import VXLAN
-from udp_1pkt_mpls import MPLS
+#from scapy.layers.dns import DNS
+#from scapy.contrib.mpls import MPLS
+
+#additional_stl_udp_pkts = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir, os.pardir,'stl'))
+#sys.path.append(additional_stl_udp_pkts)
+#from udp_1pkt_vxlan import VXLAN
+#sys.path.remove(additional_stl_udp_pkts)
 
 try:
     from cStringIO import StringIO
@@ -26,8 +26,23 @@ except ImportError:
 
 
 class Scapy_service_api():
-    def get_all(self):
-        """ get_all(self) 
+
+    def get_version_handler(self,client_v_major,client_v_minor):
+        """ get_version_handler(self,client_v_major,client_v_minor)
+            
+            Gives a handler to client to connect and use server api
+
+            Parameters
+            ----------
+            client_v_major - major number of api version on the client side
+
+            Returns
+            -------
+            Handler(string) to provide when using server api
+        """
+        pass
+    def get_all(self,client_v_handler):
+        """ get_all(self,client_v_handler) 
 
         Sends all the protocols and fields that Scapy Service supports.
         also sends the md5 of the Protocol DB and Fields DB used to check if the DB's are up to date
@@ -46,8 +61,8 @@ class Scapy_service_api():
         """
         pass
 
-    def check_update(self,db_md5,field_md5):        
-        """ check_update(self,db_md5,field_md5) 
+    def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):        
+        """ check_update_of_dbs(self,client_v_handler,db_md5,field_md5) 
         Checks if the Scapy Service running on the server has a newer version of the databases that the client has
 
         Parameters
@@ -66,14 +81,14 @@ class Scapy_service_api():
         pass
 
 
-    def build_pkt(self,pkt_descriptor):
-        """ build_pkt(self,pkt_descriptor) -> Dictionary (of Offsets,Show2 and Buffer)
+    def build_pkt(self,client_v_handler,pkt_model_descriptor):
+        """ build_pkt(self,client_v_handler,pkt_model_descriptor) -> Dictionary (of Offsets,Show2 and Buffer)
         
         Performs calculations on the given packet and returns results for that packet.
     
         Parameters
         ----------
-        pkt_descriptor - A string describing a network packet, in Scapy Format
+        pkt_descriptor - An array of dictionaries describing a network packet
 
         Returns
         -------
@@ -89,7 +104,7 @@ class Scapy_service_api():
         pass
 
 
-    def get_tree(self):
+    def get_tree(self,client_v_handler):
         """ get_tree(self) -> Dictionary describing an example of hierarchy in layers
 
         Scapy service holds a tree of layers that can be stacked to a recommended packet
@@ -108,17 +123,43 @@ class Scapy_service_api():
         None
         """
         pass
+    
+    def reconstruct_pkt(self,client_v_handler,binary_pkt):
+        """ reconstruct_pkt(self,client_v_handler,binary_pkt)
 
+        Makes a Scapy valid packet from a binary string and returns all information returned in build_pkt
+
+        Parameters
+        ----------
+        Packet in binary, formatted in "base64" encoding
+
+        Returns
+        -------
+        All data provided in build_pkt:
+        show2 - detailed description of the packet
+        buffer - the packet presented in binary
+        offsets - the offset[in bytes] of each field in the packet
+
+        """
+        pass
 
 
 class ScapyException(Exception): pass
 class Scapy_service(Scapy_service_api):
 
 #----------------------------------------------------------------------------------------------------
-    class scapyRegex:
+    class ScapyFieldDesc:
         def __init__(self,FieldName,regex='empty'):
             self.FieldName = FieldName
             self.regex = regex
+            #defualt values - should be changed when needed, or added to constructor
+            self.string_input =""
+            self.string_input_mex_len = 1
+            self.integer_input = 0
+            self.integer_input_min = 0
+            self.integer_input_max = 1
+            self.input_array = []
+            self.input_list_max_len = 1
 
         def stringRegex(self):
             return self.regex        
@@ -129,10 +170,13 @@ class Scapy_service(Scapy_service_api):
         self.transport_protocols = {'TCP':self.Raw,'UDP':self.Raw}
         self.network_protocols = {'IP':self.transport_protocols ,'ARP':''}
         self.low_level_protocols = { 'Ether': self.network_protocols }
-        self.regexDB= {'MACField' : self.scapyRegex('MACField','^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$'),
-              'IPField' : self.scapyRegex('IPField','^(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9])\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[0-9])$')}
+        self.regexDB= {'MACField' : self.ScapyFieldDesc('MACField','^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$'),
+              'IPField' : self.ScapyFieldDesc('IPField','^(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9])\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[0-9])$')}
         self.all_protocols = self._build_lib()
         self.protocol_tree = {'ALL':{'Ether':{'ARP':{},'IP':{'TCP':{'RAW':'payload'},'UDP':{'RAW':'payload'}}}}}
+        self.version_major = '1'
+        self.version_minor = '01'
+        self.server_v_hashed = self._generate_version_hash(self.version_major,self.version_minor)
     
 
     def _all_protocol_structs(self):
@@ -209,7 +253,7 @@ class Scapy_service(Scapy_service_api):
             if f in self.regexDB:
                 fieldDict[f] = self.regexDB[f].stringRegex()
             else:
-                fieldDict[f] = self.scapyRegex(f).stringRegex()
+                fieldDict[f] = self.ScapyFieldDesc(f).stringRegex()
         return fieldDict
 
     def _show2_to_dict(self,pkt):
@@ -267,12 +311,14 @@ class Scapy_service(Scapy_service_api):
         return res_md5
 
     def get_version(self):
-        return {'built_by':'itraviv','version':'v1.01'}
+        return {'built_by':'itraviv','version':self.version_major+'.'+self.version_minor}
 
     def supported_methods(self,method_name='all'):
         if method_name=='all':
             methods = {}
             for f in dir(Scapy_service):
+                if f[0]=='_':
+                    continue
                 if inspect.ismethod(eval('Scapy_service.'+f)):
                     param_list = inspect.getargspec(eval('Scapy_service.'+f))[0]
                     del param_list[0] #deleting the parameter "self" that appears in every method 
@@ -284,24 +330,78 @@ class Scapy_service(Scapy_service_api):
             return True
         return False
 
+    def _generate_version_hash(self,v_major,v_minor):
+        v_for_hash = v_major+v_minor+v_major+v_minor
+        m = hashlib.md5()
+        m.update(v_for_hash)
+        v_handle = binascii.b2a_base64(m.digest())
+        return unicode(v_handle,"utf-8")
+
+    def _generate_invalid_version_error(self):
+        error_desc1 = "Provided version handler does not correspond to the server's version.\nUpdate client to latest version.\nServer version:"+self.version_major+"."+self.version_minor
+        return error_desc1
+
+    def _verify_version_handler(self,client_v_handler):
+        return (self.server_v_hashed == client_v_handler)
+
+    def _parse_packet_dict(self,layer,scapy_layers,scapy_layer_names):
+        class_name = scapy_layer_names.index(layer['id'])
+        class_p = scapy_layers[class_name] # class pointer
+        kwargs = {}
+        if 'Fields' in layer:
+            for field in layer['Fields']:
+                key = field['id']
+                value = field['value']
+                if type(value) is list:
+                    resolved_value = []
+                    for arg_class in value:
+                        option_class_p = scapy.all.__dict__[arg_class["class"]]
+                        option_kwargs = {}
+                        for field in arg_class['Fields']:
+                            option_kwargs[field['id']] = field['value']
+                        resolved_value.append(option_class_p(**option_kwargs))
+                    value = resolved_value
+                kwargs[key] = value
+        return class_p(**kwargs)
+
+    def _packet_model_to_scapy_packet(self,data):
+        layers = Packet.__subclasses__()
+        layer_names = [ layer.__name__ for layer in layers]
+        base_layer = self._parse_packet_dict(data[0],layers,layer_names)
+        for i in range(1,len(data),1):
+            packet_layer = self._parse_packet_dict(data[i],layers,layer_names)
+            base_layer = base_layer/packet_layer
+        return base_layer
+
+
 #--------------------------------------------API implementation-------------
-    def get_tree(self):
+    def get_tree(self,client_v_handler):
+        if not (self._verify_version_handler(client_v_handler)):
+            raise ScapyException(self._generate_invalid_version_error())
         return self.protocol_tree
 
-# pkt_descriptor in string format
-    def build_pkt(self,pkt_descriptor):
-        pkt = eval(pkt_descriptor)
+    def get_version_handler(self,client_v_major,client_v_minor):
+        v_handle = self._generate_version_hash(client_v_major,client_v_minor)
+        return v_handle
+
+# pkt_descriptor in packet model format (dictionary)
+    def build_pkt(self,client_v_handler,pkt_model_descriptor):
+        if not (self._verify_version_handler(client_v_handler)):
+            raise ScapyException(self._generate_invalid_version_error())
+        pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
         show2data = self._show2_to_dict(pkt)
         bufferData = str(pkt) #pkt buffer
         bufferData = binascii.b2a_base64(bufferData)
-        pkt_offsets = self._get_all_pkt_offsets(pkt_descriptor)
+        pkt_offsets = self._get_all_pkt_offsets(pkt.command())
         res = {}
         res['show2'] = show2data
         res['buffer'] = bufferData
         res['offsets'] = pkt_offsets
         return res
 
-    def get_all(self):
+    def get_all(self,client_v_handler):
+        if not (self._verify_version_handler(client_v_handler)):
+            raise ScapyException(self._generate_invalid_version_error())
         fields=self._get_all_fields()
         db=self._get_all_db()
         fields_md5 = self._get_md5(fields)
@@ -314,7 +414,9 @@ class Scapy_service(Scapy_service_api):
         return res
 
 #input in string encoded base64
-    def check_update(self,db_md5,field_md5):
+    def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):
+        if not (self._verify_version_handler(client_v_handler)):
+            raise ScapyException(self._generate_invalid_version_error())
         fields=self._get_all_fields()
         db=self._get_all_db()
         current_db_md5 = self._get_md5(db)
@@ -327,6 +429,16 @@ class Scapy_service(Scapy_service_api):
                 raise ScapyException("Protocol DB is not up to date")
         else:
             raise ScapyException("Fields DB is not up to date")
+
+#input of binary_pkt must be encoded in base64
+    def reconstruct_pkt(self,client_v_handler,binary_pkt):
+        pkt_in_hex = binary_pkt.decode('base64')
+        scapy_pkt = Ether(pkt_in_hex)
+        scapy_pkt_cmd = scapy_pkt.command()
+        return self.build_pkt(client_v_handler,scapy_pkt_cmd)
+
+
+ 
 
 
 #---------------------------------------------------------------------------

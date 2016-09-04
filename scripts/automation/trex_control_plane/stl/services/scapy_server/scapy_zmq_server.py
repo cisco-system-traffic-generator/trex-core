@@ -3,11 +3,10 @@ import time
 import sys
 import os
 
-python2_zmq_path = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir,
-                                                os.pardir,'external_libs','pyzmq-14.5.0','python2','fedora18','64bit'))
 stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir))
-sys.path.append(stl_pathname)
-sys.path.append(python2_zmq_path)
+if stl_pathname not in sys.path:
+    sys.path.append(stl_pathname)
+from trex_stl_lib.api import *
 import zmq
 import inspect
 from scapy_service import *
@@ -97,7 +96,7 @@ class Scapy_wrapper:
             return response
 
 class Scapy_server():
-    def __init__(self, port=4507):
+    def __init__(self, args,port=4507):
         self.scapy_wrapper = Scapy_wrapper()
         self.port = port
         self.context = zmq.Context()
@@ -161,12 +160,12 @@ class Scapy_server():
 
 
 #arg1 is port number for the server to listen to
-def main(arg1=4507):
-    s = Scapy_server(arg1)
+def main(args,port):
+    s = Scapy_server(args,port)
     s.activate()
 
 if __name__=='__main__':
-    if len(sys.argv)>1:
+    
         parser = ArgumentParser(description=' Runs Scapy Server ')
         parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
                             help='Select port to which Scapy Server will listen to.\n default is 4507.',action='store')
@@ -175,6 +174,6 @@ if __name__=='__main__':
                             action='store_true',default = False)
         args = parser.parse_args()
         port = args.scapy_port
-        sys.exit(main(port))
-    else:
-        sys.exit(main())
+        sys.exit(main(args,port))
+
+
