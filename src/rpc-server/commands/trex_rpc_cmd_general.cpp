@@ -509,16 +509,26 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
-    std::string pcap_filename = parse_string(params, "pcap_filename", result);
-    double ipg_usec           = parse_double(params, "ipg_usec", result);
-    double speedup            = parse_double(params, "speedup", result);
-    uint32_t count            = parse_uint32(params, "count", result);
-    double duration           = parse_double(params, "duration", result);
+    std::string  pcap_filename  = parse_string(params, "pcap_filename", result);
+    double       ipg_usec       = parse_double(params, "ipg_usec", result);
+    double       speedup        = parse_double(params, "speedup", result);
+    uint32_t     count          = parse_uint32(params, "count", result);
+    double       duration       = parse_double(params, "duration", result);
+    bool         is_dual        = parse_bool(params,   "is_dual", result, false);
+    std::string  slave_handler  = parse_string(params, "slave_handler", result, "");
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    if (is_dual) {
+        TrexStatelessPort *slave = get_stateless_obj()->get_port_by_id(port_id ^ 0x1);
+
+        if (!slave->get_owner().verify(slave_handler)) {
+            generate_execute_err(result, "incorrect or missing slave port handler");
+        }
+    }
+
     try {
-        port->push_remote(pcap_filename, ipg_usec, speedup, count, duration);
+        port->push_remote(pcap_filename, ipg_usec, speedup, count, duration, is_dual);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }

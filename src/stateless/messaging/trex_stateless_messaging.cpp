@@ -193,7 +193,8 @@ TrexStatelessDpPushPCAP::handle(TrexStatelessDpCore *dp_core) {
                        m_ipg_usec,
                        m_speedup,
                        m_count,
-                       m_duration);
+                       m_duration,
+                       m_is_dual);
     return true;
 }
 
@@ -205,7 +206,8 @@ TrexStatelessDpPushPCAP::clone() {
                                                                       m_ipg_usec,
                                                                       m_speedup,
                                                                       m_count,
-                                                                      m_duration);
+                                                                      m_duration,
+                                                                      m_is_dual);
 
     return new_msg;
 }

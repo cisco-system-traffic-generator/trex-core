@@ -108,7 +108,7 @@ int erf_open(wtap *wth, int *err)
 
 	memset(&prevts, 0, sizeof(prevts));
 
-    int records_for_erf_check = 10;
+    long records_for_erf_check = 10;
 
 	/* ERF is a little hard because there's no magic number */
 
@@ -166,7 +166,7 @@ int erf_open(wtap *wth, int *err)
 }
 
 
-int erf_read(wtap *wth,char *p,uint32_t *sec,uint32_t *nsec)
+int erf_read(wtap *wth,char *p,uint32_t *sec,uint32_t *nsec, uint8_t *interface)
 {
     erf_header_t header;
     int common_type = 0;
@@ -214,6 +214,7 @@ int erf_read(wtap *wth,char *p,uint32_t *sec,uint32_t *nsec)
         uint32_t frac =(ts &0xffffffff);
         double usec_frac =(double)frac*(1000000000.0/(4294967296.0));
         *nsec = (uint32_t) (usec_frac);
+        *interface = header.flags & 0x3;
         return (g_ntohs(header.wlen));
     }else{
         return (-1);
@@ -438,15 +439,19 @@ void CErfFileReader::Delete(){
 
 
 bool CErfFileReader::ReadPacket(CCapPktRaw * lpPacket){
+    uint8_t interface;
     wtap wth;
+
     wth.fh = m_handle;
-    int length;
-    length=erf_read(&wth,lpPacket->raw,&lpPacket->time_sec,
-                    &lpPacket->time_nsec
-                    );
+    int length = erf_read(&wth,
+                          lpPacket->raw,
+                          &lpPacket->time_sec,
+                          &lpPacket->time_nsec,
+                          &interface);
     if ( length >0   ) {
         lpPacket->pkt_len =(uint16_t)length;
 		lpPacket->pkt_cnt++;
+        lpPacket->setInterface(interface);
         return (true);
     }
     return (false);

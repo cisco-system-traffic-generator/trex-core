@@ -478,7 +478,8 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
                                        const std::string &pcap_filename,
                                        double ipg_usec,
                                        double speedup,
-                                       uint32_t count) {
+                                       uint32_t count,
+                                       bool is_dual) {
 
     /* push pcap can only happen on an idle port from the core prespective */
     assert(m_state == TrexStatelessDpPerPort::ppSTATE_IDLE);
@@ -501,7 +502,8 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
                                 pcap_filename,
                                 ipg_usec,
                                 speedup,
-                                count);
+                                count,
+                                is_dual);
     if (!rc) {
         m_core->free_node((CGenNode *)pcap_node);
         return (false);
@@ -1162,14 +1164,15 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
                                double ipg_usec,
                                double speedup,
                                uint32_t count,
-                               double duration) {
+                               double duration,
+                               bool is_dual) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
 
     lp_port->set_event_id(event_id);
 
     /* delegate the command to the port */
-    bool rc = lp_port->push_pcap(port_id, pcap_filename, ipg_usec, speedup, count);
+    bool rc = lp_port->push_pcap(port_id, pcap_filename, ipg_usec, speedup, count, is_dual);
     if (!rc) {
         /* report back that we stopped */
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
@@ -1253,7 +1256,8 @@ bool CGenNodePCAP::create(uint8_t port_id,
                           const std::string &pcap_filename,
                           double ipg_usec,
                           double speedup,
-                          uint32_t count) {
+                          uint32_t count,
+                          bool is_dual) {
     std::stringstream ss;
 
     m_type       = CGenNode::PCAP_PKT;
@@ -1261,7 +1265,8 @@ bool CGenNodePCAP::create(uint8_t port_id,
     m_src_port   = 0;
     m_port_id    = port_id;
     m_count      = count;
-    
+    m_is_dual    = is_dual;
+
     /* mark this node as slow path */
     set_slow_path(true);
 

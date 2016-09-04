@@ -217,10 +217,11 @@ public:
      * 
      */
     void push_remote(const std::string &pcap_filename,
-                     double ipg_usec,
-                     double speedup,
-                     uint32_t count,
-                     double duration);
+                     double            ipg_usec,
+                     double            speedup,
+                     uint32_t          count,
+                     double            duration,
+                     bool              is_dual);
 
     /**
      * get the port state
@@ -385,7 +386,7 @@ private:
         return m_cores_id_list;
     }
 
-    bool verify_state(int state, bool should_throw = true) const;
+    bool verify_state(int state, const char *cmd_name, bool should_throw = true) const;
 
     void change_state(port_state_e new_state);
 

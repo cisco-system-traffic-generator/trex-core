@@ -1000,7 +1000,7 @@ class AsyncKeysEngineConsole:
         for x in os.listdir(d):
             if os.path.isdir(os.path.join(d, x)):
                 files.append(x + '/')
-            elif x.endswith('.py') or x.endswith('yaml') or x.endswith('pcap') or x.endswith('cap'):
+            elif x.endswith( ('.py', 'yaml', 'pcap', 'cap', 'erf') ):
                 files.append(x)
 
         # dir might not have the files

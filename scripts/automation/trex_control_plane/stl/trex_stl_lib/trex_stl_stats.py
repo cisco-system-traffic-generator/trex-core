@@ -1008,7 +1008,7 @@ class CPortStats(CTRexStats):
         bps_L1 = calc_bps_L1(bps, pps)
         bps_rx_L1 = calc_bps_L1(rx_bps, rx_pps)
         snapshot['m_total_tx_bps_L1'] = bps_L1
-        snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100
+        snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100.0
 
         # TX line util not smoothed
         diff_tx_pkts = snapshot.get('opackets', 0) - self.latest_stats.get('opackets', 0)

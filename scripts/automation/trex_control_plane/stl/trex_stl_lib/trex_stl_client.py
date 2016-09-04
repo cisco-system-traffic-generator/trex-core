@@ -743,13 +743,17 @@ class STLClient(object):
         return rc
 
 
-    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration):
+    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration, is_dual):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].push_remote(pcap_filename, ipg_usec, speedup, count, duration))
+
+            # for dual, provide the slave handler as well
+            slave_handler = self.ports[port_id ^ 0x1].handler if is_dual else ""
+
+            rc.add(self.ports[port_id].push_remote(pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler))
 
         return rc
 
@@ -2183,7 +2187,8 @@ class STLClient(object):
                      ipg_usec = None,
                      speedup = 1.0,
                      count = 1,
-                     duration = -1):
+                     duration = -1,
+                     is_dual = False):
         """
             Push a remote server-reachable PCAP file
             the path must be fullpath accessible to the server
@@ -2206,6 +2211,13 @@ class STLClient(object):
 
                 duration: float
                     Limit runtime by duration in seconds
+                    
+                is_dual: bool
+                    Inject from both directions.
+                    requires ERF file with meta data for direction.
+                    also requires that all the ports will be in master mode
+                    with their adjacent ports as slaves
+
             :raises:
                 + :exc:`STLError`
 
@@ -2218,9 +2230,23 @@ class STLClient(object):
         validate_type('speedup',  speedup, (float, int))
         validate_type('count',  count, int)
         validate_type('duration', duration, (float, int))
+        validate_type('is_dual', is_dual, bool)
+
+        # for dual mode check that all are masters
+        if is_dual:
+            for port in ports:
+                master = port
+                slave = port ^ 0x1
+
+                if slave in ports:
+                    raise STLError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
+
+                if not slave in self.get_acquired_ports():
+                    raise STLError("dual mode: port {0} must be owned as well".format(slave))
+
 
         self.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(ports))
-        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration)
+        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -3023,7 +3049,8 @@ class STLClient(object):
                                          parsing_opts.DURATION,
                                          parsing_opts.IPG,
                                          parsing_opts.SPEEDUP,
-                                         parsing_opts.FORCE)
+                                         parsing_opts.FORCE,
+                                         parsing_opts.DUAL)
 
         opts = parser.parse_args(line.split())
         if not opts:
@@ -3046,7 +3073,8 @@ class STLClient(object):
                              ipg_usec  = opts.ipg_usec,
                              speedup   = opts.speedup,
                              count     = opts.count,
-                             duration  = opts.duration)
+                             duration  = opts.duration,
+                             is_dual   = opts.dual)
 
         else:
             self.push_pcap(opts.file[0],

@@ -244,7 +244,7 @@ void
 TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration, bool force, uint64_t core_mask) {
 
     /* command allowed only on state stream */
-    verify_state(PORT_STATE_STREAMS);
+    verify_state(PORT_STATE_STREAMS, "start");
 
     /* just making sure no leftovers... */
     delete_streams_graph();
@@ -370,7 +370,7 @@ TrexStatelessPort::stop_traffic(void) {
 void
 TrexStatelessPort::remove_rx_filters(void) {
     /* only valid when IDLE or with streams and not TXing */
-    verify_state(PORT_STATE_STREAMS);
+    verify_state(PORT_STATE_STREAMS, "remove_rx_filters");
 
     for (auto entry : m_stream_table) {
         get_stateless_obj()->m_rx_flow_stat.stop_stream(entry.second);
@@ -410,7 +410,7 @@ TrexStatelessPort::is_core_active(int core_id) {
 void
 TrexStatelessPort::pause_traffic(void) {
 
-    verify_state(PORT_STATE_TX);
+    verify_state(PORT_STATE_TX, "pause");
 
     if (m_last_all_streams_continues == false) {
         throw TrexException(" pause is supported when all streams are in continues mode ");
@@ -441,7 +441,7 @@ TrexStatelessPort::pause_traffic(void) {
 void
 TrexStatelessPort::resume_traffic(void) {
 
-    verify_state(PORT_STATE_PAUSE);
+    verify_state(PORT_STATE_PAUSE, "resume");
 
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexStatelessCpToDpMsgBase *resume_msg = new TrexStatelessDpResume(m_port_id);
@@ -459,7 +459,7 @@ TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
 
     double factor;
 
-    verify_state(PORT_STATE_TX | PORT_STATE_PAUSE);
+    verify_state(PORT_STATE_TX | PORT_STATE_PAUSE, "update");
 
     /* generate a message to all the relevant DP cores to start transmitting */
     double new_factor = calculate_effective_factor(mul, force);
@@ -497,10 +497,11 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename,
                                double ipg_usec,
                                double speedup,
                                uint32_t count,
-                               double duration) {
+                               double duration,
+                               bool is_dual) {
 
     /* command allowed only on state stream */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "push_remote");
 
     /* check that file exists */
     CCapReaderBase *reader;
@@ -532,7 +533,8 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename,
                                                                        ipg_usec,
                                                                        speedup,
                                                                        count,
-                                                                       duration);
+                                                                       duration,
+                                                                       is_dual);
     send_message_to_dp(tx_core, push_msg);
 
     /* update subscribers */    
@@ -580,10 +582,12 @@ TrexStatelessPort::get_properties(std::string &driver, uint32_t &speed) {
 }
 
 bool
-TrexStatelessPort::verify_state(int state, bool should_throw) const {
+TrexStatelessPort::verify_state(int state, const char *cmd_name, bool should_throw) const {
     if ( (state & m_port_state) == 0 ) {
         if (should_throw) {
-            throw TrexException("command cannot be executed on current state: '" + get_state_as_string() + "'");
+            std::stringstream ss;
+            ss << "command '" << cmd_name << "' cannot be executed on current state: '" << get_state_as_string() << "'";
+            throw TrexException(ss.str());
         } else {
             return false;
         }
@@ -893,7 +897,7 @@ TrexStatelessPort::get_pci_info(std::string &pci_addr, int &numa_node) {
 void
 TrexStatelessPort::add_stream(TrexStream *stream) {
 
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "add_stream");
 
     get_stateless_obj()->m_rx_flow_stat.add_stream(stream);
 
@@ -906,7 +910,7 @@ TrexStatelessPort::add_stream(TrexStream *stream) {
 void
 TrexStatelessPort::remove_stream(TrexStream *stream) {
 
-    verify_state(PORT_STATE_STREAMS);
+    verify_state(PORT_STATE_STREAMS, "remove_stream");
 
     get_stateless_obj()->m_rx_flow_stat.del_stream(stream);
 
@@ -920,7 +924,7 @@ TrexStatelessPort::remove_stream(TrexStream *stream) {
 
 void
 TrexStatelessPort::remove_and_delete_all_streams() {
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS);
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "remove_and_delete_all_streams");
 
     vector<TrexStream *> streams;
     get_object_list(streams);

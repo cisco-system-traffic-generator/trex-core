@@ -468,7 +468,8 @@ public:
                 const std::string &pcap_filename,
                 double ipg_usec,
                 double speedup,
-                uint32_t count);
+                uint32_t count,
+                bool is_dual);
 
     /**
      * destroy the node cleaning up any data
@@ -476,6 +477,10 @@ public:
      */
     void destroy();
  
+    bool is_dual() const {
+        return m_is_dual;
+    }
+
     /**
      * advance - will read the next packet
      * 
@@ -505,6 +510,10 @@ public:
             }
         }
 
+        if (is_dual()) {
+            uint8_t dir = m_raw_packet->getInterface() & 0x1;
+            set_mbuf_dir(dir);
+        }
     }
 
     /**
@@ -615,8 +624,10 @@ private:
     
     uint8_t             m_port_id;
 
+    bool                m_is_dual;
+
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[33];
+    uint8_t             m_pad_end[32];
 
 } __rte_cache_aligned;
 

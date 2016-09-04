@@ -582,7 +582,7 @@ class Port(object):
         return self.ok()
 
     @writeable
-    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration):
+    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler):
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -590,7 +590,9 @@ class Port(object):
                   "ipg_usec": ipg_usec if ipg_usec is not None else -1,
                   "speedup": speedup,
                   "count": count,
-                  "duration": duration}
+                  "duration": duration,
+                  "is_dual": is_dual,
+                  "slave_handler": slave_handler}
 
         rc = self.transmit("push_remote", params)
         if rc.bad():

@@ -39,6 +39,7 @@ REMOTE_FILE = 23
 LOCKED = 24
 PIN_CORES = 25
 CORE_MASK = 26
+DUAL = 28
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -312,6 +313,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {"action": "store_true",
                                          'default': False,
                                          'help': "file path should be interpeted by the server (remote file)"}),
+
+              DUAL: ArgumentPack(['--dual'],
+                                 {"action": "store_true",
+                                  'default': False,
+                                  'help': "Transmit in a dual mode - requires a slave attached to the port"}),
 
               FILE_PATH: ArgumentPack(['-f'],
                                       {'metavar': 'FILE',

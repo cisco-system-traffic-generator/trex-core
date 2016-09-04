@@ -75,7 +75,8 @@ public:
                    const std::string &pcap_filename,
                    double ipg_usec,
                    double speedup,
-                   uint32_t count);
+                   uint32_t count,
+                   bool is_dual);
 
     bool stop_traffic(uint8_t port_id,
                       bool stop_on_id, 
@@ -184,7 +185,8 @@ public:
                    double ipg_usec,
                    double speedup,
                    uint32_t count,
-                   double duration);
+                   double duration,
+                   bool   is_dual);
 
 
     /**

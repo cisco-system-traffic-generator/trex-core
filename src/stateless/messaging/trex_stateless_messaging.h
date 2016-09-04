@@ -259,13 +259,16 @@ public:
                             double ipg_usec,
                             double speedup,
                             uint32_t count,
-                            double duration) : m_pcap_filename(pcap_filename)  {
+                            double duration,
+                            bool is_dual) : m_pcap_filename(pcap_filename)  {
+
         m_port_id  = port_id;
         m_event_id = event_id;
         m_ipg_usec = ipg_usec;
         m_speedup  = speedup;
         m_count    = count;
         m_duration = duration;
+        m_is_dual  = is_dual;
     }
 
     virtual bool handle(TrexStatelessDpCore *dp_core);
@@ -280,6 +283,7 @@ private:
     double       m_duration;
     uint32_t     m_count;
     uint8_t      m_port_id;
+    bool         m_is_dual;
 };
 
 
