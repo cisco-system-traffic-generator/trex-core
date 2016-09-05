@@ -3658,8 +3658,10 @@ TEST_F(basic_stl, pcap_remote_basic) {
                                                                        10,
                                                                        1,
                                                                        1,
-                                                                       -1);
+                                                                       -1,
+                                                                       false);
     t1.m_msg = push_msg;
+
 
     bool res = t1.init();
     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -3679,7 +3681,8 @@ TEST_F(basic_stl, pcap_remote_loop) {
                                                                        1,
                                                                        1,
                                                                        3,
-                                                                       -1);
+                                                                       -1,
+                                                                       false);
     t1.m_msg = push_msg;
 
     bool res = t1.init();
@@ -3700,13 +3703,35 @@ TEST_F(basic_stl, pcap_remote_duration) {
                                                                        100000,
                                                                        1,
                                                                        0,
-                                                                       0.5);
+                                                                       0.5,
+                                                                       false);
     t1.m_msg = push_msg;
 
     bool res = t1.init();
     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
+TEST_F(basic_stl, pcap_remote_dual) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="exp/pcap_remote_dual";
+
+    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                                       0,
+                                                                       "exp/remote_test_dual.erf",
+                                                                       10000,
+                                                                       1,
+                                                                       0,
+                                                                       0.5,
+                                                                       true);
+    t1.m_msg = push_msg;
+
+    bool res = t1.init();
+    EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
 
 /********************************************* Itay Tests End *************************************/
 class flow_stat_pkt_parse  : public testing::Test {
