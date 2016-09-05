@@ -437,6 +437,12 @@ void CErfFileReader::Delete(){
     }
 }
 
+void CErfFileReader::Rewind() {
+   if (m_handle) {
+       rewind(m_handle);
+   }
+}
+
 
 bool CErfFileReader::ReadPacket(CCapPktRaw * lpPacket){
     uint8_t interface;
