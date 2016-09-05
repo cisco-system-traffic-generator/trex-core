@@ -220,8 +220,15 @@ def get_pci_device_details(dev_id):
     sys_path = "/sys/bus/pci/devices/%s/net/" % dev_id
     if exists(sys_path):
         device["Interface"] = ",".join(os.listdir(sys_path))
+        device['net_path'] = sys_path
     else:
         device["Interface"] = ""
+        device['net_path'] = None
+        for path, dirs, _ in os.walk('/sys/bus/pci/devices/%s' % dev_id):
+            if 'net' in dirs:
+                device['net_path'] = os.path.join(path, 'net')
+                device["Interface"] = ",".join(os.listdir(device['net_path']))
+                break
     # check if a port is used for connections (ssh etc)
     device["Active"] = ""
 
@@ -292,10 +299,11 @@ def get_nic_details():
                 devices[d]["Module_str"] = ",".join(modules)
 
         # get MAC from Linux if available
-        mac_file = '/sys/bus/pci/devices/%s/net/%s/address' % (devices[d]['Slot'], devices[d]['Interface'])
-        if os.path.exists(mac_file):
-            with open(mac_file) as f:
-                devices[d]['MAC'] = f.read().strip()
+        if devices[d]['net_path']:
+            mac_file = '%s/%s/address' % (devices[d]['net_path'], devices[d]['Interface'])
+            if os.path.exists(mac_file):
+                with open(mac_file) as f:
+                    devices[d]['MAC'] = f.read().strip()
 
         # get NUMA from Linux if available
         numa_node_file = '/sys/bus/pci/devices/%s/numa_node' % devices[d]['Slot']
