@@ -2266,7 +2266,8 @@ class STLClient(object):
                    duration = -1,
                    force = False,
                    vm = None,
-                   packet_hook = None):
+                   packet_hook = None,
+                   is_dual = False):
         """
             Push a local PCAP to the server
             This is equivalent to loading a PCAP file to a profile
@@ -2302,6 +2303,12 @@ class STLClient(object):
                 packet_hook : Callable or function
                     Will be applied to every packet
 
+                is_dual: bool
+                    Inject from both directions.
+                    requires ERF file with meta data for direction.
+                    also requires that all the ports will be in master mode
+                    with their adjacent ports as slaves
+
             :raises:
                 + :exc:`STLError`
 
@@ -2315,7 +2322,11 @@ class STLClient(object):
         validate_type('count',  count, int)
         validate_type('duration', duration, (float, int))
         validate_type('vm', vm, (list, type(None)))
-        
+        validate_type('is_dual', is_dual, bool)
+
+        if is_dual:
+            raise STLError("push: dual mode is not implemented yet for non remote injection")
+
         # no support for > 1MB PCAP - use push remote
         if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
             raise STLError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
@@ -3055,7 +3066,7 @@ class STLClient(object):
                                          parsing_opts.FORCE,
                                          parsing_opts.DUAL)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), verify_acquired = True)
         if not opts:
             return opts
 
@@ -3086,7 +3097,8 @@ class STLClient(object):
                            speedup   = opts.speedup,
                            count     = opts.count,
                            duration  = opts.duration,
-                           force     = opts.force)
+                           force     = opts.force,
+                           is_dual   = opts.dual)
 
         
 
