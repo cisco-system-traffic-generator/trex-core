@@ -510,6 +510,7 @@ public:
             }
         }
 
+        /* for dual mode - choose the right interface (even or odd) */
         if (is_dual()) {
             uint8_t dir = m_raw_packet->getInterface() & 0x1;
             set_mbuf_dir(dir);

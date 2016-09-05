@@ -519,20 +519,11 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    /* for dual mode - make sure slave_handler matches */
     if (is_dual) {
         TrexStatelessPort *slave = get_stateless_obj()->get_port_by_id(port_id ^ 0x1);
-
         if (!slave->get_owner().verify(slave_handler)) {
             generate_execute_err(result, "incorrect or missing slave port handler");
-        }
-
-        std::stringstream ss;
-        CCapReaderBase *reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
-        if (!reader) {
-            generate_execute_err(result, ss.str());
-        }
-        if (reader->get_type() != ERF) {
-            generate_execute_err(result, "dual mode is only supported on ERF format");
         }
     }
 

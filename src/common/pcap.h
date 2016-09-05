@@ -69,7 +69,7 @@ public:
 	 * 
 	 * @return bool
 	 */
-	bool isValid() { return m_is_valid; }
+    bool isValid() { return m_is_valid; }
 
 	/**
      * Fill the structure with the new packet.
@@ -78,7 +78,7 @@ public:
      * @return bool - return true if packet were read and false
      *         otherwise (reached eof)
 	 */
-	virtual bool ReadPacket(CCapPktRaw *lpPacket); 
+    virtual bool ReadPacket(CCapPktRaw *lpPacket); 
     virtual void Rewind();
 
 

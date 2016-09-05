@@ -509,6 +509,10 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename,
     if (!reader) {
         throw TrexException(ss.str());
     }
+
+    if ( (is_dual) && (reader->get_type() != ERF) ) {
+        throw TrexException("dual mode is only supported on ERF format");
+    }
     delete reader;
 
     /* only one core gets to play */

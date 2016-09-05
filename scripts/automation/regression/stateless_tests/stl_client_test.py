@@ -323,3 +323,26 @@ class STLClient_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
+
+
+    def test_pcap_remote (self):
+        try:
+            master = self.tx_port
+            slave = master ^ 0x1
+
+            self.c.reset(ports = [master, slave])
+            self.c.clear_stats()
+            self.c.push_remote('pcap_dual_test.erf',
+                               ports = [master],
+                               ipg_usec = 100,
+                               is_dual = True)
+            self.c.wait_on_traffic(ports = [0])
+
+            stats = self.c.get_stats()
+
+            self.verify(stats[master]['opackets'], 52)
+            self.verify(stats[slave]['opackets'], 48)
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+

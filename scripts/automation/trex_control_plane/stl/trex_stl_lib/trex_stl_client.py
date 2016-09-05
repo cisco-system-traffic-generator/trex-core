@@ -753,7 +753,13 @@ class STLClient(object):
             # for dual, provide the slave handler as well
             slave_handler = self.ports[port_id ^ 0x1].handler if is_dual else ""
 
-            rc.add(self.ports[port_id].push_remote(pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler))
+            rc.add(self.ports[port_id].push_remote(pcap_filename,
+                                                   ipg_usec,
+                                                   speedup,
+                                                   count,
+                                                   duration,
+                                                   is_dual,
+                                                   slave_handler))
 
         return rc
 
@@ -2245,7 +2251,7 @@ class STLClient(object):
                     raise STLError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
                 if not slave in self.get_acquired_ports():
-                    raise STLError("dual mode: port {0} must be owned as well".format(slave))
+                    raise STLError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
 
 
         self.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(ports))
