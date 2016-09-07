@@ -16,6 +16,7 @@ import traceback
 import copy
 import imp
 
+
 # base class for TX mode
 class STLTXMode(object):
     """ mode rate speed """
@@ -969,7 +970,13 @@ class STLProfile(object):
     
     # loop_count = 0 means loop forever
     @staticmethod
-    def load_pcap (pcap_file, ipg_usec = None, speedup = 1.0, loop_count = 1, vm = None, packet_hook = None):
+    def load_pcap (pcap_file,
+                   ipg_usec = None,
+                   speedup = 1.0,
+                   loop_count = 1,
+                   vm = None,
+                   packet_hook = None,
+                   split_mode = None):
         """ Convert a pcap file with a number of packets to a list of connected streams.  
 
         packet1->packet2->packet3 etc 
@@ -994,6 +1001,11 @@ class STLProfile(object):
                   packet_hook : Callable or function
                         will be applied to every packet
 
+                  is_split : str
+                        should this PCAP be split to two profiles based on IPs / MACs
+                        used for dual mode
+                        can be 'MAC' or 'IP'
+
                  :return: STLProfile
 
         """
@@ -1009,13 +1021,50 @@ class STLProfile(object):
         if loop_count < 0:
             raise STLError("'loop_count' cannot be negative")
 
-        streams = []
-        last_ts_usec = 0
-
+       
         try:
-            pkts = RawPcapReader(pcap_file).read_all()
+
+            if split_mode is None:
+                pkts = PCAPReader(pcap_file).read_all()
+                return STLProfile.__pkts_to_streams(pkts,
+                                                    ipg_usec,
+                                                    speedup,
+                                                    loop_count,
+                                                    vm,
+                                                    packet_hook)
+            else:
+                pkts_a, pkts_b = PCAPReader(pcap_file).read_all(split_mode = split_mode)
+
+                profile_a = STLProfile.__pkts_to_streams(pkts_a,
+                                                         ipg_usec,
+                                                         speedup,
+                                                         loop_count,
+                                                         vm,
+                                                         packet_hook,
+                                                         start_delay_usec = 10000)
+
+                profile_b = STLProfile.__pkts_to_streams(pkts_b,
+                                                         ipg_usec,
+                                                         speedup,
+                                                         loop_count,
+                                                         vm,
+                                                         packet_hook,
+                                                         start_delay_usec = 10000)
+                    
+                return profile_a, profile_b
+
+
         except Scapy_Exception as e:
-            raise STLError("failed to open PCAP file '{0}'".format(pcap_file))
+            raise STLError("failed to open PCAP file {0}: '{1}'".format(pcap_file, str(e)))
+
+
+    @staticmethod
+    def __pkts_to_streams (pkts, ipg_usec, speedup, loop_count, vm, packet_hook, start_delay_usec = 0):
+
+        streams = []
+
+        # 10 ms delay before starting the PCAP
+        last_ts_usec = -(start_delay_usec)
 
         if packet_hook:
             pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
@@ -1144,4 +1193,143 @@ def register():
     def __len__ (self):
         return len(self.streams)
 
+
+class PCAPReader(object):
+    def __init__ (self, pcap_file):
+        self.pcap_file = pcap_file
+
+    def read_all (self, split_mode = None):
+        if split_mode is None:
+            return RawPcapReader(self.pcap_file).read_all()
+
+        # we need to split
+        self.pcap = rdpcap(self.pcap_file)
+        self.graph = Graph()
+
+        self.pkt_groups = [ [], [] ]
+
+        if split_mode == 'MAC':
+            self.generate_mac_groups()
+        elif split_mode == 'IP':
+            self.generate_ip_groups()
+        else:
+            raise STLError('unknown split mode for PCAP')
+
+        return self.pkt_groups
+
+
+    # generate two groups based on MACs
+    def generate_mac_groups (self):
+        for i, pkt in enumerate(self.pcap):
+            if not isinstance(pkt, (Ether, Dot3) ):
+                raise STLError("Packet #{0} has an unknown L2 format: {1}".format(i, type(pkt)))
+            mac_src = pkt.fields['src']
+            mac_dst = pkt.fields['dst']
+            self.graph.add(mac_src, mac_dst)
+
+        # split the graph to two groups
+        mac_groups = self.graph.split()
+
+        for pkt in self.pcap:
+            mac_src = pkt.fields['src']
+            group = 1 if mac_src in mac_groups[1] else 0
+
+            time, raw = pkt.time, bytes(pkt)
+            self.pkt_groups[group].append((raw, (time, 0)))
+
+
+    # generate two groups based on IPs
+    def generate_ip_groups (self):
+        for pkt in self.pcap:
+            if not isinstance(pkt, (Ether, Dot3) ):
+                raise STLError("Packet #{0} has an unknown L2 format: {1}".format(i, type(pkt)))
+            # skip non IP packets
+            if not isinstance(pkt.payload, IP):
+                continue
+            ip_src = pkt.payload.fields['src']
+            ip_dst = pkt.payload.fields['dst']
+            self.graph.add(ip_src, ip_dst)
+
+        # split the graph to two groups
+        ip_groups = self.graph.split()
+
+        for pkt in self.pcap:
+            # default group - 0
+            group = 0
+
+            # if the packet is IP and IP SRC is in group 1 - move to group 1
+            if isinstance(pkt.payload, IP) and pkt.payload.fields['src'] in ip_groups[1]:
+                group = 1
+
+            time, raw = pkt.time, bytes(pkt)
+            self.pkt_groups[group].append((raw, (time, 0)))
+
+
+
+# a simple graph object - used to split to two groups
+class Graph(object):
+    def __init__ (self):
+        self.db = OrderedDict()
+        self.debug = False
+
+    def log (self, msg):
+        if self.debug:
+            print(msg)
+
+    # add a connection v1 --> v2
+    def add (self, v1, v2):
+        # init value for v1
+        if not v1 in self.db:
+            self.db[v1] = set()
+
+        # init value for v2
+        if not v2 in self.db:
+            self.db[v2] = set()
+
+        # ignore self to self edges
+        if v1 == v2:
+            return
+
+        # undirected - add two ways
+        self.db[v1].add(v2)
+        self.db[v2].add(v1)
+
+
+    # create a 2-color of the graph if possible
+    def split (self):
+        color_a = set()
+        color_b = set()
+
+        # start with all
+        nodes = list(self.db.keys())
+
+        # process one by one
+        while len(nodes) > 0:
+            node = nodes.pop(0)
+
+            friends = self.db[node]
+
+            # node has never been seen - move to color_a
+            if not node in color_a and not node in color_b:
+                self.log("<NEW> {0} --> A".format(node))
+                color_a.add(node)
+
+            # node color
+            node_color, other_color = (color_a, color_b) if node in color_a else (color_b, color_a)
+
+            # check that the coloring is possible
+            bad_friends = friends.intersection(node_color)
+            if bad_friends:
+                raise STLError("ERROR: failed to split PCAP file - {0} and {1} are in the same group".format(node, bad_friends))
+
+            # add all the friends to the other color
+            for friend in friends:
+                self.log("<FRIEND> {0} --> {1}".format(friend, 'A' if other_color is color_a else 'B'))
+                other_color.add(friend)
+
+
+        return color_a, color_b
+
+
 default_STLStream = STLStream()
+

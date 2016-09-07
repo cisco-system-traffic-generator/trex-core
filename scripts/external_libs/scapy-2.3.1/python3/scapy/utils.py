@@ -750,7 +750,8 @@ class _RawPcapOldReader:
         try:
             self.LLcls = conf.l2types[self.linktype]
         except KeyError:
-            warning("RawPcapReader: unknown LL type [%i]/[%#x]. Using Raw packets" % (self.linktype,self.linktype))
+            raise Scapy_Exception("Scapy PcapReader: unknown LL type [%i]/[%#x]" % (self.linktype,self.linktype))
+            #warning("RawPcapReader: unknown LL type [%i]/[%#x]. Using Raw packets" % (self.linktype,self.linktype))
             self.LLcls = conf.raw_layer
 
     def __iter__(self):

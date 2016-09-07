@@ -2330,25 +2330,81 @@ class STLClient(object):
         validate_type('vm', vm, (list, type(None)))
         validate_type('is_dual', is_dual, bool)
 
-        if is_dual:
-            raise STLError("push: dual mode is not implemented yet for non remote injection")
 
         # no support for > 1MB PCAP - use push remote
         if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
             raise STLError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
 
-        self.remove_all_streams(ports = ports)
+        if is_dual:
+            for port in ports:
+                master = port
+                slave = port ^ 0x1
 
-        profile = STLProfile.load_pcap(pcap_filename,
-                                       ipg_usec,
-                                       speedup,
-                                       count,
-                                       vm = vm,
-                                       packet_hook = packet_hook)
+                if slave in ports:
+                    raise STLError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
-        id_list = self.add_streams(profile.get_streams(), ports)
+                if not slave in self.get_acquired_ports():
+                    raise STLError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
 
-        return self.start(ports = ports, duration = duration)
+        # regular push
+        if not is_dual:
+
+            # create the profile from the PCAP
+            try:
+                self.logger.pre_cmd("Converting '{0}' to streams:".format(pcap_filename))
+                profile = STLProfile.load_pcap(pcap_filename,
+                                               ipg_usec,
+                                               speedup,
+                                               count,
+                                               vm = vm,
+                                               packet_hook = packet_hook)
+                self.logger.post_cmd(RC_OK)
+            except STLError as e:
+                self.logger.post_cmd(RC_ERR(e))
+                raise
+
+
+            self.remove_all_streams(ports = ports)
+            id_list = self.add_streams(profile.get_streams(), ports)
+
+            return self.start(ports = ports, duration = duration)
+
+        else:
+
+            # create a dual profile
+            split_mode = 'MAC'
+            
+            try:
+                self.logger.pre_cmd("Analyzing '{0}' for dual ports based on {1}:".format(pcap_filename, split_mode))
+                profile_a, profile_b = STLProfile.load_pcap(pcap_filename,
+                                                            ipg_usec,
+                                                            speedup,
+                                                            count,
+                                                            vm = vm,
+                                                            packet_hook = packet_hook,
+                                                            split_mode = split_mode)
+
+                self.logger.post_cmd(RC_OK())
+
+            except STLError as e:
+                self.logger.post_cmd(RC_ERR(e))
+                raise
+
+            all_ports = ports + [p ^ 0x1 for p in ports]
+
+            self.remove_all_streams(ports = all_ports)
+
+            for port in ports:
+                master = port
+                slave = port ^ 0x1
+
+                self.add_streams(profile_a.get_streams(), master)
+                self.add_streams(profile_b.get_streams(), slave)
+
+            return self.start(ports = all_ports, duration = duration)
+
+
+
 
 
     @__api_check(True)
