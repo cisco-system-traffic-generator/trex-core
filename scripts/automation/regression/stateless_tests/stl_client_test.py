@@ -327,12 +327,14 @@ class STLClient_Test(CStlGeneral_Test):
 
     def test_pcap_remote (self):
         try:
+            pcap_file = os.path.join(CTRexScenario.scripts_path, 'automation/regression/test_pcaps/pcap_dual_test.erf')
+
             master = self.tx_port
             slave = master ^ 0x1
 
             self.c.reset(ports = [master, slave])
             self.c.clear_stats()
-            self.c.push_remote('pcap_dual_test.erf',
+            self.c.push_remote(pcap_file,
                                ports = [master],
                                ipg_usec = 100,
                                is_dual = True)
