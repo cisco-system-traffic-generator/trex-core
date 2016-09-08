@@ -338,7 +338,7 @@ class STLClient_Test(CStlGeneral_Test):
                                ports = [master],
                                ipg_usec = 100,
                                is_dual = True)
-            self.c.wait_on_traffic(ports = [0])
+            self.c.wait_on_traffic(ports = [master])
 
             stats = self.c.get_stats()
 

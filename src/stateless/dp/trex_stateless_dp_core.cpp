@@ -492,13 +492,19 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
     pkt_dir_t dir          = m_core->m_node_gen.m_v_if->port_id_to_dir(port_id);
     socket_id_t socket_id  = m_core->m_node_gen.m_socket_id;
 
+    /* main port */
     uint8_t mac_addr[12];
     m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, mac_addr);
+
+    /* for dual */
+    uint8_t slave_mac_addr[12];
+    m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir ^ 0x1, slave_mac_addr);
 
     bool rc = pcap_node->create(port_id,
                                 dir,
                                 socket_id,
                                 mac_addr,
+                                slave_mac_addr,
                                 pcap_filename,
                                 ipg_usec,
                                 speedup,
@@ -1253,6 +1259,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
                           pkt_dir_t dir,
                           socket_id_t socket_id,
                           const uint8_t *mac_addr,
+                          const uint8_t *slave_mac_addr,
                           const std::string &pcap_filename,
                           double ipg_usec,
                           double speedup,
@@ -1266,6 +1273,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
     m_port_id    = port_id;
     m_count      = count;
     m_is_dual    = is_dual;
+    m_dir        = dir;
 
     /* mark this node as slow path */
     set_slow_path(true);
@@ -1282,9 +1290,9 @@ bool CGenNodePCAP::create(uint8_t port_id,
 
     /* copy MAC addr info */
     memcpy(m_mac_addr, mac_addr, 12);
+    memcpy(m_slave_mac_addr, slave_mac_addr, 12);
 
-    /* set the dir */
-    set_mbuf_dir(dir);
+
     set_socket_id(socket_id);
 
     /* create the PCAP reader */
@@ -1300,8 +1308,13 @@ bool CGenNodePCAP::create(uint8_t port_id,
         return (false);
     }
 
+    /* set the dir */
+    set_mbuf_dir(dir);
+
+    /* update the direction (for dual mode) */
+    update_pkt_dir();
+
     /* this is the reference time */
-    //m_base_time = m_raw_packet->get_time();
     m_last_pkt_time = m_raw_packet->get_time();
 
     /* ready */

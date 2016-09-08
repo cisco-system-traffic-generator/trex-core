@@ -465,6 +465,7 @@ public:
                 pkt_dir_t dir,
                 socket_id_t socket_id,
                 const uint8_t *mac_addr,
+                const uint8_t *slave_mac_addr,
                 const std::string &pcap_filename,
                 double ipg_usec,
                 double speedup,
@@ -510,9 +511,16 @@ public:
             }
         }
 
-        /* for dual mode - choose the right interface (even or odd) */
+        /* update the packet dir if needed */
+        update_pkt_dir();
+      
+    }
+
+
+    inline void update_pkt_dir() {
+        /* if dual mode and the interface is odd - swap the dir */
         if (is_dual()) {
-            uint8_t dir = m_raw_packet->getInterface() & 0x1;
+            pkt_dir_t dir = (m_raw_packet->getInterface() & 0x1) ? (m_dir ^ 0x1) : m_dir;
             set_mbuf_dir(dir);
         }
     }
@@ -549,7 +557,12 @@ public:
         memcpy(p, m_raw_packet->raw, m_raw_packet->getTotalLen());
 
         /* fix the MAC */
-        memcpy(p, m_mac_addr, 12);
+        if (get_mbuf_dir() == m_dir) {
+            memcpy(p, m_mac_addr, 12);
+        } else {
+            memcpy(p, m_slave_mac_addr, 12);
+        }
+        
 
         return (m);
     }
@@ -611,7 +624,10 @@ private:
     /* cache line 0 */
     /* important stuff here */
     uint8_t             m_mac_addr[12];
+    uint8_t             m_slave_mac_addr[12];
     uint8_t             m_state;
+
+    pkt_dir_t           m_dir;
 
     double              m_last_pkt_time;
     double              m_speedup;
@@ -628,7 +644,7 @@ private:
     bool                m_is_dual;
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[32];
+    uint8_t             m_pad_end[19];
 
 } __rte_cache_aligned;
 
