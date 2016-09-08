@@ -433,6 +433,17 @@ int C82599Parser::parse(uint8_t *p, uint16_t len) {
     return 0;
 }
 
+int CPassAllParser::parse(uint8_t *pkt, uint16_t len) {
+    reset();
+
+    if (len < ETH_HDR_LEN)
+        return -1;
+
+    m_len = len;
+
+    return 0;
+}
+
 bool CSimplePacketParser::Parse(){
 
     rte_mbuf_t * m=m_m;

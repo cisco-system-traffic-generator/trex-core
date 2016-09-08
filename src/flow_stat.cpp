@@ -583,6 +583,11 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
     switch(rule_type) {
     case TrexPlatformApi::IF_STAT_IPV4_ID:
         uint16_t l3_proto;
+
+        if (m_mode == FLOW_STAT_MODE_PASS_ALL) {
+            throw TrexFStatEx("Can not add flow stat stream in 'receive all' mode", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_MODE);
+        }
+
         if (m_parser->get_l3_proto(l3_proto) < 0) {
             throw TrexFStatEx("Failed determining l3 proto for packet", TrexException::T_FLOW_STAT_FAILED_FIND_L3);
         }
@@ -594,8 +599,8 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 
         // throws exception if there is error
         if (do_action) {
-            uint8_t ipv6_next_h = l4_proto; //??? just for now
-            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l3_proto, l4_proto, ipv6_next_h);
+            // passing 0 in ipv6_next_h. This is not used currently in stateless.
+            m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, l3_proto, l4_proto, 0);
         }
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
@@ -926,6 +931,34 @@ int CFlowStatRuleMgr::get_active_pgids(flow_stat_active_t &result) {
     for (it = m_user_id_map.begin(); it != m_user_id_map.end(); it++) {
         result.insert(it->first);
     }
+
+    return 0;
+}
+
+int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
+    if ( ! m_user_id_map.is_empty() )
+        return -1;
+
+    if (! m_api ) {
+        create();
+    }
+
+    switch (mode) {
+    case FLOW_STAT_MODE_PASS_ALL:
+        delete m_parser;
+        m_parser = new CPassAllParser;
+        break;
+    case FLOW_STAT_MODE_NORMAL:
+        delete m_parser;
+        m_parser = m_api->get_flow_stat_parser();
+        assert(m_parser);
+        break;
+    default:
+        return -1;
+
+    }
+
+    m_mode = mode;
 
     return 0;
 }

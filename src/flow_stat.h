@@ -452,6 +452,11 @@ class CFlowStatRuleMgr {
         FLOW_STAT_RULE_TYPE_IPV6_FLOW_LABEL,
     };
 
+    enum flow_stat_mode_e {
+        FLOW_STAT_MODE_NORMAL,
+        FLOW_STAT_MODE_PASS_ALL,
+    };
+
     CFlowStatRuleMgr();
     ~CFlowStatRuleMgr();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
@@ -463,6 +468,7 @@ class CFlowStatRuleMgr {
     int start_stream(TrexStream * stream);
     int stop_stream(TrexStream * stream);
     int get_active_pgids(flow_stat_active_t &result);
+    int set_mode(enum flow_stat_mode_e mode);
     bool dump_json(std::string & s_json, std::string & l_json, bool baseline);
 
  private:
@@ -484,6 +490,7 @@ class CFlowStatRuleMgr {
     int m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
     CFlowStatParser *m_parser;
+    enum flow_stat_mode_e m_mode;
     uint16_t m_cap; // capabilities of the NIC driver we are using
     uint32_t m_rx_cant_count_err[TREX_MAX_PORTS];
     uint32_t m_tx_cant_count_err[TREX_MAX_PORTS];

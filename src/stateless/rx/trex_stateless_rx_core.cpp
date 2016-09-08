@@ -72,6 +72,8 @@ void CCPortLatencyStl::reset() {
 }
 
 void CRxCoreStateless::create(const CRxSlCfg &cfg) {
+    m_rcv_all = false;
+    m_capture = false;
     m_max_ports = cfg.m_max_ports;
 
     CMessagingManager * cp_rx = CMsgIns::Ins()->getCpRx();
@@ -190,13 +192,12 @@ void CRxCoreStateless::start() {
 void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *m) {
     CFlowStatParser parser;
 
-    if (parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len) == 0) {
+    if (m_rcv_all || parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len) == 0) {
         uint32_t ip_id;
-        if (parser.get_ip_id(ip_id) == 0) {
-            if (is_flow_stat_id(ip_id)) {
+        if (m_rcv_all || (parser.get_ip_id(ip_id) == 0)) {
+            if (m_rcv_all || is_flow_stat_id(ip_id)) {
                 uint16_t hw_id;
-
-                if (is_flow_stat_payload_id(ip_id)) {
+                if (m_rcv_all || is_flow_stat_payload_id(ip_id)) {
                     bool good_packet = true;
                     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
                     struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
@@ -206,7 +207,8 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
 
                     if (unlikely(fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC) || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
                         good_packet = false;
-                        m_err_cntrs.m_bad_header++;
+                        if (!m_rcv_all)
+                            m_err_cntrs.m_bad_header++;
                     } else {
                         curr_rfc2544 = &m_rfc2544[hw_id];
 
@@ -291,6 +293,10 @@ void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *
     }
 }
 
+void CRxCoreStateless::capture_pkt(rte_mbuf_t *m) {
+
+}
+
 // In VM setup, handle packets coming as messages from DP cores.
 void CRxCoreStateless::handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r) {
     while ( true ) {
@@ -314,6 +320,8 @@ void CRxCoreStateless::handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r) {
             assert( rx_port_index < m_max_ports );
             lp = &m_ports[rx_port_index];
             handle_rx_pkt(lp, (rte_mbuf_t *)l_msg->m_pkt);
+            if (m_capture)
+                capture_pkt((rte_mbuf_t *)l_msg->m_pkt);
             rte_pktmbuf_free((rte_mbuf_t *)l_msg->m_pkt);
             break;
         default:

@@ -247,6 +247,7 @@ version_src = SrcGroup(
 
 dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
+                 '../dpdk_funcs.c',
                  'drivers/net/af_packet/rte_eth_af_packet.c',
                  'drivers/net/cxgbe/base/t4_hw.c',
                  'drivers/net/cxgbe/cxgbe_ethdev.c',

@@ -98,6 +98,17 @@ class C82599Parser : public CFlowStatParser {
     bool m_vlan_supported;
 };
 
+class CPassAllParser : public CFlowStatParser {
+ public:
+    virtual int parse(uint8_t *pkt, uint16_t len);
+    virtual bool is_stat_supported() {return true;}
+    virtual int get_ip_id(uint32_t &ip_id) { ip_id = 0; return 0;}
+    virtual int set_ip_id(uint32_t ip_id){return 0;}
+    virtual int get_l3_proto(uint16_t &proto){proto = 0; return 0;}
+    virtual int get_l4_proto(uint8_t &proto) {proto = 0; return 0;}
+    virtual int get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload_len) {payload_len = m_len; return 0;}
+};
+
 // Used for latency statefull packets. Need to be merged with above parser
 class CSimplePacketParser {
  public:

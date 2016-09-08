@@ -33,7 +33,7 @@ class CTrexDebug {
     int  set_promisc_all(bool enable);
     int test_send_pkts(rte_mbuf_t *, uint16_t queue_id, int pkt, int port);
     rte_mbuf_t *create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t ttl, uint32_t ip_id, uint16_t flags);
-    int verify_hw_rules();
+    int verify_hw_rules(bool recv_all);
 
  public:
     CTrexDebug(CPhyEthIF *m_ports_arg, int max_ports);

@@ -757,66 +757,6 @@ static inline void i40e_flex_payload_reg_init(struct i40e_hw *hw)
 
 #define TREX_PATCH
 #define TREX_PATCH_LOW_LATENCY
-#ifdef TREX_PATCH
-
-// 0 - statfull mode. 1 stateless.
-static int trex_mode=0;
-void i40e_set_trex_mode(int mode) {
-    trex_mode = mode;
-}
-
-static void i40e_dump_filter_regs(struct i40e_hw *hw)
-{
-    int reg_nums[] = {31, 33, 34, 35, 41, 43};
-    int i;
-    uint32_t reg;
-
-    for (i =0; i < sizeof (reg_nums)/sizeof(int); i++) {
-	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 0));
-        printf("I40E_PRTQF_FD_INSET(%d, 0): 0x%08x\n", reg_nums[i], reg);
-	reg = I40E_READ_REG(hw,I40E_PRTQF_FD_INSET(reg_nums[i], 1));
-        printf("I40E_PRTQF_FD_INSET(%d, 1): 0x%08x\n", reg_nums[i], reg);
-    }
-}
-
-static inline void i40e_filter_fields_reg_init(struct i40e_hw *hw)
-{
-	uint32_t reg;
-
-	I40E_WRITE_REG(hw, I40E_GLQF_ORT(12), 0x00000062);
-	I40E_WRITE_REG(hw, I40E_GLQF_PIT(2), 0x000024A0);
-	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_UDP, 0), 0);
-	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_TCP, 0), 0);
-	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_OTHER, 0), 0);
-	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_UDP, 0), 0);
-	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_TCP, 0), 0);
-    I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_OTHER, 0), 0);
-    if (trex_mode == 1) {
-        // stateless
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_UDP, 1), 0x00100000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_TCP, 1), 0x00100000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_OTHER, 1), 0x00100000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_UDP, 1),   0x0000000000200000ULL);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_TCP, 1),   0x0000000000200000ULL);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_OTHER, 1), 0x0000000000200000ULL);
-    } else {
-        //stateful
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_UDP, 1), 0x00040000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_TCP, 1), 0x00040000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_OTHER, 1), 0x00040000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_UDP, 1), 0x00080000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_TCP, 1), 0x00080000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_OTHER, 1), 0x00080000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_SCTP, 0), 0);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_SCTP, 1), 0x00040000);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_SCTP, 0), 0);
-        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_SCTP, 1), 0x00080000);
-    }
-	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0, 34), 0x000DFF00);
-	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0,44), 0x000C00FF);
-	I40E_WRITE_FLUSH(hw);
-}
-#endif //TREX_PATCH
 
 /*
  * Add a ethertype filter to drop all flow control frames transmitted
@@ -1069,14 +1009,10 @@ eth_i40e_dev_init(struct rte_eth_dev *dev)
 	 * for flexible payload by software.
 	 * It should be removed once issues are fixed in NVM.
 	 */
-#ifdef TREX_PATCH
-	i40e_filter_fields_reg_init(hw);
-#else
 	i40e_flex_payload_reg_init(hw);
 
 	/* Initialize the input set for filters (hash and fd) to default value */
 	i40e_filter_input_set_init(pf);
-#endif
 
 	/* Initialize the parameters for adminq */
 	i40e_init_adminq_parameter(hw);

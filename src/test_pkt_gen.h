@@ -29,6 +29,8 @@ enum {
     D_PKT_TYPE_9k_UDP = 4,
     D_PKT_TYPE_IPV6 = 60,
     D_PKT_TYPE_HW_VERIFY = 100,
+    D_PKT_TYPE_HW_VERIFY_RCV_ALL = 101,
+    D_PKT_TYPE_HW_TOGGLE_TEST = 102,
 };
 
 enum {

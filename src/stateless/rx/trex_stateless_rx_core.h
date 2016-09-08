@@ -147,6 +147,7 @@ class CRxCoreStateless {
     void tickle();
     void idle_state_loop();
     void handle_rx_pkt(CLatencyManagerPerPortStl * lp, rte_mbuf_t * m);
+    void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void flush_rx();
     int try_rx();
@@ -156,11 +157,10 @@ class CRxCoreStateless {
     uint16_t get_hw_id(uint16_t id);
 
  private:
-
     TrexMonitor     m_monitor;
-
     uint32_t m_max_ports;
-    bool m_has_streams;
+    bool m_capture;
+    bool m_rcv_all;
     CLatencyManagerPerPortStl m_ports[TREX_MAX_PORTS];
     state_e   m_state;
     CNodeRing *m_ring_from_cp;

@@ -133,6 +133,9 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
     case 6:
         l3_type = EthernetHeader::Protocol::IPv6;
         break;
+    case 1:
+        l3_type = EthernetHeader::Protocol::ARP;
+        break;
     default:
         return NULL;
         break;
@@ -280,6 +283,8 @@ struct pkt_params {
 };
 
 struct pkt_params test_pkts[] = {
+    {"ARP", 1, IPPROTO_UDP, 255, 5, 0, ZERO},
+    {"VLAN ARP", 1, IPPROTO_UDP, 255, 5, DPF_VLAN, ZERO},
     {"ipv4 TCP ttl 255", 4, IPPROTO_TCP, 255, 5, 0, STF},
     {"ipv4 TCP ttl 254", 4, IPPROTO_TCP, 254, 5, 0, STF},
     {"ipv4 TCP ttl 253", 4, IPPROTO_TCP, 253, 5, 0, ZERO},
@@ -330,7 +335,7 @@ struct pkt_params test_pkts[] = {
 // unit test for verifying hw queues rule configuration. Can be run by:
 // for stateful: --send-debug-pkt 100 -f cap2/dns.yaml -l 1
 // for stateless: --setnd-debug-pkt 100 -i
-int CTrexDebug::verify_hw_rules() {
+int CTrexDebug::verify_hw_rules(bool recv_all) {
     rte_mbuf_t *m = NULL;
     CPhyEthIF * lp;
     rte_mbuf_t * rx_pkts[32];
@@ -345,30 +350,34 @@ int CTrexDebug::verify_hw_rules() {
         uint8_t exp_q;
         uint16_t pkt_flags = test_pkts[pkt_num].pkt_flags;
         debug_expected_q_t expected_q = test_pkts[pkt_num].expected_q;
-        switch (expected_q) {
-        case ZERO:
-            exp_q = 0;
-            break;
-        case ONE:
-            exp_q = 1;
-            break;
-        case STL:
-            if ( CGlobalInfo::m_options.is_stateless() ) {
-                exp_q = 1;
-            } else {
-                exp_q = 0;
+        if (recv_all) {
+            exp_q = MAIN_DPDK_RX_Q;
+        } else {
+            switch (expected_q) {
+            case ZERO:
+                exp_q = MAIN_DPDK_DATA_Q;
+                break;
+            case ONE:
+                exp_q = MAIN_DPDK_RX_Q;
+                break;
+            case STL:
+                if ( CGlobalInfo::m_options.is_stateless() ) {
+                    exp_q = MAIN_DPDK_RX_Q;
+                } else {
+                    exp_q = MAIN_DPDK_DATA_Q;
+                }
+                break;
+            case STF:
+                if ( CGlobalInfo::m_options.is_stateless() ) {
+                    exp_q = MAIN_DPDK_DATA_Q;
+                } else {
+                    exp_q = MAIN_DPDK_RX_Q;
+                }
+                break;
+            default:
+                exp_q = MAIN_DPDK_DATA_Q;
+                break;
             }
-            break;
-        case STF:
-            if ( CGlobalInfo::m_options.is_stateless() ) {
-                exp_q = 0;
-            } else {
-                exp_q = 1;
-            }
-            break;
-        default:
-            exp_q = 0;
-            break;
         }
 
         m = create_test_pkt(ip_ver, l4_proto, ttl, ip_id, pkt_flags);
@@ -412,7 +421,9 @@ int CTrexDebug::test_send(uint pkt_type) {
     rte_mbuf_t *m, *d;
 
     if (pkt_type == D_PKT_TYPE_HW_VERIFY) {
-        return verify_hw_rules();
+        return verify_hw_rules(false);
+    } else if (pkt_type == D_PKT_TYPE_HW_VERIFY_RCV_ALL) {
+        return verify_hw_rules(true);
     }
 
     if (! (pkt_type >= 1 && pkt_type <= 4) && !(pkt_type >= 61 && pkt_type <= 63)) {
