@@ -1233,10 +1233,6 @@ void CPhyEthIFStats::Dump(FILE *fd){
     DP_A(rx_nombuf);
 }
 
-// only on VM we have rx queues on DP cores
-void CPhyEthIF::flush_dp_rx_queue(void) {
-}
-
 // Clear the RX queue of an interface, dropping all packets
 void CPhyEthIF::flush_rx_queue(void){
 
@@ -1761,11 +1757,9 @@ public:
                                                        , CCorePerPort *  lp_port
                                                        , CVirtualIFPerSideStats  * lp_stats, bool is_const);
     virtual int send_node(CGenNode * node);
-    virtual void send_one_pkt(pkt_dir_t       dir, rte_mbuf_t      *m);
-
-    virtual void flush_dp_rx_queue(void);
+    virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m);
     virtual int flush_tx_queue(void);
-    __attribute__ ((noinline)) void flush_rx_queue();
+    __attribute__ ((noinline)) void handle_rx_queue();
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
     void apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
@@ -1841,16 +1835,15 @@ bool CCoreEthIF::Create(uint8_t             core_id,
     return (true);
 }
 
-// On VM, we get the packets in dp core, so just call general flush_rx_queue
-void CCoreEthIF::flush_dp_rx_queue(void) {
-    flush_rx_queue();
-}
-
 // This function is only relevant if we are in VM. In this case, we only have one rx queue. Can't have
-// rules to drop queue 0, and pass queue 1 to RX core, like in other cases.
+// rules to drop queue 0 packets, and pass queue 1 packets to RX core, like in other cases.
 // We receive all packets in the same core that transmitted, and handle them to RX core.
-void CCoreEthIF::flush_rx_queue(void){
-    pkt_dir_t   dir ;
+void CCoreEthIF::handle_rx_queue(void) {
+    if ( likely( ! get_vm_one_queue_enable() ) ) {
+        return;
+    }
+
+    pkt_dir_t dir;
     bool is_rx = get_is_rx_thread_enabled();
     for (dir=CLIENT_SIDE; dir<CS_NUM; dir++) {
         CCorePerPort * lp_port=&m_ports[dir];
@@ -1884,21 +1877,19 @@ void CCoreEthIF::flush_rx_queue(void){
 
 int CCoreEthIF::flush_tx_queue(void){
     /* flush both sides */
-    pkt_dir_t   dir ;
-    for (dir=CLIENT_SIDE; dir<CS_NUM; dir++) {
-        CCorePerPort * lp_port=&m_ports[dir];
-        CVirtualIFPerSideStats  * lp_stats= &m_stats[dir];
+    pkt_dir_t dir;
+    for (dir = CLIENT_SIDE; dir < CS_NUM; dir++) {
+        CCorePerPort * lp_port = &m_ports[dir];
+        CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
         if ( likely(lp_port->m_len > 0) ) {
-            send_burst(lp_port,lp_port->m_len,lp_stats);
+            send_burst(lp_port, lp_port->m_len, lp_stats);
             lp_port->m_len = 0;
         }
     }
 
-    if ( unlikely( get_vm_one_queue_enable() ) ){
-        /* try drain the rx packets */
-        flush_rx_queue();
-    }
-    return (0);
+    handle_rx_queue();
+
+    return 0;
 }
 
 void CCoreEthIF::GetCoreCounters(CVirtualIFPerSideStats *stats){

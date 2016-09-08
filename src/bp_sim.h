@@ -345,92 +345,37 @@ void CVirtualIFPerSideStats::Dump(FILE *fd){
     m_template.Dump(fd);
 }
 
-
-
-
-
-
 class CVirtualIF {
 public:
-
-
-    CVirtualIF (){
-        m_preview_mode =NULL;
+    CVirtualIF () {
+        m_preview_mode = NULL;
     }
-
-    virtual ~CVirtualIF(){
-    }
-public:
-
+    virtual ~CVirtualIF() {}
     virtual int open_file(std::string file_name)=0;
-
     virtual int close_file(void)=0;
-
-
-    /**
-     * send one packet
-     *
-     * @param node
-     *
-     * @return
-     */
-    virtual int send_node(CGenNode * node) =0;
-
-
-    /**
-     * send one packet to a specific dir. flush all packets
-     *
-     * @param dir
-     * @param m
-     */
-    virtual void send_one_pkt(pkt_dir_t       dir, rte_mbuf_t      *m){
-    }
-
-
-    /**
-     * flush all pending packets into the stream
-     *
-     * @return
-     */
+    /* send one packet */
+    virtual int send_node(CGenNode * node)=0;
+    /* send one packet to a specific dir. flush all packets */
+    virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {}
+    /* flush all pending packets into the stream */
     virtual int flush_tx_queue(void)=0;
-    // read all packets from rx_queue on dp core
-    virtual void flush_dp_rx_queue(void) {};
-    // read all packets from rx queue
-    virtual void flush_rx_queue(void) {};
-
-    /**
-     * update the source and destination mac-addr of a given mbuf by global database
-     *
-     * @param dir
-     * @param m
-     *
-     * @return
-     */
-    virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p)=0;
-
-    /**
-     * translate a port_id to the correct dir on the core
-     *
-     */
+    virtual void handle_rx_queue(void) {};
+    /* update the source and destination mac-addr of a given mbuf by global database */
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t dir, uint8_t * p)=0;
+    /* translate port_id to the correct dir on the core */
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
         return (CS_INVALID);
     }
-
-public:
-
-
-    void set_review_mode(CPreviewMode  * preview_mode){
-        m_preview_mode =preview_mode;
+    void set_review_mode(CPreviewMode *preview_mode) {
+        m_preview_mode = preview_mode;
     }
 
-protected :
+protected:
     CPreviewMode            * m_preview_mode;
 
 public:
     CVirtualIFPerSideStats    m_stats[CS_NUM];
 };
-
-
 
 /* global info */
 

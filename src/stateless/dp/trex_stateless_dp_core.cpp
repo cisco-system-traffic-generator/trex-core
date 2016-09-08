@@ -672,7 +672,7 @@ TrexStatelessDpCore::idle_state_loop() {
 
     while (m_state == STATE_IDLE) {
         m_core->tickle();
-        m_core->m_node_gen.m_v_if->flush_dp_rx_queue();
+        m_core->m_node_gen.m_v_if->handle_rx_queue();
         bool had_msg = periodic_check_for_cp_messages();
         if (had_msg) {
             counter = 0;
