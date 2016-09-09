@@ -2901,6 +2901,12 @@ in the "Per stream statistics" section is also available.
   the rate of a latency stream, you need to manually edit your profile file. Usually this is not necessary, since normally you stress the system using non latency stream, and (in parallel) measure latency 
   using constant rate latency stream.
 
+[IMPORTANT]
+=====================================
+Latency streams are not supported in full line rate like normal streams. Both from, transmit and receive point of view. This is a design consideration to keep the latency measurement accurate and preserve CPU resource. One of the reason for doing so that in most cases it is enough to have a latency stream not in full rate. For example, if the required latency resolution is 10usec there is no need to send a latency stream in speed higher than 100KPPS- usually queues are built over time, so it is not possible that one packet will have a latency and another packet in the same path will not have the same latency. The none latency stream could be in full line rate (e.g. 100MPPS) to load the DUT while the low speed latency stream will measure this path latency. 
+Don't expect the total latency streams rate to be higher than 1-5MPPS 
+=====================================
+
 Two examples follow. One using the console and the other using the Python API.
 
 *Console*::

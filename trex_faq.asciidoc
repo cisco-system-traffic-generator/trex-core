@@ -261,6 +261,8 @@ The number of threads is equal (dual_ports) * (-c value)
 ==== Incoming frames are from type SCTP why?
 Default latency packets are SCTP, you can remove `-l 1000` or change it to ICMP see manual for more info 
  
+==== Is there a configuration guide to Linux as a router (static ARP)?
+have a look link:https://groups.google.com/forum/#!topic/trex-tgn/YQcQtA8A8hA[linux as a router]
 
 ===  Stateless 
 
@@ -405,5 +407,55 @@ See link:https://github.com/zverevalexei/trex-http-proxy[here] an example for si
 
 link:https://gerrit.fd.io/r/gitweb?p=csit.git;a=tree;f=resources;hb=HEAD[here]
 
+
+==== Are you recommending TRex HLTAPI ?
+TRex has minimal and basic support for HLTAPI. For simple use cases (without latency and per stream statistic) it probably will work. For advance use cases there is no replacement for native API that has full control and in some cases it is more simple/implicit to use.
+
+==== Can I test Qos using TRex ?
+Yes. using Field Engine you can build streams with different TOS and get statistic/latency/jitter per stream
+
+==== Does latency stream support full line rate?
+No. latency streams are handled by rx software and there is only one core to handle the traffic. 
+To workaround this you could create one stream in lower speed for latency (e.g. PPS=1K) and another one of the same type without latency. The latency stream will sample the DUT queues. For example, if the required latency resolution is 10usec there is no need to send a latency stream in speed higher than 100KPPS- usually queues are built over time, so it is not possible that one packet will have a latency and another packet in the same path will not have the same latency. The none latency stream could be in full line rate (e.g. 100MPPS) 
+
+.Example
+[source,Python]
+--------
+        stream = [STLStream(packet = pkt,
+                            mode = STLTXCont(pps=1)),                                   <1>
+
+
+                  # latency stream   
+                  STLStream(packet = pkt,
+                            mode = STLTXCont(pps=1000),                                 <2>
+                            flow_stats = STLFlowLatencyStats(pg_id = 12+port_id))
+--------
+<1> non latency stream will be amplified 
+<2> latency stream, the speed would be constant 1KPPS
+
+
+==== Why Latency stream has a constant rate of 1PPS?
+When you have the following example 
+
+[source,Python]
+--------
+        stream = [STLStream(packet = pkt,
+                            mode = STLTXCont(pps=1)),                                   <1>
+
+
+                  # latency stream   
+                  STLStream(packet = STLPktBuilder(pkt = base_pkt/pad_latency),
+                            mode = STLTXCont(pps=1000),                                 <2>
+                            flow_stats = STLFlowLatencyStats(pg_id = 12+port_id))
+--------
+<1> non latency stream
+<2> latency stream 
+ 
+
+and you give to start API a multiplier of 10KPPS the latency stream (#2) will keep the rate of 1000 PPS and won't be amplified. 
+
+
+==== What are the supported routing protocols ?
+For now non. beacuse there is no tighe 
 
 

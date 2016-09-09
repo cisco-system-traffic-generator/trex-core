@@ -119,6 +119,7 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 | CPU Configuration | 2-Socket CPU configurations (also works with 1 CPU).
 | Memory | 2x4 banks for each CPU. Total of 32GB in 8 banks. 
 | RAID | No RAID.
+| Riser 1/2 | both left and right should support x16 PCIe. Right (Riser1) should be from option A x16 and Left (Riser2) should be x16. need to order both  
 |=================
  
 .Supported NICs
@@ -133,18 +134,19 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 | VMXNET / +
 VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 | E1000    | paravirtualized  | VMware/KVM/VirtualBox 
+| Virtio | paravirtualized  | KVM
 |=================
 
 // in table above, is it correct to list "paravirtualized" as chipset? Also, what is QSFP28? It does not appear on the lined URL. Clarify: is Intel X710 the preferred NIC?
 
-.X710 NIC base  SFP+ support 
-[options="header",cols="1,1,1",width="70%"]
+.SFP+ support 
+[options="header",cols="2,1,1,1",width="70%"]
 |=================
-| link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+]  | Intel Ethernet Converged X710-DAX |  Silicom link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[PE310G4i71L] (Open optic)
-| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-SR] | Does not work     | [green]*works*
-| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-LR] | Does not work     | [green]*works*
-| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-H10GB-CU1M]| [green]*works* | [green]*works*
-| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-AOC1M] | [green]*works* | [green]*works*
+| link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+]  | Intel Ethernet Converged X710-DAX |  Silicom link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[PE310G4i71L] (Open optic) | 82599EB 10-Gigabit
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-SR] | Does not work     | [green]*works* | [green]*works*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-LR] | Does not work     | [green]*works* | [green]*works*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-H10GB-CU1M]| [green]*works* | [green]*works* | [green]*works*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-AOC1M] | [green]*works* | [green]*works* | [green]*works*
 |=================
 
 [NOTE]
