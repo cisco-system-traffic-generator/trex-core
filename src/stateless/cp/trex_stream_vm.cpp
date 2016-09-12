@@ -132,12 +132,122 @@ void StreamVmInstructionFlowMan::sanity_check_valid_range(uint32_t ins_id,Stream
 
 
 
+uint8_t  StreamVmInstructionFlowMan::bss_init_value(uint8_t *p){
+    uint8_t res;
+
+    switch (m_size_bytes) {
+    case 1:
+        *p=(uint8_t)get_bss_init_value();
+        res=1;
+        break;
+    case 2:
+        *((uint16_t*)p)=(uint16_t)get_bss_init_value();
+        res=2;
+        break;
+    case 4:
+        *((uint32_t*)p)=(uint32_t)get_bss_init_value();
+        res=4;
+        break;
+    case 8:
+        *((uint64_t*)p)=(uint64_t)get_bss_init_value();
+        res=8;
+        break;
+    default:
+        assert(0);
+    }
+    return(res);
+}
+
+
 void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 
     sanity_check_valid_size(ins_id,lp);
     sanity_check_valid_opt(ins_id,lp);
     sanity_check_valid_range(ins_id,lp);
 }
+
+
+
+void StreamVmInstructionFlowRandLimit::Dump(FILE *fd){
+    fprintf(fd," flow_var_rand_limit  , %s ,%lu,   ",m_var_name.c_str(),(ulong)m_size_bytes);
+    fprintf(fd," (%lu:%lu:%lu) \n",m_limit,(ulong)m_size_bytes,(ulong)m_seed);
+}
+
+void StreamVmInstructionFlowRandLimit::sanity_check(uint32_t ins_id,StreamVm *lp){
+    sanity_check_valid_size(ins_id,lp);
+}
+
+
+uint8_t  StreamVmInstructionFlowRandLimit::bss_init_value(uint8_t *p){
+    uint8_t res;
+
+    typedef union  ua_ {
+        RandMemBss8 *lpv8;
+        RandMemBss16 *lpv16;
+        RandMemBss32 *lpv32;
+        RandMemBss64  *lpv64;
+    } ua_t ;
+
+    ua_t u;
+
+
+    switch (m_size_bytes) {
+    case 1:
+        u.lpv8=(RandMemBss8 *)p;
+        u.lpv8->m_seed=m_seed;
+        res=sizeof(RandMemBss8);
+        break;
+    case 2:
+        u.lpv16=(RandMemBss16 *)p;
+        u.lpv16->m_seed=m_seed;
+        res=sizeof(RandMemBss16);
+        break;
+    case 4:
+        u.lpv32=(RandMemBss32 *)p;
+        u.lpv32->m_seed=m_seed;
+        res=sizeof(RandMemBss32);
+        break;
+    case 8:
+        u.lpv64=(RandMemBss64 *)p;
+        u.lpv64->m_seed=m_seed;
+        res=sizeof(RandMemBss64);
+        break;
+    default:
+        assert(0);
+    }
+    return (res);
+}
+
+
+void StreamVmInstructionFlowRandLimit::sanity_check_valid_size(uint32_t ins_id,StreamVm *lp){
+    uint8_t valid[]={1,2,4,8};
+    int i;
+    for (i=0; i<sizeof(valid)/sizeof(valid[0]); i++) {
+        if (valid[i]==m_size_bytes) {
+            uint64_t limit = (1ULL<<((i+1)*8))-1;
+            /* check limit */
+            if ( m_limit == 0) {
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' limit " << m_limit << " can't be zero " ;
+                lp->err(ss.str());
+            }
+
+            if ( m_limit > limit) {
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' limit " << m_limit << " is bigger than size " << m_size_bytes ;
+                lp->err(ss.str());
+            }
+            return;
+        }
+    }
+
+    std::stringstream ss;
+
+    ss << "instruction id '" << ins_id << "' has non valid length " << m_size_bytes ;
+
+    lp->err(ss.str());
+}
+
 
 
 void StreamVmInstructionWriteMaskToPkt::Dump(FILE *fd){
@@ -183,6 +293,31 @@ void StreamVmInstructionFlowClient::Dump(FILE *fd){
     fprintf(fd," client_var ,%s , ",m_var_name.c_str());
 
     fprintf(fd," ip:(%x-%x) port:(%x-%x)  flow_limit:%lu  flags: %x\n",m_client_min,m_client_max, m_port_min,m_port_max,(ulong)m_limit_num_flows,m_flags);
+}
+
+
+uint8_t  StreamVmInstructionFlowClient::bss_init_value(uint8_t *p){
+
+    if (m_client_min>0) {
+       *((uint32_t*)p)=(uint32_t)(m_client_min-1);
+    }else{
+       *((uint32_t*)p)=(uint32_t)m_client_min;
+    }
+
+    p+=4;
+
+    if (is_unlimited_flows() ) {
+        *((uint16_t*)p)=StreamDPOpClientsUnLimit::CLIENT_UNLIMITED_MIN_PORT;
+    }else{
+        *((uint16_t*)p)=(uint16_t)m_port_min;
+    }
+
+    p+=2;
+
+    *((uint32_t*)p)=0;
+    p+=4;
+
+    return (get_flow_var_size());
 }
 
 
@@ -307,6 +442,30 @@ void StreamVm::build_flow_var_table() {
             }
         }
 
+        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_RAND_LIMIT ){
+
+            StreamVmInstructionFlowRandLimit * ins_man=(StreamVmInstructionFlowRandLimit *)inst;
+
+            /* check that instruction is valid */
+            ins_man->sanity_check(ins_id,this);
+
+            VmFlowVarRec var;
+            /* if this is the first time */ 
+            if ( var_lookup( ins_man->m_var_name,var) == true){
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' flow variable name " << ins_man->m_var_name << " already exists";
+                err(ss.str());
+            }else{
+
+                var.m_offset=m_cur_var_offset;
+                var.m_ins.m_ins_flow_rand_limit = ins_man;
+                var.m_size_bytes = ins_man->m_size_bytes; /* used for write*/
+                var_add(ins_man->m_var_name,var);
+                m_cur_var_offset += ins_man->m_size_bytes*2 + sizeof(uint32_t) ; /* see RandMemBss8 types */
+            }
+        }
+
+
         if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_CLIENT ){
             StreamVmInstructionFlowClient * ins_man=(StreamVmInstructionFlowClient *)inst;
 
@@ -358,7 +517,7 @@ void StreamVm::build_flow_var_table() {
         /* limit the flow var size */
         if (m_cur_var_offset > StreamVm::svMAX_FLOW_VAR ) {
             std::stringstream ss;
-            ss << "too many flow varibles current size is :" << m_cur_var_offset << " maximum support is " << StreamVm::svMAX_FLOW_VAR;
+            ss << "too many flow variables current size is :" << m_cur_var_offset << " maximum support is " << StreamVm::svMAX_FLOW_VAR;
             err(ss.str());
         }
         ins_id++;
@@ -378,14 +537,21 @@ void StreamVm::build_flow_var_table() {
             if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
 
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' packet size with no valid flow varible name '" << lpPkt->m_flow_var_name << "'" ;
+                ss << "instruction id '" << ins_id << "' packet size with no valid flow variable name '" << lpPkt->m_flow_var_name << "'" ;
                 err(ss.str());
             }
 
             if ( var.m_size_bytes != 2 ) {
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' packet size change should point to a flow varible with size 2  ";
+                ss << "instruction id '" << ins_id << "' packet size change should point to a flow variable with size 2  ";
                 err(ss.str());
+            }
+
+            if ( var.m_ins.m_ins_flowv->get_instruction_type() != StreamVmInstruction::itFLOW_MAN ){
+                std::stringstream ss;
+                ss << "instruction id '" << ins_id << "' packet size change should point to a simple flow variable type (Random/Client) types are not supported ";
+                err(ss.str());
+
             }
 
             if ( var.m_ins.m_ins_flowv->m_max_value >  m_pkt_size) {
@@ -495,6 +661,46 @@ void StreamVm::build_program(){
             m_instructions.add_command(&ipv_fix,sizeof(ipv_fix));
         }
 
+        if (ins_type == StreamVmInstruction::itFLOW_RAND_LIMIT) {
+            StreamVmInstructionFlowRandLimit *lpMan =(StreamVmInstructionFlowRandLimit *)inst;
+            var_cnt++;
+
+            if (lpMan->m_size_bytes == 1 ){
+                StreamDPOpFlowRandLimit8 fv8;
+                fv8.m_op    = StreamDPVmInstructions::ditRAND_LIMIT8 ;
+                fv8.m_flow_offset = get_var_offset(lpMan->m_var_name);
+                fv8.m_limit     = (uint8_t)lpMan->m_limit;
+                fv8.m_seed      = (uint32_t)lpMan->m_seed;
+                m_instructions.add_command(&fv8,sizeof(fv8));
+            }
+
+            if (lpMan->m_size_bytes == 2 ){
+                StreamDPOpFlowRandLimit16 fv16;
+                fv16.m_op    = StreamDPVmInstructions::ditRAND_LIMIT16 ;
+                fv16.m_flow_offset = get_var_offset(lpMan->m_var_name);
+                fv16.m_limit     = (uint16_t)lpMan->m_limit;
+                fv16.m_seed      = (uint32_t)lpMan->m_seed;
+                m_instructions.add_command(&fv16,sizeof(fv16));
+            }
+
+            if (lpMan->m_size_bytes == 4 ){
+                StreamDPOpFlowRandLimit32 fv32;
+                fv32.m_op    = StreamDPVmInstructions::ditRAND_LIMIT32 ;
+                fv32.m_flow_offset = get_var_offset(lpMan->m_var_name);
+                fv32.m_limit     = (uint32_t)lpMan->m_limit;
+                fv32.m_seed      = (uint32_t)lpMan->m_seed;
+                m_instructions.add_command(&fv32,sizeof(fv32));
+            }
+
+            if (lpMan->m_size_bytes == 8 ){
+                StreamDPOpFlowRandLimit64 fv64;
+                fv64.m_op    = StreamDPVmInstructions::ditRAND_LIMIT64 ;
+                fv64.m_flow_offset = get_var_offset(lpMan->m_var_name);
+                fv64.m_limit     = lpMan->m_limit;
+                fv64.m_seed      = (uint32_t)lpMan->m_seed;
+                m_instructions.add_command(&fv64,sizeof(fv64));
+            }
+        }
 
         /* flow man */
         if (ins_type == StreamVmInstruction::itFLOW_MAN) {
@@ -693,7 +899,7 @@ void StreamVm::build_program(){
             if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
 
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' packet write with no valid flow varible name '" << lpPkt->m_flow_var_name << "'" ;
+                ss << "instruction id '" << ins_id << "' packet write with no valid flow variable name '" << lpPkt->m_flow_var_name << "'" ;
                 err(ss.str());
             }
 
@@ -769,7 +975,7 @@ void StreamVm::build_program(){
             if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
 
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' packet write with no valid flow varible name '" << lpPkt->m_flow_var_name << "'" ;
+                ss << "instruction id '" << ins_id << "' packet write with no valid flow variable name '" << lpPkt->m_flow_var_name << "'" ;
                 err(ss.str());
             }
 
@@ -788,7 +994,7 @@ void StreamVm::build_program(){
             uint8_t       flags   = (is_big?StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG:0);
             uint8_t       flow_offset = get_var_offset(lpPkt->m_flow_var_name);
 
-            /* read LSB in case of 64bit varible */
+            /* read LSB in case of 64bit variable */
             if (op_size == 8) {
                 op_size = 4;
                 if ( is_big ) {
@@ -850,13 +1056,13 @@ void StreamVm::build_program(){
             if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
 
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' packet size with no valid flow varible name '" << lpPkt->m_flow_var_name << "'" ;
+                ss << "instruction id '" << ins_id << "' packet size with no valid flow variable name '" << lpPkt->m_flow_var_name << "'" ;
                 err(ss.str());
             }
 
             if ( var.m_size_bytes != 2 ) {
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' packet size change should point to a flow varible with size 2  ";
+                ss << "instruction id '" << ins_id << "' packet size change should point to a flow variable with size 2  ";
                 err(ss.str());
             }
 
@@ -890,54 +1096,7 @@ void StreamVm::build_bss() {
     }
 
     for (auto inst : m_inst_list) {
-
-        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN ){
-
-            StreamVmInstructionFlowMan * ins_man=(StreamVmInstructionFlowMan *)inst;
-
-            switch (ins_man->m_size_bytes) {
-            case 1:
-                *p=(uint8_t)ins_man->get_bss_init_value();
-                p+=1;
-                break;
-            case 2:
-                *((uint16_t*)p)=(uint16_t)ins_man->get_bss_init_value();
-                p+=2;
-                break;
-            case 4:
-                *((uint32_t*)p)=(uint32_t)ins_man->get_bss_init_value();
-                p+=4;
-                break;
-            case 8:
-                *((uint64_t*)p)=(uint64_t)ins_man->get_bss_init_value();
-                p+=8;
-                break;
-            default:
-                assert(0);
-            }
-        }
-
-        if ( inst->get_instruction_type() == StreamVmInstruction::itFLOW_CLIENT ){
-
-            StreamVmInstructionFlowClient * ins_man=(StreamVmInstructionFlowClient *)inst;
-            if (ins_man->m_client_min>0) {
-                *((uint32_t*)p)=(uint32_t)(ins_man->m_client_min-1);
-            }else{
-                *((uint32_t*)p)=(uint32_t)ins_man->m_client_min;
-            }
-            p+=4;
-
-            if (ins_man->is_unlimited_flows() ) {
-                *((uint16_t*)p)=StreamDPOpClientsUnLimit::CLIENT_UNLIMITED_MIN_PORT;
-            }else{
-                *((uint16_t*)p)=(uint16_t)ins_man->m_port_min;
-            }
-            p+=2;
-
-            *((uint32_t*)p)=0;
-            p+=4;
-        }
-
+        p+=inst->bss_init_value(p);
     }
 }
 
@@ -1391,6 +1550,23 @@ void StreamDPOpPktSizeChange::dump(FILE *fd,std::string opt){
 }
 
 
+void StreamDPOpFlowRandLimit8::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+}
+
+void StreamDPOpFlowRandLimit16::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+}
+
+void StreamDPOpFlowRandLimit32::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+}
+
+void StreamDPOpFlowRandLimit64::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+}
+
+
 
 
 void StreamDPOpPktWrMask::wr(uint8_t * flow_var_base,
@@ -1528,6 +1704,27 @@ void   StreamDPVmInstructionsRunner::slow_commands(uint8_t op_code,
         ua.lpwr_mask =(StreamDPOpPktWrMask *)p;
         ua.lpwr_mask->wr(flow_var,pkt);
         p+=sizeof(StreamDPOpPktWrMask);
+        break;
+
+    case StreamDPVmInstructions::ditRAND_LIMIT8:
+        ua.lpv_rl8 =(StreamDPOpFlowRandLimit8 *)p;
+        ua.lpv_rl8->run(flow_var);
+        p+=sizeof(StreamDPOpFlowRandLimit8);
+        break;
+    case StreamDPVmInstructions::ditRAND_LIMIT16:
+        ua.lpv_rl16 =(StreamDPOpFlowRandLimit16 *)p;
+        ua.lpv_rl16->run(flow_var);
+        p+=sizeof(StreamDPOpFlowRandLimit16);
+        break;
+    case StreamDPVmInstructions::ditRAND_LIMIT32:
+        ua.lpv_rl32 =(StreamDPOpFlowRandLimit32 *)p;
+        ua.lpv_rl32->run(flow_var);
+        p+=sizeof(StreamDPOpFlowRandLimit32);
+        break;
+    case StreamDPVmInstructions::ditRAND_LIMIT64:
+        ua.lpv_rl64 =(StreamDPOpFlowRandLimit64 *)p;
+        ua.lpv_rl64->run(flow_var);
+        p+=sizeof(StreamDPOpFlowRandLimit64);
         break;
 
     default:

@@ -75,6 +75,111 @@ static inline uint64_t vm_rand64(uint32_t * per_thread_seed)
 
 class StreamVm;
 
+/* memory struct of rand_limit instruction */
+/*******************************************************/
+
+struct RandMemBss8 {
+    uint8_t  m_val;
+    uint8_t  m_cnt;
+    uint32_t m_seed;
+} __attribute__((packed));
+
+struct RandMemBss16 {
+    uint16_t  m_val;
+    uint16_t  m_cnt;
+    uint32_t  m_seed;
+} __attribute__((packed));
+
+struct RandMemBss32 {
+    uint32_t  m_val;
+    uint32_t  m_cnt;
+    uint32_t  m_seed;
+} __attribute__((packed));
+
+struct RandMemBss64 {
+    uint64_t  m_val;
+    uint64_t  m_cnt;
+    uint32_t  m_seed;
+} __attribute__((packed));
+
+struct StreamDPOpFlowRandLimit8 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint8_t m_limit;
+    uint32_t m_seed;
+public:
+    void dump(FILE *fd,std::string opt);
+    inline void run(uint8_t * flow_var) {
+        RandMemBss8 *p = (RandMemBss8 *)(flow_var + m_flow_offset);
+        if (p->m_cnt  == m_limit){
+            p->m_seed = m_seed;
+            p->m_cnt=0;
+        }
+        uint32_t val = vm_rand16(&p->m_seed);
+        p->m_val= (uint8_t)(val);
+        p->m_cnt++;
+    }
+};
+
+struct StreamDPOpFlowRandLimit16 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint16_t m_limit;
+    uint32_t m_seed;
+public:
+    void dump(FILE *fd,std::string opt);
+    inline void run(uint8_t * flow_var) {
+        RandMemBss16 *p = (RandMemBss16 *)(flow_var + m_flow_offset);
+        if (p->m_cnt  == m_limit){
+            p->m_seed = m_seed;
+            p->m_cnt=0;
+        }
+        uint32_t val = vm_rand16(&p->m_seed);
+        p->m_val= (uint16_t)(val);
+        p->m_cnt++;
+    }
+
+};
+
+struct StreamDPOpFlowRandLimit32 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint32_t m_limit;
+    uint32_t m_seed;
+public:
+    void dump(FILE *fd,std::string opt);
+    inline void run(uint8_t * flow_var) {
+        RandMemBss32 *p = (RandMemBss32 *)(flow_var + m_flow_offset);
+        if (p->m_cnt  == m_limit){
+            p->m_seed = m_seed;
+            p->m_cnt=0;
+        }
+        uint32_t val = vm_rand32(&p->m_seed);
+        p->m_val= val;
+        p->m_cnt++;
+    }
+};
+
+struct StreamDPOpFlowRandLimit64 {
+    uint8_t m_op;
+    uint8_t m_flow_offset;
+    uint64_t m_limit;
+    uint32_t m_seed;
+public:
+    void dump(FILE *fd,std::string opt);
+    inline void run(uint8_t * flow_var) {
+        RandMemBss64 *p = (RandMemBss64 *)(flow_var + m_flow_offset);
+        if (p->m_cnt  == m_limit){
+            p->m_seed = m_seed;
+            p->m_cnt=0;
+        }
+        uint64_t val = vm_rand64(&p->m_seed);
+        p->m_val= val;
+        p->m_cnt++;
+    }
+};
+
+/*******************************************************/
 
 /* in memory program */
 
@@ -609,8 +714,12 @@ public:
         ditDEC16_STEP        ,
         ditDEC32_STEP        ,
         ditDEC64_STEP        ,
-        itPKT_WR_MASK
+        itPKT_WR_MASK        ,
 
+        ditRAND_LIMIT8      ,
+        ditRAND_LIMIT16     ,
+        ditRAND_LIMIT32     ,
+        ditRAND_LIMIT64     ,
 
     };
 
@@ -676,6 +785,11 @@ typedef union  ua_ {
         StreamDPOpFlowVar32Step *lpv32s;
         StreamDPOpFlowVar64Step *lpv64s;
         StreamDPOpPktWrMask     *lpwr_mask;
+
+        StreamDPOpFlowRandLimit8  *lpv_rl8;
+        StreamDPOpFlowRandLimit16 *lpv_rl16;
+        StreamDPOpFlowRandLimit32 *lpv_rl32;
+        StreamDPOpFlowRandLimit64 *lpv_rl64;
 
 } ua_t ;
 
@@ -833,7 +947,9 @@ public:
         itPKT_WR       = 6,
         itFLOW_CLIENT  = 7 ,
         itPKT_SIZE_CHANGE = 8,
-        itPKT_WR_MASK     = 9
+        itPKT_WR_MASK     = 9,
+        itFLOW_RAND_LIMIT = 10 /* random with limit & seed */
+
 
     };
 
@@ -850,6 +966,10 @@ public:
     /* by default an instruction is not splitable */
     virtual bool is_splitable() const {
         return false;
+    }
+    /* nothing to init */
+    virtual uint8_t bss_init_value(uint8_t *p){
+        return (0);
     }
 
 private:
@@ -935,6 +1055,10 @@ public:
         return (m_max_value - m_min_value + 1);
     }
 
+
+    virtual uint8_t  bss_init_value(uint8_t *p);
+
+
     /**
      * different types of operations on the object
      */
@@ -999,9 +1123,9 @@ public:
     }
 
 private:
-    void sanity_check_valid_range(uint32_t ins_id,StreamVm *lp);
     void sanity_check_valid_size(uint32_t ins_id,StreamVm *lp);
     void sanity_check_valid_opt(uint32_t ins_id,StreamVm *lp);
+    void sanity_check_valid_range(uint32_t ins_id,StreamVm *lp);
 
 public:
 
@@ -1017,6 +1141,64 @@ public:
     uint64_t m_max_value;
 
     uint64_t m_step;
+};
+
+
+/**
+ * flow var random with limit 
+ * 
+ * @author hhaim 9/2016
+ */
+class StreamVmInstructionFlowRandLimit : public StreamVmInstructionVar {
+
+public:
+
+    virtual instruction_type_t get_instruction_type() const {
+        return ( StreamVmInstruction::itFLOW_RAND_LIMIT);
+    }
+
+    virtual bool is_valid_for_split() const {
+        return (false);
+    }
+
+
+    virtual uint64_t get_splitable_range() const {
+        return (1);
+    }
+
+
+    StreamVmInstructionFlowRandLimit(const std::string &var_name,
+                                     uint8_t  size,
+                                     uint64_t limit,
+                                     int       seed
+                                     ) : StreamVmInstructionVar(var_name) {
+
+        m_size_bytes = size;
+        m_seed       = seed;
+        m_limit      = limit;
+    }
+
+    virtual void Dump(FILE *fd);
+
+    void sanity_check(uint32_t ins_id,StreamVm *lp);
+
+    virtual uint8_t  bss_init_value(uint8_t *p);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFlowRandLimit(m_var_name,
+                                                    m_size_bytes,
+                                                    m_limit,
+                                                    m_seed);
+    }
+
+private:
+    void sanity_check_valid_size(uint32_t ins_id,StreamVm *lp);
+
+public:
+
+    uint64_t       m_limit;
+    int            m_seed;
+    uint8_t        m_size_bytes;
 };
 
 
@@ -1142,6 +1324,10 @@ public:
         return get_ip_range();
     }
 
+
+    virtual uint8_t  bss_init_value(uint8_t *p);
+
+
     bool is_unlimited_flows(){
         return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) == 
                   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );
@@ -1175,6 +1361,7 @@ public:
     union {
         StreamVmInstructionFlowMan * m_ins_flowv;
         StreamVmInstructionFlowClient * m_ins_flow_client;
+        StreamVmInstructionFlowRandLimit * m_ins_flow_rand_limit;
     } m_ins;
     uint8_t    m_size_bytes;
 };

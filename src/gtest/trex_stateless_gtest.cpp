@@ -179,6 +179,17 @@ TEST_F(basic_vm, pkt_size) {
 }
 
 
+TEST_F(basic_vm, vm_rand_limit0) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",1,100,0x1234) );
+
+    vm.Dump(stdout);
+}
+
+
+
 /* start/stop/stop back to back */
 TEST_F(basic_vm, vm0) {
 
