@@ -188,6 +188,28 @@ TEST_F(basic_vm, vm_rand_limit0) {
     vm.Dump(stdout);
 }
 
+TEST_F(basic_vm, vm_rand_limit1) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",1,100,0x1234) );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+}
+
+
 
 
 /* start/stop/stop back to back */

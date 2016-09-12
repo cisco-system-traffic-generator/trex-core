@@ -1306,7 +1306,10 @@ void StreamDPVmInstructions::Dump(FILE *fd){
     StreamDPOpClientsUnLimit  *lp_client_unlimited;
     StreamDPOpPktSizeChange  *lp_pkt_size_change;
 
-
+    StreamDPOpFlowRandLimit8  * lpv_rl8;
+    StreamDPOpFlowRandLimit16 * lpv_rl16;
+    StreamDPOpFlowRandLimit32 * lpv_rl32;
+    StreamDPOpFlowRandLimit64 * lpv_rl64;
 
     while ( p < p_end) {
         uint8_t op_code=*p;
@@ -1469,6 +1472,30 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             lpwrmask =(StreamDPOpPktWrMask *)p;
             lpwrmask->dump(fd,"WR_MASK");
             p+=sizeof(StreamDPOpPktWrMask);
+            break;
+
+        case  ditRAND_LIMIT8 :  
+            lpv_rl8 =(StreamDPOpFlowRandLimit8 *)p;
+            lpv_rl8->dump(fd,"RAND_LIMIT8");
+            p+=sizeof(StreamDPOpFlowRandLimit8);
+            break;
+
+        case  ditRAND_LIMIT16 :  
+            lpv_rl16 =(StreamDPOpFlowRandLimit16 *)p;
+            lpv_rl16->dump(fd,"RAND_LIMIT16");
+            p+=sizeof(StreamDPOpFlowRandLimit16);
+            break;
+
+        case  ditRAND_LIMIT32 :  
+            lpv_rl32 =(StreamDPOpFlowRandLimit32 *)p;
+            lpv_rl32->dump(fd,"RAND_LIMIT32");
+            p+=sizeof(StreamDPOpFlowRandLimit32);
+            break;
+
+        case  ditRAND_LIMIT64 :  
+            lpv_rl64 =(StreamDPOpFlowRandLimit64 *)p;
+            lpv_rl64->dump(fd,"RAND_LIMIT64");
+            p+=sizeof(StreamDPOpFlowRandLimit64);
             break;
 
         default:
