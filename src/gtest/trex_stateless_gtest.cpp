@@ -33,6 +33,7 @@ limitations under the License.
 #include <trex_rpc_server_api.h>
 #include <iostream>
 #include <vector>
+#include <inttypes.h>
 
 
 
@@ -193,6 +194,30 @@ TEST_F(basic_vm, vm_rand_limit1) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",1,100,0x1234) );
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+}
+
+TEST_F(basic_vm, vm_rand_limit2) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",1,100,0x1234) );
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var2",2,100,0x1234) );
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var3",4,100,0x1234) );
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var4",8,100,0x1234) );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
@@ -645,6 +670,364 @@ TEST_F(basic_vm, vm5) {
         EXPECT_EQ(test_udp_pkt[15],ex_tos[i]);
     }
 }
+
+
+TEST_F(basic_vm, vm_rand_len) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",1,10,0x1234) );
+
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",15, 0,true));
+
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,           /*34 */
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+
+         uint8_t ex_tos[]={
+             0x98,          
+             0xbd,          
+             0xb5,          
+             0x7 ,          
+             0x14,          
+             0xd6,          
+             0x3 ,          
+             0x90,          
+             0x5d,          
+             0x88,          
+              0x98,         
+              0xbd,         
+              0xb5,         
+              0x7 ,         
+              0x14,         
+              0xd6,         
+              0x3 ,         
+              0x90,         
+              0x5d,         
+              0x88
+         };
+
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(&random_per_thread,
+                   program_size,
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d :",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        printf(" %x \n",test_udp_pkt[15]);
+
+        /* check tos */
+        EXPECT_EQ(test_udp_pkt[15],ex_tos[i]);
+    }
+}
+
+TEST_F(basic_vm, vm_rand_len1) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",2,10,0x1234) );
+
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",15, 0,true));
+
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,           /*34 */
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+
+         uint16_t ex_tos[]={
+             0x983b,         
+             0xbd64,         
+             0xb512,         
+             0x715 ,         
+             0x1410,         
+             0xd664,         
+             0x371 ,         
+             0x9058,         
+             0x5d3b,         
+             0x884d,         
+             0x983b,         
+             0xbd64,         
+             0xb512,         
+             0x715 ,         
+             0x1410,         
+             0xd664,         
+             0x371 ,         
+             0x9058,         
+             0x5d3b,         
+             0x884d         
+         };
+
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(&random_per_thread,
+                   program_size,
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d :",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        printf(" %x \n",*((uint16_t*)&test_udp_pkt[15]));
+
+        /* check tos */
+        EXPECT_EQ(*((uint16_t*)&test_udp_pkt[15]),ex_tos[i]);
+    }
+}
+
+TEST_F(basic_vm, vm_rand_len2) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",4,10,0x1234) );
+
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",15, 0,true));
+
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,           /*34 */
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+         uint32_t ex_tos[]={
+             0xbd64983b,        
+             0x715b512 ,        
+             0xd6641410,        
+             0x90580371,        
+             0x884d5d3b,        
+             0x8e0f8212,        
+             0xf00b2f39,        
+             0xa015ee4e,        
+             0x540b390e,        
+             0xdb778538,        
+             0xbd64983b,       
+             0x715b512 ,       
+             0xd6641410,       
+             0x90580371,       
+             0x884d5d3b,       
+             0x8e0f8212,       
+             0xf00b2f39,       
+             0xa015ee4e,       
+             0x540b390e,       
+             0xdb778538       
+         };
+
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(&random_per_thread,
+                   program_size,
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d :",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        printf(" %x \n",*((uint32_t*)&test_udp_pkt[15]));
+
+        /* check tos */
+        EXPECT_EQ(*((uint32_t*)&test_udp_pkt[15]),ex_tos[i]);
+    }
+}
+
+TEST_F(basic_vm, vm_rand_len3) {
+
+    StreamVm vm;
+
+    vm.add_instruction( new StreamVmInstructionFlowRandLimit( "var1",8,10,0x1234) );
+
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",15, 0,true));
+
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,           /*34 */
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+#if 0
+         uint32_t ex_tos[]={
+             0xbd64983b,        
+             0x715b512 ,        
+             0xd6641410,        
+             0x90580371,        
+             0x884d5d3b,        
+             0x8e0f8212,        
+             0xf00b2f39,        
+             0xa015ee4e,        
+             0x540b390e,        
+             0xdb778538,        
+             0xbd64983b,       
+             0x715b512 ,       
+             0xd6641410,       
+             0x90580371,       
+             0x884d5d3b,       
+             0x8e0f8212,       
+             0xf00b2f39,       
+             0xa015ee4e,       
+             0x540b390e,       
+             0xdb778538       
+         };
+#endif
+
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(&random_per_thread,
+                   program_size,
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d :",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        printf(" %" PRIx64 " \n",*((uint64_t*)&test_udp_pkt[15]));
+
+        /* check tos */
+        //EXPECT_EQ(*((uint64_t*)&test_udp_pkt[15]),ex_tos[i]);
+    }
+}
+
 
 /* -load file, write to file  */
 TEST_F(basic_vm, vm6) {
