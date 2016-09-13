@@ -222,7 +222,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def test_stl_profiles (self):
-        p1 = [
+        p = [
              ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
              ["syn_attack.py","-m 1 -l 50",True],               
              ["udp_1pkt_1mac.py","-m 1 -l 50",True],
@@ -275,7 +275,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_repeat_random.py","-m 1 -l 50",True],
           ];
 
-        p = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ];
+        p1 = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ];
 
 
         for obj in p:
