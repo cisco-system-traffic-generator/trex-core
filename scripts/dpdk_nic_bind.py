@@ -368,7 +368,7 @@ def read_pid_cmdline(pid):
 def confirm(msg, default = False):
     if not os.isatty(1):
         return default
-    termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+    termios.tcflush(sys.stdin, termios.TCIFLUSH)
     try:
         return strtobool(raw_input(msg))
     except KeyboardInterrupt:
@@ -380,7 +380,7 @@ def confirm(msg, default = False):
 def read_line(msg = '', default = ''):
     if not os.isatty(1):
         return default
-    termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+    termios.tcflush(sys.stdin, termios.TCIFLUSH)
     try:
         return raw_input(msg).strip()
     except KeyboardInterrupt:

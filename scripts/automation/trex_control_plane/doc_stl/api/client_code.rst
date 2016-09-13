@@ -69,7 +69,8 @@ STLClient snippet
 
 
 .. code-block:: python
-    :caption: Example 1: Minimal example of client interacting with the TRex server
+
+    # Example 1: Minimal example of client interacting with the TRex server
 
     c = STLClient()
 
@@ -102,7 +103,8 @@ STLClient snippet
 
 
 .. code-block:: python
-    :caption: Example 2: Client can execute other functions while the TRex server is generating traffic
+
+    # Example 2: Client can execute other functions while the TRex server is generating traffic
 
 
     c = STLClient()
@@ -128,7 +130,8 @@ STLClient snippet
 
 
 .. code-block:: python
-    :caption: Example 3: Console-like API interface
+
+    # Example 3: Console-like API interface
 
 
         def simple ():
@@ -224,7 +227,8 @@ Example 4: Load profile from a file::
         
 
 .. code-block:: python
-    :caption: Example 5: pin cores to ports
+
+    # Example 5: pin cores to ports
 
     c = STLClient()
 

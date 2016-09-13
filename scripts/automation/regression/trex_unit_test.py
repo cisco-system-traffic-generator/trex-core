@@ -224,9 +224,13 @@ class CTRexTestConfiguringPlugin(Plugin):
 
 
     def begin (self):
-        if self.pkg and self.kill_running and not CTRexScenario.is_copied:
+        client = CTRexScenario.trex
+        if self.pkg and not CTRexScenario.is_copied:
+            if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
+                print("Can't update TRex, it's running")
+                sys.exit(-1)
             print('Updating TRex to %s' % self.pkg)
-            if not CTRexScenario.trex.master_daemon.update_trex(self.pkg):
+            if not client.master_daemon.update_trex(self.pkg):
                 print('Failed updating TRex')
                 sys.exit(-1)
             else:
@@ -236,16 +240,16 @@ class CTRexTestConfiguringPlugin(Plugin):
             return
         if not self.no_daemon:
             print('Restarting TRex daemon server')
-            res = CTRexScenario.trex.restart_trex_daemon()
+            res = client.restart_trex_daemon()
             if not res:
                 print('Could not restart TRex daemon server')
                 sys.exit(-1)
             print('Restarted.')
 
             if self.kill_running:
-                CTRexScenario.trex.kill_all_trexes()
+                client.kill_all_trexes()
             else:
-                if CTRexScenario.trex.get_trex_cmds():
+                if client.get_trex_cmds():
                     print('TRex is already running')
                     sys.exit(-1)
 
@@ -254,7 +258,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             if 'virt_nics' in self.modes and cores > 1:
                 raise Exception('Number of cores should be 1 with virtual NICs')
             if not self.no_daemon:
-                CTRexScenario.trex.start_stateless(c = cores)
+                client.start_stateless(c = cores)
             CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
                                                server = self.configuration.trex['trex_name'],
                                                verbose_level = self.json_verbose)

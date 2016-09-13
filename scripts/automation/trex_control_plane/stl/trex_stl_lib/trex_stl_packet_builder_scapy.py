@@ -202,8 +202,8 @@ class STLScVmRaw(CTRexScriptsBase):
         The following example splits the generated traffic by "ip_src" variable.
 
         .. code-block:: python
-            :caption: Split by 
 
+            # Split by 
 
             # TCP SYN
             base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")     
@@ -612,8 +612,8 @@ class STLVmFlowVar(CTRexVmDescBase):
                 Possible values: "inc", "dec", "random"
 
         .. code-block:: python
-            :caption: Example1
 
+            # Example1
 
             # input 
             STLVmFlowVar(min_value=0, max_value=3, size=1,op="inc")
@@ -676,7 +676,8 @@ class STLVmFixIpv4(CTRexVmDescBase):
                 in could be string in case of scapy packet. format IP[:[id]]
 
         .. code-block:: python
-            :caption: Example2
+
+            # Example2
 
             pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
@@ -729,7 +730,8 @@ class STLVmWrFlowVar(CTRexVmDescBase):
                 How to write the variable to the the packet. True=big-endian, False=little-endian 
 
         .. code-block:: python
-            :caption: Example3
+
+            # Example3
 
             pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
 
@@ -1036,7 +1038,8 @@ class STLVmTupleGen(CTRexVmDescBase):
             ="0.0.0.10", port_min=1025, port_max=65535, limit_flows=100000, flags=0
 
         .. code-block:: python
-            :caption: Example5
+
+            # Example5
 
             def create_stream (self):
                 # pkt 
@@ -1113,35 +1116,35 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
         
         .. code-block:: python
-            :caption: Example6
-        
 
-                # packet is scapy
-                STLPktBuilder( pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/(10*'x') )
+            # Example6
+
+            # packet is scapy
+            STLPktBuilder( pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/(10*'x') )
 
     
-                # packet is taken from pcap file relative to python 
-                STLPktBuilder( pkt ="stl/yaml/udp_64B_no_crc.pcap")
+            # packet is taken from pcap file relative to python 
+            STLPktBuilder( pkt ="stl/yaml/udp_64B_no_crc.pcap")
     
-                # packet is taken from pcap file relative to profile file 
-                STLPktBuilder( pkt ="stl/yaml/udp_64B_no_crc.pcap",
-                                    path_relative_to_profile = True )
+            # packet is taken from pcap file relative to profile file 
+            STLPktBuilder( pkt ="stl/yaml/udp_64B_no_crc.pcap",
+                                path_relative_to_profile = True )
     
     
-                vm = STLScVmRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
-                                                       port_min=1025, port_max=65535,
-                                                        name="tuple"), # define tuple gen 
+            vm = STLScVmRaw( [   STLVmTupleGen ( ip_min="16.0.0.1", ip_max="16.0.0.2", 
+                                                   port_min=1025, port_max=65535,
+                                                    name="tuple"), # define tuple gen 
     
-                                 STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
-                                 STLVmFixIpv4(offset = "IP"),                                # fix checksum
-                                 STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
-                                 ]
-                               )
+                             STLVmWrFlowVar (fv_name="tuple.ip", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                             STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                             STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
+                             ]
+                           )
     
-                base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
-                pad = max(0, size - len(base_pkt)) * 'x'
+            base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+            pad = max(0, size - len(base_pkt)) * 'x'
     
-                STLPktBuilder(pkt = base_pkt/pad, vm= vm)
+            STLPktBuilder(pkt = base_pkt/pad, vm= vm)
 
 
         :parameters:

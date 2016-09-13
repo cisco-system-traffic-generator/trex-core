@@ -1,14 +1,29 @@
 #! /bin/bash
 
 export WAFLOCK=.lock-wafbuild_dpdk
-if python2.7 waf-1.9.3 --help &> /dev/null ; then
-    python2.7 waf-1.9.3 $@
-    exit $?
-elif python3 waf-1.9.3 --help &> /dev/null ; then
-    python3 waf-1.9.3 $@
-    exit $?
+waf=waf-1.9.3
+p2=${PYTHON:-${PYTHON2:-python2.7}}
+p3=${PYTHON3:-python3}
+
+
+# try Pythons which can load waf
+
+if $p2 $waf --help &> /dev/null; then
+    $p2 $waf $@
+elif $p3 $waf --help &> /dev/null; then
+    $p3 $waf $@
+
+# waf can't be loaded, print the error with available Python
+
+elif which $p2 &> /dev/null; then
+    $p2 $waf $@
+elif which $p3 &> /dev/null; then
+    $p3 $waf $@
+
+# no Python available
+
 else
-    echo Required Python versions at least 2.7 or 3
+    echo Required Python 2.7 or 3
     exit 1
 fi
 

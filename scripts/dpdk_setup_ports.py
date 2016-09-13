@@ -360,7 +360,7 @@ Other network devices
             'rte_i40e_pmd': 'i40e',
             'rte_em_pmd': 'e1000',
             'rte_vmxnet3_pmd': 'vmxnet3',
-            'rte_virtio_pmd': 'virtio',
+            'rte_virtio_pmd': 'virtio-pci',
             'rte_enic_pmd': 'enic',
         }
         for pci, info in dpdk_nic_bind.get_info_from_trex(dpdk_interfaces).items():

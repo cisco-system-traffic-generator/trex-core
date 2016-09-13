@@ -41,15 +41,16 @@ class STLTXMode(object):
                Link interface percent (0-100). Example: 10 is 10% of the port link setup 
 
         .. code-block:: python
-            :caption: STLTXMode Example
 
-                mode = STLTXCont(pps = 10)
+            # STLTXMode Example
 
-                mode = STLTXCont(bps_L1 = 10000000) #10mbps L1
+            mode = STLTXCont(pps = 10)
 
-                mode = STLTXCont(bps_L2 = 10000000) #10mbps L2
+            mode = STLTXCont(bps_L1 = 10000000) #10mbps L1
 
-                mode = STLTXCont(percentage = 10)   #10%
+            mode = STLTXCont(bps_L2 = 10000000) #10mbps L2
+
+            mode = STLTXCont(percentage = 10)   #10%
 
         """
 
@@ -106,9 +107,10 @@ class STLTXCont(STLTXMode):
          see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
 
         .. code-block:: python
-            :caption: STLTXCont Example
 
-                   mode = STLTXCont(pps = 10)
+            # STLTXCont Example
+
+            mode = STLTXCont(pps = 10)
 
         """
         super(STLTXCont, self).__init__(**kwargs)
@@ -135,9 +137,10 @@ class STLTXSingleBurst(STLTXMode):
          see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
 
         .. code-block:: python
-            :caption: STLTXSingleBurst Example
 
-                   mode = STLTXSingleBurst( pps = 10, total_pkts = 1)
+            # STLTXSingleBurst Example
+
+            mode = STLTXSingleBurst( pps = 10, total_pkts = 1)
 
         """
 
@@ -180,9 +183,10 @@ class STLTXMultiBurst(STLTXMode):
          see :class:`trex_stl_lib.trex_stl_streams.STLTXMode` for rate 
 
         .. code-block:: python
-            :caption: STLTXMultiBurst Example
 
-                   mode = STLTXMultiBurst(pps = 10, pkts_per_burst = 1,count 10, ibg=10.0)
+            # STLTXMultiBurst Example
+
+            mode = STLTXMultiBurst(pps = 10, pkts_per_burst = 1,count 10, ibg=10.0)
 
         """
 
@@ -230,7 +234,8 @@ class STLFlowStats(STLFlowStatsInterface):
     """ Define per stream basic stats
 
     .. code-block:: python
-        :caption: STLFlowStats Example
+
+        # STLFlowStats Example
 
         flow_stats = STLFlowStats(pg_id = 7)
 
@@ -245,7 +250,8 @@ class STLFlowLatencyStats(STLFlowStatsInterface):
     """ Define per stream basic stats + latency, jitter, packet reorder/loss
 
     .. code-block:: python
-        :caption: STLFlowLatencyStats Example
+
+        # STLFlowLatencyStats Example
 
         flow_stats = STLFlowLatencyStats(pg_id = 7)
 
@@ -260,7 +266,8 @@ class STLStream(object):
     """ One stream object. Includes mode, Field Engine mode packet template and Rx stats  
 
         .. code-block:: python
-            :caption: STLStream Example
+
+            # STLStream Example
 
 
             base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
@@ -825,9 +832,10 @@ class STLProfile(object):
     """ Describe a list of streams   
 
         .. code-block:: python
-            :caption: STLProfile Example
 
-              profile =  STLProfile( [ STLStream( isg = 10.0, # star in delay 
+            # STLProfile Example
+
+            profile =  STLProfile( [ STLStream( isg = 10.0, # star in delay 
                                         name    ='S0',
                                         packet = STLPktBuilder(pkt = base_pkt/pad),
                                         mode = STLTXSingleBurst( pps = 10, total_pkts = self.burst_size),
