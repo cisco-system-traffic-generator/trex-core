@@ -251,6 +251,28 @@ TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std:
                                                                 ));
 }
 
+void 
+TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
+    std::string  flow_var_name = parse_string(inst, "name", result);
+
+    auto sizes = {1, 2, 4, 8};
+    uint8_t      flow_var_size = parse_choice(inst, "size", sizes, result);
+    uint64_t seed    = parse_uint64(inst, "seed", result);
+    uint64_t limit   = parse_uint64(inst, "limit", result);
+
+    if (limit < 1 ) {
+        std::stringstream ss;
+        ss << "VM: request random flow var variable with limit of zero '";
+        generate_parse_err(result, ss.str());
+    }
+
+    stream->m_vm.add_instruction(new StreamVmInstructionFlowRandLimit(flow_var_name,
+                                                                      flow_var_size,
+                                                                      (int)limit,
+                                                                      0,0,
+                                                                      seed)
+                                 );
+}
 
 void 
 TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
@@ -371,6 +393,9 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
             parse_vm_instr_checksum(inst, stream, result);
 
         } else if (vm_type == "flow_var") {
+            parse_vm_instr_flow_var(inst, stream, result);
+
+        } else if (vm_type == "flow_var_rand_limit") {
             parse_vm_instr_flow_var(inst, stream, result);
 
         } else if (vm_type == "write_flow_var") {

@@ -26,6 +26,7 @@ limitations under the License.
 #include <trex_stateless.h>
 #include <common/Network/Packet/IPHeader.h>
 #include <common/basic_utils.h>
+#include <inttypes.h>
 
 /**
  * provides some tools for the fast rand function 
@@ -170,7 +171,7 @@ void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 
 void StreamVmInstructionFlowRandLimit::Dump(FILE *fd){
     fprintf(fd," flow_var_rand_limit  , %s ,%lu,   ",m_var_name.c_str(),(ulong)m_size_bytes);
-    fprintf(fd," (%lu:%lu:%lu) \n",m_limit,(ulong)m_size_bytes,(ulong)m_seed);
+    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu) \n",m_limit,(ulong)m_size_bytes,(ulong)m_seed,m_min_value,m_max_value);
 }
 
 void StreamVmInstructionFlowRandLimit::sanity_check(uint32_t ins_id,StreamVm *lp){
@@ -195,21 +196,29 @@ uint8_t  StreamVmInstructionFlowRandLimit::bss_init_value(uint8_t *p){
     case 1:
         u.lpv8=(RandMemBss8 *)p;
         u.lpv8->m_seed=m_seed;
+        u.lpv8->m_cnt=0;
+        u.lpv8->m_val=0;
         res=sizeof(RandMemBss8);
         break;
     case 2:
         u.lpv16=(RandMemBss16 *)p;
         u.lpv16->m_seed=m_seed;
+        u.lpv16->m_cnt=0;
+        u.lpv16->m_val=0;
         res=sizeof(RandMemBss16);
         break;
     case 4:
         u.lpv32=(RandMemBss32 *)p;
         u.lpv32->m_seed=m_seed;
+        u.lpv32->m_cnt=0;
+        u.lpv32->m_val=0;
         res=sizeof(RandMemBss32);
         break;
     case 8:
         u.lpv64=(RandMemBss64 *)p;
         u.lpv64->m_seed=m_seed;
+        u.lpv64->m_cnt=0;
+        u.lpv64->m_val=0;
         res=sizeof(RandMemBss64);
         break;
     default:
@@ -671,6 +680,8 @@ void StreamVm::build_program(){
                 fv8.m_flow_offset = get_var_offset(lpMan->m_var_name);
                 fv8.m_limit     = (uint8_t)lpMan->m_limit;
                 fv8.m_seed      = (uint32_t)lpMan->m_seed;
+                fv8.m_min_val = (uint8_t)lpMan->m_min_value;
+                fv8.m_max_val = (uint8_t)lpMan->m_max_value;
                 m_instructions.add_command(&fv8,sizeof(fv8));
             }
 
@@ -680,6 +691,9 @@ void StreamVm::build_program(){
                 fv16.m_flow_offset = get_var_offset(lpMan->m_var_name);
                 fv16.m_limit     = (uint16_t)lpMan->m_limit;
                 fv16.m_seed      = (uint32_t)lpMan->m_seed;
+                fv16.m_min_val   = (uint16_t)lpMan->m_min_value;
+                fv16.m_max_val   = (uint16_t)lpMan->m_max_value;
+
                 m_instructions.add_command(&fv16,sizeof(fv16));
             }
 
@@ -689,6 +703,9 @@ void StreamVm::build_program(){
                 fv32.m_flow_offset = get_var_offset(lpMan->m_var_name);
                 fv32.m_limit     = (uint32_t)lpMan->m_limit;
                 fv32.m_seed      = (uint32_t)lpMan->m_seed;
+                fv32.m_min_val   = (uint32_t)lpMan->m_min_value;
+                fv32.m_max_val   = (uint32_t)lpMan->m_max_value;
+
                 m_instructions.add_command(&fv32,sizeof(fv32));
             }
 
@@ -698,6 +715,8 @@ void StreamVm::build_program(){
                 fv64.m_flow_offset = get_var_offset(lpMan->m_var_name);
                 fv64.m_limit     = lpMan->m_limit;
                 fv64.m_seed      = (uint32_t)lpMan->m_seed;
+                fv64.m_min_val   = lpMan->m_min_value;
+                fv64.m_max_val   = lpMan->m_max_value;
                 m_instructions.add_command(&fv64,sizeof(fv64));
             }
         }
@@ -1578,19 +1597,19 @@ void StreamDPOpPktSizeChange::dump(FILE *fd,std::string opt){
 
 
 void StreamDPOpFlowRandLimit8::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x (%x-%x) \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed,m_min_val,m_max_val);
 }
 
 void StreamDPOpFlowRandLimit16::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x (%x-%x) \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed,m_min_val,m_max_val);
 }
 
 void StreamDPOpFlowRandLimit32::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x (%x-%x) \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed,m_min_val,m_max_val);
 }
 
 void StreamDPOpFlowRandLimit64::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x  \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
 }
 
 

@@ -106,7 +106,10 @@ struct StreamDPOpFlowRandLimit8 {
     uint8_t m_op;
     uint8_t m_flow_offset;
     uint8_t m_limit;
+    uint8_t m_min_val;
+    uint8_t m_max_val;
     uint32_t m_seed;
+
 public:
     void dump(FILE *fd,std::string opt);
     inline void run(uint8_t * flow_var) {
@@ -115,7 +118,7 @@ public:
             p->m_seed = m_seed;
             p->m_cnt=0;
         }
-        uint32_t val = vm_rand16(&p->m_seed);
+        uint32_t val = m_min_val + (vm_rand16(&p->m_seed)  % (int)(m_max_val - m_min_val + 1));
         p->m_val= (uint8_t)(val);
         p->m_cnt++;
     }
@@ -125,6 +128,9 @@ struct StreamDPOpFlowRandLimit16 {
     uint8_t m_op;
     uint8_t m_flow_offset;
     uint16_t m_limit;
+    uint16_t m_min_val;
+    uint16_t m_max_val;
+
     uint32_t m_seed;
 public:
     void dump(FILE *fd,std::string opt);
@@ -134,7 +140,7 @@ public:
             p->m_seed = m_seed;
             p->m_cnt=0;
         }
-        uint32_t val = vm_rand16(&p->m_seed);
+        uint32_t val = m_min_val + (vm_rand16(&p->m_seed)  % (int)(m_max_val - m_min_val + 1)); 
         p->m_val= (uint16_t)(val);
         p->m_cnt++;
     }
@@ -145,6 +151,9 @@ struct StreamDPOpFlowRandLimit32 {
     uint8_t m_op;
     uint8_t m_flow_offset;
     uint32_t m_limit;
+    uint32_t m_min_val;
+    uint32_t m_max_val;
+
     uint32_t m_seed;
 public:
     void dump(FILE *fd,std::string opt);
@@ -154,7 +163,7 @@ public:
             p->m_seed = m_seed;
             p->m_cnt=0;
         }
-        uint32_t val = vm_rand32(&p->m_seed);
+        uint32_t val = m_min_val + (vm_rand32(&p->m_seed)  % ((uint64_t)m_max_val - m_min_val + 1)); 
         p->m_val= val;
         p->m_cnt++;
     }
@@ -164,6 +173,9 @@ struct StreamDPOpFlowRandLimit64 {
     uint8_t m_op;
     uint8_t m_flow_offset;
     uint64_t m_limit;
+    uint64_t m_min_val;
+    uint64_t m_max_val;
+
     uint32_t m_seed;
 public:
     void dump(FILE *fd,std::string opt);
@@ -173,7 +185,13 @@ public:
             p->m_seed = m_seed;
             p->m_cnt=0;
         }
-        uint64_t val = vm_rand64(&p->m_seed);
+        uint64_t val;
+        if ((m_max_val - m_min_val) == UINT64_MAX) {
+            val = vm_rand64(&p->m_seed);
+        } else {
+            val = m_min_val + ( vm_rand64(&p->m_seed)  % ( (uint64_t)m_max_val - m_min_val + 1) );
+        }
+        
         p->m_val= val;
         p->m_cnt++;
     }
@@ -1170,12 +1188,16 @@ public:
     StreamVmInstructionFlowRandLimit(const std::string &var_name,
                                      uint8_t  size,
                                      uint64_t limit,
+                                     uint64_t min_value,
+                                     uint64_t max_value,
                                      int       seed
                                      ) : StreamVmInstructionVar(var_name) {
 
         m_size_bytes = size;
         m_seed       = seed;
         m_limit      = limit;
+        m_min_value  = min_value;
+        m_max_value  = max_value;
     }
 
     virtual void Dump(FILE *fd);
@@ -1188,6 +1210,8 @@ public:
         return new StreamVmInstructionFlowRandLimit(m_var_name,
                                                     m_size_bytes,
                                                     m_limit,
+                                                    m_min_value,
+                                                    m_max_value,
                                                     m_seed);
     }
 
@@ -1197,6 +1221,9 @@ private:
 public:
 
     uint64_t       m_limit;
+    uint64_t       m_min_value;
+    uint64_t       m_max_value;
+
     int            m_seed;
     uint8_t        m_size_bytes;
 };

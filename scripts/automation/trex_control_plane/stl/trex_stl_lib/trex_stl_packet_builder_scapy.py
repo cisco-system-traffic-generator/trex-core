@@ -664,6 +664,66 @@ class STLVmFlowVar(CTRexVmDescBase):
     def get_var_name(self):
         return [self.name]
 
+class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
+
+    def __init__(self, name,  size=4, limit=100, seed=None):
+        """
+        Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
+        The size argument determines the variable size. Could be 1,2,,4 or 8
+
+        :parameters:
+             name : string 
+                Name of the stream variable 
+
+             size  : int
+                Number of bytes of the variable. Possible values: 1,2,4,8 for uint8_t, uint16_t, uint32_t, uint64_t
+
+             limit  : int 
+                The number of distinct repetable random number 
+
+             seed   : int 
+                For deterministic result, you can set this to a uint16_t number
+
+        .. code-block:: python
+            :caption: Example1
+
+
+            # input , 1 byte or random with limit of 5 
+            STLVmFlowVarRepetableRandom("var1",size=1,limit=5)
+
+            # output 255,1,7,129,8,255,1,7,129,8
+
+        """
+        super(STLVmFlowVar, self).__init__()
+        self.name = name;
+        validate_type('name', name, str)
+        self.size =size
+        valid_fv_size(size)
+        self.limit =limit
+
+        if seed == None:
+            self.seed = random.randint(1, 32000)
+        else:
+            self.seed = seed
+
+        # choose default value for init val
+        if init_value == None:
+            init_value = max_value if op == "dec" else min_value
+
+        self.init_value = convert_val (init_value)
+        self.min_value  = convert_val (min_value);
+        self.max_value  = convert_val (max_value)
+        self.step       = convert_val (step)
+
+        if self.min_value > self.max_value :
+            raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
+
+    def get_obj (self):
+        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step);
+
+    def get_var_name(self):
+        return [self.name]
+
 
 class STLVmFixIpv4(CTRexVmDescBase):
     def __init__(self, offset):
