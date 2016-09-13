@@ -751,9 +751,9 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
         self.min_value  = convert_val (min_value);
 
         if max_value == None :
-            max_value = get_max_by_size()
-
-        self.max_value  = get_max_by_size (self.size)
+            self.max_value = get_max_by_size (self.size) 
+        else:
+            self.max_value = convert_val (max_value)
 
         if self.min_value > self.max_value :
             raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );

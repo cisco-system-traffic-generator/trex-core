@@ -273,12 +273,9 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 50",True],
              ["udp_1pkt_src_ip_split.py","-m 1 -l 50 --cores 2",True],
              ["udp_1pkt_repeat_random.py","-m 1 -l 50",True],
-
-
           ];
 
-
-        p  = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ]
+        p = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ];
 
 
         for obj in p:
