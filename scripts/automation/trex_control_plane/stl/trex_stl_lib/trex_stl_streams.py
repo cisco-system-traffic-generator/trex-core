@@ -625,6 +625,9 @@ class STLStream(object):
                 inst['ip_min'] = ltoa(inst['ip_min'])
                 inst['ip_max'] = ltoa(inst['ip_max'])
                 vm_list.append("STLVmTupleGen(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
+            elif inst['type'] == 'flow_var_rand_limit':
+                vm_list.append("STLVmFlowVarRepetableRandom(name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value})".format(**inst))
+
         vm_code = 'vm = STLScVmRaw([' + ',\n                 '.join(vm_list) + '], split_by_field = %s)' % STLStream.__add_quotes(self.fields['vm'].get('split_by_var'))
         stream_params_list = []
         stream_params_list.append('packet = STLPktBuilder(pkt = packet, vm = vm)')

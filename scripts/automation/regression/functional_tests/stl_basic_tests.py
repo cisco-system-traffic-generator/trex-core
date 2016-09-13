@@ -222,7 +222,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def test_stl_profiles (self):
-        p = [
+        p1 = [
              ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
              ["syn_attack.py","-m 1 -l 50",True],               
              ["udp_1pkt_1mac.py","-m 1 -l 50",True],
@@ -271,14 +271,14 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True, False],
              ["udp_1pkt_mac_mask5.py","-m 1 -l 30 ",True],
              ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 50",True],
-             ["udp_1pkt_src_ip_split.py","-m 1 -l 50 --cores 2",True]
+             ["udp_1pkt_src_ip_split.py","-m 1 -l 50 --cores 2",True],
+             ["udp_1pkt_repeat_random.py","-m 1 -l 50",True],
 
 
           ];
 
 
-        #p  = [ ["udp_1pkt_src_ip_split.py","-m 1 -l 50",True] ]
-        #p  = [ ["udp_1pkt_src_ip_split.py","-m 1 -l 50 --cores 2",True] ]
+        p  = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ]
 
 
         for obj in p:
