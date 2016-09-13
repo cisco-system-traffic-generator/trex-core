@@ -10,7 +10,8 @@ def prepare_dir(log_path):
 
 def setup_custom_logger(name, log_path = None):
     # first make sure path availabe
-    prepare_dir(log_path)
+    if log_path:
+        prepare_dir(log_path)
     logging.basicConfig(level   = logging.INFO, 
                         format  = '%(asctime)s %(name)-10s %(module)-20s %(levelname)-8s %(message)s',
                         datefmt = '%m-%d %H:%M')
@@ -30,11 +31,12 @@ def setup_custom_logger(name, log_path = None):
 
 def setup_daemon_logger (name, log_path = None):
     # first make sure path availabe
-    prepare_dir(log_path)
-    try:
-        os.unlink(log_path)
-    except:
-        pass
+    if log_path:
+        prepare_dir(log_path)
+        try:
+            os.unlink(log_path)
+        except:
+            pass
     logging.basicConfig(level   = logging.INFO, 
                         format  = '%(asctime)s %(name)-10s %(module)-20s %(levelname)-8s %(message)s',
                         datefmt = '%m-%d %H:%M',
