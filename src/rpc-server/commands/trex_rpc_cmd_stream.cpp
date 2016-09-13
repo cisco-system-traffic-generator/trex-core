@@ -251,6 +251,46 @@ TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std:
                                                                 ));
 }
 
+
+void 
+TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size, 
+                                   uint64_t init_value,
+                                   uint64_t step,
+                                   uint64_t min_value,
+                                   uint64_t max_value, 
+                                   Json::Value &result){
+
+    if (max_value < min_value ) {
+        std::stringstream ss;
+        ss << "VM: request flow var variable '" << max_value << "' is smaller than " << min_value;
+        generate_parse_err(result, ss.str());
+    }
+
+    if (flow_var_size == 1 ) {
+        if ( (init_value > UINT8_MAX) || (min_value > UINT8_MAX) || (max_value > UINT8_MAX) || (step >UINT8_MAX) )  {
+            std::stringstream ss;
+            ss << "VM: request val is bigger than " << UINT8_MAX;
+            generate_parse_err(result, ss.str());
+        }
+    }
+
+    if (flow_var_size == 2 ) {
+        if ( (init_value > UINT16_MAX) || (min_value > UINT16_MAX) || (max_value > UINT16_MAX) || (step > UINT16_MAX) )  {
+            std::stringstream ss;
+            ss << "VM: request val is bigger than " << UINT16_MAX;
+            generate_parse_err(result, ss.str());
+        }
+    }
+
+    if (flow_var_size == 4 ) {
+        if ( (init_value > UINT32_MAX) || (min_value > UINT32_MAX) || (max_value > UINT32_MAX) || (step > UINT32_MAX) )  {
+            std::stringstream ss;
+            ss << "VM: request val is bigger than " << UINT32_MAX;
+            generate_parse_err(result, ss.str());
+        }
+    }
+}
+
 void 
 TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
@@ -259,6 +299,8 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
     uint8_t      flow_var_size = parse_choice(inst, "size", sizes, result);
     uint64_t seed    = parse_uint64(inst, "seed", result);
     uint64_t limit   = parse_uint64(inst, "limit", result);
+    uint64_t min_value   = parse_uint64(inst, "min_value", result);
+    uint64_t max_value   = parse_uint64(inst, "max_value", result);
 
     if (limit < 1 ) {
         std::stringstream ss;
@@ -266,10 +308,13 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
         generate_parse_err(result, ss.str());
     }
 
+    check_min_max(flow_var_size, 0, 0, min_value, max_value, result);
+
     stream->m_vm.add_instruction(new StreamVmInstructionFlowRandLimit(flow_var_name,
                                                                       flow_var_size,
                                                                       (int)limit,
-                                                                      0,0,
+                                                                      min_value,
+                                                                      max_value,
                                                                       seed)
                                  );
 }
@@ -301,36 +346,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
     uint64_t max_value   = parse_uint64(inst, "max_value", result);
     uint64_t step        = parse_uint64(inst, "step", result);
 
-    if (max_value < min_value ) {
-        std::stringstream ss;
-        ss << "VM: request flow var variable '" << max_value << "' is smaller than " << min_value;
-        generate_parse_err(result, ss.str());
-    }
-
-    if (flow_var_size == 1 ) {
-        if ( (init_value > UINT8_MAX) || (min_value > UINT8_MAX) || (max_value > UINT8_MAX) || (step >UINT8_MAX) )  {
-            std::stringstream ss;
-            ss << "VM: request val is bigger than " << UINT8_MAX;
-            generate_parse_err(result, ss.str());
-        }
-    }
-
-    if (flow_var_size == 2 ) {
-        if ( (init_value > UINT16_MAX) || (min_value > UINT16_MAX) || (max_value > UINT16_MAX) || (step > UINT16_MAX) )  {
-            std::stringstream ss;
-            ss << "VM: request val is bigger than " << UINT16_MAX;
-            generate_parse_err(result, ss.str());
-        }
-    }
-
-    if (flow_var_size == 4 ) {
-        if ( (init_value > UINT32_MAX) || (min_value > UINT32_MAX) || (max_value > UINT32_MAX) || (step > UINT32_MAX) )  {
-            std::stringstream ss;
-            ss << "VM: request val is bigger than " << UINT32_MAX;
-            generate_parse_err(result, ss.str());
-        }
-    }
-
+    check_min_max(flow_var_size, init_value, step, min_value, max_value, result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionFlowMan(flow_var_name,
                                                                 flow_var_size,
@@ -385,7 +401,7 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
     for (int i = 0; i < instructions.size(); i++) {
         const Json::Value & inst = parse_object(instructions, i, result);
 
-        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size","write_mask_flow_var"};
+        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size","write_mask_flow_var","flow_var_rand_limit"};
         std::string vm_type = parse_choice(inst, "type", vm_types, result);
 
         // checksum instruction
@@ -396,7 +412,7 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
             parse_vm_instr_flow_var(inst, stream, result);
 
         } else if (vm_type == "flow_var_rand_limit") {
-            parse_vm_instr_flow_var(inst, stream, result);
+            parse_vm_instr_flow_var_rand_limit(inst, stream, result);
 
         } else if (vm_type == "write_flow_var") {
             parse_vm_instr_write_flow_var(inst, stream, result);

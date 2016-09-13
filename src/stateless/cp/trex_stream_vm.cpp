@@ -1609,7 +1609,7 @@ void StreamDPOpFlowRandLimit32::dump(FILE *fd,std::string opt){
 }
 
 void StreamDPOpFlowRandLimit64::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x  \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed);
+    fprintf(fd," %10s, flow_offset: %lu  limit :%lu seed:%x (%lu-%lu) \n",  opt.c_str(),(ulong)m_flow_offset,(ulong)m_limit,m_seed,m_min_val,m_max_val);
 }
 
 

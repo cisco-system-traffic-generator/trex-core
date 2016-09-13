@@ -284,6 +284,29 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
         validate_type('step', step, int)
         assert step >= 0, 'step (%s) is negative' % step
 
+class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
+    #TBD add more validation tests
+
+    VALID_SIZES =[1, 2, 4, 8]
+
+    def __init__(self, fv_name, size, limit, seed, min_value, max_value):
+        super(CTRexVmInsFlowVarRandLimit, self).__init__("flow_var_rand_limit")
+        self.name = fv_name;
+        validate_type('fv_name', fv_name, str)
+        self.size = size
+        self.limit=limit
+        validate_type('limit', limit, int)
+        assert limit >= 0, 'limit (%s) is negative' % limit
+        self.seed=seed
+        validate_type('seed', seed, int)
+        self.min_value=min_value
+        validate_type('min_value', min_value, int)
+        assert min_value >= 0, 'min_value (%s) is negative' % min_value
+        self.max_value=max_value
+        validate_type('max_value', max_value, int)
+        assert max_value >= 0, 'max_value (%s) is negative' % max_value
+
+
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
         super(CTRexVmInsWrFlowVar, self).__init__("write_flow_var")
@@ -569,6 +592,15 @@ def valid_fv_ops (op):
     if not (op in CTRexVmInsFlowVar.OPERATIONS):
         raise CTRexPacketBuildException(-11,("Flow var has invalid op %s ") % op  );
 
+def get_max_by_size (size):
+    d={
+    1:((1<<8) -1),
+    2:((1<<16)-1),
+    4:((1<<32)-1),
+    8:0xffffffffffffffff
+    };
+    return d[size]
+
 def convert_val (val):
     if is_integer(val):
         return val
@@ -666,10 +698,10 @@ class STLVmFlowVar(CTRexVmDescBase):
 
 class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
 
-    def __init__(self, name,  size=4, limit=100, seed=None):
+    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
         """
         Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
-        The size argument determines the variable size. Could be 1,2,,4 or 8
+        The size argument determines the variable size. Could be 1,2,4 or 8
 
         :parameters:
              name : string 
@@ -684,6 +716,13 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
              seed   : int 
                 For deterministic result, you can set this to a uint16_t number
 
+             min_value  : int
+                Min value 
+
+             max_value  : int
+                Max value 
+
+
         .. code-block:: python
             :caption: Example1
 
@@ -691,10 +730,13 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
             # input , 1 byte or random with limit of 5 
             STLVmFlowVarRepetableRandom("var1",size=1,limit=5)
 
-            # output 255,1,7,129,8,255,1,7,129,8
+            # output 255,1,7,129,8, ==> repeat 255,1,7,129,8
+
+            STLVmFlowVarRepetableRandom("var1",size=4,limit=100,min_value=0x12345678, max_value=0x32345678)
+
 
         """
-        super(STLVmFlowVar, self).__init__()
+        super(STLVmFlowVarRepetableRandom, self).__init__()
         self.name = name;
         validate_type('name', name, str)
         self.size =size
@@ -706,20 +748,18 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
         else:
             self.seed = seed
 
-        # choose default value for init val
-        if init_value == None:
-            init_value = max_value if op == "dec" else min_value
-
-        self.init_value = convert_val (init_value)
         self.min_value  = convert_val (min_value);
-        self.max_value  = convert_val (max_value)
-        self.step       = convert_val (step)
+
+        if max_value == None :
+            max_value = get_max_by_size()
+
+        self.max_value  = get_max_by_size (self.size)
 
         if self.min_value > self.max_value :
             raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
 
     def get_obj (self):
-        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step);
+        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
 
     def get_var_name(self):
         return [self.name]
