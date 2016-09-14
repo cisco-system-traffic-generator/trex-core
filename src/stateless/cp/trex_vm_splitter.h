@@ -46,10 +46,10 @@ public:
 
 private:
     bool split_internal();
-    bool split_by_flow_var(const StreamVmInstructionFlowMan *instr);
-    bool split_by_flow_client_var(const StreamVmInstructionFlowClient *instr);
+    void split_flow_var(const StreamVmInstructionVar *instr);
 
     void duplicate_vm();
+    void compile_vm();
 
     TrexStream                 *m_stream;
     std::vector<TrexStream *>  *m_core_streams;

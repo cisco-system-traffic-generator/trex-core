@@ -24,6 +24,9 @@ from .trex_stl_client import STLClient
 from .utils import pcap
 from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWriter, hexdump
 
+from random import randint
+from random import choice as rand_choice
+
 from yaml import YAMLError
 
 import re
@@ -473,7 +476,31 @@ def compare_caps (cap1, cap2, max_diff_sec = (5 * 1e-6)):
     return True
 
 
-  
+def hexdiff (d1, d2):
+    rc = []
+
+    if len(d1) != len(d2):
+        return rc
+    
+    for i in range(len(d1)):
+        if d1[i] != d2[i]:
+            rc.append(i)
+    return rc
+
+def prettyhex (h, diff_list):
+    if type(h[0]) == str:
+        h = [ord(x) for x in h]
+
+    for i in range(len(h)):
+        
+        if i in diff_list:
+            sys.stdout.write("->'0x%02x'<-" % h[i])
+        else:
+            sys.stdout.write("  '0x%02x'  " % h[i])
+        if ((i % 9) == 8):
+            print("")
+
+    print("")
 
 # a more strict comparsion 1 <--> 1
 def compare_caps_strict (cap1, cap2, max_diff_sec = (5 * 1e-6)):
@@ -495,18 +522,31 @@ def compare_caps_strict (cap1, cap2, max_diff_sec = (5 * 1e-6)):
 
         if pkt1[0] != pkt2[0]:
             print(format_text("RAW error: cap files '{0}', '{1}' differ in cap #{2}\n".format(cap1, cap2, i), 'bold'))
-            print(hexdump(pkt1[0]))
-            print("")
-            print(hexdump(pkt2[0]))
+
+            #d1 = hexdump(pkt1[0])
+            #d2 = hexdump(pkt2[0])
+            
+            diff_list = hexdiff(pkt1[0], pkt2[0])
+
+            print("{0} - packet #{1}:\n".format(cap1, i))
+            prettyhex(pkt1[0], diff_list)
+            
+            print("\n{0} - packet #{1}:\n".format(cap2, i))
+            prettyhex(pkt2[0], diff_list)
+
+            #print(hexdump(pkt1[0]))
+            #print("")
+            #print(hexdump(pkt2[0]))
+            #print("")
             print("")
             return False
 
     return True
 
-#
+
 def test_multi_core (r, options):
 
-    for core_count in [1, 2, 4, 6, 8]:
+    for core_count in range(1, 9):
         r.run(input_list = options.input_file,
               outfile = '{0}.cap'.format(core_count),
               dp_core_count = core_count,
@@ -516,12 +556,12 @@ def test_multi_core (r, options):
               duration = options.duration,
               mode = 'none',
               silent = True,
-              tunables = options.tunables)
+              tunables = [{'seed': 5}])
 
     print("")
 
     print(format_text("comparing 2 cores to 1 core:\n", 'underline'))
-    rc = compare_caps('1.cap', '2.cap')
+    rc = compare_caps_strict('1.cap', '2.cap')
     if rc:
         print("[Passed]\n")
 

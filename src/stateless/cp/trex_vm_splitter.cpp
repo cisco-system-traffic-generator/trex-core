@@ -89,27 +89,28 @@ TrexVmSplitter::split(TrexStream *stream, std::vector<TrexStream *> core_streams
 bool
 TrexVmSplitter::split_internal() {
 
-    const StreamVmInstructionVar *split_instr = m_stream->m_vm.get_split_instruction();
+    duplicate_vm();
 
-    /* if no split instruction was specified - fall back*/
-    if (split_instr == NULL) {
-        return false;
+    /* search for splitable instructions */
+    for (StreamVmInstruction *instr : m_stream->m_vm.get_instruction_list()) {
+        if (!instr->is_var_instruction()) {
+            continue;
+        }
+
+        split_flow_var( (const StreamVmInstructionVar *)instr );
+
     }
 
-    if (split_instr->get_instruction_type() == StreamVmInstruction::itFLOW_MAN) {
-        return split_by_flow_var( (const StreamVmInstructionFlowMan *)split_instr );
 
-    } else if (split_instr->get_instruction_type() == StreamVmInstruction::itFLOW_CLIENT) {
-        return split_by_flow_client_var( (const StreamVmInstructionFlowClient *)split_instr );
+    /* done - now compile for all cores */
+    compile_vm();
 
-    } else {
-        throw TrexException("VM splitter : cannot split by instruction which is not flow var or flow client var");
-    }
+    return true;
 
 }
 
 /**
- * split VM by flow var 
+ * split a flow var instruction
  * 
  * @author imarom (20-Dec-15)
  * 
@@ -117,98 +118,29 @@ TrexVmSplitter::split_internal() {
  * 
  * @return bool 
  */
-bool
-TrexVmSplitter::split_by_flow_var(const StreamVmInstructionFlowMan *instr) {
-    /* no point in splitting random */
-    if (instr->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM) {
-        return false;
+void
+TrexVmSplitter::split_flow_var(const StreamVmInstructionVar *src) {
+    /* a var might not need split (random) */
+    if (!src->need_split()) {
+        return;
     }
-
-    /* if the range is too small - it is unsplitable  */
-    if (instr->get_splitable_range() < m_dp_core_count) {
-        return false;
-    }
-
-    /* split only step of 1 */
-    if (!instr->is_valid_for_split() ){
-        return false;
-    }
-
-    /* we need to split - duplicate VM now */
-    duplicate_vm();
-
-    /* calculate range splitting */
-    uint64_t range = instr->get_splitable_range();
-
-    uint64_t range_part = range / m_dp_core_count;
-    uint64_t leftover   = range % m_dp_core_count;
-
-    /* first core handles a bit more */
-    uint64_t start   = instr->m_min_value;
-    uint64_t end     = start + range_part + leftover - 1;
-
 
     /* do work */
+    int core_id = 0;
     for (TrexStream *core_stream : *m_core_streams) {
 
-        /* get the per-core instruction to split */
-        StreamVmInstructionFlowMan *per_core_instr = (StreamVmInstructionFlowMan *)core_stream->m_vm.get_split_instruction();
+        StreamVmInstructionVar *dst = core_stream->m_vm.lookup_var_by_name(src->get_var_name());
+        assert(dst);
 
-        per_core_instr->m_min_value  = start;
-        per_core_instr->m_max_value  = end; 
+        /* for each core we need to give a phase and multiply the step frequency */
+        dst->update(core_id, m_dp_core_count);
 
-        /* after split this has no meaning - choose it as we see fit */
-        per_core_instr->m_init_value = (per_core_instr->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ? end : start);
-
-        core_stream->vm_compile();
-
-        start = end + 1;
-        end   = start + range_part - 1;
+        core_id++;
     }
 
-    return true;
 }
 
 
-bool
-TrexVmSplitter::split_by_flow_client_var(const StreamVmInstructionFlowClient *instr) {
-
-    /* if the range is too small - it is unsplitable  */
-    if (instr->get_ip_range() < m_dp_core_count) {
-        return false;
-    }
-
-    /* we need to split - duplicate VM now */
-    duplicate_vm();
-
-    /* calculate range splitting */
-    uint64_t range = instr->get_ip_range();
-
-    uint64_t range_part = range / m_dp_core_count;
-    uint64_t leftover   = range % m_dp_core_count;
-
-    /* first core handles a bit more */
-    uint64_t start   = instr->m_client_min;
-    uint64_t end     = start + range_part + leftover - 1;
-
-
-    /* do work */
-    for (TrexStream *core_stream : *m_core_streams) {
-
-        /* get the per-core instruction to split */
-        StreamVmInstructionFlowClient *per_core_instr = (StreamVmInstructionFlowClient *)core_stream->m_vm.get_split_instruction();
-
-        per_core_instr->m_client_min  = start;
-        per_core_instr->m_client_max  = end; 
-
-        core_stream->vm_compile();
-
-        start = end + 1;
-        end   = start + range_part - 1;
-    }
-
-    return true;
-}
 
 /**
  * duplicate the VM instructions
@@ -219,6 +151,17 @@ TrexVmSplitter::duplicate_vm() {
     /* for each core - duplicate the instructions */
     for (TrexStream *core_stream : *m_core_streams) {
         m_stream->m_vm.clone(core_stream->m_vm);
+    }
+}
+
+/**
+ * now compile the updated VM
+ */
+void
+TrexVmSplitter::compile_vm() {
+    /* for each core - duplicate the instructions */
+    for (TrexStream *core_stream : *m_core_streams) {
+        core_stream->vm_compile();
     }
 }
 

@@ -30,7 +30,27 @@ limitations under the License.
 #include "pal_utl.h"
 #include "mbuf.h"
 
+static inline 
+uint64_t inc_mod(uint64_t a, uint64_t b, uint64_t c, uint64_t step) {
+    /* check if we have enough left for simple inc */
+    uint64_t left = b - c;
+    if (step <= left) {
+        return (c + step);
+    } else {
+        return (a + (step - left - 1)); // restart consumes also 1
+    }
+}
 
+static inline 
+uint64_t dec_mod(uint64_t a, uint64_t b, uint64_t c, uint64_t step) {
+    /* check if we have enough left for simple dec */
+    uint64_t left = c - a;
+    if (step <= left) {
+        return (c - step);
+    } else {
+        return (b - (step - left - 1)); // restart consumes also 1
+    }
+}
 
 //https://software.intel.com/en-us/articles/fast-random-number-generator-on-the-intel-pentiumr-4-processor/
 
@@ -211,20 +231,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if (*p == m_max_val) {
-            *p = m_min_val;
-        } else {
-            *p = *p + 1;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if (*p == m_min_val) {
-            *p = m_max_val;
-        } else {
-            *p = *p - 1;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
@@ -245,20 +257,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if (*p == m_max_val) {
-            *p = m_min_val;
-        } else {
-            *p = *p + 1;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if (*p == m_min_val) {
-            *p = m_max_val;
-        } else {
-            *p = *p - 1;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
@@ -280,20 +284,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if (*p == m_max_val) {
-            *p = m_min_val;
-        } else {
-            *p = *p + 1;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if (*p == m_min_val) {
-            *p = m_max_val;
-        } else {
-            *p = *p - 1;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
@@ -313,20 +309,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if (*p == m_max_val) {
-            *p = m_min_val;
-        } else {
-            *p = *p + 1;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if (*p == m_min_val) {
-            *p = m_max_val;
-        } else {
-            *p = *p - 1;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, 1);
     }
 
     inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
@@ -355,20 +343,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if (*p > (m_max_val-m_step)) {
-            *p = m_min_val;
-        } else {
-            *p = *p + m_step;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, m_step);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if (*p < (m_min_val+m_step)) {
-            *p = m_max_val;
-        } else {
-            *p = *p - m_step;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, m_step);
     }
 
 } __attribute__((packed)) ;
@@ -385,20 +365,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if (*p > (m_max_val-m_step)) {
-            *p = m_min_val;
-        } else {
-            *p = *p + m_step;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, m_step);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if (*p < (m_min_val+m_step)) {
-            *p = m_max_val;
-        } else {
-            *p = *p - m_step;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, m_step);
     }
 
 } __attribute__((packed)) ;
@@ -414,20 +386,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if (*p > (m_max_val-m_step)) {
-            *p = m_min_val;
-        } else {
-            *p = *p + m_step;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, m_step);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if (*p < (m_min_val+m_step)) {
-            *p = m_max_val;
-        } else {
-            *p = *p - m_step;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, m_step);
     }
 
 } __attribute__((packed)) ;
@@ -443,20 +407,12 @@ public:
 
     inline void run_inc(uint8_t * flow_var) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if (*p > (m_max_val-m_step) ) {
-            *p = m_min_val;
-        } else {
-            *p = *p + m_step;
-        }
+        *p = inc_mod(m_min_val, m_max_val, *p, m_step);
     }
 
     inline void run_dec(uint8_t * flow_var) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if (*p < m_min_val+m_step) {
-            *p = m_max_val;
-        } else {
-            *p = *p - m_step;
-        }
+        *p = dec_mod(m_min_val, m_max_val, *p, m_step);
     }
 
 
@@ -981,10 +937,11 @@ public:
     
     virtual StreamVmInstruction * clone() = 0;
 
-    /* by default an instruction is not splitable */
-    virtual bool is_splitable() const {
-        return false;
+    bool is_var_instruction() const {
+        instruction_type_t type = get_instruction_type();
+        return ( (type == itFLOW_MAN) || (type == itFLOW_CLIENT) );
     }
+
     /* nothing to init */
     virtual uint8_t bss_init_value(uint8_t *p){
         return (0);
@@ -1007,19 +964,41 @@ public:
 
     }
 
-    const std::string & get_var_name() {
+    const std::string & get_var_name() const {
         return m_var_name;
     }
 
-    virtual bool is_splitable() const {
-        return true;
-    }
+    virtual bool need_split() const = 0;
 
     /**
      * what is the split range for this var
      * 
      */
-    virtual uint64_t get_splitable_range() const = 0;
+    virtual uint64_t get_range() const = 0;
+
+    /**
+     * allows a var instruction to be updated 
+     * for multicore (split) 
+     * 
+     */
+    virtual void update(uint64_t phase, uint64_t step_multiplier) = 0;
+
+    uint64_t peek_next(uint64_t skip = 1) const {
+        return peek(skip, true);
+    }
+
+    uint64_t peek_prev(uint64_t skip = 1) const {
+        return peek(skip, false);
+    }
+
+
+protected:
+    /**
+     * a var instruction should be able to peek back/forward with 
+     * any number of steps in the series 
+     * 
+     */
+    virtual uint64_t peek(int skip = 1, bool forward = true) const = 0;
 
 public:
     
@@ -1064,12 +1043,12 @@ public:
         return ( StreamVmInstruction::itFLOW_MAN);
     }
 
-    virtual bool is_valid_for_split() const {
-        return (m_step==1?true:false);
+    virtual bool need_split() const {
+        /* random does not need split */
+        return (m_op != FLOW_VAR_OP_RANDOM);
     }
 
-
-    virtual uint64_t get_splitable_range() const {
+    virtual uint64_t get_range() const {
         return (m_max_value - m_min_value + 1);
     }
 
@@ -1094,19 +1073,7 @@ public:
      * 
      */
     uint64_t get_bss_init_value() const {
-        uint64_t init = m_init_value;
-
-        switch (m_op) {
-        case FLOW_VAR_OP_INC:
-            return (init == m_min_value ? m_max_value : (init - 1));
-
-        case FLOW_VAR_OP_DEC:
-            return (init == m_max_value ? m_min_value : (init + 1));
-
-        default:
-            return init;
-        }
-
+        return peek_prev();
     }
 
     StreamVmInstructionFlowMan(const std::string &var_name,
@@ -1117,15 +1084,27 @@ public:
                                uint64_t max_value,
                                uint64_t step=1) : StreamVmInstructionVar(var_name) {
 
-        m_op = op;
-        m_size_bytes = size;
-        m_init_value = init_value;
-        m_min_value  = min_value;
-        m_max_value  = max_value;
-        m_step       = step;
+        m_op          = op;
+        m_size_bytes  = size;
+        m_init_value  = init_value;
+        m_min_value   = min_value;
+        m_max_value   = max_value;
+        m_step        = step % get_range(); // support step overflow by modulu
 
+        assert(m_init_value >= m_min_value);
+        assert(m_init_value <= m_max_value);
     }
 
+    virtual void update(uint64_t phase, uint64_t step_multiplier) {
+        /* update the init value to be with a phase */
+        m_init_value = peek_next(phase);
+        m_step = (m_step * step_multiplier) % get_range();
+
+        assert(m_init_value >= m_min_value);
+        assert(m_init_value <= m_max_value);
+    }
+
+   
     virtual void Dump(FILE *fd);
 
     void sanity_check(uint32_t ins_id,StreamVm *lp);
@@ -1139,6 +1118,29 @@ public:
                                               m_max_value,
                                               m_step);
     }
+
+
+protected:
+
+    /* fetch the next value in the variable (used for core phase and etc.) */
+    virtual uint64_t peek(int skip = 1, bool forward = true) const {
+
+        if (m_op == FLOW_VAR_OP_RANDOM) {
+            return m_init_value;
+        }
+
+        assert( (m_op == FLOW_VAR_OP_INC) || (m_op == FLOW_VAR_OP_DEC) );
+        bool add = ( (m_op == FLOW_VAR_OP_INC) ? forward : !forward );
+
+        uint64_t next_step = (m_step * skip) % get_range();
+
+        if (add) {
+            return inc_mod(m_min_value, m_max_value, m_init_value, next_step);
+        } else {
+            return dec_mod(m_min_value, m_max_value, m_init_value, next_step);
+        }
+    }
+
 
 private:
     void sanity_check_valid_size(uint32_t ins_id,StreamVm *lp);
@@ -1313,6 +1315,9 @@ public:
         return ( StreamVmInstruction::itFLOW_CLIENT);
     }
 
+    virtual bool need_split() const {
+        return true;
+    }
 
     StreamVmInstructionFlowClient(const std::string &var_name,
                                uint32_t client_min_value,
@@ -1347,7 +1352,7 @@ public:
         return (m_port_max - m_port_min + 1);
     }
 
-    virtual uint64_t get_splitable_range() const {
+    virtual uint64_t get_range() const {
         return get_ip_range();
     }
 
@@ -1368,6 +1373,15 @@ public:
                                                  m_port_max,
                                                  m_limit_num_flows,
                                                  m_flags);
+    }
+
+    virtual void update(uint64_t phase, uint64_t step_multiplier) {
+    }
+
+
+protected:
+    virtual uint64_t peek(int skip = 1, bool forward = true) const {
+        return (0);
     }
 
 public:
