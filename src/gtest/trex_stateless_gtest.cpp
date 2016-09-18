@@ -4189,8 +4189,6 @@ public:
 
         vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
 
-        vm.set_split_instruction(split_instr);
-
     }
 
     void set_client_var_as_split(uint32_t client_min_value,
@@ -4220,8 +4218,6 @@ public:
 
         /* src port */
         vm.add_instruction(new StreamVmInstructionWriteToPkt("var1.port",34, 0,true));
-
-        vm.set_split_instruction(split_instr);
     }
 
     void run(uint8_t dp_core_count, uint8_t dp_core_to_check) {

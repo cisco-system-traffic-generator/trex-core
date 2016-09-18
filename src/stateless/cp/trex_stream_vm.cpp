@@ -301,7 +301,7 @@ void StreamVmInstructionFlowClient::Dump(FILE *fd){
 
     fprintf(fd," client_var ,%s , ",m_var_name.c_str());
 
-    fprintf(fd," ip:(%x-%x) port:(%x-%x)  flow_limit:%lu  flags: %x\n",m_client_min,m_client_max, m_port_min,m_port_max,(ulong)m_limit_num_flows,m_flags);
+    //fprintf(fd," ip:(%x-%x) port:(%x-%x)  flow_limit:%lu  flags: %x\n",m_client_min,m_client_max, m_port_min,m_port_max,(ulong)m_limit_num_flows,m_flags);
 }
 
 
@@ -345,7 +345,7 @@ StreamVmInstruction::~StreamVmInstruction() {
  * 
  **************************/
 void StreamVm::add_instruction(StreamVmInstruction *inst) {
-
+    
     if (inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN) {
         StreamVmInstructionFlowMan * ins_man=(StreamVmInstructionFlowMan *)inst;
         if (ins_man->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM) {
@@ -355,6 +355,10 @@ void StreamVm::add_instruction(StreamVmInstruction *inst) {
 
     if (inst->get_instruction_type() == StreamVmInstruction::itPKT_SIZE_CHANGE) {
         m_is_change_pkt_size = true;
+    }
+
+    if (inst->need_split()) {
+        m_is_split_needed = true;
     }
 
     m_inst_list.push_back(inst);
@@ -1047,8 +1051,8 @@ void StreamVm::build_program(){
                 client_cmd.m_flow_offset = get_var_offset(lpMan->m_var_name+".ip"); /* start offset */
                 client_cmd.m_flags       = 0; /* not used */
                 client_cmd.m_pad         = 0;
-                client_cmd.m_min_ip      = lpMan->m_client_min;
-                client_cmd.m_max_ip      = lpMan->m_client_max;
+                client_cmd.m_min_ip      = lpMan->m_ip.m_min_value;
+                client_cmd.m_max_ip      = lpMan->m_ip.m_max_value;
                 m_instructions.add_command(&client_cmd,sizeof(client_cmd));
 
             }else{
@@ -1058,10 +1062,15 @@ void StreamVm::build_program(){
                 client_cmd.m_flow_offset = get_var_offset(lpMan->m_var_name+".ip"); /* start offset */
                 client_cmd.m_flags       = 0; /* not used */
                 client_cmd.m_pad         = 0;
-                client_cmd.m_min_port    = lpMan->m_port_min;
-                client_cmd.m_max_port    = lpMan->m_port_max;
-                client_cmd.m_min_ip      = lpMan->m_client_min;
-                client_cmd.m_max_ip      = lpMan->m_client_max;
+
+                client_cmd.m_min_port    = lpMan->m_port.m_min_value;
+                client_cmd.m_max_port    = lpMan->m_port.m_max_value;
+                client_cmd.m_port_step   = lpMan->m_port.m_step;
+
+                client_cmd.m_min_ip      = lpMan->m_ip.m_min_value;
+                client_cmd.m_max_ip      = lpMan->m_ip.m_max_value;
+                client_cmd.m_ip_step     = lpMan->m_ip.m_step;
+
                 client_cmd.m_limit_flows = lpMan->m_limit_num_flows;
                 m_instructions.add_command(&client_cmd,sizeof(client_cmd));
             }
@@ -1119,16 +1128,6 @@ void StreamVm::build_bss() {
     }
 }
 
-/**
- * set the VM split instruction 
- * instr is a pointer to an instruction inside 
- * the VM program 
- * 
- */
-void
-StreamVm::set_split_instruction(StreamVmInstructionVar *instr) {
-    m_split_instr = instr;
-}
 
 /**
  * clone VM from this VM to 'other'
@@ -1144,22 +1143,17 @@ StreamVm::clone(StreamVm &other) const {
         delete instr;
     }
 
+    other.m_is_random_var        = false;
+    other.m_is_change_pkt_size   = false;
+    other.m_is_split_needed      = false;
+    other.m_is_compiled          = false;
+
     other.m_inst_list.clear();
 
     for (auto instr : m_inst_list) {
         StreamVmInstruction *new_instr = instr->clone();
-
-        other.m_inst_list.push_back(new_instr);
-
-        /* for the split instruction - find the right one */
-        if (instr == m_split_instr) {
-            /* dynamic cast must succeed here */
-            other.m_split_instr = dynamic_cast<StreamVmInstructionVar *>(new_instr);
-            assert(other.m_split_instr);
-        }
+        other.add_instruction(new_instr);
     }
-
-    other.m_is_random_var = m_is_random_var;
 }
 
 /**

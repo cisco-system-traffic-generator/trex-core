@@ -89,6 +89,11 @@ TrexVmSplitter::split(TrexStream *stream, std::vector<TrexStream *> core_streams
 bool
 TrexVmSplitter::split_internal() {
 
+    /* no split needed ? fall back */
+    if (!m_stream->m_vm.need_split()) {
+        return false;
+    }
+
     duplicate_vm();
 
     /* search for splitable instructions */

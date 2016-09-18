@@ -13,8 +13,8 @@ class STLMultiCore(object):
 
     def create_stream (self, size, pps, isg, vm ):
         # Create base packet and pad it to size
-        base_pkt = Ether()/IP()/UDP()
-        pad = max(0, size - len(base_pkt)) * 'x'
+        base_pkt = Ether()/IP()/UDP(sport = 1500, dport = 1500)
+        pad = max(0, size - len(base_pkt)) * b'\xff'
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,
                             vm = vm)
@@ -24,46 +24,89 @@ class STLMultiCore(object):
                          mode = STLTXCont(pps = pps))
 
 
-    def generate_var (self, rng, i):
+    def generate_var (self, rng, i, vm, pkt_offset):
 
-        d = {'name': str(i)}
+        name = "var-{0}".format(i)
 
-        d['size']  = rng.choice([1, 2, 4])
-        max_val = (1 << d['size'] * 8)
+        size  = rng.choice([1, 2, 4])
+        bound = (1 << (size * 8)) - 1
 
-        d['start'] = rng.randint(0, max_val - 1)
-        d['end']   = rng.randint(d['start'], max_val)
-        d['step']  = rng.randint(1, 1000)
-        d['op']    = rng.choice(['inc', 'dec'])
+        min_value = rng.randint(0, bound - 1)
+        max_value = rng.randint(min_value, bound)
+        step      = rng.randint(1, 1000)
+        op        = rng.choice(['inc', 'dec'])
         
-        return d
+        vm += [STLVmFlowVar(name      = str(i),
+                            min_value = min_value,
+                            max_value = max_value,
+                            size      = size,
+                            op        = op),
+               STLVmWrFlowVar(fv_name = name, pkt_offset = pkt_offset),
+               ]
 
-    def dump_var (self, var):
-        return 'name: {:}, start: {:}, end: {:}, size: {:}, op: {:}, step {:}'.format(var['name'], var['start'], var['end'], var['size'], var['op'], var['step'])
+        print('name: {:}, start: {:}, end: {:}, size: {:}, op: {:}, step {:}'.format(name,
+                                                                                     min_value,
+                                                                                     max_value,
+                                                                                     size,
+                                                                                     op,
+                                                                                     step))
+
+        return size
+
+
+    def generate_tuple_var (self, rng, i, vm, pkt_offset):
+        name = "tuple-{0}".format(i)
+
+        # ip
+        ip_bound = (1 << (4 * 8)) - 1
+        ip_min = rng.randint(0, ip_bound - 1)
+        ip_max = rng.randint(ip_min, ip_bound)
+
+        # port
+        port_bound = (1 << (2 * 8)) - 1
+        port_min = rng.randint(0, port_bound - 1)
+        port_max = rng.randint(port_min, port_bound - 1)
+
+        vm += [STLVmTupleGen(ip_min = ip_min, ip_max = ip_max, 
+                             port_min = port_min, port_max = port_max,
+                             name = name),
+               STLVmWrFlowVar (fv_name = name + ".ip", pkt_offset = pkt_offset ), # write ip to packet IP.src]
+               STLVmWrFlowVar (fv_name = name + ".port", pkt_offset = (pkt_offset + 4) ),
+               ]
+
+        print('name: {:}, ip_start: {:}, ip_end: {:}, port_start: {:}, port_end: {:}'.format(name,
+                                                                                             ip_min,
+                                                                                             ip_max,
+                                                                                             port_min,
+                                                                                             port_max))
+
+        return 8
+        
+
 
 
     def get_streams (self, direction = 0, **kwargs):
       
         rng = random.Random(kwargs.get('seed', 1))
 
+        var_type = kwargs.get('var_type', 'plain')
+
+
+        var_type = 'tuple'
+        vm = []
         # base offset
         pkt_offset = 42
-        vm = []
         print("\nusing the following vars:\n")
-        for i in range(10):
-            var = self.generate_var(rng, i)
-            print("at offset {:} - var: {:}".format(pkt_offset, self.dump_var(var)))
-            vm += [STLVmFlowVar(name      = var['name'],
-                                min_value = var['start'],
-                                max_value = var['end'],
-                                size      = var['size'],
-                                op        = var['op']),
-                    STLVmWrFlowVar(fv_name = var['name'], pkt_offset = pkt_offset),
-                   ]
-            pkt_offset += var['size']
+
+        if var_type == 'plain':
+            for i in range(20):
+                pkt_offset += self.generate_var(rng, i, vm, pkt_offset)
+        else:
+            for i in range(5):
+                pkt_offset += self.generate_tuple_var(rng, i, vm, pkt_offset)
 
 
- 
+
 
         print("\n")
         # create imix streams

@@ -430,16 +430,6 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
         }
     }
 
-    const std::string &var_name = parse_string(vm, "split_by_var", result);
-    if (var_name != "") {
-        StreamVmInstructionVar *instr = stream->m_vm.lookup_var_by_name(var_name);
-        if (!instr) {
-            std::stringstream ss;
-            ss << "VM: request to split by variable '" << var_name << "' but does not exists";
-            generate_parse_err(result, ss.str());
-        }
-        stream->m_vm.set_split_instruction(instr);
-    }
     stream->m_cache_size      = parse_uint16(vm, "cache", result,0); /* default is zero */
 
 }

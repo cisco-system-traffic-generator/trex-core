@@ -30,6 +30,17 @@ limitations under the License.
 #include "pal_utl.h"
 #include "mbuf.h"
 
+class StreamVmInstructionFlowClient;
+
+/**
+ * two functions ahead are used by both control plane and 
+ * dataplane to allow fast inc/dec and handle overflow 
+ *  
+ * a - low bound 
+ * b - high bound 
+ * c - current value 
+ * step - how many to advance / go back 
+ */
 static inline 
 uint64_t inc_mod(uint64_t a, uint64_t b, uint64_t c, uint64_t step) {
     /* check if we have enough left for simple inc */
@@ -48,6 +59,36 @@ uint64_t dec_mod(uint64_t a, uint64_t b, uint64_t c, uint64_t step) {
     if (step <= left) {
         return (c - step);
     } else {
+        return (b - (step - left - 1)); // restart consumes also 1
+    }
+}
+
+/**
+ * a slower set of functions that indicate an overflow
+ * 
+ */
+static inline 
+uint64_t inc_mod_of(uint64_t a, uint64_t b, uint64_t c, uint64_t step, bool &of) {
+    /* check if we have enough left for simple inc */
+    uint64_t left = b - c;
+    if (step <= left) {
+        of = false;
+        return (c + step);
+    } else {
+        of = true;
+        return (a + (step - left - 1)); // restart consumes also 1
+    }
+}
+
+static inline 
+uint64_t dec_mod_of(uint64_t a, uint64_t b, uint64_t c, uint64_t step, bool &of) {
+    /* check if we have enough left for simple dec */
+    uint64_t left = c - a;
+    if (step <= left) {
+        of = false;
+        return (c - step);
+    } else {
+        of = true;
         return (b - (step - left - 1)); // restart consumes also 1
     }
 }
@@ -571,26 +612,34 @@ struct StreamDPOpClientsLimit {
     uint8_t m_flow_offset; /* offset into the flow var  bytes */
     uint8_t m_flags;
     uint8_t m_pad;
+
     uint16_t    m_min_port;
     uint16_t    m_max_port;
+    uint16_t    m_port_step;
 
     uint32_t    m_min_ip;
     uint32_t    m_max_ip;
+    uint32_t    m_ip_step;
+
     uint32_t    m_limit_flows; /* limit the number of flows */
 
 public:
     void dump(FILE *fd,std::string opt);
     inline void run(uint8_t * flow_var_base) {
-        StreamDPFlowClient * lp= (StreamDPFlowClient *)(flow_var_base+m_flow_offset);
-        lp->cur_ip++;
-        if (lp->cur_ip > m_max_ip ) {
-            lp->cur_ip= m_min_ip;
-            lp->cur_port++;
-            if (lp->cur_port > m_max_port) {
-                lp->cur_port = m_min_port;
-            }
+        bool of;
+
+        StreamDPFlowClient *lp = (StreamDPFlowClient *)(flow_var_base + m_flow_offset);
+
+        /* first advance the outer var (IP) */
+        lp->cur_ip = inc_mod_of(m_min_ip, m_max_ip, lp->cur_ip, m_ip_step, of);
+
+        /* if we had an overflow - advance the port */
+        if (of) {
+            lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, m_port_step);
         }
 
+        /* TODO: handle limit */
+        #if 0
         if (m_limit_flows) {
             lp->cur_flow_id++;
             if ( lp->cur_flow_id > m_limit_flows ){
@@ -600,6 +649,7 @@ public:
                 lp->cur_port    =  m_min_port;
             }
         }
+        #endif
     }
 
 
@@ -937,6 +987,11 @@ public:
     
     virtual StreamVmInstruction * clone() = 0;
 
+    /* by default a regular instruction is not splitable for multicore */
+    virtual bool need_split() const {
+        return false;
+    }
+
     bool is_var_instruction() const {
         instruction_type_t type = get_instruction_type();
         return ( (type == itFLOW_MAN) || (type == itFLOW_CLIENT) );
@@ -968,37 +1023,19 @@ public:
         return m_var_name;
     }
 
-    virtual bool need_split() const = 0;
-
     /**
      * what is the split range for this var
      * 
      */
-    virtual uint64_t get_range() const = 0;
+    //virtual uint64_t get_range() const = 0;
 
     /**
      * allows a var instruction to be updated 
      * for multicore (split) 
      * 
      */
-    virtual void update(uint64_t phase, uint64_t step_multiplier) = 0;
+    virtual void update(uint64_t phase, uint64_t step_mul) = 0;
 
-    uint64_t peek_next(uint64_t skip = 1) const {
-        return peek(skip, true);
-    }
-
-    uint64_t peek_prev(uint64_t skip = 1) const {
-        return peek(skip, false);
-    }
-
-
-protected:
-    /**
-     * a var instruction should be able to peek back/forward with 
-     * any number of steps in the series 
-     * 
-     */
-    virtual uint64_t peek(int skip = 1, bool forward = true) const = 0;
 
 public:
     
@@ -1036,6 +1073,8 @@ public:
  * @author imarom (07-Sep-15)
  */
 class StreamVmInstructionFlowMan : public StreamVmInstructionVar {
+
+    friend class StreamVmInstructionFlowClient;
 
 public:
 
@@ -1095,16 +1134,30 @@ public:
         assert(m_init_value <= m_max_value);
     }
 
-    virtual void update(uint64_t phase, uint64_t step_multiplier) {
+    virtual void update(uint64_t phase, uint64_t step_mul) {
+
         /* update the init value to be with a phase */
         m_init_value = peek_next(phase);
-        m_step = (m_step * step_multiplier) % get_range();
+
+        /* multiply the step */
+        m_step = (m_step * step_mul) % get_range();
 
         assert(m_init_value >= m_min_value);
         assert(m_init_value <= m_max_value);
     }
 
-   
+
+    uint64_t peek_next(uint64_t skip = 1) const {
+        bool dummy;
+        return peek(skip, true, dummy);
+    }
+
+    uint64_t peek_prev(uint64_t skip = 1) const {
+        bool dummy;
+        return peek(skip, false, dummy);
+    }
+
+
     virtual void Dump(FILE *fd);
 
     void sanity_check(uint32_t ins_id,StreamVm *lp);
@@ -1123,7 +1176,7 @@ public:
 protected:
 
     /* fetch the next value in the variable (used for core phase and etc.) */
-    virtual uint64_t peek(int skip = 1, bool forward = true) const {
+    uint64_t peek(int skip, bool forward, bool &of) const {
 
         if (m_op == FLOW_VAR_OP_RANDOM) {
             return m_init_value;
@@ -1135,9 +1188,9 @@ protected:
         uint64_t next_step = (m_step * skip) % get_range();
 
         if (add) {
-            return inc_mod(m_min_value, m_max_value, m_init_value, next_step);
+            return inc_mod_of(m_min_value, m_max_value, m_init_value, next_step, of);
         } else {
-            return dec_mod(m_min_value, m_max_value, m_init_value, next_step);
+            return dec_mod_of(m_min_value, m_max_value, m_init_value, next_step, of);
         }
     }
 
@@ -1320,22 +1373,26 @@ public:
     }
 
     StreamVmInstructionFlowClient(const std::string &var_name,
-                               uint32_t client_min_value,
-                               uint32_t client_max_value,
-                               uint16_t port_min,
-                               uint16_t port_max,
-                               uint32_t limit_num_flows, /* zero means don't limit */
-                               uint16_t flags
-                               ) : StreamVmInstructionVar(var_name) { 
-
-        m_client_min = client_min_value;
-        m_client_max = client_max_value;
-
-        m_port_min   = port_min;
-        m_port_max   = port_max;
+                                  uint32_t client_min_value,
+                                  uint32_t client_max_value,
+                                  uint16_t port_min,
+                                  uint16_t port_max,
+                                  uint32_t limit_num_flows, /* zero means don't limit */
+                                  uint16_t flags
+                               ) : StreamVmInstructionVar(var_name),
+                                   m_ip("ip", 4, StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, client_min_value, client_min_value, client_max_value, 1),
+                                   m_port("port", 2, StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, port_min, port_min, port_max, 1) { 
 
         m_limit_num_flows = limit_num_flows;
         m_flags = flags;
+
+    }
+
+    StreamVmInstructionFlowClient(const StreamVmInstructionFlowClient &other) :StreamVmInstructionVar(other.m_var_name),
+                                                                               m_ip(other.m_ip),
+                                                                               m_port(other.m_port) {
+        m_limit_num_flows = other.m_limit_num_flows;
+        m_flags = other.m_flags;
     }
 
     virtual void Dump(FILE *fd);
@@ -1345,11 +1402,11 @@ public:
     }
 
     uint32_t get_ip_range() const {
-        return (m_client_max - m_client_min + 1);
+        return m_ip.get_range();
     }
 
     uint16_t get_port_range() const {
-        return (m_port_max - m_port_min + 1);
+        return m_port.get_range();
     }
 
     virtual uint64_t get_range() const {
@@ -1365,33 +1422,64 @@ public:
                   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );
     }
 
-    virtual StreamVmInstruction * clone() {
-        return new StreamVmInstructionFlowClient(m_var_name,
-                                                 m_client_min,
-                                                 m_client_max,
-                                                 m_port_min,
-                                                 m_port_max,
-                                                 m_limit_num_flows,
-                                                 m_flags);
+    void get_bss_init_value(uint32_t &ip, uint16_t &port) {
+        /* fetch the previous values by 1 */
+        peek_prev(ip, port, 1);
     }
 
-    virtual void update(uint64_t phase, uint64_t step_multiplier) {
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFlowClient(*this);
+    }
+
+    virtual void update(uint64_t phase, uint64_t step_mul) {
+
+        /* update outer var */
+        m_ip.update(phase, step_mul);
+
+        /* inner var should advance as the whole wrap arounds */
+        uint16_t port_phase     =  phase / m_ip.get_range();
+        uint16_t port_step_mul  =  1 + (step_mul / m_ip.get_range());
+
+        m_port.update(port_phase, port_step_mul);
+        
     }
 
 
 protected:
-    virtual uint64_t peek(int skip = 1, bool forward = true) const {
-        return (0);
+
+    void peek_prev(uint32_t &next_ip, uint16_t &next_port, int skip = 1) {
+        peek(next_ip, next_port, skip, false);
+    }
+
+    void peek_next(uint32_t &next_ip, uint16_t &next_port, int skip = 1) {
+        peek(next_ip, next_port, skip, true);
+    }
+
+    /**
+     * defines a froward/backward method
+     * 
+     */
+    void peek(uint32_t &next_ip, uint16_t &next_port, int skip = 1, bool forward = true) const {
+        bool of = false;
+
+        next_ip = m_ip.peek(skip, forward, of);
+
+        int port_skip = skip / m_ip.get_range();
+        if (of) {
+            port_skip++;
+        }
+
+        next_port = m_port.peek(port_skip, forward, of);
+
     }
 
 public:
 
-    uint32_t m_client_min;  // min ip 
-    uint32_t m_client_max;  // max ip 
-    uint16_t m_port_min;  // start port 
-    uint16_t m_port_max;  // start port 
-    uint32_t m_limit_num_flows;   // number of flows
-    uint16_t m_flags;
+    StreamVmInstructionFlowMan   m_ip;
+    StreamVmInstructionFlowMan   m_port;
+
+    uint32_t  m_limit_num_flows;   // number of flows
+    uint16_t  m_flags;
 };
 
 
@@ -1648,10 +1736,10 @@ public:
         m_expected_pkt_size=0.0;
         m_cur_var_offset=0;
 
-        m_is_random_var=false;
-        m_is_change_pkt_size=false;
+        m_is_random_var      = false;
+        m_is_change_pkt_size = false;
+        m_is_split_needed      = false;
 
-        m_split_instr=NULL;
         m_is_compiled = false;
         m_pkt=0;
     }
@@ -1665,13 +1753,6 @@ public:
      */
     double calc_expected_pkt_size(uint16_t regular_pkt_size) const;
 
-
-
-    void set_split_instruction(StreamVmInstructionVar *instr);
-
-    StreamVmInstructionVar * get_split_instruction() {
-        return m_split_instr;
-    }
 
     StreamVmDp * generate_dp_object(){
 
@@ -1702,6 +1783,14 @@ public:
     
     bool is_vm_empty() const {
         return (m_inst_list.size() == 0);
+    }
+
+    /**
+     * return true if the VM is splitable
+     * for multicore
+     */
+    bool need_split() const {
+        return m_is_split_needed;
     }
 
     /**
@@ -1800,6 +1889,7 @@ private:
 private:
     bool                               m_is_random_var;
     bool                               m_is_change_pkt_size;
+    bool                               m_is_split_needed;
     bool                               m_is_compiled;
     uint16_t                           m_prefix_size;
 
@@ -1815,7 +1905,6 @@ private:
 
     StreamDPVmInstructions             m_instructions;
     
-    StreamVmInstructionVar             *m_split_instr;
     uint8_t                            *m_pkt;
 
     
