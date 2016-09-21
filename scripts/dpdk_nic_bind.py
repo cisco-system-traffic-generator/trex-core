@@ -346,7 +346,7 @@ def get_igb_uio_usage():
 def get_pid_using_pci(pci_list):
     if not isinstance(pci_list, list):
         pci_list = [pci_list]
-    pci_list = map(dev_id_from_dev_name, pci_list)
+    pci_list = list(map(dev_id_from_dev_name, pci_list))
     for pid in os.listdir('/proc'):
         try:
             int(pid)
@@ -587,9 +587,9 @@ def get_info_from_trex(pci_addr_list):
     stdout, _ = proc.communicate()
     if proc.returncode:
         if 'PANIC in rte_eal_init' in stdout:
-            print("Could not run TRex to get MAC info about interfaces, check if it's already running.")
+            print("Could not run TRex to get info about interfaces, check if it's already running.")
         else:
-            print('Error upon running TRex to get MAC info:\n%s' % stdout)
+            print('Error upon running TRex to get interfaces info:\n%s' % stdout)
         sys.exit(1)
     pci_mac_str = 'PCI: (\S+).+?MAC: (\S+).+?Driver: (\S+)'
     pci_mac_re = re.compile(pci_mac_str)

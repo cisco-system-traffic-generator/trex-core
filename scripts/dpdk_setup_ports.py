@@ -332,7 +332,7 @@ Other network devices
         if if_list and map_driver.args.parent and dpdk_nic_bind.get_igb_uio_usage():
             pid = dpdk_nic_bind.get_pid_using_pci(if_list)
             cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-            print('Some or all of given interfaces are in use by following process:\n%s' % cmdline)
+            print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
             if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
                 sys.exit(1)
 
@@ -351,7 +351,7 @@ Other network devices
             pid = dpdk_nic_bind.get_pid_using_pci(dpdk_interfaces)
             if pid:
                 cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-                print('DPDK interfaces are in use. Unbinding them might cause following process to hang:\n%s' % cmdline)
+                print('DPDK interfaces are in use. Unbinding them might cause following process to hang:\npid: %s, cmd: %s' % (pid, cmdline))
                 if not dpdk_nic_bind.confirm('Confirm (y/N):'):
                     return
         drivers_table = {
