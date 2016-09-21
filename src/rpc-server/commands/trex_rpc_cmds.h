@@ -114,6 +114,7 @@ void parse_vm_instr_trim_pkt_size(const Json::Value &inst, std::unique_ptr<TrexS
 void parse_rate(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_write_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_write_mask_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
+void handle_range_padding(uint64_t &max_value, uint64_t &min_value, uint64_t step, int op, Json::Value &result);
 
 );
 

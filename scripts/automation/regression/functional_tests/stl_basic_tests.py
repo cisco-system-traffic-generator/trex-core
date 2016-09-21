@@ -253,12 +253,12 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_3pkt_pcap.py","-m 1 -l 10",True, False],
              #["udp_1pkt_simple.py","-m 1 -l 3",True],
              ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True, False],
-             ["udp_1pkt_tuple_gen_split.py","-m 1 -c 2 -l 100",True],
-             ["udp_1pkt_range_clients_split.py","-m 1 -c 2 -l 100",True],
-             ["udp_1pkt_vxlan.py","-m 1 -c 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
-             ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -c 1 -l 17",True],
-             ["yaml/imix_3pkt.yaml","-m 50kpps --limit 20 --cores 2",True],
-             ["yaml/imix_3pkt_vm.yaml","-m 50kpps --limit 20 --cores 2",True],
+             ["udp_1pkt_tuple_gen_split.py","-m 1 -l 100",True],
+             ["udp_1pkt_range_clients_split.py","-m 1 -l 100",True],
+             ["udp_1pkt_vxlan.py","-m 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
+             ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -l 17",True],
+             ["yaml/imix_3pkt.yaml","-m 50kpps --limit 20",True],
+             ["yaml/imix_3pkt_vm.yaml","-m 50kpps --limit 20",True],
              ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True],
@@ -271,12 +271,11 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True, False],
              ["udp_1pkt_mac_mask5.py","-m 1 -l 30 ",True],
              ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 50",True],
-             ["udp_1pkt_src_ip_split.py","-m 1 -l 50 --cores 2",True],
+             ["udp_1pkt_src_ip_split.py","-m 1 -l 50",True],
              ["udp_1pkt_repeat_random.py","-m 1 -l 50",True],
           ];
 
         p1 = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ];
-
 
         for obj in p:
             try:
@@ -337,13 +336,29 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def test_multicore_scheduling (self):
-        mc_tests = ['stl/tests/single_cont.py',
+        
+        seed = time.time()
+
+        # test with simple vars
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core --limit=840 -t test_type=plain#seed={0} -m 27kpps'.format(seed), silent = True)
+        assert_equal(rc, True)
+
+
+        # test with tuple
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core --limit=840 -t test_type=tuple#seed={0} -m 27kpps'.format(seed), silent = True)
+        assert_equal(rc, True)
+
+        # some tests
+        mc_tests = [
+                    'stl/tests/single_cont.py',
                     'stl/tests/single_burst.py',
                     'stl/tests/multi_burst.py',
-                    'stl/tests/many_streams.py',
                    ]
 
         for mc_test in mc_tests:
-            rc = self.run_sim(mc_test, output = None, options = '--test_multi_core --limit=3840 -m 27kpps', silent = True)
+            rc = self.run_sim(mc_test, output = None, options = '--test_multi_core --limit=840 -m 27kpps', silent = True)
             assert_equal(rc, True)
+
+        return
+
 

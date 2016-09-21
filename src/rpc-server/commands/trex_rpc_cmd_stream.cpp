@@ -252,6 +252,51 @@ TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std:
 }
 
 
+/**
+ * if a user specify min_value and max_value with a step 
+ * that does not create a full cycle - pad the values to allow 
+ * a true cycle 
+ * 
+ */
+void
+TrexRpcCmdAddStream::handle_range_padding(uint64_t &max_value,
+                                          uint64_t &min_value,
+                                          uint64_t step,
+                                          int op,
+                                          Json::Value &result) {
+
+    /* pad for the step */
+    uint64_t pad = (max_value - min_value + 1) % step; 
+    if (pad == 0) {
+        return;
+    }
+
+    /* the leftover rounded up */
+    uint64_t step_pad = step - pad;
+
+    switch (op) {
+    case StreamVmInstructionFlowMan::FLOW_VAR_OP_INC:
+
+        if ( (UINT64_MAX - max_value) < step_pad ) {
+            generate_parse_err(result, "VM: could not pad range to be a true cycle - '(max_value - min_value + 1) % step' should be zero");
+        }
+        max_value += step_pad;
+
+        break;
+
+    case StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC:
+        if ( min_value < step_pad ) {
+            generate_parse_err(result, "VM: could not pad range to be a true cycle - '(max_value - min_value + 1) % step' should be zero");
+        }
+        min_value -= step_pad;
+
+        break;
+
+    default:
+        break;
+    }
+}
+
 void 
 TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size, 
                                    uint64_t init_value,

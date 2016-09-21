@@ -24,7 +24,7 @@ class STLMultiCore(object):
                          mode = STLTXCont(pps = pps))
 
 
-    def generate_var (self, rng, i, vm, pkt_offset):
+    def generate_var (self, rng, i, vm, pkt_offset, verbose = False):
 
         name = "var-{0}".format(i)
 
@@ -36,7 +36,7 @@ class STLMultiCore(object):
         step      = rng.randint(1, 1000)
         op        = rng.choice(['inc', 'dec'])
         
-        vm += [STLVmFlowVar(name      = str(i),
+        vm += [STLVmFlowVar(name      = name,
                             min_value = min_value,
                             max_value = max_value,
                             size      = size,
@@ -44,17 +44,18 @@ class STLMultiCore(object):
                STLVmWrFlowVar(fv_name = name, pkt_offset = pkt_offset),
                ]
 
-        print('name: {:}, start: {:}, end: {:}, size: {:}, op: {:}, step {:}'.format(name,
-                                                                                     min_value,
-                                                                                     max_value,
-                                                                                     size,
-                                                                                     op,
-                                                                                     step))
+        if verbose:
+            print('name: {:}, start: {:}, end: {:}, size: {:}, op: {:}, step {:}'.format(name,
+                                                                                         min_value,
+                                                                                         max_value,
+                                                                                         size,
+                                                                                         op,
+                                                                                         step))
 
         return size
 
 
-    def generate_tuple_var (self, rng, i, vm, pkt_offset):
+    def generate_tuple_var (self, rng, i, vm, pkt_offset, verbose = False):
         name = "tuple-{0}".format(i)
 
         # ip
@@ -74,11 +75,12 @@ class STLMultiCore(object):
                STLVmWrFlowVar (fv_name = name + ".port", pkt_offset = (pkt_offset + 4) ),
                ]
 
-        print('name: {:}, ip_start: {:}, ip_end: {:}, port_start: {:}, port_end: {:}'.format(name,
-                                                                                             ip_min,
-                                                                                             ip_max,
-                                                                                             port_min,
-                                                                                             port_max))
+        if verbose:
+            print('name: {:}, ip_start: {:}, ip_end: {:}, port_start: {:}, port_end: {:}'.format(name,
+                                                                                                 ip_min,
+                                                                                                 ip_max,
+                                                                                                 port_min,
+                                                                                                 port_max))
 
         return 8
         
@@ -88,27 +90,23 @@ class STLMultiCore(object):
     def get_streams (self, direction = 0, **kwargs):
       
         rng = random.Random(kwargs.get('seed', 1))
+        test_type = kwargs.get('test_type', 'plain')
 
-        var_type = kwargs.get('var_type', 'plain')
-
-
-        var_type = 'tuple'
-        vm = []
         # base offset
         pkt_offset = 42
-        print("\nusing the following vars:\n")
 
-        if var_type == 'plain':
+        vm = []
+
+        if test_type == 'plain':
             for i in range(20):
                 pkt_offset += self.generate_var(rng, i, vm, pkt_offset)
-        else:
+        elif test_type == 'tuple':
             for i in range(5):
                 pkt_offset += self.generate_tuple_var(rng, i, vm, pkt_offset)
+        else:
+            raise STLError('unknown mutli core test type')
 
 
-
-
-        print("\n")
         # create imix streams
         return [self.create_stream(x['size'], x['pps'],x['isg'] , vm) for x in self.streams_def]
 

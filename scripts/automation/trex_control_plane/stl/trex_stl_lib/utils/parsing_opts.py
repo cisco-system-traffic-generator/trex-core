@@ -213,17 +213,23 @@ def is_valid_file(filename):
     return filename
 
 
-def decode_tunables_to_dict (**kwargs):
-    return kwargs
 
 def decode_tunables (tunable_str):
-    try:
-        tunables = [eval('decode_tunables_to_dict({0})'.format(t)) for t in tunable_str.split('#')]
+    tunables = {}
 
-    except (SyntaxError, NameError):
-        raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(tunable_str))
+    # split by diaz to tokens
+    tokens = tunable_str.split('#')
+
+    # each token is of form X=Y
+    for token in tokens:
+        print(token)
+        m = re.search('(.*)=(.*)', token)
+        if not m:
+            raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(token))
+        tunables[m.group(1)] = m.group(2)
 
     return tunables
+
 
 
 OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],

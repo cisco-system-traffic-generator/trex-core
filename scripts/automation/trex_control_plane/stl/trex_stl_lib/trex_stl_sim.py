@@ -111,8 +111,6 @@ class STLSim(object):
         # handle YAMLs
         if tunables == None:
             tunables = {}
-        else:
-            tunables = tunables[0]
 
         for input_file in input_files:
             try:
@@ -556,7 +554,7 @@ def test_multi_core (r, options):
               duration = options.duration,
               mode = 'none',
               silent = True,
-              tunables = [{'seed': 5}])
+              tunables = options.tunables)
 
     print("")
 
