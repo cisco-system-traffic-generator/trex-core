@@ -48,7 +48,7 @@ TRex is fast realistic open source traffic generation tool, running on standard 
 
 [NOTE]
 =====================================
-Features terminating TCP can't be tested yet.
+Features terminating TCP can not be tested yet.
 =====================================
 
 ==== Who uses TRex?
@@ -57,8 +57,8 @@ Cisco systems, Intel, Imperva, Melanox, Vasona networks and much more.
 
 ==== What are the Stateful and Stateless modes of operation?
 
-'Stateful' mode is meant for testing networking gear which save state per flow (5 tuple). Usually, this is done by injecting pre recorded cap files on pairs of interfaces of the device under test, changing src/dst IP/port. 
-'Stateless' mode is meant to test networking gear, not saving state per flow (doing the decision on per packet bases). This is usually done by injecting customed packet streams to the device under test.
+``Stateful'' mode is meant for testing networking gear which save state per flow (5 tuple). Usually, this is done by injecting pre recorded cap files on pairs of interfaces of the device under test, changing src/dst IP/port. 
+``Stateless'' mode is meant to test networking gear, not saving state per flow (doing the decision on per packet bases). This is usually done by injecting customed packet streams to the device under test.
 See link:trex_stateless.html#_stateful_vs_stateless[here] for more details.
 
 ==== Can TRex run on an hypervisor with virtual NICS?
@@ -74,7 +74,7 @@ Limitations:
           
 ==== Why not all DPDK supported NICs supported by TRex?
 1. We are using specific NIC features. Not all the NICs have the capabilities we need.
-2. We have regression tests in our lab for each recommended NIC. We don't claim to support NICs we don't have in our lab.
+2. We have regression tests in our lab for each recommended NIC. We do not claim to support NICs we do not have in our lab.
 
 ==== Is Cisco VIC supported?
 No. Currently its DPDK driver does not support the capabilities needed to run TRex.
@@ -127,7 +127,7 @@ You have several ways you can help: +
 
 ==== What is the release process? How do I know when a new release is available?
 It is a continuous integration. The latest internal version is under 24/7 regression on few setups in our lab. Once we have enough content we release it to GitHub (Usually every few weeks).
-We don't send an email for every new release, as it could be too frequent for some people. We announce big feature releases on the mailing list. You can always check the GitHub of course.
+We do not send an email for every new release, as it could be too frequent for some people. We announce big feature releases on the mailing list. You can always check the GitHub of course.
 
 ===  Startup and Installation
 
@@ -197,7 +197,7 @@ Then, you can find some basic examples link:trex_manual.html#_trex_command_line[
 ==== TRex is connected to a switch and we observe many dropped packets at TRex startup.
 A switch might be configured with spanning tree enabled. TRex initializes the port at startup, making the spanning tree drop the packets. 
 Disabling spanning tree can help. On Cisco nexus, you can do that using `spanning-tree port type edge`
-This issue would be fixed when we consolidate 'Stateful' and 'Stateless' RPC.
+This issue would be fixed when we consolidate ``Stateful'' and ``Stateless'' RPC.
 
 ==== I can not see RX packets
 TRex does not support ARP yet, you should configure the DUT to send the packets to the TRex port MAC address. From Stateless mode, you can change the port mode to promiscuous. +
@@ -254,12 +254,12 @@ This example support 10M flows
 <1> 10M flows
 
 
-==== ERROR The number of ips should be at least number of threads 
+==== I am getting and error: The number of ips should be at least number of threads 
 The range of clients and servers should be at least the number of threads. 
-The number of threads is equal (dual_ports) * (-c value)
+The number of threads is equal to (number of port pairs) * (-c value)
 
-==== Incoming frames are from type SCTP why?
-Default latency packets are SCTP, you can remove `-l 1000` or change it to ICMP see manual for more info 
+==== Incoming frames are of type SCTP. Why?
+Default latency packets are SCTP, you can remove `-l 1000` or change it to ICMP see manual for more info.
  
 ==== Is there a configuration guide to Linux as a router (static ARP)?
 have a look link:https://groups.google.com/forum/#!topic/trex-tgn/YQcQtA8A8hA[linux as a router]
@@ -299,18 +299,18 @@ OSError: /lib64/libc.so.6: version `GLIBC_2.14' not found (required by /home/shi
 
 Yes. Multiple TRex clients can connect to the same TRex server.
 
-==== Can I create a corrupted packets?
+==== Can I create corrupted packets?
 
 Yes. You can build any packet you like using Scapy. 
 However, there is no way to create corrupted L1 fields (Like Ethernet FCS), since these are usually handled by the NIC hardware.
 
-==== Why the performance is low?
+==== Why is the performance low?
 What would reduce the performance: 
 
 1. Many concurent streams.
 2. Complex field engine program.
 
-Adding 'cache' directive can improve the performance. See link:trex_stateless.html#_tutorial_field_engine_significantly_improve_performance[here]
+Adding ``cache'' directive can improve the performance. See link:trex_stateless.html#_tutorial_field_engine_significantly_improve_performance[here]
 
 and try this:
 
@@ -343,7 +343,7 @@ $start -f stl/udp_1pkt_src_ip_split.py -m 100%
 
 See example link:trex_stateless.html#_tutorial_field_engine_many_clients_with_arp[here]
 
-==== How do I create a deterministic random stream variable
+==== How do I create deterministic random stream variable?
 
 use `random_seed` per stream   
 
@@ -356,29 +356,12 @@ use `random_seed` per stream
 
 ==== Can I have a synconization betwean different stream variables?
 
-No. each stream has it own, seperate field engine program 
+No. each stream has its own, seperate field engine program.
 
 
 ==== Is there a plan to have LUAJit as a field engine program?
 
 It is a great idea to add it, we are looking for someone to contribute this support.
-
-
-==== Streams with latency enabled do not get amplified by multiplier, why?
-
-Reason for this (besides being a CPU constrained feature) is that most of the time, the use case is that you load the DUT using some traffic streams, and check latency
-using different streams. The latency stream is kind of 'testing probe' which you want to keep at constant rate, while playing with the rate of your other (loading) streams.
-So, you can use the multiplier to amplify your main traffic, without changing your 'testing probe'.
-If you do want to amplify latency streams, you can do this using 'tunables'.
-You can add in the Python profile a 'tunable' which will specify the latency stream rate and you can provide it to the 'start' command in the console or in the API.
-Tunables can be added through the console using 'start ... -t latency_rate=XXXXX'
-or using the Python API directly (for automation):
-STLProfile.load_py(..., latency_rate = XXXXX)
-You can see example for defining and using tunables link:trex_stateless.html#_tutorial_advanced_traffic_profile[here].
-
-==== Latency and statistic per stream is not supported for all types of packets.
-
-Correct. We use NIC capabilities for counting the packets or directing them to be handled by software. Each NIC has its own capabilities. Look link:trex_stateless.html#_tutorial_per_stream_statistics[here] and link:/trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[here] for details.
 
 ==== Java API instead of Python API 
 
@@ -409,12 +392,16 @@ link:https://gerrit.fd.io/r/gitweb?p=csit.git;a=tree;f=resources;hb=HEAD[here]
 
 
 ==== Are you recommending TRex HLTAPI ?
-TRex has minimal and basic support for HLTAPI. For simple use cases (without latency and per stream statistic) it probably will work. For advance use cases there is no replacement for native API that has full control and in some cases it is more simple/implicit to use.
+TRex has minimal and basic support for HLTAPI. For simple use cases (without latency and per stream statistic) it will probably work. For advanced use cases, there is no replacement for native API that has full control and in most cases is simpler to use.
 
 ==== Can I test Qos using TRex ?
-Yes. using Field Engine you can build streams with different TOS and get statistic/latency/jitter per stream
+Yes. Using Field Engine you can build streams with different TOS and get statistic/latency/jitter per stream
 
-==== Does latency stream support full line rate?
+==== What are the supported routing protocols TRex can emulate?
+For now, none. You can connect your router to a switch with TRex and a machine running routem. Then, inject routes using routem, and other traffic using TRex.
+
+==== Latency and per stream statistics
+===== Does latency stream support full line rate?
 No. latency streams are handled by rx software and there is only one core to handle the traffic. 
 To workaround this you could create one stream in lower speed for latency (e.g. PPS=1K) and another one of the same type without latency. The latency stream will sample the DUT queues. For example, if the required latency resolution is 10usec there is no need to send a latency stream in speed higher than 100KPPS- usually queues are built over time, so it is not possible that one packet will have a latency and another packet in the same path will not have the same latency. The none latency stream could be in full line rate (e.g. 100MPPS) 
 
@@ -434,8 +421,12 @@ To workaround this you could create one stream in lower speed for latency (e.g. 
 <2> latency stream, the speed would be constant 1KPPS
 
 
-==== Why Latency stream has a constant rate of 1PPS?
-When you have the following example 
+===== Latency stream has constant rate of 1PPS, and is not getting amplified by multiplier. Why?
+Reason for this (besides being a CPU constrained feature) is that most of the time, the use case is that you load the DUT using some traffic streams, and check latency
+using different streams. The latency stream is kind of ``testing probe'' which you want to keep at constant rate, while playing with the rate of your other (loading) streams.
+So, you can use the multiplier to amplify your main traffic, without changing your ``testing probe''.
+
+When you have the following example:
 
 [source,Python]
 --------
@@ -452,10 +443,21 @@ When you have the following example
 <2> latency stream 
  
 
-and you give to start API a multiplier of 10KPPS the latency stream (#2) will keep the rate of 1000 PPS and won't be amplified. 
+If you speicify a multiplier of 10KPPS in start API, the latency stream (#2) will keep the rate of 1000 PPS and will not be amplified.
+
+If you do want to amplify latency streams, you can do this using ``tunables''.
+You can add in the Python profile a ``tunable'' which will specify the latency stream rate and you can provide it to the ``start'' command in the console or in the API.
+Tunables can be added through the console using ``start ... -t latency_rate=XXXXX''
+or using the Python API directly (for automation):
+STLProfile.load_py(..., latency_rate = XXXXX)
+You can see example for defining and using tunables link:trex_stateless.html#_tutorial_advanced_traffic_profile[here].
 
 
-==== What are the supported routing protocols ?
-For now non. beacuse there is no tighe 
+===== Latency and per stream statistics are not supported for all packet types.
+
+Correct. We use NIC capabilities for counting the packets or directing them to be handled by software. Each NIC has its own capabilities. Look link:trex_stateless.html#_tutorial_per_stream_statistics[here] for per stream statistics and link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[here] for latency details.
+
+
+
 
 
