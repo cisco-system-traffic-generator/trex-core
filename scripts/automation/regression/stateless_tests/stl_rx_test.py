@@ -9,8 +9,49 @@ class STLRX_Test(CStlGeneral_Test):
     """Tests for RX feature"""
 
     def setUp(self):
-        per_driver_params = {"rte_vmxnet3_pmd": [1, 50, 1,False], "rte_ixgbe_pmd": [30, 1000, 1,True,300,400], "rte_i40e_pmd": [80, 1000, 1,True,100,250],
-                             "rte_igb_pmd": [80, 500, 1,False], "rte_em_pmd": [1, 50, 1,False], "rte_virtio_pmd": [1, 50, 1,False]}
+        per_driver_params = {
+                'rte_vmxnet3_pmd': {
+                        'rate_percent': 1,
+                        'total_pkts': 50,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+                'rte_ixgbe_pmd': {
+                        'rate_percent': 30,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': True,
+                        'latency_9k_max_average': 300,
+                        'latency_9k_max_latency': 400,
+                        },
+                'rte_i40e_pmd': {
+                        'rate_percent': 80,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': True,
+                        'latency_9k_max_average': 100,
+                        'latency_9k_max_latency': 250,
+                        },
+                'rte_igb_pmd': {
+                        'rate_percent': 80,
+                        'total_pkts': 500,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+                'rte_em_pmd': {
+                        'rate_percent': 1,
+                        'total_pkts': 50,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+                'rte_virtio_pmd': {
+                        'rate_percent': 1,
+                        'total_pkts': 50,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        'allow_packets_drop_num': 1, # allow 1 pkt drop
+                        },
+                }
 
         CStlGeneral_Test.setUp(self)
         assert 'bi' in CTRexScenario.stl_ports_map
@@ -29,16 +70,18 @@ class STLRX_Test(CStlGeneral_Test):
         self.cap = cap
 
         drv_name = port_info['driver']
-        if drv_name == "rte_ixgbe_pmd":
+        if drv_name == 'rte_ixgbe_pmd':
             self.ipv6_support = False
         else:
             self.ipv6_support = True
-        self.rate_percent = per_driver_params[drv_name][0]
-        self.total_pkts = per_driver_params[drv_name][1]
-        if len(per_driver_params[drv_name]) > 2:
-            self.rate_lat = per_driver_params[drv_name][2]
-        else:
-            self.rate_lat = self.rate_percent
+        self.rate_percent           = per_driver_params[drv_name]['rate_percent']
+        self.total_pkts             = per_driver_params[drv_name]['total_pkts']
+        self.rate_lat               = per_driver_params[drv_name].get('rate_latency', self.rate_percent)
+        self.latency_9k_enable      = per_driver_params[drv_name]['latency_9k_enable']
+        self.latency_9k_max_average = per_driver_params[drv_name].get('latency_9k_max_average')
+        self.latency_9k_max_latency = per_driver_params[drv_name].get('latency_9k_max_latency')
+        self.allow_drop             = per_driver_params[drv_name].get('allow_packets_drop_num', 0)
+
         self.lat_pps = 1000
         self.drops_expected = False
         self.c.reset(ports = [self.tx_port, self.rx_port])
@@ -65,11 +108,6 @@ class STLRX_Test(CStlGeneral_Test):
                                           , vm = vm)
         self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000)
                                        ,vm = vm)
-
-        self.latency_9k_enable=per_driver_params[drv_name][3]
-        if self.latency_9k_enable:
-            self.latency_9k_max_average = per_driver_params[drv_name][4]
-            self.latency_9k_max_latency = per_driver_params[drv_name][5]
 
 
     @classmethod
@@ -133,7 +171,7 @@ class STLRX_Test(CStlGeneral_Test):
                 tmp='Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
                 assert False, tmp
 
-            if (drops != 0 or sth != 0) and not self.drops_expected:
+            if (drops > self.allow_drop or sth != 0) and not self.drops_expected:
                 pprint.pprint(latency_stats)
                 tmp='Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
                 assert False, tmp
@@ -148,14 +186,14 @@ class STLRX_Test(CStlGeneral_Test):
             tmp = 'TX bytes mismatch - got: {0}, expected: {1}'.format(tx_bytes, (total_pkts * pkt_len))
             assert False, tmp
 
-        if rx_pkts != total_pkts and not self.drops_expected:
+        if abs(total_pkts - rx_pkts) > self.allow_drop and not self.drops_expected:
             pprint.pprint(flow_stats)
             tmp = 'RX pkts mismatch - got: {0}, expected: {1}'.format(rx_pkts, total_pkts)
             assert False, tmp
 
         if "rx_bytes" in self.cap:
             rx_bytes = flow_stats['rx_bytes'].get(self.rx_port, 0)
-            if rx_bytes != (total_pkts * pkt_len) and not self.drops_expected:
+            if abs(rx_bytes / pkt_len  - total_pkts ) > self.allow_drop and not self.drops_expected:
                 pprint.pprint(flow_stats)
                 tmp = 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * pkt_len))
                 assert False, tmp
