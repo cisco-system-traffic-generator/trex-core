@@ -757,7 +757,8 @@ public:
     uint16_t		m_vlan_port[2]; /* vlan value */
     uint16_t		m_src_ipv6[6];  /* Most signficant 96-bits */
     uint16_t		m_dst_ipv6[6];  /* Most signficant 96-bits */
-
+    uint32_t        m_def_gw[TREX_MAX_PORTS];
+    uint32_t        m_ip[TREX_MAX_PORTS];
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
     uint32_t        m_latency_mask;
     uint32_t        m_latency_prev;

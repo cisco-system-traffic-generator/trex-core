@@ -81,7 +81,7 @@ class CPhyEthIF  {
                         uint16_t nb_tx_desc,
                         unsigned int socket_id,
                         const struct rte_eth_txconf *tx_conf);
-    void configure_rx_drop_queue();
+    void stop_rx_drop_queue();
     void configure_rx_duplicate_rules();
     void start();
     void stop();

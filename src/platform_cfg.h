@@ -99,10 +99,14 @@ const std::string * get_mbuf_names(void);
 struct CMacYamlInfo {
     std::vector     <uint8_t> m_dest_base;
     std::vector     <uint8_t> m_src_base;
+    uint32_t m_def_gw;
+    uint32_t m_ip;
     void Dump(FILE *fd);
 
     void copy_dest(char *p);
     void copy_src(char *p);
+    uint32_t get_def_gw();
+    uint32_t get_ip();
 
     void dump_mac_vector( std::vector<uint8_t> & v,FILE *fd){
         int i;

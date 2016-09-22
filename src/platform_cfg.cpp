@@ -23,6 +23,7 @@ limitations under the License.
 #include <iostream>
 #include <stdlib.h>
 #include "common/basic_utils.h"
+#include "utl_yaml.h"
 #include "platform_cfg.h"
 #include "utl_yaml.h"
 
@@ -165,6 +166,13 @@ void CMacYamlInfo::copy_src(char *p){
         }
 }
 
+uint32_t CMacYamlInfo::get_def_gw() {
+    return m_def_gw;
+}
+
+uint32_t CMacYamlInfo::get_ip() {
+    return m_ip;
+}
 
 void CMacYamlInfo::Dump(FILE *fd){
     if (m_dest_base.size() != 6) {
@@ -187,32 +195,54 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
     bool res;
     std::string mac_str;
 
-    const YAML::Node& dmac = node["dest_mac"];
-    if (dmac.Type() == YAML::NodeType::Sequence) { // [1,2,3,4,5,6]
-        ASSERT_MSG(dmac.size() == 6, "Array of dest MAC should have 6 elements.");
-        for(unsigned i=0;i<dmac.size();i++) {
-            dmac[i]  >> fi;
-            mac_info.m_dest_base.push_back(fi);
+    if (node.FindValue("dest_mac")) {
+        const YAML::Node& dmac = node["dest_mac"];
+        if (dmac.Type() == YAML::NodeType::Sequence) { // [1,2,3,4,5,6]
+            ASSERT_MSG(dmac.size() == 6, "Array of dest MAC should have 6 elements.");
+            for(unsigned i=0;i<dmac.size();i++) {
+                dmac[i]  >> fi;
+                mac_info.m_dest_base.push_back(fi);
+            }
         }
-    }
-    else if (dmac.Type() == YAML::NodeType::Scalar) { // "12:34:56:78:9a:bc"
-        dmac >> mac_str;
-        res = mac2vect(mac_str, mac_info.m_dest_base);
-        ASSERT_MSG(res && mac_info.m_dest_base.size() == 6, "String of dest MAC should be in format '12:34:56:78:9a:bc'.");
+        else if (dmac.Type() == YAML::NodeType::Scalar) { // "12:34:56:78:9a:bc"
+            dmac >> mac_str;
+            res = mac2vect(mac_str, mac_info.m_dest_base);
+            ASSERT_MSG(res && mac_info.m_dest_base.size() == 6
+                       , "String of dest MAC should be in format '12:34:56:78:9a:bc'.");
+        }
+    } else {
+        for(unsigned i = 0; i < 6; i++) {
+            mac_info.m_dest_base.push_back(0);
+        }
     }
 
-    const YAML::Node& smac = node["src_mac"];
-    if (smac.Type() == YAML::NodeType::Sequence) {
-        ASSERT_MSG(smac.size() == 6, "Array of src MAC should have 6 elements.");
-        for(unsigned i=0;i<smac.size();i++) {
-            smac[i]  >> fi;
-            mac_info.m_src_base.push_back(fi);
+    if (node.FindValue("src_mac")) {
+        const YAML::Node& smac = node["src_mac"];
+        if (smac.Type() == YAML::NodeType::Sequence) {
+            ASSERT_MSG(smac.size() == 6, "Array of src MAC should have 6 elements.");
+            for(unsigned i=0;i<smac.size();i++) {
+                smac[i]  >> fi;
+                mac_info.m_src_base.push_back(fi);
+            }
+        }
+        else if (smac.Type() == YAML::NodeType::Scalar) {
+            smac >> mac_str;
+            res = mac2vect(mac_str, mac_info.m_src_base);
+            ASSERT_MSG(res && mac_info.m_src_base.size() == 6
+                       , "String of src MAC should be in format '12:34:56:78:9a:bc'.");
+        }
+    } else {
+        for(unsigned i = 0; i < 6; i++) {
+            mac_info.m_src_base.push_back(0);
         }
     }
-    else if (smac.Type() == YAML::NodeType::Scalar) {
-        smac >> mac_str;
-        res = mac2vect(mac_str, mac_info.m_src_base);
-        ASSERT_MSG(res && mac_info.m_src_base.size() == 6, "String of src MAC should be in format '12:34:56:78:9a:bc'.");
+
+    if (! utl_yaml_read_ip_addr(node, "default_gw", mac_info.m_def_gw)) {
+        mac_info.m_def_gw = 0;
+    }
+
+    if (! utl_yaml_read_ip_addr(node, "ip", mac_info.m_ip)) {
+        mac_info.m_ip = 0;
     }
 }
 

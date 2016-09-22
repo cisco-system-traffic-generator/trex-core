@@ -73,6 +73,7 @@ extern "C" {
 #include "utl_term_io.h"
 #include "msg_manager.h"
 #include "platform_cfg.h"
+#include "pre_test.h"
 #include "latency.h"
 #include "debug.h"
 #include "test_pkt_gen.h"
@@ -1392,7 +1393,7 @@ void CPhyEthIF::configure_rx_duplicate_rules(){
 }
 
 
-void CPhyEthIF::configure_rx_drop_queue(){
+void CPhyEthIF::stop_rx_drop_queue() {
     // In debug mode, we want to see all packets. Don't want to disable any queue.
     if ( get_vm_one_queue_enable() || (CGlobalInfo::m_options.m_debug_pkt_proto != 0)) {
         return;
@@ -2833,6 +2834,7 @@ public:
     void ixgbe_configure_mg();
     void rx_sl_configure();
     bool is_all_links_are_up(bool dump=false);
+    void pre_test();
     int  reset_counters();
 
     /**
@@ -2972,6 +2974,53 @@ public:
     TrexStateless       *m_trex_stateless;
 
 };
+
+// Before starting, send gratitues ARP on our addresses, and try to resolve dst MAC addresses.
+void CGlobalTRex::pre_test() {
+    CPretest pretest(m_max_ports);
+    bool resolve_needed = false;
+    uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
+
+    for (int port_id = 0; port_id < m_max_ports; port_id++) {
+        CPhyEthIF *pif = &m_ports[port_id];
+        // Configure port to send all packets to software
+        CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, true);
+        if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
+            resolve_needed = true;
+        } else {
+            resolve_needed = false;
+        }
+        if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
+            rte_eth_macaddr_get(port_id,
+                                (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
+        }
+        pretest.set_port_params(port_id, CGlobalInfo::m_options.m_ip[port_id]
+                                , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src
+                                , CGlobalInfo::m_options.m_def_gw[port_id], resolve_needed);
+    }
+
+    pretest.send_grat_arp_all();
+    pretest.resolve_all();
+    if ( CGlobalInfo::m_options.preview.getVMode() > 0) {
+        pretest.dump(stdout);
+    }
+    uint8_t mac[ETHER_ADDR_LEN];
+    for (int port_id = 0; port_id < m_max_ports; port_id++) {
+        if (! memcmp(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
+            uint32_t ip = CGlobalInfo::m_options.m_def_gw[port_id];
+            if (! pretest.get_mac(port_id, ip, mac)) {
+                fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
+                        , (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF, port_id);
+                exit(1);
+            }
+            memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
+        }
+
+        CPhyEthIF *pif = &m_ports[port_id];
+        // Configure port back to normal mode. Only relevant packets handled by software.
+        CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, false);
+    }
+}
 
 int  CGlobalTRex::reset_counters(){
     int i;
@@ -3257,7 +3306,6 @@ int  CGlobalTRex::ixgbe_start(void){
         _if->stats_clear();
 
         _if->start();
-        _if->configure_rx_drop_queue();
         _if->configure_rx_duplicate_rules();
 
         if ( ! get_vm_one_queue_enable()  && ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()
@@ -4777,6 +4825,8 @@ int update_global_info_from_platform_file(){
         for (i=0; i<port_size; i++){
             cg->m_mac_info[i].copy_src(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.dest)  ;
+            CGlobalInfo::m_options.m_def_gw[i] = cg->m_mac_info[i].get_def_gw();
+            CGlobalInfo::m_options.m_ip[i] = cg->m_mac_info[i].get_ip();
         }
     }
 
@@ -5141,6 +5191,14 @@ int main_test(int argc , char * argv[]){
             ret = debug.test_send(CGlobalInfo::m_options.m_debug_pkt_proto);
             exit(ret);
         }
+    }
+
+    g_trex.pre_test();
+    // after doing all needed ARP resolution, we need to flush queues, and stop our drop queue
+    g_trex.ixgbe_rx_queue_flush();
+    for (int i = 0; i < g_trex.m_max_ports; i++) {
+        CPhyEthIF *_if = &g_trex.m_ports[i];
+        _if->stop_rx_drop_queue();
     }
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
