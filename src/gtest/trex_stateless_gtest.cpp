@@ -244,7 +244,7 @@ TEST_F(basic_vm, vm0) {
 
     vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(20) );
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",8,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 )
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,1,1,7 )
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",14, 0,true)
                         );
@@ -257,7 +257,7 @@ TEST_F(basic_vm, vm1) {
     StreamVm vm;
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "var1",1,
-                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,0,1,7 )
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,1,1,7 )
                         );
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
                         );
@@ -2006,14 +2006,14 @@ TEST_F(basic_vm, vm_syn_attack) {
     vm.add_instruction( new StreamVmInstructionFlowMan( "src_port",
                                                         2,
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
-                                                        0,
+                                                        1025,
                                                         1025,
                                                         65000));
 
     vm.add_instruction( new StreamVmInstructionFlowMan( "dst_port",
                                                         2,
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
-                                                        0,
+                                                        1025,
                                                         1025,
                                                         65000));
 
@@ -2158,7 +2158,7 @@ TEST_F(basic_vm, vm_inc_size_64_128) {
     vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
                                                         2,                // size var  must be 16bit size
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
-                                                        127,
+                                                        128,
                                                         128,
                                                         256));
 
@@ -2187,7 +2187,7 @@ TEST_F(basic_vm, vm_random_size_64_128) {
     vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
                                                         2,                // size var  must be 16bit size
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
-                                                        0,
+                                                        128,
                                                         128,
                                                         256));
 
@@ -2221,7 +2221,7 @@ TEST_F(basic_vm, vm_random_size_64_127_128) {
     vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
                                                         2,                // size var  must be 16bit size
                                                         StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
-                                                        127,
+                                                        128,
                                                         128,
                                                         256));
 
