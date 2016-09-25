@@ -731,188 +731,118 @@ void StreamVm::build_program(){
 
             var_cnt++;
 
-            if (lpMan->m_size_bytes == 1 ){
-                if ( (lpMan->m_step == 1) || (lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ) ){
-                    uint8_t op=StreamDPVmInstructions::ditINC8;
+            /* flow var size 1 */
+            if (lpMan->m_size_bytes == 1 ) {
+                uint8_t op = StreamDPVmInstructions::ditINC8_STEP;
 
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                        op = StreamDPVmInstructions::ditINC8 ;
-                    }
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                        op = StreamDPVmInstructions::ditDEC8 ;
-                    }
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ){
-                        op = StreamDPVmInstructions::ditRANDOM8 ;
-                    }
-
-                    StreamDPOpFlowVar8 fv8;
-                    fv8.m_op = op;
-                    fv8.m_flow_offset = get_var_offset(lpMan->m_var_name);
-                    fv8.m_min_val     = (uint8_t)lpMan->m_min_value;
-                    fv8.m_max_val     = (uint8_t)lpMan->m_max_value;
-                    m_instructions.add_command(&fv8,sizeof(fv8));
-                }else{
-                    uint8_t op=StreamDPVmInstructions::ditINC8_STEP;
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                        op = StreamDPVmInstructions::ditINC8_STEP ;
-                    }
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                        op = StreamDPVmInstructions::ditDEC8_STEP ;
-                    }
-
-                    StreamDPOpFlowVar8Step fv8;
-                    fv8.m_op = op;
-                    fv8.m_flow_offset = get_var_offset(lpMan->m_var_name);
-                    fv8.m_min_val     = (uint8_t)lpMan->m_min_value;
-                    fv8.m_max_val     = (uint8_t)lpMan->m_max_value;
-                    fv8.m_step        = (uint8_t)lpMan->m_step;
-                    m_instructions.add_command(&fv8,sizeof(fv8));
+                switch (lpMan->m_op) {
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_INC:
+                    op = StreamDPVmInstructions::ditINC8_STEP;
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC:
+                    op = StreamDPVmInstructions::ditDEC8_STEP;
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM:
+                    op = StreamDPVmInstructions::ditRANDOM8;
+                    break;
+                default:
+                    assert(0);
                 }
+
+                StreamDPOpFlowVar8Step fv8;
+                fv8.m_op = op;
+                fv8.m_flow_offset = get_var_offset(lpMan->m_var_name);
+                fv8.m_min_val     = (uint8_t)lpMan->m_min_value;
+                fv8.m_max_val     = (uint8_t)lpMan->m_max_value;
+                fv8.m_step        = (uint8_t)lpMan->m_step;
+                m_instructions.add_command(&fv8,sizeof(fv8));
             }
 
-            if (lpMan->m_size_bytes == 2 ){
-                uint8_t op;
-                if ( (lpMan->m_step == 1) || (lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ) ){
+            /* flow var size 2 */
+            if (lpMan->m_size_bytes == 2) {
+                uint8_t op = StreamDPVmInstructions::ditINC16_STEP;
 
-
-                op = StreamDPVmInstructions::ditINC16;
-
-                if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                    op = StreamDPVmInstructions::ditINC16 ;
+                switch (lpMan->m_op) {
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_INC:
+                    op = StreamDPVmInstructions::ditINC16_STEP;
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC:
+                    op = StreamDPVmInstructions::ditDEC16_STEP;
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM:
+                    op = StreamDPVmInstructions::ditRANDOM16;
+                    break;
+                default:
+                    assert(0);
                 }
 
-                if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                    op = StreamDPVmInstructions::ditDEC16 ;
-                }
-
-                if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ){
-                    op = StreamDPVmInstructions::ditRANDOM16 ;
-                }
-
-                StreamDPOpFlowVar16 fv16;
+                StreamDPOpFlowVar16Step fv16;
                 fv16.m_op = op;
                 fv16.m_flow_offset = get_var_offset(lpMan->m_var_name);
                 fv16.m_min_val     = (uint16_t)lpMan->m_min_value;
                 fv16.m_max_val     = (uint16_t)lpMan->m_max_value;
+                fv16.m_step        = (uint16_t)lpMan->m_step;
+
                 m_instructions.add_command(&fv16,sizeof(fv16));
-              }else{
-
-                  op = StreamDPVmInstructions::ditINC16_STEP;
-
-                  if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                      op = StreamDPVmInstructions::ditINC16_STEP ;
-                  }
-
-                  if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                      op = StreamDPVmInstructions::ditDEC16_STEP ;
-                  }
-
-                  StreamDPOpFlowVar16Step fv16;
-                  fv16.m_op = op;
-                  fv16.m_flow_offset = get_var_offset(lpMan->m_var_name);
-                  fv16.m_min_val     = (uint16_t)lpMan->m_min_value;
-                  fv16.m_max_val     = (uint16_t)lpMan->m_max_value;
-                  fv16.m_step        = (uint16_t)lpMan->m_step;
-
-                  m_instructions.add_command(&fv16,sizeof(fv16));
-              }
             }
 
-            if (lpMan->m_size_bytes == 4 ){
-                uint8_t op;
-                if ( (lpMan->m_step == 1) || (lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ) ){
-                    op = StreamDPVmInstructions::ditINC32;
-    
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                        op = StreamDPVmInstructions::ditINC32 ;
-                    }
-    
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                        op = StreamDPVmInstructions::ditDEC32 ;
-                    }
-    
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ){
-                        op = StreamDPVmInstructions::ditRANDOM32 ;
-                    }
-    
-                    StreamDPOpFlowVar32 fv32;
-                    fv32.m_op = op;
-                    fv32.m_flow_offset = get_var_offset(lpMan->m_var_name);
-                    fv32.m_min_val     = (uint32_t)lpMan->m_min_value;
-                    fv32.m_max_val     = (uint32_t)lpMan->m_max_value;
-                    m_instructions.add_command(&fv32,sizeof(fv32));
-                }else{
+
+            /* flow var size 4 */
+            if (lpMan->m_size_bytes == 4) {
+                uint8_t op = StreamDPVmInstructions::ditINC32_STEP;
+
+                switch (lpMan->m_op) {
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_INC:
                     op = StreamDPVmInstructions::ditINC32_STEP;
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                        op = StreamDPVmInstructions::ditINC32_STEP ;
-                    }
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                        op = StreamDPVmInstructions::ditDEC32_STEP ;
-                    }
-
-                    StreamDPOpFlowVar32Step fv32;
-                    fv32.m_op = op;
-                    fv32.m_flow_offset = get_var_offset(lpMan->m_var_name);
-                    fv32.m_min_val     = (uint32_t)lpMan->m_min_value;
-                    fv32.m_max_val     = (uint32_t)lpMan->m_max_value;
-                    fv32.m_step        = (uint32_t)lpMan->m_step;
-                    m_instructions.add_command(&fv32,sizeof(fv32));
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC:
+                    op = StreamDPVmInstructions::ditDEC32_STEP;
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM:
+                    op = StreamDPVmInstructions::ditRANDOM32;
+                    break;
+                default:
+                    assert(0);
                 }
+
+                StreamDPOpFlowVar32Step fv32;
+                fv32.m_op = op;
+                fv32.m_flow_offset = get_var_offset(lpMan->m_var_name);
+                fv32.m_min_val     = (uint32_t)lpMan->m_min_value;
+                fv32.m_max_val     = (uint32_t)lpMan->m_max_value;
+                fv32.m_step        = (uint32_t)lpMan->m_step;
+                m_instructions.add_command(&fv32,sizeof(fv32));
+
             }
 
+            /* flow var size 8 */
+            if (lpMan->m_size_bytes == 8) {
+                uint8_t op = StreamDPVmInstructions::ditINC64_STEP;
 
-            if (lpMan->m_size_bytes == 8 ){
-                uint8_t op;
-
-                if ( (lpMan->m_step == 1) || (lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ) ){
-
-                    op = StreamDPVmInstructions::ditINC64;
-    
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                        op = StreamDPVmInstructions::ditINC64 ;
-                    }
-    
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                        op = StreamDPVmInstructions::ditDEC64 ;
-                    }
-    
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM ){
-                        op = StreamDPVmInstructions::ditRANDOM64 ;
-                    }
-    
-                    StreamDPOpFlowVar64 fv64;
-                    fv64.m_op = op;
-                    fv64.m_flow_offset = get_var_offset(lpMan->m_var_name);
-                    fv64.m_min_val     = (uint64_t)lpMan->m_min_value;
-                    fv64.m_max_val     = (uint64_t)lpMan->m_max_value;
-                    m_instructions.add_command(&fv64,sizeof(fv64));
-                }else{
-
+                switch (lpMan->m_op) {
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_INC:
                     op = StreamDPVmInstructions::ditINC64_STEP;
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_INC ){
-                        op = StreamDPVmInstructions::ditINC64_STEP ;
-                    }
-
-                    if ( lpMan->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC ){
-                        op = StreamDPVmInstructions::ditDEC64_STEP ;
-                    }
-
-                    StreamDPOpFlowVar64Step fv64;
-                    fv64.m_op = op;
-                    fv64.m_flow_offset = get_var_offset(lpMan->m_var_name);
-                    fv64.m_min_val     = (uint64_t)lpMan->m_min_value;
-                    fv64.m_max_val     = (uint64_t)lpMan->m_max_value;
-                    fv64.m_step        = (uint64_t)lpMan->m_step;
-                    m_instructions.add_command(&fv64,sizeof(fv64));
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC:
+                    op = StreamDPVmInstructions::ditDEC64_STEP;
+                    break;
+                case StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM:
+                    op = StreamDPVmInstructions::ditRANDOM64;
+                    break;
+                default:
+                    assert(0);
                 }
+
+                StreamDPOpFlowVar64Step fv64;
+                fv64.m_op = op;
+                fv64.m_flow_offset = get_var_offset(lpMan->m_var_name);
+                fv64.m_min_val     = (uint64_t)lpMan->m_min_value;
+                fv64.m_max_val     = (uint64_t)lpMan->m_max_value;
+                fv64.m_step        = (uint64_t)lpMan->m_step;
+                m_instructions.add_command(&fv64,sizeof(fv64));
+
             }
+
         }
 
         if (ins_type == StreamVmInstruction::itPKT_WR) {
@@ -1065,11 +995,14 @@ void StreamVm::build_program(){
 
                 client_cmd.m_min_port    = lpMan->m_port.m_min_value;
                 client_cmd.m_max_port    = lpMan->m_port.m_max_value;
-                client_cmd.m_port_step   = lpMan->m_port.m_step;
-
+                client_cmd.m_step_port   = lpMan->m_port.m_step;
+                
                 client_cmd.m_min_ip      = lpMan->m_ip.m_min_value;
                 client_cmd.m_max_ip      = lpMan->m_ip.m_max_value;
-                client_cmd.m_ip_step     = lpMan->m_ip.m_step;
+                client_cmd.m_step_ip     = lpMan->m_ip.m_step;
+
+                client_cmd.m_init_ip     = lpMan->m_ip.m_init_value;
+                client_cmd.m_init_port   = lpMan->m_port.m_init_value;
 
                 client_cmd.m_limit_flows = lpMan->m_limit_num_flows;
                 m_instructions.add_command(&client_cmd,sizeof(client_cmd));
@@ -1299,11 +1232,6 @@ void StreamDPVmInstructions::Dump(FILE *fd){
     uint32_t program_size = get_program_size();
     uint8_t * p_end=p+program_size;
 
-    StreamDPOpFlowVar8  *lpv8;
-    StreamDPOpFlowVar16 *lpv16;
-    StreamDPOpFlowVar32 *lpv32;
-    StreamDPOpFlowVar64 *lpv64;
-
     StreamDPOpFlowVar8Step  *lpv8s;
     StreamDPOpFlowVar16Step *lpv16s;
     StreamDPOpFlowVar32Step *lpv32s;
@@ -1328,67 +1256,25 @@ void StreamDPVmInstructions::Dump(FILE *fd){
         uint8_t op_code=*p;
         switch (op_code) {
 
-        case   ditINC8  :
-            lpv8 =(StreamDPOpFlowVar8 *)p;
-            lpv8->dump(fd,"INC8");
-            p+=sizeof(StreamDPOpFlowVar8);
-            break;
-        case  ditINC16  :
-            lpv16 =(StreamDPOpFlowVar16 *)p;
-            lpv16->dump(fd,"INC16");
-            p+=sizeof(StreamDPOpFlowVar16);
-            break;
-        case  ditINC32 :
-            lpv32 =(StreamDPOpFlowVar32 *)p;
-            lpv32->dump(fd,"INC32");
-            p+=sizeof(StreamDPOpFlowVar32);
-             break;
-        case  ditINC64 :
-            lpv64 =(StreamDPOpFlowVar64 *)p;
-            lpv64->dump(fd,"INC64");
-            p+=sizeof(StreamDPOpFlowVar64);
-            break;
-
-        case  ditDEC8 :
-            lpv8 =(StreamDPOpFlowVar8 *)p;
-            lpv8->dump(fd,"DEC8");
-            p+=sizeof(StreamDPOpFlowVar8);
-            break;
-        case  ditDEC16 :
-            lpv16 =(StreamDPOpFlowVar16 *)p;
-            lpv16->dump(fd,"DEC16");
-            p+=sizeof(StreamDPOpFlowVar16);
-            break;
-        case  ditDEC32 :
-            lpv32 =(StreamDPOpFlowVar32 *)p;
-            lpv32->dump(fd,"DEC32");
-            p+=sizeof(StreamDPOpFlowVar32);
-            break;
-        case  ditDEC64 :
-            lpv64 =(StreamDPOpFlowVar64 *)p;
-            lpv64->dump(fd,"DEC64");
-            p+=sizeof(StreamDPOpFlowVar64);
-            break;
-
         case  ditRANDOM8 :
-            lpv8 =(StreamDPOpFlowVar8 *)p;
-            lpv8->dump(fd,"RAND8");
-            p+=sizeof(StreamDPOpFlowVar8);
+            lpv8s =(StreamDPOpFlowVar8Step *)p;
+            lpv8s->dump(fd,"RAND8");
+            p+=sizeof(StreamDPOpFlowVar8Step);
             break;
         case  ditRANDOM16 :
-            lpv16 =(StreamDPOpFlowVar16 *)p;
-            lpv16->dump(fd,"RAND16");
-            p+=sizeof(StreamDPOpFlowVar16);
+            lpv16s =(StreamDPOpFlowVar16Step *)p;
+            lpv16s->dump(fd,"RAND16");
+            p+=sizeof(StreamDPOpFlowVar16Step);
             break;
         case  ditRANDOM32 :
-            lpv32 =(StreamDPOpFlowVar32 *)p;
-            lpv32->dump(fd,"RAND32");
-            p+=sizeof(StreamDPOpFlowVar32);
+            lpv32s =(StreamDPOpFlowVar32Step *)p;
+            lpv32s->dump(fd,"RAND32");
+            p+=sizeof(StreamDPOpFlowVar32Step);
             break;
         case  ditRANDOM64 :
-            lpv64 =(StreamDPOpFlowVar64 *)p;
-            lpv64->dump(fd,"RAND64");
-            p+=sizeof(StreamDPOpFlowVar64);
+            lpv64s =(StreamDPOpFlowVar64Step *)p;
+            lpv64s->dump(fd,"RAND64");
+            p+=sizeof(StreamDPOpFlowVar64Step);
             break;
 
         case  ditFIX_IPV4_CS :
@@ -1534,22 +1420,6 @@ void StreamDPOpFlowVar64Step::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, of:%lu, (%lu-%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val,(ulong)m_step);
 }
 
-
-void StreamDPOpFlowVar8::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s  op:%lu, of:%lu, (%lu- %lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
-}
-
-void StreamDPOpFlowVar16::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s  op:%lu, of:%lu, (%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
-}
-
-void StreamDPOpFlowVar32::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s  op:%lu, of:%lu, (%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
-}
-
-void StreamDPOpFlowVar64::dump(FILE *fd,std::string opt){
-    fprintf(fd," %10s  op:%lu, of:%lu, (%lu-%lu) \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,(ulong)m_min_val,(ulong)m_max_val);
-}
 
 void StreamDPOpPktWr8::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, flags:%lu, pkt_of:%lu,  f_of:%lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_flags,(ulong)m_pkt_offset,(ulong)m_offset);
@@ -1697,49 +1567,6 @@ void   StreamDPVmInstructionsRunner::slow_commands(uint8_t op_code,
     ua_t ua;
 
     switch (op_code) {
-
-    case   StreamDPVmInstructions::ditINC8_STEP  :
-        ua.lpv8s =(StreamDPOpFlowVar8Step *)p;
-        ua.lpv8s->run_inc(flow_var);
-        p+=sizeof(StreamDPOpFlowVar8Step);
-        break;
-
-    case  StreamDPVmInstructions::ditINC16_STEP  :
-        ua.lpv16s =(StreamDPOpFlowVar16Step *)p;
-        ua.lpv16s->run_inc(flow_var);
-        p+=sizeof(StreamDPOpFlowVar16Step);
-        break;
-    case  StreamDPVmInstructions::ditINC32_STEP :
-        ua.lpv32s =(StreamDPOpFlowVar32Step *)p;
-        ua.lpv32s->run_inc(flow_var);
-        p+=sizeof(StreamDPOpFlowVar32Step);
-         break;
-    case  StreamDPVmInstructions::ditINC64_STEP :
-        ua.lpv64s =(StreamDPOpFlowVar64Step *)p;
-        ua.lpv64s->run_inc(flow_var);
-        p+=sizeof(StreamDPOpFlowVar64Step);
-        break;
-
-    case  StreamDPVmInstructions::ditDEC8_STEP :
-        ua.lpv8s =(StreamDPOpFlowVar8Step *)p;
-        ua.lpv8s->run_dec(flow_var);
-        p+=sizeof(StreamDPOpFlowVar8Step);
-        break;
-    case  StreamDPVmInstructions::ditDEC16_STEP :
-        ua.lpv16s =(StreamDPOpFlowVar16Step *)p;
-        ua.lpv16s->run_dec(flow_var);
-        p+=sizeof(StreamDPOpFlowVar16Step);
-        break;
-    case  StreamDPVmInstructions::ditDEC32_STEP :
-        ua.lpv32s =(StreamDPOpFlowVar32Step *)p;
-        ua.lpv32s->run_dec(flow_var);
-        p+=sizeof(StreamDPOpFlowVar32Step);
-        break;
-    case  StreamDPVmInstructions::ditDEC64_STEP :
-        ua.lpv64s =(StreamDPOpFlowVar64Step *)p;
-        ua.lpv64s->run_dec(flow_var);
-        p+=sizeof(StreamDPOpFlowVar64Step);
-        break;
     case  StreamDPVmInstructions::itPKT_WR_MASK:
         ua.lpwr_mask =(StreamDPOpPktWrMask *)p;
         ua.lpwr_mask->wr(flow_var,pkt);

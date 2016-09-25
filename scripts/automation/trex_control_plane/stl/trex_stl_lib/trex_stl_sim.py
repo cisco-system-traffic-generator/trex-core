@@ -558,25 +558,13 @@ def test_multi_core (r, options):
 
     print("")
 
-    print(format_text("comparing 2 cores to 1 core:\n", 'underline'))
-    rc = compare_caps_strict('1.cap', '2.cap')
-    if rc:
-        print("[Passed]\n")
+    for core_count in range(1, 9):
+        print(format_text("comparing {0} cores to 1 core:\n".format(core_count), 'underline'))
+        rc = compare_caps_strict('1.cap', '{0}.cap'.format(core_count))
+        if rc:
+            print("[Passed]\n")
 
-    print(format_text("comparing 4 cores to 1 core:\n", 'underline'))
-    rc = compare_caps('1.cap', '4.cap')
-    if rc:
-        print("[Passed]\n")
-
-    print(format_text("comparing 6 cores to 1 core:\n", 'underline'))
-    rc = compare_caps('1.cap', '6.cap')
-    if rc:
-        print("[Passed]\n")
-
-    print(format_text("comparing 8 cores to 1 core:\n", 'underline'))
-    rc = compare_caps('1.cap', '8.cap')
-    if rc:
-        print("[Passed]\n")
+    return
 
 
 def main (args = None):

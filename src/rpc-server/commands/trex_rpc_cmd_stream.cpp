@@ -241,14 +241,21 @@ TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std:
     uint32_t limit_flows  = parse_uint32(inst, "limit_flows", result);
     uint16_t flags        = parse_uint16(inst, "flags", result);
 
+    /* archiecture limitation - limit_flows must be greater or equal to DP core count */
+    if (limit_flows < get_stateless_obj()->get_dp_core_count()) {
+        std::stringstream ss;
+        ss << "cannot limit flows to less than " << (uint32_t)get_stateless_obj()->get_dp_core_count();
+        generate_execute_err(result, ss.str());
+    }
+
     stream->m_vm.add_instruction(new StreamVmInstructionFlowClient(flow_var_name,
-                                                                ip_min,
-                                                                ip_max,
-                                                                port_min,
-                                                                port_max,
-                                                                limit_flows,
-                                                                flags
-                                                                ));
+                                                                   ip_min,
+                                                                   ip_max,
+                                                                   port_min,
+                                                                   port_max,
+                                                                   limit_flows,
+                                                                   flags
+                                                                   ));
 }
 
 

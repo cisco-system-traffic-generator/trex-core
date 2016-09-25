@@ -340,11 +340,13 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         seed = time.time()
 
         # test with simple vars
+        print(format_text("\nTesting multiple flow vars for multicore\n", 'underline'))
         rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core --limit=840 -t test_type=plain#seed={0} -m 27kpps'.format(seed), silent = True)
         assert_equal(rc, True)
 
 
         # test with tuple
+        print(format_text("\nTesting multiple tuple generators for multicore\n", 'underline'))
         rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core --limit=840 -t test_type=tuple#seed={0} -m 27kpps'.format(seed), silent = True)
         assert_equal(rc, True)
 
@@ -356,6 +358,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                    ]
 
         for mc_test in mc_tests:
+            print(format_text("\ntesting {0} for multicore...\n".format(mc_test), 'underline'))
             rc = self.run_sim(mc_test, output = None, options = '--test_multi_core --limit=840 -m 27kpps', silent = True)
             assert_equal(rc, True)
 

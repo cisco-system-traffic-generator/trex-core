@@ -262,117 +262,6 @@ public:
 
 /* in memory program */
 
-struct StreamDPOpFlowVar8 {
-    uint8_t m_op;
-    uint8_t m_flow_offset;
-    uint8_t m_min_val;
-    uint8_t m_max_val;
-public:
-    void dump(FILE *fd,std::string opt);
-
-    inline void run_inc(uint8_t * flow_var) {
-        uint8_t *p = (flow_var + m_flow_offset);
-        *p = inc_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_dec(uint8_t * flow_var) {
-        uint8_t *p = (flow_var + m_flow_offset);
-        *p = dec_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
-        uint8_t * p=(flow_var+m_flow_offset);
-        *p= m_min_val + (vm_rand16(per_thread_random)  % (int)(m_max_val - m_min_val + 1));
-    }
-
-
-} __attribute__((packed)) ;
-
-struct StreamDPOpFlowVar16 {
-    uint8_t m_op;
-    uint8_t m_flow_offset;
-    uint16_t m_min_val;
-    uint16_t m_max_val;
-public:
-    void dump(FILE *fd,std::string opt);
-
-    inline void run_inc(uint8_t * flow_var) {
-        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        *p = inc_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_dec(uint8_t * flow_var) {
-        uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        *p = dec_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
-        uint16_t * p=(uint16_t *)(flow_var+m_flow_offset);
-        *p= m_min_val + (vm_rand16(per_thread_random) % (int)(m_max_val - m_min_val + 1));
-    }
-
-
-
-} __attribute__((packed)) ;
-
-struct StreamDPOpFlowVar32 {
-    uint8_t m_op;
-    uint8_t m_flow_offset;
-    uint32_t m_min_val;
-    uint32_t m_max_val;
-public:
-    void dump(FILE *fd,std::string opt);
-
-    inline void run_inc(uint8_t * flow_var) {
-        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        *p = inc_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_dec(uint8_t * flow_var) {
-        uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        *p = dec_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
-        uint32_t * p=(uint32_t *)(flow_var+m_flow_offset);
-        *p = m_min_val + (vm_rand32(per_thread_random) % ((uint64_t)(m_max_val) - m_min_val + 1));
-    }
-
-} __attribute__((packed)) ;
-
-struct StreamDPOpFlowVar64 {
-    uint8_t m_op;
-    uint8_t m_flow_offset;
-    uint64_t m_min_val;
-    uint64_t m_max_val;
-public:
-    void dump(FILE *fd,std::string opt);
-
-    inline void run_inc(uint8_t * flow_var) {
-        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        *p = inc_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_dec(uint8_t * flow_var) {
-        uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        *p = dec_mod(m_min_val, m_max_val, *p, 1);
-    }
-
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
-        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
-
-        if ((m_max_val - m_min_val) == UINT64_MAX) {
-            *p = vm_rand64(per_thread_random);
-        } else {
-            *p = m_min_val + ( vm_rand64(per_thread_random)  % ( (uint64_t)m_max_val - m_min_val + 1) );
-        }
-    }
-
-
-} __attribute__((packed)) ;
-
-
-
 struct StreamDPOpFlowVar8Step {
     uint8_t m_op;
     uint8_t m_flow_offset;
@@ -390,6 +279,11 @@ public:
     inline void run_dec(uint8_t * flow_var) {
         uint8_t *p = (flow_var + m_flow_offset);
         *p = dec_mod(m_min_val, m_max_val, *p, m_step);
+    }
+
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+        uint8_t *p=(flow_var+m_flow_offset);
+        *p = m_min_val + (vm_rand16(per_thread_random)  % (int)(m_max_val - m_min_val + 1));
     }
 
 } __attribute__((packed)) ;
@@ -414,6 +308,11 @@ public:
         *p = dec_mod(m_min_val, m_max_val, *p, m_step);
     }
 
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+        uint16_t *p = (uint16_t *)(flow_var+m_flow_offset);
+        *p = m_min_val + (vm_rand16(per_thread_random) % (int)(m_max_val - m_min_val + 1));
+    }
+
 } __attribute__((packed)) ;
 
 struct StreamDPOpFlowVar32Step {
@@ -433,6 +332,12 @@ public:
     inline void run_dec(uint8_t * flow_var) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
         *p = dec_mod(m_min_val, m_max_val, *p, m_step);
+    }
+
+
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+        uint32_t *p = (uint32_t *)(flow_var+m_flow_offset);
+        *p = m_min_val + (vm_rand32(per_thread_random) % ((uint64_t)(m_max_val) - m_min_val + 1));
     }
 
 } __attribute__((packed)) ;
@@ -456,6 +361,16 @@ public:
         *p = dec_mod(m_min_val, m_max_val, *p, m_step);
     }
 
+
+    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+        uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
+
+        if ((m_max_val - m_min_val) == UINT64_MAX) {
+            *p = vm_rand64(per_thread_random);
+        } else {
+            *p = m_min_val + ( vm_rand64(per_thread_random)  % ( (uint64_t)m_max_val - m_min_val + 1) );
+        }
+    }
 
 } __attribute__((packed)) ;
 
@@ -615,11 +530,13 @@ struct StreamDPOpClientsLimit {
 
     uint16_t    m_min_port;
     uint16_t    m_max_port;
-    uint16_t    m_port_step;
+    uint16_t    m_step_port;
+    uint16_t    m_init_port;
 
     uint32_t    m_min_ip;
     uint32_t    m_max_ip;
-    uint32_t    m_ip_step;
+    uint32_t    m_step_ip;
+    uint32_t    m_init_ip;
 
     uint32_t    m_limit_flows; /* limit the number of flows */
 
@@ -631,25 +548,22 @@ public:
         StreamDPFlowClient *lp = (StreamDPFlowClient *)(flow_var_base + m_flow_offset);
 
         /* first advance the outer var (IP) */
-        lp->cur_ip = inc_mod_of(m_min_ip, m_max_ip, lp->cur_ip, m_ip_step, of);
+        lp->cur_ip = inc_mod_of(m_min_ip, m_max_ip, lp->cur_ip, m_step_ip, of);
 
         /* if we had an overflow - advance the port */
         if (of) {
-            lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, m_port_step);
+            lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, m_step_port);
         }
 
-        /* TODO: handle limit */
-        #if 0
         if (m_limit_flows) {
             lp->cur_flow_id++;
             if ( lp->cur_flow_id > m_limit_flows ){
                 /* reset to the first flow */
                 lp->cur_flow_id = 1;
-                lp->cur_ip      =  m_min_ip;
-                lp->cur_port    =  m_min_port;
+                lp->cur_ip      = m_init_ip;
+                lp->cur_port    = m_init_port;
             }
         }
-        #endif
     }
 
 
@@ -790,10 +704,6 @@ private:
 
 
 typedef union  ua_ {
-        StreamDPOpFlowVar8  *lpv8;
-        StreamDPOpFlowVar16 *lpv16;
-        StreamDPOpFlowVar32 *lpv32;
-        StreamDPOpFlowVar64 *lpv64;
         StreamDPOpIpv4Fix   *lpIpv4Fix;
         StreamDPOpPktWr8     *lpw8;
         StreamDPOpPktWr16    *lpw16;
@@ -835,80 +745,88 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
         uint8_t op_code=*p;
         switch (op_code) {
 
-        case  StreamDPVmInstructions::itCLIENT_VAR :      
+        case StreamDPVmInstructions::itCLIENT_VAR :      
             ua.lpcl =(StreamDPOpClientsLimit *)p;
             ua.lpcl->run(flow_var);
             p+=sizeof(StreamDPOpClientsLimit);
             break;
 
-        case  StreamDPVmInstructions::itCLIENT_VAR_UNLIMIT :      
+        case StreamDPVmInstructions::itCLIENT_VAR_UNLIMIT :      
             ua.lpclu =(StreamDPOpClientsUnLimit *)p;
             ua.lpclu->run(flow_var);
-            p+=sizeof(StreamDPOpClientsUnLimit);
+            p += sizeof(StreamDPOpClientsUnLimit);
             break;
 
-        case   StreamDPVmInstructions::ditINC8  :
-            ua.lpv8 =(StreamDPOpFlowVar8 *)p;
-            ua.lpv8->run_inc(flow_var);
-            p+=sizeof(StreamDPOpFlowVar8);
+        case StreamDPVmInstructions::ditINC8_STEP:
+            ua.lpv8s =(StreamDPOpFlowVar8Step *)p;
+            ua.lpv8s->run_inc(flow_var);
+            p += sizeof(StreamDPOpFlowVar8Step);
             break;
 
-        case  StreamDPVmInstructions::ditINC16  :
-            ua.lpv16 =(StreamDPOpFlowVar16 *)p;
-            ua.lpv16->run_inc(flow_var);
-            p+=sizeof(StreamDPOpFlowVar16);
+        case StreamDPVmInstructions::ditINC16_STEP:
+            ua.lpv16s =(StreamDPOpFlowVar16Step *)p;
+            ua.lpv16s->run_inc(flow_var);
+            p += sizeof(StreamDPOpFlowVar16Step);
             break;
-        case  StreamDPVmInstructions::ditINC32 :
-            ua.lpv32 =(StreamDPOpFlowVar32 *)p;
-            ua.lpv32->run_inc(flow_var);
-            p+=sizeof(StreamDPOpFlowVar32);
+
+        case StreamDPVmInstructions::ditINC32_STEP:
+            ua.lpv32s =(StreamDPOpFlowVar32Step *)p;
+            ua.lpv32s->run_inc(flow_var);
+            p += sizeof(StreamDPOpFlowVar32Step);
              break;
-        case  StreamDPVmInstructions::ditINC64 :
-            ua.lpv64 =(StreamDPOpFlowVar64 *)p;
-            ua.lpv64->run_inc(flow_var);
-            p+=sizeof(StreamDPOpFlowVar64);
+
+        case StreamDPVmInstructions::ditINC64_STEP:
+            ua.lpv64s =(StreamDPOpFlowVar64Step *)p;
+            ua.lpv64s->run_inc(flow_var);
+            p += sizeof(StreamDPOpFlowVar64Step);
             break;
 
-        case  StreamDPVmInstructions::ditDEC8 :
-            ua.lpv8 =(StreamDPOpFlowVar8 *)p;
-            ua.lpv8->run_dec(flow_var);
-            p+=sizeof(StreamDPOpFlowVar8);
-            break;
-        case  StreamDPVmInstructions::ditDEC16 :
-            ua.lpv16 =(StreamDPOpFlowVar16 *)p;
-            ua.lpv16->run_dec(flow_var);
-            p+=sizeof(StreamDPOpFlowVar16);
-            break;
-        case  StreamDPVmInstructions::ditDEC32 :
-            ua.lpv32 =(StreamDPOpFlowVar32 *)p;
-            ua.lpv32->run_dec(flow_var);
-            p+=sizeof(StreamDPOpFlowVar32);
-            break;
-        case  StreamDPVmInstructions::ditDEC64 :
-            ua.lpv64 =(StreamDPOpFlowVar64 *)p;
-            ua.lpv64->run_dec(flow_var);
-            p+=sizeof(StreamDPOpFlowVar64);
+        case StreamDPVmInstructions::ditDEC8_STEP:
+            ua.lpv8s =(StreamDPOpFlowVar8Step *)p;
+            ua.lpv8s->run_dec(flow_var);
+            p += sizeof(StreamDPOpFlowVar8Step);
             break;
 
-        case  StreamDPVmInstructions::ditRANDOM8 :
-            ua.lpv8 =(StreamDPOpFlowVar8 *)p;
-            ua.lpv8->run_rand(flow_var,per_thread_random);
-            p+=sizeof(StreamDPOpFlowVar8);
+        case StreamDPVmInstructions::ditDEC16_STEP:
+            ua.lpv16s =(StreamDPOpFlowVar16Step *)p;
+            ua.lpv16s->run_dec(flow_var);
+            p += sizeof(StreamDPOpFlowVar16Step);
             break;
-        case  StreamDPVmInstructions::ditRANDOM16 :
-            ua.lpv16 =(StreamDPOpFlowVar16 *)p;
-            ua.lpv16->run_rand(flow_var,per_thread_random);
-            p+=sizeof(StreamDPOpFlowVar16);
+
+        case StreamDPVmInstructions::ditDEC32_STEP:
+            ua.lpv32s =(StreamDPOpFlowVar32Step *)p;
+            ua.lpv32s->run_dec(flow_var);
+            p += sizeof(StreamDPOpFlowVar32Step);
             break;
-        case  StreamDPVmInstructions::ditRANDOM32 :
-            ua.lpv32 =(StreamDPOpFlowVar32 *)p;
-            ua.lpv32->run_rand(flow_var,per_thread_random);
-            p+=sizeof(StreamDPOpFlowVar32);
+
+        case StreamDPVmInstructions::ditDEC64_STEP:
+            ua.lpv64s =(StreamDPOpFlowVar64Step *)p;
+            ua.lpv64s->run_dec(flow_var);
+            p += sizeof(StreamDPOpFlowVar64Step);
             break;
-        case  StreamDPVmInstructions::ditRANDOM64 :
-            ua.lpv64 =(StreamDPOpFlowVar64 *)p;
-            ua.lpv64->run_rand(flow_var,per_thread_random);
-            p+=sizeof(StreamDPOpFlowVar64);
+
+        case StreamDPVmInstructions::ditRANDOM8 :
+            ua.lpv8s =(StreamDPOpFlowVar8Step *)p;
+            ua.lpv8s->run_rand(flow_var, per_thread_random);
+            p += sizeof(StreamDPOpFlowVar8Step);
+            break;
+
+        case StreamDPVmInstructions::ditRANDOM16:
+            ua.lpv16s =(StreamDPOpFlowVar16Step *)p;
+            ua.lpv16s->run_rand(flow_var, per_thread_random);
+            p += sizeof(StreamDPOpFlowVar16Step);
+            break;
+
+        case StreamDPVmInstructions::ditRANDOM32:
+            ua.lpv32s =(StreamDPOpFlowVar32Step *)p;
+            ua.lpv32s->run_rand(flow_var, per_thread_random);
+            p += sizeof(StreamDPOpFlowVar32Step);
+            break;
+
+        case StreamDPVmInstructions::ditRANDOM64:
+            ua.lpv64s =(StreamDPOpFlowVar64Step *)p;
+            ua.lpv64s->run_rand(flow_var, per_thread_random);
+            p += sizeof(StreamDPOpFlowVar64Step);
             break;
 
         case  StreamDPVmInstructions::ditFIX_IPV4_CS :
@@ -1441,6 +1359,17 @@ public:
         uint16_t port_step_mul  =  1 + (step_mul / m_ip.get_range());
 
         m_port.update(port_phase, port_step_mul);
+    
+        /* update the limit per core */
+        if (m_limit_num_flows) {
+            uint64_t per_core_limit = m_limit_num_flows / step_mul;
+            if (phase == 0) {
+                per_core_limit += m_limit_num_flows % step_mul;
+            }
+
+            m_limit_num_flows = per_core_limit;
+            assert(per_core_limit > 0);
+        }
         
     }
 

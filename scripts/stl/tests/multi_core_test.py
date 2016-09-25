@@ -68,9 +68,13 @@ class STLMultiCore(object):
         port_min = rng.randint(0, port_bound - 1)
         port_max = rng.randint(port_min, port_bound - 1)
 
+        # 840 is the least common multiple
+        limit_flows = 840 * rng.randint(1, 1000)
         vm += [STLVmTupleGen(ip_min = ip_min, ip_max = ip_max, 
                              port_min = port_min, port_max = port_max,
-                             name = name),
+                             name = name,
+                             limit_flows = limit_flows),
+
                STLVmWrFlowVar (fv_name = name + ".ip", pkt_offset = pkt_offset ), # write ip to packet IP.src]
                STLVmWrFlowVar (fv_name = name + ".port", pkt_offset = (pkt_offset + 4) ),
                ]
