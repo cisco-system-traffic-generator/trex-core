@@ -174,6 +174,14 @@ uint32_t CMacYamlInfo::get_ip() {
     return m_ip;
 }
 
+uint32_t CMacYamlInfo::get_mask() {
+    return m_mask;
+}
+
+uint32_t CMacYamlInfo::get_vlan() {
+    return m_vlan;
+}
+
 void CMacYamlInfo::Dump(FILE *fd){
     if (m_dest_base.size() != 6) {
         fprintf(fd,"ERROR in dest mac addr \n");
@@ -243,6 +251,12 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
 
     if (! utl_yaml_read_ip_addr(node, "ip", mac_info.m_ip)) {
         mac_info.m_ip = 0;
+    }
+    if (! utl_yaml_read_ip_addr(node, "mask", mac_info.m_mask)) {
+        mac_info.m_mask = 0;
+    }
+    if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan)) {
+        mac_info.m_vlan = 0;
     }
 }
 

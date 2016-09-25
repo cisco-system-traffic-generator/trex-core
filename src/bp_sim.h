@@ -695,7 +695,28 @@ public:
     } u;
 } __rte_cache_aligned; ;
 
-struct CParserOption {
+class CPerPortIPCfg {
+ public:
+    uint32_t get_ip() {return m_ip;}
+    uint32_t get_mask() {return m_mask;}
+    uint32_t get_def_gw() {return m_def_gw;}
+    uint32_t get_vlan() {return m_vlan;}
+    bool is_loopback() {return m_is_loopback;}
+    void set_ip(uint32_t val) {m_ip = val;}
+    void set_mask(uint32_t val) {m_mask = val;}
+    void set_def_gw(uint32_t val) {m_def_gw = val;}
+    void set_vlan(uint16_t val) {m_vlan = val;}
+    void set_loopback(bool val) {m_is_loopback = val;}
+
+ private:
+    uint32_t m_def_gw;
+    uint32_t m_ip;
+    uint32_t m_mask;
+    uint16_t m_vlan;
+    bool m_is_loopback;
+};
+
+class CParserOption {
 
 public:
     /* Runtime flags */
@@ -757,8 +778,7 @@ public:
     uint16_t		m_vlan_port[2]; /* vlan value */
     uint16_t		m_src_ipv6[6];  /* Most signficant 96-bits */
     uint16_t		m_dst_ipv6[6];  /* Most signficant 96-bits */
-    uint32_t        m_def_gw[TREX_MAX_PORTS];
-    uint32_t        m_ip[TREX_MAX_PORTS];
+    CPerPortIPCfg   m_ip_cfg[TREX_MAX_PORTS];
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
     uint32_t        m_latency_mask;
     uint32_t        m_latency_prev;
@@ -1430,12 +1450,9 @@ public:
         STATELESS_PKT           =5,
         EXIT_SCHED              =6,
         COMMAND                 =7,
-
         EXIT_PORT_SCHED         =8,
-
         PCAP_PKT                =9,
-
-
+        GRAT_ARP                =10,
     };
 
     /* flags MASKS*/

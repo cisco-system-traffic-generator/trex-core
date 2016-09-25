@@ -2994,9 +2994,9 @@ void CGlobalTRex::pre_test() {
             rte_eth_macaddr_get(port_id,
                                 (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
         }
-        pretest.set_port_params(port_id, CGlobalInfo::m_options.m_ip[port_id]
+        pretest.set_port_params(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id]
                                 , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src
-                                , CGlobalInfo::m_options.m_def_gw[port_id], resolve_needed);
+                                , resolve_needed);
     }
 
     pretest.send_grat_arp_all();
@@ -3007,13 +3007,14 @@ void CGlobalTRex::pre_test() {
     uint8_t mac[ETHER_ADDR_LEN];
     for (int port_id = 0; port_id < m_max_ports; port_id++) {
         if (! memcmp(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
-            uint32_t ip = CGlobalInfo::m_options.m_def_gw[port_id];
+            uint32_t ip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
             if (! pretest.get_mac(port_id, ip, mac)) {
                 fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
                         , (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF, port_id);
                 exit(1);
             }
             memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
+            CGlobalInfo::m_options.m_ip_cfg[port_id].set_loopback(pretest.is_loopback(port_id));
         }
 
         CPhyEthIF *pif = &m_ports[port_id];
@@ -4825,8 +4826,10 @@ int update_global_info_from_platform_file(){
         for (i=0; i<port_size; i++){
             cg->m_mac_info[i].copy_src(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.dest)  ;
-            CGlobalInfo::m_options.m_def_gw[i] = cg->m_mac_info[i].get_def_gw();
-            CGlobalInfo::m_options.m_ip[i] = cg->m_mac_info[i].get_ip();
+            CGlobalInfo::m_options.m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
+            CGlobalInfo::m_options.m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
+            CGlobalInfo::m_options.m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
+            CGlobalInfo::m_options.m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
         }
     }
 

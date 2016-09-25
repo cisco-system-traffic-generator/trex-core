@@ -180,6 +180,7 @@ private:
 
 public:
      uint64_t m_tx_pkt_ok;
+     uint64_t m_tx_grat_arp_ok;
      uint64_t m_tx_pkt_err;
      uint64_t m_pkt_ok;
      uint64_t m_unsup_prot;
@@ -319,6 +320,7 @@ public:
 private:
     void  tickle();
     void  send_pkt_all_ports();
+    void  send_grat_arp_all_ports();
     void  try_rx();
     void  try_rx_queues();
     void  run_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);

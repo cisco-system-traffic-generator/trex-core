@@ -23,6 +23,7 @@
 #define __PRE_TEST_H__
 
 #include <iostream>
+#include "bp_sim.h"
 #include "trex_defs.h"
 
 class CPretestPortInfo {
@@ -38,18 +39,21 @@ class CPretestPortInfo {
 
     CPretestPortInfo() {
         m_state = INIT_NEEDED;
+        m_is_loopback = false;
     }
     void dump(FILE *fd);
     uint8_t *create_arp_req(uint16_t &pkt_size, uint8_t port, bool is_grat);
-    void set_params(uint32_t ip, const uint8_t *src_mac, uint32_t def_gw, bool resolve_needed);
+    void set_params(CPerPortIPCfg port_cfg, const uint8_t *src_mac, bool resolve_needed);
     void set_dst_mac(const uint8_t *dst_mac);
     
  private:
     uint32_t m_ip;
     uint32_t m_def_gw;
+    uint16_t m_vlan;
     uint8_t m_src_mac[6];
     uint8_t m_dst_mac[6];
     enum CPretestPortInfoStates m_state;
+    bool m_is_loopback;
 };
 
 
@@ -59,12 +63,12 @@ class CPretest {
         m_max_ports = max_ports;
     }
     bool get_mac(uint16_t port, uint32_t ip, uint8_t *mac);
-    void set_port_params(uint16_t port, uint32_t ip, const uint8_t *src_mac, uint32_t def_gw,
-                        bool resolve_needed);
+    bool is_loopback(uint16_t port);
+    void set_port_params(uint16_t port_id, const CPerPortIPCfg &port_cfg, const uint8_t *src_mac, bool resolve_needed);
     bool resolve_all();
     void send_arp_req(uint16_t port, bool is_grat);
     void send_grat_arp_all();
-    bool is_arp(uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp);
+    bool is_arp(const uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp);
     void dump(FILE *fd);
     void test();
     

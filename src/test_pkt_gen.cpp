@@ -21,6 +21,7 @@
 
 #include <assert.h>
 #include <netinet/in.h>
+#include <rte_arp.h>
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
 #include <common/Network/Packet/IcmpHeader.h>
@@ -229,4 +230,55 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     }
 
     return p_start;
+}
+
+/*
+ * Create ARP request packet
+ * Parameters:
+ *  pkt - Buffer to fill the packet in. Size should be big enough to contain the packet (60 is a good value).
+ *  sip - Our source IP
+ *  tip - Target IP for which we need resolution (In case of gratuitous ARP, should be equal sip).
+ *  src_mac - Our source MAC
+ *  vlan - VLAN tag to send the packet on. If set to 0, no vlan will be sent.
+ *  port - Port we intended to send packet on. This is needed since we put some "magic" number with the port, so
+ *         we can identify if we are connected in loopback, which ports are connected.
+ */
+void CTestPktGen::create_arp_req(uint8_t *pkt, uint32_t sip, uint32_t tip, uint8_t *src_mac, uint16_t vlan
+                                 , uint16_t port) {
+    uint16_t l2_proto = htons(EthernetHeader::Protocol::ARP);
+
+    // dst MAC
+    memset(pkt, 0xff, ETHER_ADDR_LEN);
+    pkt += ETHER_ADDR_LEN;
+    // src MAC
+    memcpy(pkt, src_mac, ETHER_ADDR_LEN);
+    pkt += ETHER_ADDR_LEN;
+
+    if (vlan != 0) {
+        uint16_t htons_vlan = htons(vlan);
+        uint16_t vlan_proto = htons(0x8100);
+        memcpy(pkt, &vlan_proto, sizeof(vlan_proto));
+        pkt += 2;
+        memcpy(pkt, &htons_vlan, sizeof(uint16_t));
+        pkt += 2;
+    }
+
+    // l3 type
+    memcpy(pkt, &l2_proto, sizeof(l2_proto));
+    pkt += 2;
+
+    struct arp_hdr *arp = (struct arp_hdr *)pkt;
+    arp->arp_hrd = htons(ARP_HRD_ETHER); // Format of hardware address
+    arp->arp_pro = htons(EthernetHeader::Protocol::IP); // Format of protocol address
+    arp->arp_hln = ETHER_ADDR_LEN; // Length of hardware address
+    arp->arp_pln = 4; // Length of protocol address
+    arp->arp_op = htons(ARP_OP_REQUEST); // ARP opcode (command)
+
+    memcpy(&arp->arp_data.arp_sha, src_mac, ETHER_ADDR_LEN); // Sender MAC address
+    arp->arp_data.arp_sip = htonl(sip); // Sender IP address
+
+    uint8_t magic[5] = {0x1, 0x3, 0x5, 0x7, 0x9};
+    memcpy(&arp->arp_data.arp_tha, magic, 5); // Target MAC address
+    arp->arp_data.arp_tha.addr_bytes[5] = port;
+    arp->arp_data.arp_tip = htonl(tip);
 }

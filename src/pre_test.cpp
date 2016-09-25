@@ -1,20 +1,3 @@
-/* 
-?????
-- read also from q 0
-- read periodically - not wait 1 sec
-flush q 0,1 at end
-close q 0 at end (not close it at start)
-test in trex-dan router for long time. remove static arp from router.
-test 10g, vm
-add also per profile
-
-
-remove stuff in ???
-make 10G work
-documentation
-
- */
-
 /*
   Ido Barnea
   Cisco Systems, Inc.
@@ -43,13 +26,14 @@ documentation
 #include "common/basic_utils.h"
 #include "bp_sim.h"
 #include "main_dpdk.h"
+#include "test_pkt_gen.h"
 #include "pre_test.h"
 
 
-void CPretestPortInfo::set_params(uint32_t ip, const uint8_t *src_mac, uint32_t def_gw
-                                  , bool resolve_needed) {
-    m_ip = ip;
-    m_def_gw = def_gw;
+void CPretestPortInfo::set_params(CPerPortIPCfg port_cfg, const uint8_t *src_mac, bool resolve_needed) {
+    m_ip = port_cfg.get_ip();
+    m_def_gw = port_cfg.get_def_gw();
+    m_vlan = port_cfg.get_vlan();
     memcpy(&m_src_mac, src_mac, sizeof(m_src_mac));
     if (resolve_needed) {
         m_state = CPretestPortInfo::RESOLVE_NEEDED;
@@ -69,7 +53,7 @@ void CPretestPortInfo::dump(FILE *fd) {
     }
 
     uint32_t ip = htonl(m_ip);
-    
+
     fprintf(fd, "  ip:%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (ip >> 24) & 0xFF);
     ip = htonl(m_def_gw);
     fprintf(fd, "  default gw:%d.%d.%d.%d\n", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (ip >> 24) & 0xFF);
@@ -85,72 +69,33 @@ void CPretestPortInfo::dump(FILE *fd) {
     }
 }
 
-// Create ARP request for our default gateway.
-// If is_grat is true - create gratuitous ARP.
-// pkt_size will contain the size of buffer returned.
-// Return pointer to buffer containing the packet.
-uint8_t *CPretestPortInfo::create_arp_req(uint16_t &pkt_size, uint8_t port, bool is_grat) {
-    pkt_size = 14 + sizeof (struct arp_hdr);
-    uint16_t l2_proto = htons(EthernetHeader::Protocol::ARP);
-    
-    uint8_t *pkt = (uint8_t *)malloc(pkt_size);
-    assert(pkt != NULL);   
-    uint8_t *p = pkt;
-    
-    // dst MAC
-    memset(p, 0xff, ETHER_ADDR_LEN);
-    p += ETHER_ADDR_LEN;
-    // src MAC
-    memcpy(p, m_src_mac, ETHER_ADDR_LEN);
-    p += ETHER_ADDR_LEN;
-    // l3 type
-    memcpy(p, &l2_proto, sizeof(l2_proto));
-    p += 2;
-
-    struct arp_hdr *arp = (struct arp_hdr *)p;
-    arp->arp_hrd = htons(ARP_HRD_ETHER); // Format of hardware address
-    arp->arp_pro = htons(EthernetHeader::Protocol::IP); // Format of protocol address
-    arp->arp_hln = ETHER_ADDR_LEN; // Length of hardware address
-    arp->arp_pln = 4; // Length of protocol address
-    arp->arp_op = htons(ARP_OP_REQUEST); // ARP opcode (command)
-
-    memcpy(&arp->arp_data.arp_sha, m_src_mac, ETHER_ADDR_LEN); // Sender MAC address
-    arp->arp_data.arp_sip = htonl(m_ip); // Sender IP address
-    uint8_t magic[5] = {0x1, 0x3, 0x5, 0x7, 0x9};
-    memcpy(&arp->arp_data.arp_tha, magic, 5); // Target MAC address
-    arp->arp_data.arp_tha.addr_bytes[5] = port;
-    if (is_grat)
-        arp->arp_data.arp_tip = htonl(m_ip); // gratuitous ARP is request for your own IP.
-    else
-        arp->arp_data.arp_tip = htonl(m_def_gw); // Target IP address
-    
-    return pkt;
-}
-
 /*
   put in mac relevant dest MAC for port/ip pair.
   return false if no relevant info exists, true otherwise.
  */
 bool CPretest::get_mac(uint16_t port, uint32_t ip, uint8_t *mac) {
-    if (port >= TREX_MAX_PORTS) {
-        return false;
-    }
+    assert(port < TREX_MAX_PORTS);
 
     if (m_port_info[port].m_state != CPretestPortInfo::RESOLVE_DONE) {
         return false;
     }
 
     memcpy(mac, &m_port_info[port].m_dst_mac, sizeof(m_port_info[port].m_dst_mac));
-        
-    return true;    
+
+    return true;
 }
 
-void CPretest::set_port_params(uint16_t port, uint32_t ip, const uint8_t *src_mac, uint32_t def_gw,
-                               bool resolve_needed) {
-    if (port >= m_max_ports)
+bool CPretest::is_loopback(uint16_t port) {
+    assert(port < TREX_MAX_PORTS);
+
+    return m_port_info[port].m_is_loopback;
+}
+
+void CPretest::set_port_params(uint16_t port_id, const CPerPortIPCfg &port_cfg, const uint8_t *src_mac, bool resolve_needed) {
+    if (port_id >= m_max_ports)
         return;
 
-    m_port_info[port].set_params(ip, src_mac, def_gw, resolve_needed);
+    m_port_info[port_id].set_params(port_cfg, src_mac, resolve_needed);
 }
 
 
@@ -158,9 +103,10 @@ int CPretest::handle_rx(int port_id, int queue_id) {
     rte_mbuf_t * rx_pkts[32];
     uint16_t cnt;
     int i;
+    int verbose = CGlobalInfo::m_options.preview.getVMode();
 
     cnt = rte_eth_rx_burst(port_id, queue_id, rx_pkts, sizeof(rx_pkts)/sizeof(rx_pkts[0]));
- 
+
     for (i = 0; i < cnt; i++) {
         rte_mbuf_t * m = rx_pkts[i];
         int pkt_size = rte_pktmbuf_pkt_len(m);
@@ -169,9 +115,15 @@ int CPretest::handle_rx(int port_id, int queue_id) {
         CPretestPortInfo *port = &m_port_info[port_id];
         if (is_arp(p, pkt_size, arp)) {
                 if (arp->arp_op == htons(ARP_OP_REQUEST)) {
+                    if (verbose >= 3) {
+                        fprintf(stdout, "RX ARP request on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
+                                , ntohl(arp->arp_data.arp_sip)
+                                , ntohl(arp->arp_data.arp_tip));
+                    }
                     // is this request for our IP?
                     if (ntohl(arp->arp_data.arp_tip) == port->m_ip) {
-                        // If our request, do a shortcut, and write info directly to asking port
+                        // If our request(i.e. we are connected in loopback)
+                        // , do a shortcut, and write info directly to asking port
                         uint8_t magic[5] = {0x1, 0x3, 0x5, 0x7, 0x9};
                         if (! memcmp((uint8_t *)&arp->arp_data.arp_tha, magic, 5)) {
                             uint8_t sent_port_id = arp->arp_data.arp_tha.addr_bytes[5];
@@ -179,6 +131,7 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                                 (m_port_info[sent_port_id].m_def_gw == port->m_ip)) {
                                 memcpy(m_port_info[sent_port_id].m_dst_mac, port->m_src_mac, ETHER_ADDR_LEN);
                                 m_port_info[sent_port_id].m_state = CPretestPortInfo::RESOLVE_DONE;
+                                m_port_info[sent_port_id].m_is_loopback = true;
                             }
                         }
                     } else {
@@ -186,16 +139,19 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                     }
                 } else {
                     if (arp->arp_op == htons(ARP_OP_REPLY)) {
+                        if (verbose >= 3) {
+                            fprintf(stdout, "RX ARP response on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
+                                    , ntohl(arp->arp_data.arp_sip)
+                                    , ntohl(arp->arp_data.arp_tip));
+                        }
                         // If this is response to our request, update our tables
                         if (port->m_def_gw == ntohl(arp->arp_data.arp_sip)) {
                             port->set_dst_mac((uint8_t *)&arp->arp_data.arp_sha);
                         }
                     }
                 }
-        }       
+        }
 
-        printf("port %d, queue:%d\n", port_id, queue_id);
-        utl_DumpBuffer(stdout, p, pkt_size, 0); //??? remove
         rte_pktmbuf_free(m);
     }
     return 0;
@@ -252,26 +208,39 @@ void CPretest::dump(FILE *fd) {
     }
 }
 
-void CPretest::send_arp_req(uint16_t port, bool is_grat) {
-    uint16_t pkt_size;
-    uint8_t *pkt;
+// Send ARP request for our default gateway on port
+// If is_grat is true - send gratuitous ARP.
+void CPretest::send_arp_req(uint16_t port_id, bool is_grat) {
     rte_mbuf_t *m[1];
-    char *p;
     int num_sent;
+    int verbose = CGlobalInfo::m_options.preview.getVMode();
 
-    pkt = m_port_info[port].create_arp_req(pkt_size, port, is_grat);
-    m[0] = CGlobalInfo::pktmbuf_alloc(0, pkt_size);
+    m[0] = CGlobalInfo::pktmbuf_alloc_small(0);
     if ( unlikely(m[0] == 0) )  {
-        fprintf(stderr, "ERROR: Could not allocate mbuf for sending ARP to port:%d\n", port);
+        fprintf(stderr, "ERROR: Could not allocate mbuf for sending ARP to port:%d\n", port_id);
         exit(1);
     }
-    p = rte_pktmbuf_append(m[0], pkt_size);
-    memcpy(p, pkt, pkt_size);
-    free(pkt);
 
-    num_sent = rte_eth_tx_burst(port, 0, m, 1);
+    uint32_t tip;
+    uint8_t *p = (uint8_t *)rte_pktmbuf_append(m[0], 60); // ARP packet is shorter than 60
+    uint32_t sip = m_port_info[port_id].m_ip;
+    uint8_t *src_mac = m_port_info[port_id].m_src_mac;
+    uint16_t vlan = m_port_info[port_id].m_vlan;
+    if (is_grat) {
+        tip = sip;
+    } else {
+        tip = m_port_info[port_id].m_def_gw;
+    }
+
+    if (verbose >= 3) {
+        fprintf(stdout, "TX %s port:%d sip:0x%08x, tip:0x%08x\n"
+                , is_grat ? "grat ARP": "ARP request", port_id ,sip, tip);
+    }
+
+    CTestPktGen::create_arp_req(p, sip, tip, src_mac, vlan, port_id);
+    num_sent = rte_eth_tx_burst(port_id, 0, m, 1);
     if (num_sent < 1) {
-        fprintf(stderr, "Failed sending ARP to port:%d\n", port);
+        fprintf(stderr, "Failed sending ARP to port:%d\n", port_id);
         exit(1);
     }
 }
@@ -287,7 +256,7 @@ void CPretest::send_grat_arp_all() {
     }
 }
 
-bool CPretest::is_arp(uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp) {
+bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp) {
     EthernetHeader *m_ether = (EthernetHeader *)p;
 
     if ((pkt_size < 60) ||
@@ -309,16 +278,25 @@ bool CPretest::is_arp(uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp) {
 }
 
 // Should be run on setup with two interfaces connected by loopback.
-// Before running, should put ports on receive all mode. 
+// Before running, should put ports on receive all mode.
 void CPretest::test() {
     uint8_t found_mac[ETHER_ADDR_LEN];
     uint8_t mac0[ETHER_ADDR_LEN] = {0x90, 0xe2, 0xba, 0xae, 0x87, 0xd0};
     uint8_t mac1[ETHER_ADDR_LEN] = {0x90, 0xe2, 0xba, 0xae, 0x87, 0xd1};
     uint32_t ip0 = 0x0f000003;
     uint32_t ip1 = 0x0f000001;
-    
-    set_port_params(0, ip0, mac0, ip1, true);
-    set_port_params(1, ip1, mac1, ip0, true);
+
+    CPerPortIPCfg port_cfg0;
+    CPerPortIPCfg port_cfg1;
+    port_cfg0.set_ip(ip0);
+    port_cfg0.set_def_gw(ip1);
+    port_cfg0.set_vlan(0);
+    port_cfg1.set_ip(ip1);
+    port_cfg1.set_def_gw(ip0);
+    port_cfg1.set_vlan(0);
+
+    set_port_params(0, port_cfg0, mac0, true);
+    set_port_params(1, port_cfg1, mac1, true);
     dump(stdout);
     resolve_all();
     dump(stdout);

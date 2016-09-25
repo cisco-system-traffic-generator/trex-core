@@ -19,13 +19,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include "latency.h"
 #include "bp_sim.h"
 #include "flow_stat_parser.h"
 #include "utl_json.h"
 #include "trex_watchdog.h"
-
-#include <common/basic_utils.h> 
+#include "test_pkt_gen.h"
+#include "common/basic_utils.h"
+#include "latency.h"
 
 const uint8_t sctp_pkt[]={ 
 
@@ -172,6 +172,7 @@ void CCPortLatency::reset(){
     m_pad       = 0;
     m_tx_pkt_err=0;
     m_tx_pkt_ok =0;
+    m_tx_grat_arp_ok =0;
     m_pkt_ok=0;
     m_rx_check=0;
     m_no_magic=0;
@@ -294,6 +295,7 @@ void CCPortLatency::dump_counters_json(std::string & json ){
 
     json+="\"stats\" : {";
     DPL_J(m_tx_pkt_ok);
+    DPL_J(m_tx_grat_arp_ok);
     DPL_J(m_tx_pkt_err);
     DPL_J(m_pkt_ok);
     DPL_J(m_unsup_prot);
@@ -318,6 +320,7 @@ void CCPortLatency::DumpCounters(FILE *fd){
 
     DP_A1(m_tx_pkt_err);
     DP_A1(m_tx_pkt_ok);
+    DP_A1(m_tx_grat_arp_ok);
     DP_A1(m_pkt_ok);
     DP_A1(m_unsup_prot);
     DP_A1(m_no_magic);
@@ -578,6 +581,34 @@ void  CLatencyManager::send_pkt_all_ports(){
     }
 }
 
+void  CLatencyManager::send_grat_arp_all_ports() {
+    for (int port_id = 0; port_id < m_max_ports; port_id++) {
+        // if port is connected in loopback, no need to send. It will only confuse our ingress counters.
+        if (CGlobalInfo::m_options.m_ip_cfg[port_id].is_loopback())
+            continue;
+
+        CLatencyManagerPerPort * lp = &m_ports[port_id];
+        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_small(CGlobalInfo::m_socket.port_to_socket(port_id));
+        assert(m);
+        uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, 60); // ARP packet is shorter than 60
+        uint32_t sip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
+        uint8_t *src_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src;
+        uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+        // gratuitous ARP. Requested IP is our source.
+        CTestPktGen::create_arp_req(p, sip, sip, src_mac, vlan, port_id);
+
+        if (CGlobalInfo::m_options.preview.getVMode() >= 3) {
+            printf("Sending gratuitous ARP on port %d vlan:%d, sip:0x%08x\n", port_id, vlan, sip);
+            utl_DumpBuffer(stdout, p, 60, 0);
+        }
+
+        if ( lp->m_io->tx(m) == 0 ) {
+            lp->m_port.m_tx_grat_arp_ok++;
+        } else {
+            lp->m_port.m_tx_pkt_err++;
+        }
+    }
+}
 
 void  CLatencyManager::wait_for_rx_dump(){
 	rte_mbuf_t * rx_pkts[64];
@@ -718,7 +749,13 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
     node->m_type = CGenNode::FLOW_PKT; /* latency */
     node->m_time = now_sec(); /* 1/cps rate */
     m_p_queue.push(node);
-    bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable()?true:false;
+
+    node = new CGenNode();
+    node->m_type = CGenNode::GRAT_ARP; /* gratuitous ARP */
+    node->m_time = now_sec() + 120;
+    m_p_queue.push(node);
+
+    bool do_try_rx_queue = CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
 
     if (activate_watchdog) {
         m_monitor.create("STF RX CORE", 1);
@@ -761,6 +798,15 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             send_pkt_all_ports();
             m_p_queue.pop();
             node->m_time += m_delta_sec;
+            m_p_queue.push(node);
+            m_cpu_dp_u.commit1();
+            break;
+
+        case CGenNode::GRAT_ARP:
+            m_cpu_dp_u.start_work1();
+            send_grat_arp_all_ports();
+            m_p_queue.pop();
+            node->m_time += 120; // every two minutes
             m_p_queue.push(node);
             m_cpu_dp_u.commit1();
             break;

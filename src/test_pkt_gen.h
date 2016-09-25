@@ -41,8 +41,10 @@ enum {
 
 class CTestPktGen {
  public:
-    char *create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t ttl, uint32_t ip_id, uint16_t flags
-                          , uint16_t max_payload, int &pkt_size);
+    static char *create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t ttl, uint32_t ip_id, uint16_t flags
+                                 , uint16_t max_payload, int &pkt_size);
+    static void create_arp_req(uint8_t *pkt, uint32_t sip, uint32_t tip, uint8_t *src_mac, uint16_t vlan
+                               , uint16_t port);
 };
 
 #endif
