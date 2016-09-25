@@ -312,6 +312,10 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
                                    uint64_t max_value, 
                                    Json::Value &result){
 
+    if (step == 0) {
+        generate_parse_err(result, "VM: step cannot be 0");
+    }
+
     if (max_value < min_value ) {
         std::stringstream ss;
         ss << "VM: request flow var variable '" << max_value << "' is smaller than " << min_value;
@@ -341,6 +345,7 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
             generate_parse_err(result, ss.str());
         }
     }
+
 }
 
 void 
@@ -360,11 +365,11 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
         generate_parse_err(result, ss.str());
     }
 
-    check_min_max(flow_var_size, 0, 0, min_value, max_value, result);
+    check_min_max(flow_var_size, 0, 1, min_value, max_value, result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionFlowRandLimit(flow_var_name,
                                                                       flow_var_size,
-                                                                      (int)limit,
+                                                                      limit,
                                                                       min_value,
                                                                       max_value,
                                                                       seed)
@@ -399,6 +404,9 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
     uint64_t step        = parse_uint64(inst, "step", result);
 
     check_min_max(flow_var_size, init_value, step, min_value, max_value, result);
+
+    /* implicit range padding if possible */
+    handle_range_padding(max_value,min_value,step, op_type, result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionFlowMan(flow_var_name,
                                                                 flow_var_size,

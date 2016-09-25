@@ -912,11 +912,11 @@ public:
 
     bool is_var_instruction() const {
         instruction_type_t type = get_instruction_type();
-        return ( (type == itFLOW_MAN) || (type == itFLOW_CLIENT) );
+        return ( (type == itFLOW_MAN) || (type == itFLOW_CLIENT) || (type == itFLOW_RAND_LIMIT) );
     }
 
     /* nothing to init */
-    virtual uint8_t bss_init_value(uint8_t *p){
+    virtual uint8_t set_bss_init_value(uint8_t *p) {
         return (0);
     }
 
@@ -941,11 +941,6 @@ public:
         return m_var_name;
     }
 
-    /**
-     * what is the split range for this var
-     * 
-     */
-    //virtual uint64_t get_range() const = 0;
 
     /**
      * allows a var instruction to be updated 
@@ -1010,7 +1005,7 @@ public:
     }
 
 
-    virtual uint8_t  bss_init_value(uint8_t *p);
+    virtual uint8_t set_bss_init_value(uint8_t *p);
 
 
     /**
@@ -1021,17 +1016,6 @@ public:
         FLOW_VAR_OP_DEC,
         FLOW_VAR_OP_RANDOM
     };
-
-
-    /**
-     * for BSS we take one previous value 
-     * because the VM will be executed before writing to pkt 
-     * so the init value is one step's advanced 
-     * 
-     */
-    uint64_t get_bss_init_value() const {
-        return peek_prev();
-    }
 
     StreamVmInstructionFlowMan(const std::string &var_name,
                                uint8_t size,
@@ -1121,7 +1105,7 @@ private:
 public:
 
     /* flow var size */
-    uint8_t       m_size_bytes;
+    uint8_t m_size_bytes;
 
     /* type of op */
     flow_var_op_e m_op;
@@ -1148,22 +1132,16 @@ public:
         return ( StreamVmInstruction::itFLOW_RAND_LIMIT);
     }
 
-    virtual bool is_valid_for_split() const {
-        return (false);
+    virtual bool need_split() const {
+        return true;
     }
-
-
-    virtual uint64_t get_splitable_range() const {
-        return (1);
-    }
-
 
     StreamVmInstructionFlowRandLimit(const std::string &var_name,
                                      uint8_t  size,
                                      uint64_t limit,
                                      uint64_t min_value,
                                      uint64_t max_value,
-                                     int       seed
+                                     uint64_t seed
                                      ) : StreamVmInstructionVar(var_name) {
 
         m_size_bytes = size;
@@ -1177,7 +1155,7 @@ public:
 
     void sanity_check(uint32_t ins_id,StreamVm *lp);
 
-    virtual uint8_t  bss_init_value(uint8_t *p);
+    virtual uint8_t set_bss_init_value(uint8_t *p);
 
     virtual StreamVmInstruction * clone() {
         return new StreamVmInstructionFlowRandLimit(m_var_name,
@@ -1186,6 +1164,19 @@ public:
                                                     m_min_value,
                                                     m_max_value,
                                                     m_seed);
+    }
+
+    virtual void update(uint64_t phase, uint64_t step_mul) {
+
+        /* phase */
+        m_seed = m_seed * ( ( (phase + 1) * 514229 )  & 0xFFFFFFFF );
+
+        /* limit */
+        uint64_t per_core_limit = (m_limit / step_mul);
+        if (phase == 0) {
+            per_core_limit += (m_limit % step_mul);
+        }
+        m_limit = per_core_limit;
     }
 
 private:
@@ -1197,7 +1188,7 @@ public:
     uint64_t       m_min_value;
     uint64_t       m_max_value;
 
-    int            m_seed;
+    uint64_t       m_seed;
     uint8_t        m_size_bytes;
 };
 
@@ -1332,17 +1323,12 @@ public:
     }
 
 
-    virtual uint8_t  bss_init_value(uint8_t *p);
+    virtual uint8_t set_bss_init_value(uint8_t *p);
 
 
     bool is_unlimited_flows(){
         return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) == 
                   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );
-    }
-
-    void get_bss_init_value(uint32_t &ip, uint16_t &port) {
-        /* fetch the previous values by 1 */
-        peek_prev(ip, port, 1);
     }
 
     virtual StreamVmInstruction * clone() {

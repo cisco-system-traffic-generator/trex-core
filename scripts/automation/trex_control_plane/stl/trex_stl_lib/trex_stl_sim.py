@@ -520,9 +520,6 @@ def compare_caps_strict (cap1, cap2, max_diff_sec = (5 * 1e-6)):
 
         if pkt1[0] != pkt2[0]:
             print(format_text("RAW error: cap files '{0}', '{1}' differ in cap #{2}\n".format(cap1, cap2, i), 'bold'))
-
-            #d1 = hexdump(pkt1[0])
-            #d2 = hexdump(pkt2[0])
             
             diff_list = hexdiff(pkt1[0], pkt2[0])
 
@@ -532,10 +529,6 @@ def compare_caps_strict (cap1, cap2, max_diff_sec = (5 * 1e-6)):
             print("\n{0} - packet #{1}:\n".format(cap2, i))
             prettyhex(pkt2[0], diff_list)
 
-            #print(hexdump(pkt1[0]))
-            #print("")
-            #print(hexdump(pkt2[0]))
-            #print("")
             print("")
             return False
 

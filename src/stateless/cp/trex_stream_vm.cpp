@@ -133,30 +133,27 @@ void StreamVmInstructionFlowMan::sanity_check_valid_range(uint32_t ins_id,Stream
 
 
 
-uint8_t  StreamVmInstructionFlowMan::bss_init_value(uint8_t *p){
-    uint8_t res;
+uint8_t StreamVmInstructionFlowMan::set_bss_init_value(uint8_t *p) {
+
+    uint64_t prev = peek_prev();
 
     switch (m_size_bytes) {
     case 1:
-        *p=(uint8_t)get_bss_init_value();
-        res=1;
-        break;
+        *p=(uint8_t)prev;
+        return 1;
     case 2:
-        *((uint16_t*)p)=(uint16_t)get_bss_init_value();
-        res=2;
-        break;
+        *((uint16_t*)p)=(uint16_t)prev;
+        return 2;
     case 4:
-        *((uint32_t*)p)=(uint32_t)get_bss_init_value();
-        res=4;
-        break;
+        *((uint32_t*)p)=(uint32_t)prev;
+        return 4;
     case 8:
-        *((uint64_t*)p)=(uint64_t)get_bss_init_value();
-        res=8;
-        break;
+        *((uint64_t*)p)=(uint64_t)prev;
+        return 8;
     default:
         assert(0);
+        return(0);
     }
-    return(res);
 }
 
 
@@ -179,7 +176,7 @@ void StreamVmInstructionFlowRandLimit::sanity_check(uint32_t ins_id,StreamVm *lp
 }
 
 
-uint8_t  StreamVmInstructionFlowRandLimit::bss_init_value(uint8_t *p){
+uint8_t  StreamVmInstructionFlowRandLimit::set_bss_init_value(uint8_t *p){
     uint8_t res;
 
     typedef union  ua_ {
@@ -305,26 +302,25 @@ void StreamVmInstructionFlowClient::Dump(FILE *fd){
 }
 
 
-uint8_t  StreamVmInstructionFlowClient::bss_init_value(uint8_t *p){
+uint8_t StreamVmInstructionFlowClient::set_bss_init_value(uint8_t *p) {
 
-    if (m_client_min>0) {
-       *((uint32_t*)p)=(uint32_t)(m_client_min-1);
-    }else{
-       *((uint32_t*)p)=(uint32_t)m_client_min;
-    }
+    uint32_t bss_ip;
+    uint16_t bss_port;
 
-    p+=4;
+    /* fetch the previous values by 1 */
+    peek_prev(bss_ip, bss_port, 1);
 
-    if (is_unlimited_flows() ) {
-        *((uint16_t*)p)=StreamDPOpClientsUnLimit::CLIENT_UNLIMITED_MIN_PORT;
-    }else{
-        *((uint16_t*)p)=(uint16_t)m_port_min;
-    }
+    /* ip */
+    *((uint32_t*)p) = bss_ip;
+    p += 4;
 
-    p+=2;
+    /* port */
+    *((uint16_t*)p) = bss_port;
+    p += 2;
 
-    *((uint32_t*)p)=0;
-    p+=4;
+    /* reserve */
+    *((uint32_t*)p) = 0;
+    p += 4;
 
     return (get_flow_var_size());
 }
@@ -1057,7 +1053,7 @@ void StreamVm::build_bss() {
     }
 
     for (auto inst : m_inst_list) {
-        p+=inst->bss_init_value(p);
+        p+=inst->set_bss_init_value(p);
     }
 }
 
