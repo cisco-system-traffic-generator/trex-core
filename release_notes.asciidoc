@@ -23,6 +23,20 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.09 pre ==
+
+* Statless, split to core algorithm is more accurate and simple see link:trex_stateless.html#_tutorial_field_engine_split_to_core[split_to_core] 
+* Add repeatable random instruction see an example link:https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/api/stl/udp_1pkt_repeat_random.py[stl/udp_1pkt_repeat_random.py] link:cp_stl_docs/api/field_engine.html#stlvmflowvarrepetablerandom[repetable_random] and link:trex_rpc_server_spec.html#_repetable_random[repetable_random_spec]
+* Support dual mode for push pcap/remote Python API. see here link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.push_remote[push_remote] and link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.push_pcap[push_pcap] Using this feature pcap can be sent to client/server ports
+* Add infra for L2 emulation support 
+
+=== fix issues: ===
+
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-243[trex-243] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-247[trex-247] 
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-244[trex-244] 
+
+
 == Release 2.08  ==
 
 * Scapy JSON-RPC server for GUI packet crafting, see  link:trex_scapy_rpc_server.html[trex_scapy_rpc_server]
