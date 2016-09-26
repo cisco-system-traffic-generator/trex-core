@@ -583,8 +583,7 @@ void  CLatencyManager::send_pkt_all_ports(){
 
 void  CLatencyManager::send_grat_arp_all_ports() {
     for (int port_id = 0; port_id < m_max_ports; port_id++) {
-        // if port is connected in loopback, no need to send. It will only confuse our ingress counters.
-        if (CGlobalInfo::m_options.m_ip_cfg[port_id].is_loopback())
+        if (! CGlobalInfo::m_options.m_ip_cfg[port_id].grat_arp_needed())
             continue;
 
         CLatencyManagerPerPort * lp = &m_ports[port_id];
@@ -750,10 +749,12 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
     node->m_time = now_sec(); /* 1/cps rate */
     m_p_queue.push(node);
 
-    node = new CGenNode();
-    node->m_type = CGenNode::GRAT_ARP; /* gratuitous ARP */
-    node->m_time = now_sec() + 120;
-    m_p_queue.push(node);
+    if (CGlobalInfo::m_options.m_arp_ref_per > 0) {
+        node = new CGenNode();
+        node->m_type = CGenNode::GRAT_ARP; /* gratuitous ARP */
+        node->m_time = now_sec() + CGlobalInfo::m_options.m_arp_ref_per;
+        m_p_queue.push(node);
+    }
 
     bool do_try_rx_queue = CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
 
@@ -806,7 +807,7 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             m_cpu_dp_u.start_work1();
             send_grat_arp_all_ports();
             m_p_queue.pop();
-            node->m_time += 120; // every two minutes
+            node->m_time += CGlobalInfo::m_options.m_arp_ref_per;
             m_p_queue.push(node);
             m_cpu_dp_u.commit1();
             break;

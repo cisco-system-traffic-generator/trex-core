@@ -19,10 +19,10 @@
   limitations under the License.
 */
 
-#include <rte_arp.h>
 #include <rte_ethdev.h>
 #include <arpa/inet.h>
 #include <common/Network/Packet/EthernetHeader.h>
+#include <common/Network/Packet/Arp.h>
 #include "common/basic_utils.h"
 #include "bp_sim.h"
 #include "main_dpdk.h"
@@ -111,22 +111,22 @@ int CPretest::handle_rx(int port_id, int queue_id) {
         rte_mbuf_t * m = rx_pkts[i];
         int pkt_size = rte_pktmbuf_pkt_len(m);
         uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
-        struct arp_hdr *arp;
+        ArpHdr *arp;
         CPretestPortInfo *port = &m_port_info[port_id];
         if (is_arp(p, pkt_size, arp)) {
-                if (arp->arp_op == htons(ARP_OP_REQUEST)) {
-                    if (verbose >= 3) {
-                        fprintf(stdout, "RX ARP request on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
-                                , ntohl(arp->arp_data.arp_sip)
-                                , ntohl(arp->arp_data.arp_tip));
-                    }
+            if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REQUEST)) {
+                if (verbose >= 3) {
+                    fprintf(stdout, "RX ARP request on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
+                            , ntohl(arp->m_arp_sip)
+                            , ntohl(arp->m_arp_tip));
+                }
                     // is this request for our IP?
-                    if (ntohl(arp->arp_data.arp_tip) == port->m_ip) {
+                    if (ntohl(arp->m_arp_tip) == port->m_ip) {
                         // If our request(i.e. we are connected in loopback)
                         // , do a shortcut, and write info directly to asking port
                         uint8_t magic[5] = {0x1, 0x3, 0x5, 0x7, 0x9};
-                        if (! memcmp((uint8_t *)&arp->arp_data.arp_tha, magic, 5)) {
-                            uint8_t sent_port_id = arp->arp_data.arp_tha.addr_bytes[5];
+                        if (! memcmp((uint8_t *)&arp->m_arp_tha.data, magic, 5)) {
+                            uint8_t sent_port_id = arp->m_arp_tha.data[5];
                             if ((sent_port_id < m_max_ports) &&
                                 (m_port_info[sent_port_id].m_def_gw == port->m_ip)) {
                                 memcpy(m_port_info[sent_port_id].m_dst_mac, port->m_src_mac, ETHER_ADDR_LEN);
@@ -137,19 +137,19 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                     } else {
                         // ARP request not to our IP. At the moment, we ignore this.
                     }
-                } else {
-                    if (arp->arp_op == htons(ARP_OP_REPLY)) {
-                        if (verbose >= 3) {
-                            fprintf(stdout, "RX ARP response on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
-                                    , ntohl(arp->arp_data.arp_sip)
-                                    , ntohl(arp->arp_data.arp_tip));
-                        }
-                        // If this is response to our request, update our tables
-                        if (port->m_def_gw == ntohl(arp->arp_data.arp_sip)) {
-                            port->set_dst_mac((uint8_t *)&arp->arp_data.arp_sha);
-                        }
+            } else {
+                if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REPLY)) {
+                    if (verbose >= 3) {
+                        fprintf(stdout, "RX ARP response on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
+                                , ntohl(arp->m_arp_sip)
+                                , ntohl(arp->m_arp_tip));
+                    }
+                    // If this is response to our request, update our tables
+                    if (port->m_def_gw == ntohl(arp->m_arp_sip)) {
+                        port->set_dst_mac((uint8_t *)&arp->m_arp_sha);
                     }
                 }
+            }
         }
 
         rte_pktmbuf_free(m);
@@ -256,7 +256,7 @@ void CPretest::send_grat_arp_all() {
     }
 }
 
-bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp) {
+bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp) {
     EthernetHeader *m_ether = (EthernetHeader *)p;
 
     if ((pkt_size < 60) ||
@@ -265,12 +265,12 @@ bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp)
         return false;
 
     if (m_ether->getNextProtocol() == EthernetHeader::Protocol::ARP) {
-        arp = (struct arp_hdr *)(p + 14);
+        arp = (ArpHdr *)(p + 14);
     } else {
         if (m_ether->getVlanProtocol() != EthernetHeader::Protocol::ARP) {
             return false;
         } else {
-            arp = (struct arp_hdr *)(p + 18);
+            arp = (ArpHdr *)(p + 18);
         }
     }
 

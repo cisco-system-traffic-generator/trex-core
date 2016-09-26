@@ -544,6 +544,7 @@ enum { OPT_HELP,
        OPT_ALLOW_COREDUMP,
        OPT_CHECKSUM_OFFLOAD,
        OPT_CLOSE,
+       OPT_ARP_REF_PER,
 };
 
 /* these are the argument types:
@@ -601,6 +602,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_ALLOW_COREDUMP ,  "--allow-coredump",  SO_NONE  },
         { OPT_CHECKSUM_OFFLOAD, "--checksum-offload", SO_NONE },
         { OPT_CLOSE, "--close-at-end", SO_NONE },
+        { OPT_ARP_REF_PER, "--arp-refresh-period", SO_REQ_SEP },
         SO_END_OF_OPTIONS
     };
 
@@ -619,7 +621,7 @@ static int usage(){
 
     printf(" --client_cfg [file]        : YAML file which describes clients configuration\n");
     printf(" \n\n");
-    printf(" -c [number of threads]     : default is 1. number of threads to allocate for each dual ports. \n");
+    printf(" -c [number of threads]     : Default is 1. Number of threads to allocate for each port pair. \n");
     printf("  \n");
     printf(" -s                         : run only one data path core. for debug\n");
     printf("  \n");
@@ -697,16 +699,17 @@ static int usage(){
     printf("                               This it temporary option. Will be removed in the future.\n");
     printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
-    printf(" --prefix                   : for multi trex, each instance should have a different name \n");
-    printf(" --mbuf-factor              : factor for packet memory \n");
+    printf(" --prefix                   : For multi trex, each instance should have a different name \n");
+    printf(" --mbuf-factor              : Factor for packet memory \n");
     printf("                             \n");
-    printf(" --no-watchdog              : disable watchdog  \n");
+    printf(" --no-watchdog              : Disable watchdog  \n");
     printf("                             \n");
-    printf(" --allow-coredump           : allow a creation of core dump \n");
+    printf(" --allow-coredump           : Allow a creation of core dump \n");
     printf("                             \n");
-    printf(" --vm-sim                   : simulate vm with driver of one input queue and one output queue \n");
+    printf(" --vm-sim                   : Simulate vm with driver of one input queue and one output queue \n");
     printf("                             \n");
-    printf(" --checksum-offload         : enable IP, TCP and UDP tx checksum offloading with DPDK. This requires all used interfaces to support this \n");
+    printf(" --checksum-offload         : Enable IP, TCP and UDP tx checksum offloading with DPDK. This requires all used interfaces to support this \n");
+    printf(" --arp-refresh-period       : Period in seconds between sending of gratuitous ARP for out addresses. Value of 0, means 'never send'\n");
     printf("  \n");
     printf(" Examples: ");
     printf(" basic trex run for 10 sec and multiplier of x10 \n");
@@ -983,6 +986,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_CLOSE:
                 po->preview.setCloseEnable(true);
+                break;
+            case  OPT_ARP_REF_PER:
+                sscanf(args.OptionArg(),"%d", &tmp_data);
+                po->m_arp_ref_per=(uint16_t)tmp_data;
                 break;
 
             default:
@@ -2975,7 +2982,7 @@ public:
 
 };
 
-// Before starting, send gratitues ARP on our addresses, and try to resolve dst MAC addresses.
+// Before starting, send gratuitous ARP on our addresses, and try to resolve dst MAC addresses.
 void CGlobalTRex::pre_test() {
     CPretest pretest(m_max_ports);
     bool resolve_needed = false;
@@ -2993,6 +3000,10 @@ void CGlobalTRex::pre_test() {
         if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
             rte_eth_macaddr_get(port_id,
                                 (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
+            CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(true);
+        }  else {
+            // If we got src MAC from config file, do not send gratuitous ARP for it (for compatibility with old behaviour)
+            CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
         }
         pretest.set_port_params(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id]
                                 , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src
@@ -3007,6 +3018,7 @@ void CGlobalTRex::pre_test() {
     uint8_t mac[ETHER_ADDR_LEN];
     for (int port_id = 0; port_id < m_max_ports; port_id++) {
         if (! memcmp(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
+            // we don't have dest MAC. Get it from what we resolved.
             uint32_t ip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
             if (! pretest.get_mac(port_id, ip, mac)) {
                 fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
@@ -3014,7 +3026,9 @@ void CGlobalTRex::pre_test() {
                 exit(1);
             }
             memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
-            CGlobalInfo::m_options.m_ip_cfg[port_id].set_loopback(pretest.is_loopback(port_id));
+            // if port is connected in loopback, no need to send gratuitous ARP. It will only confuse our ingress counters.
+            if (pretest.is_loopback(port_id))
+                CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
         }
 
         CPhyEthIF *pif = &m_ports[port_id];

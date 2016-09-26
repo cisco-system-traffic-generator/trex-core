@@ -701,19 +701,19 @@ class CPerPortIPCfg {
     uint32_t get_mask() {return m_mask;}
     uint32_t get_def_gw() {return m_def_gw;}
     uint32_t get_vlan() {return m_vlan;}
-    bool is_loopback() {return m_is_loopback;}
+    bool grat_arp_needed() {return m_grat_arp_needed;}
     void set_ip(uint32_t val) {m_ip = val;}
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
     void set_vlan(uint16_t val) {m_vlan = val;}
-    void set_loopback(bool val) {m_is_loopback = val;}
+    void set_grat_arp_needed(bool val) {m_grat_arp_needed = val;}
 
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
-    bool m_is_loopback;
+    bool m_grat_arp_needed;
 };
 
 class CParserOption {
@@ -767,6 +767,7 @@ public:
         m_run_mode = RUN_MODE_INVALID;
         m_l_pkt_mode = 0;
         m_rx_thread_enabled = false;
+        m_arp_ref_per = 120; // in seconds
     }
 
 
@@ -793,6 +794,7 @@ public:
     uint8_t         m_l_pkt_mode;
     uint8_t         m_learn_mode;
     uint16_t        m_debug_pkt_proto;
+    uint16_t        m_arp_ref_per;
     bool            m_rx_thread_enabled;
     trex_run_mode_e    m_run_mode;
 

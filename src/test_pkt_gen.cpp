@@ -21,13 +21,13 @@
 
 #include <assert.h>
 #include <netinet/in.h>
-#include <rte_arp.h>
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
 #include <common/Network/Packet/IcmpHeader.h>
 #include <common/Network/Packet/IPHeader.h>
 #include <common/Network/Packet/IPv6Header.h>
 #include <common/Network/Packet/EthernetHeader.h>
+#include <common/Network/Packet/Arp.h>
 #include "rx_check_header.h"
 #include "test_pkt_gen.h"
 
@@ -267,18 +267,18 @@ void CTestPktGen::create_arp_req(uint8_t *pkt, uint32_t sip, uint32_t tip, uint8
     memcpy(pkt, &l2_proto, sizeof(l2_proto));
     pkt += 2;
 
-    struct arp_hdr *arp = (struct arp_hdr *)pkt;
-    arp->arp_hrd = htons(ARP_HRD_ETHER); // Format of hardware address
-    arp->arp_pro = htons(EthernetHeader::Protocol::IP); // Format of protocol address
-    arp->arp_hln = ETHER_ADDR_LEN; // Length of hardware address
-    arp->arp_pln = 4; // Length of protocol address
-    arp->arp_op = htons(ARP_OP_REQUEST); // ARP opcode (command)
+    ArpHdr *arp = (ArpHdr *)pkt;
+    arp->m_arp_hrd = htons(ArpHdr::ARP_HDR_HRD_ETHER); // Format of hardware address
+    arp->m_arp_pro = htons(EthernetHeader::Protocol::IP); // Format of protocol address
+    arp->m_arp_hln = ETHER_ADDR_LEN; // Length of hardware address
+    arp->m_arp_pln = 4; // Length of protocol address
+    arp->m_arp_op = htons(ArpHdr::ARP_HDR_OP_REQUEST); // ARP opcode (command)
 
-    memcpy(&arp->arp_data.arp_sha, src_mac, ETHER_ADDR_LEN); // Sender MAC address
-    arp->arp_data.arp_sip = htonl(sip); // Sender IP address
+    memcpy(&arp->m_arp_sha.data, src_mac, ETHER_ADDR_LEN); // Sender MAC address
+    arp->m_arp_sip = htonl(sip); // Sender IP address
 
     uint8_t magic[5] = {0x1, 0x3, 0x5, 0x7, 0x9};
-    memcpy(&arp->arp_data.arp_tha, magic, 5); // Target MAC address
-    arp->arp_data.arp_tha.addr_bytes[5] = port;
-    arp->arp_data.arp_tip = htonl(tip);
+    memcpy(&arp->m_arp_tha.data, magic, 5); // Target MAC address
+    arp->m_arp_tha.data[5] = port;
+    arp->m_arp_tip = htonl(tip);
 }

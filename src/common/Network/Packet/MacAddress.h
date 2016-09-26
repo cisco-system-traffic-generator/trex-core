@@ -19,7 +19,10 @@ limitations under the License.
 
 #include "CPktCmn.h"
 
-    
+#ifndef ETHER_ADDR_LEN
+#define ETHER_ADDR_LEN  6 /**< Length of Ethernet address. */
+#endif
+
 class MacAddress
 {
 public:
@@ -44,7 +47,7 @@ public:
             a5);
     };
 
-	MacAddress(uint8_t macAddr[6])
+	MacAddress(uint8_t macAddr[ETHER_ADDR_LEN])
 	{
 		set(macAddr[0],
 			macAddr[1],
@@ -97,7 +100,7 @@ public:
 
 	bool operator == (const MacAddress& rhs) const
 	{
-		for(int i=0; i<6; i++)
+		for(int i = 0; i < ETHER_ADDR_LEN; i++)
 		{
 			if(data[i] != rhs.data[i])
 				return false;
@@ -124,7 +127,7 @@ public:
 	}
 
 public:
-    uint8_t data[6];
+    uint8_t data[ETHER_ADDR_LEN];
 };
 
 #endif //_MAC_ADDRESS_H_

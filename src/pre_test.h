@@ -23,6 +23,7 @@
 #define __PRE_TEST_H__
 
 #include <iostream>
+#include <common/Network/Packet/Arp.h>
 #include "bp_sim.h"
 #include "trex_defs.h"
 
@@ -68,7 +69,7 @@ class CPretest {
     bool resolve_all();
     void send_arp_req(uint16_t port, bool is_grat);
     void send_grat_arp_all();
-    bool is_arp(const uint8_t *p, uint16_t pkt_size, struct arp_hdr *&arp);
+    bool is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp);
     void dump(FILE *fd);
     void test();
     
