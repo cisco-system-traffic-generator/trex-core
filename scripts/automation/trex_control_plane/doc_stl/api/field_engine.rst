@@ -147,6 +147,13 @@ STLVmTupleGen
     :members: 
     :member-order: bysource
 
+STLVmFlowVarRepetableRandom
+----------------------------
+
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFlowVarRepetableRandom
+    :members: 
+    :member-order: bysource
+
   
 
 Field Engine snippet
@@ -197,5 +204,34 @@ Field Engine snippet
                                               mask=0xff) 
                          ]
                         )
+
+
+.. code-block:: python
+
+    # FE Example3
+        
+
+        #IP dest would have 10 random values betwean  48.0.0.1   48.0.0.255
+
+        base_pkt = Ether()/IP(src=src_ip,dst=dst_ip)/UDP(dport=12,sport=1025)
+
+        pad = max(0, size - len(base_pkt)) * 'x'
+                             
+        vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
+                                            max_value="10.0.0.255", size=4, step=1,op="inc"),
+                             STLVmFlowVarRepetableRandom ( "ip_dst",  
+                                                           min_value="48.0.0.1",
+                                                           max_value="48.0.0.255", 
+                                                           size=4, 
+                                                           limit=10, seed=0x1235),
+
+                             STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                             STLVmWrFlowVar (fv_name="ip_dst", pkt_offset= "IP.dst" ), # write ip to packet IP.dst
+
+                             STLVmFixIpv4(offset = "IP")                                # fix checksum
+                                  ]
+                              ,split_by_field = "ip_src"  # split to cores base on the tuple generator 
+                              ,cache_size = cache_size # the cache size
+                              );
 
 
