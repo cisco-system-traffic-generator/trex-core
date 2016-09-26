@@ -203,7 +203,7 @@ This issue would be fixed when we consolidate ``Stateful'' and ``Stateless'' RPC
 TRex does not support ARP yet, you should configure the DUT to send the packets to the TRex port MAC address. From Stateless mode, you can change the port mode to promiscuous. +
 Also, revisit your MAC address configuration in the TRex config file. Wrong MAC address configuration will cause all packets to be dropped.
 
-==== Why is the performance low?
+==== Why the performance is low?
 
 TRex performance depends on many factors:
 
@@ -304,7 +304,7 @@ Yes. Multiple TRex clients can connect to the same TRex server.
 Yes. You can build any packet you like using Scapy. 
 However, there is no way to create corrupted L1 fields (Like Ethernet FCS), since these are usually handled by the NIC hardware.
 
-==== Why is the performance low?
+==== Why the performance is low?
 What would reduce the performance: 
 
 1. Many concurent streams.

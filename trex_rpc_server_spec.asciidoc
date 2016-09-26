@@ -692,6 +692,45 @@ Any element in the array can be one of the following object types:
 | step        | uint64_t as string          | step, how much to inc or dec. 1 is the default (in case of 'random' this field is not used) 
 |=================
 
+
+===== repetable_random 
+
+Instruction to choose a limited number of random values from a big range  
+The values could be deterministic by providing seed 
+
+.Object type 'vm - flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type                        | Description
+| type        | string                      | ''flow_var_rand_limit'''
+| name        | string                      | flow var name - this should be a unique identifier
+| size        | [1,2,4,8]                   | size of the var in bytes
+| limit       | uint64_t as string          | the number of values to choose 
+| seed        | uint64_t as string          | seed of the random, in case there is no seed time will be taken
+| min_value   | uint64_t as string          | minimum value for the field
+| max_value   | uint64_t as string          | maximum value for the field
+|=================
+
+
+an example of tuple_flow_var variable
+
+[source,bash]
+----
+ size       = 2 
+ limit      = 5
+ seed       = 0x1234
+ min_value  = 0
+ max_value  = 10
+----
+
+results could be
+
+[source,bash]
+----
+7 , 8, 1 ,5, 2 ,  7 , 8, 1 ,5, 2, 7 , 8, 1 ,5, 2
+----
+
+
 ===== write_flow_var
 
 .Object type 'vm - write_flow_var'
