@@ -50,3 +50,5 @@ typedef void*           c_pvoid;
 #endif
 
 #endif
+
+#define ASSERT_MSG(cond, msg) if (!(cond)) {std::cerr << msg << std::endl; exit(-1);}

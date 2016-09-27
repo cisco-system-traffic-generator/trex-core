@@ -155,6 +155,28 @@ static bool mac2uint64(const std::string &mac_str, uint64_t &mac_num) {
     return true;
 }
 
+bool mac2vect(const std::string &mac_str, std::vector<uint8_t> &mac) {
+    std::vector<std::string> tokens;
+
+    split_str_by_delimiter(mac_str, ':', tokens);
+    if (tokens.size() != 6) {
+        return false;
+    }
+
+    for (int i = 0; i < 6 ; i++) {
+        char *endptr = NULL;
+        unsigned long octet = strtoul(tokens[i].c_str(), &endptr, 16);
+
+        if ( (*endptr != 0) || (octet > 0xff) ) {
+            return false;
+        }
+
+        mac.push_back(octet);
+    }
+
+    return true;
+}
+
 /************************
  * YAML Parser Wrapper
  *

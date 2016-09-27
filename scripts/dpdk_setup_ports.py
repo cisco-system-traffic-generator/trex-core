@@ -135,10 +135,12 @@ class ConfigCreator(object):
                 lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores])
                 config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop())
                 config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool.pop(0)
+                lcores_per_dual_if = int(len(lcores_pool) / len(self.interfaces))
                 config_str += ' '*6 + 'dual_if:\n'
                 for i in range(0, len(self.interfaces), 2):
+                    lcores_for_this_dual_if = [str(lcores_pool.pop(0)) for _ in range(lcores_per_dual_if)]
                     config_str += ' '*8 + '- socket: 0\n'
-                    config_str += ' '*10 + 'threads: [%s]\n\n' % lcores_pool.pop(0)
+                    config_str += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
             else:
                 # we will take common minimum among all NUMAs, to satisfy all
                 lcores_per_dual_if = 99

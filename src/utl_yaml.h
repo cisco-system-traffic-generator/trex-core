@@ -23,6 +23,7 @@ limitations under the License.
 
 
 #include <stdint.h>
+#include <vector>
 #include <yaml-cpp/yaml.h>
 
 
@@ -38,6 +39,8 @@ bool utl_yaml_read_uint32(const YAML::Node& node,
 bool utl_yaml_read_uint16(const YAML::Node& node, 
                           const std::string &name,
                           uint16_t & val);
+
+bool mac2vect(const std::string &mac_str, std::vector<uint8_t> &mac);
 
 /* a thin wrapper to customize errors */
 class YAMLParserWrapper {
