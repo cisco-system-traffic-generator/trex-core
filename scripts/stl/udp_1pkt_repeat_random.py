@@ -26,7 +26,7 @@ class STLS1(object):
                                                            min_value="48.0.0.1",
                                                            max_value="48.0.0.255", 
                                                            size=4, 
-                                                           limit=5, seed=0x1235),
+                                                           limit=16, seed=0x1235),
 
                              STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ), # write ip to packet IP.src
                              STLVmWrFlowVar (fv_name="ip_dst", pkt_offset= "IP.dst" ), # write ip to packet IP.dst

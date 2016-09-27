@@ -13,7 +13,7 @@
     vm:
       instructions: [
                {
-                  "init_value" : 500,
+                  "init_value" : 1000,
                   "max_value" : 75000,
                   "min_value" : 1000,
                   "name" : "l3_src",

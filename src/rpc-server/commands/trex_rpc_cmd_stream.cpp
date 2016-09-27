@@ -359,11 +359,12 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
     uint64_t min_value   = parse_uint64(inst, "min_value", result);
     uint64_t max_value   = parse_uint64(inst, "max_value", result);
 
-    if (limit < 1 ) {
-        std::stringstream ss;
-        ss << "VM: request random flow var variable with limit of zero '";
-        generate_parse_err(result, ss.str());
-    }
+	/* archiecture limitation - limit_flows must be greater or equal to DP core count */
+	if (limit < get_stateless_obj()->get_dp_core_count()) {
+		std::stringstream ss;
+		ss << "VM limit random: cannot specify limit less than " << (uint32_t)get_stateless_obj()->get_dp_core_count();
+		generate_parse_err(result, ss.str());
+	}
 
     check_min_max(flow_var_size, 0, 1, min_value, max_value, result);
 
