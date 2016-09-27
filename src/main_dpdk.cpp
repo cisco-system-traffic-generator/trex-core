@@ -74,9 +74,9 @@ extern "C" {
 #include "msg_manager.h"
 #include "platform_cfg.h"
 #include "pre_test.h"
-#include "latency.h"
+#include "stateful_rx_core.h"
 #include "debug.h"
-#include "test_pkt_gen.h"
+#include "pkt_gen.h"
 #include "internal_api/trex_platform_api.h"
 #include "main_dpdk.h"
 #include "trex_watchdog.h"
@@ -653,7 +653,7 @@ static int usage(){
     printf(" -m                         : factor of bandwidth \n");
     printf("  \n");
     printf(" --send-debug-pkt [proto]   : Do not run traffic generator. Just send debug packet and dump receive queue.");
-    printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for 9K UDP\n");
+    printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP\n");
     printf("  \n");
     printf(" -k  [sec]                  : run latency test before starting the test. it will wait for x sec sending packet and x sec after that  \n");
     printf("  \n");
@@ -1014,7 +1014,8 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                   "if you think it is important,open a defect \n");
     }
 
-    if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()) {
+    if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()
+        || (CGlobalInfo::m_options.m_arp_ref_per != 0)) {
         po->set_rx_enabled();
     }
 
@@ -1212,7 +1213,7 @@ typedef struct cnt_name_ {
 
 #define MY_REG(a) {a,(char *)#a}
 
-void CPhyEthIFStats::Clear(){
+void CPhyEthIFStats::Clear() {
     ipackets = 0;
     ibytes = 0;
     f_ipackets = 0;
@@ -1223,13 +1224,13 @@ void CPhyEthIFStats::Clear(){
     oerrors = 0;
     imcasts = 0;
     rx_nombuf = 0;
+    memset(&m_prev_stats, 0, sizeof(m_prev_stats));
     memset(m_rx_per_flow_pkts, 0, sizeof(m_rx_per_flow_pkts));
     memset(m_rx_per_flow_bytes, 0, sizeof(m_rx_per_flow_bytes));
 }
 
-
-void CPhyEthIFStats::DumpAll(FILE *fd){
-
+// dump all counters (even ones that equal 0)
+void CPhyEthIFStats::DumpAll(FILE *fd) {
 #define DP_A4(f) printf(" %-40s : %llu \n",#f, (unsigned long long)f)
 #define DP_A(f) if (f) printf(" %-40s : %llu \n",#f, (unsigned long long)f)
     DP_A4(opackets);
@@ -1238,24 +1239,29 @@ void CPhyEthIFStats::DumpAll(FILE *fd){
     DP_A4(ibytes);
     DP_A(ierrors);
     DP_A(oerrors);
-
 }
 
-
-void CPhyEthIFStats::Dump(FILE *fd){
-
+// dump all non zero counters
+void CPhyEthIFStats::Dump(FILE *fd) {
     DP_A(opackets);
     DP_A(obytes);
-
     DP_A(f_ipackets);
     DP_A(f_ibytes);
-
     DP_A(ipackets);
     DP_A(ibytes);
     DP_A(ierrors);
     DP_A(oerrors);
     DP_A(imcasts);
     DP_A(rx_nombuf);
+}
+
+void CPhyEthIgnoreStats::dump(FILE *fd) {
+    DP_A4(opackets);
+    DP_A4(obytes);
+    DP_A4(ipackets);
+    DP_A4(ibytes);
+    DP_A4(m_tx_arp);
+    DP_A4(m_rx_arp);
 }
 
 // Clear the RX queue of an interface, dropping all packets
@@ -1565,51 +1571,6 @@ void CPhyEthIF::macaddr_get(struct ether_addr *mac_addr){
     rte_eth_macaddr_get(m_port_id , mac_addr);
 }
 
-
-void CPhyEthIF::get_stats_1g(CPhyEthIFStats *stats){
-
-    stats->ipackets     +=  pci_reg_read(E1000_GPRC) ;
-
-    stats->ibytes       +=  (pci_reg_read(E1000_GORCL) );
-    stats->ibytes       +=  (((uint64_t)pci_reg_read(E1000_GORCH))<<32);
-
-
-    stats->opackets     +=  pci_reg_read(E1000_GPTC);
-    stats->obytes       +=  pci_reg_read(E1000_GOTCL) ;
-    stats->obytes       +=  ( (((uint64_t)pci_reg_read(IXGBE_GOTCH))<<32) );
-
-    stats->f_ipackets   +=  0;
-    stats->f_ibytes     += 0;
-
-
-    stats->ierrors      +=  ( pci_reg_read(E1000_RNBC) +
-                              pci_reg_read(E1000_CRCERRS) +
-                              pci_reg_read(E1000_ALGNERRC ) +
-                              pci_reg_read(E1000_SYMERRS ) +
-                              pci_reg_read(E1000_RXERRC ) +
-
-                              pci_reg_read(E1000_ROC)+
-                              pci_reg_read(E1000_RUC)+
-                              pci_reg_read(E1000_RJC) +
-
-                              pci_reg_read(E1000_XONRXC)+
-                              pci_reg_read(E1000_XONTXC)+
-                              pci_reg_read(E1000_XOFFRXC)+
-                              pci_reg_read(E1000_XOFFTXC)+
-                              pci_reg_read(E1000_FCRUC)
-                              );
-
-    stats->oerrors      +=  0;
-    stats->imcasts      =  0;
-    stats->rx_nombuf    =  0;
-
-    m_last_tx_rate      =  m_bw_tx.add(stats->obytes);
-    m_last_rx_rate      =  m_bw_rx.add(stats->ibytes);
-    m_last_tx_pps       =  m_pps_tx.add(stats->opackets);
-    m_last_rx_pps       =  m_pps_rx.add(stats->ipackets);
-
-}
-
 int CPhyEthIF::dump_fdir_global_stats(FILE *fd) {
     return get_ex_drv()->dump_fdir_global_stats(this, fd);
 }
@@ -1672,8 +1633,8 @@ void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
     DP_A1(mptc);
     DP_A1(bptc);
     DP_A1(xec);
-    DP_A2(qprc,16)
-        DP_A2(qptc,16);
+    DP_A2(qprc,16);
+    DP_A2(qptc,16);
     DP_A2(qbrc,16);
     DP_A2(qbtc,16);
     DP_A2(qprdc,16);
@@ -1701,14 +1662,27 @@ void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
     DP_A1(o2bspc);
 }
 
-
-void CPhyEthIF::update_counters(){
+void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
+    // reading m_stats, so drivers saving prev in m_stats will be updated.
+    // Actually, we want m_stats to be cleared
     get_ex_drv()->get_extended_stats(this, &m_stats);
 
-    m_last_tx_rate      =  m_bw_tx.add(m_stats.obytes);
-    m_last_rx_rate      =  m_bw_rx.add(m_stats.ibytes);
-    m_last_tx_pps       =  m_pps_tx.add(m_stats.opackets);
-    m_last_rx_pps       =  m_pps_rx.add(m_stats.ipackets);
+    m_ignore_stats.ipackets = m_stats.ipackets;
+    m_ignore_stats.ibytes = m_stats.ibytes;
+    m_ignore_stats.opackets = m_stats.opackets;
+    m_ignore_stats.obytes = m_stats.obytes;
+    m_stats.ipackets = 0;
+    m_stats.opackets = 0;
+    m_stats.ibytes = 0;
+    m_stats.obytes = 0;
+
+    m_ignore_stats.m_tx_arp = pre_stats.m_tx_arp;
+    m_ignore_stats.m_rx_arp = pre_stats.m_rx_arp;
+
+    if (CGlobalInfo::m_options.preview.getVMode() >= 3) {
+        fprintf(stdout, "Pre test statistics for port %d\n", get_port_id());
+        m_ignore_stats.dump(stdout);
+    }
 }
 
 void CPhyEthIF::dump_stats(FILE *fd){
@@ -2842,7 +2816,6 @@ public:
     void rx_sl_configure();
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
-    int  reset_counters();
 
     /**
      * mark for shutdown
@@ -3011,7 +2984,13 @@ void CGlobalTRex::pre_test() {
     }
 
     pretest.send_grat_arp_all();
-    pretest.resolve_all();
+    bool ret;
+    int count = 0;
+    do {
+        ret = pretest.resolve_all();
+        count++;
+    } while ((ret != true) && (count < 3));
+
     if ( CGlobalInfo::m_options.preview.getVMode() > 0) {
         pretest.dump(stdout);
     }
@@ -3031,20 +3010,14 @@ void CGlobalTRex::pre_test() {
                 CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
         }
 
+        // update statistics baseline, so we can ignore what happened in pre test phase
         CPhyEthIF *pif = &m_ports[port_id];
+        CPreTestStats pre_stats = pretest.get_stats(port_id);
+        pif->set_ignore_stats_base(pre_stats);
+
         // Configure port back to normal mode. Only relevant packets handled by software.
         CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, false);
     }
-}
-
-int  CGlobalTRex::reset_counters(){
-    int i;
-    for (i=0; i<m_max_ports; i++) {
-        CPhyEthIF * _if=&m_ports[i];
-        _if->stats_clear();
-    }
-
-    return (0);
 }
 
 /**
@@ -3175,8 +3148,14 @@ void CGlobalTRex::ixgbe_configure_mg(void) {
 
     if ( latency_rate ) {
         mg_cfg.m_cps = (double)latency_rate ;
-    }else{
-        mg_cfg.m_cps = 1.0;
+    } else {
+        // If RX core needed, we need something to make the scheduler running.
+        // If nothing configured, send 1 CPS latency measurement packets.
+        if (CGlobalInfo::m_options.m_arp_ref_per == 0) {
+            mg_cfg.m_cps = 1.0;
+        } else {
+            mg_cfg.m_cps = 0;
+        }
     }
 
     if ( get_vm_one_queue_enable() ) {
@@ -3657,6 +3636,8 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
     uint64_t sw_pkt_out=0;
     uint64_t sw_pkt_out_err=0;
     uint64_t sw_pkt_out_bytes=0;
+    uint64_t tx_arp = 0;
+    uint64_t rx_arp = 0;
 
     int i;
     for (i=0; i<get_cores_tx(); i++) {
@@ -3675,6 +3656,8 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
         pkt_in_bytes +=_if->get_stats().ibytes;
         pkt_out +=_if->get_stats().opackets;
         pkt_out_bytes +=_if->get_stats().obytes;
+        tx_arp += _if->get_ignore_stats().get_tx_arp();
+        rx_arp += _if->get_ignore_stats().get_rx_arp();
     }
     if ( CGlobalInfo::m_options.is_latency_enabled() ){
         sw_pkt_out += m_mg.get_total_pkt();
@@ -3703,6 +3686,8 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
     fprintf (fd," Total-rx-pkt         : %llu pkts \n", (unsigned long long)pkt_in);
     fprintf (fd," Total-sw-tx-pkt      : %llu pkts \n", (unsigned long long)sw_pkt_out);
     fprintf (fd," Total-sw-err         : %llu pkts \n", (unsigned long long)sw_pkt_out_err);
+    fprintf (fd," Total ARP sent       : %llu pkts \n", (unsigned long long)tx_arp);
+    fprintf (fd," Total ARP received   : %llu pkts \n", (unsigned long long)rx_arp);
 
 
     if ( CGlobalInfo::m_options.is_latency_enabled() ){
@@ -4550,6 +4535,22 @@ int CGlobalTRex::start_master_statefull() {
 ////////////////////////////////////////////
 static CGlobalTRex g_trex;
 
+void CPhyEthIF::update_counters() {
+    get_ex_drv()->get_extended_stats(this, &m_stats);
+    CRXCoreIgnoreStat ign_stats;
+    g_trex.m_mg.get_ignore_stats(m_port_id, ign_stats, true);
+    m_stats.obytes -= ign_stats.get_tx_bytes();
+    m_stats.opackets -= ign_stats.get_tx_pkts();
+    m_ignore_stats.opackets += ign_stats.get_tx_pkts();
+    m_ignore_stats.obytes += ign_stats.get_tx_bytes();
+    m_ignore_stats.m_tx_arp += ign_stats.get_tx_arp();
+
+    m_last_tx_rate      =  m_bw_tx.add(m_stats.obytes);
+    m_last_rx_rate      =  m_bw_rx.add(m_stats.ibytes);
+    m_last_tx_pps       =  m_pps_tx.add(m_stats.opackets);
+    m_last_rx_pps       =  m_pps_rx.add(m_stats.ipackets);
+}
+
 bool CPhyEthIF::Create(uint8_t portid) {
     m_port_id      = portid;
     m_last_rx_rate = 0.0;
@@ -5140,18 +5141,6 @@ int main_test(int argc , char * argv[]){
     /* set dump mode */
     g_trex.m_io_modes.set_mode((CTrexGlobalIoMode::CliDumpMode)CGlobalInfo::m_options.m_io_mode);
 
-    if ( CGlobalInfo::m_options.is_latency_enabled()
-         && (CGlobalInfo::m_options.m_latency_prev > 0)) {
-        uint32_t pkts = CGlobalInfo::m_options.m_latency_prev *
-            CGlobalInfo::m_options.m_latency_rate;
-        printf("Starting pre latency check for %d sec\n",CGlobalInfo::m_options.m_latency_prev);
-        g_trex.m_mg.start(pkts, NULL);
-        delay(CGlobalInfo::m_options.m_latency_prev* 1000);
-        printf("Finished \n");
-        g_trex.m_mg.reset();
-        g_trex.reset_counters();
-    }
-
     /* disable WD if needed */
     bool wd_enable = (CGlobalInfo::m_options.preview.getWDDisable() ? false : true);
     TrexWatchDog::getInstance().init(wd_enable);
@@ -5211,11 +5200,23 @@ int main_test(int argc , char * argv[]){
     }
 
     g_trex.pre_test();
+
     // after doing all needed ARP resolution, we need to flush queues, and stop our drop queue
     g_trex.ixgbe_rx_queue_flush();
     for (int i = 0; i < g_trex.m_max_ports; i++) {
         CPhyEthIF *_if = &g_trex.m_ports[i];
         _if->stop_rx_drop_queue();
+    }
+
+    if ( CGlobalInfo::m_options.is_latency_enabled()
+         && (CGlobalInfo::m_options.m_latency_prev > 0)) {
+        uint32_t pkts = CGlobalInfo::m_options.m_latency_prev *
+            CGlobalInfo::m_options.m_latency_rate;
+        printf("Starting warm up phase for %d sec\n",CGlobalInfo::m_options.m_latency_prev);
+        g_trex.m_mg.start(pkts, NULL);
+        delay(CGlobalInfo::m_options.m_latency_prev* 1000);
+        printf("Finished \n");
+        g_trex.m_mg.reset();
     }
 
     if ( CGlobalInfo::m_options.preview.getOnlyLatency() ){
@@ -6054,20 +6055,32 @@ int CTRexExtendedDriverBase40G::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd
     }
 }
 
-void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
     struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
     rte_eth_stats_get(_if->get_port_id(), &stats1);
 
-    stats->ipackets     =  stats1.ipackets;
-    stats->ibytes       =  stats1.ibytes ;
-    stats->opackets     =  stats1.opackets;
-    stats->obytes       =  stats1.obytes + (stats1.opackets<<2);
-    stats->f_ipackets   = 0;
-    stats->f_ibytes     = 0;
-    stats->ierrors      =  stats1.imissed + stats1.ierrors + stats1.rx_nombuf;
-    stats->oerrors      =  stats1.oerrors;;
-    stats->imcasts      =  0;
-    stats->rx_nombuf    =  stats1.rx_nombuf;
+    stats->ipackets += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes   += stats1.ibytes - prev_stats->ibytes;
+    stats->opackets += stats1.opackets - prev_stats->opackets;
+    stats->obytes   += stats1.obytes - prev_stats->obytes
+        + (stats1.opackets << 2) - (prev_stats->opackets << 2);
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
 }
 
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
@@ -6154,31 +6167,30 @@ int CTRexExtendedDriverBase1GVm::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
 }
 
 void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-
     struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
     rte_eth_stats_get(_if->get_port_id(), &stats1);
 
+    stats->ipackets   += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes     += stats1.ibytes - prev_stats->ibytes;
+    stats->opackets   += stats1.opackets - prev_stats->opackets;
+    stats->obytes     += stats1.obytes - prev_stats->obytes;
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
 
-    stats->ipackets     =  stats1.ipackets;
-    stats->ibytes       =  stats1.ibytes;
-
-    stats->opackets     =  stats1.opackets;
-    stats->obytes       =  stats1.obytes;
-
-    stats->f_ipackets   = 0;
-    stats->f_ibytes     = 0;
-
-
-    stats->ierrors      =  stats1.imissed +
-        stats1.ierrors      +
-        stats1.oerrors      +
-        stats1.rx_nombuf;
-
-
-    stats->oerrors      =  stats1.oerrors;;
-    stats->imcasts      =  0;
-    stats->rx_nombuf    =  stats1.rx_nombuf;
-
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
 }
 
 int CTRexExtendedDriverBase1GVm::wait_for_stable_link(){

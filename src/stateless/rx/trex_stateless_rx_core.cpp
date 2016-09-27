@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include "bp_sim.h"
 #include "flow_stat_parser.h"
-#include "latency.h"
+#include "stateful_rx_core.h"
 #include "pal/linux/sanb_atomic.h"
 #include "trex_stateless_messaging.h"
 #include "trex_stateless_rx_core.h"

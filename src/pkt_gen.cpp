@@ -29,7 +29,7 @@
 #include <common/Network/Packet/EthernetHeader.h>
 #include <common/Network/Packet/Arp.h>
 #include "rx_check_header.h"
-#include "test_pkt_gen.h"
+#include "pkt_gen.h"
 
 // For use in tests
 char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t ttl, uint32_t ip_id, uint16_t flags

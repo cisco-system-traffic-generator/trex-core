@@ -5,7 +5,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ limitations under the License.
 #include "flow_stat_parser.h"
 #include "utl_json.h"
 #include "trex_watchdog.h"
-#include "test_pkt_gen.h"
+#include "pkt_gen.h"
 #include "common/basic_utils.h"
-#include "latency.h"
+#include "stateful_rx_core.h"
 
-const uint8_t sctp_pkt[]={ 
+const uint8_t sctp_pkt[]={
 
     0x00,0x04,0x96,0x08,0xe0,0x40,
     0x00,0x0e,0x2e,0x24,0x37,0x5f,
@@ -42,9 +42,9 @@ const uint8_t sctp_pkt[]={
     0x80,0x44,//SPORT
     0x00,0x50,//DPORT
 
-    0x00,0x00,0x00,0x00, //checksum 
+    0x00,0x00,0x00,0x00, //checksum
 
-    0x11,0x22,0x33,0x44, // magic 
+    0x11,0x22,0x33,0x44, // magic
     0x00,0x00,0x00,0x00, //64 bit counter
     0x00,0x00,0x00,0x00,
     0x00,0x01,0xa0,0x00, //seq
@@ -63,18 +63,18 @@ const uint8_t icmp_pkt[]={
     0x9b,0xe6,0x18,0x9b, //SIP
     0xcb,0xff,0xfc,0xc2, //DIP
 
-    0x08, 0x00, 
+    0x08, 0x00,
     0x01, 0x02,  //checksum
     0xaa, 0xbb,  // id
     0x00, 0x00,  // Sequence number
 
-    0x11,0x22,0x33,0x44, // magic 
+    0x11,0x22,0x33,0x44, // magic
     0x00,0x00,0x00,0x00, //64 bit counter
     0x00,0x00,0x00,0x00,
     0x00,0x01,0xa0,0x00, //seq
     0x00,0x00,0x00,0x00,
 
-}; 
+};
 
 
 void CLatencyPktInfo::Create(class CLatencyPktMode *m_l_pkt_info){
@@ -123,7 +123,7 @@ void CLatencyPktInfo::Create(class CLatencyPktMode *m_l_pkt_info){
     m_dummy_node.m_src_port =  0x11;
     m_dummy_node.m_flow_id =0;
     m_dummy_node.m_flags =CGenNode::NODE_FLAGS_LATENCY;
-    
+
 }
 
 rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id,uint32_t extern_ip){
@@ -172,7 +172,8 @@ void CCPortLatency::reset(){
     m_pad       = 0;
     m_tx_pkt_err=0;
     m_tx_pkt_ok =0;
-    m_tx_grat_arp_ok =0;
+    m_ign_stats.clear();
+    m_ign_stats_prev.clear();
     m_pkt_ok=0;
     m_rx_check=0;
     m_no_magic=0;
@@ -231,13 +232,13 @@ void CCPortLatency::update_packet(rte_mbuf_t * m, int port_id){
     m_tx_seq++;
 
     CLatencyPktMode *c_l_pkt_mode = m_parent->c_l_pkt_mode;
-    c_l_pkt_mode->update_pkt(p + m_l4_offset, is_client_to_server, m_pkt_size - m_l4_offset, &m_icmp_tx_seq);    
+    c_l_pkt_mode->update_pkt(p + m_l4_offset, is_client_to_server, m_pkt_size - m_l4_offset, &m_icmp_tx_seq);
 }
 
 
-void CCPortLatency::DumpShortHeader(FILE *fd){   
+void CCPortLatency::DumpShortHeader(FILE *fd){
     fprintf(fd," if|   tx_ok , rx_ok  , rx check ,error,       latency (usec) ,    Jitter          max window \n");
-	fprintf(fd,"   |         ,        ,          ,     ,   average   ,   max  ,    (usec)                     \n");
+    fprintf(fd,"   |         ,        ,          ,     ,   average   ,   max  ,    (usec)                     \n");
     fprintf(fd," ---------------------------------------------------------------------------------------------------------------- \n");
 }
 
@@ -271,7 +272,7 @@ void CCPortLatency::dump_json(std::string & json ){
 void CCPortLatency::DumpShort(FILE *fd){
 
 //	m_hist.update(); <- moved to CLatencyManager::update()
-    fprintf(fd,"%8lu,%8lu,%10lu,%5lu,",                          
+    fprintf(fd,"%8lu,%8lu,%10lu,%5lu,",
                     m_tx_pkt_ok,
                     m_pkt_ok,
                     m_rx_check,
@@ -283,8 +284,8 @@ void CCPortLatency::DumpShort(FILE *fd){
                           m_hist.get_max_latency(),
                           get_jitter_usec()
                         );
-	fprintf(fd,"     | ");
-	m_hist.DumpWinMax(fd);
+    fprintf(fd,"     | ");
+    m_hist.DumpWinMax(fd);
 
 }
 
@@ -295,7 +296,9 @@ void CCPortLatency::dump_counters_json(std::string & json ){
 
     json+="\"stats\" : {";
     DPL_J(m_tx_pkt_ok);
-    DPL_J(m_tx_grat_arp_ok);
+    json+=add_json("tx_arp", m_ign_stats.get_tx_arp());
+    json+=add_json("ipv6_n_solic", m_ign_stats.get_tx_n_solic());
+    json+=add_json("ignore_bytes", m_ign_stats.get_tx_bytes());
     DPL_J(m_tx_pkt_err);
     DPL_J(m_pkt_ok);
     DPL_J(m_unsup_prot);
@@ -313,14 +316,14 @@ void CCPortLatency::dump_counters_json(std::string & json ){
 }
 
 void CCPortLatency::DumpCounters(FILE *fd){
-    #define DP_A1(f) if (f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)f)
+#define DP_A1(f) if (f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)f)
+#define DP_A2(str, f) if (f) fprintf(fd," %-40s : %llu \n", str, (unsigned long long)f)
 
     fprintf(fd," counter  \n");
     fprintf(fd," -----------\n");
 
     DP_A1(m_tx_pkt_err);
     DP_A1(m_tx_pkt_ok);
-    DP_A1(m_tx_grat_arp_ok);
     DP_A1(m_pkt_ok);
     DP_A1(m_unsup_prot);
     DP_A1(m_no_magic);
@@ -329,7 +332,9 @@ void CCPortLatency::DumpCounters(FILE *fd){
     DP_A1(m_length_error);
     DP_A1(m_rx_check);
     DP_A1(m_no_ipv4_option);
-
+    DP_A2("tx_arp", m_ign_stats.get_tx_arp());
+    DP_A2("ipv6_n_solic", m_ign_stats.get_tx_n_solic());
+    DP_A2("ignore_bytes", m_ign_stats.get_tx_bytes());
 
     fprintf(fd," -----------\n");
     m_hist.Dump(fd);
@@ -338,8 +343,8 @@ void CCPortLatency::DumpCounters(FILE *fd){
 
 bool CCPortLatency::dump_packet(rte_mbuf_t * m){
     fprintf(stdout," %f.03 dump packet ..\n",now_sec());
-	uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
-	uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
+    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     utl_DumpBuffer(stdout,p,pkt_size,0);
     return (0);
 #if 0
@@ -350,7 +355,7 @@ bool CCPortLatency::dump_packet(rte_mbuf_t * m){
 
     lp->dump(stdout);
 
-	return (0);
+    return (0);
 #endif
 
 }
@@ -372,7 +377,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
     if ( !parser.Parse()  ) {
         m_unsup_prot++;  // Unsupported protocol
         return (false);
-    }    
+    }
     CLatencyPktMode *c_l_pkt_mode = m_parent->c_l_pkt_mode;
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     uint16_t vlan_offset=parser.m_vlan_offset;
@@ -492,7 +497,7 @@ void CLatencyManager::Delete(){
 }
 
 /* 0->1
-   1->0 
+   1->0
    2->3
    3->2
 */
@@ -516,7 +521,7 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
         c_l_pkt_mode =  (CLatencyPktModeICMP *) new CLatencyPktModeICMP(CGlobalInfo::m_options.get_l_pkt_mode());
         break;
     }
-    
+
     m_max_ports=cfg->m_max_ports;
     assert (m_max_ports <= TREX_MAX_PORTS);
     assert ((m_max_ports%2)==0);
@@ -537,10 +542,12 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
                           m_pkt_gen.get_pkt_size(),lpo );
     }
     m_cps= cfg->m_cps;
-    m_d_time =ptime_convert_dsec_hr((1.0/m_cps));
-    m_delta_sec =(1.0/m_cps);
+    if (m_cps != 0) {
+        m_delta_sec =(1.0/m_cps);
+    } else {
+        m_delta_sec = 0.0;
+    }
 
-        
     if ( get_is_rx_check_mode() ) {
         assert(m_rx_check_manager.Create());
         m_rx_check_manager.m_cur_time= now_sec();
@@ -602,7 +609,8 @@ void  CLatencyManager::send_grat_arp_all_ports() {
         }
 
         if ( lp->m_io->tx(m) == 0 ) {
-            lp->m_port.m_tx_grat_arp_ok++;
+            lp->m_port.m_ign_stats.m_tx_arp++;
+            lp->m_port.m_ign_stats.m_tot_bytes += 64; // mbuf size is smaller, but 64 bytes will be sent
         } else {
             lp->m_port.m_tx_pkt_err++;
         }
@@ -610,26 +618,26 @@ void  CLatencyManager::send_grat_arp_all_ports() {
 }
 
 void  CLatencyManager::wait_for_rx_dump(){
-	rte_mbuf_t * rx_pkts[64];
-	int i;
-	while ( true  ) {
-		rte_pause();
-		rte_pause();
-		rte_pause();
-		for (i=0; i<m_max_ports; i++) {
-			CLatencyManagerPerPort * lp=&m_ports[i];
-			rte_mbuf_t * m;
-			uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
-			if (cnt_p) {
-				int j;
-				for (j=0; j<cnt_p; j++) {
-					m=rx_pkts[j] ;
-					lp->m_port.dump_packet( m);
-					rte_pktmbuf_free(m);
-				}
-			} /*cnt_p*/
-		}/* for*/
-	}
+    rte_mbuf_t * rx_pkts[64];
+    int i;
+    while ( true  ) {
+        rte_pause();
+        rte_pause();
+        rte_pause();
+        for (i=0; i<m_max_ports; i++) {
+            CLatencyManagerPerPort * lp=&m_ports[i];
+            rte_mbuf_t * m;
+            uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
+            if (cnt_p) {
+                int j;
+                for (j=0; j<cnt_p; j++) {
+                    m=rx_pkts[j] ;
+                    lp->m_port.dump_packet( m);
+                    rte_pktmbuf_free(m);
+                }
+            } /*cnt_p*/
+        }/* for*/
+    }
 }
 
 
@@ -744,15 +752,17 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
     node->m_time = now_sec()+0.007;
     m_p_queue.push(node);
 
-    node = new CGenNode();
-    node->m_type = CGenNode::FLOW_PKT; /* latency */
-    node->m_time = now_sec(); /* 1/cps rate */
-    m_p_queue.push(node);
+    if (m_delta_sec > 0) {
+        node = new CGenNode();
+        node->m_type = CGenNode::FLOW_PKT; /* latency */
+        node->m_time = now_sec(); /* 1/cps rate */
+        m_p_queue.push(node);
+    }
 
     if (CGlobalInfo::m_options.m_arp_ref_per > 0) {
         node = new CGenNode();
         node->m_type = CGenNode::GRAT_ARP; /* gratuitous ARP */
-        node->m_time = now_sec() + CGlobalInfo::m_options.m_arp_ref_per;
+        node->m_time = now_sec() + (double) CGlobalInfo::m_options.m_arp_ref_per;
         m_p_queue.push(node);
     }
 
@@ -807,7 +817,7 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             m_cpu_dp_u.start_work1();
             send_grat_arp_all_ports();
             m_p_queue.pop();
-            node->m_time += CGlobalInfo::m_options.m_arp_ref_per;
+            node->m_time += (double)CGlobalInfo::m_options.m_arp_ref_per;
             m_p_queue.push(node);
             m_cpu_dp_u.commit1();
             break;
@@ -822,7 +832,7 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
                 printf("stop due iter %d\n",iter);
                 break;
             }
-        } 
+        }
         cnt++;
     }
 
@@ -853,6 +863,20 @@ bool  CLatencyManager::is_active(){
     return (m_is_active);
 }
 
+// return the statistics we want to ignore for port port_id
+// stat - hold values we return.
+// if get_diff is true, return diff from last read. Else return total.
+void CLatencyManager::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
+    CLatencyManagerPerPort * lp = &m_ports[port_id];
+    CRXCoreIgnoreStat temp;
+    temp = lp->m_port.m_ign_stats;
+    if (get_diff) {
+        stat = temp - lp->m_port.m_ign_stats_prev;
+        lp->m_port.m_ign_stats_prev = temp;
+    } else {
+        stat = lp->m_port.m_ign_stats;
+    }
+}
 
 double CLatencyManager::get_max_latency(){
     double l=0.0;

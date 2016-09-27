@@ -27,6 +27,18 @@
 #include "bp_sim.h"
 #include "trex_defs.h"
 
+class CPreTestStats {
+ public:
+    uint32_t m_rx_arp; // how many ARP packets we received
+    uint32_t m_tx_arp; // how many ARP packets we sent
+
+ public:
+    void clear() {
+        m_rx_arp = 0;
+        m_tx_arp = 0;
+    }
+};
+
 class CPretestPortInfo {
     friend class CPretest;
     
@@ -41,6 +53,7 @@ class CPretestPortInfo {
     CPretestPortInfo() {
         m_state = INIT_NEEDED;
         m_is_loopback = false;
+        m_stats.clear();
     }
     void dump(FILE *fd);
     uint8_t *create_arp_req(uint16_t &pkt_size, uint8_t port, bool is_grat);
@@ -55,6 +68,7 @@ class CPretestPortInfo {
     uint8_t m_dst_mac[6];
     enum CPretestPortInfoStates m_state;
     bool m_is_loopback;
+    CPreTestStats m_stats;
 };
 
 
@@ -64,6 +78,7 @@ class CPretest {
         m_max_ports = max_ports;
     }
     bool get_mac(uint16_t port, uint32_t ip, uint8_t *mac);
+    CPreTestStats get_stats(uint16_t port_id);
     bool is_loopback(uint16_t port);
     void set_port_params(uint16_t port_id, const CPerPortIPCfg &port_cfg, const uint8_t *src_mac, bool resolve_needed);
     bool resolve_all();

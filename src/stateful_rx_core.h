@@ -1,5 +1,3 @@
-#ifndef LATENCY_H
-#define LATENCY_H
 /*
  Hanoh Haim
  Ido Barnea
@@ -7,7 +5,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +19,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#ifndef __STATEFUL_RX_CORE_H__
+#define __STATEFUL_RX_CORE_H__
+
 #include "bp_sim.h"
 #include "flow_stat.h"
 
@@ -29,6 +30,33 @@ limitations under the License.
 #define L_PKT_SUBMODE_0_SEQ 3
 
 class TrexWatchDog;
+
+class CRXCoreIgnoreStat {
+    friend class CCPortLatency;
+    friend class CLatencyManager;
+ public:
+    inline CRXCoreIgnoreStat operator- (const CRXCoreIgnoreStat &t_in) {
+        CRXCoreIgnoreStat t_out;
+        t_out.m_tx_arp = this->m_tx_arp - t_in.m_tx_arp;
+        t_out.m_tx_ipv6_n_solic = this->m_tx_ipv6_n_solic - t_in.m_tx_ipv6_n_solic;
+        t_out.m_tot_bytes = this->m_tot_bytes - t_in.m_tot_bytes;
+        return t_out;
+    }
+    uint64_t get_tx_bytes() {return m_tot_bytes;}
+    uint64_t get_tx_pkts() {return m_tx_arp + m_tx_ipv6_n_solic;}
+    uint64_t get_tx_arp() {return m_tx_arp;}
+    uint64_t get_tx_n_solic() {return m_tx_ipv6_n_solic;}
+    void clear() {
+        m_tx_arp = 0;
+        m_tx_ipv6_n_solic = 0;
+        m_tot_bytes = 0;
+    }
+
+ private:
+    uint64_t m_tx_arp;
+    uint64_t m_tx_ipv6_n_solic;
+    uint64_t m_tot_bytes;
+};
 
 class CLatencyPktInfo {
 public:
@@ -180,7 +208,6 @@ private:
 
 public:
      uint64_t m_tx_pkt_ok;
-     uint64_t m_tx_grat_arp_ok;
      uint64_t m_tx_pkt_err;
      uint64_t m_pkt_ok;
      uint64_t m_unsup_prot;
@@ -190,6 +217,8 @@ public:
      uint64_t m_rx_check;
      uint64_t m_no_ipv4_option;
      uint64_t m_length_error;
+     CRXCoreIgnoreStat m_ign_stats;
+     CRXCoreIgnoreStat m_ign_stats_prev;
      CTimeHistogram  m_hist; /* all window */
      CJitter         m_jitter;
 };
@@ -307,6 +336,7 @@ public:
     void set_mask(uint32_t mask){
         m_port_mask=mask;
     }
+    void get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff);
     double get_max_latency(void);
     double get_avr_latency(void);
     bool   is_any_error();
@@ -334,7 +364,6 @@ private:
      bool                    m_is_active;
      CLatencyPktInfo         m_pkt_gen;
      CLatencyManagerPerPort  m_ports[TREX_MAX_PORTS];
-     uint64_t                m_d_time; // calc tick betwen sending
      double                  m_cps;
      double                  m_delta_sec;
      uint64_t                m_start_time; // calc tick betwen sending

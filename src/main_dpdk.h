@@ -18,6 +18,7 @@
 #define MAIN_DPDK_H
 
 #include <rte_ethdev.h>
+#include "pre_test.h"
 #include "bp_sim.h"
 
 enum {
@@ -25,8 +26,28 @@ enum {
     MAIN_DPDK_RX_Q = 1,
 };
 
-class CPhyEthIFStats {
+// These are statistics for packets we send, and do not expect to get back (Like ARP)
+// We reduce them from general statistics we report (and report them separately, so we can keep the assumption
+// that tx_pkts == rx_pkts and tx_bytes==rx_bytes
+class CPhyEthIgnoreStats {
+    friend class CPhyEthIF;
 
+ public:
+    uint64_t get_rx_arp() {return m_rx_arp;}
+    uint64_t get_tx_arp() {return m_tx_arp;}
+ private:
+    uint64_t ipackets;  /**< Total number of successfully received packets. */
+    uint64_t ibytes;    /**< Total number of successfully received bytes. */
+    uint64_t opackets;  /**< Total number of successfully transmitted packets.*/
+    uint64_t obytes;    /**< Total number of successfully transmitted bytes. */
+    uint64_t m_tx_arp;    /**< Total number of successfully transmitted ARP packets */
+    uint64_t m_rx_arp;    /**< Total number of successfully received ARP packets */
+
+ private:
+    void dump(FILE *fd);
+};
+
+class CPhyEthIFStats {
  public:
     uint64_t ipackets;  /**< Total number of successfully received packets. */
     uint64_t ibytes;    /**< Total number of successfully received bytes. */
@@ -38,6 +59,7 @@ class CPhyEthIFStats {
     uint64_t oerrors;   /**< Total number of failed transmitted packets. */
     uint64_t imcasts;   /**< Total number of multicast received packets. */
     uint64_t rx_nombuf; /**< Total number of RX mbuf allocation failures. */
+    struct rte_eth_stats m_prev_stats;
     uint64_t m_rx_per_flow_pkts [MAX_FLOW_STATS]; // Per flow RX pkts
     uint64_t m_rx_per_flow_bytes[MAX_FLOW_STATS]; // Per flow RX bytes
     // Previous fdir stats values read from driver. Since on xl710 this is 32 bit, we save old value, to handle wrap around.
@@ -71,7 +93,6 @@ class CPhyEthIF  {
     int reset_hw_flow_stats();
     int get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
     int get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
-    void get_stats_1g(CPhyEthIFStats *stats);
     void rx_queue_setup(uint16_t rx_queue_id,
                         uint16_t nb_rx_desc,
                         unsigned int socket_id,
@@ -99,6 +120,7 @@ class CPhyEthIF  {
     void add_mac(char * mac);
     bool get_promiscuous();
     void dump_stats(FILE *fd);
+    void set_ignore_stats_base(CPreTestStats &pre_stats);
     void update_counters();
     void stats_clear();
     uint8_t             get_port_id(){
@@ -119,6 +141,9 @@ class CPhyEthIF  {
 
     CPhyEthIFStats     & get_stats(){
         return ( m_stats );
+    }
+    CPhyEthIgnoreStats & get_ignore_stats() {
+        return m_ignore_stats;
     }
     void flush_dp_rx_queue(void);
     void flush_rx_queue(void);
@@ -167,6 +192,7 @@ class CPhyEthIF  {
     CPPSMeasure              m_pps_tx;
     CPPSMeasure              m_pps_rx;
     CPhyEthIFStats           m_stats;
+    CPhyEthIgnoreStats       m_ignore_stats;
     float                    m_last_tx_rate;
     float                    m_last_rx_rate;
     float                    m_last_tx_pps;

@@ -26,9 +26,8 @@
 #include "common/basic_utils.h"
 #include "bp_sim.h"
 #include "main_dpdk.h"
-#include "test_pkt_gen.h"
+#include "pkt_gen.h"
 #include "pre_test.h"
-
 
 void CPretestPortInfo::set_params(CPerPortIPCfg port_cfg, const uint8_t *src_mac, bool resolve_needed) {
     m_ip = port_cfg.get_ip();
@@ -73,16 +72,22 @@ void CPretestPortInfo::dump(FILE *fd) {
   put in mac relevant dest MAC for port/ip pair.
   return false if no relevant info exists, true otherwise.
  */
-bool CPretest::get_mac(uint16_t port, uint32_t ip, uint8_t *mac) {
-    assert(port < TREX_MAX_PORTS);
+bool CPretest::get_mac(uint16_t port_id, uint32_t ip, uint8_t *mac) {
+    assert(port_id < TREX_MAX_PORTS);
 
-    if (m_port_info[port].m_state != CPretestPortInfo::RESOLVE_DONE) {
+    if (m_port_info[port_id].m_state != CPretestPortInfo::RESOLVE_DONE) {
         return false;
     }
 
-    memcpy(mac, &m_port_info[port].m_dst_mac, sizeof(m_port_info[port].m_dst_mac));
+    memcpy(mac, &m_port_info[port_id].m_dst_mac, sizeof(m_port_info[port_id].m_dst_mac));
 
     return true;
+}
+
+CPreTestStats CPretest::get_stats(uint16_t port_id) {
+    assert(port_id < TREX_MAX_PORTS);
+
+    return m_port_info[port_id].m_stats;
 }
 
 bool CPretest::is_loopback(uint16_t port) {
@@ -104,22 +109,26 @@ int CPretest::handle_rx(int port_id, int queue_id) {
     uint16_t cnt;
     int i;
     int verbose = CGlobalInfo::m_options.preview.getVMode();
+    int tries = 0;
 
-    cnt = rte_eth_rx_burst(port_id, queue_id, rx_pkts, sizeof(rx_pkts)/sizeof(rx_pkts[0]));
+    do {
+        cnt = rte_eth_rx_burst(port_id, queue_id, rx_pkts, sizeof(rx_pkts)/sizeof(rx_pkts[0]));
+        tries++;
 
-    for (i = 0; i < cnt; i++) {
-        rte_mbuf_t * m = rx_pkts[i];
-        int pkt_size = rte_pktmbuf_pkt_len(m);
-        uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
-        ArpHdr *arp;
-        CPretestPortInfo *port = &m_port_info[port_id];
-        if (is_arp(p, pkt_size, arp)) {
-            if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REQUEST)) {
-                if (verbose >= 3) {
-                    fprintf(stdout, "RX ARP request on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
-                            , ntohl(arp->m_arp_sip)
-                            , ntohl(arp->m_arp_tip));
-                }
+        for (i = 0; i < cnt; i++) {
+            rte_mbuf_t * m = rx_pkts[i];
+            int pkt_size = rte_pktmbuf_pkt_len(m);
+            uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+            ArpHdr *arp;
+            CPretestPortInfo *port = &m_port_info[port_id];
+            if (is_arp(p, pkt_size, arp)) {
+                m_port_info[port_id].m_stats.m_rx_arp++;
+                if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REQUEST)) {
+                    if (verbose >= 3) {
+                        fprintf(stdout, "RX ARP request on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
+                                , ntohl(arp->m_arp_sip)
+                                , ntohl(arp->m_arp_tip));
+                    }
                     // is this request for our IP?
                     if (ntohl(arp->m_arp_tip) == port->m_ip) {
                         // If our request(i.e. we are connected in loopback)
@@ -137,23 +146,24 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                     } else {
                         // ARP request not to our IP. At the moment, we ignore this.
                     }
-            } else {
-                if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REPLY)) {
-                    if (verbose >= 3) {
-                        fprintf(stdout, "RX ARP response on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
-                                , ntohl(arp->m_arp_sip)
-                                , ntohl(arp->m_arp_tip));
-                    }
-                    // If this is response to our request, update our tables
-                    if (port->m_def_gw == ntohl(arp->m_arp_sip)) {
-                        port->set_dst_mac((uint8_t *)&arp->m_arp_sha);
+                } else {
+                    if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REPLY)) {
+                        if (verbose >= 3) {
+                            fprintf(stdout, "RX ARP response on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
+                                    , ntohl(arp->m_arp_sip)
+                                    , ntohl(arp->m_arp_tip));
+                        }
+                        // If this is response to our request, update our tables
+                        if (port->m_def_gw == ntohl(arp->m_arp_sip)) {
+                            port->set_dst_mac((uint8_t *)&arp->m_arp_sha);
+                        }
                     }
                 }
             }
+            rte_pktmbuf_free(m);
         }
+    } while ((cnt != 0) && (tries < 1000));
 
-        rte_pktmbuf_free(m);
-    }
     return 0;
 }
 
@@ -242,6 +252,8 @@ void CPretest::send_arp_req(uint16_t port_id, bool is_grat) {
     if (num_sent < 1) {
         fprintf(stderr, "Failed sending ARP to port:%d\n", port_id);
         exit(1);
+    } else {
+        m_port_info[port_id].m_stats.m_tx_arp++;
     }
 }
 

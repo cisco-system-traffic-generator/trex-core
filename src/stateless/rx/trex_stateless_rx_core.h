@@ -21,7 +21,7 @@
 #ifndef __TREX_STATELESS_RX_CORE_H__
 #define __TREX_STATELESS_RX_CORE_H__
 #include <stdint.h>
-#include "latency.h"
+#include "stateful_rx_core.h"
 #include "os_time.h"
 #include "pal/linux/sanb_atomic.h"
 #include "utl_cpuu.h"

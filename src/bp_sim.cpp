@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include "bp_sim.h"
-#include "latency.h"
+#include "stateful_rx_core.h"
 #include "utl_json.h"
 #include "utl_yaml.h"
 #include "msg_manager.h"

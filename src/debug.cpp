@@ -27,7 +27,7 @@
 #include <rte_pci.h>
 #include <rte_ethdev.h>
 #include <common/basic_utils.h>
-#include "test_pkt_gen.h"
+#include "pkt_gen.h"
 #include "main_dpdk.h"
 #include "debug.h"
 
@@ -446,7 +446,7 @@ int CTrexDebug::test_send(uint pkt_type) {
         } else {
             ip_ver = 4;
         }
-        if (pkt_type > 3) {
+        if (pkt_type > D_PKT_TYPE_ARP) {
             printf("Packet type not supported\n");
             exit(1);
         }
@@ -461,6 +461,10 @@ int CTrexDebug::test_send(uint pkt_type) {
             break;
         case D_PKT_TYPE_TCP:
             l4_proto = IPPROTO_TCP;
+            break;
+        case D_PKT_TYPE_ARP:
+            ip_ver = 1;
+            l4_proto = IPPROTO_TCP; //just to prevenet compilation warning. Not used in this case.
             break;
         }
         d = create_test_pkt(ip_ver, l4_proto, 254, FLOW_STAT_PAYLOAD_IP_ID, 0);

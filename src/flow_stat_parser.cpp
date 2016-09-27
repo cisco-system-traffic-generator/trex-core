@@ -25,7 +25,7 @@
 #include "common/Network/Packet/IPHeader.h"
 #include "common/Network/Packet/IPv6Header.h"
 #include "common/Network/Packet/TcpHeader.h"
-#include "test_pkt_gen.h"
+#include "pkt_gen.h"
 #include "flow_stat_parser.h"
 
 void CFlowStatParser::reset() {

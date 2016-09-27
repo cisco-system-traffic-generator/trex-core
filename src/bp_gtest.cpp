@@ -31,7 +31,7 @@ limitations under the License.
 #include "msg_manager.h"
 #include <common/cgen_map.h>
 #include "platform_cfg.h"
-#include "latency.h"
+#include "stateful_rx_core.h"
 #include "nat_check_flow_table.h"
 
 int test_policer(){

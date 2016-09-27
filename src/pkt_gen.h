@@ -19,14 +19,15 @@
   limitations under the License.
 */
 
-#ifndef __TEST_PKT_GEN_H__
-#define __TEST_PKT_GEN_H__
+#ifndef __PKT_GEN_H__
+#define __PKT_GEN_H__
 
 enum {
     D_PKT_TYPE_ICMP = 1,
     D_PKT_TYPE_UDP = 2,
     D_PKT_TYPE_TCP = 3,
-    D_PKT_TYPE_9k_UDP = 4,
+    D_PKT_TYPE_ARP = 4,
+    D_PKT_TYPE_9k_UDP = 5,
     D_PKT_TYPE_IPV6 = 60,
     D_PKT_TYPE_HW_VERIFY = 100,
     D_PKT_TYPE_HW_VERIFY_RCV_ALL = 101,
