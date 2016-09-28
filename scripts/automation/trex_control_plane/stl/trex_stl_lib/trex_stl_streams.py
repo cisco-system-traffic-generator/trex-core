@@ -945,7 +945,7 @@ class STLProfile(object):
             raise STLError("File '{0}' does not exist".format(python_file))
 
         basedir = os.path.dirname(python_file)
-        sys.path.append(basedir)
+        sys.path.insert(0, basedir)
 
         try:
             file    = os.path.basename(python_file).split('.')[0]
