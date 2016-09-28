@@ -1,5 +1,5 @@
 #! /bin/bash
-if [ $USER != 'root' ]; then
+if [ "$(id -u)" != 0 ]; then
   echo 'Error: Please run as root (sudo etc.)'
   exit -1
 fi
@@ -20,7 +20,7 @@ saveterm="$(stty -g)"
 if  cat /proc/cpuinfo | grep -q avx ; then
     ./_$(basename $0) $INPUT_ARGS
     RESULT=$?
-    if [ $? -eq 132 ]; then
+    if [ $RESULT -eq 132 ]; then
         echo " WARNING this program is optimized for the new Intel processors.  "
         echo " try the ./t-rex-64-o application that should work for any Intel processor but might be slower. "
         echo " try to run t-rex-64-o .. "

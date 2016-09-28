@@ -26,7 +26,7 @@ function find_python2 {
         return
     fi
 
-    echo "*** $PYTHON - python version is too old, 2.7 at least is required"
+    echo "*** $MACHINE_PYTHON - python version is too old, 2.7 at least is required"
     exit -1
 }
 
@@ -41,16 +41,16 @@ function find_python3 {
     MACHINE_PYTHON=python3
     ITAY_PYTHON=/auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3
     PYTHON=$MACHINE_PYTHON
-    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)" > /dev/null 2>&1 ` 
+    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34 and ver != 35)" > /dev/null 2>&1 ` 
     if [ $? -eq 0 ]; then
         return
     fi
     PYTHON=$ITAY_PYTHON
-    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34)" > /dev/null 2>&1 ` 
+    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34 and ver != 35)" > /dev/null 2>&1 ` 
     if [ $? -eq 0 ]; then
         return
     fi
-    echo "*** $PYTHON - python version does not match, 3.4 is required"
+    echo "*** $MACHINE_PYTHON - python version does not match, 3.4 or 3.5 is required"
     exit -1
 }
 
@@ -74,8 +74,11 @@ case "$1" in
                             ;;
                     esac
                     ;;
-                *) # default is python2
-                    find_python2
+                *) # default is find any
+                    (find_python2) &> /dev/null && find_python2 && return
+                    (find_python3) &> /dev/null && find_python3 && return
+                    echo "Python versions 2.7 or 3.4 or 3.5 required"
+                    exit -1
                     ;;
             esac
         fi
