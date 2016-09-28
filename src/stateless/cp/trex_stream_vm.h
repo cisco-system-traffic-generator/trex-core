@@ -499,15 +499,37 @@ public:
 } __attribute__((packed));
 
 
+static inline uint16_t fast_csum(const void *iph, unsigned int ihl) {
+    const uint16_t *ipv4 = (const uint16_t *)iph;
+
+    int sum = 0;
+    for (int i = 0; i < (ihl >> 1); i++) {
+        sum += ipv4[i];
+    }
+
+    sum = (sum & 0xffff) + (sum >> 16);
+
+    return (uint16_t)(~sum);
+}
+
+
 struct StreamDPOpIpv4Fix {
-    uint8_t m_op;
+    uint8_t   m_op;
     uint16_t  m_offset;
 public:
     void dump(FILE *fd,std::string opt);
-    void run(uint8_t * pkt_base) {
+    inline void run(uint8_t * pkt_base) {
 
-        IPHeader *ipv4 = (IPHeader *)(pkt_base+m_offset);
-        ipv4->updateCheckSumFast();
+        uint8_t *ipv4 = pkt_base + m_offset;
+
+        IPHeader *ipv4h = (IPHeader *)(pkt_base + m_offset);
+        ipv4h->myChecksum = 0;
+
+        if (ipv4h->myVer_HeaderLength == 0x45) {
+            ipv4h->myChecksum = fast_csum(ipv4, 20);
+        } else {
+            ipv4h->myChecksum = fast_csum(ipv4, ipv4h->getHeaderLength());
+        }
     }
 
 } __attribute__((packed));
