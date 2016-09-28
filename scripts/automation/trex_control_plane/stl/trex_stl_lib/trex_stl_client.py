@@ -2867,10 +2867,14 @@ class STLClient(object):
                 self.add_streams(profile.get_streams(), ports = port)
 
         except STLError as e:
-            msg = format_text("\nError while loading profile '{0}'\n".format(opts.file[0]), 'bold')
-            self.logger.log(msg)
+            error = 'Unknown error.'
+            for line in e.brief().split('\n'):
+                if line:
+                    error = line
+            msg = format_text("\nError loading profile '{0}'".format(opts.file[0]), 'bold')
+            self.logger.log(msg + '\n')
             self.logger.log(e.brief() + "\n")
-            return RC_ERR(msg)
+            return RC_ERR("%s: %s" % (msg, error))
 
 
         if opts.dry:
