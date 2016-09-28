@@ -1071,6 +1071,21 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     return 0;
 }
 
+static int parse_options_wrapper(int argc, char *argv[], CParserOption* po, bool first_time ) {
+    // copy, as arg parser sometimes changes the argv
+    char ** argv_copy = (char **) malloc(sizeof(char *) * argc);
+    for(int i=0; i<argc; i++) {
+        argv_copy[i] = strdup(argv[i]);
+    }
+    int ret = parse_options(argc, argv_copy, po, first_time);
+
+    // free
+    for(int i=0; i<argc; i++) {
+        free(argv_copy[i]);
+    }
+    free(argv_copy);
+    return ret;
+}
 
 int main_test(int argc , char * argv[]);
 
@@ -4981,7 +4996,7 @@ int main_test(int argc , char * argv[]){
 
     CGlobalInfo::m_options.preview.clean();
 
-    if ( parse_options(argc, argv, &CGlobalInfo::m_options,true ) != 0){
+    if ( parse_options_wrapper(argc, argv, &CGlobalInfo::m_options,true ) != 0){
         exit(-1);
     }
 
@@ -4997,7 +5012,9 @@ int main_test(int argc , char * argv[]){
     update_global_info_from_platform_file();
 
     /* It is not a mistake. Give the user higher priorty over the configuration file */
-    parse_options(argc, argv, &CGlobalInfo::m_options ,false);
+    if (parse_options_wrapper(argc, argv, &CGlobalInfo::m_options ,false) != 0) {
+        exit(-1);
+    }
 
 
     if ( CGlobalInfo::m_options.preview.getVMode() > 0){
