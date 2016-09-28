@@ -347,7 +347,7 @@ class build_option:
             result+=['-m32'];
 
         if self.isRelease () :
-            result+=['-O2'];
+            result+=['-O3'];
         else:
             result+=['-O0','-DDEBUG','-D_DEBUG','-DSTILE_CPP_ASSERT','-DSTILE_SHIM_ASSERT'];
 

@@ -19,6 +19,10 @@ limitations under the License.
 
 #include "PacketHeaderBase.h"
 
+#ifndef likely
+#define likely(x)  __builtin_expect((x),1)
+#endif /* likely */
+
 #define IPV4_HDR_LEN 20
 
 class IPHeader
@@ -139,6 +143,59 @@ public:
     inline  void    updateCheckSum2(uint8_t* data1, uint16_t len1, uint8_t* data2 , uint16_t len2);
 
 	inline 	void	swapSrcDest			();
+
+
+    inline void     updateCheckSumFast()  {
+        myChecksum = 0;
+
+        if (likely(myVer_HeaderLength == 0x45)) {
+            myChecksum = calc_cksum_fixed();
+        } else {
+            myChecksum = calc_cksum_nonfixed();
+        }
+
+    }
+
+protected:
+
+    /* fast inline checksum calculation */
+    inline uint16_t calc_cksum_fixed() {
+        const uint16_t *ipv4 = (const uint16_t *)this;
+
+        int sum = 0;
+
+        /* calcualte 20 bytes unrolled loop */
+        sum += ipv4[0];
+        sum += ipv4[1];
+        sum += ipv4[2];
+        sum += ipv4[3];
+        sum += ipv4[4];
+        sum += ipv4[5];
+        sum += ipv4[6];
+        sum += ipv4[7];
+        sum += ipv4[8];
+        sum += ipv4[9];
+
+        sum = (sum & 0xffff) + (sum >> 16);
+
+        return (uint16_t)(~sum);
+    }
+
+    /* a slow non-frequent call - never inline */
+    uint16_t calc_cksum_nonfixed() __attribute__ ((noinline)) {
+        const uint16_t *ipv4 = (const uint16_t *)this;
+
+        int sum = 0;
+        int hlen = getHeaderLength();
+
+        for (int i = 0; i < (hlen / 2); i++) {
+            sum += ipv4[i];
+        }
+
+        sum = (sum & 0xffff) + (sum >> 16);
+
+        return (uint16_t)(~sum);
+    }
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Common Header Interface

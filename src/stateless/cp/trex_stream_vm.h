@@ -499,16 +499,15 @@ public:
 } __attribute__((packed));
 
 
-
-
 struct StreamDPOpIpv4Fix {
     uint8_t m_op;
     uint16_t  m_offset;
 public:
     void dump(FILE *fd,std::string opt);
-    void run(uint8_t * pkt_base){
-        IPHeader *      ipv4=  (IPHeader *)(pkt_base+m_offset);
-        ipv4->updateCheckSum();
+    void run(uint8_t * pkt_base) {
+
+        IPHeader *ipv4 = (IPHeader *)(pkt_base+m_offset);
+        ipv4->updateCheckSumFast();
     }
 
 } __attribute__((packed));
