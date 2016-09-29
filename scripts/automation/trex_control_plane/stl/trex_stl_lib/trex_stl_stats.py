@@ -987,10 +987,16 @@ class CPortStats(CTRexStats):
         stats['ibytes']   = self.get_rel("ibytes")
         stats['oerrors']  = self.get_rel("oerrors")
         stats['ierrors']  = self.get_rel("ierrors")
-        stats['tx_bps']   = self.get("m_total_tx_bps")
-        stats['tx_pps']   = self.get("m_total_tx_pps")
-        stats['rx_bps']   = self.get("m_total_rx_bps")
-        stats['rx_pps']   = self.get("m_total_rx_pps")
+
+        stats['tx_bps']     = self.get("m_total_tx_bps")
+        stats['tx_pps']     = self.get("m_total_tx_pps")
+        stats['tx_bps_L1']  = self.get("m_total_tx_bps_L1")
+        stats['tx_util']    = self.get("m_tx_util") 
+
+        stats['rx_bps']     = self.get("m_total_rx_bps")
+        stats['rx_pps']     = self.get("m_total_rx_pps")
+        stats['rx_bps_L1']  = self.get("m_total_rx_bps_L1")
+        stats['rx_util']    = self.get("m_rx_util") 
 
         return stats
 
@@ -999,16 +1005,20 @@ class CPortStats(CTRexStats):
     def _update(self, snapshot):
 
         # L1 bps
-        bps = snapshot.get("m_total_tx_bps")
-        pps = snapshot.get("m_total_tx_pps")
-        rx_bps = snapshot.get("m_total_rx_bps")
-        rx_pps = snapshot.get("m_total_rx_pps")
+        tx_bps  = snapshot.get("m_total_tx_bps")
+        tx_pps  = snapshot.get("m_total_tx_pps")
+        rx_bps  = snapshot.get("m_total_rx_bps")
+        rx_pps  = snapshot.get("m_total_rx_pps")
         ts_diff = 0.5 # TODO: change this to real ts diff from server
 
-        bps_L1 = calc_bps_L1(bps, pps)
+        bps_tx_L1 = calc_bps_L1(tx_bps, tx_pps)
         bps_rx_L1 = calc_bps_L1(rx_bps, rx_pps)
-        snapshot['m_total_tx_bps_L1'] = bps_L1
-        snapshot['m_percentage'] = (bps_L1 / self._port_obj.get_speed_bps()) * 100.0
+
+        snapshot['m_total_tx_bps_L1'] = bps_tx_L1
+        snapshot['m_tx_util'] = (bps_tx_L1 / self._port_obj.get_speed_bps()) * 100.0
+
+        snapshot['m_total_rx_bps_L1'] = bps_rx_L1
+        snapshot['m_rx_util'] = (bps_rx_L1 / self._port_obj.get_speed_bps()) * 100.0
 
         # TX line util not smoothed
         diff_tx_pkts = snapshot.get('opackets', 0) - self.latest_stats.get('opackets', 0)
@@ -1068,8 +1078,8 @@ class CPortStats(CTRexStats):
                 "Tx bps L2": "{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
                                                 self.get("m_total_tx_bps", format = True, suffix = "bps", opts = rate_format['bps'])),
 
-                "Line Util.": "{0} {1}".format(self.get_trend_gui("m_percentage", show_value = False) if self._port_obj else "",
-                                               self.get("m_percentage", format = True, suffix = "%", opts = rate_format['percentage']) if self._port_obj else ""),
+                "Line Util.": "{0} {1}".format(self.get_trend_gui("m_tx_util", show_value = False) if self._port_obj else "",
+                                               self.get("m_tx_util", format = True, suffix = "%", opts = rate_format['percentage']) if self._port_obj else ""),
 
                 "Rx bps": "{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
                                             self.get("m_total_rx_bps", format = True, suffix = "bps")),
