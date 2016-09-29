@@ -12,7 +12,7 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
-from .utils.common import list_intersect, list_difference, is_sub_list
+from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer
 from .utils.text_opts import *
 from functools import wraps
 
@@ -2521,7 +2521,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def wait_on_traffic (self, ports = None, timeout = 60, rx_delay_ms = 10):
+    def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = 10):
         """
             .. _wait_on_traffic:
 
@@ -2533,6 +2533,7 @@ class STLClient(object):
 
                 timeout : int
                     timeout in seconds
+                    default will be blocking
 
                 rx_delay_ms : int
                     Time to wait (in milliseconds) after last packet was sent, until RX filters used for
@@ -2551,7 +2552,7 @@ class STLClient(object):
         ports = self._validate_port_list(ports)
 
 
-        expr = time.time() + timeout
+        timer = PassiveTimer(timeout)
 
         # wait while any of the required ports are active
         while set(self.get_active_ports()).intersection(ports):
@@ -2561,7 +2562,7 @@ class STLClient(object):
                 raise STLError("subscriber thread is dead")
 
             time.sleep(0.01)
-            if time.time() > expr:
+            if timer.has_expired():
                 raise STLTimeoutError(timeout)
 
         # remove any RX filters

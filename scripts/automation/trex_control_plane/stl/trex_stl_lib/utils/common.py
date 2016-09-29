@@ -2,6 +2,7 @@ import os
 import sys
 import string
 import random
+import time
 
 try:
     import pwd
@@ -64,4 +65,21 @@ def list_difference (l1, l2):
 
 def is_sub_list (l1, l2):
     return set(l1) <= set(l2)
+
+# a simple passive timer
+class PassiveTimer(object):
+
+    # timeout_sec = None means forever
+    def __init__ (self, timeout_sec):
+        if timeout_sec != None:
+            self.expr_sec = time.time() + timeout_sec
+        else:
+            self.expr_sec = None
+
+    def has_expired (self):
+        # if no timeout was set - return always false
+        if self.expr_sec == None:
+            return False
+
+        return (time.time() > self.expr_sec)
 
