@@ -40,6 +40,7 @@ inline uint utl_align_down(uint num,uint round){
     return( (num) & (~(round-1)) );
 }
 
+void utl_k12_pkt_format(FILE* fp,void  * src,  unsigned int size) ;
 
 void utl_DumpBuffer(FILE* fp,void  * src,  unsigned int size,int offset=0);
 
