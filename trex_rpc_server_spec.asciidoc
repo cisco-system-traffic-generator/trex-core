@@ -666,6 +666,20 @@ an Object that include instructions array and properties of the field engine pro
 Array of VM instruction objects to be used with this stream
 Any element in the array can be one of the following object types:
 
+===== fix_checksum_hw
+
+Fix TCP/UDP and IPv4 headers using hardware assit engine 
+
+.Object type 'vm - fix_checksum_hw'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | ''fix_checksum_hw''
+| l2_len      | uint16      | len of L2 (e.g. 14 Ether)
+| l3_len      | uint16      | len of l3 header (e.g. 20 for IP)
+| l4_type     | uint16      | the type of L4 header either UDP or TCP ( L4_TYPE_UDP = 11 | L4_TYPE_TCP = 13)
+|=================
+
 ===== fix_checksum_ipv4
 
 .Object type 'vm - fix_checksum_ipv4'
