@@ -782,10 +782,12 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
     def __init__(self, l3_offset,l4_offset,l4_type):
         """
         Fix Ipv4 header checksum and TCP/UDP checksum using hardware assist. 
-        Use this if the packet header has changed or data payload has changed as it is necessary to change the checksum.
-        This instruction won't work on virtual interfaces only on Physical ports
+        Use this if the packet header has changed or data payload has changed as it is necessary to fix the checksums.
+        This instruction works on NICS that support this hardware offload.
 
-        Support the following packets
+        For fixing only IPv4 header checksum use STLVmFixIpv4. This instruction should be used if both L4 and L3 need to be fixed. 
+        
+        example for supported packets
 
         Ether()/(IPv4|IPv6)/(UDP|TCP)
         Ether()/(IPv4|IPv6)/(UDP|TCP)
@@ -802,6 +804,7 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
 
              l4_type   : CTRexVmInsFixHwCs.L4_TYPE_UDP or CTRexVmInsFixHwCs.L4_TYPE_TCP 
 
+             see full example stl/syn_attack_fix_cs_hw.py
 
         .. code-block:: python
 

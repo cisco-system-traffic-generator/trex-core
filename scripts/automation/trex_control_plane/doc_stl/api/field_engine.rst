@@ -125,6 +125,14 @@ STLVmWrMaskFlowVar
     :members: 
     :member-order: bysource
 
+STLVmFixChecksumHw
+--------------------
+
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFixChecksumHw
+    :members: 
+    :member-order: bysource
+
+
 STLVmFixIpv4
 ------------------
 
@@ -153,6 +161,7 @@ STLVmFlowVarRepetableRandom
 .. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFlowVarRepetableRandom
     :members: 
     :member-order: bysource
+
 
   
 
