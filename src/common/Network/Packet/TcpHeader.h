@@ -92,6 +92,10 @@ public:
     void    setChecksum     (uint16_t);
     uint16_t  getChecksum     ();
 
+    inline void    setChecksumRaw     (uint16_t data){
+        myChecksum = data;
+    }
+
     void    setUrgentOffset (uint16_t);
     uint16_t  getUrgentOffset ();
 

@@ -258,6 +258,20 @@ class CTRexVmInsFixIpv4(CTRexVmInsBase):
         self.pkt_offset = offset
         validate_type('offset', offset, int)
 
+class CTRexVmInsFixHwCs(CTRexVmInsBase):
+    L4_TYPE_UDP = 11
+    L4_TYPE_TCP = 13
+
+    def __init__(self, l2_len,l3_len,l4_type):
+        super(CTRexVmInsFixHwCs, self).__init__("fix_checksum_hw")
+        self.l2_len = l2_len
+        validate_type('l2_len', l2_len, int)
+        self.l3_len = l3_len
+        validate_type('l3_len', l3_len, int)
+        self.l4_type = l4_type
+        validate_type('l4_type', l4_type, int)
+
+
 
 class CTRexVmInsFlowVar(CTRexVmInsBase):
     #TBD add more validation tests
@@ -763,6 +777,66 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
 
     def get_var_name(self):
         return [self.name]
+
+class STLVmFixChecksumHw(CTRexVmDescBase):
+    def __init__(self, l3_offset,l4_offset,l4_type):
+        """
+        Fix Ipv4 header checksum and TCP/UDP checksum using hardware assist. 
+        Use this if the packet header has changed or data payload has changed as it is necessary to change the checksum.
+        This instruction won't work on virtual interfaces only on Physical ports
+
+        Support the following packets
+
+        Ether()/(IPv4|IPv6)/(UDP|TCP)
+        Ether()/(IPv4|IPv6)/(UDP|TCP)
+        SomeTunnel()/(IPv4|IPv6)/(UDP|TCP)
+        SomeTunnel()/(IPv4|IPv6)/(UDP|TCP)
+
+
+        :parameters:
+             l3_offset : offset in bytes 
+                **IPv4/IPv6 header** offset from packet start. It is **not** the offset of the checksum field itself.
+                in could be string in case of scapy packet. format IP[:[id]]
+
+             l4_offset : offset in bytes to UDP/TCP header
+
+             l4_type   : CTRexVmInsFixHwCs.L4_TYPE_UDP or CTRexVmInsFixHwCs.L4_TYPE_TCP 
+
+
+        .. code-block:: python
+
+            # Example2
+
+            pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+            # by offset 
+            STLVmFixChecksumHw(l3_offset=14,l4_offset=14+20,l4_type=CTRexVmInsFixHwCs.L4_TYPE_UDP)
+
+            # in case of scapy packet can be defined by header name 
+            STLVmFixChecksumHw(l3_offset="IP",l4_offset="UDP",l4_type=CTRexVmInsFixHwCs.L4_TYPE_UDP)
+
+            # string for second "IP" header in the packet is IP:1
+            STLVmFixChecksumHw(offset="IP:1")
+
+        """
+
+        super(STLVmFixChecksumHw, self).__init__()
+        self.l3_offset = l3_offset; # could be a name of offset
+        self.l4_offset = l4_offset; # could be a name of offset
+        self.l4_type = l4_type
+
+
+    def get_obj (self):
+        return CTRexVmInsFixHwCs(self.l2_len,self.l3_len,self.l4_type);
+
+    def compile(self,parent):
+        if type(self.l3_offset)==str:
+            self.l2_len = parent._pkt_layer_offset(self.l3_offset);
+        if type(self.l4_offset)==str:
+            self.l4_offset = parent._pkt_layer_offset(self.l4_offset);
+
+        assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset' 
+        self.l3_len = self.l4_offset - self.l2_len; 
 
 
 class STLVmFixIpv4(CTRexVmDescBase):

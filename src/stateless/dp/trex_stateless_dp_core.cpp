@@ -345,6 +345,7 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
 
     /* run the VM program */
     StreamDPVmInstructionsRunner runner;
+    runner.set_mbuf(m);
 
     runner.run( (uint32_t*)m_vm_flow_var,
                 m_vm_program_size,

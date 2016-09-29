@@ -27,8 +27,15 @@ limitations under the License.
 #include <unordered_map>
 #include <assert.h>
 #include <common/Network/Packet/IPHeader.h>
+#include <common/Network/Packet/UdpHeader.h>
+#include <common/Network/Packet/TcpHeader.h>
 #include "pal_utl.h"
 #include "mbuf.h"
+
+#ifdef RTE_DPDK
+#	include <rte_ip.h>
+#endif /* RTE_DPDK */
+
 
 class StreamVmInstructionFlowClient;
 
@@ -535,6 +542,46 @@ public:
 } __attribute__((packed));
 
 
+/* fix checksum using hardware */
+struct StreamDPOpHwCsFix {
+    uint8_t   m_op;
+    uint16_t  m_l2_len;
+    uint16_t  m_l3_len;
+    uint64_t  m_ol_flags;   
+
+public:
+    void dump(FILE *fd,std::string opt);
+    void run(uint8_t * pkt_base,rte_mbuf_t   * m){
+        IPHeader *      ipv4 = (IPHeader *)(pkt_base+m_l2_len);
+        union {
+            TCPHeader *     tcp;
+            UDPHeader *     udp;
+        } u;
+
+        u.tcp =  (TCPHeader*)(pkt_base+m_l3_len);
+        /* set the mbuf info */
+         m->l2_len = m_l2_len;
+         m->l3_len = m_l3_len;
+         m->ol_flags |= m_ol_flags;
+         if (m_ol_flags & PKT_TX_IPV4 ){ /* splitting to 4 instructions didn't improve performance .. */
+             ipv4->ClearCheckSum();
+             if (m_ol_flags & PKT_TX_TCP_CKSUM ){
+                 u.tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4,m_ol_flags));
+             }else{
+                 u.udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4,m_ol_flags));
+             }
+         }else{
+             if (m_ol_flags & PKT_TX_TCP_CKSUM ){
+                 u.tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4,m_ol_flags));
+             }else{
+                 u.udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4,m_ol_flags));
+             }
+         }
+    }
+} __attribute__((packed));
+
+
+
 /* flow varible of Client command */
 struct StreamDPFlowClient {
     uint32_t cur_ip;
@@ -654,6 +701,7 @@ public:
         ditRANDOM64     ,
 
         ditFIX_IPV4_CS  ,
+        ditFIX_HW_CS  ,
 
         itPKT_WR8       ,
         itPKT_WR16       ,
@@ -701,8 +749,8 @@ private:
 class StreamDPVmInstructionsRunner {
 public:
     StreamDPVmInstructionsRunner(){
-        m_new_pkt_size=0;;
-
+        m_new_pkt_size=0;
+        m_m=0;
     }
 
     void   slow_commands(uint8_t op_code,
@@ -719,12 +767,23 @@ public:
     inline uint16_t get_new_pkt_size(){
         return (m_new_pkt_size);
     }
+
+    inline void set_mbuf(rte_mbuf_t        * mbuf){
+        m_m=mbuf;
+    }
+    inline rte_mbuf_t        * get_mbuf(){
+        return (m_m);
+    }
+
+
 private:
     uint16_t    m_new_pkt_size;
+    rte_mbuf_t        * m_m;
 };
 
 
 typedef union  ua_ {
+        StreamDPOpHwCsFix  * lpHwFix;
         StreamDPOpIpv4Fix   *lpIpv4Fix;
         StreamDPOpPktWr8     *lpw8;
         StreamDPOpPktWr16    *lpw16;
@@ -856,6 +915,12 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
             p+=sizeof(StreamDPOpIpv4Fix);
             break;
 
+        case  StreamDPVmInstructions::ditFIX_HW_CS :
+            ua.lpHwFix =(StreamDPOpHwCsFix *)p;
+            ua.lpHwFix->run(pkt,m_m);
+            p+=sizeof(StreamDPOpHwCsFix);
+            break;
+
         case  StreamDPVmInstructions::itPKT_WR8  :
             ua.lpw8 =(StreamDPOpPktWr8 *)p;
             ua.lpw8->wr(flow_var,pkt);
@@ -911,7 +976,8 @@ public:
         itFLOW_CLIENT  = 7 ,
         itPKT_SIZE_CHANGE = 8,
         itPKT_WR_MASK     = 9,
-        itFLOW_RAND_LIMIT = 10 /* random with limit & seed */
+        itFLOW_RAND_LIMIT = 10, /* random with limit & seed */
+        itFIX_HW_CS       =11
 
 
     };
@@ -1000,6 +1066,44 @@ public:
 public:
     uint16_t m_pkt_offset; /* the offset of IPv4 header from the start of the packet  */
 };
+
+/**
+ * fix Ipv6/Ipv6 TCP/UDP L4 headers using HW ofload to fix only IPv6 header use software it would be faster 
+ * 
+ */
+class StreamVmInstructionFixHwChecksum : public StreamVmInstruction {
+public:
+
+    enum {
+        L4_TYPE_UDP = 11,
+        L4_TYPE_TCP = 13,
+
+    }; /* for flags */
+
+    StreamVmInstructionFixHwChecksum(uint16_t l2_len,
+                                     uint16_t l3_len,
+                                     uint8_t l4_type) { 
+        m_l2_len = l2_len;
+        m_l3_len = l3_len;
+        m_l4_type   = l4_type;
+    }
+
+    virtual instruction_type_t get_instruction_type() const {
+        return ( StreamVmInstruction::itFIX_HW_CS);
+    }
+
+    virtual void Dump(FILE *fd);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFixHwChecksum(m_l2_len,m_l3_len,m_l4_type);
+    }
+
+public:
+    uint16_t  m_l2_len;
+    uint16_t  m_l3_len;
+    uint8_t   m_l4_type; /* should be either TCP or UDP - TBD could be fixed and calculated by a scan function */
+};
+
 
 /**
  * flow manipulation instruction
@@ -1212,6 +1316,7 @@ public:
     uint64_t       m_seed;
     uint8_t        m_size_bytes;
 };
+
 
 
 /**

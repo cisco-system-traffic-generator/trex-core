@@ -104,6 +104,8 @@ std::unique_ptr<TrexStream> allocate_new_stream(const Json::Value &section, uint
 void validate_stream(const std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_checksum(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
+void parse_vm_instr_checksum_hw(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
+
 void parse_vm_instr_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void check_min_max(uint8_t flow_var_size, uint64_t init_value,uint64_t step,uint64_t min_value,uint64_t max_value,Json::Value &result);

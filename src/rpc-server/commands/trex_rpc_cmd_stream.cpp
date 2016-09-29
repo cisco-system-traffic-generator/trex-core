@@ -212,6 +212,15 @@ TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, std::unique_ptr<TrexStr
 }
 
 void 
+TrexRpcCmdAddStream::parse_vm_instr_checksum_hw(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
+    uint16_t l2_len = parse_uint16(inst, "l2_len", result); 
+    uint16_t l3_len = parse_uint16(inst, "l3_len", result); 
+    uint16_t l4_type = parse_uint16(inst, "l4_type", result); 
+
+    stream->m_vm.add_instruction(new StreamVmInstructionFixHwChecksum(l2_len,l3_len,l4_type));
+}
+
+void 
 TrexRpcCmdAddStream::parse_vm_instr_checksum(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
     uint16_t pkt_offset = parse_uint16(inst, "pkt_offset", result); 
@@ -462,12 +471,16 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
     for (int i = 0; i < instructions.size(); i++) {
         const Json::Value & inst = parse_object(instructions, i, result);
 
-        auto vm_types = {"fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size","write_mask_flow_var","flow_var_rand_limit"};
+        auto vm_types = {"fix_checksum_hw", "fix_checksum_ipv4", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size","write_mask_flow_var","flow_var_rand_limit"};
         std::string vm_type = parse_choice(inst, "type", vm_types, result);
 
         // checksum instruction
         if (vm_type == "fix_checksum_ipv4") {
             parse_vm_instr_checksum(inst, stream, result);
+
+        } else if (vm_type == "fix_checksum_hw") {
+
+            parse_vm_instr_checksum_hw(inst, stream, result);
 
         } else if (vm_type == "flow_var") {
             parse_vm_instr_flow_var(inst, stream, result);

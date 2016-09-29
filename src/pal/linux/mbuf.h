@@ -63,6 +63,8 @@ struct rte_mbuf {
     uint32_t magic2;
     uint16_t refcnt_reserved;
     uint64_t ol_flags;        /**< Offload features. */
+    uint16_t l2_len;
+    uint16_t l3_len;
 } ;
 
 typedef struct rte_mempool rte_mempool_t;
@@ -74,6 +76,48 @@ void utl_rte_mempool_delete(rte_mempool_t  * &pool);
 inline unsigned rte_mempool_count(rte_mempool_t  *mp){
     return (10);
 }
+
+static inline uint16_t
+rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags){
+    return (0);
+}
+
+static inline uint16_t
+rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags){
+    return(0);
+}
+
+
+#define PKT_TX_L4_NO_CKSUM   (0ULL << 52) /**< Disable L4 cksum of TX pkt. */
+#define PKT_TX_TCP_CKSUM     (1ULL << 52) /**< TCP cksum of TX pkt. computed by NIC. */
+#define PKT_TX_SCTP_CKSUM    (2ULL << 52) /**< SCTP cksum of TX pkt. computed by NIC. */
+#define PKT_TX_UDP_CKSUM     (3ULL << 52) /**< UDP cksum of TX pkt. computed by NIC. */
+#define PKT_TX_L4_MASK       (3ULL << 52) /**< Mask for L4 cksum offload request. */
+
+/**
+ * Offload the IP checksum in the hardware. The flag PKT_TX_IPV4 should
+ * also be set by the application, although a PMD will only check
+ * PKT_TX_IP_CKSUM.
+ *  - set the IP checksum field in the packet to 0
+ *  - fill the mbuf offload information: l2_len, l3_len
+ */
+#define PKT_TX_IP_CKSUM      (1ULL << 54)
+
+/**
+ * Packet is IPv4. This flag must be set when using any offload feature
+ * (TSO, L3 or L4 checksum) to tell the NIC that the packet is an IPv4
+ * packet. If the packet is a tunneled packet, this flag is related to
+ * the inner headers.
+ */
+#define PKT_TX_IPV4          (1ULL << 55)
+
+/**
+ * Packet is IPv6. This flag must be set when using an offload feature
+ * (TSO or L4 checksum) to tell the NIC that the packet is an IPv6
+ * packet. If the packet is a tunneled packet, this flag is related to
+ * the inner headers.
+ */
+#define PKT_TX_IPV6          (1ULL << 56)
 
 
 

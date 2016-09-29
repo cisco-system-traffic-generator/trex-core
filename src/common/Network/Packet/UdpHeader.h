@@ -20,6 +20,8 @@ limitations under the License.
 #include "PacketHeaderBase.h"
 #include "IPHeader.h"
 
+#define UDP_HEADER_LEN  8
+
 class UDPHeader
 {
 
@@ -55,6 +57,11 @@ public:
 	inline void     updateCheckSum(IPHeader  *ipHeader);
     inline bool 	isCheckSumOk(IPHeader  *ipHeader);
     inline uint16_t   calcCheckSum(IPHeader  *ipHeader);
+
+    inline void    setChecksumRaw     (uint16_t data){
+        myChecksum = data;
+    }
+
 
 	inline  void	swapSrcDest();
 
