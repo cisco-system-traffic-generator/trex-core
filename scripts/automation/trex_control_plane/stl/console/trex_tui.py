@@ -714,7 +714,43 @@ class TrexTUI():
         return self.state
 
 
+class TokenParser(object):
+    def __init__ (self, seq):
+        self.buffer = list(seq)
 
+    def pop (self):
+        return self.buffer.pop(0)
+        
+
+    def peek (self):
+        if not self.buffer:
+            return None
+        return self.buffer[0]
+
+    def next_token (self):
+        if not self.peek():
+            return None
+
+        token = self.pop()
+
+        # special chars
+        if token == '\x1b' and self.peek() == '[':
+            token += self.pop()
+            if self.peek():
+                token += self.pop()
+
+        return token
+
+    def parse (self):
+        tokens = []
+
+        while True:
+            token = self.next_token()
+            if token == None:
+                break
+            tokens.append(token)
+
+        return tokens
 
 
 # handles async IO
@@ -775,30 +811,57 @@ class AsyncKeys:
             self.engine = self.engine_legend
 
 
-    def tick (self, pm):
-        seq = ''
-        # drain all chars
-        while True:
-            ch = os.read(sys.stdin.fileno(), 1).decode()
-            if not ch:
-                break
-            seq += ch
+    # parse the buffer to manageble tokens
+    def parse_tokens (self, seq):
 
-        if not seq:
-            return self.STATUS_NONE
+        tokens = []
+        chars = list(seq)
 
+        while chars:
+            token = chars.pop(0)
+
+            # special chars
+            if token == '\x1b' and chars[0] == '[':
+                token += chars.pop(0)
+                token += chars.pop(0)
+
+            tokens.append(token)
+
+        return tokens
+
+    def handle_token (self, token, pm):
         # ESC for switch
-        if seq == '\x1b':
+        if token == '\x1b':
             if not self.locked:
                 self.switch()
             return self.STATUS_REDRAW_ALL
 
         # EOF (ctrl + D)
-        if seq == '\x04':
+        if token == '\x04':
             raise TUIQuit()
 
         # pass tick to engine
-        return self.engine.tick(seq, pm)
+        return self.engine.tick(token, pm)
+
+
+    def tick (self, pm):
+        rc = self.STATUS_NONE
+
+        # fetch the stdin buffer
+        seq = os.read(sys.stdin.fileno(), 1024).decode()
+        if not seq:
+            return self.STATUS_NONE
+
+        # parse all the tokens from the buffer
+        tokens = TokenParser(seq).parse()
+
+        # process them
+        for token in tokens:
+            token_rc = self.handle_token(token, pm)
+            rc = max(rc, token_rc)
+
+    
+        return rc
 
 
     def draw (self, buffer):
