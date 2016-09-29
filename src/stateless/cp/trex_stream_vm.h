@@ -558,20 +558,21 @@ public:
             UDPHeader *     udp;
         } u;
 
-        u.tcp =  (TCPHeader*)(pkt_base+m_l3_len);
+        u.tcp =  (TCPHeader*)(pkt_base+m_l2_len+m_l3_len);
         /* set the mbuf info */
          m->l2_len = m_l2_len;
          m->l3_len = m_l3_len;
          m->ol_flags |= m_ol_flags;
          if (m_ol_flags & PKT_TX_IPV4 ){ /* splitting to 4 instructions didn't improve performance .. */
              ipv4->ClearCheckSum();
-             if (m_ol_flags & PKT_TX_TCP_CKSUM ){
+             if ((m_ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM ){
                  u.tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4,m_ol_flags));
              }else{
                  u.udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4,m_ol_flags));
              }
+
          }else{
-             if (m_ol_flags & PKT_TX_TCP_CKSUM ){
+             if ((m_ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM ){
                  u.tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4,m_ol_flags));
              }else{
                  u.udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4,m_ol_flags));

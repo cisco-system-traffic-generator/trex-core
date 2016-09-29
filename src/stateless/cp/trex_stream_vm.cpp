@@ -644,9 +644,9 @@ void StreamVm::build_program(){
                 err(ss.str());
             }
 
-            if (lpFix->m_l3_len < 8 ) {
+            if (lpFix->m_l3_len < 20 ) {
                 std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' fix hw offset l3 " << lpFix->m_l3_len << "  is lower than 8 ";
+                ss << "instruction id '" << ins_id << "' fix hw offset l3 " << lpFix->m_l3_len << "  is lower than 20 ";
                 err(ss.str());
             }
 
@@ -673,7 +673,7 @@ void StreamVm::build_program(){
                 }
             }else{
                 if (ipv4->getVersion() ==6) {
-                    /* pass */
+                    packet_is_ipv4=false;
                 }else{
                     std::stringstream ss;
                     ss << "instruction id '" << ins_id << "' fix hw command should work on IPv4 or IPv6  "  ;
