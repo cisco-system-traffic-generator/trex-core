@@ -654,81 +654,81 @@ void StreamVm::build_program(){
             uint16_t l4_header_size =0;
 
 
-            assert( m_pkt );
-
-            bool packet_is_ipv4=true;
-            IPHeader * ipv4= (IPHeader *)(m_pkt+lpFix->m_l2_len);
-            if (ipv4->getVersion() ==4 ) {
-                packet_is_ipv4=true;
-                if (ipv4->getSize() != lpFix->m_l3_len ) {
-                    std::stringstream ss;
-                    ss << "instruction id '" << ins_id << "' fix hw command IPv4 header size is not valid  " << ipv4->getSize() ;
-                    err(ss.str());
-                }
-                if ( !((ipv4->getNextProtocol() == IPHeader::Protocol::TCP) || 
-                      (ipv4->getNextProtocol() == IPHeader::Protocol::UDP) ) ) {
-                    std::stringstream ss;
-                    ss << "instruction id '" << ins_id << "' fix hw command L4 should be TCP or UDP  " << ipv4->getSize() ;
-                    err(ss.str());
-                }
-            }else{
-                if (ipv4->getVersion() ==6) {
-                    packet_is_ipv4=false;
+            if ( m_pkt ) {
+                /* not pre compile for estimation of average packet size */
+                bool packet_is_ipv4=true;
+                IPHeader * ipv4= (IPHeader *)(m_pkt+lpFix->m_l2_len);
+                if (ipv4->getVersion() ==4 ) {
+                    packet_is_ipv4=true;
+                    if (ipv4->getSize() != lpFix->m_l3_len ) {
+                        std::stringstream ss;
+                        ss << "instruction id '" << ins_id << "' fix hw command IPv4 header size is not valid  " << ipv4->getSize() ;
+                        err(ss.str());
+                    }
+                    if ( !((ipv4->getNextProtocol() == IPHeader::Protocol::TCP) || 
+                          (ipv4->getNextProtocol() == IPHeader::Protocol::UDP) ) ) {
+                        std::stringstream ss;
+                        ss << "instruction id '" << ins_id << "' fix hw command L4 should be TCP or UDP  " << ipv4->getSize() ;
+                        err(ss.str());
+                    }
                 }else{
-                    std::stringstream ss;
-                    ss << "instruction id '" << ins_id << "' fix hw command should work on IPv4 or IPv6  "  ;
-                    err(ss.str());
-                }
-            }
-
-            StreamDPOpHwCsFix ipv_fix;
-            ipv_fix.m_l2_len = lpFix->m_l2_len;
-            ipv_fix.m_l3_len = lpFix->m_l3_len;
-            ipv_fix.m_op = StreamDPVmInstructions::ditFIX_HW_CS;
-
-            if (packet_is_ipv4) {
-                if ( ipv4->getNextProtocol() == IPHeader::Protocol::TCP ){
-                    /* Ipv4 TCP */
-                    ipv_fix.m_ol_flags = (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM);
-                    l4_header_size = TCP_HEADER_LEN;
-                }else{
-                    assert( ipv4->getNextProtocol() == IPHeader::Protocol::UDP );
-                    /* Ipv4 UDP */
-                    ipv_fix.m_ol_flags = (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
-                    l4_header_size = UDP_HEADER_LEN;
-                }
-            }else{
-                /* Ipv6*/
-                /* in this case we need to scan the Ipv6 headers */
-                /* TBD replace with parser of IPv6 function */
-                if ( lpFix->m_l4_type==StreamVmInstructionFixHwChecksum::L4_TYPE_TCP ){
-                    ipv_fix.m_ol_flags = (PKT_TX_IPV6 | PKT_TX_TCP_CKSUM);
-                    l4_header_size = TCP_HEADER_LEN;
-                }else{
-                    if ( lpFix->m_l4_type==StreamVmInstructionFixHwChecksum::L4_TYPE_UDP ){
-                        ipv_fix.m_ol_flags = (PKT_TX_IPV6 | PKT_TX_UDP_CKSUM);
-                        l4_header_size = UDP_HEADER_LEN;
+                    if (ipv4->getVersion() ==6) {
+                        packet_is_ipv4=false;
                     }else{
                         std::stringstream ss;
-                        ss << "instruction id '" << ins_id << "' fix hw command offsets should be TCP or UDP ";
+                        ss << "instruction id '" << ins_id << "' fix hw command should work on IPv4 or IPv6  "  ;
                         err(ss.str());
                     }
                 }
+
+                StreamDPOpHwCsFix ipv_fix;
+                ipv_fix.m_l2_len = lpFix->m_l2_len;
+                ipv_fix.m_l3_len = lpFix->m_l3_len;
+                ipv_fix.m_op = StreamDPVmInstructions::ditFIX_HW_CS;
+
+                if (packet_is_ipv4) {
+                    if ( ipv4->getNextProtocol() == IPHeader::Protocol::TCP ){
+                        /* Ipv4 TCP */
+                        ipv_fix.m_ol_flags = (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM);
+                        l4_header_size = TCP_HEADER_LEN;
+                    }else{
+                        assert( ipv4->getNextProtocol() == IPHeader::Protocol::UDP );
+                        /* Ipv4 UDP */
+                        ipv_fix.m_ol_flags = (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
+                        l4_header_size = UDP_HEADER_LEN;
+                    }
+                }else{
+                    /* Ipv6*/
+                    /* in this case we need to scan the Ipv6 headers */
+                    /* TBD replace with parser of IPv6 function */
+                    if ( lpFix->m_l4_type==StreamVmInstructionFixHwChecksum::L4_TYPE_TCP ){
+                        ipv_fix.m_ol_flags = (PKT_TX_IPV6 | PKT_TX_TCP_CKSUM);
+                        l4_header_size = TCP_HEADER_LEN;
+                    }else{
+                        if ( lpFix->m_l4_type==StreamVmInstructionFixHwChecksum::L4_TYPE_UDP ){
+                            ipv_fix.m_ol_flags = (PKT_TX_IPV6 | PKT_TX_UDP_CKSUM);
+                            l4_header_size = UDP_HEADER_LEN;
+                        }else{
+                            std::stringstream ss;
+                            ss << "instruction id '" << ins_id << "' fix hw command offsets should be TCP or UDP ";
+                            err(ss.str());
+                        }
+                    }
+                }
+
+                if ( (total_l4_offset + l4_header_size) > m_pkt_size  ) {
+
+                    std::stringstream ss;
+                    ss << "instruction id '" << ins_id << "' fix hw command offsets  " << (total_l4_offset + l4_header_size) << "  is too high relative to packet size  "<< m_pkt_size;
+                    err(ss.str());
+                }
+
+                /* add the instruction*/
+                m_instructions.add_command(&ipv_fix,sizeof(ipv_fix));
+
+                /* mark R/W of the packet */
+                add_field_cnt(total_l4_offset + l4_header_size);
             }
-
-            if ( (total_l4_offset + l4_header_size) > m_pkt_size  ) {
-
-                std::stringstream ss;
-                ss << "instruction id '" << ins_id << "' fix hw command offsets  " << (total_l4_offset + l4_header_size) << "  is too high relative to packet size  "<< m_pkt_size;
-                err(ss.str());
-            }
-
-            /* add the instruction*/
-            m_instructions.add_command(&ipv_fix,sizeof(ipv_fix));
-
-            /* mark R/W of the packet */
-            add_field_cnt(total_l4_offset + l4_header_size);
-
         }
 
         /* itFIX_IPV4_CS */

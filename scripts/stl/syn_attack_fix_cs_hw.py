@@ -195,10 +195,43 @@ class STLS1(object):
                          random_seed = 0x1234,# can be remove. will give the same random value any run
                          mode = STLTXCont())
 
+    def create_stream_udp_random (self):
+        # pkt 
+        p_l2  = Ether();
+        p_l3  = IP(src="16.0.0.1",dst="48.0.0.1")
+        p_l4  = UDP(dport=12,sport=1025)
+        pyld_size = max(0, self.max_pkt_size_l3 - len(p_l3/p_l4));
+        base_pkt = p_l2/p_l3/p_l4/('\x55'*(pyld_size))
+
+        l3_len_fix =-(len(p_l2));
+        l4_len_fix =-(len(p_l2/p_l3));
+
+
+        # vm
+        vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, max_value=len(base_pkt), size=2, op="random"),
+                           STLVmTrimPktSize("fv_rand"), # total packet size
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix), # fix ip len 
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix), # fix udp len  
+
+                           STLVmFixChecksumHw(l3_offset = "IP",
+                                              l4_offset = "UDP", # not valid 
+                                              l4_type  = CTRexVmInsFixHwCs.L4_TYPE_UDP )# hint, TRex can know that 
+
+                          ]
+                       )
+
+        pkt = STLPktBuilder(pkt = base_pkt,
+                            vm = vm)
+
+        return STLStream(packet = pkt,
+                         random_seed = 0x1234,
+                         mode = STLTXCont())
+
 
     def get_streams (self, direction = 0, **kwargs):
         # create 1 stream 
         #return [ self.create_stream_ipv6_udp(),self.create_stream_tcp_syn(), self.create_stream_udp1(),self.create_stream_ipv6_tcp()]
+        #return [ self.create_stream_udp_random () ]
         return [ self.create_stream_tcp_syn()]
 
 
