@@ -39,6 +39,28 @@ limitations under the License.
 
 class StreamVmInstructionFlowClient;
 
+
+inline uint64_t   utl_split_limit(uint64_t limit, 
+                           uint64_t phase, 
+                           uint64_t step_mul){
+
+    uint64_t per_core_limit = (limit / step_mul);
+
+    if (phase == 0) {
+        per_core_limit += (limit % step_mul);
+    }
+
+    if (per_core_limit == 0) {
+        per_core_limit=1;
+    }
+    return ( per_core_limit);
+}
+
+
+
+
+
+
 /**
  * two functions ahead are used by both control plane and 
  * dataplane to allow fast inc/dec and handle overflow 
@@ -1298,11 +1320,7 @@ public:
         m_seed = m_seed * ( ( (phase + 1) * 514229 )  & 0xFFFFFFFF );
 
         /* limit */
-        uint64_t per_core_limit = (m_limit / step_mul);
-        if (phase == 0) {
-            per_core_limit += (m_limit % step_mul);
-        }
-        m_limit = per_core_limit;
+        m_limit = utl_split_limit(m_limit, phase, step_mul);
     }
 
 private:
@@ -1475,13 +1493,7 @@ public:
     
         /* update the limit per core */
         if (m_limit_num_flows) {
-            uint64_t per_core_limit = m_limit_num_flows / step_mul;
-            if (phase == 0) {
-                per_core_limit += m_limit_num_flows % step_mul;
-            }
-
-            m_limit_num_flows = per_core_limit;
-            assert(per_core_limit > 0);
+            m_limit_num_flows = utl_split_limit(m_limit_num_flows, phase, step_mul);
         }
         
     }
