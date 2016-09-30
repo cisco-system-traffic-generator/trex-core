@@ -837,7 +837,7 @@ class STLClient(object):
         if not rc:
             return rc
 
-        self.supported_cmds = rc.data()
+        self.supported_cmds = sorted(rc.data())
 
         # create ports
         for port_id in range(self.system_info["port_count"]):
@@ -2831,26 +2831,12 @@ class STLClient(object):
             else:
                 self.stop(active_ports)
 
-        
-        # default value for tunables (empty)
-        tunables = [{}] * len(opts.ports)
 
         # process tunables
-        if opts.tunables:
-
-            # for one tunable - duplicate for all ports
-            if len(opts.tunables) == 1:
-                tunables = opts.tunables * len(opts.ports)
-
-            else:
-                # must be exact
-                if len(opts.ports) != len(opts.tunables):
-                    msg = 'tunables section count must be 1 or exactly as the number of ports: got {0}'.format(len(opts.tunables))
-                    self.logger.log(msg)
-                    return RC_ERR(msg)
-
-                tunables = opts.tunables
-            
+        if type(opts.tunables) is dict:
+            tunables = opts.tunables
+        else:
+            tunables = {}
 
 
         # remove all streams
@@ -2858,12 +2844,12 @@ class STLClient(object):
 
         # pack the profile
         try:
-            for port, t in zip(opts.ports, tunables):
+            for port in opts.ports:
 
                 profile = STLProfile.load(opts.file[0],
-                                          direction = t.get('direction', port % 2),
+                                          direction = tunables.get('direction', port % 2),
                                           port_id = port,
-                                          **t)
+                                          **tunables)
 
                 self.add_streams(profile.get_streams(), ports = port)
 

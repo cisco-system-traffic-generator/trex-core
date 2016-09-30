@@ -217,15 +217,28 @@ def is_valid_file(filename):
 def decode_tunables (tunable_str):
     tunables = {}
 
-    # split by diaz to tokens
-    tokens = tunable_str.split('#')
+    # split by comma to tokens
+    tokens = tunable_str.split(',')
 
     # each token is of form X=Y
     for token in tokens:
-        m = re.search('(.*)=(.*)', token)
+        m = re.search('(\S+)=(.+)', token)
         if not m:
             raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(token))
-        tunables[m.group(1)] = m.group(2)
+        val = m.group(2)           # string
+        if val.startswith(("'", '"')) and val.endswith(("'", '"')) and len(val) > 1: # need to remove the quotes from value
+            val = val[1:-1]
+        elif val.startswith('0x'): # hex
+            val = int(val, 16)
+        else:
+            try:
+                if '.' in val:     # float
+                    val = float(val)
+                else:              # int
+                    val = int(val)
+            except:
+                pass
+        tunables[m.group(1)] = val
 
     return tunables
 
@@ -279,9 +292,10 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                       'metavar': 'T1=VAL[,T2=VAL ...]',
                                       'dest': "tunables",
                                       'default': None,
+                                      'action': 'merge',
                                       'type': decode_tunables}),
 
-              NO_PROMISCUOUS: ArgumentPack(['--no_prom'],
+              NO_PROMISCUOUS: ArgumentPack(['--no-prom', '--no_prom'],
                                            {'help': "Sets port promiscuous off",
                                             'dest': "prom",
                                             'default': None,
@@ -291,6 +305,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {"nargs": '+',
                                          'dest':'ports',
                                          'metavar': 'PORTS',
+                                         'action': 'merge',
                                          'type': int,
                                          'help': "A list of ports on which to apply the command",
                                          'default': []}),
@@ -438,6 +453,17 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
 
               }
 
+class _MergeAction(argparse._AppendAction):
+    def __call__(self, parser, namespace, values, option_string=None):
+        items = getattr(namespace, self.dest)
+        if not items:
+            items = values
+        elif type(items) is list and type(values) is list:
+            items.extend(values)
+        elif type(items) is dict and type(values) is dict: # tunables are dict
+            items.update(values)
+
+        setattr(namespace, self.dest, items)
 
 class CCmdArgParser(argparse.ArgumentParser):
 
@@ -445,7 +471,7 @@ class CCmdArgParser(argparse.ArgumentParser):
         super(CCmdArgParser, self).__init__(*args, **kwargs)
         self.stateless_client = stateless_client
         self.cmd_name = kwargs.get('prog')
-
+        self.register('action', 'merge', _MergeAction)
 
     # hook this to the logger
     def _print_message(self, message, file=None):
