@@ -53,6 +53,9 @@ def get_version_handler():
 def build_pkt(model_def):
     return pass_result(service.build_pkt(v_handler, model_def))
 
+def build_pkt_ex(model_def, instructions_def):
+    return pass_result(service.build_pkt_ex(v_handler, model_def, instructions_def))
+
 def build_pkt_get_scapy(model_def):
     return build_pkt_to_scapy(build_pkt(model_def))
 

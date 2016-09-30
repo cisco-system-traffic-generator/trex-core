@@ -119,8 +119,9 @@ def test_get_definitions_all():
 
 def test_get_definitions_ether():
     res = get_definitions(["Ether"])
-    assert(len(res) == 1)
-    assert(res['protocols'][0]['id'] == "Ether")
+    protocols = res['protocols']
+    assert(len(protocols) == 1)
+    assert(protocols[0]['id'] == "Ether")
 
 def test_get_payload_classes():
     eth_payloads = get_payload_classes([{"id":"Ether"}])
@@ -249,3 +250,18 @@ def test_ip_definitions():
     assert(fields[9]['id'] == 'chksum')
     assert(fields[9]['auto'] == True)
 
+def test_generate_vm_instructions():
+    ip_pkt_model = [
+        layer_def("Ether"),
+        layer_def("IP", src="16.0.0.1", dst="48.0.0.1")
+    ]
+    ip_instructions_model = {"field_engine":{'global_parameters': {}, 'instructions': [{'id': "IP", 'fields': [{"fieldId": "src", 'parameters': {'min_value': "0", 'max_value': "16.0.0.255", 'step': "1", 'op': "inc"}},
+                                                                      {"fieldId": "ttl", 'parameters': {'min_value': "1", 'max_value': "17", 'step': "1", 'op': "inc"}}]}]}}
+    res = build_pkt_ex(ip_pkt_model, ip_instructions_model)
+    src_instruction = res['vm_instructions']['instructions'][0]
+    assert(src_instruction['min_value'] == 0)
+    assert(src_instruction['max_value'] == 268435711)
+
+    ttl_instruction = res['vm_instructions']['instructions'][2]
+    assert(ttl_instruction['min_value'] == 1)
+    assert(ttl_instruction['max_value'] == 17)
