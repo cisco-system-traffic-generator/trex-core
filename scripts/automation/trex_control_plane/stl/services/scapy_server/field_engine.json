@@ -1,0 +1,62 @@
+{
+  "instruction_params_meta": [
+    {
+      "id": "max_value",
+      "name": "Maximum value",
+      "type": "STRING",
+      "defaultValue": "0"
+    },
+    {
+      "id": "min_value",
+      "name": "Minimum value",
+      "type": "STRING",
+      "defaultValue": "0"
+    },
+    {
+      "id": "step",
+      "name": "Step",
+      "type": "NUMBER",
+      "defaultValue": "1"
+    },
+    {
+      "id": "op",
+      "name": "Operation",
+      "type": "ENUM",
+      "defaultValue": "inc",
+      "dict": {
+        "dec": "Decrement",
+        "inc": "Increment",
+        "random": "Random"
+      }
+    }
+  ],
+  "protocol_fields": {
+    "IP": [
+      "ttl",
+      "src",
+      "dst"
+    ],
+    "TCP": [
+      "sport",
+      "dport"
+    ],
+    "UDP": [
+      "sport",
+      "dport"
+    ]
+  },
+  "global_params_meta":[
+    {
+      "id": "split_by_field",
+      "name": "Split by",
+      "type": "ENUM"
+    },
+    {
+      "id": "cache_size",
+      "name": "Cache size",
+      "type": "STRING",
+      "defaultValue": "1000"
+    }
+  ]
+}
+
