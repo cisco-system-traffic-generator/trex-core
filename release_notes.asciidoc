@@ -23,7 +23,7 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Release 2.09 pre ==
+== Release 2.09 ==
 
 * Statless, split to core algorithm is more accurate and simple see link:trex_stateless.html#_tutorial_field_engine_split_to_core[split_to_core] 
 * Add repeatable random instruction see an example link:https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/api/stl/udp_1pkt_repeat_random.py[stl/udp_1pkt_repeat_random.py] link:cp_stl_docs/api/field_engine.html#stlvmflowvarrepetablerandom[repetable_random] and link:trex_rpc_server_spec.html#_repetable_random[repetable_random_spec]
@@ -37,7 +37,7 @@ endif::backend-docbook[]
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-243[trex-243] 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-247[trex-247] 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-244[trex-244] 
-
+* link:http://trex-tgn.cisco.com/youtrack/issue/trex-249[trex-249] 
 
 == Release 2.08  ==
 
