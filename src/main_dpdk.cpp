@@ -5543,16 +5543,17 @@ int CTRexExtendedDriverBase1G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
 
     clear_rx_filter_rules(_if);
 
-    if (! set_on)
-        return 0;
-
-    for (int rule_id = 0; rule_id < sizeof(eth_types); rule_id++) {
-        mask |= 0x1 << rule_id;
-        // Filter for byte 12 of packet
-        _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 4) ,  0x000000 | eth_types[rule_id]);
-        _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 8) , 0x10); /* MASK */
-        // FLEX_PRIO[[18:16] = 1, RQUEUE[10:8] = 1, len = 24
-        _if->pci_reg_write( (E1000_FHFT(rule_id) + 0xFC) , (1 << 16) | (1 << 8) | 24);
+    if (set_on) {
+        for (int rule_id = 0; rule_id < sizeof(eth_types); rule_id++) {
+            mask |= 0x1 << rule_id;
+            // Filter for byte 12 of packet
+            _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 4) ,  0x000000 | eth_types[rule_id]);
+            _if->pci_reg_write( (E1000_FHFT(rule_id)+(1*16) + 8) , 0x10); /* MASK */
+            // FLEX_PRIO[[18:16] = 1, RQUEUE[10:8] = 1, len = 24
+            _if->pci_reg_write( (E1000_FHFT(rule_id) + 0xFC) , (1 << 16) | (1 << 8) | 24);
+        }
+    } else {
+        configure_rx_filter_rules(_if);
     }
 
     return 0;
