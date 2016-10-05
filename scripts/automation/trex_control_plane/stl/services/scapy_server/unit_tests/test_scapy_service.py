@@ -112,10 +112,29 @@ def test_get_all():
 
 def test_get_definitions_all():
     get_definitions(None)
-    def_classnames = [pdef['id'] for pdef in get_definitions(None)['protocols']]
+    defs = get_definitions(None)
+    def_classnames = [pdef['id'] for pdef in defs['protocols']]
     assert("IP" in def_classnames)
     assert("Dot1Q" in def_classnames)
     assert("TCP" in def_classnames)
+
+    fe_parameter_metas = defs['feInstructionParameters']
+    assert(fe_parameter_metas[0]['id'] == "max_value")
+    assert(fe_parameter_metas[1]['id'] == "min_value")
+    assert(fe_parameter_metas[2]['id'] == "step")
+    assert(fe_parameter_metas[3]['id'] == "op")
+    assert(fe_parameter_metas[4]['id'] == "fv_name")
+    assert(fe_parameter_metas[5]['id'] == "pkt_offset")
+    assert(fe_parameter_metas[6]['id'] == "offset")
+    assert(fe_parameter_metas[7]['id'] == "l3_offset")
+    assert(fe_parameter_metas[8]['id'] == "l4_offset")
+    assert(fe_parameter_metas[9]['id'] == "l4_type")
+
+    # All instructions should have a help description.
+    fe_instructions = defs['feInstructions']
+    for instruction in fe_instructions:
+        print(instruction['help'])
+        assert("help" in instruction)
 
 def test_get_definitions_ether():
     res = get_definitions(["Ether"])
@@ -255,8 +274,9 @@ def test_generate_vm_instructions():
         layer_def("Ether"),
         layer_def("IP", src="16.0.0.1", dst="48.0.0.1")
     ]
-    ip_instructions_model = {"field_engine":{'global_parameters': {}, 'instructions': [{'id': "IP", 'fields': [{"fieldId": "src", 'parameters': {'min_value': "0", 'max_value': "16.0.0.255", 'step': "1", 'op': "inc"}},
-                                                                      {"fieldId": "ttl", 'parameters': {'min_value': "1", 'max_value': "17", 'step': "1", 'op': "inc"}}]}]}}
+    ip_instructions_model = {"field_engine": {'global_parameters': {}, 'instructions': [{'id': "IP", 'fields': [
+        {"fieldId": "src", 'parameters': {'min_value': "0", 'max_value': "16.0.0.255", 'step': "1", 'op': "inc"}},
+        {"fieldId": "ttl", 'parameters': {'min_value': "1", 'max_value': "17", 'step': "1", 'op': "inc"}}]}]}}
     res = build_pkt_ex(ip_pkt_model, ip_instructions_model)
     src_instruction = res['vm_instructions']['instructions'][0]
     assert(src_instruction['min_value'] == 0)

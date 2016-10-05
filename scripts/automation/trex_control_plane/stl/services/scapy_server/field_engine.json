@@ -1,4 +1,23 @@
 {
+  "instructions": [
+    {
+      "id": "STLVmFlowVar",
+      "parameters": ["max_value","min_value","step","op"]
+    },
+    {
+      "id": "STLVmWrFlowVar",
+      "parameters": ["fv_name", "pkt_offset"]
+    },
+    {
+      "id": "STLVmFixIpv4",
+      "parameters": ["offset"]
+    },
+    {
+      "id": "STLVmFixChecksumHw",
+      "parameters": ["l3_offset","l4_offset","l4_type"]
+    }
+  ],
+
   "instruction_params_meta": [
     {
       "id": "max_value",
@@ -28,6 +47,36 @@
         "inc": "Increment",
         "random": "Random"
       }
+    },
+    {
+      "id": "fv_name",
+      "name": "Variable name",
+      "type": "STRING"
+    },
+    {
+      "id": "pkt_offset",
+      "name": "Offset",
+      "type": "STRING"
+    },
+    {
+      "id": "offset",
+      "name": "Offset",
+      "type": "STRING"
+    },
+    {
+      "id": "l3_offset",
+      "name": "L3 offset",
+      "type": "STRING"
+    },
+    {
+      "id": "l4_offset",
+      "name": "L4 offset",
+      "type": "STRING"
+    },
+    {
+      "id": "l4_type",
+      "name": "L4 type",
+      "type": "STRING"
     }
   ],
   "protocol_fields": {
@@ -46,11 +95,6 @@
     ]
   },
   "global_params_meta":[
-    {
-      "id": "split_by_field",
-      "name": "Split by",
-      "type": "ENUM"
-    },
     {
       "id": "cache_size",
       "name": "Cache size",
