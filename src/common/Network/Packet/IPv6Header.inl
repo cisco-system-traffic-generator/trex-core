@@ -34,7 +34,7 @@ inline uint16_t IPv6Header::getTrafficClass()
     return  getMaskBit32(PKT_NTOHL(myVer_TrafficClass_FlowLabel),  4, 11);
 }
 
-inline void 
+inline void
 IPv6Header::setTrafficClass(uint16_t argTrafficClass)
 {
     uint32_t myTrafficClass = PKT_HTONL(myVer_TrafficClass_FlowLabel);

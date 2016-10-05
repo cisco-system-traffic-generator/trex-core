@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2016-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,56 +16,39 @@ limitations under the License.
 
 #include "IPv6Header.h"
 
+/*
+ * Return l4 type of Ipv6 packet
+ * pkt - pointer to start of packet data (including header)
+ * pkt_len - length of packet (including header)
+ * p_l4 - return pointer to start of l4 header
+ */
+uint8_t IPv6Header::getl4Proto(uint8_t *pkt, uint16_t pkt_len, uint8_t *&p_l4) {
+    bool stop = false;
+    uint8_t *next_header = pkt + IPV6_HDR_LEN;;
+    uint8_t next_header_type = myNextHdr;
+    uint16_t len_left = pkt_len - IPV6_HDR_LEN;
+    uint16_t curr_header_len;
 
-char * IPv6Header::Protocol::interpretIpProtocolName(uint8_t argType)
-{
-    switch (argType)
-    {
-    case TCP:
-        return (char *)"TCP";
-        break;
-    case UDP:
-        return (char *)"UDP";
-        break;
-    case IP:
-        return (char *)"IP";
-        break;
-    case ICMP:
-        return (char *)"ICMP";
-        break;
-    case ESP:
-        return (char *)"ESP";
-        break;
-    case AH:
-        return (char *)"AH";
-        break;
-    case IGMP:
-        return (char *)"IGMP";
-        break;
-    default:
-        return (char *)NULL;
-        break;
-    }
+    do {
+        switch(next_header_type) {
+        case IPPROTO_HOPOPTS:
+        case IPPROTO_ROUTING:
+        case IPPROTO_ENCAP_SEC:
+        case IPPROTO_AUTH:
+        case IPPROTO_FRAGMENT:
+        case IPPROTO_DSTOPTS:
+        case IPPROTO_MH:
+            next_header_type = next_header[0];
+            curr_header_len = (next_header[1] + 1) * 8;
+            next_header += curr_header_len;
+            len_left -= curr_header_len;
+            break;
+        default:
+            stop = true;
+            break;
+        }
+    } while ((! stop) && len_left >= 2);
+
+    p_l4 = next_header;
+    return next_header_type;
 }
-
-void IPv6Header::dump(FILE *fd)
-{
-    fprintf(fd, "\nIPv6Header");
-    fprintf(fd, "\nSource 0x%.8lX, Destination 0x%.8lX, Protocol 0x%.1X",
-            getSourceIp(), getDestIp(), getProtocol());
-    fprintf(fd, "\nTTL : %d, Id : 0x%.2X, Ver %d, Header Length %d, Total Length %d",
-            getTimeToLive(), getId(), getVersion(), getHeaderLength(), getTotalLength());
-    if(isFragmented())
-    {
-        fprintf(fd,"\nIsFirst %d, IsMiddle %d, IsLast %d, Offset %d",
-                isFirstFragment(), isMiddleFragment(), isLastFragment(), getFragmentOffset());
-    }
-    else
-    {
-        fprintf(fd, "\nDont fragment %d", isDontFragment());
-    }
-    fprintf(fd, "\n");
-}
-
-
-

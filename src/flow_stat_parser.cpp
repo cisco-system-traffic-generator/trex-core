@@ -190,7 +190,6 @@ uint8_t CFlowStatParser::get_ttl(){
 // specific cases, while parse is used in many places (including on packet RX path, where we want to be as fast as possible)
 int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload_len) {
     uint16_t l2_header_len;
-    uint16_t l3_header_len;
     uint16_t l4_header_len;
     uint8_t *p_l3 = NULL;
     uint8_t *p_l4 = NULL;
@@ -202,35 +201,12 @@ int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload
 
     if (m_ipv4) {
         l2_header_len = ((uint8_t *)m_ipv4) - p;
-        l3_header_len = m_ipv4->getHeaderLength();
         m_l4_proto = m_ipv4->getProtocol();
         p_l3 = (uint8_t *)m_ipv4;
+        p_l4 = p_l3 + m_ipv4->getHeaderLength();
     } else if (m_ipv6) {
-        uint8_t *next_header;
-        uint8_t next_header_type;
-        uint16_t len_left;
-
-        p_l3 = (uint8_t *)m_ipv6;
         l2_header_len = ((uint8_t *)m_ipv6) - p;
-        next_header_type = m_ipv6->getNextHdr();
-        next_header = p_l3 + IPV6_HDR_LEN;
-        l3_header_len = IPV6_HDR_LEN;
-        len_left = len - IPV6_HDR_LEN;
-        while ((next_header_type != IPPROTO_UDP) && (next_header_type != IPPROTO_TCP) &&
-               (next_header_type != IPPROTO_NONE) && (len_left >= 2)) {
-            next_header_type = next_header[0];
-            uint16_t curr_header_len = (next_header[1] + 1) * 8;
-            next_header += curr_header_len;
-            l3_header_len += curr_header_len;
-            len_left -= curr_header_len;
-        }
-        if ((next_header_type != IPPROTO_UDP) && (next_header_type != IPPROTO_TCP)) {
-            // L4 type we don't know. Assume everyting after IPv6 header is L4
-            l3_header_len = IPV6_HDR_LEN;
-            m_l4_proto = m_ipv6->getNextHdr();
-        } else {
-            m_l4_proto = next_header_type;
-        }
+        m_l4_proto = m_ipv6->getl4Proto((uint8_t *)m_ipv6, len - l2_header_len, p_l4);
     }
 
     switch (m_l4_proto) {
@@ -238,7 +214,6 @@ int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload
         l4_header_len = 8;
         break;
     case IPPROTO_TCP:
-        p_l4 = p_l3 + l3_header_len;
         if ((p_l4 + TCP_HEADER_LEN) > (p + len)) {
             //Not enough space for TCP header
             payload_len = 0;
@@ -252,14 +227,15 @@ int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload
         break;
     default:
         l4_header_len = 0;
+        break;
     }
 
-    if (len < l2_header_len + l3_header_len + l4_header_len) {
+    payload_len = len - (p_l4 - p) - l4_header_len;
+
+    if (payload_len <= 0) {
         payload_len = 0;
         return -3;
     }
-
-    payload_len = len - l2_header_len - l3_header_len - l4_header_len;
 
     return 0;
 }
