@@ -5948,8 +5948,6 @@ extern const uint32_t FLOW_STAT_PAYLOAD_IP_ID;
 int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     uint32_t port_id = _if->get_port_id();
 
-    set_rcv_all(_if, false);
-
     if (get_is_stateless()) {
         i40e_trex_fdir_reg_init(port_id, I40E_TREX_INIT_STL);
 
@@ -6127,14 +6125,20 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
 
     if (set_on) {
         i40e_trex_fdir_reg_init(port_id, I40E_TREX_INIT_RCV_ALL);
-        // In order to receive packets, we also need to configure rules for each type.
-        add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     }
+
+    // In order to receive packets, we also need to configure rules for each type.
+    add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+
+    if (! set_on) {
+        configure_rx_filter_rules(_if);
+    }
+
     return 0;
 }
 
