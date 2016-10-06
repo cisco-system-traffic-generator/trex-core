@@ -534,6 +534,7 @@ enum { OPT_HELP,
        OPT_LEARN_VERIFY,
        OPT_L_PKT_MODE,
        OPT_NO_FLOW_CONTROL,
+       OPT_VLAN,
        OPT_RX_CHECK_HOPS,
        OPT_CLIENT_CFG_FILE,
        OPT_NO_KEYBOARD_INPUT,
@@ -592,6 +593,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
         { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
         { OPT_NO_FLOW_CONTROL, "--no-flow-control-change",       SO_NONE   },
+        { OPT_VLAN,       "--vlan",       SO_NONE   },
         { OPT_CLIENT_CFG_FILE, "--client_cfg", SO_REQ_SEP },
         { OPT_NO_KEYBOARD_INPUT ,"--no-key", SO_NONE   },
         { OPT_VIRT_ONE_TX_RX_QUEUE, "--vm-sim", SO_NONE },
@@ -700,6 +702,8 @@ static int usage(){
     printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
     printf(" --prefix                   : For multi trex, each instance should have a different name \n");
+    printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC.");
+    printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN");
     printf(" --mbuf-factor              : Factor for packet memory \n");
     printf("                             \n");
     printf(" --no-watchdog              : Disable watchdog  \n");
@@ -864,7 +868,11 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_NO_FLOW_CONTROL:
                 po->preview.set_disable_flow_control_setting(true);
                 break;
-
+            case OPT_VLAN:
+                if ( get_is_stateless() ) {
+                    po->preview.set_vlan_mode_enable(true);
+                }
+                break;
             case OPT_LIMT_NUM_OF_PORTS :
                 po->m_expected_portd =atoi(args.OptionArg());
                 break;
