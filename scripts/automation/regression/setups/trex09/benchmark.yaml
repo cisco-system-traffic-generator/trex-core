@@ -30,7 +30,7 @@ test_static_routing_imix_asymmetric:
 
 test_ipv6_simple:
     multiplier          : 64
-    cores               : 4
+    cores               : 3
     bw_per_core         : 22.808
 
 
