@@ -6,6 +6,7 @@ stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir))
 sys.path.append(stl_pathname)
 
 from trex_stl_lib.api import *
+import trex_stl_lib.trex_stl_packet_builder_scapy
 import tempfile
 import hashlib
 import base64
@@ -401,6 +402,7 @@ class Scapy_service(Scapy_service_api):
         self.field_engine_instruction_expressions = []
         self._load_definitions_from_json()
         self._load_field_engine_meta_from_json()
+        self._vm_instructions = dict([m for m in inspect.getmembers(trex_stl_lib.trex_stl_packet_builder_scapy, inspect.isclass) if m[1].__module__ == 'trex_stl_lib.trex_stl_packet_builder_scapy'])
 
     def _load_definitions_from_json(self):
         # load protocol definitions from a json file
@@ -763,48 +765,14 @@ class Scapy_service(Scapy_service_api):
         return res
 
     def _generate_vm_instructions(self, pkt, field_engine_model_descriptor):
-        self.field_engine_instruction_expressions = [self._get_instruction_expressions_header()]
+        self.field_engine_instruction_expressions = []
         instructions = []
-        protocols_model = field_engine_model_descriptor['instructions']
-        for protocol in protocols_model:
-            protocol_id = protocol['id']
-            for field in protocol['fields']:
-                field_id = field['fieldId']
-                var_name = str(protocol_id + "_" + field_id)
-                parameters = field['parameters']
-                min_value = int(parameters['min_value']) if parameters['min_value'].isdigit() else str(parameters['min_value'])
-                max_value = int(parameters['max_value']) if parameters['max_value'].isdigit() else str(parameters['max_value'])
-                vm_flow_var = STLVmFlowVar(name=var_name, min_value=min_value, max_value=max_value,
-                                           step=int(parameters['step']), op=parameters['op'])
-                pkt_offset = self._get_pkt_offset_param(protocol_id, field_id)
-                vm_wr_flow_var = STLVmWrFlowVar(fv_name=var_name, pkt_offset=pkt_offset)
-                instructions.append(vm_flow_var)
-                instructions.append(vm_wr_flow_var)
-                self.field_engine_instruction_expressions += self._generate_vm_instruction_commands(protocol_id, field_id, parameters)
-
-        protocols = [(proto['id']) for proto in protocols_model]
-
-        if "IP" in protocols:
-            ip_v4_checksum_fixed = False
-            expression = {}
-
-            if "TCP" in protocols and protocols.index("TCP") - protocols.index("IP") == 1:
-                instructions.append(STLVmFixChecksumHw(l3_offset="IP",l4_offset="TCP",l4_type=CTRexVmInsFixHwCs.L4_TYPE_TCP))
-                expression['name'] = "STLVmFixChecksumHw"
-                expression['parameters'] = {"l3_offset": '"IP"',"l4_offset": '"TCP"',"l4_type": '"CTRexVmInsFixHwCs.L4_TYPE_TCP"'}
-                ip_v4_checksum_fixed = True
-            elif "UDP" in protocols and protocols.index("UDP") - protocols.index("IP") == 1:
-                instructions.append(STLVmFixChecksumHw(l3_offset="IP", l4_offset="UDP", l4_type=CTRexVmInsFixHwCs.L4_TYPE_UDP))
-                expression['name'] = "STLVmFixChecksumHw"
-                expression['parameters'] = {"l3_offset": '"IP"', "l4_offset": '"UDP"', "l4_type": '"CTRexVmInsFixHwCs.L4_TYPE_UDP"'}
-                ip_v4_checksum_fixed = True
-
-            if not ip_v4_checksum_fixed:
-                instructions.append(STLVmFixIpv4(offset="IP"))
-                expression['name'] = "STLVmFixIpv4"
-                expression['parameters'] = {"offset": '"IP"'}
-
-            self.field_engine_instruction_expressions.append(expression)
+        instructions_def = field_engine_model_descriptor['instructions']
+        for instruction_def in instructions_def:
+            instruction_id = instruction_def['id']
+            instruction_class = self._vm_instructions[instruction_id]
+            parameters = {k: self._sanitize_value(v) for (k, v) in instruction_def['parameters'].iteritems()}
+            instructions.append(instruction_class(**parameters))
 
         fe_parameters = field_engine_model_descriptor['global_parameters']
 
@@ -812,56 +780,17 @@ class Scapy_service(Scapy_service_api):
         if "cache_size" in fe_parameters:
             cache_size = int(fe_parameters['cache_size'])
 
-        self.field_engine_instruction_expressions += self._get_instruction_expressions_footer(cache_size)
-
         pkt_builder = STLPktBuilder(pkt=pkt, vm=STLScVmRaw(instructions, cache_size=cache_size))
         pkt_builder.compile()
         return pkt_builder.get_vm_data()
 
-    def _get_instruction_expressions_header(self):
-        return {'free_form': "vm = STLScVmRaw(["}
-
-    def _get_instruction_expressions_footer(self, cache_size):
-        instructions = []
-        footer = ']'
-
-        if cache_size != None and cache_size > 0:
-            footer += ',{0}={1}'.format("cache_size", cache_size)
-
-        footer += ')'
-        instructions.append({'free_form': footer})
-        return instructions
-
-    def _get_pkt_offset_param(self, protocol_id, field_id):
-        return str(protocol_id + "." + field_id) if protocol_id != "Ether" else 0
-
-    def _generate_vm_instruction_commands(self, protocol_id, field_id, parameters):
-        instructions = []
-        instruction = {}
-        instruction['name'] = "STLVmFlowVar"
-        var_name = '"'+str(protocol_id + "_" + field_id)+'"'
-        instruction['parameters'] = {}
-        instruction['parameters']["name"] = var_name
-        for param_id in parameters:
-            instruction['parameters'][param_id] = self._format_vm_instruction_param(param_id, parameters[param_id])
-        instructions.append(instruction)
-
-        instruction = {}
-        instruction['name'] = "STLVmWrFlowVar"
-        pkt_offset = self._get_pkt_offset_param(protocol_id, field_id)
-        pkt_offset_val = '"{0}"'.format(pkt_offset) if isinstance(pkt_offset, str) else pkt_offset
-        instruction['parameters'] = {}
-        instruction['parameters']["fv_name"] = var_name
-        instruction['parameters']["pkt_offset"] = pkt_offset_val
-        instructions.append(instruction)
-
-        return instructions
-
-    def _format_vm_instruction_param(self,param_id, value):
-        param_meta = self._get_instruction_parameter_meta(param_id)
-        if param_meta['type'] == "NUMBER" or self._is_int(value):
-            return value
-        return '"{0}"'.format(value)
+    def _sanitize_value(self, val):
+        if val == "true":
+            return True
+        elif val == "false":
+            return False
+        else:
+            return int(val) if val.isdigit() else str(val)
 
     def _get_instruction_parameter_meta(self, param_id):
         for meta in self.instruction_parameter_meta_definitions:
