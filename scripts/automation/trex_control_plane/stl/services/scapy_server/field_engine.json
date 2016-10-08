@@ -2,11 +2,11 @@
   "instructions": [
     {
       "id": "STLVmFlowVar",
-      "parameters": ["max_value","min_value","step","op"]
+      "parameters": ["name", "max_value","min_value","step", "size","op"]
     },
     {
       "id": "STLVmWrFlowVar",
-      "parameters": ["fv_name", "pkt_offset"]
+      "parameters": ["fv_name", "pkt_offset","offset_fixup","add_val","is_big"]
     },
     {
       "id": "STLVmFixIpv4",
@@ -20,21 +20,37 @@
 
   "instruction_params_meta": [
     {
+      "id": "name",
+      "name": "Name",
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "Not defined"
+    },
+    {
+      "id": "init_value",
+      "name": "Initial value",
+      "type": "STRING",
+      "defaultValue": "0"
+    },
+    {
       "id": "max_value",
       "name": "Maximum value",
       "type": "STRING",
+      "required": true,
       "defaultValue": "0"
     },
     {
       "id": "min_value",
       "name": "Minimum value",
       "type": "STRING",
+      "required": true,
       "defaultValue": "0"
     },
     {
       "id": "step",
       "name": "Step",
       "type": "NUMBER",
+      "required": true,
       "defaultValue": "1"
     },
     {
@@ -46,37 +62,84 @@
         "dec": "Decrement",
         "inc": "Increment",
         "random": "Random"
+      },
+      "required": true
+    },
+    {
+      "id": "size",
+      "name": "Size",
+      "type": "ENUM",
+      "defaultValue": "1",
+      "dict": {
+        "1": "1",
+        "2": "2",
+        "4": "4",
+        "8": "8"
       }
     },
     {
       "id": "fv_name",
       "name": "Variable name",
-      "type": "STRING"
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "Not Defined"
     },
     {
       "id": "pkt_offset",
       "name": "Offset",
-      "type": "STRING"
+      "type": "STRING",
+      "required": true,
+      "defaultValue": 0
+    },
+    {
+      "id": "offset_fixup",
+      "name": "offset_fixup",
+      "type": "NUMBER",
+      "defaultValue": 0
+    },
+    {
+      "id": "add_val",
+      "name": "add_val",
+      "type": "NUMBER",
+      "defaultValue": 0
+    },
+    {
+      "id": "is_big",
+      "name": "is_big",
+      "type": "ENUM",
+      "defaultValue": "true",
+      "dict": {
+        "true": "true",
+        "false": "false"
+      }
     },
     {
       "id": "offset",
       "name": "Offset",
-      "type": "STRING"
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "Not defined"
     },
     {
       "id": "l3_offset",
       "name": "L3 offset",
-      "type": "STRING"
+      "type": "STRING",
+      "required": true,
+      "defaultValue": 0
     },
     {
       "id": "l4_offset",
       "name": "L4 offset",
-      "type": "STRING"
+      "type": "STRING",
+      "required": true,
+      "defaultValue": 0
     },
     {
       "id": "l4_type",
       "name": "L4 type",
-      "type": "STRING"
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "Not defined"
     }
   ],
   "protocol_fields": {
