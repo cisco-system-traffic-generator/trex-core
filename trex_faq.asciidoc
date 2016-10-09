@@ -140,32 +140,34 @@ You have several options. +
 2. To run the real product, check link:trex_manual.html#_download_and_installation[here] for hardware recommendation and
 installation instructions.
 
-==== During OS installation, screen is skewed / error "out of range" / resolution not supported etc
+==== During OS installation, screen is skewed / error "out of range" / resolution not supported etc.
 
-        * Fedora - during installation, choose "Troubleshooting" -> Install in basic graphic mode
-        * Ubuntu - try Ubuntu server, which has textual installation
+        * Fedora - during installation, choose "Troubleshooting" -> Install in basic graphic mode.
+        * Ubuntu - try Ubuntu server, which has textual installation.
 
-==== How to determine relation between TRex ports and device under test ports
+==== How to determine relation between TRex ports and device under test ports?
 
-Run the TRex with following command and check incoming packet on router interfaces:
+Run TRex with the below command and check incoming packet count on DUT interfaces.
 
 [source,bash]
 ----
         sudo ./t-rex-64 -f cap2/dns.yaml --lm 1 --lo -l 1000 -d 100
 ----
 
-==== How to determine relation between Virtual OS ports and Hypervisor ports
+Alternatively, you can run TRex in stateless mode, send traffic from each port, and look at the counters on the DUT interfaces.
+
+==== How to determine relation between Virtual OS ports and Hypervisor ports?
 
 Compare the MACs address + name of interface, for example:
 
 [source,bash]
 ----
-* > ifconfig +
-*eth0*    Link encap:Ethernet  *HWaddr 00:0c:29:2a:99:b2* +
+> ifconfig
+eth0    Link encap:Ethernet  HWaddr 00:0c:29:2a:99:b2
           ...
 
-* > sudo ./dpdk_setup_ports.py -s +
-*03:00.0* 'VMXNET3 Ethernet Controller' *if=eth0* drv=vmxnet3 unused=igb_uio
+> sudo ./dpdk_setup_ports.py -s
+03:00.0 'VMXNET3 Ethernet Controller' if=eth0 drv=vmxnet3 unused=igb_uio
 ----
 
 [NOTE]
@@ -184,20 +186,19 @@ We are planning to add MACs to `./dpdk_setup_ports.py -s`
 ==== TRex traffic does not show up on Wireshark, so I can not capture the traffic from the TRex port
 TRex uses DPDK which takes ownership of the ports, so using Wireshark is not possible. You can use switch with port mirroring to capture the traffic.
 
-==== How can I map betwean TRex port-id (e.g. port 0) and physical router interface?
-Load TRex in stateless mode, run traffic from each port, and look at the counters on the router interfaces.
-
-
 ===  Stateful 
 
 ==== How do I start using the stateful mode?
 You should first have a YAML configuration file. See link:trex_manual.html#_traffic_yaml_parameter_of_f_option[here].
 Then, you can find some basic examples link:trex_manual.html#_trex_command_line[here].
 
-==== TRex is connected to a switch and we observe many dropped packets at TRex startup.
-A switch might be configured with spanning tree enabled. TRex initializes the port at startup, making the spanning tree drop the packets. 
+==== TRex is connected to a switch and I observe many dropped packets at TRex startup.
+A switch might be configured with spanning tree enabled. TRex reset the port at startup, making the switch reset it side as well,
+and spanning tree can drop the packets until it stabilizes.
 Disabling spanning tree can help. On Cisco nexus, you can do that using `spanning-tree port type edge`
-This issue would be fixed when we consolidate ``Stateful'' and ``Stateless'' RPC.
+You can also start Cisco with -k <num> flag. This will send packets for k seconds before starting the actual test, letting the spanning
+tree time to stabilize.
+This issue will be fixed when we consolidate ``Stateful'' and ``Stateless'' RPC.
 
 ==== I can not see RX packets
 TRex does not support ARP yet, you should configure the DUT to send the packets to the TRex port MAC address. From Stateless mode, you can change the port mode to promiscuous. +
@@ -218,52 +219,23 @@ Yes. We know this is something many people would like, and are working on this. 
 You can use the simulator. see link:trex_manual.html#_simulator[simulator]
 The output of the simulator can be loaded to Excel. The CPS can be tuned.
 
-==== I want to have more active flows on the DUT, how can I do it?
+==== I want to have more acrive flows in TRex, how can I do this?
+Default maximum supported flows is 1M (From TRex prespective. DUT might have much more due to slower aging). When active flows reach higher number, you will get ``out of memory'' error message
+
+To increase the number of supported active flows, you should add ``dp_flows'' arg in config file ``memory'' section.
+Look link:trex_manual.html#_memory_section_configuration[here] for more info.
+
+==== I want to have more active flows on the DUT, how can I do this?
 After stretching TRex to its maximum CPS capacity, consider the following: DUT will have much more active flows in case of a UDP flow due to the nature of aging (DUT does not know when the flow ends while TRex knows).
 In order to artificialy increse the length of the active flows in TRex, you can config larger IPG in the YAML file. This will cause each flow to last longer. Alternatively, you can increase IPG in your PCAP file as well.
 
-
-==== How do I support more active flows?
-The default maximum supported flows are 1M total (TRex prospective). DUT could have much more due to aging. When active flows are more than 1M flows there is message that there is no enough memory. 
-
-[source,Python]
---------
-Active-flows    :  1045562  Clients :    80120   Socket-util : 0.0207 %
---------
-
-Look link:trex_manual.html#_memory_section_configuration[here]
-
-This example support 10M flows 
-
-[source,Python]
---------
-- port_limit    : 2
-  version       : 2
-  interfaces    : ['04:00.0', '0c:00.0']   # list of the interfaces to bind run ./dpdk_nic_bind.py --status 
-  port_info       :  # set eh mac addr 
-
-          - dest_mac        :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x84]
-            src_mac         :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x83]
-            
-          - dest_mac        :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x83]
-            src_mac         :   [0x18, 0x8b, 0x9d, 0xa3, 0xae, 0x84]
-
-  memory    :                                          
-        dp_flows    : 10048576   <1>
---------
-<1> 10M flows
-
-
-==== I am getting and error: The number of ips should be at least number of threads 
+==== I am getting an error: The number of ips should be at least number of threads.
 The range of clients and servers should be at least the number of threads. 
 The number of threads is equal to (number of port pairs) * (-c value)
 
-==== Incoming frames are of type SCTP. Why?
-Default latency packets are SCTP, you can remove `-l 1000` or change it to ICMP see manual for more info.
+==== Some of the incoming frames are of type SCTP. Why?
+Default latency packets are SCTP, you can omit the `-l <num>` from command line, or change it to ICMP. See the manual for more info.
  
-==== Is there a configuration guide to Linux as a router (static ARP)?
-have a look link:https://groups.google.com/forum/#!topic/trex-tgn/YQcQtA8A8hA[linux as a router]
-
 ===  Stateless 
 
 ==== How do I get started with stateless mode?
@@ -305,7 +277,7 @@ Yes. You can build any packet you like using Scapy.
 However, there is no way to create corrupted L1 fields (Like Ethernet FCS), since these are usually handled by the NIC hardware.
 
 ==== Why the performance is low?
-What would reduce the performance: 
+Major things that can reduce the performance are:
 
 1. Many concurent streams.
 2. Complex field engine program.
@@ -418,7 +390,7 @@ To workaround this you could create one stream in lower speed for latency (e.g. 
                             flow_stats = STLFlowLatencyStats(pg_id = 12+port_id))
 --------
 <1> non latency stream will be amplified 
-<2> latency stream, the speed would be constant 1KPPS
+<2> latency stream, the speed will be constant 1KPPS
 
 
 ===== Latency stream has constant rate of 1PPS, and is not getting amplified by multiplier. Why?
