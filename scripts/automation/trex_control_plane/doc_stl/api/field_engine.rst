@@ -118,6 +118,14 @@ STLVmFlowVar
     :members: 
     :member-order: bysource
 
+STLVmWrFlowVar
+---------------
+
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmWrFlowVar
+    :members: 
+    :member-order: bysource
+
+
 STLVmWrMaskFlowVar
 ------------------
 
