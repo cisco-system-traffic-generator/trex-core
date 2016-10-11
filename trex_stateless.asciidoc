@@ -5,7 +5,7 @@ TRex Stateless support
 :revnumber: 2.01
 :quotes.++:
 :numbered:
-:web_server_url: http://trex-tgn.cisco.com/trex
+:web_server_url: https://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 :github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
 :github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
@@ -4053,6 +4053,10 @@ The followig keyboard commands operate in the TUI window: +
  q - Quit the TUI window (get back to console) +
  c - Clear all counters +
  d, s, l - change display between dashboard (d), streams (s) and l (latency) info. +
+
+=== Benchmarks of 40G NICs
+
+link:trex_stateless_bench.html[TRex stateless benchmarks]
 
 === Appendix
 
