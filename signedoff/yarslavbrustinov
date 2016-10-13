@@ -1,0 +1,339 @@
+I, Yaroslav Brustinov hearby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: ybrustin@cisco.com
+
+My contributions were:
+
+ 5591bec0425ea906feb109a1142eca66ac1ce937 - Yaroslav Brustinov - ybrustin@cisco.com - fix parsing tunables, add support for separate -t in console, add benchmark profile
+ 5497c271302aa417814aa2e368b1ab2cf1fcef62 - Yaroslav Brustinov - ybrustin@cisco.com - cpp arg parser changes argv, on second iteration data might be not valid => copy the argv before each call.
+ eef160385f07aa94e1dfc67b481a659465410d61 - Yaroslav Brustinov - ybrustin@cisco.com - trex-console: add print of Python error in case of error loading profile in TUI
+ 457c257e0089253c3c5a540047ff53e5af1cc8ff - Yaroslav Brustinov - ybrustin@cisco.com - stl api - importing profile: use given directory as first path, not last
+ 08aaabafd6a07491bb89324c1306e6e88ae46980 - Yaroslav Brustinov - ybrustin@cisco.com - find_python.sh by default find any available Python, allow 3.5 too. t-rex-64 fix case of no $USER when not in tty
+ 1e6b2bf6001275bdd2ab0691f335bbb7966bf619 - Yaroslav Brustinov - ybrustin@cisco.com - /etc/trex_cfg.yaml allow MAC as string "12:34:56:78:9a:bc" etc. dpdk_setup_ports: fix create config in case of VM & passthrough
+ ce6d61aa2943bfa845a9d0f69e8b9353e0456794 - Yaroslav Brustinov - ybrustin@cisco.com - stl test rx_check virtio fixes + syntax sugar
+ 4f5c49741a3162dad594bc48d423b00e59ac3e6f - Yaroslav Brustinov - ybrustin@cisco.com - fixes to dpdk startup scripts
+ 188927b058eec11ac048a95412e8016f42b17109 - Yaroslav Brustinov - ybrustin@cisco.com - regression: trex12 is vm
+ 8ded0a00019730a579191c54f576b346f9e02186 - Yaroslav Brustinov - ybrustin@cisco.com - regression: lower multiplier for assymetric imix at trex24
+ 28a90ec3fb38b80dd2ee5776524fbcb8e369129a - Yaroslav Brustinov - ybrustin@cisco.com - regression: increase ipg in benckmark test with pcap at trex24
+ 904639a3ec6ec6ced04d220d13c97cf9fbd8f266 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 138686f389fe48139ddc4a57ac5de363e71b38e7 - Yaroslav Brustinov - ybrustin@cisco.com - dpdk Python scripts small fixes ensure log dir exists for trex daemon regression: add trex24 setup Sphinx docs remove "capture" tag for compatibility with 1.2 version
+ 873e398fe2a52655b4d683acbcd05ef726cd97fa - Yaroslav Brustinov - ybrustin@cisco.com - fix dpdk_nic_bind.py for virtio interfaces @ OpenStack
+ a11688641cc2a7f2c0a47ee9fc91af5768dd8b22 - Yaroslav Brustinov - ybrustin@cisco.com - update waf to version 1.9.3 & update building scripts to support Ubuntu16 & Python3
+ 1975220bed9599e8c6da81571d7c13b74d1df7d3 - Yaroslav Brustinov - ybrustin@cisco.com - generation of native code: fix imports
+ 7c1402ac673c08f0078ce6c6dd91ad44815b0376 - Yaroslav Brustinov - ybrustin@cisco.com - regression: lower multiplier on asymmetric imix at trex17
+ 113231d80ac9455d4ae4fe60fc46efd03bd9af1f - Yaroslav Brustinov - ybrustin@cisco.com - trex-cfg typo
+ 2263e5dc29476453210062fd8f78ef51fda0dbfd - Yaroslav Brustinov - ybrustin@cisco.com - add /sbin to path in trex-cfg (for cases like running without shell)
+ ffba4ec1e5ce3a2308ff01733ffb249783176ecd - Yaroslav Brustinov - ybrustin@cisco.com - regression: lower requirement on output packets, at 9k and quick cpu stabilization it can be few
+ af419f1d9a0b82c75f18c94c871b6e2fe1c329e7 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix case of division by zero in cpu benchmark calculation
+ c9b5b5bd507016faba907f6c79703cbd4391a392 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix case of division by zero in cpu benchmark calculation
+ a70d3f379e7551851cffffcdd77410210235c47c - Yaroslav Brustinov - ybrustin@cisco.com - better logger for master_daemon verify root priveleges in dpdk_* scripts call to functions of show status instead of calling process
+ 8634fdc567b948b35c2a87cea4679aff3995cba6 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi example: add example command of removing all streams from port
+ 0ace93bbf2049a8da1ad8a002da5ecb8b2bae3b9 - Yaroslav Brustinov - ybrustin@cisco.com - fixes to create config script: in case of error input, ask again.
+ 2ee9ac46d8cc4de627be868d7cb36ad0a11e898d - Yaroslav Brustinov - ybrustin@cisco.com - interactive creation of config, finish returning DPDK interfaces to Linux command.
+ e939511acbb16cda3dab34fe255160ae7ae19258 - Yaroslav Brustinov - ybrustin@cisco.com - Check if interfaces are in use at binding/unbinding/starting TRex.
+ 8dc1722a4e096a90d6385e8dee5d3de5c8bc5e49 - Yaroslav Brustinov - ybrustin@cisco.com - dpdk_setup_ports: better error if no MAC determined
+ 9f1b6a33bcc4dada0373c0daa5e4b51cd567eb2e - Yaroslav Brustinov - ybrustin@cisco.com - update multiplier in stl benchmark, shorten title in NIC's table
+ 650db028f994083b3d08a60dfc8dc4485fcbd1e9 - Yaroslav Brustinov - ybrustin@cisco.com - add --ignore-numa argument to config creation
+ 475d2d4813367b978badf167f9611d2ce968c47f - Yaroslav Brustinov - ybrustin@cisco.com - disable scapy_server test
+ 3651723c548d6730e272a2f3509084b7f34286ce - Yaroslav Brustinov - ybrustin@cisco.com - revert mmain_dpdk.h commited by mistake code add create config functional test change order of cores in config file
+ 08def8d3b3e909b9bbafcb0f4820a84ab7d522ad - Yaroslav Brustinov - ybrustin@cisco.com - TRex argument --dump-interfaces <list of PCI> (by default will take interfaces from /etc/trex_cfg.yaml if exists, if does not exists, will show all DPDK interfaces) get interface speed from DPDK instead of using constants per driver add script to generate config file /etc/trex_cfg.yaml: sudo ./dpdk_setup_ports.py -c <list of PCI> show table of interfaces in sudo ./dpdk_setup_ports.py -t
+ ecc97537fbd9d67fc5f3278dabec49a10943330e - Yaroslav Brustinov - ybrustin@cisco.com - master_daemon: run the Stateless RPC proxy without superuser privileges
+ 6807d7d0b546a994a03504bd16611f18d3278f6b - Yaroslav Brustinov - ybrustin@cisco.com - regression: compare pcaps in functional tests robust to order of packets with same timestamp
+ fef2d27782b661913f52a0016447bfdcc3ce49af - Yaroslav Brustinov - ybrustin@cisco.com - typo in master_daemon
+ b4b69203a694333c93796776bfd3cc5d2be4f98e - Yaroslav Brustinov - ybrustin@cisco.com - master_daemon: create working directory if it was deleted
+ 407db26e5c1462d971451980100c9925484b836c - Yaroslav Brustinov - ybrustin@cisco.com - revert typo
+ d1b0fd96d72b7daaa88e21b619d04084c7617ad1 - Yaroslav Brustinov - ybrustin@cisco.com - stf daemon: add support for zipped zmq
+ 0f863b48e742ecd6b6dd522803e95a528024bbc9 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 3159743120d9e1033c5ed809c1031b814204fd8f - Yaroslav Brustinov - ybrustin@cisco.com - set default stateful duration 1 hour, forbid duration in stateless add "add_profile"stateless Python API command fix trex_perf.py
+ bb774f3a5d580a4824d33ad157fa4f9ebcb48dc2 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'dpdk_ports_reorder'
+ ac53e9537c7b7828c8f8cd51a0fd709da87da88e - Yaroslav Brustinov - ybrustin@cisco.com - stf daemon another python3 fix
+ 692f5b963cfb53927e13411274b20f9db8cd4a99 - Yaroslav Brustinov - ybrustin@cisco.com - DPDK ports order change to be compliant with our /etc/trex_cfg.yaml
+ 511854b7a8fe289603cb4475a39d713244846ebf - Yaroslav Brustinov - ybrustin@cisco.com - Python3 support for Stateful daemon Python 3.5 support in ZMQ Verify ZMQ health in Stateful daemon Add get_trex_config() command to Stateful daemon Strip debug info on Python ZMQ .so files
+ a5cc1c90587d859d5f1e7f6d9ee49024cd2e9481 - Yaroslav Brustinov - ybrustin@cisco.com - regression: aggregate_results script exit with fail/success status of build.
+ 34a4ff7b92ee7cc09e38f599d83d9fdf1fa3a8bc - Yaroslav Brustinov - ybrustin@cisco.com - Add Ubuntu 16.04.1 LTS ko Regression: Remove skip of test_static_routing_imix Add trex15 setup details
+ c19193cff9413a03dd85cc9facda0c28b28d37c2 - Yaroslav Brustinov - ybrustin@cisco.com - fix multicast being counted as ierror
+ f374d4fda8db1862311355c1b189f2d1e94f15de - Yaroslav Brustinov - ybrustin@cisco.com - increase server<->client API version from 1.2 to 1.3 various fixes
+ 0dbcda6008849a5d909371e319aa4b195cd98a9f - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix to wantFunction override
+ 51db963aa7d8414b708f0a978cd16c67039a8d6e - Yaroslav Brustinov - ybrustin@cisco.com - various fixes
+ 17e8c035f98516e53902aeb8e537806b61504792 - Yaroslav Brustinov - ybrustin@cisco.com - original delay was 10 miliseconds not 10 seconds, new default will cover it.
+ cb24ce32d2e959c4fef0e2f4cd4d9d0e46179d18 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'nics_init_delay'
+ c9ae2ba88f6831d7a78c0fe05581303dcbb8a231 - Yaroslav Brustinov - ybrustin@cisco.com - few more places to add wait_before_traffic argument
+ c9a62eba0b701bec78e672f15ff0fc587b8c0792 - Yaroslav Brustinov - ybrustin@cisco.com - add TRex -w argument (wait between nics init and sending traffic)
+ 087464fbd4011b1a357f0567e9793dde641e9120 - Yaroslav Brustinov - ybrustin@cisco.com - regression: disable rx negative on trex14
+ 740095d6413bb26e8e76d00fdd2321c2bc9cd14f - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'cpu_per_core'
+ e2b4f166726e8e2149a2a0ddd763fa8d44055844 - Yaroslav Brustinov - ybrustin@cisco.com - trex14 and trex07 nat benchmarks update
+ 54da2d81bd54f90d512d35fab4061b0bfec13e05 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'master' into cpu_per_core
+ 7f58dadbd502f6fe504170c443505c7ad2eb3785 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'master' into cpu_per_core
+ a76479bc269cad96475f9c71381b4f826d47709f - Yaroslav Brustinov - ybrustin@cisco.com - trex_client: sample each second stateful result object: add method to get avg value at steady state regression: add -t flag to run specific test by name (without file and class) update trex07 benchmarks
+ 582e6dddb5693d5fa7576c19b0ef7c1c0723ff59 - Yaroslav Brustinov - ybrustin@cisco.com - stf api: don't fail if no histogram in result
+ efcae8fa373bf0ea6ceac051a698f621d5d65aa1 - Yaroslav Brustinov - ybrustin@cisco.com - run_regression: fix passing argument with spaces
+ 590accee66691009003adcdc12bdd6eefbb566b0 - Yaroslav Brustinov - ybrustin@cisco.com - regression functional test stl_basic_tests: add error message to assert
+ f2320939a5deec2db2948788479199931e1f9176 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'master' into cpu_per_core
+ d04442ab671f768a1b645fb887d4a9cd575c7852 - Yaroslav Brustinov - ybrustin@cisco.com - daemons logger: create log dir if does not exist
+ 9249859480c57960905f37282e9fa8047cf17484 - Yaroslav Brustinov - ybrustin@cisco.com - STL Python API stats - add histogram key if it's absent
+ a5d8474b3f5598561298efc6e696378f584011c9 - Yaroslav Brustinov - ybrustin@cisco.com - typo at last commit
+ ddbed4330eee8b4c40d8ca83535dbf5ac69bb81f - Yaroslav Brustinov - ybrustin@cisco.com - api: add passing of additional arguments to TRex
+ 131bb55c38c0e59d14043766b0d3a38d5f775771 - Yaroslav Brustinov - ybrustin@cisco.com - --debug-image flag fix bug
+ e058f6e034fbf51bc5e29d449ea806e7a8633b70 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add flag to run with debug image
+ 1bc9c49fa89a3942d3d1516217635d0c6e6b0c56 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix nose represenation of errors in setUpModule
+ d93a7ff83d3d29fc6c254dd56af235dbe7abacb3 - Yaroslav Brustinov - ybrustin@cisco.com - master_daemon: show better status of executed command
+ 3207f14a91cc01b44b28ba541e5968f58a7e5ec2 - Yaroslav Brustinov - ybrustin@cisco.com - add ctrl+c as first try to kill daemons/TRex. master daemon change directory to "/" to deal with case it's directory was deleted and update_trex() was used. remove check connection to daemons as part of init of client (can be done manually per needed daemon)
+ 0dc80ee5d7888675db28902a52efacb69dbd3954 - Yaroslav Brustinov - ybrustin@cisco.com - master daemon logger fixes
+ a78ab130e5e344989e2de9c62e061180416bae12 - Yaroslav Brustinov - ybrustin@cisco.com - fix TRex output not redirected
+ 07d5732a49bab856ab773e4a4762a7983cb5a538 - Yaroslav Brustinov - ybrustin@cisco.com - typo (GitHub pull request #14)
+ c7f542bf276101414d10cbc822c33feaf9a12961 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ e5ec923e6d837cc5e2d77b7ac93bd652d2563d92 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix representation of errors in setUpClass()
+ cacad4a8dbafca95b875f1eb619c229d4a7d604d - Yaroslav Brustinov - ybrustin@cisco.com - regression: speedup stateless with --skip-clean flag
+ 918ae3cda75a01c8a4769df79bf6bfd0b270a41f - Yaroslav Brustinov - ybrustin@cisco.com - add logger to master daemon
+ f2aeea5212180bc0b9efce725adaf0d832f6f199 - Yaroslav Brustinov - ybrustin@cisco.com - regression: reduce 1 json request
+ 1eed7e59f23d3ab9b957d9822eefe72877e291da - Yaroslav Brustinov - ybrustin@cisco.com - MBUF utilization: add size of RAM (MB) the MBUFs take
+ 1454985e5408bdf796a9c9978622f2ba66ec04d8 - Yaroslav Brustinov - ybrustin@cisco.com - daemons fixes
+ 2aaf83ee88b49e3a10543f8415f73652be606ecc - Yaroslav Brustinov - ybrustin@cisco.com - singleton_daemon:verify RPC connectivity, shutdown the socket for immediate close
+ c3347adaa94e6dea31530804cbb0e6c8e2be1b30 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add path to stl-sim at tests
+ b646f5c0d88d90322291a5a0a021d77a4824187a - Yaroslav Brustinov - ybrustin@cisco.com - remove STLSim from pcap example, remove search of BP-sim path
+ 5216c6a22a2324bf555b590b34594a63d8aeeb7d - Yaroslav Brustinov - ybrustin@cisco.com - cpu utilization Python get_stats replace "force" flag with "use_1sec_cache", default False.
+ 9b8f4554f63056ef214053b41ec31c3d3a75125b - Yaroslav Brustinov - ybrustin@cisco.com - cpu utilization - syntax fixes
+ 56b55266e24255facdd9e4d604e628399debabb1 - Yaroslav Brustinov - ybrustin@cisco.com - cpu utilization: replace using static with resize vector.
+ 6d5144308445cb02373056668e3df5d962dc424c - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'master' into cpu_per_core
+ c256f0ca193802ae0694f6e3ae5ffb4dcabe6a6b - Yaroslav Brustinov - ybrustin@cisco.com - regression: lower multiplier for trex17 at imix assymetric
+ e0ca7a226fd37023ff8a9d80e46403a34492c1d7 - Yaroslav Brustinov - ybrustin@cisco.com - cpu utilization: don't return vectors, only change passed arguments.
+ 300ec24108211721d99ac9faf67fd1f91057b95b - Yaroslav Brustinov - ybrustin@cisco.com - cpu utilization per thread + mbufs per socket + add in tui
+ 84fc182fd1021b0ad564478f284afff660a5b924 - Yaroslav Brustinov - ybrustin@cisco.com - add rpc command get_cpu_util_full to cpp
+ 06f5cc0b5892712242344fb42cbafd873c5d0209 - Yaroslav Brustinov - ybrustin@cisco.com - SingletonDaemon restart fix return value
+ 8face98e3a429d781e2cb5e33e758f0a59b80f87 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 1014f7c21082d58ad75e53056b8f558b9a00d8a9 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add trex08 and trex09 to regression, mask workaround to trex-201 issue
+ b847ae93521380242ac976a1fb1b425648ce9fa2 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ c2ef504829e655253e38138cc0add99ff04788d6 - Yaroslav Brustinov - ybrustin@cisco.com - revert hltapi change
+ b0b3908b1b3742b84b48298fb8f7524e422bb28d - Yaroslav Brustinov - ybrustin@cisco.com - master_daemon & other daemons updates
+ 4607fb5588bbb7dc0a708ffd5f97fe99bee98dd2 - Yaroslav Brustinov - ybrustin@cisco.com - fix bug: value of argument 1.0 was counted as "True" and not being added
+ 7e22036a2a08be24719f4be7b81aa8a0e7ec759a - Yaroslav Brustinov - ybrustin@cisco.com - regression: disable all rx tests for trex08 and trex09
+ ffbd0b7cb36a72d80d4b48a303a822d1ac42301d - Yaroslav Brustinov - ybrustin@cisco.com - regression: mask temporary test_incremental_latency_streams at trex08 and trex09
+ 9849050dd53ebf675fc9a701fea5089381eccb70 - Yaroslav Brustinov - ybrustin@cisco.com - tui: add histogram
+ 4645530255fed51164b555f87d9cd1abcf7184b9 - Yaroslav Brustinov - ybrustin@cisco.com - platform_cmd_link add new flag verbose_mode, revert old silent_mode
+ 5275ebdb594f460282f190892e3954cc54b0f3fe - Yaroslav Brustinov - ybrustin@cisco.com - platform_cmd_link - silent by default
+ d279c8c12f136ab15b5fefd496c296ef1585c628 - Yaroslav Brustinov - ybrustin@cisco.com - replace t-rex to TRex regression: instead of checking map and reconnecting for eact STL test, do in only for those with disconnect (+revert of commit 0f8e6065f467703b1461e87c3912f8d4bd616807)
+ 0f8e6065f467703b1461e87c3912f8d4bd616807 - Yaroslav Brustinov - ybrustin@cisco.com - replace t-rex to TRex regression: instead of checking map and reconnecting for eact STL test, do in only for those with disconnect
+ 72c25f7830e2d0571ebf021f2a4b1c67fc9486de - Yaroslav Brustinov - ybrustin@cisco.com - regression: try map at setUp of each test. if fail - reconnect several times until success
+ e412cf438e04b590d6c8632a67243335a9cfa827 - Yaroslav Brustinov - ybrustin@cisco.com - regression: undo try on map
+ 8e230286998bfa7a1dfcefe2493d5bee66d2746a - Yaroslav Brustinov - ybrustin@cisco.com - regression: add disconnects + delay before running examples + at end of regression revert profile udp_1ptk_simple.py and add new upd_for_benchmarks.py
+ 1cae771422ae6894bbc5dce40eb7e6c6e721eee5 - Yaroslav Brustinov - ybrustin@cisco.com - trex_client.py also for python3
+ b384c31c5ecc1eafe3d21dda950fa500857731c7 - Yaroslav Brustinov - ybrustin@cisco.com - trex_client: de-unicode get_trex_path
+ 57185f8bec5e02b6e30513da412c53892d2b6281 - Yaroslav Brustinov - ybrustin@cisco.com - TUI: add tx and rx packets at latency panel
+ d351e5c86e0639c6440e3d1711858875719c545f - Yaroslav Brustinov - ybrustin@cisco.com - regression: skip stl rx test at virtual nics
+ f3431c37f6e00ba7508da2b28a4b4062ec9354ed - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 4f647e52c37595845055f971eff77d757f246a2b - Yaroslav Brustinov - ybrustin@cisco.com - add example of using Native STL or HLTAPI via JSONRPC calls
+ fc2daaced5d39bac244d689c4546c1fdbe7538c3 - Yaroslav Brustinov - ybrustin@cisco.com - regression: stl_rx_test fix total_packets type to be int
+ 2c4520a64a1d808abfa31a2ea83f708b3b5811f9 - Yaroslav Brustinov - ybrustin@cisco.com - print fix
+ e2addf2f93f8f16da00180fb906d90dff036cfc0 - Yaroslav Brustinov - ybrustin@cisco.com - regression: rx_test fix
+ 3eb2d1338ff801bf307996926394e8d043ced98e - Yaroslav Brustinov - ybrustin@cisco.com - tui fixes
+ 3e024d8bdcebdd3100851f28b5724a2ecbfc923a - Yaroslav Brustinov - ybrustin@cisco.com - add latency panel to TUI
+ f7ebbddbef19bf8bd362cfbe4772dfb65568285b - Yaroslav Brustinov - ybrustin@cisco.com - fix for master daemon - increase timeout of unpack of TRex package
+ fad99b60c53a5dcf042a6b8b0d041d6d7116b871 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add no-daemon flag that specifies stl server is running, no need daemons etc.
+ dc9c8787a70ea62ec1977e489ac6f4459215b7ad - Yaroslav Brustinov - ybrustin@cisco.com - temporary fix for stl benchmarks
+ e75dc535b163329b2c2619a55405924919d42887 - Yaroslav Brustinov - ybrustin@cisco.com - regression and master daemon updates
+ 361a7a79ce71dced4bc005c85ca2c4e272cd8f9d - Yaroslav Brustinov - ybrustin@cisco.com - master_daemon update fixes
+ dc105754032b58ac440583914038d35223752662 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ ccd12c1e16cd5a8b575fd531444a6415d250b8ed - Yaroslav Brustinov - ybrustin@cisco.com - add master daemon to package, little fixes to update method
+ a08c4df1da6892a515fb5e4ddce4a7d525d8fcee - Yaroslav Brustinov - ybrustin@cisco.com - fix indent for building docs
+ 4bebad9e1f151ac6e64ef4badd5813d6842d31ab - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 89b608ae766705950efc5f4914b01b9a32b6a0e7 - Yaroslav Brustinov - ybrustin@cisco.com - add master daemon
+ 0aaabef8b67828afe989d9d8599eadc43da9afd7 - Yaroslav Brustinov - ybrustin@cisco.com - Disable temporary bw_per_core test due to improvements in performance
+ dc622bd308ae9ba17eda57881e809dbbc5d2dd01 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ ba731d02eadc3c2f0c13493e518a167d199b41e7 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi: use flow_stats only for ipv4 packets, add flag to disable flow_stats, add argument for custom flow_stat id for use in profiles.
+ 5b412d097ac7f26e8504364758e1e0d3344de4c7 - Yaroslav Brustinov - ybrustin@cisco.com - revert typo
+ 64847bb6d182c73f7489a821ea5724687dab1bc1 - Yaroslav Brustinov - ybrustin@cisco.com - regression: don't fail because of GA sending errors.
+ 737d92948a1bfd9f94fd31a4e207d0f9e6f028c0 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 7007bf04481b76b51e30d42148df710bccc9aa35 - Yaroslav Brustinov - ybrustin@cisco.com - bp_sim: correct description of supported stateful layers main_dpdk: send bw_per_core with json, return back precision of low values jsonrpcserver: disable logging regression: use bw_per_core from cpp calculation correct test name for GA
+ 3f03ff0525f81e7b9c6cdc73f5c8983c58350bb1 - Yaroslav Brustinov - ybrustin@cisco.com - undo precision changes
+ fcd61b1c9b39cec1ac40eddec24c1d206780d38d - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 61eb38e669bdec0f4d6c927ea42ccdbf0f24ea0d - Yaroslav Brustinov - ybrustin@cisco.com - regression: stateless benchmark replace test name with profile for GA
+ 39aedd8ec2dd0313a097d78046445be11c7bc6d7 - Yaroslav Brustinov - ybrustin@cisco.com - GA fix for python3
+ 849fd28e43bf1b653703f42be03cbb6be9565b4f - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 76caf394bf0fd51c364ec6aaeb2025154cf67d12 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ e831a539aebac71d8f00c400416f4bef51108610 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add GA
+ f35edfa45809c82de54d9aca2284ae8d83f10be0 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 3e90b0a09dc2abdb123684e3abd4041be41b9288 - Yaroslav Brustinov - ybrustin@cisco.com - regression: stl benchmark less strict stabilization
+ 101c7b8b5f1e7e9eeb4df9d79e68c15cd0d49ef7 - Yaroslav Brustinov - ybrustin@cisco.com - increase accuracy of low values in json report (0.03 etc.)
+ 798efac6db9d057073dae13b818815422ae926cc - Yaroslav Brustinov - ybrustin@cisco.com - regression: slight fix to stl benchmark test
+ 01f0f25ca3072a5f671c5dfbaae454a94414c64d - Yaroslav Brustinov - ybrustin@cisco.com - regression: remove print from stl benchmark
+ d5bf86e99c2d6c08ca972d9350b03c8d14a1b89e - Yaroslav Brustinov - ybrustin@cisco.com - regression: lower demand on number of output packets at stateless benchmark
+ 0b83b5e12f9db7d5590434844767959c0154aa9c - Yaroslav Brustinov - ybrustin@cisco.com - regression: stateless benchmark fixes
+ 34587f930b4c8e5275341c69b178ac65ae686b37 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fail on low bw_per_core
+ 5698b663110d75654d2af797e2e257d5fc52485d - Yaroslav Brustinov - ybrustin@cisco.com - regression: add small delay if load clean config fails
+ c04b8b0dfa97c0eae40e4dc35b7cc223c2fb85e6 - Yaroslav Brustinov - ybrustin@cisco.com - regression: stateless CPU benchmark for profiles
+ 429072c5997c76bd9338ad896127b5241d740b28 - Yaroslav Brustinov - ybrustin@cisco.com - stateful api: fix filter max latency
+ cb55f42f183e631aec06ecb7d1ad953ad71b57d2 - Yaroslav Brustinov - ybrustin@cisco.com - stateful api: fix filter max latency regression: fix bw_per_core at trex09 based on regression
+ 3d54c567d7bf2f75295e57cf8f903a7bf163b698 - Yaroslav Brustinov - ybrustin@cisco.com - regression: return back allow_timeout_dev
+ b3506d948743b9d81e75a4408fb493c6bcc0f0c5 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add trex12 configs
+ 9ff29ea023b24f7eeac0532a3fa49588a3e27094 - Yaroslav Brustinov - ybrustin@cisco.com - regression: line removed by mistake from trex14 benchmark
+ 8ee628825d3828df918470e8362cf0abc36b20c4 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add trex09 benchmark.yaml
+ cf95553d952c3e6b515df6fb2a9790753762bf32 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add bw_per_core to kiwi02 and trex04
+ 624f297a38dc6e3d3c4c4657819c8cc5f00127e4 - Yaroslav Brustinov - ybrustin@cisco.com - regression: trex25 fix benchmark file
+ ba14992cdf3f497bdaca6209e040e2119c43277e - Yaroslav Brustinov - ybrustin@cisco.com - regression: add bw per core for trex-dan, trex08, trex14, trex17, trex25 flush printing buffer at beginning and end of tests
+ f178b53b2e26a44563d82af645ca57350b5b7f32 - Yaroslav Brustinov - ybrustin@cisco.com - regression: imix assymetric - reduce cpu util demand because only half of ports working
+ 8d4868511b44cecd6d38e4a921ab5a7c427eee6e - Yaroslav Brustinov - ybrustin@cisco.com - regression: nbar cpu util check
+ 31e26b04665fa2e41cbfcf92c3ce3ffa95d8a426 - Yaroslav Brustinov - ybrustin@cisco.com - regression: bw per core x2
+ cc53c3d2d4b928221f2d51d3f1ace64f34029f1e - Yaroslav Brustinov - ybrustin@cisco.com - stateful API: add get_ports_count based on result regression: be per core takes into account number of ports
+ 19f6e9305ae851214c63e2dd45be9965faef6413 - Yaroslav Brustinov - ybrustin@cisco.com - revert added by mistake code
+ 9b05a9d60b4cc819f3d190c4ad33a811866d4795 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 22a3fc2b94f878000b9d38cd38dabca05440e7d1 - Yaroslav Brustinov - ybrustin@cisco.com - regression: correct the BW per core calculation
+ 6dc9c07fda0508d46ddccdb6888bae844b78361b - Yaroslav Brustinov - ybrustin@cisco.com - stateful API: avoid zero division
+ d42a2a5567958ea052aac0ab0dc291876f97f4e2 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix functional filters test path stateful API: add get_files, get_files_list
+ 6840551a8733fefdd8b3f235e4a802524ecc39d9 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 6c46ecabec713485954dc7394e8a9808309fb4bc - Yaroslav Brustinov - ybrustin@cisco.com - regression: add trex07, trex14, trex25. skip rx_check negative on kiwi02 for now.
+ ec23dc1a684c6a97d543336e739d5376751890b8 - Yaroslav Brustinov - ybrustin@cisco.com - regression: load clean config several attempts, use custom number of cores at stateless.
+ f91190c71d0a2550364fdce909df297405fb5e43 - Yaroslav Brustinov - ybrustin@cisco.com - python3 further fixes
+ 9c1dfed4edc4a4d3f51fc7f9ac9cab58657ab818 - Yaroslav Brustinov - ybrustin@cisco.com - regression: improve clear NAT translations
+ d605980b0f4f8e03dc75db5fa42084afd5da9b4e - Yaroslav Brustinov - ybrustin@cisco.com - copy of wrong golden yesterday
+ 13b8238b159b30af8ecfcd12eddbb694c218b800 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ b577ba683afb5d31858b95bd0a9a9c479752c498 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add --python2 and --python3 to run_regression, if nothing provided, use python2. hltapi: fix bug of not reducing 4 bytes from produced packets because of fcs. doc: add trex_client package stl/stf example of running examples :)
+ 501fb3b44f14e9c0d40a63bd8b47200b01e50be9 - Yaroslav Brustinov - ybrustin@cisco.com - regression: python3 support
+ 2a3c0616c8cfb6b11a83ab8dc6a45e315d16bd26 - Yaroslav Brustinov - ybrustin@cisco.com - regression: trex-dan +1 core for ipv6 simple
+ 3117eab2951df10e3e9bddc858b3a8c3e38628f6 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi: modify and remove traffic fixes
+ af49c70aaaecb897c7d3b4bddb18f504d32b0546 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi stream stats, port tx/rx graphs at console
+ 9ade0a9af71faa83ad26291a7f5c13733d2e66ec - Yaroslav Brustinov - ybrustin@cisco.com - regression: allow 0.01% errors in rx_check in kiwi02, add 1 more core to trex-dan at nbar
+ 0eb15b2e851b5f50669633678143c5a1d3a7d95b - Yaroslav Brustinov - ybrustin@cisco.com - remove timeouts from trex_client pkg tests, filter out 0.1% of highest latencies, increase priority of TRex process
+ 55a12c8296f20e1c9951db2b7740d9f2a4edd036 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 82a3c6f217e2bf96d0e9a83239a23b1d950d9011 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add testing of TRex client package
+ 3fa5b5bc7f3bcd7a0eca53386822b7adb8974851 - Yaroslav Brustinov - ybrustin@cisco.com - workaround for kiwi02 latency
+ aa3f6639f469dc1003f902127464790b6b346c41 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 4f4a7db0d3be8db7d035d2d52b392f5e5b04b74b - Yaroslav Brustinov - ybrustin@cisco.com - regression: trex14 benchmark with new stable image
+ 8be43de7d790e43f608e0b918863da83731e738e - Yaroslav Brustinov - ybrustin@cisco.com - make the stl console to work at client package/from stl directory itself
+ cf6092b407c624ab8d6cf671e1e30bc981ed6826 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ fff0f8effc3fa7f5a67246d79d11e61163bc92bb - Yaroslav Brustinov - ybrustin@cisco.com - regression: stateless examples: don't fail on result problems, only check python functionality stateful add --warmup flag for 30 seconds 9k imix run before other tests.
+ b91c216db1aa10ca7cc81b8c74b04ab79df251fe - Yaroslav Brustinov - ybrustin@cisco.com - add to run_functional_tests --python2 and --python3 flags make stateful tree similar to stl : stf/trex_stf_lib and stf/examples change trex_client package: add profiles, use full stl dir. stl examples: now use stl_path.STL_PROFILES_PATH variable regression: add higher timeout to rsync.
+ 68ed79b989008006897108c7978d5c65fef47711 - Yaroslav Brustinov - ybrustin@cisco.com - fix find_python usage
+ 3804a5dd52975a9a6fd3ff094ae16593bfeb2303 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix failing on positive return status of server
+ 1f749d9b568893aa26ff115d18b8f9ef4d0b2603 - Yaroslav Brustinov - ybrustin@cisco.com - add timeout to ssh commands
+ 86767eec82bd816136833315d914a1e85e409e49 - Yaroslav Brustinov - ybrustin@cisco.com - trex_client pkg explain
+ 764ef2e77a5f344bf1f30f717f610f49d21f869d - Yaroslav Brustinov - ybrustin@cisco.com - return client_utils
+ 6bee94506d7ed8f6843be352acf61112a728fa0b - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 884f2561b053387489b70869d0824f1f14faa0e5 - Yaroslav Brustinov - ybrustin@cisco.com - remove debug write from profile
+ 59f00264f39dfb95a62401776b4ed8c433682fa7 - Yaroslav Brustinov - ybrustin@cisco.com - gather stateful client to stf folder, create trex_client package
+ be0934dd3cb40c1d39fd9a54c982982d22ae2adc - Yaroslav Brustinov - ybrustin@cisco.com - stateful server zmq import fix. TODO: check zmq per platform/py_version
+ bd933929deb40243e4fb218ec2c5b33a12a6e02a - Yaroslav Brustinov - ybrustin@cisco.com - regression: add trex17 with E1000
+ 6af21336f6942263943dcd4385bc28d80d6fc1fe - Yaroslav Brustinov - ybrustin@cisco.com - fix integer checks, now they include "long"
+ 9518c16c5f10bef7a87b2237b635ea47ef5c183a - Yaroslav Brustinov - ybrustin@cisco.com - regression: trex14 updated classification
+ 9de939585468e18c6aa57f626530841029bb7e86 - Yaroslav Brustinov - ybrustin@cisco.com - building native code: remove checksum fields
+ 22e06f3c3532890ad336341c279012afc0710a9d - Yaroslav Brustinov - ybrustin@cisco.com - regression: stl speedup (fix)
+ e07322a708dabf6ba50abc32e7c5cc6f6491ba32 - Yaroslav Brustinov - ybrustin@cisco.com - regression: stl speedup
+ aa4706e1e3af49eef118416560d29fad4f0f0e42 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix - error in some type of tests leads to ignoring other types of tests.
+ 4c7026517965700242fe4aebf47f099a6ffd7842 - Yaroslav Brustinov - ybrustin@cisco.com - hlt add traffic_control: action=poll, reset, sync_run, clear_stats. add wait_on_traffic. fix cleanup_session to remove streams
+ 45ba3d4bbe5d5d5155f1cf0c1c80b14b9fa61c6c - Yaroslav Brustinov - ybrustin@cisco.com - TRex will ask before bind/unbind interfaces with active (established) tcp connections
+ aa15917210fa439c5fe04230db085345905699ec - Yaroslav Brustinov - ybrustin@cisco.com - regression: add error print
+ 834431083b4f9e6ac7eac00d5ec6682c92b16da9 - Yaroslav Brustinov - ybrustin@cisco.com - regression: stl added 1 more map try + sleep
+ 7991c5190ce31ae99533938eccad541181d49370 - Yaroslav Brustinov - ybrustin@cisco.com - stl map: send initial streams to calm down switches, send x3 traffic to filter noises
+ 240dbb67fa16d8d55c64d7658d284e07ae59cdaf - Yaroslav Brustinov - ybrustin@cisco.com - regression: exchange --copy flag to --pkg argument, to run server with given package unzipped to /tmp/trex-scripts dir
+ f4b44c0decd8229ffa978ca920b5366aef4be9c2 - Yaroslav Brustinov - ybrustin@cisco.com - regression:fix
+ 79ed73469861119e9b76d602df8f58435b7b6b8b - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix
+ 7fbeb2f786bded25ca410c8e82d928afbc98facd - Yaroslav Brustinov - ybrustin@cisco.com - fix
+ cf2424df1b966d41c233655e9232afcd2222c575 - Yaroslav Brustinov - ybrustin@cisco.com - fix
+ 30237fb4d1eccb2e2adb35408c4882d9750fbfef - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 2258ea303c6c3573998dea7b9d347d46873018db - Yaroslav Brustinov - ybrustin@cisco.com - regression: stl updates
+ bcf08b4e5715029ccfa54d22b0d5875b4c7cda78 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 3f747bcf1d6cb5654bbd0b0e54fa56bc7ad90e69 - Yaroslav Brustinov - ybrustin@cisco.com - regression: stl updates
+ 344df4618f219758a6fd005e2ea3e3d1056b5f4b - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ afefddfa387dad83bbcb15812bd279cf3197f583 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add stateless support (WIP); Scapy builder: fix remove MACs from binary, do not build by default;
+ b5cf4165ac6ca8e3a56a2f4f6bb4b28cfab33c98 - Yaroslav Brustinov - ybrustin@cisco.com - improve init speed of 1gb ports (12 ports init time reduced from 55 secs to 15)
+ 0f1b82cfc8078e0b363b96e7e649dbe49eb24e2a - Yaroslav Brustinov - ybrustin@cisco.com - add --native argument to simulator
+ 2a3171f73e838fccbc82d2d8553e36c7c3820e28 - Yaroslav Brustinov - ybrustin@cisco.com - add manual padding to 60 bytes with zeros
+ 5650f2add4b03ef8d51d670af5db9fccade80f3f - Yaroslav Brustinov - ybrustin@cisco.com - return 4 tests
+ a842b4cfd27f03db83c0bb8ed10816465cc510ad - Yaroslav Brustinov - ybrustin@cisco.com - ignore python3 cache, generated code files add option to export Profile (and thus stream too) to Python code add for each profile in functional tests generating it to Python code and comparing to same pcap result add loading Prifile via add_streams() fix IMIX rates in HLTAPI used with line % and bps Scapy packet builder: fixes to load of pcap/yaml - use MAC from pcap (with flag), remove FCS (with flag), support for VM with offsets by name
+ 37c4d0439365f70a01a3047085e7efef6d88930b - Yaroslav Brustinov - ybrustin@cisco.com - fix expected pcap number of packets; add simple example of HLT
+ 53169abe298996dd87c0a62cfe41af0598c766d8 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi: fix decrement exceeding maximal add_value range, add several useful functions, add mac profile
+ b85911614786e4b507d31fe38e1aaa9e4fe0136c - Yaroslav Brustinov - ybrustin@cisco.com - yet another limitation of 8 ports
+ a9c35eacd8caebe65e8c685f9285740b2764ea21 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi: remove default for l3_protocol and l4_protocol, add several profiles
+ 2f42eda77b027f5c9d39cba48373d75c0e1e2155 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 42274c193cc6f2562c1e1a31c4e47ade8bed97c4 - Yaroslav Brustinov - ybrustin@cisco.com - fix for up to 12 ports, fix error in case port_limit higher than number of interfaces
+ 58b8669c32c7a3f44b329edbf2246b2f0ac6b229 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi: fix MAC given with aabb.ccdd.eeff format, fix add_value is more than half of variable size, add 2 Wentong's profiles
+ ed7c04b5d7d5bb15aa13144e62caa786e73f7d05 - Yaroslav Brustinov - ybrustin@cisco.com - regression: aggregate results: remove timeout
+ 42afa885616f4def18f5f1f1ca303efdf742356f - Yaroslav Brustinov - ybrustin@cisco.com - hltapi : add dst_mac vm; vlan mask variable now can be shared; add 2 more profiles; add consistent_random argument for same random sequence each time
+ 547112ad112a2c3f8792a41e3f41b9d257a2fa7a - Yaroslav Brustinov - ybrustin@cisco.com - regression: add flag to copy TRex to temp dir and run from there
+ 58e8c3a54b881d0eb3a2e6f01b121612203c31cd - Yaroslav Brustinov - ybrustin@cisco.com - regression: hltapi yaml update for add_value of mask variable
+ 146525ddd44618bc5664cd632a86ff14be1c3ba9 - Yaroslav Brustinov - ybrustin@cisco.com - support bizarre replaced minuses from copy-paste from outlook etc.
+ 275a53b9cc7ce4effc5d450861b390ec618a310e - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 301d6ca6e36efdc5a1534615d57f3527560befad - Yaroslav Brustinov - ybrustin@cisco.com - hltapi: add line rate and bps support
+ 66bebea92f15db3ccf055814ab48cda24477fa9d - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ ee91690697d026c168de223f0b6b61c2e59e76ad - Yaroslav Brustinov - ybrustin@cisco.com - hltapi: optimization to utilize similar variables for several fields, fix incorrect size from l3_length, add profiles
+ 8fd2c69a3ba37d88949dc487f3851f84b81007a0 - Yaroslav Brustinov - ybrustin@cisco.com - hlt: support ipv4 step number or ip
+ 6182075a09042c2d72f16a434b7978615143f589 - Yaroslav Brustinov - ybrustin@cisco.com - typo in step and min/max_value; support old-type classes in validate_type; assert positive values in python; hlt fix vlan vm + test for it;
+ 2f75f197b0f948aa53e88e479d85cf83a64057c4 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix args
+ be5fd48f86729b19cb24d18182b90df3580fd285 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix args
+ 4145ff0ff4b8fbc9c376ab80cb02a8bab34c28bb - Yaroslav Brustinov - ybrustin@cisco.com - hlt updates: split by cores, direction
+ 7f6543835444bd0a1b3e344363fc2705ce02b84b - Yaroslav Brustinov - ybrustin@cisco.com - regression: allow more queue full on VM (can get spikes)
+ f7d1a3f4e298bfb86f3e0a2a0a666b3e2ab697c9 - Yaroslav Brustinov - ybrustin@cisco.com - include run_functional_tests and run_regression into package
+ 50f1673887f711cbeb470b040b08ec3f65c91763 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ ac8d0a812f152de146fc7455e057da31f84c2c83 - Yaroslav Brustinov - ybrustin@cisco.com - imix default profile
+ 8b12867a012f56b92bd3a3797aa2e554c0b71bef - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 2c9504ac710b7ae9021601b8947069d922040a34 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi update: vlans (one or nested), ipv6, "imix" moved to stream builder
+ 229618c0663517e8e03ee0a34e0f53584381fd69 - Yaroslav Brustinov - ybrustin@cisco.com - ws_main - add exp folder, scapy - add ipv6 verify/conversion to str buffer, hltapi - add ipv6, vlan.
+ acc3b1bfbe8f0cc53da9b84dba0bdf423b3221cf - Yaroslav Brustinov - ybrustin@cisco.com - regression: disable latency check on NAT
+ d152e9c2c08335cf81d2d2d4eb3faa1959bebad3 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 2312f48f6cee5c9aa2448ec5dcd41be32bbe5ead - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 19ef256b19acefef392185bac65a93725c6aef27 - Yaroslav Brustinov - ybrustin@cisco.com - run_functional_tests not requires unit_tests/functional_tests, can be set to custom test, path from scripts or from regression. added hlt profile test.
+ a66529ec065cf0745618c0f065d491b9fcca4e53 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi did not commit
+ 9adfbada8a429dcdd7bf95d9b52d28bb3448e1d4 - Yaroslav Brustinov - ybrustin@cisco.com - validate_type for easier type checks, hltapi move to trex_stl_lib
+ 48d3b77b634b911c6ba3f311d863c3da9625aeca - Yaroslav Brustinov - ybrustin@cisco.com - stateful yamls that uses stl pcaps location update
+ 82a5a558113c7111a6269e411513b83a410df596 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi build tests typo
+ 0f03cc467be9c0b37310b7e2a589a86a1771c96f - Yaroslav Brustinov - ybrustin@cisco.com - update hltapi + functional regression + remove old packet_builder tests
+ 69e5a5c6b94175ece07b247af1b5ca6c0cfdf0e9 - Yaroslav Brustinov - ybrustin@cisco.com - HLTAPI update + HLT packet builder functional tests (no simulation)
+ 51f3f97dfcd156b79b10331312d238775443e23c - Yaroslav Brustinov - ybrustin@cisco.com - regression aggregate results: change colors
+ 613c788c0002c138e0e24d1ac7b889ab92267c30 - Yaroslav Brustinov - ybrustin@cisco.com - regression: update benchmarks
+ 04fecbc6acbf07ddac6a48a542eb86a916007ba7 - Yaroslav Brustinov - ybrustin@cisco.com - scapy builder typo
+ 48889fac2a576b748537a11cc63bdf277156c780 - Yaroslav Brustinov - ybrustin@cisco.com - scapy builder typo
+ cf7dc73b0418374e6b73cb1b2fafe05450cacbf3 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 0603b286dc56d13e8491e39717449fab44a4346a - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 88bd6a73ac4d68323951fdb92ae905e35d0e52e0 - Yaroslav Brustinov - ybrustin@cisco.com - Fix Dan's packet builder payload_gen reference to packet, HLTAPI updated for Scapy builder, Scapy builder style corrections
+ bdc690e8229808974a8f899e145931c06db6e082 - Yaroslav Brustinov - ybrustin@cisco.com - HTLAPI update
+ 9f14352546380a0759d6e61f56c3b6ca966577b6 - Yaroslav Brustinov - ybrustin@cisco.com - hltapi_example
+ 1a935f2987f2885fc8af29ed866ec0b2125ee85c - Yaroslav Brustinov - ybrustin@cisco.com - add driver for Ubuntu 14.04.3, remove seconds from regression start time at HTML report, HLTAPI improvements
+ d4b2ae7ddbaae8660ddaff710bf4a5459ff0657f - Yaroslav Brustinov - ybrustin@cisco.com - HLTAPI updates, aggregated results tests count print
+ 1a9b06836031bb776e268314aefcced1e8b01afb - Yaroslav Brustinov - ybrustin@cisco.com - assing attribute 'requires_client' to CStlBasic_Test
+ 9c9173a53fc09d08cf39e614dffa24f4e21a69e9 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix created pcap name in parallel setups general: added command to show last commits + release
+ 0798c924dfcdfcf0c02ae74136013daa5d7d16f4 - Yaroslav Brustinov - ybrustin@cisco.com - regression:     fix case typo in functional test
+ 82be078454b7742dc11416808285b4fe03c24ede - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ d7ea8e1eaa6964854b6845dba334b056a8187de0 - Yaroslav Brustinov - ybrustin@cisco.com - regression:     add rx_check negative test     add test_nat_simple_mode1 and test_nat_simple_mode2 benchmarks     remove pcaps to ensure they are created
+ eee866f42bd0fc8472e6295b4f26bd0697e59f1f - Yaroslav Brustinov - ybrustin@cisco.com - regression:     corrections of benchmarks     move packet builder tests to functional folder     add CPU utilization boundries for more tests     print Skipping message     fix relative drop counting API:     convert hostname to IP at init of client side (trex_client.py) various:     move python path determination to external common file     add functional tests running bash script     add sudo check to t-rex-64
+ e58843cecc2b6d7bcf37fb85708a47af1ce402d8 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add trex14 setup (slightly updated trex12)
+ ed203f303921a8d88fb32d2a5f8ff5097b6018fe - Yaroslav Brustinov - ybrustin@cisco.com - update pkt builder vm
+ 6092cc6f8b7d6d5f44b9c6cc600fc819257996e3 - Yaroslav Brustinov - ybrustin@cisco.com - add Dan's packet builder functional tests
+ 0f49e42f202491f7d8e23be237f9c94f136fe384 - Yaroslav Brustinov - ybrustin@cisco.com - regression:     add jumbo benchmark for trex08     replace --local for --functional flag, remove the need of SETUP_DIR in such case
+ d7270bba3a4f8b89314abf82e21346fc81d6a6df - Yaroslav Brustinov - ybrustin@cisco.com - regression:     don't run CStlBasic_Test as part of regression with all tests, will be used at building stage.     remove duplication of scripts_path with scripts_dir
+ 8ef7485303273dbdf9291cc16c6f32450786333e - Yaroslav Brustinov - ybrustin@cisco.com - remove zmq port 4507 from "example" cfgs, should be 4500.
+ f1c78acf1648abd6c06a070ef4e6465e5478eab8 - Yaroslav Brustinov - ybrustin@cisco.com - add alloc_error, queue_full, queue_drop stats report via ZMQ regression:     update kiwi02 and trex08 benchmarks     add common "scripts_dir" variable for usage in tests     configure router with proper MTU in jumbo test     add --local flag for not connecting to remote server (useful for functional tests)
+ 505d0dcd8b094cc11a20986f4417facc0a7a9dd7 - Yaroslav Brustinov - ybrustin@cisco.com - regression: kiwi02 update benchmark
+ 6e4254463c7e8ae90ac2ca7f0cf8616620ff3bbf - Yaroslav Brustinov - ybrustin@cisco.com - kiwi02 update benchmark disable VM latenct check, max exceeds 100ms, avg can reach 150ms disable temporary jumbo with router
+ 055e2f95ca437eff0eff97a09633c860092f497a - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 6e0de1a39a4ff389a5669c91e07bf938b3b99d28 - Yaroslav Brustinov - ybrustin@cisco.com - ws_main.py: don't expect for env. vars if building local package regression: increase maximal allowed latency to 100ms on VM (50ms is not enough)
+ 148fd251911869db33df03f7fd3287c1f76f2fa4 - Yaroslav Brustinov - ybrustin@cisco.com - building: add pkg option with --pkg-dir and --pkg-file arguments (./b pkg --pkg-dir ...) for building TRex package regression:     add jumbo packets test     high latency fails test and not only print     add maximal and minimal expected CPU utilization     aggregate results:         remove tracebacks at usual errors in tests         move TRex info from setups info to top (its now common to all setups)         save last good commit hash
+ 2dfd6cf68403a487ab612767601a0f2e33696921 - Yaroslav Brustinov - ybrustin@cisco.com - regression: take new path of setups
+ 8dec07f2db61938781a25be93218d4c55afb4af5 - Yaroslav Brustinov - ybrustin@cisco.com - regression: move setups configuration to trex-core repo
+ 40ea55e500338a9b28e39f0a6194c6678d996649 - Yaroslav Brustinov - ybrustin@cisco.com - regression: add empty file to commit empty reports dir
+ e1e895a4ee2a8c02367c0472d1b7d64f17067733 - Yaroslav Brustinov - ybrustin@cisco.com - regression: move style.css inside aggregate_results.py
+ 349d47374639465d58bac37f6e93045a1f9bb718 - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 823b8294539f2e55db09795a7fff03d7be6b6346 - Yaroslav Brustinov - ybrustin@cisco.com - move regression to trex-core slight fixes of hltapi + vm in packet builder update yaml lib version from 3.01 to 3.11
+ 3788595be48149f379216b9163fd1caa4346eea9 - Yaroslav Brustinov - ybrustin@cisco.com - add YouTrack info
+ 3534ca500f9b2fce4a5e9a52f2df12e139501183 - Yaroslav Brustinov - ybrustin@cisco.com - fix display of huge positive number of drops (due to casting from negative to unsinged)
+ fca3bf55efa41d4d85680aa6d37eb5304c049ccb - Yaroslav Brustinov - ybrustin@cisco.com - trex_client.py: maximal latency should not include c-max-*, only max-*
+ dbd2b47ce0683051288d3fa225285956fab5ab3f - Yaroslav Brustinov - ybrustin@cisco.com - latency.cpp: update ports stats at CLatencyManager::update, instead of CCPortLatency::DumpShort Python API added:   * is_idle(): determine if TRex is in idle state   * sample_x_seconds(): sample TRex for given number of seconds, useful for changing device (router etc.) config afterwards.
+ f0919e280a6a7b74a52f05b8e6f591e1b7e08200 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ fc92c730b46408d408b70364881571e03c7e98d7 - Yaroslav Brustinov - ybrustin@cisco.com - trex_client.py: increase timeout by '-k' argument seconds, as it leaves TRex in 'Starting' state.
+ 7b1796d823b38f7c8c801e19c51a4044bc39b17c - Yaroslav Brustinov - ybrustin@cisco.com - TRex API: increase timeout (from 30 to 40) of waiting for TRex to change state from Starting to Idle or Running.
+ 3f94a09f66657970636a532aac9411ad6a5290ad - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'rx_check'
+ 1a0e24fac5ca0f4f5e5db42b7e60bd1c82b12c38 - Yaroslav Brustinov - ybrustin@cisco.com - publish rx_check counters via ZMQ even with iom=0
+ ca565fd24f0336d704410d69fe67b70405f2a38c - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'get_logs_and_version'
+ 3b66e1dd3b9c5b1895f7302c36c6bfc476492a56 - Yaroslav Brustinov - ybrustin@cisco.com - python API: determine TRex version in more robust way
+ 9738e267d806223ee25e013b5959ccac26c1a14a - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'master' into get_logs_and_version
+ 8db819d562378367d3338974dbd5c92956c3f05c - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'fix_no_latency_python_API'
+ 5011073de1cd9c2c0be2dbee3a3a6248afa7075b - Yaroslav Brustinov - ybrustin@cisco.com - python API:fix no latency specified in tests
+ 7a4fe4e2a4c078747df290804e0610c5f5084acf - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'fix_second_daemon_try_without_tty'
+ 54a8bafe065785fb6c14ff7a4d5b1478e124addc - Yaroslav Brustinov - ybrustin@cisco.com - restore comment
+ dfeb27376f11a16e0ea4f4bfd30bd5acea70f629 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'fix_second_daemon_try_without_tty'
+ a9f6028ef1214bfed69efd0aff59131327a06b8e - Yaroslav Brustinov - ybrustin@cisco.com - fix second try of running daemon: second daemonize_parser() ruins input args
+ fbe339bfcb38b5d9fd86803c882d5c73f7ab1054 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'new_kernels_support'
+ 578dc53de3d69920c43df22c13984537c4bdf2f0 - Yaroslav Brustinov - ybrustin@cisco.com - added Kernel support Fedora18 with kernel 3.11.10-100.fc18.x86_64
+ 7c9355cc198ee897de9cd2d60e88a232ce1fa405 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'get_logs_and_version'
+ a573adc6395c9ad8d96978508a07a654ef48c7a9 - Yaroslav Brustinov - ybrustin@cisco.com - fix call ./t-rex-64 --help for getting version
+ 81f9f7ee4476edeacf4996e16e78d9bea87967ae - Yaroslav Brustinov - ybrustin@cisco.com - Merge remote-tracking branch 'origin/master'
+ 2f15c0d6ea149dc3c4e226779908d8dc6755e1e8 - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'get_logs_and_version'
+ ffab8fdc68245ff525780554774e3a7615500e28 - Yaroslav Brustinov - ybrustin@cisco.com - API add: get_trex_log(), get_trex_daemon_log(), get_trex_version()
+ 82832d9d372ddbe8e18c30b988843703b7b8965d - Yaroslav Brustinov - ybrustin@cisco.com - Merge branch 'get_logs_and_version'
+ 44cfe8691c6d81872b0a0d9c1d15781cba24ddba - Yaroslav Brustinov - ybrustin@cisco.com - API add: get_trex_log(), get_trex_daemon_log(), get_trex_version()
