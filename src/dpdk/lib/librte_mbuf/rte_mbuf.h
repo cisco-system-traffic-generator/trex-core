@@ -1060,7 +1060,7 @@ static inline uint16_t
 rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
     // TREX_PATCH - The code in #if 0 caused tx queue to hang when running:
-    // sudo ./t-rex-64-o -f avl/sfr_delay_10_1g_no_bundling.yaml -m 35 -p -d 100
+    // sudo ./t-rex-64-o -f avl/sfr_delay_10_1g_no_bundeling.yaml -m 35 -p -d 100
 #if 0
 	/*
 	 * The atomic_add is an expensive operation, so we don't want to
