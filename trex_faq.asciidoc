@@ -197,13 +197,21 @@ Then, you can find some basic examples link:trex_manual.html#_trex_command_line[
 A switch might be configured with spanning tree enabled. TRex reset the port at startup, making the switch reset it side as well,
 and spanning tree can drop the packets until it stabilizes.
 Disabling spanning tree can help. On Cisco nexus, you can do that using `spanning-tree port type edge`
-You can also start Cisco with -k <num> flag. This will send packets for k seconds before starting the actual test, letting the spanning
+You can also start TRex with -k <num> flag. This will send packets for k seconds before starting the actual test, letting the spanning
 tree time to stabilize.
 This issue will be fixed when we consolidate ``Stateful'' and ``Stateless'' RPC.
 
-==== I can not see RX packets
-TRex does not support ARP yet, you should configure the DUT to send the packets to the TRex port MAC address. From Stateless mode, you can change the port mode to promiscuous. +
-Also, revisit your MAC address configuration in the TRex config file. Wrong MAC address configuration will cause all packets to be dropped.
+==== I can not see any RX packets.
+Most common reason is problems with MAC addresses.
+If your ports are connected in loopback, follow link:trex_manual.html#_configuring_for_loopback[this] carefully. +
+If loopback worked for you, continue link:trex_manual.html#_configuring_for_running_with_router_or_other_l3_device_as_dut[here]. +
+If you set MAC addresses manually in your config file, check again that they are correct. +
+If you have ip and default_gw in your config file, you can debug the initial ARP resolution process by running TRex with
+-d 1 flag (will stop TRex 1 second after init phase, so you can scroll up and look at init stage log), and -v 1.
+This will dump the result of ARP resolution (``dst MAC:...''). You can also try -v 3.
+This will print more debug info, and also ARP packets TX/RX indication and statistics. +
+On the DUT side - If you configured static ARP, verify it is correct. If you depend on TRex gratuitous ARP messages, look at the DUT ARP
+table after TRex init phase and verify its correctness.
 
 ==== Why the performance is low?
 
@@ -342,12 +350,12 @@ Q:: I want to use the Python API via Java (with Jython), apparently, I can not i
 The way I see it I have two options:
 
 1. Creating python scripts and call them from java (with ProcessBuilder for example)
-2. Call directly to the Trex server over RPC from Java
+2. Call directly to the TRex server over RPC from Java
 
 However, option 2 seems like a re-writing the API for Java (which I am not going to do)
 On the other hand, with option 1, once the script is done, the client object destroyed and I cannot use it anymore in my tests.
 
-Any ideas on what is the best way to use Trex within JAVA?
+Any ideas on what is the best way to use TRex within JAVA?
 
 A:: 
 

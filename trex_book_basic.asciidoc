@@ -8,13 +8,13 @@ This simulator can be run on any Cisco Linux including on the TRex itself.
 TRex simulates clients and servers and generates traffic based on the pcap files provided. 
 
 .Clients/Servers 
-image:images/trex_model.png[title="generator"]
+image:images/trex_model.png[title=""]
 
 The following is an example YAML-format traffic configuration file (cap2/dns_test.yaml), with explanatory notes.
 
 [source,python]
 ----
-$more cap2/dns_test.yaml 
+$cat cap2/dns_test.yaml
 - duration : 10.0
   generator :  
           distribution : "seq"           
@@ -27,7 +27,6 @@ $more cap2/dns_test.yaml
           dual_port_mask : "1.0.0.0" 
           tcp_aging      : 1
           udp_aging      : 1
-  mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
   cap_info : 
      - name: cap2/dns.pcap               <3>
        cps : 1.0                         <4>
@@ -43,7 +42,7 @@ $more cap2/dns_test.yaml
 <6> Should be the same as ipg.
 
 .DNS template file
-image:images/dns_wireshark.png[title="generator"]
+image:images/dns_wireshark.png[title=""]
 
 
 The DNS template file includes:
@@ -109,6 +108,7 @@ gives
 //TBD: Not sure what the output looks like here, with this line showing only "gives"
 
 .TRex generated output file
+//??? missing picture
 image:images/dns_trex_run.png[title="generator"]
 
 As the output file shows...
@@ -245,7 +245,6 @@ Use the following to display the output as a chart, with:
 x axis: time (seconds)
 y axis: flow ID
 The output indicates that there are 10 flows in 1 second, as expected, and the IPG is 50 msec  + 
-//TBD: not sure what the "+ +" means ==> [hh] Ascii Doc break page 
 
 ifndef::backend-docbook[]
 +++++++++++++++++++++++++++++++++
@@ -514,7 +513,7 @@ you need to be sure that you have enogth free sockets when running TRex in high 
  Open-flows      :        1  Servers :      254   Socket :        1 Socket/Clients :  0.0 
  drop-rate       :       0.00  bps   
 ----
-<1> Number of clients 
+<1> Number of clients
 <2> sockets utilization (should be lowwer than 20%, elarge the number of clients in case of an issue).
 
 === DNS, W=1
@@ -577,7 +576,7 @@ pkt,time sec,fid,flow-pkt-id,client_ip,client_port,server_ip ,desc
 |=================
 
 
-=== Mixing HTTP and DNS template 
+=== Mixing HTTP and DNS templates
 
 The following example combines elements of HTTP and DNS templates:
 
@@ -2621,32 +2620,15 @@ chart("#chart4",sfr_data,sfr_names,"time-sec","flow-id");
 endif::backend-docbook[]
 
 
-=== TRex command line 
+=== Running examples
 
-TRex commands typically include the following main arguments, but only `-f` and `-d` are required.
+TRex commands typically include the following main arguments, but only `-f` is required.
 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f [traffic_yaml] -m [muti]  -d [duration]  -l [Hz=1000]  -c [cores]
+$.sudo /t-rex-64 -f <traffic_yaml> -m <multiplier>  -d <duration>  -l <latency test rate>  -c <cores>
 ----
-
-*-f=TRAFIC_YAML_FILE*:: 
-       YAML traffic configuration file.
-
-*-m=MUL*::
-   Factor for bandwidth (multiplies the CPS of each template by this value).
-
-*-d=DURATION*::
-        Duration of the test (sec). Default: 0 
-
-*-l=HZ*::
-    Rate (Hz) for running the latency daemon. Example: -l 1000 runs 1000 pkt/sec from each interface. A value of zero (0) disables the latency check.
-
-*-c=CORES*::
-  Number of cores. Use 4 for TRex 40Gb/sec. Monitor the CPU% of TRex - it should be ~50%.
-
-   
-The full reference can be found xref:cml-line[here]
+Full command line reference can be found xref:cml-line[here]
 
 ==== TRex command line examples 
 
@@ -2723,11 +2705,11 @@ $.sudo /t-rex-64 -f cap2/imix_64.yaml -c 4 -m 1 -d 100 -l 1000
 
 === Mimicking stateless traffic under stateful mode
 [NOTE]
-TRex now supports a true stateless traffic generation.
+TRex supports also true stateless traffic generation.
 If you are looking for stateless traffic, please visit the following link: xref:trex_stateless.html[TRex Stateless Support]
 
 With this feature you can "repeat" flows and create stateless, *IXIA* like streams. 
-After injecting the number of flows defined by `limit`, TRex repeats the same flows. If all template has a `limit` the CPS will be zero after a time as there are no new flows after the first iteration.
+After injecting the number of flows defined by `limit`, TRex repeats the same flows. If all templates have `limit` the CPS will be zero after some time as there are no new flows after the first iteration.
 
 *IMIX support:*::
 Example:
@@ -2739,9 +2721,9 @@ $sudo ./t-rex-64 -f cap2/imix_64.yaml  -d 1000 -m 40000  -c 4 -p
 [WARNING] 
 =====================================================================
 The *-p* is used here to send the client side packets from both interfaces. 
-(Normally it is sent only from client ports only.) 
-Typically, the traffic client side is sent from the TRex client port; with this option, the port is selected by the client IP. 
-All the flow packets are sent from the same interface. This may create an issue with routing, as the client's IP will be sent from the server interface. PBR router configuration solves this issue but cannot be used in all cases. So use this `-p` option carefully.
+(Normally it is sent from client ports only.)
+With this option, the port is selected by the client IP.
+All the packets of a flow are sent from the same interface. This may create an issue with routing, as the client's IP will be sent from the server interface. PBR router configuration solves this issue but cannot be used in all cases. So use this `-p` option carefully.
 =====================================================================
 
 
@@ -2817,7 +2799,7 @@ It is possible to mix stateless templates and stateful templates.
        w     : 1
        limit : 199       
 ----
-The templates are duplicate here to better utilize DRAM and to get better performance.
+The templates are duplicated here to better utilize DRAM and to get better performance.
 //TBD: What exactly repeates the templates - TRex, script, ? Also, how does that better utilize DRAM.
 
 .Imix YAML `cap2/imix_fast_1g_100k_flows.yaml` example
@@ -3001,8 +2983,8 @@ endif::backend-docbook[]
 
 === Clients/Servers IP allocation scheme 
 
-Currently, there is one global IP pool for clients and servers. It serves all templates. all the templates will allocate IP from this global pool.
-Each TRex client/server "dual-port" (pair of ports, such as port 0 for client, port 1 for server) has it own mask offset taken from the YAML. The mask offset is called `dual_port_mask`.
+Currently, there is one global IP pool for clients and servers. It serves all templates. All templates will allocate IP from this global pool.
+Each TRex client/server "dual-port" (pair of ports, such as port 0 for client, port 1 for server) has its own generator offset, taken from the config file. The offset is called `dual_port_mask`.
 
 Example:
 
@@ -3018,36 +3000,31 @@ generator :
   tcp_aging      : 0
   udp_aging      : 0
 ----
-<1> Mask to add per dual-port pair.
-The reason we introduce dual_port_mask is to make static route configurable. With this mask, different ports has different prefix. 
+<1> Offset to add per port pair.
+The reason for the ``dual_port_mask'' is to make static route configuration per port possible. With this offset, different ports have different prefixes. 
 
-//TBD: needs clarification - this is the format of a port mask?
-
-With four ports, TRex produces the following output:
+For example, with four ports, TRex will produce the following ip ranges:
 
 [source,python]
 ----
-  dual-0 (0,1) --> C (16.0.0.1-16.0.0.128  ) <-> S( 48.0.0.1 - 48.0.0.128)
-  dual-1 (2,3) --> C (17.0.0.129-17.0.0.255  ) <-> S( 49.0.0.129 - 49.0.0.255) + mask  ("1.0.0.0")
+  port pair-0 (0,1) --> C (16.0.0.1-16.0.0.128  ) <-> S( 48.0.0.1 - 48.0.0.128)
+  port pair-1 (2,3) --> C (17.0.0.129-17.0.0.255  ) <-> S( 49.0.0.129 - 49.0.0.255) + mask  ("1.0.0.0")
 ----
 
-In the case of setting dual-port_mask as 0.0.0.0, both ports will use the same range of ip. 
-With four ports and dual_port_mask as 0.0.0.0, the ip range is : 
-
-[source,python]
-----
-  dual-0 (0,1) --> C (16.0.0.1-16.0.0.128  ) <-> S( 48.0.0.1 - 48.0.0.128)
-  dual-1 (2,3) --> C (16.0.0.129-16.0.0.255  ) <-> S( 48.0.0.129 - 48.0.0.255)
-----
-
-//TBD: not clear what the following 5 points are referring to. This looks like it should be a continuation of the footnotes for the example a few lines up.
 - Number of clients     : 255
 - Number of servers     : 255
-- The mask defined by dual_port_mask (1.0.0.0) is added for each dual-port pair, but the total number of clients/servers from YAML will be constant and does not depend on the amount of dual ports.
-- TCP/UDP aging is required when the number of clients is very small and the template defines a very long duration.
-This is the time it takes to return the socket to the pool.
+- The offset defined by ``dual_port_mask'' (1.0.0.0) is added for each port pair, but the total number of clients/servers will remain constant (255), and will not depend on the amount of ports.
+- TCP/UDP aging is the time it takes to return the socket to the pool. It is required when the number of clients is very small and the template defines a very long duration.
 //TBD: not clear - is TCP/UDP aging an option used when the template defines a long duration? also, should specify what "very long" refers to.
-- In the current version, the only option for distribution is "seq".
+
+If ``dual-port_mask'' was set to 0.0.0.0, both port pairs would have uses the same ip range.
+For example, with four ports, we would have get the following ip range is :
+
+[source,python]
+----
+  port pair-0 (0,1) --> C (16.0.0.1-16.0.0.128  ) <-> S( 48.0.0.1 - 48.0.0.128)
+  port pair-1 (2,3) --> C (16.0.0.129-16.0.0.255  ) <-> S( 48.0.0.129 - 48.0.0.255)
+----
 
 
 *Router configuration for this mode:*::
@@ -3092,8 +3069,8 @@ ip route 49.0.0.0 255.0.0.0 33.11.11.12
 
 *One server:*::
 
-To support a template with one server, you can add a new YAML server_addr ip. Each dual-port pair will be assigned a separate server (in compliance with the mask).
-//TBD: clarify
+To support a template with one server, you can add ``server_addr'' keyword. Each port pair will be get different server IP
+(According to the ``dual_port_mask'' offset).
         
 [source,python]
 ----
@@ -3106,16 +3083,13 @@ To support a template with one server, you can add a new YAML server_addr ip. Ea
   one_app_server : true      <2>
   wlength   : 1
 ----
-<1> Server IPv4 address.
+<1> Server IP.
 <2> Enable one server mode.
 
-*w/wlength:*::
-//TBD: looks like this should be a continuation of the footnotes as in 1 and 2 above.
+// TBD - what is wlength???
 
-not require to configure them, user 1 
-//TBD: ?
-
-*new statistic:*::
+In TRex server, you will see the following statistics.
+// TBD - need to explain this
 
 [source,python]
 ----
@@ -3127,21 +3101,20 @@ not require to configure them, user 1
 [NOTE]
 =====================================================================
 * No backward compatibility with the old generator YAML format.
-* When using -p option, TRex will not comply with the static route rules. Server-side traffic may be sent from the client side (port 0) and vice-versa. Use the -p option only with PBR configuration when the router, switch p1<->p2.
-//TBD: "when router..." unclear 
-* VLAN (sub interface feature) does not comply with static route rules. Use it only with PBR. 
-  VLAN0 <-> VALN1 per interface 
-  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 }
-* Limitation: When using a template with plugins (bundles), the number of servers must be higher than the number of clients. 
+* When using -p option, TRex will not comply with the static route rules. Server-side traffic may be sent from the client side (port 0) and vice-versa.
+If you use the -p option, you must configure policy based routing to pass all traffic from router port 1 to router port 2, and vice versa.
+* xref:trex_vlan[VLAN] feature does not comply with static route rules. If you use it, you also need policy based routing
+rules to pass packets from VLAN0 to VLAN1 and vice versa.
+* Limitation: When using template with plugins (bundles), the number of servers must be higher than the number of clients.
 =====================================================================
 
 ==== More Details about IP allocations
 
-Each time a new flow is creaed, TRex allocates a new Client IP/port and Server IP. This 3-tuple should be distinct among active flows. 
+Each time a new flow is created, TRex allocates new Client IP/port and Server IP. This 3-tuple should be distinct among active flows. 
 
-Currently, only sequcency distribution is supported in IP allocation. That means the IP address is increased one by one.
+Currently, only sequential distribution is supported in IP allocation. This means the IP address is increased by one for each flow.
 
-Let's say if we have 2 candidate IPs in the pool: 16.0.0.1 and 16.0.0.2. So the sequence of allocated clients should be something like this:
+For example, if we have a pool of two IP addresses: 16.0.0.1 and 16.0.0.2, the allocation of client src/port pairs will be
 
 [source,python]
 ----
@@ -3149,22 +3122,25 @@ Let's say if we have 2 candidate IPs in the pool: 16.0.0.1 and 16.0.0.2. So the 
 16.0.0.0.2 [1024]
 16.0.0.0.1 [1025]
 16.0.0.0.2 [1025]
+16.0.0.0.1 [1026]
+16.0.0.0.2 [1026]
+...
 ----
 
-==== How to decide the PPS and BPS
+==== How to determine the packet per second(PPS) and Bit per second (BPS)
 
-- Example of one flow with 4 packets 
-- Green are first packet of flow 
-- Lets say the client ip pool starts from 16.0.0.1, and the distribution is seq.
+- Let's look at an example of one flow with 4 packets.
+- Green circles represent the first packet of each flow.
+- The client ip pool starts from 16.0.0.1, and the distribution is seq.
 
-image:images/ip_allocation.png[title="rigt"]
+image:images/ip_allocation.png[title=""]
 
 latexmath:[$Total PPS = \sum_{k=0}^{n}(CPS_{k}\times {flow\_pkts}_{k})$]
 
 latexmath:[$Concurrent flow = \sum_{k=0}^{n}CPS_{k}\times flow\_duration_k $]
+// TBD Ido: The latexmath formulas only looks good in pdf format. In HTML they are not clear.
 
-
-The above fomulars can be used to calculate the PPS. The TRex throughput depends on the PPS calculated above and the value of m (a multiplier assigned by TRex cli). 
+The above formulas can be used to calculate the PPS. The TRex throughput depends on the PPS calculated above and the value of m (a multiplier given as command line argument -m). 
 
 The m value is a multiplier of total pcap files CPS. 
 CPS of pcap file is configured on yaml file. 
@@ -3193,7 +3169,7 @@ So if the m is set as 1, the total PPS is : 102*2+50*20 = 1204 PPS.
 
 The BPS depends on the packet size. You can refer to your packet size and get the BPS = PPS*Packet_size. 
 
-==== Client/Server IP allocation
+==== Per template allocation + future plans
  
 - *1) per-template generator*
 
@@ -3246,13 +3222,13 @@ The YAML configuration is something like this:
        w   : 1
 ----
 
-- *2) More distributions will be supported (normal distribution, random distribution, etc)*
+- *2) More distributions will be supported in the future (normal distribution for example)*
 
 Currently, only sequcence and random are supported. 
 
 - *3) Histogram of tuple pool will be supported* 
 
-This feature gives user more flexibility to define the IP generator. 
+This feature will give the user more flexibility in defining the IP generator.
 
 [source,python]
 ----
@@ -3282,9 +3258,9 @@ This feature gives user more flexibility to define the IP generator.
  
  
 
-=== Measure Jitter/Latency 
+=== Measuring Jitter/Latency
 
-To measure jitter/latency on high priorty packets (one SCTP or ICMP flow), use `-l [Hz]` where Hz defines the number of packets to send from each port per second. 
+To measure jitter/latency using independent flows (SCTP or ICMP), use `-l [Hz]` where Hz defines the number of packets to send from each port per second.
 This option measures latency and jitter. We can define the type of traffic used for the latency measurement using the `--l-pkt-mode` option. 
 
 
@@ -3296,12 +3272,12 @@ This option measures latency and jitter. We can define the type of traffic used 
 | 1 | 
 ICMP echo request packets from both sides
 | 2 | 
-*Stateful*, send ICMP requests from one side, and matching ICMP responses from other side.
+Send ICMP requests from one side, and matching ICMP responses from other side.
 
 This is particulary usefull if your DUT drops traffic from outside, and you need to open pin hole to get the outside traffic in (for example when testing a firewall)
 
 | 3 | 
-send ICMP request packets with a constant 0 sequence number.
+Send ICMP request packets with a constant 0 sequence number from both sides.
 |=================
 
 

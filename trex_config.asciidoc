@@ -1,10 +1,10 @@
 TRex first time configuration 
 =============================
-:author: hhaim with the Help of  Amir Kroparo 
+:author: hhaim with the Help of Amir Kroparo. New rev fixes by Ido Barnea.
 :email: <hhaim@cisco.com> 
 :description: TRex Getting started - instalation guide
 :revdate: 2014-11-01
-:revnumber: 0.1
+:revnumber: 0.2
 :deckjs_theme: swiss
 :deckjs_transition: horizontal-slide
 :scrollable:
@@ -94,181 +94,169 @@ html, body {
     $('#title-slide').css("background-position","center");
     $('h1').html('');
     $('h3').html('<font size="4">Hanoch Haim </font>');
-    $('h4').html('<font size="4">04/2015</font>');
+    $('h4').html('<font size="4">Updated 10/2016</font>');
  </script>
 
 ++++++++++++++++++
 
+== General info
+* This guide will help you configure Cisco ASR1K as DUT connected to TRex running in stateful mode.
+* This can be easily adopted for working with any L3 device. Equivalent commands for configuring Linux as your DUT are shown at the end as well.
+* Two options are given for configuring the router. Policy based route, and static route. You should
+choose the one appropriate for your needs.
+* TRex should be directly connected to ASR1K ports, and will act  as both client and server.
 
-== Simple configuration 
+== Setup description
 
-* TRex does not implement ARP emulation 
-* This guide will help you to configure Cisco ASR1K to work with TRex
-* TRex is directly connected to ASR1K ports. 
+* TRex will emulate the networks described in the figure below (on each side of the DUT, router connected to one or more clients/servers networks).
 
-image::images/TrexConfig.png[title="TRex/Router setup"]
-. TRex port 0 - Client side
-. Router TenG 0/0/0 
-. Router TenG 0/0/1
-. TRex port 1 - Server side
- 
+image::images/trex-asr-setup.png[title="TRex/Router setup"]
+
+== Not supported setup description
+
+* Notice that the following setup is *not* supported (Having TRex emulate a bunch of hosts connected by switch to the DUT).
+This means that the TRex IP addresses defined in ``generator'' section should be in different network then the DUT addresses
+and TRex addresses defined in port_info section.
+
+image::images/trex-not-supported-setup.png[title="Not supported setup"]
 
 == TRex configuration 
 
-* TRex act as both client and server side 
-* TRex port mac address should configure correctly, so packet generated from port 1 will get to 2 and vice-versa
-* To use the config file you can add this switch `--cfg [file]` 
-* Or edit the configuration file in `/etc/trex_cfg.yaml`
+* You can specify config file to use by the `--cfg` command line argument
+or use the default config file `/etc/trex_cfg.yaml`
+* Below is an example of how to configure TRex IP addresses. TRex will issue ARP for default_gw,
+and send gratuitous ARP for ip, on each port. This works, starting from TRex version 2.10.
+If you want to configure MAC addresses manually (equivalent to static
+ARP), or running older TRex version, please see the full description of config file parameters in the manual.
 
 [source,python]
 ----
- - port_limit      : 2    
-    port_info       :  # set eh mac addr 
-    - dest_mac        :   [0x0,0x0,0x0,0x1,0x0,0x00] <1>
-      src_mac         :   [0x0,0x0,0x0,0x2,0x0,0x00] <2>
-    - dest_mac        :   [0x0,0x0,0x0,0x3,0x0,0x00] <3>
-      src_mac         :   [0x0,0x0,0x0,0x4,0x0,0x00] <4>
+ - port_limit      : 2
+    port_info       :
+    - default_gw      : 11.11.11.1 <1>
+      ip              : 11.11.11.2 <2>
+    - default_gw      : 12.12.12.1 <3>
+      ip              : 12.12.12.2 <4>
 ----
-<1>  Correspond to TRex port 0 - should be Router TenG 0/0/0 mac-address
-<2>  Should be distinc mac-address, router should be configure to sent to this mac-address
-<3>  Correspond to TRex port 1 - should be Router TenG 0/0/1 mac-address
-<4>  Should be distinc mac-address, router should be configure to sent to this mac-address
 
+<1>  TRex port 0 config- should be router's TenG 0/0/0 IP.
+TRex will try to resolve this address by sending ARP request.
+<2>  Next hop of router's TenG 0/0/0. TRex will send gratuitous ARP for this address.
+<3>  TRex port 1 config- should be router's TenG 0/0/1 IP.
+TRex will try to resolve this address by sending ARP request.
+<4>  Next hop of router's TenG 0/0/0. TRex will send gratuitous ARP for this address.
 
-== Router configuration PBR part 1
+== TRex emulated server/client IPs definition in traffic config file
 
-* Router moves packets from port 0->1 and 1->0 without looking into IP address.
+* You specify traffic config file by running TRex with -f <file name>  (TRex stateful mode).
+* Examples for client config files exist in TREX_ROOT/scripts/cfg directory.
+* Add following section to the traffic config file, to define the range of IPs for clients and servers.
 
-* TenG 0/0/0 <-> TenG 0/0/1
+[source,python]
+----
+generator :
+  distribution : "seq"
+  clients_start : "16.0.0.1"
+  clients_end   : "16.0.0.255"
+  servers_start : "48.0.0.1"
+  servers_end   : "48.0.0.240"
+----
+
+* In this example, there are:
+** 255 clients talking to 240 servers
+
+== Router config. Option 1 - static routes
+
+[source,python]
+----
+interface TenGigabitEthernet0/0/0
+ ip address 11.11.11.1 255.255.255.0
+!
+`
+interface TenGigabitEthernet0/0/1
+ ip address 12.12.12.1 255.255.255.0
+!
+ip route 16.0.0.0 255.0.0.0 11.11.11.2  <1>
+ip route 48.0.0.0 255.0.0.0 12.12.12.2  <2>
+----
+<1> Route clients network to TRex server emulation interface.
+<2> Route servers network to TRex client emulation interface.
+
+== Router config. Option 2 - PBR part 1
+
+* Router is configured to statically route packets from 0/0/0 to 0/0/1 and from 0/0/1 to 0/0/0.
 
 *Router configuration:*::
 
 [source,python]
 ----
 interface TenGigabitEthernet0/0/0
- mac-address 0000.0001.0000                     <1>
- mtu 4000                                       <2>
- ip address 11.11.11.11 255.255.255.0           <3>
- ip policy route-map p1_to_p2                   <4>
+ ip address 11.11.11.1 255.255.255.0           <1>
+ ip policy route-map p1_to_p2                   <2>
  load-interval 30
 !
 
 interface TenGigabitEthernet0/0/1
- mac-address 0000.0003.0000                     <5>     
- mtu 4000                                       
- ip address 12.11.11.11 255.255.255.0           
- ip policy route-map p2_to_p1                   
+ ip address 12.12.12.1 255.255.255.0           <1>
+ ip policy route-map p2_to_p1                   <2>
  load-interval 30
 !
 ----
-<1> Configure mac-address to match TRex destination port-0
-<2> Set MTU 
-<3> Set an ip address ( routing can't work without this)
-<4> Configure PBR policy - see next slide
-<5> Configure mac-address to match TRex destination port-1
+<1> Configure ip address for the port.
+<2> Configure PBR policy - see next slide
 
-== Router configuration PBR part 2
+== Router config. Option 2 - PBR part 2
 
 [source,python]
 ----
 
 route-map p1_to_p2 permit 10
- set ip next-hop 12.11.11.12    <1>
+ set ip next-hop 12.12.12.2    <1>
 !
 route-map p2_to_p1 permit 10
- set ip next-hop 11.11.11.12    <2>
+ set ip next-hop 11.11.11.2    <2>
 
 ----
 
-<1> Set the destination packet to be 12.11.11.12 which correspond to TenG 0/0/1
-<2> Set the destination packet to be 11.11.11.12 which correspond to TenG 0/0/0
+<1> Set the destination to be 12.12.12.2, in the subnet of TenG 0/0/1.
+<2> Set the destination to be 11.11.11.2 , in the subnet to TenG 0/0/0.
 
+== Verify cable connections
 
-== Router configuration PBR part 3
-
-* What about destination mac-address it should be TRex source mac-address?
-* The folowing configuration address it
-
-[source,python]
-----
- arp 11.11.11.12 0000.0002.0000 ARPA  <1>
- arp 12.11.11.12 0000.0004.0000 ARPA  <2>
-----
-<1> Destination mac-address of packets sent from If 0/0/0 is matched to TRex source mac-address port-0
-<2> Destination mac-address of packets sent from If 0/0/1 is matched to TRex source mac-address port-1
-
-== Static-route configuration - TRex 
-
-* You can set static range of IPs for client and server side 
-
-[source,python]
-----
-generator :  
-  distribution : "seq"  
-  clients_start : "16.0.0.1"
-  clients_end   : "16.0.0.255"
-  servers_start : "48.0.0.1"
-  servers_end   : "48.0.0.240"
-  dual_port_mask : "1.0.0.0"  
-  tcp_aging      : 0
-  udp_aging      : 0
-----
-
-* In this example, you should expect:
-** Number of clients   255
-** Number of servers   240
-
-== Static-route configuration - Router 
-
-[source,python]
-----
-interface TenGigabitEthernet0/0/0       
- mac-address 0000.0001.0000
- mtu 4000 
- ip address 11.11.11.11 255.255.255.0
-!         
-`
-interface TenGigabitEthernet0/0/1       
- mac-address 0000.0003.0000
- mtu 4000 
- ip address 22.11.11.11 255.255.255.0
-!         
-ip route 16.0.0.0 255.0.0.0 11.11.11.12  <1>
-ip route 48.0.0.0 255.0.0.0 22.11.11.12  <2>
-----
-<1> Match the range of TRex YAML ( client side 0/0/0 )
-<2> Match the range of TRex YAML ( server side 0/0/1)
-
-== Verify configuration 
-
-* To verify that TRex port-0 is connected to Router 0/0/0 and not 0/0/1 run
+* To verify that TRex port-0 is really connected to Router 0/0/0, you can run the following.
 
 ...........................................
-$./t-rex-64 -f cap2/dns.yaml -m 1  -d 100  -l 1000 --lo --lm 1
+$./t-rex-64 -f cap2/dns.yaml -m 1  -d 10  -l 1000 --lo --lm 1
 ...........................................
 * It sends packets only from TRex port-0 ( `--lm 1` ) 
 
 
 * to send only from TRex port 1 do this:
 ...........................................
-$./t-rex-64 -f cap2/dns.yaml -m 1  -d 100  -l 1000 --lo --lm 2
+$./t-rex-64 -f cap2/dns.yaml -m 1  -d 10  -l 1000 --lo --lm 2
 ...........................................
 
-* In case you are connected to a Switch you must send packet from both direction first 
+* If you are connected to a switch, you must send packets from both directions for few seconds first, to allow
+the switch to learn the MAC addresses of both sides.
 
 ...........................................
-$./t-rex-64 -f cap2/dns.yaml -m 1  -d 100  -l 1000 
+$./t-rex-64 -f cap2/dns.yaml -m 1  -d 10  -l 1000 
 ...........................................
 
+== Linux config
 
-== Static-route configuration - IPV6
+* Assuming the same setup with Linux as DUT instead of the router, you can do the following.
+* Configure IPs of Linux interfaces to 12.12.12.1 and 11.11.11.1
+* route add -net 48.0.0.0 netmask 255.0.0.0 gw 12.12.12.2
+* route add -net 16.0.0.0 netmask 255.0.0.0 gw 11.11.11.2
+
+
+== Static route configuration - IPV6
 
 [source,python]
 ----
 interface TenGigabitEthernet1/0/0
- mac-address 0000.0001.0000
- mtu 4000
- ip address 11.11.11.11 255.255.255.0
+ ip address 11.11.11.1 255.255.255.0
  ip policy route-map p1_to_p2
  load-interval 30                        
  ipv6 enable                            #<1>
@@ -299,9 +287,4 @@ csi-mcp-asr1k-40(config)#ipv6 route 5000::/64 3001::2
 <4> Enable ipv6 routing 
 <5> Mac-addr setting should be like TRex
 <6> PBR configuraion
-
-
-
-
-
 

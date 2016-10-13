@@ -23,8 +23,13 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Release 2.09 ==
+== Release 2.10 ==
 
+* Added support for IP based configuration files (As opposed to MAC based used until now), with the ability of TRex to send
+ARP requests for default gateway, and gratitues ARP for its own addresses.
+See link:trex_manual.html#_configuration_yaml_parameter_of_cfg_option[here] and link:trex_config_guide.html[here] for details.
+
+== Release 2.09 ==
 
 * Statless, split to core algorithm is more accurate and simple see link:trex_stateless.html#_tutorial_field_engine_split_to_core[split_to_core] 
 * Add repeatable random instruction see an example link:https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl/udp_1pkt_repeat_random.py[stl/udp_1pkt_repeat_random.py] link:cp_stl_docs/api/field_engine.html#stlvmflowvarrepetablerandom[repetable_random] and link:trex_rpc_server_spec.html#_repetable_random[repetable_random_spec]

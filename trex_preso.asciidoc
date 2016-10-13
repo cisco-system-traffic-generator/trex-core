@@ -110,6 +110,7 @@ html, body {
     $('h1').html('');
     $('h3').html('<font size="4">Hanoch Haim v1.2</font>');
     $('h4').html('<font size="4">04/2015</font>');
+    $('h5').html('<font size="4">Updated 10/2016</font>');
  </script>
 
 <script>
@@ -1231,7 +1232,7 @@ $.sudo /t-rex-64 -f [traffic_yaml] -m [muti]  -d [duration]  -l [Hz=1000] -c [co
 * Cisco wide developers community
 * Open source, Standardize tests
 
-== Trex GUI 
+== TRex GUI
 
 image:images/TrexViewer.png[width=500]   
 
@@ -1277,7 +1278,7 @@ import trex_client
 ++++++++++++++++++
 
 
-== Trex On your laptop
+== TRex On your laptop
 
 ++++++++++++++++++
 <img src="images/T-Rex_vm.png" alt="title=" align="center" >
