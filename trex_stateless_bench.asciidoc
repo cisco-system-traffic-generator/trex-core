@@ -1,5 +1,5 @@
-TRex Stateless support
-======================
+XL710 Statless benchmark
+========================
 :email: trex.tgen@gmail.com 
 :quotes.++:
 :numbered:
@@ -68,6 +68,8 @@ TRex port 1 &#8596; Switch port Eth1/50 (vlan 1005) &#8596; Switch port Eth1/52 
 <1> Extrapolated L1 bandwidth per 1 core @ 100% CPU utilization.
 <2> Extrapolated amount of MPPS per 1 core @ 100% CPU utilization.
 
+INFO: XL710 NIC does not support linerate for 64B by design. only 128B is supported.  
+
 == Appendix
 
 === Preparing setup and running the tests.
@@ -87,7 +89,7 @@ Bare Intel NICs don't work with Cisco QSFP+ optics, for such case you will need 
 * Obtain the latest TRex package: wget https://trex-tgn.cisco.com/trex/release/latest
 * Untar the package: tar -xzf latest
 * Change dir to unzipped TRex
-* Create config file using command: sudo python dpdk_setup_ports.py -i
+* Create config file using command: sudo python dpdk_setup_ports.py -i  *TBD more info here*
 ** In case of Ubuntu 16 need python3
 ** The script by default produces config for loopback or L2 Switch as DUT (ports connection 1&#8596;2, 3&#8596;4 etc.). +
 If you have router or L3 switch, change the destination MACs of TRex interfaces to match the DUT one's.

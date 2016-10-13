@@ -118,6 +118,7 @@ This is still better than the Intel x520 (82559 based) which can reach ~30MPPS f
 ==== I have XL710 NIC with 2x40Gb/sec ports and I can not get line rate
 XL710-da2 with 2 40G ports can reach maximum of 40MPPS/50Gb (total for all ports) and not 60MPPS with small packets (64B)
 Intel had in mind redundancy use case when they produced a two port NIC. Card was not intended to reach 80G line rate.
+see link:trex_stateless_bench.html[xl710_benchmark.html] for more info 
 
 ==== I want to contribute to the project
 You have several ways you can help: +

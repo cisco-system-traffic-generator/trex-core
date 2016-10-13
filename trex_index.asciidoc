@@ -72,6 +72,8 @@ link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 link:../release/[pkgs]
 | Windows Stateful GUI    | 
 link:../client_gui/[stateful GUI]
+| XL710 Statless performance    | 
+link:trex_stateless_bench.html[xl710_benchmark.html] 
 |=================
 
 == For Developers
