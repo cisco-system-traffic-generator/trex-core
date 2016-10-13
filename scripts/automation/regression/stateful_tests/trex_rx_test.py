@@ -99,7 +99,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             nc = True,
             rx_check = sample_rate,
             d = 100,
-            f = 'avl/sfr_delay_10_1g_no_bundling.yaml',
+            f = 'avl/sfr_delay_10_1g_no_bundeling.yaml',
             l = 1000,
             k = 10,
             learn_verify = True,
@@ -168,7 +168,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             nc = True,
             rx_check = sample_rate,
             d = 100,
-            f = 'avl/sfr_delay_10_1g_no_bundling.yaml',
+            f = 'avl/sfr_delay_10_1g_no_bundeling.yaml',
             l = 1000,
             k = 10,
             ipv6 = True)
