@@ -1,0 +1,33 @@
+I, itraviv hearby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: itraviv@cisco.com 
+
+My contributions were:
+
+ 13a81619495c7d94366182ebfd1ceaafb3b966e4 - itraviv - itraviv@cisco.com - scapy service: added version handler, added packet reconstruct from binary, added support for building packet from dictionary, added support for scapy field enhancement. scapy_zmq_server: fixed some path issues, changed minor argument parsing
+ 4f463f55ddc456090246ed00611c6b5d54b35ad5 - itraviv - itraviv@cisco.com - added logging mechanism with --log argument
+ d36b890ba5e13feaf8df548aa7dc0550cb635b36 - itraviv - itraviv@cisco.com - scapy_service: supported_methods now returns all functions when invoked with parameter 'all'
+ 5f9c0e65223f26de99958260420601670df4e012 - itraviv - itraviv@cisco.com - scapy_service: supported_methods now returns all functions when invoked with parameter 'all'
+ 1069c2c1b67899515e9769aac5f23642cc85410c - itraviv - itraviv@cisco.com - fixed path issue to resolve path for VXLAN and MPLS
+ b47e7f70348d5b2884dca39e7bf8a4b8b0661f06 - itraviv - itraviv@cisco.com - fixed issues with path to include VXLAN and MPLS
+ b64ee3961384a4b0ddb9613a5940c58a517de30d - itraviv - itraviv@cisco.com - Merge branch 'scapy_server'
+ 6796bb99573f15c77a007434feabb30291ac1670 - itraviv - itraviv@cisco.com - scapy_server_test: skiping python3 tests
+ 46b8104b0c4576994971adbdef0569007649fdc2 - itraviv - itraviv@cisco.com - fixed an issue in exception handling
+ 2c575880c6b5bd0a6c4f1df91f819118af800699 - itraviv - itraviv@cisco.com - scapy_server_test: added cases for testing: GRE, VXML, DNS, IPv6 changed test functions to include only the testted object and created other  functions as testing engines.
+ 72171290152897fac1a149fe4f9d1cbf0ae914c4 - itraviv - itraviv@cisco.com - 1)removed unnecessary files from repository 2)fixed bug in checking update of data-base
+ 7aa248272fb7687f6cfd84a1414ddee4f0a47369 - itraviv - itraviv@cisco.com - ***this is an example for a JSON-RPC (over ZMQ) client.*** started with -s for server IP address (default is local-host) started with -p for port number
+ 661d27af339a57319d41655b6bfa71810e4e60ba - itraviv - itraviv@cisco.com - move 'main' function to bottom of file
+ 8183f683a33231cc00b7b6ec6c7144bb5cfff54b - itraviv - itraviv@cisco.com - 1)added feature: running the entire test via RPC (over ZMQ) on a "remote" scapy server.
+ b3dc958ce81dcb5634be9c9088d6ab48816624a7 - itraviv - itraviv@cisco.com - 1) fixed "main function": mechanism for running this script as a stand-alone program and running it from another python script
+ 20d4c966c15aa134d58c8d53d840cddd9903f9aa - itraviv - itraviv@cisco.com - added wrapper class to support testing of scapy_server, this class wraps server interaction.
+ cb24f0f0ca09881de3754dbfb7f37d1f08f4b306 - itraviv - itraviv@cisco.com - changed file name from scapy_server to scapy_service changed file for scapy_zmq_server
+ 20691575dbdb9ba899c7d818caeca80902279554 - itraviv - itraviv@cisco.com - server was made as an object with execute function
+ 28b09fb263445b1c73e3119d17feb5cc6f954ee6 - itraviv - itraviv@cisco.com - 1) made a class Scapy_server encapsulating scapy_wrapper and scapy_service 2) fixed some exception handling
+ 930120461225e602e366a404180a48cdaf657dcf - itraviv - itraviv@cisco.com - 1) added build_pkt when calculating offsets
+ 36f1db884d653f077bdafab908cbbf65833e8772 - itraviv - itraviv@cisco.com - 1) changed class name to 'scapy_service' 2) changed returned values to be dictionaries instead of arrays
+ 9971425714e4fdc1a12fc1d66d36694d928d870c - itraviv - itraviv@cisco.com - fixed path after relocation of scapy_server
+ b8b5ad76e441e9e2793d25ba048a1e3398be3a73 - itraviv - itraviv@cisco.com - 1) changed location. from examples to services 2) added wrapper scapy server class
+ c1867ec4a2ceee37f9423f9bfbfd1d6e58ef16fa - itraviv - itraviv@cisco.com - fixed error handling in get_all_pkt_offsets, added return of error code tuple as same as build_pkt
+ 893d0feef9ba6fa3fb36c49f4b5bcad47cb2bf60 - itraviv - itraviv@cisco.com - Merge branch 'master' into scapy_server
+ abf329075bd14f5f41c3753d560260ac809ec4f3 - itraviv - itraviv@cisco.com - scapy_server for GUI+test
+ fb2b01538ee9ff03716c5546252e2825c1974198 - itraviv - itraviv@cisco.com - commented out line 301
+ cbbc8ec4b42811a757a055467335f3b7d8605c8a - itraviv - itraviv@cisco.com - added description to regression manager
+ 5969e234f8c02b8e357650eb78c7ac3a62f5db15 - itraviv - itraviv@cisco.com - updated google analytics API
