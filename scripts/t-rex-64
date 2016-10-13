@@ -12,6 +12,15 @@ if [ $RESULT -ne 0 ]; then
   exit $RESULT
 fi
 
+pci_desc_re='^(\S+) - (.+)$'
+source find_python.sh
+while read line
+do
+    if [[ "$line" =~ $pci_desc_re ]]; then
+        pci_name="pci$(echo ${BASH_REMATCH[1]} | tr ':' '_' | tr '.' '_')" # make alphanumeric name
+        export $pci_name="${BASH_REMATCH[2]}"
+    fi
+done <<< "$($PYTHON dpdk_setup_ports.py --dump-pci-description)"
 
 cd $(dirname $0)
 export LD_LIBRARY_PATH=$PWD

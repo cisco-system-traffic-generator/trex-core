@@ -16,6 +16,7 @@ limitations under the License.
 #include <set>
 #include <queue>
 #include <vector>
+#include <string>
 
 #ifndef __TREX_DEFS_H__
 #define __TREX_DEFS_H__
@@ -52,5 +53,7 @@ struct cpu_vct_st {
 typedef std::set<uint32_t> flow_stat_active_t;
 typedef std::set<uint32_t>::iterator flow_stat_active_it_t;
 typedef std::vector<cpu_vct_st> cpu_util_full_t;
+typedef std::vector<std::string> xstats_names_t;
+typedef std::vector<uint64_t> xstats_values_t;
 
 #endif

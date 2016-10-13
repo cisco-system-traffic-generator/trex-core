@@ -346,18 +346,38 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     const Json::Value &attr = parse_object(params, "attr", result);
-
+    int ret = 0;
     /* iterate over all attributes in the dict */
     for (const std::string &name : attr.getMemberNames()) {
-
-        /* handle promiscuous */
         if (name == "promiscuous") {
             bool enabled = parse_bool(attr[name], "enabled", result);
-            port->set_promiscuous(enabled);
+            ret = get_stateless_obj()->get_platform_api()->set_promiscuous(port_id, enabled);
         }
+        else if (name == "link_status") {
+            bool up = parse_bool(attr[name], "up", result);
+            ret = get_stateless_obj()->get_platform_api()->set_link_status(port_id, up);
+        }
+        else if (name == "led_status") {
+            bool on = parse_bool(attr[name], "on", result);
+            ret = get_stateless_obj()->get_platform_api()->set_led_status(port_id, on);
+        } else if (name == "flow_ctrl_mode") {
+            int mode = parse_int(attr[name], "mode", result);
+            ret = get_stateless_obj()->get_platform_api()->set_flow_ctrl(port_id, mode);
+        } else {
+            generate_execute_err(result, "Not recognized attribute: " + name);
+            break;
+        }
+        if (ret != 0){
+            if ( ret == -ENOTSUP ) {
+                generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
+            }
+            else if (ret) {
+                generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
+            }
+        }
+        break;
     }
 
     result["result"] = Json::objectValue;
@@ -437,6 +457,60 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 }
 
 /**
+ * get port extended stats names (keys of dict)
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetPortXStatsNames::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+    xstats_names_t xstats_names;
+
+    int ret = get_stateless_obj()->get_platform_api()->get_xstats_names(port_id, xstats_names);
+    if (ret < 0) {
+        if ( ret == -ENOTSUP ) {
+            generate_execute_err(result, "Operation not supported");
+        }
+        else if (ret) {
+            generate_execute_err(result, "Operation failed, error code: " + to_string(ret));
+        }
+    } else {
+        for (int i=0; i<xstats_names.size(); i++) {
+            result["result"]["xstats_names"].append(xstats_names[i]);
+        }
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
+ * get port extended stats (values of dict)
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetPortXStatsValues::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+    xstats_values_t xstats_values;
+
+    int ret = get_stateless_obj()->get_platform_api()->get_xstats_values(port_id, xstats_values);
+    if (ret < 0) {
+        if ( ret == -ENOTSUP ) {
+            generate_execute_err(result, "Operation not supported");
+        }
+        else if (ret) {
+            generate_execute_err(result, "Operation failed, error code: " + to_string(ret));
+        }
+    } else {
+        for (int i=0; i<xstats_values.size(); i++) {
+            result["result"]["xstats_values"].append((Json::Value::UInt64) xstats_values[i]);
+        }
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
  * get port stats
  *
  */
@@ -477,7 +551,7 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["max_stream_id"] = port->get_max_stream_id();
 
     /* attributes */
-    result["result"]["attr"]["promiscuous"]["enabled"] = port->get_promiscuous();
+    result["result"]["attr"]["promiscuous"]["enabled"] = get_stateless_obj()->get_platform_api()->get_promiscuous(port_id);
 
     return (TREX_RPC_CMD_OK);
 }

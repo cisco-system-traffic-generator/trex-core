@@ -87,9 +87,11 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true,  APIClass:
 /**
  * port commands
  */
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats,   "get_port_stats",   1, false, APIClass::API_CLASS_TYPE_CORE);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStatus,  "get_port_status",  1, false, APIClass::API_CLASS_TYPE_CORE);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdSetPortAttr,    "set_port_attr",    3, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats,        "get_port_stats",         1, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStatus,       "get_port_status",        1, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetPortAttr,         "set_port_attr",          2, true,  APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsValues, "get_port_xstats_values", 1, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsNames,  "get_port_xstats_names",  1, false, APIClass::API_CLASS_TYPE_CORE);
 
 /**
  * stream cmds

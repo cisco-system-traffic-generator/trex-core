@@ -213,8 +213,11 @@ int CTrexDebug::test_send_pkts(rte_mbuf_t *m, uint16_t queue_id, int num_pkts, i
 int  CTrexDebug::set_promisc_all(bool enable) {
     int i;
     for (i=0; i < m_max_ports; i++) {
-        CPhyEthIF *_if = &m_ports[i];
-        _if->set_promiscuous(enable);
+        if (enable) {
+            rte_eth_promiscuous_enable(i);
+        }else{
+            rte_eth_promiscuous_disable(i);
+        }
     }
 
     return 0;

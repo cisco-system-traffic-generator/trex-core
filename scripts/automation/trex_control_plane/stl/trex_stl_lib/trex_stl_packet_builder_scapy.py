@@ -738,8 +738,8 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
 
 
         .. code-block:: python
-            :caption: Example1
 
+            # Example1
 
             # input , 1 byte or random with limit of 5 
             STLVmFlowVarRepetableRandom("var1",size=1,limit=5)

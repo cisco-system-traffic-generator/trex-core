@@ -629,6 +629,13 @@ def show_table():
         table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
     print(table.draw())
 
+# dumps pci address and description (user friendly device name)
+def dump_pci_description():
+    if not devices:
+        get_nic_details()
+    for d in devices.values():
+        print('%s - %s' % (d['Slot'], d['Device_str']))
+
 def parse_args():
     '''Parses the command-line arguments given by the user and takes the
     appropriate action for each'''

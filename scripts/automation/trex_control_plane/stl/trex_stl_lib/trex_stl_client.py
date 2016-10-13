@@ -560,11 +560,14 @@ class STLClient(object):
 
         self.util_stats = trex_stl_stats.CUtilStats(self)
 
+        self.xstats = trex_stl_stats.CXStats(self)
+
         self.stats_generator = trex_stl_stats.CTRexInfoGenerator(self.global_stats,
                                                                  self.ports,
                                                                  self.flow_stats,
                                                                  self.latency_stats,
                                                                  self.util_stats,
+                                                                 self.xstats,
                                                                  self.async_client.monitor)
 
 
@@ -1785,6 +1788,25 @@ class STLClient(object):
         self.logger.pre_cmd('Getting Utilization stats')
         return self.util_stats.get_stats()
 
+    @__api_check(True)
+    def get_xstats(self, port_id):
+        print(port_id)
+        """
+            Get extended stats of port: all the counters as dict.
+
+            :parameters:
+                port_id: int
+
+            :returns:
+                Dict with names of counters as keys and values of uint64. Actual keys may vary per NIC.
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+        self.logger.pre_cmd('Getting xstats')
+        return self.xstats.get_stats(port_id)
+
 
     @__api_check(True)
     def reset(self, ports = None):
@@ -2462,7 +2484,7 @@ class STLClient(object):
 
 
     @__api_check(False)
-    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True):
+    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True, clear_xstats = True):
         """
             Clear stats on port(s)
 
@@ -2572,12 +2594,15 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def set_port_attr (self, ports = None, promiscuous = None):
+    def set_port_attr (self, ports = None, promiscuous = None, link_up = None, led_on = None, flow_ctrl = None):
         """
             Set port attributes
 
             :parameters:
                 promiscuous - True or False
+                link_up     - True or False
+                led_on      - True or False
+                flow_ctrl   - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
 
             :raises:
                 None
@@ -2589,11 +2614,20 @@ class STLClient(object):
 
         # check arguments
         validate_type('promiscuous', promiscuous, (bool, type(None)))
+        validate_type('link_up', link_up, (bool, type(None)))
+        validate_type('led_on', led_on, (bool, type(None)))
+        validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
 
         # build attributes
         attr_dict = {}
         if promiscuous is not None:
-            attr_dict['promiscuous'] = {'enabled': bool(promiscuous)}
+            attr_dict['promiscuous'] = {'enabled': promiscuous}
+        if link_up is not None:
+            attr_dict['link_status'] = {'up': link_up}
+        if led_on is not None:
+            attr_dict['led_status'] = {'on': led_on}
+        if flow_ctrl is not None:
+            attr_dict['flow_ctrl_mode'] = {'mode': flow_ctrl}
         
         # no attributes to set
         if not attr_dict:
@@ -3167,20 +3201,28 @@ class STLClient(object):
                                          "port_attr",
                                          self.set_port_attr_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.PROMISCUOUS_SWITCH)
+                                         parsing_opts.PROMISCUOUS,
+                                         parsing_opts.LINK_STATUS,
+                                         parsing_opts.LED_STATUS,
+                                         parsing_opts.FLOW_CTRL,
+                                         )
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
 
+        opts.prom      = parsing_opts.on_off_dict.get(opts.prom)
+        opts.link      = parsing_opts.on_off_dict.get(opts.link)
+        opts.led       = parsing_opts.on_off_dict.get(opts.led)
+        opts.flow_ctrl = parsing_opts.flow_ctrl_dict.get(opts.flow_ctrl)
+
         # if no attributes - fall back to printing the status
-        if opts.prom is None:
+        if not filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl]):
             self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
-        self.set_port_attr(opts.ports, opts.prom)
-        return RC_OK()
-    
+        return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl)
+
 
     @__console
     def show_profile_line (self, line):

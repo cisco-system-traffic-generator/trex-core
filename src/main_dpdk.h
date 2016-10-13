@@ -87,7 +87,6 @@ class CPhyEthIF  {
     void configure(uint16_t nb_rx_queue,
                    uint16_t nb_tx_queue,
                    const struct rte_eth_conf *eth_conf);
-    void macaddr_get(struct ether_addr *mac_addr);
     void get_stats(CPhyEthIFStats *stats);
     int dump_fdir_global_stats(FILE *fd);
     int reset_hw_flow_stats();
@@ -106,19 +105,7 @@ class CPhyEthIF  {
     void configure_rx_duplicate_rules();
     void start();
     void stop();
-    void update_link_status();
-    void update_link_status_nowait();
-    bool is_link_up(){
-        return (m_link.link_status?true:false);
-    }
-    void get_link_speed(uint32_t *link_speed){
-        *link_speed = m_link.link_speed;
-    }
-    void dump_link(FILE *fd);
     void disable_flow_control();
-    void set_promiscuous(bool enable);
-    void add_mac(char * mac);
-    bool get_promiscuous();
     void dump_stats(FILE *fd);
     void set_ignore_stats_base(CPreTestStats &pre_stats);
     void update_counters();
@@ -182,7 +169,6 @@ class CPhyEthIF  {
     const std::vector<std::pair<uint8_t, uint8_t>> & get_core_list();
 
  private:
-    struct rte_eth_link      m_link;
     uint8_t                  m_port_id;
     uint8_t                  m_rx_queue;
     uint64_t                 m_sw_try_tx_pkt;

@@ -699,6 +699,8 @@ To see more detailed info on interfaces (table):
                       help=argparse.SUPPRESS
      )
 
+    parser.add_argument('--dump-pci-description', help='suppress', dest='dump_pci_desc', action='store_true')
+
     parser.add_argument("-i", "--interactive", action='store_true',
                       help=""" Create TRex config in interactive mode """,
      )
@@ -784,6 +786,10 @@ def main ():
 
         if map_driver.args.table:
             dpdk_nic_bind.show_table()
+            return
+
+        if map_driver.args.dump_pci_desc:
+            dpdk_nic_bind.dump_pci_description()
             return
 
         obj =CIfMap(map_driver.cfg_file);

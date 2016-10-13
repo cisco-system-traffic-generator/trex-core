@@ -363,14 +363,6 @@ public:
                                  double &percentage);
 
 
-    /**
-     * set port promiscuous on/off
-     *
-     * @param enabled
-     */
-    void set_promiscuous(bool enabled);
-    bool get_promiscuous();
-
     void get_macaddr(std::string &hw_macaddr,
                      std::string &src_macaddr,
                      std::string &dst_macaddr);
@@ -443,6 +435,7 @@ private:
     port_state_e       m_port_state;
 
     TrexPlatformApi::intf_info_st m_api_info;
+    const TrexPlatformApi *platform_api;
 
     uint16_t           m_rx_count_num;
     uint16_t           m_rx_caps;

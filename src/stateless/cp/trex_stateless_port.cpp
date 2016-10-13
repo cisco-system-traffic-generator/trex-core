@@ -153,7 +153,7 @@ private:
  * trex stateless port
  * 
  **************************/
-TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : m_dp_events(this) {
+TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : platform_api(api), m_dp_events(this) {
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
     m_port_id = port_id;
@@ -581,7 +581,7 @@ void
 TrexStatelessPort::get_properties(std::string &driver, uint32_t &speed) {
 
     driver = m_api_info.driver_name;
-    speed  = m_api_info.speed;
+    speed = platform_api->get_link_speed(m_port_id);
 }
 
 bool
@@ -609,10 +609,8 @@ TrexStatelessPort::change_state(port_state_e new_state) {
 void
 TrexStatelessPort::encode_stats(Json::Value &port) {
 
-    const TrexPlatformApi *api = get_stateless_obj()->get_platform_api();
-
     TrexPlatformInterfaceStats stats;
-    api->get_interface_stats(m_port_id, stats);
+    platform_api->get_interface_stats(m_port_id, stats);
 
     port["tx_bps"]          = stats.m_stats.m_tx_bps;
     port["rx_bps"]          = stats.m_stats.m_rx_bps;
@@ -664,7 +662,7 @@ TrexStatelessPort::send_message_to_rx(TrexStatelessCpToRxMsgBase *msg) {
 
 uint64_t
 TrexStatelessPort::get_port_speed_bps() const {
-    return (uint64_t) m_api_info.speed * 1000 * 1000;
+    return (uint64_t) platform_api->get_link_speed(m_port_id) * 1000 * 1000;
 }
 
 static inline double
@@ -868,18 +866,6 @@ TrexStatelessPort::get_port_effective_rate(double &pps,
     percentage = (bps_L1 / get_port_speed_bps()) * 100.0;
     
 }
-
-
-void
-TrexStatelessPort::set_promiscuous(bool enabled) {
-    get_stateless_obj()->get_platform_api()->set_promiscuous(m_port_id, enabled);
-}
-
-bool
-TrexStatelessPort::get_promiscuous() {
-    return get_stateless_obj()->get_platform_api()->get_promiscuous(m_port_id);
-}
-
 
 void
 TrexStatelessPort::get_macaddr(std::string &hw_macaddr,

@@ -123,7 +123,6 @@ public:
      */
     struct intf_info_st {
         std::string     driver_name;
-        uint32_t        speed;
         mac_cfg_st      mac_info;
         std::string     pci_addr;
         int             numa_node;
@@ -149,14 +148,22 @@ public:
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
-    virtual void set_promiscuous(uint8_t port_id, bool enabled) const = 0;
+    virtual int set_promiscuous(uint8_t port_id, bool enabled) const = 0;
+    virtual int set_link_status(uint8_t port_id, bool up) const = 0;
     virtual bool get_promiscuous(uint8_t port_id) const = 0;
+    virtual bool get_link_status(uint8_t port_id) const = 0;
     virtual void flush_dp_messages() const = 0;
     virtual int get_active_pgids(flow_stat_active_t &result) const = 0;
     virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
     virtual int get_mbuf_util(Json::Value &result) const = 0;
     virtual CFlowStatParser *get_flow_stat_parser() const = 0;
     virtual void mark_for_shutdown() const = 0;
+    virtual int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const = 0;
+    virtual int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const = 0;
+    virtual int get_flow_ctrl(uint8_t port_id, int &mode) const = 0;
+    virtual int set_flow_ctrl(uint8_t port_id, int mode) const = 0;
+    virtual int set_led_status(uint8_t port_id, bool on) const = 0;
+    virtual uint32_t get_link_speed(uint8_t port_id) const = 0;
 
     virtual ~TrexPlatformApi() {}
 };
@@ -188,14 +195,23 @@ public:
                                       , uint8_t ipv6_next_h, uint16_t id) const;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const;
-    void set_promiscuous(uint8_t port_id, bool enabled) const;
+    int set_promiscuous(uint8_t port_id, bool enabled) const;
+    int set_link_status(uint8_t port_id, bool up) const;
     bool get_promiscuous(uint8_t port_id) const;
+    bool get_link_status(uint8_t port_id) const;
     void flush_dp_messages() const;
     int get_active_pgids(flow_stat_active_t &result) const;
     int get_cpu_util_full(cpu_util_full_t &result) const;
     int get_mbuf_util(Json::Value &result) const;
     void mark_for_shutdown() const;
     CFlowStatParser *get_flow_stat_parser() const;
+
+    int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const;
+    int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const;
+    int get_flow_ctrl(uint8_t port_id, int &mode) const;
+    int set_flow_ctrl(uint8_t port_id, int mode) const;
+    int set_led_status(uint8_t port_id, bool on) const;
+    uint32_t get_link_speed(uint8_t port_id) const;
 };
 
 
@@ -221,7 +237,6 @@ public:
     virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const {
 
         info.driver_name = "TEST";
-        info.speed = 10000;
         info.has_crc = true;
         info.numa_node = 0;
 
@@ -251,9 +266,16 @@ public:
                                       , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
-    void set_promiscuous(uint8_t port_id, bool enabled) const {
+    int set_promiscuous(uint8_t port_id, bool enabled) const {
+        return 0;
+    }
+    int set_link_status(uint8_t port_id, bool on) const {
+        return 0;
     }
     bool get_promiscuous(uint8_t port_id) const {
+        return false;
+    }
+    bool get_link_status(uint8_t port_id) const {
         return false;
     }
 
@@ -265,6 +287,15 @@ public:
     CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
 
     void mark_for_shutdown() const {}
+    int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {return 0;};
+    int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {return 0;};
+    int get_flow_ctrl(uint8_t port_id, int &mode) const {return 0;};
+    int set_flow_ctrl(uint8_t port_id, int mode) const {return 0;};
+    int set_led_status(uint8_t port_id, bool on) const {return 0;};
+    uint32_t get_link_speed(uint8_t port_id) const {
+        return 0;
+    }
+
 
 private:
     int m_dp_core_count;

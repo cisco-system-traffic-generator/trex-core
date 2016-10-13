@@ -1,5 +1,5 @@
 import argparse
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from .common import list_intersect, list_difference
 from .text_opts import format_text
 from ..trex_stl_types import *
@@ -10,6 +10,18 @@ import os
 
 ArgumentPack = namedtuple('ArgumentPack', ['name_or_flags', 'options'])
 ArgumentGroup = namedtuple('ArgumentGroup', ['type', 'args', 'options'])
+
+on_off_dict = OrderedDict([
+    ('on', True),
+    ('off', False),
+])
+
+flow_ctrl_dict = OrderedDict([
+    ('none', 0),     # Disable flow control
+    ('tx',   1),     # Enable flowctrl on TX side (RX pause frames)
+    ('rx',   2),     # Enable flowctrl on RX side (TX pause frames)
+    ('full', 3),     # Enable flow control on both sides
+])
 
 
 # list of available parsing options
@@ -32,14 +44,15 @@ IPG = 16
 SPEEDUP = 17
 COUNT = 18
 PROMISCUOUS = 19
-NO_PROMISCUOUS = 20
-PROMISCUOUS_SWITCH = 21
+LINK_STATUS = 20
+LED_STATUS = 21
 TUNABLES = 22
 REMOTE_FILE = 23
 LOCKED = 24
 PIN_CORES = 25
 CORE_MASK = 26
 DUAL = 27
+FLOW_CTRL = 28
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -282,10 +295,21 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'type': int}),
 
               PROMISCUOUS: ArgumentPack(['--prom'],
-                                        {'help': "Sets port promiscuous on",
-                                         'dest': "prom",
-                                         'default': None,
-                                         'action': "store_true"}),
+                                        {'help': "Set port promiscuous on/off",
+                                         'choices': on_off_dict}),
+
+              LINK_STATUS: ArgumentPack(['--link'],
+                                     {'help': 'Set link status on/off',
+                                      'choices': on_off_dict}),
+
+              LED_STATUS: ArgumentPack(['--led'],
+                                   {'help': 'Set LED status on/off',
+                                    'choices': on_off_dict}),
+
+              FLOW_CTRL: ArgumentPack(['--fc'],
+                                   {'help': 'Set Flow Control type',
+                                    'dest': 'flow_ctrl',
+                                    'choices': flow_ctrl_dict}),
 
               TUNABLES: ArgumentPack(['-t'],
                                      {'help': "Sets tunables for a profile. Example: '-t fsize=100,pg_id=7'",
@@ -294,12 +318,6 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                       'default': None,
                                       'action': 'merge',
                                       'type': decode_tunables}),
-
-              NO_PROMISCUOUS: ArgumentPack(['--no-prom', '--no_prom'],
-                                           {'help': "Sets port promiscuous off",
-                                            'dest': "prom",
-                                            'default': None,
-                                            'action': "store_false"}),
 
               PORT_LIST: ArgumentPack(['--port', '-p'],
                                         {"nargs": '+',
@@ -424,12 +442,6 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        'default': None,
                                        'help': "Core mask - only cores responding to the bit mask will be active"}),
 
-
-              # promiscuous
-              PROMISCUOUS_SWITCH: ArgumentGroup(MUTEX, [PROMISCUOUS,
-                                                        NO_PROMISCUOUS],
-                                                    {'required': False}),
-
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
@@ -462,6 +474,8 @@ class _MergeAction(argparse._AppendAction):
             items.extend(values)
         elif type(items) is dict and type(values) is dict: # tunables are dict
             items.update(values)
+        else:
+            raise Exception("Argparser 'merge' option should be used on dict or list.")
 
         setattr(namespace, self.dest, items)
 

@@ -87,7 +87,7 @@ TrexRpcCommand::check_param_count(const Json::Value &params, int expected, Json:
 
     if (params.size() < expected) {
         std::stringstream ss;
-        ss << "method expects at least '" << expected << "' parameter(s), '" << params.size() << "' provided";
+        ss << "method '" << m_name << "' expects at least " << expected << " parameter(s), " << params.size() << " provided";
         generate_parse_err(result, ss.str());
     }
 }

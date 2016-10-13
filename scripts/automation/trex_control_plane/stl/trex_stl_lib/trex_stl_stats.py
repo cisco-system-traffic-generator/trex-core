@@ -147,12 +147,13 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, async_monitor):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, xstats_ref, async_monitor):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
         self._rx_stats_ref = rx_stats_ref
         self._latency_stats_ref = latency_stats_ref
         self._util_stats_ref = util_stats_ref
+        self._xstats_ref = xstats_ref
         self._async_monitor = async_monitor
 
     def generate_single_statistic(self, port_id_list, statistic_type):
@@ -1003,6 +1004,7 @@ class CPortStats(CTRexStats):
 
 
     def _update(self, snapshot):
+        speed = self._port_obj.get_speed_bps()
 
         # L1 bps
         tx_bps  = snapshot.get("m_total_tx_bps")
@@ -1015,22 +1017,34 @@ class CPortStats(CTRexStats):
         bps_rx_L1 = calc_bps_L1(rx_bps, rx_pps)
 
         snapshot['m_total_tx_bps_L1'] = bps_tx_L1
-        snapshot['m_tx_util'] = (bps_tx_L1 / self._port_obj.get_speed_bps()) * 100.0
+        if speed:
+            snapshot['m_tx_util'] = (bps_tx_L1 / speed) * 100.0
+        else:
+            snapshot['m_tx_util'] = 0
 
         snapshot['m_total_rx_bps_L1'] = bps_rx_L1
-        snapshot['m_rx_util'] = (bps_rx_L1 / self._port_obj.get_speed_bps()) * 100.0
+        if speed:
+            snapshot['m_rx_util'] = (bps_rx_L1 / speed) * 100.0
+        else:
+            snapshot['m_rx_util'] = 0
 
         # TX line util not smoothed
         diff_tx_pkts = snapshot.get('opackets', 0) - self.latest_stats.get('opackets', 0)
         diff_tx_bytes = snapshot.get('obytes', 0) - self.latest_stats.get('obytes', 0)
         tx_bps_L1 = calc_bps_L1(8.0 * diff_tx_bytes / ts_diff, float(diff_tx_pkts) / ts_diff)
-        snapshot['tx_percentage'] = 100.0 * tx_bps_L1 / self._port_obj.get_speed_bps()
+        if speed:
+            snapshot['tx_percentage'] = 100.0 * tx_bps_L1 / speed
+        else:
+            snapshot['tx_percentage'] = 0
 
         # RX line util not smoothed
         diff_rx_pkts = snapshot.get('ipackets', 0) - self.latest_stats.get('ipackets', 0)
         diff_rx_bytes = snapshot.get('ibytes', 0) - self.latest_stats.get('ibytes', 0)
         rx_bps_L1 = calc_bps_L1(8.0 * diff_rx_bytes / ts_diff, float(diff_rx_pkts) / ts_diff)
-        snapshot['rx_percentage'] = 100.0 * rx_bps_L1 / self._port_obj.get_speed_bps()
+        if speed:
+            snapshot['rx_percentage'] = 100.0 * rx_bps_L1 / speed
+        else:
+            snapshot['rx_percentage'] = 0
 
         # simple...
         self.latest_stats = snapshot
@@ -1417,7 +1431,7 @@ class CUtilStats(CTRexStats):
         self.client = client
         self.history = deque(maxlen = 1)
         self.mbuf_types_list = None
-        self.last_update_ts = 0
+        self.last_update_ts = -999
 
     def get_stats(self, use_1sec_cache = False):
         time_now = time.time()
@@ -1432,6 +1446,40 @@ class CUtilStats(CTRexStats):
                 self.history.append({})
 
         return self.history[-1]
+
+class CXStats(CTRexStats):
+
+    def __init__(self, client):
+        super(CXStats, self).__init__()
+        self.client = client
+        self.history = deque(maxlen = 1)
+        self.names = {}
+        self.last_update_ts = -999
+
+    def get_stats(self, port_id, use_1sec_cache = False):
+        time_now = time.time()
+        if self.last_update_ts + 1 < time_now or not self.history or not use_1sec_cache:
+            if self.client.is_connected():
+                rc = self.client._transmit('get_port_xstats_values', params = {'port_id': port_id})
+                if not rc:
+                    raise Exception(rc)
+                self.last_update_ts = time_now
+                values = rc.data().get('xstats_values', [])
+                if len(values) != len(self.names): # need to update names ("keys")
+                    rc = self.client._transmit('get_port_xstats_names', params = {'port_id': port_id})
+                    if not rc:
+                        raise Exception(rc)
+                    self.names = rc.data().get('xstats_names', [])
+                if len(values) != len(self.names):
+                    raise Exception('Length of get_xstats_names: %s and get_port_xstats_values: %s' % (len(self.names), len(values)))
+                self.history.append(dict([(key, val) for key, val in zip(self.names, values)]))
+            else:
+                self.history.append({})
+
+        stats = {}
+        for key, val in self.history[-1].items():
+            stats[key] = self.history[-1][key] - self.reference_stats.get(key, 0)
+        return stats
 
 if __name__ == "__main__":
     pass

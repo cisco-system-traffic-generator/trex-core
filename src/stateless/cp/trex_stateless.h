@@ -91,7 +91,7 @@ public:
     }
 
     const TrexRpcServerConfig  *m_rpc_req_resp_cfg;
-    const TrexPlatformApi      *m_platform_api;
+    TrexPlatformApi            *m_platform_api;
     bool                        m_rpc_server_verbose;
     uint8_t                     m_port_count;
     TrexPublisher              *m_publisher;
@@ -135,6 +135,18 @@ public:
      * shutdown the server
      */
     void shutdown();
+
+    /**
+     * fetch xstats names (keys of dict)
+     * 
+     */
+    void encode_xstats_names(Json::Value &global);
+
+    /**
+     * fetch xstats values
+     * 
+     */
+    void encode_xstats_values(Json::Value &global);
 
     /**
      * fetch all the stats
