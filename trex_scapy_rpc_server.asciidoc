@@ -56,134 +56,499 @@ Error codes are given according to this table: [also follows the JSON-RPC spec, 
 
 
 == Data Bases and Data Structures used in Scapy Server
-=== Protocol Field Description
-This data structure contains the name of the field, its type and the default value assigned. +
- +
-Has the following structure: +
+=== build_pkt, reconstruct_pkt packet model [[build_pkt_input]]
 
+Following JSON represents a Scapy structure, which can be used to build packet from scratch(build_pkt) or to modify particular fields in the prococol(reconstruct_pkt). Most fields can be omitted, in this case default or calculated values will be used.
+For reconstruct_pkt default values will be taken from the original packet.
 
-(field name, field type, default value) +
-
-
-*Example:* +
-this is the 'dst' field for the 'Ether' protocol
-[source,bash]
-----
-["dst","MACField","('00:00:00:01:00:00')"]
+Exaples of JSON payloads and their scapy expression alternatives
 
 ----
-
-
-=== Offsets Dictionary and Offset Entry
-==== The *"Offset Entry"* data structure contains the offset of a field within the *layer*, and it's size. +
-(both measured in Bytes)
- +
- +
-Has the following structure: +
- +
-[field offset (within the layer), field size] +
-
-
-
-*Example:* +
-This is the 'src' field for the 'IP' protocol: +
-The offset within the layer is 16 bytes, and the size of the field is 4 bytes (as defined in the IP spec)
-[source,bash]
-----
-'dst': [16, 4]
+Ether(src="de:ad:be:ef:de:ad")/Dot1Q()/Dot1Q(vtype=1)/IP(src="127.0.0.1", chksum="0x312")/TCP(sport=443)
 ----
 
-==== The *"Offsets Dictionary"* data sturcture simply maps the offsets for each layer according to name. +
-Has the following structure: +
- +
- 'field name' : [ field offset, field size ] // i.e Offset entry
- +
-
-
-
-*Example:* +
-This is the Offsets Dictionary for the IP layer: +
-[source,bash]
 ----
-'offsets': {'IP': {'chksum': [10, 2],
-                   'dst': [16, 4],
-                   'flags': [6, 0],
-                   'frag': [6, 0],
-                   'global_offset': 0,
-                   'id': [4, 2],
-                   'ihl': [0, 0],
-                   'len': [2, 2],
-                   'options': [20, 2],
-                   'proto': [9, 1],
-                   'src': [12, 4],
-                   'tos': [1, 1],
-                   'ttl': [8, 1],
-                   'version': [0, 0]
-                  }
-           }
+[
+        { "id": "Ether", "fields": [{"id": "src", "value": "de:ad:be:ef:de:ad"}] },
+        { "id": "Dot1Q"},
+        { "id": "Dot1Q", "fields": [{"id": "vtype", "value": "1"}] },
+        { "id": "IP", "fields": [{"id": "src", "value": "127.0.0.1"}, {"id": "chksum", "value": "0x312"}] },
+        { "id": "TCP", "fields": [{"id": "sport", "value": "443"}] }
+]
 ----
 
+=== Scapy server value types
+Most values can be passed as strings(including decimal numbers, hex numbers, enums, values),
+but for binary payload, value object should be used
 
-Each layer has a 'global_offset' key. This key represents the *offset of the layer within the packet*. +
-In the example above, the IP layer starts at offset 0, and the field 'src' is at offset 12 within the packet. +
-In the general case, a field's offset within the *packet* is calculated this way: +
- 'global_offset' + 'field_offset'
-
-
-=== Protocol Dictionary
-The protocol dictionary contains the names for all supported protocols and layers for building packets. +
-Each entry in this database has the following format: +
-'Protocol Name' : 'Protocol Field Description' +
- +
-
-
-*Example*: +
-[source,bash]
 ----
-{ "Ether":[
-            ["dst","MACField","('00:00:00:01:00:00')"],
-            ["src","MACField","('00:00:00:02:00:00')"],
-            ["type", "XShortEnumField", "(36864)"]
-          ],
-  "ARP":[
-            ["hwtype", "XShortField", "(1)"],
-            ["ptype", "XShortEnumField", "(2048)"],
-            ["hwlen", "ByteField", "(6)"],
-            ["plen", "ByteField", "(4)"],
-            ["op", "ShortEnumField", "(1)"],
-            ["hwsrc", "ARPSourceMACField", "(None)"],
-            ["psrc", "SourceIPField", "(None)"],
-            ["hwdst", "MACField", "(\'00:00:00:00:00:00\')"],
-            ["pdst", "IPField", "(\'0.0.0.0\')"]
-        ],
-  .
-  .
-  .
-  .
+- int/long/str - they can de specified directly as a value of a field
+- {"vtype": "BYTES", "base64": "my_payload_base64"} - binary payload passed as base64
+- {"vtype": "EXPRESSION", "expr": "TCPOptions()"} - python expression(normally, should be avoided)
+- {"vtype": "UNDEFINED"} - unset field value, and let it be assigned automatically
+- {"vtype": "RANDOM"} - assign a random value to a field
+----
+
+Example of object value usage(to specify binary payload)
+----
+Ether()/IP()/TCP()/Raw(load=my_payload)
+----
+
+----
+[
+        { "id": "Ether"},
+        { "id": "IP"},
+        { "id": "TCP"},
+        { "id": "Raw", "fields": [
+            {
+              "id": "load",
+              "value": {"vtype": "BYTES", "base64": "my_payload_base64"}
+            }
+        ]}
+]
+----
+
+=== Scapy packet result payload [[build_pkt_output]]
+build_pkt and reconstruct pkt take packet model and produce result JSON,
+with the binary payload and field values and offsets defined
+
+----
+{
+    "binary": "AAAAAQAAAAAAAgAACABFAAAoAAEAAEAGOs4QAAABMAAAAQAUAFAAAAAAAAAAAFACIABPfQAA", // base64 encoded binary payload
+    "data": [
+        {
+            "id": "Ether", // scapy class
+            "name": "Ethernet", // human-readable protocol name
+            "offset": 0, // global offset for all fields
+            "fields": [
+                {
+                    "id": "dst", // scapy field id
+                    "hvalue": "00:00:00:01:00:00", // human readable value
+                    "length": 6, // 6 bytes
+                    "offset": 0, // 0 bytes offset from
+                    "value": "00:00:00:01:00:00" // internal value, which for this type is the same as hvalue
+                },
+                {
+                    "id": "src",
+                    ... // same as for dst
+                },
+                {
+                    "hvalue": "IPv4", // human-readable value
+                    "id": "type",
+                    "length": 2,
+                    "offset": 12, //
+                    "value": 2048 // integer value for IPv4(0x800)
+                }
+            ]
+        },
+        {
+            "id": "IP",
+            "name": "IP",
+            "offset": 14,
+            "fields": [
+                {
+                    "hvalue": "4",
+                    "id": "version",
+                    "length": 0, // the length is 0, which means it is a bitfield. mask should be used to show location
+                    "offset": 0, // offset from the IP.offset. it needs to be added to all fields of IP
+                    "value": 4
+                },
+                {
+                    "hvalue": "5",
+                    "id": "ihl",
+                    "length": 0, // again length is 0. that's other part of the first byte of IP
+                    "offset": 0,
+                    "value": 5
+                },
+                {
+                    "hvalue": "0x0",
+                    "id": "tos",
+                    "length": 1,
+                    "offset": 1,
+                    "value": 0
+                },
+                {
+                    "hvalue": "40",
+                    "id": "len",
+                    "length": 2,
+                    "offset": 2,
+                    "value": 40
+                },
+                {
+                    "hvalue": "1",
+                    "id": "id",
+                    "length": 2,
+                    "offset": 4,
+                    "value": 1
+                },
+                {
+                    "hvalue": "", // no flags are specified here. but this field can contain "US" for URG+SYN flags
+                    "id": "flags",
+                    "length": 0,
+                    "offset": 6,
+                    "value": 0
+                },
+                {
+                    "hvalue": "0",
+                    "id": "frag",
+                    "length": 0,
+                    "offset": 6,
+                    "value": 0
+                },
+                {
+                    "hvalue": "64",
+                    "id": "ttl",
+                    "length": 1,
+                    "offset": 8,
+                    "value": 64
+                },
+                {
+                    "hvalue": "tcp", // this field is enum. enum dictionary can be obtained as a medatata for IP fields.
+                    "id": "proto",
+                    "length": 1,
+                    "offset": 9,
+                    "value": 6
+                },
+                {
+                    "hvalue": "0x3ace",
+                    "id": "chksum",
+                    "length": 2,
+                    "offset": 10,
+                    "value": 15054
+                },
+                {
+                    "hvalue": "[]",
+                    "id": "options",
+                    "length": 2,
+                    "offset": 20,
+                    "value": { // options can not be representted as a human string, so they are passed as an expression
+                        "expr": "[]",
+                        "vtype": "EXPRESSION"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "TCP",
+            "name": "TCP",
+            "offset": 34
+            "fields": [
+                {
+                    "hvalue": "20",
+                    "id": "sport",
+                    "length": 2,
+                    "offset": 0,
+                    "value": 20
+                },
+                // .. some more TCP fields here
+                {
+                    "hvalue": "{}",
+                    "id": "options",
+                    "ignored": true,
+                    "length": 2,
+                    "offset": 20,
+                    "value": { // TCPOptions are represented as a python expression with tuple and binary buffers
+                        "expr": "[('MSS', 1460), ('NOP', None), ('NOP', None), ('SAckOK', b'')]",
+                        "vtype": "EXPRESSION"
+                    }
+                }
+            ]
+        }
+    ]
 }
+
 ----
 
-=== Fields Dictionary
-The fields dictionary contains mapping between a field's name and its regular expression, +
-which has the following structure: +
-(field name, field RegEx) +
+=== Scapy server field definitions [[get_definitions_model]]
+Scapy server can return metadata object, describing protocols and fields.
+Most values, including field types are optional in the definition.
+If field type is missing, it can be treated as a STRING.
 
-Example: this is the Regex for the 'MACField' protocol
-[source,bash]
 ----
-{'MACField': '^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$'}
-----
+"protocols": [
+{
+    "id": "Ether", // scapy class
+        "name": "Ethernet", // name of the protocol
+        "fields": [
+        {
+            "id": "dst",
+            "name": "Destination", // GUI will display Destination instead of dst
+            "type": "STRING",
+            "regex": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        },
+        {
+            "id": "src",
+            "name": "Source",
+            "type": "STRING",
+            "regex": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        },
+        {
+            "values_dict": {
+                "ATMMPOA": 34892,
+                "RAW_FR": 25945,
+                "DNA_DL": 24577,
+                "ATMFATE": 34948,
+                "ATALK": 32923,
+                "BPQ": 2303,
+                "X25": 2053,
+                "PPP_DISC": 34915,
+                "DEC": 24576,
+                "n_802_1Q": 33024,
+                "PPP_SES": 34916,
+                "TEB": 25944,
+                "SCA": 24583,
+                "PPP": 34827,
+                "FR_ARP": 2056,
+                "CUST": 24582,
+                "ARP": 2054,
+                "DNA_RC": 24578,
+                "NetBEUI": 33169,
+                "AARP": 33011,
+                "DIAG": 24581,
+                "IPv4": 2048,
+                "DNA_RT": 24579,
+                "IPv6": 34525,
+                "LAT": 24580,
+                "IPX": 33079,
+                "LOOP": 36864
+            },
+            "id": "type",
+            "name": "Type"
+                "type": "ENUM"
+        }
+    ]
+},
+{
+    "id": "TCP",
+    "name": "TCP",
+    "fields": [
+    {
+        "id": "sport",
+        "name": "Source port",
+        "type": "NUMBER",
+        "min": 0, // optional min value
+        "max": 65535 // optional max value
 
-The dictionary maintains its regular structure:
-[source,bash]
-----
-{'MACField': '^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$'
- 'IPField': 'IP_FIELD_REGEX'
- .
- .
- .
+    },
+    {
+        "id": "dport",
+        "name": "Destination port",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 65535
+    },
+    {
+        "id": "seq",
+        "name": "Sequence number",
+        "type": "NUMBER"
+    },
+    {
+        "id": "ack",
+        "name": "Acknowledgment number",
+        "type": "NUMBER"
+    },
+    {
+        "id": "dataofs",
+        "name": "Data offset",
+        "type": "NUMBER"
+    },
+    {
+        "id": "reserved",
+        "name": "Reserved",
+        "type": "NUMBER"
+    },
+    {
+        "id": "flags",
+        "name": "Flags",
+        "auto": false,
+        "type": "BITMASK",
+        "bits": [ // fields definition for the UI
+        {"name": "URG", "mask": 32, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 32}]},
+        {"name": "ACK", "mask": 16, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 16}]},
+        {"name": "PSH", "mask": 8, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 8}]},
+        {"name": "RST", "mask": 4, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 4}]},
+        {"name": "SYN", "mask": 2, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 2}]},
+        {"name": "FIN", "mask": 1, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 1}]}
+        ]
+    },
+    {
+        "id": "window",
+        "name": "Window size",
+        "type": "NUMBER"
+    },
+    {
+        "id": "chksum",
+        "name": "Checksum",
+        "auto": true,
+        "type": "NUMBER"
+    },
+    {
+        "id": "urgptr",
+        "name": "Urgent pointer",
+        "type": "NUMBER"
+    },
+    {
+        "id": "options",
+        "name": "Options",
+        "type": "EXPRESSION"
+    }
+    ]
+},
+{
+    "id": "IP",
+    "name": "Internet Protocol Version 4",
+    "fields": [
+    {
+        "id": "version", // only renaming
+        "name": "Version"
+    },
+    {
+        "id": "ihl",
+        "name": "IHL",
+        "type": "NUMBER",
+        "auto": true // calculate IHL automatically
+    },
+    {
+        "id": "tos",
+        "name": "TOS",
+        "type": "NUMBER"
+    },
+    {
+        "id": "len",
+        "name": "Total Length",
+        "type": "NUMBER",
+        "auto": true
+    },
+    {
+        "id": "id",
+        "name": "Identification",
+        "type": "NUMBER"
+    },
+    {
+        "id": "flags",
+        "name": "Flags",
+        "type": "BITMASK",
+        "min": 0,
+        "max": 8,
+        "bits": [ // bitmask definition for IP.flags
+        {"name": "Reserved", "mask": 4, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 4}]},
+        {"name": "Fragment", "mask": 2, "values":[{"name":"May fragment (0)", "value": 0}, {"name":"Don't fragment (1)", "value": 2}]},
+        {"name": "More Fragments(MF)", "mask": 1, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 1}]}
+        ]
+    },
+    {
+        "id": "frag",
+        "name": "Fragment offset",
+        "type": "NUMBER"
+    },
+    {
+        "id": "ttl",
+        "name": "TTL",
+        "type": "NUMBER",
+        "min": 1,
+        "max": 255
+
+    },
+    {
+        "id": "proto",
+        "name": "Protocol"
+    },
+    {
+        "id": "chksum",
+        "name": "Checksum",
+        "type": "STRING",
+        "auto": true
+    },
+    {
+        "id": "src",
+        "name": "Source address",
+        "type": "STRING",
+        "regexp": "regexp-to-check-this-field"
+    },
+    {
+        "id": "dst",
+        "name": "Destination address",
+        "regexp": "regexp-to-check-this-field"
+    },
+    {
+        "id": "options",
+        "name": "Options",
+        "type": "EXPRESSION"
+    }
+    ]
+},
+{
+    "id": "Dot1Q",
+    "name": "802.1Q",
+    "fields": [
+    {
+        "id": "prio",
+        "name": "prio"
+            "type": "NUMBER",
+    },
+    {
+        "id": "id",
+        "type": "NUMBER",
+        "name": "id"
+    },
+    {
+        "id": "vlan",
+        "type": "NUMBER",
+        "name": "vlan"
+    },
+    {
+        "values_dict": {
+            "ATMMPOA": 34892,
+            "RAW_FR": 25945,
+            "DNA_DL": 24577,
+            "ATMFATE": 34948,
+            "ATALK": 32923,
+            "BPQ": 2303,
+            "X25": 2053,
+            "PPP_DISC": 34915,
+            "DEC": 24576,
+            "n_802_1Q": 33024,
+            "PPP_SES": 34916,
+            "TEB": 25944,
+            "SCA": 24583,
+            "PPP": 34827,
+            "FR_ARP": 2056,
+            "CUST": 24582,
+            "ARP": 2054,
+            "DNA_RC": 24578,
+            "NetBEUI": 33169,
+            "AARP": 33011,
+            "DIAG": 24581,
+            "IPv4": 2048,
+            "DNA_RT": 24579,
+            "IPv6": 34525,
+            "LAT": 24580,
+            "IPX": 33079,
+            "LOOP": 36864
+        },
+        "id": "type",
+        "name": "type",
+        "type": "ENUM"
+    }
+    ]
+},
+{
+    "id": "Raw",
+    "name": "Raw",
+    "fields": [
+    {
+        "id": "load",
+        "name": "Payload",
+        "type": "BYTES"
+    }
+    ]
 }
+]
+
+]
 ----
+
+
 
 == RPC Commands
 The following RPC commands are supported. Please refer to databases section for elaboration for each database.
@@ -370,149 +735,21 @@ The following RPC commands are supported. Please refer to databases section for 
 
 === Build Packet
 * *Name* - 'build_pkt'
-* *Description* - Takes a JSON format string of a SCAPY packet. +
-* *Return Value* - See table below
-* *Paramters* - string describing SCAPY packet
-* *Result* ['dictionary'] - a dictionary that contains:  + 
-* pkt buffer (Hexdump encoded in base64) + 
-* pkt offsets - each field within the packet has its offset within the layer, and the field size + 
- the value returned is [ 'field offset' , 'field size' ] + 
-* pkt show2 - a detailed description of each field and its value
+* *Description* - Builds a new packet from the definition and returns binary data and json structure +
+* *Return Value* - Returns xref:build_pkt_output[Scapy packet result payload].
+* *Paramters* - JSON xref:build_pkt_input[packet definition model].
 
+=== Create packet from binary data and modify fields
+* *Name* - 'reconstruct_pkt'
+* *Description* - Builds a new packet from the binary data and returns binary data and json structure +
+* *Return Value* - Returns xref:build_pkt_output[Scapy packet result payload].
+* *Paramters* - base64-encoded packet bytes, optional JSON xref:build_pkt_input[packet definition model] with fields to override.
 
-
-.Object type 'return values for build_pkt' 
-[options="header",cols="1,1,3"]
-|=================
-| Field         | Type     | Description 
-| pkt buffer       | Hexdump encoded in base64   | The packet's dump
-| pkt offsets      | Dictionary of layers   | Each layer contains it's offsets within the layer, and a global offset within the packet
-| pkt show2        | Dictionary of layers | Each layer is a dictionary of fields, which contains the values for each field
-|=================
-
-*Example:* +
-Successful assembly of a packet: +
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "1",
-    "jsonrpc": "2.0",
-    "method": "build_pkt",
-    "params": ["Ether()/IP(src='127.0.0.1')/TCP(sport=80)"]
-}
-
-'Response':
-
-{
-    'id': '1',
-    'jsonrpc': '2.0',
-    'result': { 'buffer': 'AAAAAQAAAAAAAgAACABFAAAoAAEAAEAGy81/AAABMAAAAQBQAFAAAAAAAAAAAFACIADgQAAA\n',
-                'offsets':{
-                           'Ether': {
-                                     'dst': [0, 6],
-                                     'global_offset': 0,
-                                     'src': [6, 6],
-                                     'type': [12, 2]
-                                     },
-                           'IP': {
-                                     'chksum': [10, 2],
-                                     'dst': [16, 4],
-                                     'flags': [6, 0],
-                                     'frag': [6, 0],
-                                     'global_offset': 14,
-                                     'id': [4, 2],
-                                     'ihl': [0, 0],
-                                     'len': [2, 2],
-                                     'options': [20, 2],
-                                     'proto': [9, 1],
-                                     'src': [12, 4],
-                                     'tos': [1, 1],
-                                     'ttl': [8, 1],
-                                     'version': [0, 0]
-                                  },
-                           'TCP': {
-                                   'ack': [8, 4],
-                                   'chksum': [16, 2],
-                                   'dataofs': [12, 0],
-                                   'dport': [2, 2],
-                                   'flags': [13, 0],
-                                   'global_offset': 34,
-                                   'options': [20, 2],
-                                   'reserved': [12, 0],
-                                   'seq': [4, 4],
-                                   'sport': [0, 2],
-                                   'urgptr': [18, 2],
-                                   'window': [14, 2]
-                                   }
-                          },
-                'show2': {
-                                'Ethernet': {
-                                                'dst': '00:00:00:01:00:00',
-                                                'src': '00:00:00:02:00:00',
-                                                'type': '0x800'
-                                             },
-                                'IP': {
-                                                'chksum': '0xcbcd',
-                                                'dst': '48.0.0.1',
-                                                'flags': '',
-                                                'frag': '0L',
-                                                'id': '1',
-                                                'ihl': '5L',
-                                                'len': '40',
-                                                'proto': 'tcp',
-                                                'src': '127.0.0.1',
-                                                'tos': '0x0',
-                                                'ttl': '64',
-                                                'version': '4L'
-                                       },
-                                'TCP': {
-                                                 'ack': '0',
-                                                 'chksum': '0xe040',
-                                                 'dataofs': '5L',
-                                                 'dport': '80',
-                                                 'flags': 'S',
-                                                 'options': '{}',
-                                                 'reserved': '0L',
-                                                 'seq': '0',
-                                                 'sport': '80',
-                                                 'urgptr': '0',
-                                                 'window': '8192'
-                                        }
-                          }
-               }
-}
-
-
-----
-
-Unsuccessful assembly of a packet: +
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "zweuldlh",
-    "jsonrpc": "2.0",
-    "method": "build_pkt",
-    "params": "ETHER()-IP()"  //not a valid SCAPY packet string
-}
-
-'Response':
-
-{
-    'id': 'zweuldlh',
-    'jsonrpc': '2.0',
-    'error': {
-                'code': -32098,
-                'message:': "Scapy Server: unsupported operand type(s) for -: 'Ether' and 'IP'"
-             }
-}
-    
-----
+=== Get protocol definitions
+* *Name* - 'get_definitions'
+* *Description* - Returns definitions for protocols and fields +
+* *Return Value* - array of protocol definitions in a "result.protocols" json. xref:get_definitions_model[Output model]
+* *Paramters* - array of protocol class names to define or null to fetch metadata for all protocols. ex. ["Ether", "TCP"]
 
 === Get protocol tree hierarchy example
 * *Name* - 'get_tree'
