@@ -122,7 +122,7 @@ Printed table with interfaces info:
 | 4  | 0    | 0a:00.0 | 04:62:73:5f:e8:a8 | I350 Gigabit Network Connection | igb     | p4p1     | \*Active*
 | 5  | 0    | 0a:00.1 | 04:62:73:5f:e8:a9 | I350 Gigabit Network Connection | igb     | p4p2     |
 | 6  | 1    | 84:00.0 | 68:05:CA:32:0C:38 | Device 1583                     | igb_uio |          |
-| 7  | 1    | 84:00.1 | 68:05:CA:32:0C:39 | Device 1583                     | igb_uio |          |d
+| 7  | 1    | 84:00.1 | 68:05:CA:32:0C:39 | Device 1583                     | igb_uio |          |
 |=================
 
 We will be asked to specify interfaces for TRex usage:
