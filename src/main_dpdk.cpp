@@ -504,14 +504,12 @@ enum { OPT_HELP,
        OPT_NODE_DUMP,
        OPT_DUMP_INTERFACES,
        OPT_UT,
-       OPT_FILE_OUT,
-       OPT_REAL_TIME,
        OPT_CORES,
        OPT_SINGLE_CORE,
        OPT_FLIP_CLIENT_SERVER,
        OPT_FLOW_FLIP_CLIENT_SERVER,
        OPT_FLOW_FLIP_CLIENT_SERVER_SIDE,
-       OPT_BW_FACTOR,
+       OPT_RATE_MULT,
        OPT_DURATION,
        OPT_PLATFORM_FACTOR,
        OPT_PUB_DISABLE,
@@ -522,7 +520,6 @@ enum { OPT_HELP,
        OPT_NO_CLEAN_FLOW_CLOSE,
        OPT_LATENCY_MASK,
        OPT_ONLY_LATENCY,
-       OPT_1G_MODE,
        OPT_LATENCY_PREVIEW ,
        OPT_WAIT_BEFORE_TRAFFIC,
        OPT_PCAP,
@@ -562,9 +559,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_MODE_BATCH,             "-f",                SO_REQ_SEP},
         { OPT_MODE_INTERACTIVE,       "-i",                SO_NONE   },
         { OPT_PLAT_CFG_FILE,          "--cfg",             SO_REQ_SEP},
-        { OPT_REAL_TIME ,             "-r",                SO_NONE  },
         { OPT_SINGLE_CORE,            "-s",                SO_NONE  },
-        { OPT_FILE_OUT,               "-o" ,               SO_REQ_SEP},
         { OPT_FLIP_CLIENT_SERVER,"--flip",SO_NONE  },
         { OPT_FLOW_FLIP_CLIENT_SERVER,"-p",SO_NONE  },
         { OPT_FLOW_FLIP_CLIENT_SERVER_SIDE,"-e",SO_NONE  },
@@ -577,10 +572,9 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_DURATION     , "-d",  SO_REQ_SEP },
         { OPT_PLATFORM_FACTOR     , "-pm",  SO_REQ_SEP },
         { OPT_PUB_DISABLE     , "-pubd",  SO_NONE },
-        { OPT_BW_FACTOR     , "-m",  SO_REQ_SEP },
+        { OPT_RATE_MULT     , "-m",  SO_REQ_SEP },
         { OPT_LATENCY_MASK     , "--lm",  SO_REQ_SEP },
         { OPT_ONLY_LATENCY, "--lo",  SO_NONE  },
-        { OPT_1G_MODE,       "-1g",   SO_NONE   },
         { OPT_LATENCY_PREVIEW ,       "-k",   SO_REQ_SEP   },
         { OPT_WAIT_BEFORE_TRAFFIC ,   "-w",   SO_REQ_SEP   },
         { OPT_PCAP,       "--pcap",       SO_NONE   },
@@ -610,125 +604,71 @@ static CSimpleOpt::SOption parser_options[] =
 
 static int usage(){
 
-    printf(" Usage: t-rex-64 [MODE] [OPTION] -f cfg.yaml -c cores   \n");
-    printf(" \n");
-    printf(" \n");
+    printf(" Usage: t-rex-64 [mode] <options>\n\n");
+    printf(" mode is one of:\n");
+    printf("   -f <file> : YAML file with traffic template configuration (Will run TRex in 'stateful' mode)\n");
+    printf("   -i        : Run TRex in 'stateless' mode\n");
+    printf("\n");
 
-    printf(" mode \n\n");
-    printf(" -f [file]                  : YAML file  with template configuration \n");
-    printf(" -i                         : launch TRex in interactive mode (RPC server)\n");
-    printf(" \n\n");
-
-    printf(" options \n\n");
-
-    printf(" --client_cfg [file]        : YAML file which describes clients configuration\n");
-    printf(" \n\n");
-    printf(" -c [number of threads]     : Default is 1. Number of threads to allocate for each port pair. \n");
-    printf("  \n");
-    printf(" -s                         : run only one data path core. for debug\n");
-    printf("  \n");
-    printf(" --flip                     : flow will be sent from client->server and server->client for maximum throughput \n");
-    printf("  \n");
-    printf(" -p                         : flow-flip , send all flow packets from the same interface base of client ip \n");
-    printf(" -e                         : like -p but comply to the generator rules  \n");
-
-    printf("  \n");
-    printf(" -l [pkt/sec]               : run latency daemon in this rate  \n");
-    printf("    e.g -l 1000 run 1000 pkt/sec from each interface , zero mean to disable latency check  \n");
-    printf(" --lm                         : latency mask  \n");
-    printf("    0x1 only port 0 will send traffic  \n");
-    printf(" --lo                         :only latency test   \n");
-
-    printf("  \n");
-
-    printf(" --limit-ports              : limit number of ports, must be even e.g. 2,4  \n");
-    printf("  \n");
-    printf(" --nc                       : If set, will not wait for all the flows to be closed, terminate faster- see manual for more information   \n");
-    printf("  \n");
-    printf(" -d                         : duration of the test in sec (default is 3600). look also at --nc  \n");
-    printf("  \n");
-    printf(" -pm                        : platform factor ,in case you have splitter in the setup you can multiply the total results in this factor  \n");
-    printf("    e.g --pm 2.0 will multiply all the results bps in this factor   \n");
-    printf("  \n");
-    printf(" -pubd                      : disable monitors publishers  \n");
-
-    printf(" -m                         : factor of bandwidth \n");
-    printf("  \n");
-    printf(" --send-debug-pkt [proto]   : Do not run traffic generator. Just send debug packet and dump receive queue.");
-    printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP\n");
-    printf("  \n");
-    printf(" -k  [sec]                  : run latency test before starting the test. it will wait for x sec sending packet and x sec after that  \n");
-    printf("  \n");
-    printf(" -w  [sec]                  : wait between init of interfaces and sending traffic, default is 1\n");
-    printf("  \n");
-
-    printf(" --cfg [platform_yaml]      : load and configure platform using this file see example in cfg/cfg_examplexx.yaml file  \n");
-    printf("                              this file is used to configure/mask interfaces cores affinity and mac addr  \n");
-    printf("                              you can copy this file to /etc/trex_cfg.yaml   \n");
-    printf("  \n");
-
-    printf(" --ipv6                     : work in ipv6 mode\n");
-    printf(" --learn (deprecated). Replaced by --learn-mode. To get older behaviour, use --learn-mode 2\n");
-    printf(" --learn-mode [1-3]         : Work in NAT environments, learn the dynamic NAT translation and ALG  \n");
-    printf("      1    Use TCP ACK in first SYN to pass NAT translation information. Will work only for TCP streams. Initial SYN packet must be first packet in stream.\n");
-    printf("      2    Add special IP option to pass NAT translation information. Will not work on certain firewalls if they drop packets with IP options\n");
-    printf("      3    Like 1, but without support for sequence number randomization in server->clien direction. Performance (flow/second) better than 1\n");
-    printf(" --learn-verify             : Learn the translation, but intended for verification of the mechanism in cases that NAT does not exist \n");
-    printf("  \n");
-    printf(" --l-pkt-mode [0-3]         : Set mode for sending latency packets.\n");
+    printf(" Available options are:\n");
+    printf(" --allow-coredump           : Allow creation of core dump \n");
+    printf(" --arp-refresh-period       : Period in seconds between sending of gratuitous ARP for our addresses. Value of 0 means 'never send' \n");
+    printf(" -c <num>>                  : Number of hardware threads to allocate for each port pair. Overrides the 'c' argument from config file \n");
+    printf(" --cfg <file>               : Use file as TRex config file instead of the default /etc/trex_cfg.yaml \n");
+    printf(" --checksum-offload         : Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this \n");
+    printf(" --client_cfg <file>        : YAML file describing clients configuration \n");
+    printf(" --close-at-end             : Call rte_eth_dev_stop and close at exit. Calling these functions caused link down issues in older versions, \n");
+    printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him \n");
+    printf("                               This it temporary option. Will be removed in the future \n");
+    printf(" -d                         : Duration of the test in sec (default is 3600). Look also at --nc \n");
+    printf(" -e                         : Like -p but src/dst IP will be chosen according to the port (i.e. on client port send all packets with client src and server dest, and vice versa on server port \n");
+    printf(" --flip                     : Each flow will be sent both from client to server and server to client. This can acheive better port utilization when flow traffic is asymmetric \n");
+    printf(" --hops <hops>              : If rx check is enabled, the hop number can be assigned. See manual for details \n");
+    printf(" --iom  <mode>              : IO mode  for server output [0- silent, 1- normal , 2- short] \n");
+    printf(" --ipv6                     : Work in ipv6 mode \n");
+    printf(" -k  <num>                  : Run 'warm up' traffic for num seconds before starting the test. \n");
+    printf(" -l <rate>                  : In parallel to the test, run latency check, sending packets at rate/sec from each interface \n");
+    printf("    Rate of zero means no latency check \n");
+    printf(" --learn (deprecated). Replaced by --learn-mode. To get older behaviour, use --learn-mode 2 \n");
+    printf(" --learn-mode [1-3]         : Work in NAT environments, learn the dynamic NAT translation and ALG \n");
+    printf("      1    Use TCP ACK in first SYN to pass NAT translation information. Will work only for TCP streams. Initial SYN packet must be first packet in stream \n");
+    printf("      2    Add special IP option to pass NAT translation information. Will not work on certain firewalls if they drop packets with IP options \n");
+    printf("      3    Like 1, but without support for sequence number randomization in server->clien direction. Performance (flow/second) better than 1 \n");
+    printf(" --learn-verify             : Test the NAT translation mechanism. Should be used when there is no NAT in the setup \n");
+    printf(" --limit-ports              : Limit number of ports used. Must be even number (TRex always uses port pairs) \n");
+    printf(" --lm                       : Hex mask of cores that should send traffic \n");
+    printf("    For example: Value of 0x5 will cause only ports 0 and 2 to send traffic \n");
+    printf(" --lo                       : Only run latency test \n");
+    printf(" --l-pkt-mode <0-3>         : Set mode for sending latency packets \n");
     printf("      0 (default)    send SCTP packets  \n");
     printf("      1              Send ICMP request packets  \n");
     printf("      2              Send ICMP requests from client side, and response from server side (for working with firewall) \n");
     printf("      3              Send ICMP requests with sequence ID 0 from both sides \n");
-    printf(" -v  [1-3]                  :  verbose mode ( works only on the debug image ! )  \n");
-    printf("      1    show only stats  \n");
-    printf("      2    run preview do not write to file  \n");
-    printf("      3    run preview write stats file  \n");
-    printf("  Note in case of verbose mode you don't need to add the output file \n");
-    printf("   \n");
-    printf("  Warning : This program can generate huge-files (TB ) watch out! try this only on local drive \n");
-    printf(" \n");
-    printf("  \n");
-    printf(" --rx-check  [sample]       :  enable rx check thread, using this thread we sample flows 1/sample and check order,latency and more  \n");
-    printf("                              this feature consume another thread  \n");
-    printf("  \n");
-    printf(" --hops [hops]              :  If rx check is enabled, the hop number can be assigned. The default number of hops is 1\n");
-    printf(" --iom  [mode]              :  io mode for interactive mode [0- silent, 1- normal , 2- short]   \n");
-    printf("                              this feature consume another thread  \n");
-    printf("  \n");
-    printf(" --close-at-end             : Call rte_eth_dev_stop and close at exit. Calling these functions caused link down issues in older versions,\n");
-    printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him\n");
-    printf("                               This it temporary option. Will be removed in the future.\n");
-    printf(" --no-key                   : daemon mode, don't get input from keyboard \n");
-    printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it\n");
-    printf(" --prefix                   : For multi trex, each instance should have a different name \n");
-    printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC.");
-    printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN");
+    printf(" -m <num>                   : Rate multiplier.  Multiply basic rate of templates by this number \n");
     printf(" --mbuf-factor              : Factor for packet memory \n");
-    printf("                             \n");
-    printf(" --no-watchdog              : Disable watchdog  \n");
-    printf("                             \n");
-    printf(" --allow-coredump           : Allow a creation of core dump \n");
-    printf("                             \n");
+    printf(" --nc                       : If set, will not wait for all flows to be closed, before terminating - see manual for more information \n");
+    printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it \n");
+    printf(" --no-key                   : Daemon mode, don't get input from keyboard \n");
+    printf(" --no-watchdog              : Disable watchdog \n");
+    printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
+    printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
+    printf("    e.g --pm 2.0 will multiply all the results bps in this factor \n");
+    printf(" --prefix <nam>             : For running multi TRex instances on the same machine. Each instance should have different name \n");
+    printf(" -pubd                      : Disable monitors publishers \n");
+    printf(" --rx-check  <rate>         : Enable rx check. TRex will sample flows at 1/rate and check order, latency and more \n");
+    printf(" -s                         : Single core. Run only one data path core. For debug \n");
+    printf(" --send-debug-pkt <proto>   : Do not run traffic generator. Just send debug packet and dump receive queues \n");
+    printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP \n");
+    printf(" -v <verbosity level>       : The higher the value, print more debug information \n");
+    printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
+    printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" --vm-sim                   : Simulate vm with driver of one input queue and one output queue \n");
-    printf("                             \n");
-    printf(" --checksum-offload         : Enable IP, TCP and UDP tx checksum offloading with DPDK. This requires all used interfaces to support this \n");
-    printf(" --arp-refresh-period       : Period in seconds between sending of gratuitous ARP for out addresses. Value of 0, means 'never send'\n");
-    printf("  \n");
+    printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
+    printf("\n");
     printf(" Examples: ");
-    printf(" basic trex run for 10 sec and multiplier of x10 \n");
-    printf("  #>t-rex-64 -f cfg.yaml  -m 10 -d 10 \n");
-    printf("  \n ");
-
-    printf("  preview show csv stats \n");
-    printf("  #>t-rex-64 -c 1 -f cfg.yaml -v 1 -p -m 10 -d 10 --nc -l 1000\n");
-    printf("  \n ");
-
-    printf("  5)   ! \n");
-    printf("  #>t-rex-64 -f cfg.yaml -c 1 --flip \n");
-
-    printf("\n");
-    printf("\n");
+    printf(" basic trex run for 20 sec and multiplier of 10 \n");
+    printf("  t-rex-64 -f cap2/dns.yaml -m 10 -d 20 \n");
+    printf("\n\n");
     printf(" Copyright (c) 2015-2016 Cisco Systems, Inc.    \n");
     printf("                                                                  \n");
     printf(" Licensed under the Apache License, Version 2.0 (the 'License') \n");
@@ -860,11 +800,6 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->m_l_pkt_mode=(uint8_t)tmp_data;
                 break;
 
-            case OPT_REAL_TIME  :
-                printf(" warning -r is deprecated, real time is not needed any more , it is the default \n");
-                po->preview.setRealTime(true);
-                break;
-
             case OPT_NO_FLOW_CONTROL:
                 po->preview.set_disable_flow_control_setting(true);
                 break;
@@ -891,9 +826,6 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_FLOW_FLIP_CLIENT_SERVER_SIDE:
                 po->preview.setClientServerFlowFlipAddr(true);
                 break;
-            case OPT_FILE_OUT:
-                po->out_file = args.OptionArg();
-                break;
             case OPT_NODE_DUMP:
                 a=atoi(args.OptionArg());
                 node_dump=1;
@@ -915,7 +847,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_MBUF_FACTOR:
                 sscanf(args.OptionArg(),"%f", &po->m_mbuf_factor);
                 break;
-            case OPT_BW_FACTOR :
+            case OPT_RATE_MULT :
                 sscanf(args.OptionArg(),"%f", &po->m_factor);
                 break;
             case OPT_DURATION :
@@ -937,30 +869,21 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_ONLY_LATENCY :
                 po->preview.setOnlyLatency(true);
                 break;
-            case OPT_1G_MODE :
-                po->preview.set_1g_mode(true);
-                break;
-
             case OPT_NO_WATCHDOG :
                 po->preview.setWDDisable(true);
                 break;
-
             case OPT_ALLOW_COREDUMP :
                 po->preview.setCoreDumpEnable(true);
                 break;
-
             case  OPT_LATENCY_PREVIEW :
                 sscanf(args.OptionArg(),"%d", &po->m_latency_prev);
                 break;
-
             case  OPT_WAIT_BEFORE_TRAFFIC :
                 sscanf(args.OptionArg(),"%d", &po->m_wait_before_traffic);
                 break;
-
             case OPT_PCAP:
                 po->preview.set_pcap_mode_enable(true);
                 break;
-
             case OPT_RX_CHECK :
                 sscanf(args.OptionArg(),"%d", &tmp_data);
                 po->m_rx_check_sample=(uint16_t)tmp_data;
@@ -1045,7 +968,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         /* only first time read the configuration file */
         if ( po->platform_cfg_file.length() >0  ) {
             if ( node_dump ){
-                printf("load platform configuration file from %s \n",po->platform_cfg_file.c_str());
+                printf("Loading platform configuration file from %s \n",po->platform_cfg_file.c_str());
             }
             global_platform_cfg_info.load_from_yaml_file(po->platform_cfg_file);
             if ( node_dump ){

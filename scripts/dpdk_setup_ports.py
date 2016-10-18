@@ -500,7 +500,7 @@ Other network devices
                 break
         while True:
             try:
-                input = dpdk_nic_bind.read_line('Enter list of interfaces in line (for example: 1 3) : ')
+                input = dpdk_nic_bind.read_line('Enter list of interfaces separted by space (for example: 1 3) : ')
                 create_interfaces = input.replace(',', ' ').replace(';', ' ').split()
                 wanted_interfaces = self._get_wanted_interfaces(create_interfaces)
                 ConfigCreator._verify_devices_same_type(wanted_interfaces)

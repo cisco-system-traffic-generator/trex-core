@@ -531,15 +531,7 @@ public:
         return (btGetMaskBit32(m_flags,25,25) ? true:false);
     }
 
-
-    void set_1g_mode(bool enable){
-        btSetMaskBit32(m_flags,26,26,enable?1:0);
-    }
-
-    bool get_1g_mode(){
-        return (btGetMaskBit32(m_flags,26,26) ? true:false);
-    }
-
+    // bit 26 is free. Was deprecated option.
 
     void set_zmq_publish_enable(bool enable){
         btSetMaskBit32(m_flags,27,27,enable?1:0);
@@ -2161,7 +2153,6 @@ private:
 public:
     pqueue_t                  m_p_queue;
     socket_id_t               m_socket_id;
-    bool                      m_is_realtime;
     CVirtualIF *              m_v_if;
     CFlowGenListPerThread  *  m_parent;
     CPreviewMode              m_preview_mode;

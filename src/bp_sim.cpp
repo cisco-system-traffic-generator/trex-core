@@ -745,7 +745,6 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," single core     : %d\n", (int)getSingleCore() );
     fprintf(fd," flow-flip       : %d\n", (int)getClientServerFlowFlip() );
     fprintf(fd," no clean close  : %d\n", (int)getNoCleanFlowClose() );
-    fprintf(fd," 1g mode         : %d\n", (int)get_1g_mode() );
     fprintf(fd," zmq_publish     : %d\n", (int)get_zmq_publish_enable() );
     fprintf(fd," vlan_enable     : %d\n", (int)get_vlan_mode_enable() );
     fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
@@ -3223,7 +3222,6 @@ bool  CNodeGenerator::Create(CFlowGenListPerThread  *  parent){
    m_v_if =0;
    m_parent=parent;
    m_socket_id =0;
-   m_is_realtime =CGlobalInfo::is_realtime();
    m_realtime_his.Create();
    m_last_sync_time_sec = 0;
 
