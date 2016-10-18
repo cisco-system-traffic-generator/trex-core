@@ -3775,16 +3775,33 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
             cur_time = now_sec();
             {
                 dsec_t dt = cur_time - n_time ;
-                if (dt>0) {
-                    state=scWORK;
-                    if (dt > BURST_OFFSET_DTIME) {
-                        handle_time_strech(cur_time, dt, offset, thread);
-                    }
+
+                if (dt > BURST_OFFSET_DTIME) {
+                    state = scSTRECH;
+                } else if (dt > 0) {
+                    state = scWORK;
                 } else {
                     state = scWAIT;
                 }
+
             }
             break;
+
+         /* a case called when a time strech happens */
+         case scSTRECH:
+             {
+                 dsec_t dt = cur_time - n_time;
+                 handle_time_strech(cur_time, dt, offset, thread);
+
+                 /* re-read the top of the queue - it might have changed with messaging */
+                 node = m_p_queue.top();
+                 n_time = node->m_time + offset;
+
+                 /* go back to INIT */
+                 state = scINIT;
+
+             }
+             break;
 
          case scWORK:
             {

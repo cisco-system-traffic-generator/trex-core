@@ -2024,6 +2024,7 @@ public:
      typedef enum { scINIT = 0x17,
                     scWORK ,
                     scWAIT , 
+                    scSTRECH,
                     scTERMINATE 
                    } sch_state_t;
 
