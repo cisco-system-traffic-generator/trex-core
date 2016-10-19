@@ -1,0 +1,135 @@
+I, Dan Klein hearby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: danklei@cisco.com, danklei@csi-kiwi-03.cisco.com, danklei@danklei-WS04.cisco.com, danklein10@gmail.com.
+
+My contributions were:
+
+ 3bafb0394c07ef2abb4ce34c7fb4ec01eb09f2df - Dan Klein - danklein10@gmail.com - All unit tests passes with both python 2 and python 3.
+ 330cf8f7950027efe7b4bbc96a7ee1af3ee0b10a - Dan Klein - danklein10@gmail.com - basic modifications for TRex tui to support toggle filtering on ports
+ 9e63f57a80722751221e18ae1e42a7f7ac4983ab - Dan Klein - danklein10@gmail.com - added multiple toggle option all test passed!
+ 6adf866fc403829d5e24603280c6c6917b9fc357 - Dan Klein - danklein10@gmail.com - fixed import issue in test (ugly fix for now)
+ 195e4bda54d8fd49936213a8f28349b96fb5acd2 - Dan Klein - danklein10@gmail.com - added filters.py ToggleFilter functionality, and its test file
+ 859a72101c94a26296efcc713882b472caf6ff8e - Dan Klein - danklein10@gmail.com - minor updates
+ 8e037c2bd51844dc7c42ce7b2339806d9dcb964b - Dan Klein - danklein10@gmail.com - Merge branch 'dan_stateless'
+ 9fc980b8aa43cf53446eeeb5184f10a86476da28 - Dan Klein - danklein10@gmail.com - Working version of streams view in TRex console. TODO: sync when console crashes isn't integrated yet
+ 629b54c4c9df9c718d818a004ecf15c2cf6c770a - Dan Klein - danklein10@gmail.com - Merge branch 'master' into dan_stateless
+ 3757099103ed1bf56f85ccf5bb861a331287cbbb - Dan Klein - danklein10@gmail.com - updated stats
+ 4ca24cf31919870a684fe78f17c856e0d220e6d5 - Dan Klein - danklein10@gmail.com - Merge branch 'master' into dan_stateless
+ a7967979b47845a1736e734c1c16f5929ae6fd48 - Dan Klein - danklein10@gmail.com - cleaned the code a little, added load_packet_from_pcap into packet builder functionality.
+ 1895d21485621c3428d045fa0f5b9daf165c8260 - Dan Klein - danklein10@gmail.com - clear command now works as well..
+ 503c10b024aa2ed6d4d8dc7fb5debf4a64bd9b1e - Dan Klein - danklein10@gmail.com - Re-designed the statistic building model based on agreed diagram. WORKING: all polling stats
+ a609111bc37ef88f14d4f2ebf7cd186b04b86402 - Dan Klein - danklein10@gmail.com - Supports all desired stats option, plus clearing option
+ 4486f9863e7f541ce5b6b4ff2bce6c6f7c41fcd2 - Dan Klein - danklein10@gmail.com - Merge branch 'master' into dan_stateless
+ 91f6c24f45cbb0cbf8568a9938059a1a934e6ae6 - Dan Klein - danklein10@gmail.com - Initial implementation of stats prompting
+ e7cb8b0f6c2fbe08d2086a7408040ac7d12aee5a - Dan Klein - danklein10@gmail.com - Merge branch 'master' into dan_stateless
+ 84e9d7a4a8bbb3afb4861652e2d56bc27097f794 - Dan Klein - danklein10@gmail.com - History feature is DONE Fixed bugs Cleaned code, more like PEP8
+ bb6dec2ed238069b6a0c079d2031246704b717c4 - Dan Klein - danklein10@gmail.com - created general trex console class added dynamic server async support fixed bugs
+ d04fb533c0843ebcd3eac5fbefa6f418582db7fc - Dan Klein - danklein10@gmail.com - Major progress in parsing, not stable yet Most advanced: start, stop functionality
+ f6b521fb76e74036c626c10f6ae11ea525ac97b7 - Dan Klein - danklei@cisco.com - Merge remote-tracking branch 'origin/rpc_intg1' into rpc_intg1
+ 953a250e6cbaea3040920e7441d2d019705efe51 - Dan Klein - danklei@cisco.com - Extended line parsing options, didn't apply all changes on console YET
+ 36a9677c0abc038235e7bf706cb2b3dc9e720284 - Dan Klein - danklein10@gmail.com - added custom line parsing class and methods
+ 1be6a146c9dfaf599528e8fde151c25b0bc9cb70 - Dan Klein - danklein10@gmail.com - Merge remote-tracking branch 'origin/rpc_intg1' into rpc_intg1
+ 597f74d8ed10abc3dd9df7e81ecea5ac2f5c714e - Dan Klein - danklein10@gmail.com - updated sync_client
+ c5078068c4659f5445d9c684c67b55ee2c7e10d6 - Dan Klein - danklein10@gmail.com - Merge branch 'rpc_intg1' into dan_stateless
+ 0ceddc74c938a023c515be4ed2c37198fd66e87e - Dan Klein - danklein10@gmail.com - first commit for advnaced options
+ 274bca264036d9cf01b9fcbbb3923b0f28654d82 - Dan Klein - danklein10@gmail.com - Added parsing file for console advanced options
+ 2636c09cfb74c7981c27d84bcc72d00929fdbbbb - Dan Klein - danklei@cisco.com - Fixed verbose mode More stability fixes removed irrelevand methods
+ d78150a66de591a77df2496e5de828d3232a931a - Dan Klein - danklei@cisco.com - Awesome working start/stop traffic console Fixed more stability issues :) Ready for merging.
+ 13c353b9e4f3f0177458c5bef729de31ec03135d - Dan Klein - danklei@cisco.com - fixed console issues after testsing them
+ aa37a0abb00cbf4cb1611f9c0eefcb1ab850bc45 - Dan Klein - danklein10@gmail.com - Console redesign using trex_stateless_client module
+ 5377774afbf00b0da0ad0b74d3be207f6eb9124e - Dan Klein - danklein10@gmail.com - Added module for text formatting, such that coloring, bold, underline.
+ f963facdc949c087c863b8ad81aae537bcf3767b - Dan Klein - danklei@cisco.com - console progress, still SHAKY!
+ 0c2b3c83f9cc0c25277c39660dce132aad55c3d7 - Dan Klein - danklei@cisco.com - updated more HLTAPI functionality and fixed found bugs. Working: Start/stop traffic, traffic config (semi), connect, clean Missing: stats Next: boost console
+ fe6e03366eae72376f1201ed68744cb1206773de - Dan Klein - danklein10@gmail.com - more HLTAPI 2
+ 3bebf60874ec07d157944088ee3cfd5909eccc0f - Dan Klein - danklei@cisco.com - More HLTAPI
+ d2453a6b449762b478975418289dfcfc51dcc395 - Dan Klein - danklei@cisco.com - more HLTAPI
+ a39e4416cd78fc3b147695465c4de1c896b3face - Dan Klein - danklei@cisco.com - more hltapi progress connect working
+ 4290a0982d510a40e0bb789279c1acd4d2530d6f - Dan Klein - danklei@cisco.com - returning the fix of doc building
+ d00cf78cdfe093a8e72db48897f700a3ef1d1caa - Dan Klein - danklei@cisco.com - remove fix to test for trex_doc failure
+ b44239e4c6019f10fa7cf4fe0fef8c3726435033 - Dan Klein - danklei@cisco.com - add disconnect functionality
+ de90762476583bed8c3a2c1e15158b85e4231ad0 - Dan Klein - danklei@cisco.com - fixed streamlist loading
+ 7c35235f67b009cb2a9a605c3c89ea39d6f10871 - Dan Klein - danklei@cisco.com - refactor tx_link -> comm_link
+ 18f99983b868cba14795cce8a8b3a54328ddaab7 - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_stateless
+ ebb0b48faca96bad7bfe8da0bf80df7c7c80350d - Dan Klein - danklein10@gmail.com - HLTAPI progress...
+ ed13067343186b5dad0566962cd308445136f3b7 - Dan Klein - danklei@cisco.com - Fixed importing of packages at documentation building
+ a2a634fc8b5bac450ea37f29dde521b7d9e740c8 - Dan Klein - danklei@cisco.com - minor updates
+ f5c4a8051d697c086eb0d1c8ce3ac90ab245d249 - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_stateless
+ 876c76572fdb2fb8f0e8db21bc420d284dc05950 - Dan Klein - danklei@cisco.com - Added support for path autocomletion for console methods :)
+ a55f587db49728685ed5acb6aa906aad01035da2 - Dan Klein - danklei@cisco.com - Merge remote-tracking branch 'origin/master'
+ 014c1c1757873bbe2b9a9a0d635cb65ea55b67ab - Dan Klein - danklei@cisco.com - Merge branch 'master-demo'
+ 5abe21ffb26a15c2a63e90b5628d704e8211b599 - Dan Klein - danklei@cisco.com - + Added traffic options at stl directory + updated console to support multiplier on loading + fixed minor issues at yaml_utils and trex_streams objects + console not stable, YET
+ cf753587ffb7b89cff1863c74ca334b8c41fd0c0 - Dan Klein - danklei@cisco.com - Merge branch 'master' into master-demo + working demo of loading a YAML, and attaching it to server
+ d09df99769f67819c64a7a025dbdcd39811c7b44 - Dan Klein - danklei@cisco.com - Major progress in console, yaml utils, and trex_streams basically done, minor changes remianing BIG ISSUE LEFT: rewire console to work with trexstateless client module
+ 80bd7895112cba0b3cbb6d56995def6ffbdccf33 - Dan Klein - danklei@cisco.com - Progress in trex_streams and in yaml_utils. Next, start working on StreamList object
+ 4a8d34c7548e85e97426bc1d85c670003b1f5870 - Dan Klein - danklein10@gmail.com - more yaml utils, better streams handling
+ 2c38ad7f49fbddfdc75c150cbb2abdd54e3ede52 - Dan Klein - danklei@cisco.com - Updated YAMLutils and rpc_defaults with relevant progress
+ 0c5a4348a31e0e8d76dd1fcf378cb2c0a2867f59 - Dan Klein - danklein10@gmail.com - updated yaml utils and stream object
+ 2dd1a4d85c559ddafe695b6d6d393ee086e1a3de - Dan Klein - danklei@cisco.com - merged jsonrpc client for mock compatibility
+ 22cab506c9df614f6f74fd3641b1ec8cf084370b - Dan Klein - danklei@cisco.com - Merge branch 'dan_stateless'
+ 4c797902441d1c61fc9012f56ecf95e17cb26110 - Dan Klein - danklei@cisco.com - Merge remote-tracking branch 'origin/master'
+ 508703e11a3fad3e44535c5433f803d77f28e245 - Dan Klein - danklei@cisco.com - Fixed trex bugs in Ubuntu disctribution (Firing trex-daemon server) and unresolved domain name handling.
+ 0951a3e74be22db8726781aae98531668d946656 - Dan Klein - danklei@cisco.com - merged with master
+ 7482f09b8a5e8945e8b735233ad8f1674e637aef - Dan Klein - danklei@cisco.com - cosmetics
+ a9ead5815d40dfe42651f6ff2140c94535b6a703 - Dan Klein - danklei@cisco.com - solving conflicts
+ bd640666c052a1c770c9c1758c809f68d99af010 - Dan Klein - danklei@cisco.com - solving conflicts
+ 47111637f4989f82fb8ed2dab6240efb5b12713f - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_latest
+ 63318b05c360872ccd6d6348a6818ca2929927c9 - Dan Klein - danklei@cisco.com - fixed documentation conflicts
+ fba9663980d600d9c54c90f5ebd4afc346a007db - Dan Klein - danklei@cisco.com - Merge branch 'dan_stateless' into dan_latest
+ e6bf849809c1ff84eb887973576611f2457774eb - Dan Klein - danklei@cisco.com - named with nametuples the returnvalue of the "send_raw_msg" method.
+ a9f60d36e81c25244dad8f4f4c985f1e8e368c7c - Dan Klein - danklei@cisco.com - Updated handlers of getter methods and stats (Global, port, stream). Also, set return values of RPC commands as namedtuples
+ d1065266e17e514dab4aec87abab729a518cdf26 - Dan Klein - danklein10@gmail.com - Applied some code cosmetics
+ 086dac9854b9711cebf73d392973cae9358b6b0e - Dan Klein - danklein10@gmail.com - More progress in stateless client. Mainly more mature approach to handling results
+ c3ced9cd49c609d8a25933012f9aa2e5db9298d9 - Dan Klein - danklein10@gmail.com - Applied port validity on port_id relevant methods
+ 4f286bfefa6bbb0be4cdcf1fb004c82fc334c21f - Dan Klein - danklein10@gmail.com - progress in TRexStatelessClient module
+ bafc3ec4b2686cdec4ac1c33f69f7607f368d4ce - Dan Klein - danklein10@gmail.com - updated stats handling implementation
+ c27d9bf5bc25a1a9e063ca076ce2e99c02dfe31e - Dan Klein - danklein10@gmail.com - Incorporating batch commands in stateless client
+ 2b5c0e9fc7482584d2259a7f79496ea86bcf4b5a - Dan Klein - danklei@cisco.com - progress in stateless client, added trex_stats
+ 54fb5cd69e0166073acac1eec08bd29341dbd6be - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_stateless
+ 25c528e867b13d8ddaee19f208ddedd8a2e505ca - Dan Klein - danklei@cisco.com - removed any T-Rex string in doc
+ ada8c62d7393e22cee7fccf9eb1b16b8ebe3c7c8 - Dan Klein - danklei@cisco.com - Removed any "T-Rex" string out of the code and documentation, using GREP!
+ 9629c9953516281d4bdaad1ed63d145de336a983 - Dan Klein - danklein10@gmail.com - Commiting last night progress
+ c7ba20f4f7c4521fdf50238c7e4ccc50f13b248e - Dan Klein - danklei@cisco.com - Updated packet export doc
+ 1c43d1c6eb10ccff6b26fac6d3588bb5a1439997 - Dan Klein - danklei@cisco.com - Updated implementation for packet_builder module
+ e4484262bbe2566fc1123e399504627a8757fb20 - Dan Klein - danklei@cisco.com - Updated sshpass file to avoid creation of daemon processes
+ 16e3b19016a0d6e63d9162040811de4386142af0 - Dan Klein - danklei@cisco.com - Updated and added documentation files for packet builder module
+ 7e1bf3602241fb881531965813c0b6ad09790bee - Dan Klein - danklei@cisco.com - Replaced "outer_packages" with "external_packages" to avoid naming collision
+ 2af9cd559d9c86e42824e920b5d9168584216e86 - Dan Klein - danklei@cisco.com - Updated .gitignore file to avoid _build compiled documentation
+ ca479ac9bb1e4d1a5953e9d121ab39a29f7b8b8e - Dan Klein - danklein10@gmail.com - Updated control plain documentation with typos and T-Rex changed to TRex.
+ 6f12f984a9ef37997a9dd614e2d7436ee1f9875a - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_latest
+ ddad1117a1bdc616eb1a5fc4e4e5ef2b8dcf6938 - Dan Klein - danklei@cisco.com - Added dedicated import for enum module in order to overcome doc building import error
+ c18c5a17ba84e0d30b0ce70b196210c7432f15b4 - Dan Klein - danklei@cisco.com - Merge branch 'dan_latest' (initial fix for doc building bug)
+ c5280c6866004bd3ff3969a888f8d19557a4e92f - Dan Klein - danklei@cisco.com - updated .gitignore file to ignore control-plane build files
+ 4651405f6870e31a71b679f30a6ea2d433879d41 - Dan Klein - danklei@cisco.com - Basically finished (minor touches remaining) all VM instructions implementation
+ 46d15e627e46af8816c061ad33301a8e6a7aab95 - Dan Klein - danklei@cisco.com - cosmetics...
+ ed46f126c90da83929625a89b5438a11f0e75401 - Dan Klein - danklei@cisco.com - Cosmetics over packet builder module
+ 186ca35e6ceabfeea7c0899a5ad50158f669243f - Dan Klein - danklein10@gmail.com - Finished implementing the ranging VM of IP Eth and custom fields
+ 281e2eaaea59bcfa7a0b67dcc3fcbd92a1e11d8c - Dan Klein - danklein10@gmail.com - Progress in ip_range methods
+ fb408d1f3a92edeb74b86f94aa2dddf5a0743513 - Dan Klein - danklein10@gmail.com - Finished writing infra layer of all VM instructions
+ b3ac7facbbbc4815388298534fdfdd161ce89534 - Dan Klein - danklei@cisco.com - updated packet builder and stateless client modules
+ 2965b8f7e7ca924af9ce6d30b2c0b586ec3e21c5 - Dan Klein - danklein10@gmail.com - Updated implementation of add_stream method, created subclasses to reflect vairous objects.
+ 20a7b8ed2a75debc3f2015d571fb4faf2cfc8b13 - Dan Klein - danklei@cisco.com - minor updated to client API library, adding the CRxStats class
+ 29de5a33617b44c79982670a984ba46ec0e3a8d8 - Dan Klein - danklei@cisco.com - temporary interactive stateless shell
+ 28fef018f75b5a54ac69ac7c919127bf47f5b61f - Dan Klein - danklei@csi-kiwi-03.cisco.com - Pushed Stateless progress (along with Packet Builder module)
+ 56dbd342eb97fc087611157ce8e965088b7f9bf8 - Dan Klein - danklei@cisco.com - Major progress in the packet builder module. Now able to create packets, dump them to JSON of pcap and more features added
+ ef520c7e3a18aeefe02ba0d3e6b16fafde3c1b91 - Dan Klein - danklei@cisco.com - Major progress in Packet building module and VM instruction sets. added dot1q into dpkt lib First abstractino of HLTAPI layer
+ 760710869405dbc3b5dadd6ce06015c72ea2ca44 - Dan Klein - danklei@cisco.com - another stateless progress
+ 68df86e2005dc4693b1270a3e663e2450f81fa93 - Dan Klein - danklei@cisco.com - progress in packet builder module
+ c2154c0d362ced8f8b5181799c369e1497c958e1 - Dan Klein - danklei@cisco.com - reverting to dpkt v1.8.6 instead of 1.8.6.2 to avoid importing error of pystone modue
+ f8ac9d14a989c8cf1535e16165551dfa370b0b74 - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_stateless
+ fc46f2618332037a8c1b58fbce5d616033bff1c9 - Dan Klein - danklei@cisco.com - Rearranged files and external libraries in two different locations, one for cpp (trex-core/external_libs) and one for python (trex-core/scripts/external_libs)
+ cdcc62972d42f009f55e6aeb2ca5c60c3acd75eb - Dan Klein - danklei@cisco.com - added dpkt package, initial stateless client implementation
+ 42053c95419042f36242b19d2416d112f7643e14 - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_stateless
+ a628a35b10fbd38211c353f506a8c49c2cc3dd7e - Dan Klein - danklei@cisco.com - Fixed compilation by commenting Itay's rpc-server build
+ cecaf28ab61882d323cb5f3d813518523f7e836b - Dan Klein - danklei@cisco.com - comment out itay's rpc module
+ 98bc71b1c21452c3d868c4a4d418a8aeaa5a43af - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_stateless
+ 7d3be8c612e295820649779335288c197b80ccb2 - Dan Klein - danklei@cisco.com - Changes location of console and fixed dependencies
+ dab741a80699f86e86c91718872a052cca9bbb25 - Dan Klein - danklei@cisco.com - Fixed dependencies of Control Plane to use external_lib sources
+ d3f26ece7d4383df0b22fe9c3cb3e695381ec737 - Dan Klein - danklei@cisco.com - Initial push to external_lib migration
+ 20eb7d362f9bce1951bd61ad3f78cf8f4267d1d5 - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_stateless
+ 651a7d779551e193bd9dbadbe8b2a02bdab231b4 - Dan Klein - danklei@cisco.com - Merge branch 'master' into dan_latest
+ 84bb24ace632141dd5ece01d5f4985239014f660 - Dan Klein - danklei@cisco.com - changed  .gitignore files from idea editor files
+ 49f6b00b58c3ec734218fcd69259771a42c157bd - Dan Klein - danklei@cisco.com - Added dkpt package, created basic shell for packetGen usage
+ 405ba254de0c62ac9f4395d04f918a3749635808 - Dan Klein - danklei@danklei-WS04.cisco.com - Added another fix to client interactive example.
+ f66c121432494744adc75c7df0224326ab3aab4d - Dan Klein - danklein10@gmail.com - Fixed client interactive example of the Python API
+ 435c8e7f1fd8f4a20d6a0922c62ca520086f8a36 - Dan Klein - danklein10@gmail.com - Update README.asciidoc
+ 994e396f01588c6e256ce88d428766827bcee4d2 - Dan Klein - danklein10@gmail.com - Update README.asciidoc
+ a0eea87f97021b439b7d320fcd58336cd845173b - Dan Klein - danklein10@gmail.com - Update LICENSE
+ fb91da27645c143e527d474b716ad0b30e2b6b04 - Dan Klein - danklein10@gmail.com - Update LICENSE
