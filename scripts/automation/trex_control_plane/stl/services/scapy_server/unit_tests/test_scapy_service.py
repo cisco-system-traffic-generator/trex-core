@@ -2,7 +2,10 @@
 # run with 'nosetests' utility
 
 import tempfile
+import re
 from basetest import *
+
+RE_MAC = "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$"
 
 TEST_MAC_1 = "10:10:10:10:10:10"
 # Test scapy structure
@@ -102,4 +105,51 @@ def test_pcap_read_and_write():
     array_pkt = service.read_pcap(v_handler, pcap_b64)
     pkt = build_pkt_to_scapy(array_pkt[0])
     assert(pkt[Ether].dst == TEST_MAC_1)
+
+def test_layer_default_value():
+    res = build_pkt([
+        layer_def("Ether", src={"vtype": "UNDEFINED"})
+        ])
+    ether_fields = fields_to_map(res['data'][0]['fields'])
+    assert(re.match(RE_MAC, ether_fields['src']['value']))
+
+def test_layer_random_value():
+    res = build_pkt([
+        layer_def("Ether", src={"vtype": "RANDOM"})
+        ])
+    ether_fields = fields_to_map(res['data'][0]['fields'])
+    assert(re.match(RE_MAC, ether_fields['src']['value']))
+
+def test_layer_wrong_structure():
+    payload = [
+            layer_def("Ether"),
+            layer_def("IP"),
+            layer_def("Raw", load="dummy"),
+            layer_def("Ether"),
+            layer_def("IP"),
+            ]
+    res = build_pkt(payload)
+    pkt = build_pkt_to_scapy(res)
+    assert(type(pkt[0]) is Ether)
+    assert(type(pkt[1]) is IP)
+    assert(isinstance(pkt[2], Raw))
+    assert(not pkt[2].payload)
+    model = res["data"]
+    assert(len(payload) == len(model))
+    # verify same protocol structure as in abstract model
+    # and all fields defined
+    for depth in range(len(payload)):
+        layer_model = model[depth]
+        layer_fields = fields_to_map(layer_model["fields"])
+        assert(payload[depth]["id"] == model[depth]["id"])
+        for field in layer_model["fields"]:
+            required_field_properties = ["value", "hvalue", "offset"]
+            for field_property in required_field_properties:
+                assert(field[field_property] is not None)
+        if (model[depth]["id"] == "Ether"):
+            assert(layer_fields["type"]["hvalue"] == "IPv4")
+    real_structure = [layer["real_id"] for layer in model]
+    valid_structure_flags = [layer["valid_structure"] for layer in model]
+    assert(real_structure == ["Ether", "IP", "Raw", None, None])
+    assert(valid_structure_flags == [True, True, True, False, False])
 

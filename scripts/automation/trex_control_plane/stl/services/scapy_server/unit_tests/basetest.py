@@ -68,3 +68,17 @@ def get_payload_classes(def_filter):
 def build_pkt_to_scapy(buildpkt_result):
     return pass_pkt(Ether(b64_to_bytes(buildpkt_result['binary'])))
 
+def fields_to_map(field_array):
+    # [{id, value, hvalue, offset}, ...] to map id -> {value, hvalue, offset}
+    res = {}
+    if field_array:
+        for f in field_array:
+            res[ f["id"] ] = f
+    return res
+
+def adapt_json_protocol_fields(protocols_array):
+    # replaces layer.fields(array) with map for easier access in tests
+    for protocol in protocols_array:
+        # change structure for easier
+        if protocol.get("fields"):
+            protocol["fields"] = fields_to_map(protocol["fields"])

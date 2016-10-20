@@ -434,19 +434,33 @@ class Scapy_service(Scapy_service_api):
         return { "vtype": "BYTES", "base64": bytes_to_b64(payload_bytes) }
 
     def _pkt_to_field_tree(self,pkt):
-        pkt = self._fully_define(pkt)
+        pkt.build()
         result = []
+        pcap_struct = self._fully_define(pkt) # structure, which will appear in pcap binary
         while pkt:
             layer_id = type(pkt).__name__ # Scapy classname
-            layer_name = pkt.name # Display name
+            layer_full = self._fully_define(pkt) # current layer recreated from binary to get auto-calculated vals
+            real_layer_id = type(pcap_struct).__name__ if pcap_struct else None
+            valid_struct = True # shows if packet is mapped correctly to the binary representation
+            if not pcap_struct:
+                valid_struct = False
+            elif not issubclass(type(pkt), type(pcap_struct)) and not issubclass(type(pcap_struct), type(pkt)):
+                # structure mismatch. no need to go deeper in pcap_struct
+                valid_struct = False
+                pcap_struct = None
             fields = []
             for field_desc in pkt.fields_desc:
                 field_id = field_desc.name
-                ignored = field_id not in pkt.fields
+                ignored = field_id not in layer_full.fields
                 offset = field_desc.offset
                 protocol_offset = pkt.offset
                 field_sz = field_desc.get_size_bytes()
-                fieldval = getattr(pkt, field_id)
+                # some values are unavailable in pkt(original model)
+                # at the same time,
+                fieldval = pkt.getfieldval(field_id)
+                pkt_fieldval_defined = is_string(fieldval) or is_number(fieldval) or is_bytes3(fieldval)
+                if not pkt_fieldval_defined:
+                    fieldval = layer_full.getfieldval(field_id)
                 value = None
                 hvalue = None
                 value_base64 = None
@@ -487,7 +501,7 @@ class Scapy_service(Scapy_service_api):
                         hvalue = '<binary>'
                 if field_desc.name == 'load':
                     # show Padding(and possible similar classes) as Raw
-                    layer_id = layer_name ='Raw'
+                    layer_id = 'Raw'
                     field_sz = len(pkt)
                     value = self._bytes_to_value(fieldval)
                 field_data = {
@@ -502,12 +516,15 @@ class Scapy_service(Scapy_service_api):
                 fields.append(field_data)
             layer_data = {
                     "id": layer_id,
-                    "name": layer_name,
                     "offset": pkt.offset,
                     "fields": fields,
+                    "real_id": real_layer_id,
+                    "valid_structure": valid_struct,
                     }
             result.append(layer_data)
             pkt = pkt.payload
+            if pcap_struct:
+                pcap_struct = pcap_struct.payload or None
         return result
 
 #input: container
