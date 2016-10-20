@@ -72,7 +72,7 @@ void CCPortLatencyStl::reset() {
 }
 
 void CRxCoreStateless::create(const CRxSlCfg &cfg) {
-    m_rcv_all = false;
+    m_rcv_all = true;
     m_capture = false;
     m_max_ports = cfg.m_max_ports;
 

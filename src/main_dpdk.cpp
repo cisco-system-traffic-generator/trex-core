@@ -1153,7 +1153,9 @@ public:
         /* Offset of flexbytes field in RX packets (in 16-bit word units). */
         /* Note: divide by 2 to convert byte offset to word offset */
         if (get_is_stateless()) {
-            m_port_conf.fdir_conf.flexbytes_offset = (14+4)/2;
+	    //m_port_conf.fdir_conf.flexbytes_offset = (14+4)/2;
+            // was 14+4 (ip_id), now (12)ethertype, we want to throw up all ip packages
+            m_port_conf.fdir_conf.flexbytes_offset = (12)/2;
             /* Increment offset 4 bytes for the case where we add VLAN */
             if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) {
                 m_port_conf.fdir_conf.flexbytes_offset += (4/2);
@@ -5557,7 +5559,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if) {
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * _if) {
     uint8_t port_id = _if->get_rte_port_id();
-    int  ip_id_lsb;
+    /*    int  ip_id_lsb;
 
     // 0..MAX_FLOW_STATS-1 is for rules using ip_id.
     // MAX_FLOW_STATS rule is for the payload rules. Meaning counter value is in the payload
@@ -5578,6 +5580,21 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * 
         if (res != 0) {
             rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
         }
+    }*/
+    struct rte_eth_fdir_filter fdir_filter;
+    int res = 0;
+
+    memset(&fdir_filter,0,sizeof(fdir_filter));
+    fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
+    fdir_filter.soft_id = 1;
+    fdir_filter.input.flow_ext.flexbytes[0] = 0x08; // matching etheryp 0800 (ipv4)
+    fdir_filter.input.flow_ext.flexbytes[1] = 0x00;
+    fdir_filter.action.rx_queue = 1;
+    fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
+    fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
+    res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
+    if (res != 0) {
+      rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
     }
 
     return 0;
