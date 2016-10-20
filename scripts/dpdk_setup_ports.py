@@ -140,7 +140,7 @@ class ConfigCreator(object):
             config_str += '  zmq_rpc_port: %s\n' % self.zmq_rpc_port
         config_str += '  port_info:\n'
         for index, interface in enumerate(self.interfaces):
-            if interface.has_key('ip'):
+            if 'ip' in interface:
                 self._exit_if_bad_ip(interface['ip'])
                 self._exit_if_bad_ip(interface['def_gw'])
                 config_str += ' '*6 + '- ip: %s\n' % interface['ip']
