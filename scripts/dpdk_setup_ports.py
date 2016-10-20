@@ -144,7 +144,7 @@ class ConfigCreator(object):
                 self._exit_if_bad_ip(interface['ip'])
                 self._exit_if_bad_ip(interface['def_gw'])
                 config_str += ' '*6 + '- ip: %s\n' % interface['ip']
-                config_str += ' '*8 + 'def_gw: %s\n' % interface['def_gw']
+                config_str += ' '*8 + 'default_gw: %s\n' % interface['def_gw']
             else:
                 config_str += ' '*6 + '- dest_mac: [%s]' % self._convert_mac(interface['dest_mac'])
                 if interface.get('loopback_dest'):
