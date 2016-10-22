@@ -1550,6 +1550,8 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->default_txconf = (struct rte_eth_txconf) {
 		.txq_flags = ETH_TXQ_FLAGS_NOOFFLOADS
 	};
+	/* TRex patch */
+	dev_info->speed_capa = ETH_LINK_SPEED_10G;
 }
 
 /*

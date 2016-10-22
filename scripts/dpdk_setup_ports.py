@@ -358,11 +358,13 @@ Other network devices
 
         if if_list and map_driver.args.parent and dpdk_nic_bind.get_igb_uio_usage():
             pid = dpdk_nic_bind.get_pid_using_pci(if_list)
-            cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-            print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
-            if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
-                sys.exit(1)
-
+            if pid:
+                cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
+                print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
+                if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
+                    sys.exit(1)
+            else:
+                print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
 
     def do_return_to_linux(self):
         if not self.m_devices:
@@ -459,11 +461,14 @@ Other network devices
             wanted_interfaces.append(dev)
 
         unbound = []
+        dpdk_bound = []
         for interface in wanted_interfaces:
             if 'Driver_str' not in interface:
                 unbound.append(interface['Slot'])
-        if unbound:
-            for pci, info in dpdk_nic_bind.get_info_from_trex(unbound).items():
+            elif interface.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
+                dpdk_bound.append(interface['Slot'])
+        if unbound or dpdk_bound:
+            for pci, info in dpdk_nic_bind.get_info_from_trex(unbound + dpdk_bound).items():
                 if pci not in self.m_devices:
                     raise DpdkSetup('Internal error: PCI %s is not found among devices' % pci)
                 self.m_devices[pci].update(info)
@@ -653,7 +658,7 @@ Other network devices
 
 
 def parse_parent_cfg (parent_cfg):
-    parent_parser = argparse.ArgumentParser()
+    parent_parser = argparse.ArgumentParser(add_help = False)
     parent_parser.add_argument('--cfg', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     args, unkown = parent_parser.parse_known_args(shlex.split(parent_cfg))
@@ -699,7 +704,7 @@ To see more detailed info on interfaces (table):
                       help=argparse.SUPPRESS
      )
 
-    parser.add_argument('--dump-pci-description', help='suppress', dest='dump_pci_desc', action='store_true')
+    parser.add_argument('--dump-pci-description', help=argparse.SUPPRESS, dest='dump_pci_desc', action='store_true')
 
     parser.add_argument("-i", "--interactive", action='store_true',
                       help=""" Create TRex config in interactive mode """,

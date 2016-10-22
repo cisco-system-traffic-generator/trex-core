@@ -320,6 +320,13 @@ class EventsHandler(object):
             ev = "port {0} job failed".format(port_id)
             show_event = True
 
+        # port attr changed
+        elif (type == 8):
+            port_id = int(data['port_id'])
+            ev = "port {0} attributes changed".format(port_id)
+            show_event = True
+            self.__async_event_port_attr_changed(port_id, data['attr'])
+
         # server stopped
         elif (type == 100):
             ev = "Server has stopped"
@@ -372,6 +379,9 @@ class EventsHandler(object):
     def __async_event_server_stopped (self):
         self.client.connected = False
 
+    def __async_event_port_attr_changed (self, port_id, attr):
+        if port_id in self.client.ports:
+            self.client.ports[port_id].async_event_port_attr_changed(attr)
 
     # add event to log
     def __add_event_log (self, origin, ev_type, msg, show = False):
@@ -887,7 +897,7 @@ class STLClient(object):
 
 
     # clear stats
-    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats):
+    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats):
 
         # we must be sync with the server
         self.async_client.barrier()
@@ -903,6 +913,9 @@ class STLClient(object):
 
         if clear_latency_stats:
             self.latency_stats.clear_stats()
+
+        if clear_xstats:
+            self.xstats.clear_stats()
 
         self.logger.log_cmd("Clearing stats on port(s) {0}:".format(port_id_list))
 
@@ -2501,6 +2514,9 @@ class STLClient(object):
                 clear_latency_stats : bool 
                     Clear the latency stats
 
+                clear_xstats : bool 
+                    Clear the extended stats
+
             :raises:
                 + :exc:`STLError`
 
@@ -2513,7 +2529,7 @@ class STLClient(object):
         if not type(clear_global) is bool:
             raise STLArgumentError('clear_global', clear_global)
 
-        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats)
+        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats)
         if not rc:
             raise STLError(rc)
 
@@ -2605,7 +2621,7 @@ class STLClient(object):
                 flow_ctrl   - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
 
             :raises:
-                None
+                + :exe:'STLError'
 
         """
 
@@ -3205,23 +3221,34 @@ class STLClient(object):
                                          parsing_opts.LINK_STATUS,
                                          parsing_opts.LED_STATUS,
                                          parsing_opts.FLOW_CTRL,
+                                         parsing_opts.SUPPORTED,
                                          )
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
 
-        opts.prom      = parsing_opts.on_off_dict.get(opts.prom)
-        opts.link      = parsing_opts.on_off_dict.get(opts.link)
-        opts.led       = parsing_opts.on_off_dict.get(opts.led)
-        opts.flow_ctrl = parsing_opts.flow_ctrl_dict.get(opts.flow_ctrl)
+        opts.prom      = parsing_opts.ON_OFF_DICT.get(opts.prom)
+        opts.link      = parsing_opts.UP_DOWN_DICT.get(opts.link)
+        opts.led       = parsing_opts.ON_OFF_DICT.get(opts.led)
+        opts.flow_ctrl = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
 
         # if no attributes - fall back to printing the status
-        if not filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl]):
+        if not filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp]):
             self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
-        return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl)
+        if opts.supp:
+            info = self.ports[0].get_info() # assume for now all ports are same
+            print('')
+            print('Supported attributes for current NICs:')
+            print('  Promiscuous:   yes')
+            print('  Link status:   %s' % info['link_change_supported'])
+            print('  LED status:    %s' % info['led_change_supported'])
+            print('  Flow control:  %s' % info['fc_supported'])
+            print('')
+        else:
+            return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl)
 
 
     @__console

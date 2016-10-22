@@ -706,6 +706,8 @@ vmxnet3_dev_info_get(__attribute__((unused))struct rte_eth_dev *dev,
 	dev_info->min_rx_bufsize = 1518 + RTE_PKTMBUF_HEADROOM;
 	dev_info->max_rx_pktlen = 16384; /* includes CRC, cf MAXFRS register */
 	dev_info->max_mac_addrs = VMXNET3_MAX_MAC_ADDRS;
+	/* TRex patch */
+	dev_info->speed_capa = ETH_LINK_SPEED_10G;
 
 	dev_info->default_txconf.txq_flags = ETH_TXQ_FLAGS_NOXSUMSCTP;
 	dev_info->flow_type_rss_offloads = VMXNET3_RSS_OFFLOAD_ALL;

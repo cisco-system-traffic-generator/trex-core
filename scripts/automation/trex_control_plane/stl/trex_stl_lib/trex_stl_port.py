@@ -5,6 +5,7 @@ from .trex_stl_packet_builder_scapy import STLPktBuilder
 from .trex_stl_streams import STLStream
 from .trex_stl_types import *
 from . import trex_stl_stats
+from .utils.constants import FLOW_CTRL_DICT_REVERSED
 
 import base64
 import copy
@@ -250,9 +251,10 @@ class Port(object):
         self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
         # attributes
-        self.attr = rc.data()['attr']
+        self.attr = ['attr']
+        if 'speed' in rc.data():
+            self.info['speed'] = rc.data()['speed'] // 1000
 
-     
         return self.ok()
 
 
@@ -577,7 +579,7 @@ class Port(object):
             return self.err(rc.err())
 
 
-        self.attr.update(attr_dict)
+        #self.attr.update(attr_dict)
 
         return self.ok()
 
@@ -650,12 +652,47 @@ class Port(object):
     def get_info (self):
         info = dict(self.info)
 
-        info['status']       = self.get_port_state_name()
+        info['status'] = self.get_port_state_name()
+        if 'link' in self.attr:
+            info['link'] = 'UP' if self.attr['link']['up'] else 'DOWN'
+        else:
+            info['link'] = 'N/A'
 
-        if self.attr.get('promiscuous'):
+        if 'fc' in self.attr:
+            info['fc'] = FLOW_CTRL_DICT_REVERSED.get(self.attr['fc']['mode'], 'N/A')
+        else:
+            info['fc'] = 'N/A'
+
+        if 'promiscuous' in self.attr:
             info['prom'] = "on" if self.attr['promiscuous']['enabled'] else "off"
         else:
             info['prom'] = "N/A"
+
+        if 'description' in info:
+            if len(info['description']) > 18:
+                info['description'] = info['description'][:18]
+        else:
+            info['description'] = "N/A"
+
+        if 'is_fc_supported' in info:
+            info['fc_supported'] = 'yes' if info['is_fc_supported'] else 'no'
+        else:
+            info['fc_supported'] = 'N/A'
+
+        if 'is_led_supported' in info:
+            info['led_change_supported'] = 'yes' if info['is_led_supported'] else 'no'
+        else:
+            info['led_change_supported'] = 'N/A'
+
+        if 'is_link_supported' in info:
+            info['link_change_supported'] = 'yes' if info['is_link_supported'] else 'no'
+        else:
+            info['link_change_supported'] = 'N/A'
+
+        if 'is_virtual' in info:
+            info['is_virtual'] = 'yes' if info['is_virtual'] else 'no'
+        else:
+            info['is_virtual'] = 'N/A'
 
         return info
 
@@ -672,6 +709,7 @@ class Port(object):
         info = self.get_info()
 
         return {"driver":        info['driver'],
+                "description": info.get('description', 'N/A'),
                 "HW src mac":  info['hw_macaddr'],
                 "SW src mac":  info['src_macaddr'],
                 "SW dst mac":  info['dst_macaddr'],
@@ -679,9 +717,10 @@ class Port(object):
                 "NUMA Node":   info['numa'],
                 "--": "",
                 "---": "",
-                "maximum": "{speed} Gb/s".format(speed=info['speed']),
-                "status": info['status'],
-                "promiscuous" : info['prom']
+                "link speed": "{speed} Gb/s".format(speed=info['speed']),
+                "status": '%s (link %s)' % (info['status'], info['link']),
+                "promiscuous" : info['prom'],
+                "flow ctrl" : info['fc'],
                 }
 
     def clear_stats(self):
@@ -725,6 +764,10 @@ class Port(object):
         self.tx_stopped_ts = datetime.now()
         self.state = self.STATE_STREAMS
         self.last_factor_type = None
+
+    def async_event_port_attr_changed (self, attr):
+        self.info['speed'] = attr['speed'] // 1000
+        self.attr = attr
 
     # rest of the events are used for TUI / read only sessions
     def async_event_port_stopped (self):

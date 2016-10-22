@@ -28,6 +28,7 @@ limitations under the License.
 #include <string.h>
 #include "flow_stat_parser.h"
 #include "trex_defs.h"
+#include "trex_port_attr.h"
 #include <json/json.h>
 
 /**
@@ -136,6 +137,7 @@ public:
     virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const = 0;
 
     virtual void publish_async_data_now(uint32_t key, bool baseline) const = 0;
+    virtual void publish_async_port_attr_changed(uint8_t port_id) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
     virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const =0;
     virtual int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
@@ -148,22 +150,15 @@ public:
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
-    virtual int set_promiscuous(uint8_t port_id, bool enabled) const = 0;
-    virtual int set_link_status(uint8_t port_id, bool up) const = 0;
-    virtual bool get_promiscuous(uint8_t port_id) const = 0;
-    virtual bool get_link_status(uint8_t port_id) const = 0;
     virtual void flush_dp_messages() const = 0;
     virtual int get_active_pgids(flow_stat_active_t &result) const = 0;
     virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
     virtual int get_mbuf_util(Json::Value &result) const = 0;
     virtual CFlowStatParser *get_flow_stat_parser() const = 0;
+    virtual TRexPortAttr *getPortAttrObj() const = 0;
     virtual void mark_for_shutdown() const = 0;
     virtual int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const = 0;
     virtual int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const = 0;
-    virtual int get_flow_ctrl(uint8_t port_id, int &mode) const = 0;
-    virtual int set_flow_ctrl(uint8_t port_id, int mode) const = 0;
-    virtual int set_led_status(uint8_t port_id, bool on) const = 0;
-    virtual uint32_t get_link_speed(uint8_t port_id) const = 0;
 
     virtual ~TrexPlatformApi() {}
 };
@@ -183,6 +178,7 @@ public:
     void get_interface_info(uint8_t interface_id, intf_info_st &info) const;
 
     void publish_async_data_now(uint32_t key, bool baseline) const;
+    void publish_async_port_attr_changed(uint8_t port_id) const;
     uint8_t get_dp_core_count() const;
     void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const;
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
@@ -195,23 +191,16 @@ public:
                                       , uint8_t ipv6_next_h, uint16_t id) const;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const;
-    int set_promiscuous(uint8_t port_id, bool enabled) const;
-    int set_link_status(uint8_t port_id, bool up) const;
-    bool get_promiscuous(uint8_t port_id) const;
-    bool get_link_status(uint8_t port_id) const;
     void flush_dp_messages() const;
     int get_active_pgids(flow_stat_active_t &result) const;
     int get_cpu_util_full(cpu_util_full_t &result) const;
     int get_mbuf_util(Json::Value &result) const;
     void mark_for_shutdown() const;
     CFlowStatParser *get_flow_stat_parser() const;
+    TRexPortAttr *getPortAttrObj() const;
 
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const;
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const;
-    int get_flow_ctrl(uint8_t port_id, int &mode) const;
-    int set_flow_ctrl(uint8_t port_id, int mode) const;
-    int set_led_status(uint8_t port_id, bool on) const;
-    uint32_t get_link_speed(uint8_t port_id) const;
 };
 
 
@@ -256,6 +245,10 @@ public:
     virtual void publish_async_data_now(uint32_t key, bool baseline) const {
 
     }
+
+    virtual void publish_async_port_attr_changed(uint8_t port_id) const {
+    }
+
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                        , TrexPlatformApi::driver_stat_cap_e type) const {return 0;};
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const {return 0;};
@@ -266,18 +259,6 @@ public:
                                       , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
-    int set_promiscuous(uint8_t port_id, bool enabled) const {
-        return 0;
-    }
-    int set_link_status(uint8_t port_id, bool on) const {
-        return 0;
-    }
-    bool get_promiscuous(uint8_t port_id) const {
-        return false;
-    }
-    bool get_link_status(uint8_t port_id) const {
-        return false;
-    }
 
     void flush_dp_messages() const {
     }
@@ -285,17 +266,11 @@ public:
     int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
     int get_mbuf_util(Json::Value &result) const {return 0;}
     CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
+    TRexPortAttr *getPortAttrObj() const {printf("Port attributes should not be used in simulation\n"); return NULL;} // dummy
 
     void mark_for_shutdown() const {}
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {return 0;};
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {return 0;};
-    int get_flow_ctrl(uint8_t port_id, int &mode) const {return 0;};
-    int set_flow_ctrl(uint8_t port_id, int mode) const {return 0;};
-    int set_led_status(uint8_t port_id, bool on) const {return 0;};
-    uint32_t get_link_speed(uint8_t port_id) const {
-        return 0;
-    }
-
 
 private:
     int m_dp_core_count;

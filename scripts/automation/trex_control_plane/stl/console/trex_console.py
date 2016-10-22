@@ -230,14 +230,17 @@ class TRexConsole(TRexGeneralCmd):
         self.save_console_history()
 
         lines = line.split(';')
-
-        for line in lines:
-            stop = self.onecmd(line)
-            stop = self.postcmd(stop, line)
-            if stop:
-                return "quit"
-
-        return ""
+        try:
+            for line in lines:
+                stop = self.onecmd(line)
+                stop = self.postcmd(stop, line)
+                if stop:
+                    return "quit"
+    
+            return ""
+        except STLError as e:
+            print(e)
+            return ''
 
 
     def postcmd(self, stop, line):
@@ -364,7 +367,7 @@ class TRexConsole(TRexGeneralCmd):
                                           'help': "an history item index",
                                           'default': 0})
 
-        parser = parsing_opts.gen_parser(self,
+        parser = parsing_opts.gen_parser(self.stateless_client,
                                          "history",
                                          self.do_history.__doc__,
                                          item)
@@ -551,16 +554,16 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_tui (self, line):
         '''Shows a graphical console\n'''
-        parser = parsing_opts.gen_parser(self,
+        parser = parsing_opts.gen_parser(self.stateless_client,
                                          "tui",
                                          self.do_tui.__doc__,
                                          parsing_opts.XTERM,
                                          parsing_opts.LOCKED)
 
         opts = parser.parse_args(line.split())
-        if opts is None:
-            return
 
+        if not opts:
+            return opts
         if opts.xterm:
             if not os.path.exists('/usr/bin/xterm'):
                 print(format_text("XTERM does not exists on this machine", 'bold'))
@@ -784,14 +787,18 @@ def show_intro (logger, c):
     # find out which NICs the server has
     port_types = {}
     for port in x['ports']:
-        key = (port['speed'], port['driver'])
-        if not key in port_types:
+        if 'supp_speeds' in port:
+            speed = max(port['supp_speeds']) // 1000
+        else:
+            speed = port['speed']
+        key = (speed, port.get('description', port['driver']))
+        if key not in port_types:
             port_types[key] = 0
         port_types[key] += 1
 
     port_line = ''
     for k, v in port_types.items():
-        port_line += "{0} x {1}Gbps @ {2}".format(v, k[0], k[1])
+        port_line += "{0} x {1}Gbps @ {2}\t".format(v, k[0], k[1])
 
     logger.log(format_text("\nServer Info:\n", 'underline'))
     logger.log("Server version:   {:>}".format(format_text(ver, 'bold')))

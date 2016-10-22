@@ -27,7 +27,7 @@ def user_input():
         return raw_input()
 
 
-def random_id_gen(length=8):
+def random_id_gen_unsafe(length=8):
     """
     A generator for creating a random chars id of specific length
 
@@ -46,6 +46,19 @@ def random_id_gen(length=8):
         for i in range(length):
             return_id += random.choice(id_chars)
         yield return_id
+
+
+class random_id_gen:
+    """ Thread safe version of random_id_gen_unsafe """
+    def __init__(self, length=8):
+        self.id_chars = string.ascii_lowercase + string.digits
+        self.length = length
+
+    def next(self):
+        return ''.join(random.choice(self.id_chars) for _ in range(self.length))
+
+    __next__ = next
+
 
 # try to get number from input, return None in case of fail
 def get_number(input):

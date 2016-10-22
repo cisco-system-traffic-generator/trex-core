@@ -255,6 +255,11 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     /* caclulate the effective factor for DP */
     double factor = calculate_effective_factor(mul, force);
 
+    /* zero factor */
+    if (factor == 0) {
+        throw TrexException("Zero multiplier, nothing to send.");
+    }
+
     StreamsFeeder feeder(this);
 
     /* compiler it */
@@ -278,7 +283,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
 
     feeder.set_status(true);
 
-    /* generate a message to all the relevant DP cores to start transmitting */
+    /* generate a message to all the relevant DP cores to stop transmitting */
     assert(m_pending_async_stop_event == TrexDpPortEvents::INVALID_ID);
     m_pending_async_stop_event = m_dp_events.create_event(new AsyncStopEvent());
 
@@ -581,7 +586,7 @@ void
 TrexStatelessPort::get_properties(std::string &driver, uint32_t &speed) {
 
     driver = m_api_info.driver_name;
-    speed = platform_api->get_link_speed(m_port_id);
+    speed = platform_api->getPortAttrObj()->get_link_speed(m_port_id);
 }
 
 bool
@@ -662,7 +667,7 @@ TrexStatelessPort::send_message_to_rx(TrexStatelessCpToRxMsgBase *msg) {
 
 uint64_t
 TrexStatelessPort::get_port_speed_bps() const {
-    return (uint64_t) platform_api->get_link_speed(m_port_id) * 1000 * 1000;
+    return (uint64_t) platform_api->getPortAttrObj()->get_link_speed(m_port_id) * 1000 * 1000;
 }
 
 static inline double

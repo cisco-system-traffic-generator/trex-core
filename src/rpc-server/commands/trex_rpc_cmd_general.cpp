@@ -295,6 +295,8 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         string src_macaddr;
         string dst_macaddr;
         string pci_addr;
+        string description;
+        supp_speeds_t supp_speeds;
         int numa;
 
         TrexStatelessPort *port = main->get_port_by_id(i);
@@ -302,10 +304,13 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         port->get_macaddr(hw_macaddr, src_macaddr, dst_macaddr);
 
         port->get_pci_info(pci_addr, numa);
+        main->get_platform_api()->getPortAttrObj()->get_description(i, description);
+        main->get_platform_api()->getPortAttrObj()->get_supported_speeds(i, supp_speeds);
 
         section["ports"][i]["index"]   = i;
 
         section["ports"][i]["driver"]       = driver;
+        section["ports"][i]["description"]  = description;
         section["ports"][i]["hw_macaddr"]   = hw_macaddr;
         section["ports"][i]["src_macaddr"]  = src_macaddr;
         section["ports"][i]["dst_macaddr"]  = dst_macaddr;
@@ -326,6 +331,14 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         }
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();
         section["ports"][i]["speed"] = (uint16_t) speed / 1000;
+        section["ports"][i]["is_fc_supported"] = get_stateless_obj()->get_platform_api()->getPortAttrObj()->is_fc_change_supported();
+        section["ports"][i]["is_led_supported"] = get_stateless_obj()->get_platform_api()->getPortAttrObj()->is_led_change_supported();
+        section["ports"][i]["is_link_supported"] = get_stateless_obj()->get_platform_api()->getPortAttrObj()->is_link_change_supported();
+        section["ports"][i]["is_virtual"] = get_stateless_obj()->get_platform_api()->getPortAttrObj()->is_virtual();
+        section["ports"][i]["supp_speeds"] = Json::arrayValue;
+        for (int speed_id=0; speed_id<supp_speeds.size(); speed_id++) {
+            section["ports"][i]["supp_speeds"].append(supp_speeds[speed_id]);
+        }
 
     }
 
@@ -349,22 +362,23 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
 
     const Json::Value &attr = parse_object(params, "attr", result);
     int ret = 0;
+    bool changed = false;
     /* iterate over all attributes in the dict */
     for (const std::string &name : attr.getMemberNames()) {
         if (name == "promiscuous") {
             bool enabled = parse_bool(attr[name], "enabled", result);
-            ret = get_stateless_obj()->get_platform_api()->set_promiscuous(port_id, enabled);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj()->set_promiscuous(port_id, enabled);
         }
         else if (name == "link_status") {
             bool up = parse_bool(attr[name], "up", result);
-            ret = get_stateless_obj()->get_platform_api()->set_link_status(port_id, up);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj()->set_link_up(port_id, up);
         }
         else if (name == "led_status") {
             bool on = parse_bool(attr[name], "on", result);
-            ret = get_stateless_obj()->get_platform_api()->set_led_status(port_id, on);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj()->set_led(port_id, on);
         } else if (name == "flow_ctrl_mode") {
             int mode = parse_int(attr[name], "mode", result);
-            ret = get_stateless_obj()->get_platform_api()->set_flow_ctrl(port_id, mode);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj()->set_flow_ctrl(port_id, mode);
         } else {
             generate_execute_err(result, "Not recognized attribute: " + name);
             break;
@@ -376,8 +390,13 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
             else if (ret) {
                 generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
             }
+            break;
+        } else {
+            changed = true;
         }
-        break;
+    }
+    if (changed) {
+        get_stateless_obj()->get_platform_api()->publish_async_port_attr_changed(port_id);
     }
 
     result["result"] = Json::objectValue;
@@ -549,9 +568,17 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
     result["result"]["state"]         = port->get_state_as_string();
     result["result"]["max_stream_id"] = port->get_max_stream_id();
+    result["result"]["speed"]         = get_stateless_obj()->get_platform_api()->getPortAttrObj()->get_link_speed(port_id);
 
     /* attributes */
-    result["result"]["attr"]["promiscuous"]["enabled"] = get_stateless_obj()->get_platform_api()->get_promiscuous(port_id);
+    result["result"]["attr"]["promiscuous"]["enabled"] = get_stateless_obj()->get_platform_api()->getPortAttrObj()->get_promiscuous(port_id);
+    result["result"]["attr"]["link"]["up"] = get_stateless_obj()->get_platform_api()->getPortAttrObj()->is_link_up(port_id);
+    int mode;
+    int ret = get_stateless_obj()->get_platform_api()->getPortAttrObj()->get_flow_ctrl(port_id, mode);
+    if (ret != 0) {
+        mode = -1;
+    }
+    result["result"]["attr"]["fc"]["mode"] = mode;
 
     return (TREX_RPC_CMD_OK);
 }

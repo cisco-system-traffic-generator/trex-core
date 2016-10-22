@@ -182,7 +182,7 @@ class JsonRpcClient(object):
                 tries += 1
                 if tries > 5:
                     self.disconnect()
-                    return RC_ERR("*** [RPC] - Failed to get server response at {0}".format(self.transport))
+                    return RC_ERR("*** [RPC] - Failed to get server response from {0}".format(self.transport))
 
 
         return response

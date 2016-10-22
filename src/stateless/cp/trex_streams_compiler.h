@@ -309,7 +309,7 @@ public:
     }
 
     double get_factor_pps(double req_pps) const {
-        if ( (req_pps - m_fixed.m_pps) <= 0 )  {
+        if ( (req_pps - m_fixed.m_pps) < 0 )  {
             std::stringstream ss;
             ss << "current stream configuration enforces a minimum rate of '" << m_fixed.m_pps << "' pps";
             throw TrexException(ss.str());
@@ -319,7 +319,7 @@ public:
     }
 
     double get_factor_bps_l1(double req_bps_l1) const {
-        if ( (req_bps_l1 - m_fixed.m_bps_l1) <= 0 )  {
+        if ( (req_bps_l1 - m_fixed.m_bps_l1) < 0 )  {
             std::stringstream ss;
             ss << "current stream configuration enforces a minimum rate of '" << m_fixed.m_bps_l1 << "' BPS L1";
             throw TrexException(ss.str());
@@ -329,7 +329,7 @@ public:
     }
 
     double get_factor_bps_l2(double req_bps_l2) const {
-        if ( (req_bps_l2 - m_fixed.m_bps_l2) <= 0 )  {
+        if ( (req_bps_l2 - m_fixed.m_bps_l2) < 0 )  {
             std::stringstream ss;
             ss << "current stream configuration enforces a minimum rate of '" << m_fixed.m_bps_l2 << "' BPS L2";
             throw TrexException(ss.str());

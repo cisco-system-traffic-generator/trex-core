@@ -3,6 +3,7 @@ from collections import namedtuple, OrderedDict
 from .common import list_intersect, list_difference
 from .text_opts import format_text
 from ..trex_stl_types import *
+from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
 
 import sys
 import re
@@ -10,18 +11,6 @@ import os
 
 ArgumentPack = namedtuple('ArgumentPack', ['name_or_flags', 'options'])
 ArgumentGroup = namedtuple('ArgumentGroup', ['type', 'args', 'options'])
-
-on_off_dict = OrderedDict([
-    ('on', True),
-    ('off', False),
-])
-
-flow_ctrl_dict = OrderedDict([
-    ('none', 0),     # Disable flow control
-    ('tx',   1),     # Enable flowctrl on TX side (RX pause frames)
-    ('rx',   2),     # Enable flowctrl on RX side (TX pause frames)
-    ('full', 3),     # Enable flow control on both sides
-])
 
 
 # list of available parsing options
@@ -53,6 +42,7 @@ PIN_CORES = 25
 CORE_MASK = 26
 DUAL = 27
 FLOW_CTRL = 28
+SUPPORTED = 29
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -61,6 +51,8 @@ STREAMS_STATS = 53
 STATS_MASK = 54
 CPU_STATS = 55
 MBUF_STATS = 56
+EXTENDED_STATS = 57
+EXTENDED_INC_ZERO_STATS = 58
 
 STREAMS_MASK = 60
 CORE_MASK_GROUP = 61
@@ -296,20 +288,25 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
 
               PROMISCUOUS: ArgumentPack(['--prom'],
                                         {'help': "Set port promiscuous on/off",
-                                         'choices': on_off_dict}),
+                                         'choices': ON_OFF_DICT}),
 
               LINK_STATUS: ArgumentPack(['--link'],
-                                     {'help': 'Set link status on/off',
-                                      'choices': on_off_dict}),
+                                     {'help': 'Set link status up/down',
+                                      'choices': UP_DOWN_DICT}),
 
               LED_STATUS: ArgumentPack(['--led'],
                                    {'help': 'Set LED status on/off',
-                                    'choices': on_off_dict}),
+                                    'choices': ON_OFF_DICT}),
 
               FLOW_CTRL: ArgumentPack(['--fc'],
                                    {'help': 'Set Flow Control type',
                                     'dest': 'flow_ctrl',
-                                    'choices': flow_ctrl_dict}),
+                                    'choices': FLOW_CTRL_DICT}),
+
+              SUPPORTED: ArgumentPack(['--supp'],
+                                   {'help': 'Show which attributes are supported by current NICs',
+                                    'default': None,
+                                    'action': 'store_true'}),
 
               TUNABLES: ArgumentPack(['-t'],
                                      {'help': "Sets tunables for a profile. Example: '-t fsize=100,pg_id=7'",
@@ -419,6 +416,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        {'action': 'store_true',
                                         'help': "Fetch only MBUF utilization stats"}),
 
+              EXTENDED_STATS: ArgumentPack(['-x'],
+                                       {'action': 'store_true',
+                                        'help': "Fetch xstats of port, excluding lines with zero values"}),
+
+              EXTENDED_INC_ZERO_STATS: ArgumentPack(['--xz'],
+                                       {'action': 'store_true',
+                                        'help': "Fetch xstats of port, including lines with zero values"}),
+
               STREAMS_MASK: ArgumentPack(['--streams'],
                                          {"nargs": '+',
                                           'dest':'streams',
@@ -455,7 +460,9 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                 PORT_STATUS,
                                                 STREAMS_STATS,
                                                 CPU_STATS,
-                                                MBUF_STATS],
+                                                MBUF_STATS,
+                                                EXTENDED_STATS,
+                                                EXTENDED_INC_ZERO_STATS,],
                                         {}),
 
 

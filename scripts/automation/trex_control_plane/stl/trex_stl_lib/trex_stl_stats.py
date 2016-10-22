@@ -3,6 +3,7 @@
 from .utils import text_tables
 from .utils.text_opts import format_text, format_threshold, format_num
 from .trex_stl_types import StatNotAvailable, is_integer
+from .trex_stl_exceptions import STLError
 
 from collections import namedtuple, OrderedDict, deque
 import sys
@@ -23,8 +24,10 @@ LATENCY_STATS = 'ls'
 LATENCY_HISTOGRAM = 'lh'
 CPU_STATS = 'c'
 MBUF_STATS = 'm'
+EXTENDED_STATS = 'x'
+EXTENDED_INC_ZERO_STATS = 'xz'
 
-ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH, LATENCY_HISTOGRAM, CPU_STATS, MBUF_STATS]
+ALL_STATS_OPTS = [GLOBAL_STATS, PORT_STATS, PORT_STATUS, STREAMS_STATS, LATENCY_STATS, PORT_GRAPH, LATENCY_HISTOGRAM, CPU_STATS, MBUF_STATS, EXTENDED_STATS, EXTENDED_INC_ZERO_STATS]
 COMPACT = [GLOBAL_STATS, PORT_STATS]
 GRAPH_PORT_COMPACT = [GLOBAL_STATS, PORT_GRAPH]
 SS_COMPAT = [GLOBAL_STATS, STREAMS_STATS] # stream stats
@@ -184,6 +187,12 @@ class CTRexInfoGenerator(object):
         elif statistic_type == MBUF_STATS:
             return self._generate_mbuf_util_stats()
 
+        elif statistic_type == EXTENDED_STATS:
+            return self._generate_xstats(port_id_list, include_zero_lines = False)
+
+        elif statistic_type == EXTENDED_INC_ZERO_STATS:
+            return self._generate_xstats(port_id_list, include_zero_lines = True)
+
         else:
             # ignore by returning empty object
             return {}
@@ -206,7 +215,7 @@ class CTRexInfoGenerator(object):
     def _generate_global_stats(self):
         global_stats = self._global_stats
      
-        stats_data = OrderedDict([("connection", "{host}, Port {port}".format(host=global_stats.connection_info.get("server"),
+        stats_data_left = OrderedDict([("connection", "{host}, Port {port}".format(host=global_stats.connection_info.get("server"),
                                                                      port=global_stats.connection_info.get("sync_port"))),
                              ("version", "{ver}, UUID: {uuid}".format(ver=global_stats.server_version.get("version", "N/A"),
                                                                       uuid="N/A")),
@@ -222,14 +231,13 @@ class CTRexInfoGenerator(object):
 
                              ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self._async_monitor.get_cpu_util()), [85, 100], [0, 85]),
                                                                  format_num(self._async_monitor.get_bps() / 8.0, suffix = "B/sec"))),
-                                                             
+                            ])
 
-                             (" ", ""),
-
+        stats_data_right = OrderedDict([
                              ("total_tx_L2", "{0} {1}".format( global_stats.get("m_tx_bps", format=True, suffix="b/sec"),
                                                                 global_stats.get_trend_gui("m_tx_bps"))),
 
-                            ("total_tx_L1", "{0} {1}".format( global_stats.get("m_tx_bps_L1", format=True, suffix="b/sec"),
+                             ("total_tx_L1", "{0} {1}".format( global_stats.get("m_tx_bps_L1", format=True, suffix="b/sec"),
                                                                 global_stats.get_trend_gui("m_tx_bps_L1"))),
 
                              ("total_rx", "{0} {1}".format( global_stats.get("m_rx_bps", format=True, suffix="b/sec"),
@@ -237,8 +245,6 @@ class CTRexInfoGenerator(object):
 
                              ("total_pps", "{0} {1}".format( global_stats.get("m_tx_pps", format=True, suffix="pkt/sec"),
                                                               global_stats.get_trend_gui("m_tx_pps"))),
-
-                             #("  ", ""),
 
                              ("drop_rate", "{0}".format( format_num(global_stats.get("m_rx_drop_bps"),
                                                                     suffix = 'b/sec',
@@ -249,19 +255,29 @@ class CTRexInfoGenerator(object):
                                                                      suffix = 'pkts',
                                                                      compact = False,
                                                                      opts = 'green' if (global_stats.get_rel("m_total_queue_full")== 0) else 'red'))),
-
-                             ]
-                            )
+                             ])
 
         # build table representation
         stats_table = text_tables.TRexTextInfo()
         stats_table.set_cols_align(["l", "l"])
+        stats_table.set_deco(0)
+        stats_table.set_cols_width([50, 45])
+        max_lines = max(len(stats_data_left), len(stats_data_right))
+        for line_num in range(max_lines):
+            row = []
+            if line_num < len(stats_data_left):
+                key = list(stats_data_left.keys())[line_num]
+                row.append('{:<12} : {}'.format(key, stats_data_left[key]))
+            else:
+                row.append('')
+            if line_num < len(stats_data_right):
+                key = list(stats_data_right.keys())[line_num]
+                row.append('{:<12} : {}'.format(key, stats_data_right[key]))
+            else:
+                row.append('')
+            stats_table.add_row(row)
 
-        stats_table.add_rows([[k.replace("_", " ").title(), v]
-                              for k, v in stats_data.items()],
-                             header=False)
-
-        return {"global_statistics": ExportableStats(stats_data, stats_table)}
+        return {"global_statistics": ExportableStats(None, stats_table)}
 
     def _generate_streams_stats (self):
         flow_stats = self._rx_stats_ref
@@ -505,6 +521,29 @@ class CTRexInfoGenerator(object):
             stats_table.add_row(['No Data.'])
         return {'mbuf_util': ExportableStats(None, stats_table)}
 
+    def _generate_xstats(self, port_id_list, include_zero_lines = False):
+        relevant_ports = [port.port_id for port in self.__get_relevant_ports(port_id_list)]
+        # get the data on relevant ports
+        xstats_data = OrderedDict()
+        for port_id in relevant_ports:
+            for key, val in self._xstats_ref.get_stats(port_id).items():
+                if key not in xstats_data:
+                    xstats_data[key] = []
+                xstats_data[key].append(val)
+
+        # put into table
+        stats_table = text_tables.TRexTextTable()
+        stats_table.header(['Name:'] + ['Port %s:' % port_id for port_id in relevant_ports])
+        stats_table.set_cols_align(['l'] + ['r'] * len(relevant_ports))
+        stats_table.set_cols_width([30] + [15] * len(relevant_ports))
+        stats_table.set_cols_dtype(['t'] * (len(relevant_ports) + 1))
+        for key, arr in xstats_data.items():
+            if include_zero_lines or list(filter(None, arr)):
+                if len(key) > 28:
+                    key = key[:28]
+                stats_table.add_row([key] + arr)
+        return {'xstats:': ExportableStats(None, stats_table)}
+
     @staticmethod
     def _get_rational_block_char(value, range_start, interval):
         # in Konsole, utf-8 is sometimes printed with artifacts, return ascii for now
@@ -558,6 +597,7 @@ class CTRexInfoGenerator(object):
 
         return_stats_data = {}
         per_field_stats = OrderedDict([("owner", []),
+                                       ('link', []),
                                        ("state", []),
                                        ("speed", []),
                                        ("CPU util.", []),
@@ -585,8 +625,7 @@ class CTRexInfoGenerator(object):
                                        ("oerrors", []),
                                        ("ierrors", []),
 
-                                      ]
-                                      )
+                                      ])
 
         total_stats = CPortStats(None)
 
@@ -626,9 +665,11 @@ class CTRexInfoGenerator(object):
 
         return_stats_data = {}
         per_field_status = OrderedDict([("driver", []),
-                                        ("maximum", []),
+                                        ("description", []),
+                                        ("link speed", []),
                                         ("status", []),
                                         ("promiscuous", []),
+                                        ("flow ctrl", []),
                                         ("--", []),
                                         ("HW src mac", []),
                                         ("SW src mac", []),
@@ -1054,13 +1095,24 @@ class CPortStats(CTRexStats):
 
     def generate_stats(self):
 
-        state = self._port_obj.get_port_state_name() if self._port_obj else "" 
-        if state == "ACTIVE":
-            state = format_text(state, 'green', 'bold')
-        elif state == "PAUSE":
-            state = format_text(state, 'magenta', 'bold')
+        port_state = self._port_obj.get_port_state_name() if self._port_obj else "" 
+        if port_state == "ACTIVE":
+            port_state = format_text('TRANSMITTING', 'green', 'bold')
+        elif port_state == "PAUSE":
+            port_state = format_text(port_state, 'magenta', 'bold')
         else:
-            state = format_text(state, 'bold')
+            port_state = format_text(port_state, 'bold')
+
+        if self._port_obj:
+            if 'link' in self._port_obj.attr:
+                if self._port_obj.attr.get('link', {}).get('up') == False:
+                    link_state = format_text('DOWN', 'red', 'bold')
+                else:
+                    link_state = 'UP'
+            else:
+                link_state = 'N/A'
+        else:
+            link_state = ''
 
         # default rate format modifiers
         rate_format = {'bpsl1': None, 'bps': None, 'pps': None, 'percentage': 'bold'}
@@ -1077,7 +1129,8 @@ class CPortStats(CTRexStats):
 
 
         return {"owner": owner,
-                "state": "{0}".format(state),
+                "state": "{0}".format(port_state),
+                'link': link_state,
                 "speed": self._port_obj.get_formatted_speed() if self._port_obj else '',
                 "CPU util.": "{0} {1}%".format(self.get_trend_gui("m_cpu_util", use_raw = True),
                                                format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85])) if self._port_obj else '' ,
@@ -1439,7 +1492,7 @@ class CUtilStats(CTRexStats):
             if self.client.is_connected():
                 rc = self.client._transmit('get_utilization')
                 if not rc:
-                    raise Exception(rc)
+                    raise STLError(rc)
                 self.last_update_ts = time_now
                 self.history.append(rc.data())
             else:
@@ -1452,33 +1505,44 @@ class CXStats(CTRexStats):
     def __init__(self, client):
         super(CXStats, self).__init__()
         self.client = client
-        self.history = deque(maxlen = 1)
-        self.names = {}
+        self.names = []
         self.last_update_ts = -999
 
-    def get_stats(self, port_id, use_1sec_cache = False):
+    def clear_stats(self, port_id = None):
+        if port_id == None:
+            ports = self.client.get_all_ports()
+        elif type(port_id) is list:
+            ports = port_id
+        else:
+            ports = [port_id]
+
+        for port_id in ports:
+            self.reference_stats[port_id] = self.get_stats(port_id, relative = False)
+
+    def get_stats(self, port_id, use_1sec_cache = False, relative = True):
         time_now = time.time()
-        if self.last_update_ts + 1 < time_now or not self.history or not use_1sec_cache:
+        if self.last_update_ts + 1 < time_now or not self.latest_stats or not use_1sec_cache:
             if self.client.is_connected():
                 rc = self.client._transmit('get_port_xstats_values', params = {'port_id': port_id})
                 if not rc:
-                    raise Exception(rc)
+                    raise STLError(rc)
                 self.last_update_ts = time_now
                 values = rc.data().get('xstats_values', [])
                 if len(values) != len(self.names): # need to update names ("keys")
                     rc = self.client._transmit('get_port_xstats_names', params = {'port_id': port_id})
                     if not rc:
-                        raise Exception(rc)
+                        raise STLError(rc)
                     self.names = rc.data().get('xstats_names', [])
                 if len(values) != len(self.names):
-                    raise Exception('Length of get_xstats_names: %s and get_port_xstats_values: %s' % (len(self.names), len(values)))
-                self.history.append(dict([(key, val) for key, val in zip(self.names, values)]))
-            else:
-                self.history.append({})
+                    raise STLError('Length of get_xstats_names: %s and get_port_xstats_values: %s' % (len(self.names), len(values)))
+                self.latest_stats[port_id] = OrderedDict([(key, val) for key, val in zip(self.names, values)])
 
-        stats = {}
-        for key, val in self.history[-1].items():
-            stats[key] = self.history[-1][key] - self.reference_stats.get(key, 0)
+        stats = OrderedDict()
+        for key, val in self.latest_stats[port_id].items():
+            if relative:
+                stats[key] = self.get_rel([port_id, key])
+            else:
+                stats[key] = self.get([port_id, key])
         return stats
 
 if __name__ == "__main__":

@@ -55,5 +55,6 @@ typedef std::set<uint32_t>::iterator flow_stat_active_it_t;
 typedef std::vector<cpu_vct_st> cpu_util_full_t;
 typedef std::vector<std::string> xstats_names_t;
 typedef std::vector<uint64_t> xstats_values_t;
+typedef std::vector<uint32_t> supp_speeds_t;
 
 #endif

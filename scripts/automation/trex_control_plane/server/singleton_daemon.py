@@ -37,6 +37,7 @@ class SingletonDaemon(object):
             lock_socket.close()
         except socket.error: # Unix socket in use
             return True
+        sleep(0.5)
         # Unix socket is not used, but maybe it's old version of daemon not using socket
         return bool(self.get_pid_by_listening_port())
 
