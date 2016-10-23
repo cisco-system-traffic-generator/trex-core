@@ -251,7 +251,7 @@ class Port(object):
         self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
         # attributes
-        self.attr = ['attr']
+        self.attr = rc.data()['attr']
         if 'speed' in rc.data():
             self.info['speed'] = rc.data()['speed'] // 1000
 
@@ -653,6 +653,7 @@ class Port(object):
         info = dict(self.info)
 
         info['status'] = self.get_port_state_name()
+
         if 'link' in self.attr:
             info['link'] = 'UP' if self.attr['link']['up'] else 'DOWN'
         else:
