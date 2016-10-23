@@ -1504,6 +1504,9 @@ int TRexPortAttr::get_flow_ctrl(uint8_t port_id, int &mode) {
 }
 
 int TRexPortAttr::set_flow_ctrl(uint8_t port_id, int mode) {
+    if (!flag_is_fc_change_supported) {
+        return -ENOTSUP;
+    }
     int ret = rte_eth_dev_flow_ctrl_get(port_id, &fc_conf_tmp);
     if (ret) {
         return ret;
