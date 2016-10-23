@@ -192,7 +192,9 @@ void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request,
     /* lookup the method in the DB */
     TrexRpcCommand * rpc_cmd = TrexRpcCommandsTable::get_instance().lookup(method_name);
     if (!rpc_cmd) {
-        commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_METHOD_NOT_FOUND, "Method not registered"));
+        std::stringstream err;
+        err << "Method " << method_name << " not registered";
+        commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_METHOD_NOT_FOUND, err.str()));
         return;
     }
 
