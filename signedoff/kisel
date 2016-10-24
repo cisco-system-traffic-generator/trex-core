@@ -2,6 +2,7 @@ I, Anton Kiselev hearby sign-off-by all of my past commits to this repo subject 
 
 My contributions were:
 
+ a60f1f0ae35acfe2cb0d3fe680c05c7f3ac0c67b - kisel - anton.kisel@gmail.com - preserve abstract model structure, calculate values and show structure changes
  4b49ef2f81941eb403fa7b39024365493a9afb63 - kisel - anton.kisel@gmail.com - add unit tests for scapy service
  83f32a72a59a1d6fafcaa9b3829874990df7735a - kisel - anton.kisel@gmail.com - update scapy_service for gui usage.
 
