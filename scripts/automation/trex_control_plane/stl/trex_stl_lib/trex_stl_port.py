@@ -719,8 +719,8 @@ class Port(object):
                 "--": "",
                 "---": "",
                 "link speed": "{speed} Gb/s".format(speed=info['speed']),
-                "status": info['status'],
-                "link": info['link'],
+                "port status": info['status'],
+                "link status": info['link'],
                 "promiscuous" : info['prom'],
                 "flow ctrl" : info['fc'],
                 }

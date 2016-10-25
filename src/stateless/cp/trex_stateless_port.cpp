@@ -252,13 +252,13 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     /* on start - we can only provide absolute values */
     assert(mul.m_op == TrexPortMultiplier::OP_ABS);
 
+    /* check link state */
+    if ( !platform_api->getPortAttrObj()->is_link_up(m_port_id) && !force ) {
+        throw TrexException("Link state is DOWN.");
+    }
+
     /* caclulate the effective factor for DP */
     double factor = calculate_effective_factor(mul, force);
-
-    /* zero factor */
-    if (factor == 0) {
-        throw TrexException("Zero multiplier, nothing to send.");
-    }
 
     StreamsFeeder feeder(this);
 
@@ -687,6 +687,20 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, boo
     if ( (!force) && (expected_l1_rate > get_port_speed_bps()) ) {
         stringstream ss;
         ss << "Expected L1 B/W: '" << bps_to_gbps(expected_l1_rate) << " Gbps' exceeds port line rate: '" << bps_to_gbps(get_port_speed_bps()) << " Gbps'";
+        throw TrexException(ss.str());
+    }
+
+    /* L1 BW must be positive */
+    if (expected_l1_rate <= 0){
+        stringstream ss;
+        ss << "Effective bandwidth must be positive, got: " << expected_l1_rate;
+        throw TrexException(ss.str());
+    }
+
+    /* factor must be positive */
+    if (factor <= 0) {
+        stringstream ss;
+        ss << "Factor must be positive, got: " << factor;
         throw TrexException(ss.str());
     }
 

@@ -2050,6 +2050,11 @@ class STLClient(object):
         validate_type('total', total, bool)
         validate_type('core_mask', core_mask, (int, list))
 
+        # verify link status
+        ports_link_down = [port_id for port_id in ports if self.ports[port_id].attr.get('link',{}).get('up') == False]
+        if not force and ports_link_down:
+            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
+
         #########################
         # decode core mask argument
         decoded_mask = self.__decode_core_mask(ports, core_mask)

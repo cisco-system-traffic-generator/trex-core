@@ -342,7 +342,7 @@ class CTRexInfoGenerator(object):
 
     def _generate_latency_stats(self):
         lat_stats = self._latency_stats_ref
-        latency_window_size = 10
+        latency_window_size = 14
 
         # for TUI - maximum 5 
         pg_ids = list(filter(is_intable, lat_stats.latest_stats.keys()))[:5]
@@ -456,7 +456,7 @@ class CTRexInfoGenerator(object):
             stats_table.set_cols_width([10, 3, 6] + [3] * (show_len - 1))
             stats_table.set_cols_dtype(['t'] * (show_len + 2))
 
-            for i in range(min(14, len(cpu_stats))):
+            for i in range(min(18, len(cpu_stats))):
                 history = cpu_stats[i]["history"]
                 ports = cpu_stats[i]["ports"]
                 avg = int(round(sum(history[:avg_len]) / avg_len))
@@ -666,9 +666,9 @@ class CTRexInfoGenerator(object):
         return_stats_data = {}
         per_field_status = OrderedDict([("driver", []),
                                         ("description", []),
+                                        ("link status", []),
                                         ("link speed", []),
-                                        ("link", []),
-                                        ("status", []),
+                                        ("port status", []),
                                         ("promiscuous", []),
                                         ("flow ctrl", []),
                                         ("--", []),
