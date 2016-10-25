@@ -222,18 +222,18 @@ class EventsHandler(object):
 
 
     # dispatcher for server async events (port started, port stopped and etc.)
-    def on_async_event (self, type, data):
+    def on_async_event (self, event_type, data):
         # DP stopped
         show_event = False
 
         # port started
-        if (type == 0):
+        if (event_type == 0):
             port_id = int(data['port_id'])
             ev = "Port {0} has started".format(port_id)
             self.__async_event_port_started(port_id)
 
         # port stopped
-        elif (type == 1):
+        elif (event_type == 1):
             port_id = int(data['port_id'])
             ev = "Port {0} has stopped".format(port_id)
 
@@ -242,7 +242,7 @@ class EventsHandler(object):
 
 
         # port paused
-        elif (type == 2):
+        elif (event_type == 2):
             port_id = int(data['port_id'])
             ev = "Port {0} has paused".format(port_id)
 
@@ -250,7 +250,7 @@ class EventsHandler(object):
             self.__async_event_port_paused(port_id)
 
         # port resumed
-        elif (type == 3):
+        elif (event_type == 3):
             port_id = int(data['port_id'])
             ev = "Port {0} has resumed".format(port_id)
 
@@ -258,7 +258,7 @@ class EventsHandler(object):
             self.__async_event_port_resumed(port_id)
 
         # port finished traffic
-        elif (type == 4):
+        elif (event_type == 4):
             port_id = int(data['port_id'])
             ev = "Port {0} job done".format(port_id)
 
@@ -267,7 +267,7 @@ class EventsHandler(object):
             show_event = True
 
         # port was acquired - maybe stolen...
-        elif (type == 5):
+        elif (event_type == 5):
             session_id = data['session_id']
 
             port_id = int(data['port_id'])
@@ -297,7 +297,7 @@ class EventsHandler(object):
 
 
         # port was released
-        elif (type == 6):
+        elif (event_type == 6):
             port_id     = int(data['port_id'])
             who         = data['who']
             session_id  = data['session_id']
@@ -315,20 +315,31 @@ class EventsHandler(object):
             if session_id != self.client.session_id:
                 self.__async_event_port_released(port_id)
 
-        elif (type == 7):
+        elif (event_type == 7):
             port_id = int(data['port_id'])
             ev = "port {0} job failed".format(port_id)
             show_event = True
 
         # port attr changed
-        elif (type == 8):
+        elif (event_type == 8):
             port_id = int(data['port_id'])
-            ev = "port {0} attributes changed".format(port_id)
-            show_event = True
+            if data['attr'] == self.client.ports[port_id].attr:
+                return # false alarm
+            old_info = self.client.ports[port_id].get_info()
             self.__async_event_port_attr_changed(port_id, data['attr'])
+            new_info = self.client.ports[port_id].get_info()
+            ev = "port {0} attributes changed".format(port_id)
+            for key, old_val in old_info.items():
+                new_val = new_info[key]
+                if old_val != new_val:
+                    ev += '\n  {key}: {old} -> {new}'.format(
+                            key = key, 
+                            old = old_val.lower() if type(old_val) is str else old_val,
+                            new = new_val.lower() if type(new_val) is str else new_val)
+            show_event = True
 
         # server stopped
-        elif (type == 100):
+        elif (event_type == 100):
             ev = "Server has stopped"
             self.__async_event_server_stopped()
             show_event = True
