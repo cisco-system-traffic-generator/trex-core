@@ -7,7 +7,10 @@ sys.path.append(stl_pathname)
 from trex_stl_lib.api import *
 import tempfile
 import hashlib
-import binascii
+import base64
+import numbers
+import inspect
+import json
 from pprint import pprint
 #from scapy.layers.dns import DNS
 #from scapy.contrib.mpls import MPLS
@@ -124,14 +127,15 @@ class Scapy_service_api():
         """
         pass
     
-    def reconstruct_pkt(self,client_v_handler,binary_pkt):
+    def reconstruct_pkt(self,client_v_handler,binary_pkt,model_descriptor):
         """ reconstruct_pkt(self,client_v_handler,binary_pkt)
 
-        Makes a Scapy valid packet from a binary string and returns all information returned in build_pkt
+        Makes a Scapy valid packet by applying changes to binary packet and returns all information returned in build_pkt
 
         Parameters
         ----------
-        Packet in binary, formatted in "base64" encoding
+        Source packet in binary_pkt, formatted in "base64" encoding
+        List of changes in model_descriptor
 
         Returns
         -------
@@ -143,6 +147,123 @@ class Scapy_service_api():
         """
         pass
 
+    def read_pcap(self,client_v_handler,pcap_base64):
+        """ read_pcap(self,client_v_handler,pcap_base64)
+
+        Parses pcap file contents and returns an array with build_pkt information for each packet
+
+        Parameters
+        ----------
+        binary pcap file in base64 encoding
+
+        Returns
+        -------
+        Array of build_pkt(packet)
+        """
+        pass
+
+    def write_pcap(self,client_v_handler,packets_base64):
+        """ write_pcap(self,client_v_handler,packets_base64)
+
+        Writes binary packets to pcap file
+
+        Parameters
+        ----------
+        array of binary packets in base64 encoding
+
+        Returns
+        -------
+        binary pcap file in base64 encoding
+        """
+        pass
+
+    def get_definitions(self,client_v_handler, def_filter):
+        """ get_definitions(self,client_v_handler, def_filter)
+
+        Returns protocols and fields metadata of scapy service
+
+        Parameters
+        ----------
+        def_filter - array of protocol names
+
+        Returns
+        -------
+        definitions for protocols
+        """
+        pass
+
+    def get_payload_classes(self,client_v_handler, pkt_model_descriptor):
+        """ get_payload_classes(self,client_v_handler, pkt_model_descriptor)
+
+        Returns an array of protocol classes, which normally can be used as a payload
+
+        Parameters
+        ----------
+        pkt_model_descriptor - see build_pkt
+
+        Returns
+        -------
+        array of supported protocol classes
+        """
+        pass
+
+def is_python(version):
+    return version == sys.version_info[0]
+
+def is_number(obj):
+    return isinstance(obj, numbers.Number)
+
+def is_string(obj):
+    return type(obj) == str or type(obj).__name__ == 'unicode' # python3 doesn't have unicode type
+
+def is_ascii_str(strval):
+    return strval and all(ord(ch) < 128 for ch in strval)
+
+def is_ascii_bytes(buf):
+    return buf and all(byte < 128 for byte in buf)
+
+def is_ascii(obj):
+    if is_bytes3(obj):
+        return is_ascii_bytes(obj)
+    else:
+        return is_ascii_str(obj)
+
+def is_bytes3(obj):
+    # checks if obj is exactly bytes(always false for python2)
+    return is_python(3) and type(obj) == bytes
+
+def str_to_bytes(strval):
+    return strval.encode("utf8")
+
+def bytes_to_str(buf):
+    return buf.decode("utf8")
+
+def b64_to_bytes(payload_base64):
+    # get bytes from base64 string(unicode)
+    return base64.b64decode(payload_base64)
+
+def bytes_to_b64(buf):
+    # bytes to base64 string(unicode)
+    return base64.b64encode(buf).decode('ascii')
+
+def get_sample_field_val(scapy_layer, fieldId):
+    # get some sample value for the field, to determine the value type
+    # use random or serialized value if default value is None
+    field_desc, current_val = scapy_layer.getfield_and_val(fieldId)
+    if current_val is not None:
+        return current_val
+    try:
+        # try to get some random value to determine type
+        return field_desc.randval()._fix()
+    except:
+        pass
+    try:
+        # try to serialize/deserialize
+        ltype = type(scapy_layer)
+        pkt = ltype(bytes(ltype()))
+        return pkt.getfieldval(fieldId)
+    except:
+        pass
 
 class ScapyException(Exception): pass
 class Scapy_service(Scapy_service_api):
@@ -230,6 +351,51 @@ class Scapy_service(Scapy_service_api):
         tupled_protocol = self._parse_entire_description(protocol_str)
         return tupled_protocol
 
+    def _value_from_dict(self, val):
+        # allows building python objects from json
+        if type(val) == type({}):
+            value_type = val['vtype']
+            if value_type == 'EXPRESSION':
+                return eval(val['expr'], {})
+            elif value_type == 'BYTES':   # bytes payload(ex Raw.load)
+                return b64_to_bytes(val['base64'])
+            elif value_type == 'OBJECT':
+                return val['value']
+            else:
+                return val # it's better to specify type explicitly
+        elif type(val) == type([]):
+            return [self._value_from_dict(v) for v in val]
+        else:
+            return val
+
+    def _field_value_from_def(self, layer, fieldId, val):
+        field_desc = layer.get_field(fieldId)
+        sample_val = get_sample_field_val(layer, fieldId)
+        # extensions for field values
+        if type(val) == type({}):
+            value_type = val['vtype']
+            if value_type == 'UNDEFINED': # clear field value
+                return None
+            elif value_type == 'RANDOM': # random field value
+                return field_desc.randval()
+            elif value_type == 'MACHINE': # internal machine field repr
+                return field_desc.m2i(layer, b64_to_bytes(val['base64']))
+        if is_number(sample_val) and is_string(val):
+            # human-value. guess the type and convert to internal value
+            # seems setfieldval already does this for some fields,
+            # but does not convert strings/hex(0x123) to integers and long
+            val = str(val) # unicode -> str(ascii)
+            # parse str to int/long as a decimal or hex
+            val_constructor = type(sample_val)
+            if len(val) == 0:
+                return None
+            elif re.match(r"^0x[\da-f]+$", val, flags=re.IGNORECASE): # hex
+                return val_constructor(val, 16)
+            elif re.match(r"^\d+L?$", val): # base10
+                return val_constructor(val)
+        # generate recursive field-independent values
+        return self._value_from_dict(val)
+
     def _print_tree(self):
         pprint(self.protocol_tree)
 
@@ -256,58 +422,118 @@ class Scapy_service(Scapy_service_api):
                 fieldDict[f] = self.ScapyFieldDesc(f).stringRegex()
         return fieldDict
 
-    def _show2_to_dict(self,pkt):
-        old_stdout = sys.stdout
-        sys.stdout = mystdout = StringIO()
-        pkt.show2()
-        sys.stdout = old_stdout
-        show2data = mystdout.getvalue() #show2 data
-        listedShow2Data = show2data.split('###')
-        show2Dict = {}
-        for i in range(1,len(listedShow2Data)-1,2):
-            protocol_fields = listedShow2Data[i+1]
-            protocol_fields = protocol_fields.split('\n')[1:-1]
-            protocol_fields = [f.strip() for f in protocol_fields]
-            protocol_fields_dict = {}
-            for f in protocol_fields:
-                field_data = f.split('=')
-                if len(field_data)!= 1 :
-                    field_name = field_data[0].strip()
-                    protocol_fields_dict[field_name] = field_data[1].strip()
-            layer_name = re.sub(r'\W+', '',listedShow2Data[i]) #clear layer name to include only alpha-numeric
-            show2Dict[layer_name] = protocol_fields_dict
-        return show2Dict
+    def _fully_define(self,pkt):
+        # returns scapy object with all fields initialized
+        rootClass = type(pkt)
+        full_pkt = rootClass(bytes(pkt))
+        full_pkt.build() # this trick initializes offset
+        return full_pkt
 
-#pkt_desc as string
-#dictionary of offsets per protocol. tuple for each field: (name, offset, size) at json format
-    def _get_all_pkt_offsets(self,pkt_desc):
-        pkt_protocols = pkt_desc.split('/')
-        scapy_pkt = eval(pkt_desc)
-        scapy_pkt.build()
-        total_protocols = len(pkt_protocols)
-        res = {}
-        for i in range(total_protocols):
-            fields = {}
-            for field in scapy_pkt.fields_desc:
-                size = field.get_size_bytes()
-                layer_name = pkt_protocols[i].partition('(')[0] #clear layer name to include only alpha-numeric
-                layer_name = re.sub(r'\W+', '',layer_name)
-                if field.name is 'load':
-                    layer_name ='Raw'
-                    size = len(scapy_pkt)
-                fields[field.name]=[field.offset, size]
-            fields['global_offset'] = scapy_pkt.offset
-            res[layer_name] = fields
-            scapy_pkt=scapy_pkt.payload
-        return res
+    def _bytes_to_value(self, payload_bytes):
+        # generates struct with a value
+        return { "vtype": "BYTES", "base64": bytes_to_b64(payload_bytes) }
+
+    def _pkt_to_field_tree(self,pkt):
+        pkt.build()
+        result = []
+        pcap_struct = self._fully_define(pkt) # structure, which will appear in pcap binary
+        while pkt:
+            layer_id = type(pkt).__name__ # Scapy classname
+            layer_full = self._fully_define(pkt) # current layer recreated from binary to get auto-calculated vals
+            real_layer_id = type(pcap_struct).__name__ if pcap_struct else None
+            valid_struct = True # shows if packet is mapped correctly to the binary representation
+            if not pcap_struct:
+                valid_struct = False
+            elif not issubclass(type(pkt), type(pcap_struct)) and not issubclass(type(pcap_struct), type(pkt)):
+                # structure mismatch. no need to go deeper in pcap_struct
+                valid_struct = False
+                pcap_struct = None
+            fields = []
+            for field_desc in pkt.fields_desc:
+                field_id = field_desc.name
+                ignored = field_id not in layer_full.fields
+                offset = field_desc.offset
+                protocol_offset = pkt.offset
+                field_sz = field_desc.get_size_bytes()
+                # some values are unavailable in pkt(original model)
+                # at the same time,
+                fieldval = pkt.getfieldval(field_id)
+                pkt_fieldval_defined = is_string(fieldval) or is_number(fieldval) or is_bytes3(fieldval)
+                if not pkt_fieldval_defined:
+                    fieldval = layer_full.getfieldval(field_id)
+                value = None
+                hvalue = None
+                value_base64 = None
+                if is_python(3) and is_bytes3(fieldval):
+                    value = self._bytes_to_value(fieldval)
+                    if is_ascii_bytes(fieldval):
+                        hvalue = bytes_to_str(fieldval)
+                    else:
+                        # can't be shown as ascii.
+                        # also this buffer may not be unicode-compatible(still can try to convert)
+                        value = self._bytes_to_value(fieldval)
+                        hvalue = '<binary>'
+                elif not is_string(fieldval):
+                    # value as is. this can be int,long, or custom object(list/dict)
+                    # "nice" human value, i2repr(string) will have quotes, so we have special handling for them
+                    hvalue = field_desc.i2repr(pkt, fieldval)
+
+                    if is_number(fieldval):
+                        value = fieldval
+                        if is_string(hvalue) and re.match(r"^\d+L$", hvalue):
+                            hvalue =  hvalue[:-1] # chop trailing L for long decimal number(python2)
+                    else:
+                        # fieldval is an object( class / list / dict )
+                        # generic serialization/deserialization needed for proper packet rebuilding from packet tree,
+                        # some classes can not be mapped to json, but we can pass them serialize them
+                        # as a python eval expr, value bytes base64, or field machine internal val(m2i)
+                        value = {"vtype": "EXPRESSION", "expr": hvalue}
+                if is_python(3) and is_string(fieldval):
+                    hvalue = value = fieldval
+                if is_python(2) and is_string(fieldval):
+                    if is_ascii(fieldval):
+                        hvalue = value = fieldval
+                    else:
+                        # python2 non-ascii byte buffers
+                        # payload contains non-ascii chars, which
+                        # sometimes can not be passed as unicode strings
+                        value = self._bytes_to_value(fieldval)
+                        hvalue = '<binary>'
+                if field_desc.name == 'load':
+                    # show Padding(and possible similar classes) as Raw
+                    layer_id = 'Raw'
+                    field_sz = len(pkt)
+                    value = self._bytes_to_value(fieldval)
+                field_data = {
+                        "id": field_id,
+                        "value": value,
+                        "hvalue": hvalue,
+                        "offset": offset,
+                        "length": field_sz
+                        }
+                if ignored:
+                    field_data["ignored"] = ignored
+                fields.append(field_data)
+            layer_data = {
+                    "id": layer_id,
+                    "offset": pkt.offset,
+                    "fields": fields,
+                    "real_id": real_layer_id,
+                    "valid_structure": valid_struct,
+                    }
+            result.append(layer_data)
+            pkt = pkt.payload
+            if pcap_struct:
+                pcap_struct = pcap_struct.payload or None
+        return result
 
 #input: container
 #output: md5 encoded in base64
     def _get_md5(self,container):
         container = json.dumps(container)
         m = hashlib.md5()
-        m.update(container.encode('ascii'))
-        res_md5 = binascii.b2a_base64(m.digest())
+        m.update(str_to_bytes(container))
+        res_md5 = bytes_to_b64(m.digest())
         return res_md5
 
     def get_version(self):
@@ -333,9 +559,8 @@ class Scapy_service(Scapy_service_api):
     def _generate_version_hash(self,v_major,v_minor):
         v_for_hash = v_major+v_minor+v_major+v_minor
         m = hashlib.md5()
-        m.update(v_for_hash)
-        v_handle = binascii.b2a_base64(m.digest())
-        return unicode(v_handle,"utf-8")
+        m.update(str_to_bytes(v_for_hash))
+        return bytes_to_b64(m.digest())
 
     def _generate_invalid_version_error(self):
         error_desc1 = "Provided version handler does not correspond to the server's version.\nUpdate client to latest version.\nServer version:"+self.version_major+"."+self.version_minor
@@ -347,22 +572,12 @@ class Scapy_service(Scapy_service_api):
     def _parse_packet_dict(self,layer,scapy_layers,scapy_layer_names):
         class_name = scapy_layer_names.index(layer['id'])
         class_p = scapy_layers[class_name] # class pointer
-        kwargs = {}
-        if 'Fields' in layer:
-            for field in layer['Fields']:
-                key = field['id']
-                value = field['value']
-                if type(value) is list:
-                    resolved_value = []
-                    for arg_class in value:
-                        option_class_p = scapy.all.__dict__[arg_class["class"]]
-                        option_kwargs = {}
-                        for field in arg_class['Fields']:
-                            option_kwargs[field['id']] = field['value']
-                        resolved_value.append(option_class_p(**option_kwargs))
-                    value = resolved_value
-                kwargs[key] = value
-        return class_p(**kwargs)
+        scapy_layer = class_p()
+        if isinstance(scapy_layer, Raw):
+            scapy_layer.load = str_to_bytes("dummy")
+        if 'fields' in layer:
+            self._modify_layer(scapy_layer, layer['fields'])
+        return scapy_layer
 
     def _packet_model_to_scapy_packet(self,data):
         layers = Packet.__subclasses__()
@@ -373,6 +588,13 @@ class Scapy_service(Scapy_service_api):
             base_layer = base_layer/packet_layer
         return base_layer
 
+    def _pkt_data(self,pkt):
+        if pkt == None:
+            return {'data': [], 'binary': None}
+        data = self._pkt_to_field_tree(pkt)
+        binary = bytes_to_b64(bytes(pkt))
+        res = {'data': data, 'binary': binary}
+        return res
 
 #--------------------------------------------API implementation-------------
     def get_tree(self,client_v_handler):
@@ -389,16 +611,9 @@ class Scapy_service(Scapy_service_api):
         if not (self._verify_version_handler(client_v_handler)):
             raise ScapyException(self._generate_invalid_version_error())
         pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
-        show2data = self._show2_to_dict(pkt)
-        bufferData = str(pkt) #pkt buffer
-        bufferData = binascii.b2a_base64(bufferData)
-        pkt_offsets = self._get_all_pkt_offsets(pkt.command())
-        res = {}
-        res['show2'] = show2data
-        res['buffer'] = bufferData
-        res['offsets'] = pkt_offsets
-        return res
+        return self._pkt_data(pkt)
 
+    # @deprecated. to be removed
     def get_all(self,client_v_handler):
         if not (self._verify_version_handler(client_v_handler)):
             raise ScapyException(self._generate_invalid_version_error())
@@ -413,6 +628,72 @@ class Scapy_service(Scapy_service_api):
         res['fields_md5'] = fields_md5
         return res
 
+    def _is_packet_class(self, pkt_class):
+        # returns true for final Packet classes. skips aliases and metaclasses
+        return issubclass(pkt_class, Packet) and pkt_class.name and pkt_class.fields_desc
+
+    def _getDummyPacket(self, pkt_class):
+        if issubclass(pkt_class, Raw):
+            # need to have some payload. otherwise won't appear in the binary chunk
+            return pkt_class(load=str_to_bytes("dummy"))
+        else:
+            return pkt_class()
+
+        
+    def _get_payload_classes(self, pkt):
+        # tries to find, which subclasses allowed.
+        # this can take long time, since it tries to build packets with all subclasses(O(N))
+        pkt_class = type(pkt)
+        allowed_subclasses = []
+        for pkt_subclass in conf.layers:
+            if self._is_packet_class(pkt_subclass):
+                try:
+                    pkt_w_payload = pkt_class() / self._getDummyPacket(pkt_subclass)
+                    recreated_pkt = pkt_class(bytes(pkt_w_payload))
+                    if type(recreated_pkt.lastlayer()) is pkt_subclass:
+                        allowed_subclasses.append(pkt_subclass)
+                except Exception as e:
+                    # no actions needed on fail, just sliently skip
+                    pass
+        return allowed_subclasses
+
+    def _get_fields_definition(self, pkt_class):
+        fields = []
+        for field_desc in pkt_class.fields_desc:
+            field_data = {
+                    "id": field_desc.name,
+                    "name": field_desc.name
+            }
+            if isinstance(field_desc, EnumField):
+                try:
+                    field_data["values_dict"] = field_desc.s2i
+                except:
+                    # MultiEnumField doesn't have s2i. need better handling
+                    pass
+            fields.append(field_data)
+        return fields
+
+    def get_definitions(self,client_v_handler, def_filter):
+        # def_filter is an array of classnames or None
+        all_classes = Packet.__subclasses__() # as an alternative to conf.layers
+        if def_filter:
+            all_classes = [c for c in all_classes if c.__name__ in def_filter]
+        protocols = []
+        for pkt_class in all_classes:
+            if self._is_packet_class(pkt_class):
+                # enumerate all non-abstract Packet classes
+                protocols.append({
+                    "id": pkt_class.__name__,
+                    "name": pkt_class.name,
+                    "fields": self._get_fields_definition(pkt_class)
+                    })
+        res = {"protocols": protocols}
+        return res
+
+    def get_payload_classes(self,client_v_handler, pkt_model_descriptor):
+        pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
+        return [c.__name__ for c in self._get_payload_classes(pkt)]
+
 #input in string encoded base64
     def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):
         if not (self._verify_version_handler(client_v_handler)):
@@ -422,21 +703,78 @@ class Scapy_service(Scapy_service_api):
         current_db_md5 = self._get_md5(db)
         current_field_md5 = self._get_md5(fields)
         res = []
-        if (field_md5.decode("base64") == current_field_md5.decode("base64")):
-            if (db_md5.decode("base64") == current_db_md5.decode("base64")):
+        if (field_md5 == current_field_md5):
+            if (db_md5 == current_db_md5):
                 return True
             else:
                 raise ScapyException("Protocol DB is not up to date")
         else:
             raise ScapyException("Fields DB is not up to date")
 
-#input of binary_pkt must be encoded in base64
-    def reconstruct_pkt(self,client_v_handler,binary_pkt):
-        pkt_in_hex = binary_pkt.decode('base64')
-        scapy_pkt = Ether(pkt_in_hex)
-        scapy_pkt_cmd = scapy_pkt.command()
-        return self.build_pkt(client_v_handler,scapy_pkt_cmd)
+    def _modify_layer(self, scapy_layer, fields):
+        for field in fields:
+            fieldId = str(field['id'])
+            fieldval = self._field_value_from_def(scapy_layer, fieldId, field['value'])
+            if fieldval is not None:
+                scapy_layer.setfieldval(fieldId, fieldval)
+            else:
+                scapy_layer.delfieldval(fieldId)
 
+    def _is_last_layer(self, layer):
+        # can be used, that layer has no payload
+        # if true, the layer.payload is likely NoPayload()
+        return layer is layer.lastlayer()
+
+#input of binary_pkt must be encoded in base64
+    def reconstruct_pkt(self,client_v_handler,binary_pkt,model_descriptor):
+        pkt_bin = b64_to_bytes(binary_pkt)
+        scapy_pkt = Ether(pkt_bin)
+        if not model_descriptor:
+            model_descriptor = []
+        for depth in range(len(model_descriptor)):
+            model_layer = model_descriptor[depth]
+            if model_layer.get('delete') is True:
+                # slice packet from the current item
+                if depth == 0:
+                    scapy_pkt = None
+                    break
+                else:
+                    scapy_pkt[depth-1].payload = None
+                    break
+            if depth > 0 and self._is_last_layer(scapy_pkt[depth-1]):
+                # insert new layer(s) from json definition
+                remaining_definitions = model_descriptor[depth:]
+                pkt_to_append = self._packet_model_to_scapy_packet(remaining_definitions)
+                scapy_pkt = scapy_pkt / pkt_to_append
+                break
+            # modify fields of existing stack items
+            scapy_layer = scapy_pkt[depth]
+            if model_layer['id'] != type(scapy_layer).__name__:
+                # TODO: support replacing payload, instead of breaking
+                raise ScapyException("Protocol id inconsistent")
+            if 'fields' in model_layer:
+                self._modify_layer(scapy_layer, model_layer['fields'])
+        return self._pkt_data(scapy_pkt)
+
+    def read_pcap(self,client_v_handler,pcap_base64):
+        pcap_bin = b64_to_bytes(pcap_base64)
+        pcap = []
+        res_packets = []
+        with tempfile.NamedTemporaryFile(mode='w+b') as tmpPcap:
+            tmpPcap.write(pcap_bin)
+            tmpPcap.flush()
+            pcap = rdpcap(tmpPcap.name)
+        for scapy_packet in pcap:
+            res_packets.append(self._pkt_data(scapy_packet))
+        return res_packets
+
+    def write_pcap(self,client_v_handler,packets_base64):
+        packets = [Ether(b64_to_bytes(pkt_b64)) for pkt_b64 in packets_base64]
+        pcap_bin = None
+        with tempfile.NamedTemporaryFile(mode='r+b') as tmpPcap:
+            wrpcap(tmpPcap.name, packets)
+            pcap_bin = tmpPcap.read()
+        return bytes_to_b64(pcap_bin)
 
  
 
