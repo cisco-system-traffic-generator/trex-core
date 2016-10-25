@@ -667,6 +667,7 @@ class CTRexInfoGenerator(object):
         per_field_status = OrderedDict([("driver", []),
                                         ("description", []),
                                         ("link speed", []),
+                                        ("link", []),
                                         ("status", []),
                                         ("promiscuous", []),
                                         ("flow ctrl", []),
@@ -1096,8 +1097,8 @@ class CPortStats(CTRexStats):
     def generate_stats(self):
 
         port_state = self._port_obj.get_port_state_name() if self._port_obj else "" 
-        if port_state == "ACTIVE":
-            port_state = format_text('TRANSMITTING', 'green', 'bold')
+        if port_state == "TRANSMITTING":
+            port_state = format_text(port_state, 'green', 'bold')
         elif port_state == "PAUSE":
             port_state = format_text(port_state, 'magenta', 'bold')
         else:

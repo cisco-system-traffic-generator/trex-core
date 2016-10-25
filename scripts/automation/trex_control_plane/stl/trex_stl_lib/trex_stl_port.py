@@ -43,9 +43,9 @@ class Port(object):
     STATES_MAP = {STATE_DOWN: "DOWN",
                   STATE_IDLE: "IDLE",
                   STATE_STREAMS: "IDLE",
-                  STATE_TX: "ACTIVE",
+                  STATE_TX: "TRANSMITTING",
                   STATE_PAUSE: "PAUSE",
-                  STATE_PCAP_TX : "ACTIVE"}
+                  STATE_PCAP_TX : "TRANSMITTING"}
 
 
     def __init__ (self, port_id, user, comm_link, session_id, info):
@@ -719,7 +719,8 @@ class Port(object):
                 "--": "",
                 "---": "",
                 "link speed": "{speed} Gb/s".format(speed=info['speed']),
-                "status": '%s (link %s)' % (info['status'], info['link']),
+                "status": info['status'],
+                "link": info['link'],
                 "promiscuous" : info['prom'],
                 "flow ctrl" : info['fc'],
                 }
