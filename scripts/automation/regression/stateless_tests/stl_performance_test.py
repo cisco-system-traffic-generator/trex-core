@@ -69,7 +69,6 @@ class STLPerformance_Test(CStlGeneral_Test):
         
 
     def tearDown (self):
-        self.c.disconnect()
         CStlGeneral_Test.tearDown(self)
 
 
