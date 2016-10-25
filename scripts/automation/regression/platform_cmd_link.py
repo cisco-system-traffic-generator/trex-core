@@ -308,22 +308,30 @@ class CIfManager(object):
             tmp_ipv4_addr = self.__get_ipv4_net_client_addr (next(CIfManager._ipv4_gen)[0])
             tmp_ipv6_addr = self.__get_ipv6_net_client_addr (next(CIfManager._ipv6_gen))
 
+            if 'dest_mac_addr' in intf_pair['client']:
+                client_dest_mac = intf_pair['client']['dest_mac_addr']
+            else:
+                client_dest_mac = 0
             client_obj = CIfObj(if_name = intf_pair['client']['name'],
                 ipv4_addr = tmp_ipv4_addr,
                 ipv6_addr = tmp_ipv6_addr,
                 src_mac_addr  = intf_pair['client']['src_mac_addr'],
-                dest_mac_addr = intf_pair['client']['dest_mac_addr'],
+                dest_mac_addr = client_dest_mac,
                 if_type   = IFType.Client)
 
             # generate network addresses for server side, and initialize server if object
             tmp_ipv4_addr = self.__get_ipv4_net_client_addr (next(CIfManager._ipv4_gen)[0])
             tmp_ipv6_addr = self.__get_ipv6_net_client_addr (next(CIfManager._ipv6_gen))
-            
+
+            if 'dest_mac_addr' in intf_pair['server']:
+                server_dest_mac = intf_pair['server']['dest_mac_addr']
+            else:
+                server_dest_mac = 0
             server_obj = CIfObj(if_name = intf_pair['server']['name'],
                 ipv4_addr = tmp_ipv4_addr,
                 ipv6_addr = tmp_ipv6_addr,
                 src_mac_addr  = intf_pair['server']['src_mac_addr'],
-                dest_mac_addr = intf_pair['server']['dest_mac_addr'],
+                dest_mac_addr = server_dest_mac,
                 if_type   = IFType.Server)
 
             dual_intf_obj = CDualIfObj(vrf_name = intf_pair['vrf_name'],

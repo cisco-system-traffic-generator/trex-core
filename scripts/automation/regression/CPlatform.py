@@ -121,18 +121,21 @@ class CPlatform(object):
                 if mode == 'config':
                     conf_t_command_set.append('set ip next-hop {next_hop}'.format(
                          next_hop = server_net_next_hop) )
+                conf_t_command_set.append('exit')
 
                 # config global arp to interfaces net address and vrf
-                conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
-                    next_hop = server_net_next_hop, 
-                    dest_mac = dual_if.client_if.get_dest_mac()))
-                conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str, 
-                    dup = dual_if.get_vrf_name(), 
-                    next_hop = client_net_next_hop, 
-                    dest_mac = dual_if.server_if.get_dest_mac()))
+                if dual_if.client_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str,
+                        dup = dual_if.get_vrf_name(), 
+                        next_hop = server_net_next_hop, 
+                        dest_mac = dual_if.client_if.get_dest_mac()))
+                if dual_if.server_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str, 
+                        dup = dual_if.get_vrf_name(), 
+                        next_hop = client_net_next_hop, 
+                        dest_mac = dual_if.server_if.get_dest_mac()))
             else:
                 # config interfaces with relevant route-map
                 client_if_command_set.append ('{mode}ip policy route-map {p1}_to_{p2}'.format( 
@@ -155,16 +158,19 @@ class CPlatform(object):
                 if mode == 'config':
                     conf_t_command_set.append('set ip next-hop {next_hop}'.format(
                          next_hop = server_net_next_hop) )
+                conf_t_command_set.append('exit')
 
                 # config global arp to interfaces net address
-                conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str,
-                    next_hop = server_net_next_hop, 
-                    dest_mac = dual_if.client_if.get_dest_mac()))
-                conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str,
-                    next_hop = client_net_next_hop, 
-                    dest_mac = dual_if.server_if.get_dest_mac()))
+                if dual_if.client_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str,
+                        next_hop = server_net_next_hop, 
+                        dest_mac = dual_if.client_if.get_dest_mac()))
+                if dual_if.server_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str,
+                        next_hop = client_net_next_hop, 
+                        dest_mac = dual_if.server_if.get_dest_mac()))
 
             # assign generated config list to cache
             cache.add('IF', server_if_command_set, dual_if.server_if.get_name())
@@ -247,16 +253,18 @@ class CPlatform(object):
                     next_hop = server_net_next_hop))
 
                 # config global arp to interfaces net address and vrf
-                conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
-                    next_hop = server_net_next_hop, 
-                    dest_mac = dual_if.client_if.get_dest_mac()))
-                conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str, 
-                    dup = dual_if.get_vrf_name(), 
-                    next_hop = client_net_next_hop, 
-                    dest_mac = dual_if.server_if.get_dest_mac()))
+                if dual_if.client_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str,
+                        dup = dual_if.get_vrf_name(), 
+                        next_hop = server_net_next_hop, 
+                        dest_mac = dual_if.client_if.get_dest_mac()))
+                if dual_if.server_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str, 
+                        dup = dual_if.get_vrf_name(), 
+                        next_hop = client_net_next_hop, 
+                        dest_mac = dual_if.server_if.get_dest_mac()))
 
                 # assign generated interfaces config list to cache
                 cache.add('IF', server_if_command_set, dual_if.server_if.get_name())
@@ -275,14 +283,16 @@ class CPlatform(object):
                     next_hop = client_net_next_hop))
 
                 # config global arp to interfaces net address
-                conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str,
-                    next_hop = server_net_next_hop, 
-                    dest_mac = dual_if.client_if.get_dest_mac()))
-                conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
-                    mode = unconfig_str,
-                    next_hop = client_net_next_hop, 
-                    dest_mac = dual_if.server_if.get_dest_mac()))
+                if dual_if.client_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str,
+                        next_hop = server_net_next_hop, 
+                        dest_mac = dual_if.client_if.get_dest_mac()))
+                if dual_if.server_if.get_dest_mac():
+                    conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str,
+                        next_hop = client_net_next_hop, 
+                        dest_mac = dual_if.server_if.get_dest_mac()))
 
             # bump up to the next client network address
             client_net = misc_methods.get_single_net_client_addr(client_net, stat_route_obj.net_increment)
@@ -510,12 +520,14 @@ class CPlatform(object):
                 p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
 
             # config global arp to interfaces net address and vrf
-            conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
+            if dual_if.client_if.get_dest_mac():
+                conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
                     mode = unconfig_str,
                     next_hop = server_net_next_hop, 
                     intf = dual_if.client_if.get_name(),
                     dest_mac = dual_if.client_if.get_dest_mac()))
-            conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
+            if dual_if.server_if.get_dest_mac():
+                conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
                     mode = unconfig_str,
                     next_hop = client_net_next_hop, 
                     intf = dual_if.server_if.get_name(),
