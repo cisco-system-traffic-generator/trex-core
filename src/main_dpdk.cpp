@@ -4058,7 +4058,7 @@ CGlobalTRex::handle_slow_path() {
     }
 
 
-    if ( CGlobalInfo::m_options.is_rx_enabled() ) {
+    if ( CGlobalInfo::m_options.is_rx_enabled() && (! get_is_stateless())) {
         m_mg.update();
 
         if ( m_io_modes.m_g_mode ==  CTrexGlobalIoMode::gNORMAL ) {
