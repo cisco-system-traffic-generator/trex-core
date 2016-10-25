@@ -902,7 +902,7 @@ class CGlobalStats(CTRexStats):
         # absolute
         stats['cpu_util']    = self.get("m_cpu_util")
         stats['rx_cpu_util'] = self.get("m_rx_cpu_util")
-        stats['bw_per_core']    = self.get("m_bw_per_core")
+        stats['bw_per_core'] = self.get("m_bw_per_core")
 
         stats['tx_bps'] = self.get("m_tx_bps")
         stats['tx_pps'] = self.get("m_tx_pps")
