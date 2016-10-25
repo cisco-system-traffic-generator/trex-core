@@ -18,7 +18,7 @@ include::trex_ga.asciidoc[]
 | Version |  name   |  meaning
 | 1.00    |  Itamar Raviv (itraviv) |
 - first version
-
+| 2.00    |  Anton (XORED) | update by xored software
 |=================
 
 
@@ -33,7 +33,7 @@ The server operates on a Request-Response basis *over ZMQ*, and does not support
 
 Read more about ZMQ link:http://zguide.zeromq.org/page:all[here]
 
-image::images/Scapy_JSON_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/scapy_json_rpc_server.png"]
+image::images/scapy_json_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/scapy_json_rpc_server.png"]
 
 === Error Codes
 
@@ -63,10 +63,12 @@ For reconstruct_pkt default values will be taken from the original packet.
 
 Exaples of JSON payloads and their scapy expression alternatives
 
+[source,python]
 ----
 Ether(src="de:ad:be:ef:de:ad")/Dot1Q()/Dot1Q(vtype=1)/IP(src="127.0.0.1", chksum="0x312")/TCP(sport=443)
 ----
 
+[source,python]
 ----
 [
         { "id": "Ether", "fields": [{"id": "src", "value": "de:ad:be:ef:de:ad"}] },
@@ -81,6 +83,7 @@ Ether(src="de:ad:be:ef:de:ad")/Dot1Q()/Dot1Q(vtype=1)/IP(src="127.0.0.1", chksum
 Most values can be passed as strings(including decimal numbers, hex numbers, enums, values),
 but for binary payload, value object should be used
 
+[source,python]
 ----
 - int/long/str - they can de specified directly as a value of a field
 - {"vtype": "BYTES", "base64": "my_payload_base64"} - binary payload passed as base64
@@ -94,6 +97,7 @@ Example of object value usage(to specify binary payload)
 Ether()/IP()/TCP()/Raw(load=my_payload)
 ----
 
+[source,python]
 ----
 [
         { "id": "Ether"},
@@ -112,32 +116,33 @@ Ether()/IP()/TCP()/Raw(load=my_payload)
 build_pkt and reconstruct pkt take packet model and produce result JSON,
 with the binary payload and field values and offsets defined
 
+[source,python]
 ----
 {
     "binary": "AAAAAQAAAAAAAgAACABFAAAoAAEAAEAGOs4QAAABMAAAAQAUAFAAAAAAAAAAAFACIABPfQAA", // base64 encoded binary payload
     "data": [
         {
-            "id": "Ether", // scapy class
-            "name": "Ethernet", // human-readable protocol name
-            "offset": 0, // global offset for all fields
+            "id": "Ether",      # scapy class
+            "name": "Ethernet", # human-readable protocol name
+            "offset": 0,        # global offset for all fields
             "fields": [
                 {
-                    "id": "dst", // scapy field id
-                    "hvalue": "00:00:00:01:00:00", // human readable value
-                    "length": 6, // 6 bytes
-                    "offset": 0, // 0 bytes offset from
-                    "value": "00:00:00:01:00:00" // internal value, which for this type is the same as hvalue
+                    "id": "dst", # scapy field id
+                    "hvalue": "00:00:00:01:00:00", # human readable value
+                    "length": 6, # 6 bytes
+                    "offset": 0, # 0 bytes offset from
+                    "value": "00:00:00:01:00:00" # internal value, which for this type is the same as hvalue
                 },
                 {
                     "id": "src",
-                    ... // same as for dst
+                    ... # same as for dst
                 },
                 {
-                    "hvalue": "IPv4", // human-readable value
+                    "hvalue": "IPv4", # human-readable value
                     "id": "type",
                     "length": 2,
-                    "offset": 12, //
-                    "value": 2048 // integer value for IPv4(0x800)
+                    "offset": 12, #
+                    "value": 2048 # integer value for IPv4(0x800)
                 }
             ]
         },
@@ -149,14 +154,14 @@ with the binary payload and field values and offsets defined
                 {
                     "hvalue": "4",
                     "id": "version",
-                    "length": 0, // the length is 0, which means it is a bitfield. mask should be used to show location
-                    "offset": 0, // offset from the IP.offset. it needs to be added to all fields of IP
+                    "length": 0, # the length is 0, which means it is a bitfield. mask should be used to show location
+                    "offset": 0, # offset from the IP.offset. it needs to be added to all fields of IP
                     "value": 4
                 },
                 {
                     "hvalue": "5",
                     "id": "ihl",
-                    "length": 0, // again length is 0. that's other part of the first byte of IP
+                    "length": 0, # again length is 0. that's other part of the first byte of IP
                     "offset": 0,
                     "value": 5
                 },
@@ -182,7 +187,7 @@ with the binary payload and field values and offsets defined
                     "value": 1
                 },
                 {
-                    "hvalue": "", // no flags are specified here. but this field can contain "US" for URG+SYN flags
+                    "hvalue": "", # no flags are specified here. but this field can contain "US" for URG+SYN flags
                     "id": "flags",
                     "length": 0,
                     "offset": 6,
@@ -203,7 +208,7 @@ with the binary payload and field values and offsets defined
                     "value": 64
                 },
                 {
-                    "hvalue": "tcp", // this field is enum. enum dictionary can be obtained as a medatata for IP fields.
+                    "hvalue": "tcp", # this field is enum. enum dictionary can be obtained as a medatata for IP fields.
                     "id": "proto",
                     "length": 1,
                     "offset": 9,
@@ -221,7 +226,7 @@ with the binary payload and field values and offsets defined
                     "id": "options",
                     "length": 2,
                     "offset": 20,
-                    "value": { // options can not be representted as a human string, so they are passed as an expression
+                    "value": { # options can not be representted as a human string, so they are passed as an expression
                         "expr": "[]",
                         "vtype": "EXPRESSION"
                     }
@@ -240,14 +245,14 @@ with the binary payload and field values and offsets defined
                     "offset": 0,
                     "value": 20
                 },
-                // .. some more TCP fields here
+                # .. some more TCP fields here
                 {
                     "hvalue": "{}",
                     "id": "options",
                     "ignored": true,
                     "length": 2,
                     "offset": 20,
-                    "value": { // TCPOptions are represented as a python expression with tuple and binary buffers
+                    "value": { # TCPOptions are represented as a python expression with tuple and binary buffers
                         "expr": "[('MSS', 1460), ('NOP', None), ('NOP', None), ('SAckOK', b'')]",
                         "vtype": "EXPRESSION"
                     }
@@ -264,15 +269,16 @@ Scapy server can return metadata object, describing protocols and fields.
 Most values, including field types are optional in the definition.
 If field type is missing, it can be treated as a STRING.
 
+[source,python]
 ----
 "protocols": [
 {
-    "id": "Ether", // scapy class
-        "name": "Ethernet", // name of the protocol
+    "id": "Ether", # scapy class
+        "name": "Ethernet", # name of the protocol
         "fields": [
         {
             "id": "dst",
-            "name": "Destination", // GUI will display Destination instead of dst
+            "name": "Destination", # GUI will display Destination instead of dst
             "type": "STRING",
             "regex": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
         },
@@ -326,8 +332,8 @@ If field type is missing, it can be treated as a STRING.
         "id": "sport",
         "name": "Source port",
         "type": "NUMBER",
-        "min": 0, // optional min value
-        "max": 65535 // optional max value
+        "min": 0, # optional min value
+        "max": 65535 # optional max value
 
     },
     {
@@ -362,7 +368,7 @@ If field type is missing, it can be treated as a STRING.
         "name": "Flags",
         "auto": false,
         "type": "BITMASK",
-        "bits": [ // fields definition for the UI
+        "bits": [ # fields definition for the UI
         {"name": "URG", "mask": 32, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 32}]},
         {"name": "ACK", "mask": 16, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 16}]},
         {"name": "PSH", "mask": 8, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 8}]},
@@ -399,14 +405,14 @@ If field type is missing, it can be treated as a STRING.
     "name": "Internet Protocol Version 4",
     "fields": [
     {
-        "id": "version", // only renaming
+        "id": "version", # only renaming
         "name": "Version"
     },
     {
         "id": "ihl",
         "name": "IHL",
         "type": "NUMBER",
-        "auto": true // calculate IHL automatically
+        "auto": true # calculate IHL automatically
     },
     {
         "id": "tos",
@@ -430,7 +436,7 @@ If field type is missing, it can be treated as a STRING.
         "type": "BITMASK",
         "min": 0,
         "max": 8,
-        "bits": [ // bitmask definition for IP.flags
+        "bits": [ # bitmask definition for IP.flags
         {"name": "Reserved", "mask": 4, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 4}]},
         {"name": "Fragment", "mask": 2, "values":[{"name":"May fragment (0)", "value": 0}, {"name":"Don't fragment (1)", "value": 2}]},
         {"name": "More Fragments(MF)", "mask": 1, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 1}]}
@@ -563,7 +569,7 @@ The following RPC commands are supported. Please refer to databases section for 
 
 *Example:*
 
-[source, bash]
+[source,python]
 ----
 'Request':
 {
@@ -610,7 +616,7 @@ The following RPC commands are supported. Please refer to databases section for 
 
 *Example:*
 
-[source,bash]
+[source,python]
 ----
 'Request':
 {
@@ -658,7 +664,7 @@ The following RPC commands are supported. Please refer to databases section for 
  +
 *Example:*
 
-[source,bash]
+[source,python]
 ----
 'Request':
 
@@ -669,7 +675,7 @@ The following RPC commands are supported. Please refer to databases section for 
         "params": ["md5_of_protocol_db", "md5_of_fields"]   
 }
 
-'Response': //on failure
+'Response': #on failure
 
 {
         "jsonrpc": "2.0",
@@ -680,7 +686,7 @@ The following RPC commands are supported. Please refer to databases section for 
                  }
 }
 
-'Response': //on success
+'Response': #on success
 
 {
         "jsonrpc": "2.0",
@@ -706,7 +712,7 @@ The following RPC commands are supported. Please refer to databases section for 
 
 
 *Example:*
-[source,bash]
+[source,python]
 ----
 
 'Request':
@@ -760,7 +766,7 @@ User can still create non valid hierarchies. (such as Ether()/DNS()/IP())
 
 *Example:*
 
-[source,bash]
+[source,python]
 ----
 
 'Request':
