@@ -67,13 +67,16 @@ class CTRexRx_Test(CTRexGeneral_Test):
             # the check. in loopback expect 0 problems, at others allow errors <error_tolerance>% of total_rx
 
             total_errors = sum(rx_counters.values()) + sum(latency_counters_compare.values())
-            error_tolerance = self.get_benchmark_param('error_tolerance', 0.1)
-            if not error_tolerance or not allow_error_tolerance:
-                error_tolerance = 0
+            error_tolerance = self.get_benchmark_param('error_tolerance')
+            if not error_tolerance:
+                if not allow_error_tolerance:
+                    error_tolerance = 0
+                else:
+                    error_tolerance = 0.1
             error_percentage = total_errors * 100.0 / total_rx
 
             if total_errors > 0:
-                if self.is_loopback or error_percentage > error_tolerance:
+                if error_percentage > error_tolerance:
                     self.fail('Too much errors in rx_check. (~%s%% of traffic)' % error_percentage)
                 else:
                     print('There are errors in rx_check (%f%%), not exceeding allowed limit (%s%%)' % (error_percentage, error_tolerance))
