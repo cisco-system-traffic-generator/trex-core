@@ -67,7 +67,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             # the check. in loopback expect 0 problems, at others allow errors <error_tolerance>% of total_rx
 
             total_errors = sum(rx_counters.values()) + sum(latency_counters_compare.values())
-            error_tolerance = self.get_benchmark_param('error_tolerance')
+            error_tolerance = self.get_benchmark_param('error_tolerance', 0.1)
             if not error_tolerance or not allow_error_tolerance:
                 error_tolerance = 0
             error_percentage = total_errors * 100.0 / total_rx
