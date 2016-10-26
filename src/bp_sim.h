@@ -2142,7 +2142,19 @@ private:
                             CFlowGenListPerThread * thread,
                             double &old_offset);
 
-        FORCE_NO_INLINE void handle_time_strech(dsec_t cur_time, dsec_t dt, dsec_t &offset,  CFlowGenListPerThread * thread);
+        FORCE_NO_INLINE void handle_slow_operations(sch_state_t &state,
+                                                    CGenNode * &node,
+                                                    dsec_t &cur_time,
+                                                    dsec_t &n_time,
+                                                    dsec_t &offset,
+                                                    CFlowGenListPerThread *thread);
+
+        void handle_time_strech(CGenNode * &node,
+                                dsec_t &cur_time,
+                                dsec_t &n_time,
+                                dsec_t &offset,
+                                CFlowGenListPerThread *thread);
+
 
 private:        
     void handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);

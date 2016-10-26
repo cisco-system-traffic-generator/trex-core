@@ -3787,22 +3787,6 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
             }
             break;
 
-         /* a case called when a time strech happens */
-         case scSTRECH:
-             {
-                 dsec_t dt = cur_time - n_time;
-                 handle_time_strech(cur_time, dt, offset, thread);
-
-                 /* re-read the top of the queue - it might have changed with messaging */
-                 node = m_p_queue.top();
-                 n_time = node->m_time + offset;
-
-                 /* go back to INIT */
-                 state = scINIT;
-
-             }
-             break;
-
          case scWORK:
             {
                 int node_count = 0;
@@ -3831,12 +3815,40 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                 do_sleep(cur_time,thread,n_time); // estimate  loop
                 state=scWORK;
                 break;
+
+
          default:
-             assert(0);
+             handle_slow_operations(state, node, cur_time, n_time, offset, thread);
+             break;
         } /* switch */
+
     }/* while*/
 
     return (teardown(thread,always,old_offset,offset));
+}
+
+
+FORCE_NO_INLINE void CNodeGenerator::handle_slow_operations(sch_state_t &state,
+                                                            CGenNode * &node,
+                                                            dsec_t &cur_time,
+                                                            dsec_t &n_time,
+                                                            dsec_t &offset,
+                                                            CFlowGenListPerThread *thread) {
+    switch (state) {
+    case scSTRECH:
+        {
+            handle_time_strech(node, cur_time, n_time, offset, thread);
+
+            /* go back to work */
+            state = scWORK;
+
+        }
+        break;
+
+    default:
+        assert(0);
+    }
+
 }
 
 /**
@@ -3849,18 +3861,26 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
  * @author imarom (7/31/2016)
  * 
  */
-FORCE_NO_INLINE void CNodeGenerator::handle_time_strech(dsec_t cur_time,
-                                                        dsec_t dt,
-                                                        dsec_t &offset,
-                                                        CFlowGenListPerThread *thread) {
+void CNodeGenerator::handle_time_strech(CGenNode * &node,
+                                        dsec_t &cur_time,
+                                        dsec_t &n_time,
+                                        dsec_t &offset,
+                                        CFlowGenListPerThread *thread) {
+
+
+    /* fix the time offset */
+    dsec_t dt = cur_time - n_time;
+    offset += dt;
 
     /* check if flow sync message was delayed too much */
     if ( (cur_time - m_last_sync_time_sec) > SYNC_TIME_OUT ) {
         handle_maintenance(thread);
+
+        /* re-read the top of the queue - it might have changed with messaging */
+        node = m_p_queue.top();
+        n_time = node->m_time + offset;
     }
 
-    /* fix the time offset */
-    offset += dt;
 }
 
 int CNodeGenerator::flush_file_sim(dsec_t max_time,

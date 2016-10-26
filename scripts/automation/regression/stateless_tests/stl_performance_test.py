@@ -180,7 +180,7 @@ class STLPerformance_Test(CStlGeneral_Test):
         setup_cfg = self.get_benchmark_param('cfg')
         scenario_cfg = {}
 
-        scenario_cfg['name']        = "VM - 64 bytes, two CPUs"
+        scenario_cfg['name']        = "VM - 64 bytes, multi CPUs"
         scenario_cfg['streams']     = self.build_perf_profile_vm(64)
 
         scenario_cfg['core_count']           = setup_cfg['core_count']
@@ -191,12 +191,12 @@ class STLPerformance_Test(CStlGeneral_Test):
 
 
 
-    # two CPUs, VM, cached, 64 bytes
+    # multi CPUs, VM, cached, 64 bytes
     def test_performance_vm_multi_cpus_cached (self):
         setup_cfg = self.get_benchmark_param('cfg')
         scenario_cfg = {}
 
-        scenario_cfg['name']        = "VM - 64 bytes, single CPU, cache size 1024"
+        scenario_cfg['name']        = "VM - 64 bytes, multi CPU, cache size 1024"
         scenario_cfg['streams']     = self.build_perf_profile_vm(64, cache_size = 1024)
 
 
@@ -207,12 +207,12 @@ class STLPerformance_Test(CStlGeneral_Test):
         self.execute_single_scenario(scenario_cfg)
 
 
-    # two CPUs, syn attack, 64 bytes
+    # multi CPUs, syn attack, 64 bytes
     def test_performance_syn_attack_multi_cpus (self):
         setup_cfg = self.get_benchmark_param('cfg')
         scenario_cfg = {}
 
-        scenario_cfg['name']        = "syn attack - 64 bytes, two CPUs"
+        scenario_cfg['name']        = "syn attack - 64 bytes, multi CPUs"
         scenario_cfg['streams']     = self.build_perf_profile_syn_attack(64)
 
         scenario_cfg['core_count']           = setup_cfg['core_count']
@@ -254,6 +254,10 @@ class STLPerformance_Test(CStlGeneral_Test):
         self.c.add_streams(ports = [0], streams = scenario_cfg['streams'])
 
         # use one core
+        cores_per_port = self.c.system_info.get('dp_core_count_per_port', 0)
+        if cores_per_port < scenario_cfg['core_count']:
+            assert 0, "test configuration requires {0} cores but only {1} per port are available".format(scenario_cfg['core_count'], cores_per_port)
+
         core_mask = (2 ** scenario_cfg['core_count']) - 1
         self.c.start(ports = [0], mult = scenario_cfg['mult'], core_mask = [core_mask])
 
