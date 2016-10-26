@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set +e
+
 # function finds python2
 function find_python2 {
     # two candidates - machine python and cisco linux python

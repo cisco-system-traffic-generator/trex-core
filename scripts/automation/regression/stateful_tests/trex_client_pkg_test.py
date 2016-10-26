@@ -7,9 +7,14 @@ from nose.plugins.attrib import attr
 @attr('client_package')
 class CTRexClientPKG_Test(CTRexGeneral_Test):
     """This class tests TRex client package"""
+    configured_dut = False
 
     def setUp(self):
         CTRexGeneral_Test.setUp(self)
+        if not CTRexClientPKG_Test.configured_dut and not self.is_loopback:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = 'config')
+        CTRexClientPKG_Test.configured_dut = True
         self.unzip_client_package()
 
     def run_client_package_stf_example(self, python_version):
