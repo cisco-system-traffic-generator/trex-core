@@ -2,6 +2,10 @@ I, Yaroslav Brustinov hearby sign-off-by all of my past commits to this repo sub
 
 My contributions were:
 
+ 3fb8837d4fe0d63ee42903a02a10860e4562e3b4 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix for python3 client test
+ 04300e5690aff199563cf69db39639d7cca32ce6 - Yaroslav Brustinov - ybrustin@cisco.com - typo
+ 572c98db3944a53bbff51d08fd1f9c8e9674b08c - Yaroslav Brustinov - ybrustin@cisco.com - regression: stateless rx_check allow 0.1% errors
+ 270cf64af087f110fd69064017edc311ddf82025 - Yaroslav Brustinov - ybrustin@cisco.com - regression: fix client pkg test to configure the dut interfaces
  5591bec0425ea906feb109a1142eca66ac1ce937 - Yaroslav Brustinov - ybrustin@cisco.com - fix parsing tunables, add support for separate -t in console, add benchmark profile
  5497c271302aa417814aa2e368b1ab2cf1fcef62 - Yaroslav Brustinov - ybrustin@cisco.com - cpp arg parser changes argv, on second iteration data might be not valid => copy the argv before each call.
  eef160385f07aa94e1dfc67b481a659465410d61 - Yaroslav Brustinov - ybrustin@cisco.com - trex-console: add print of Python error in case of error loading profile in TUI
