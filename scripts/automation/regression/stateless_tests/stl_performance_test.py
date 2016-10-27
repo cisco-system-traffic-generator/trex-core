@@ -273,9 +273,9 @@ class STLPerformance_Test(CStlGeneral_Test):
         samples = {'cpu' : [], 'bps': [], 'pps': []}
 
         # let the server gather samples
-        print("Step 2 - Waiting for samples... (40 seconds)")
+        print("Step 2 - Waiting for samples... (60 seconds)")
 
-        for i in range(0, 1):
+        for i in range(0, 3):
 
             # sample bps/pps
             for _ in range(0, 20):
