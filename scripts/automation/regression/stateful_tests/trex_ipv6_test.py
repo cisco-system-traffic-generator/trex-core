@@ -29,6 +29,7 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
         core = self.get_benchmark_param('cores')
 
         ret = self.trex.start_trex(
+            cfg = '/etc/trex_cfg_mac.yaml',
             c = core,
             m = mult,
             p  = True,
@@ -66,6 +67,7 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
         core = self.get_benchmark_param('cores', test_name = 'test_ipv6_simple')
 
         ret = self.trex.start_trex(
+            cfg = '/etc/trex_cfg_mac.yaml',
             c = core,
             m = mult,
             p  = True,

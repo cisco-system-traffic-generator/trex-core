@@ -189,12 +189,13 @@ class CDeviceCfg(object):
 class CIfObj(object):
     _obj_id = 0
 
-    def __init__(self, if_name, ipv4_addr, ipv6_addr, src_mac_addr, dest_mac_addr, if_type):
+    def __init__(self, if_name, ipv4_addr, ipv6_addr, src_mac_addr, dest_mac_addr, dest_ipv6_mac_addr, if_type):
         self.__get_and_increment_id()
         self.if_name        = if_name
         self.if_type        = if_type
         self.src_mac_addr   = src_mac_addr
         self.dest_mac_addr  = dest_mac_addr
+        self.dest_ipv6_mac_addr  = dest_ipv6_mac_addr
         self.ipv4_addr      = ipv4_addr 
         self.ipv6_addr      = ipv6_addr 
         self.pair_parent    = None     # a pointer to CDualIfObj which holds this interface and its pair-complement
@@ -211,6 +212,12 @@ class CIfObj(object):
 
     def get_dest_mac (self):
         return self.dest_mac_addr
+
+    def get_ipv6_dest_mac (self):
+        if self.dest_mac_addr != 0:
+            return self.dest_mac_addr
+        else:
+            return self.dest_ipv6_mac_addr
 
     def get_id (self):
         return self._obj_id
@@ -312,11 +319,16 @@ class CIfManager(object):
                 client_dest_mac = intf_pair['client']['dest_mac_addr']
             else:
                 client_dest_mac = 0
+            if 'dest_ipv6_mac_addr' in intf_pair['client']:
+                client_dest_ipv6_mac = intf_pair['client']['dest_ipv6_mac_addr']
+            else:
+                client_dest_ipv6_mac = 0
             client_obj = CIfObj(if_name = intf_pair['client']['name'],
                 ipv4_addr = tmp_ipv4_addr,
                 ipv6_addr = tmp_ipv6_addr,
                 src_mac_addr  = intf_pair['client']['src_mac_addr'],
                 dest_mac_addr = client_dest_mac,
+                dest_ipv6_mac_addr = client_dest_ipv6_mac,
                 if_type   = IFType.Client)
 
             # generate network addresses for server side, and initialize server if object
@@ -327,11 +339,16 @@ class CIfManager(object):
                 server_dest_mac = intf_pair['server']['dest_mac_addr']
             else:
                 server_dest_mac = 0
+            if 'dest_ipv6_mac_addr' in intf_pair['server']:
+                server_dest_ipv6_mac = intf_pair['server']['dest_ipv6_mac_addr']
+            else:
+                server_dest_ipv6_mac = 0
             server_obj = CIfObj(if_name = intf_pair['server']['name'],
                 ipv4_addr = tmp_ipv4_addr,
                 ipv6_addr = tmp_ipv6_addr,
                 src_mac_addr  = intf_pair['server']['src_mac_addr'],
                 dest_mac_addr = server_dest_mac,
+                dest_ipv6_mac_addr = server_dest_ipv6_mac,
                 if_type   = IFType.Server)
 
             dual_intf_obj = CDualIfObj(vrf_name = intf_pair['vrf_name'],

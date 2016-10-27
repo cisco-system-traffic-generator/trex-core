@@ -165,6 +165,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
         sample_rate = self.get_benchmark_param('rx_sample_rate')
 
         ret = self.trex.start_trex(
+            cfg = '/etc/trex_cfg_mac.yaml',
             c = core,
             m = mult,
             p = True,
@@ -199,6 +200,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
         sample_rate = self.get_benchmark_param('rx_sample_rate')
 
         ret = self.trex.start_trex(
+            cfg = '/etc/trex_cfg_mac.yaml',
             c = core,
             m = mult,
             p  = True,

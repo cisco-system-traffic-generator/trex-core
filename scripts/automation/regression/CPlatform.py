@@ -520,18 +520,18 @@ class CPlatform(object):
                 p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
 
             # config global arp to interfaces net address and vrf
-            if dual_if.client_if.get_dest_mac():
+            if dual_if.client_if.get_ipv6_dest_mac():
                 conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
                     mode = unconfig_str,
                     next_hop = server_net_next_hop, 
                     intf = dual_if.client_if.get_name(),
-                    dest_mac = dual_if.client_if.get_dest_mac()))
-            if dual_if.server_if.get_dest_mac():
+                    dest_mac = dual_if.client_if.get_ipv6_dest_mac()))
+            if dual_if.server_if.get_ipv6_dest_mac():
                 conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
                     mode = unconfig_str,
                     next_hop = client_net_next_hop, 
                     intf = dual_if.server_if.get_name(),
-                    dest_mac = dual_if.server_if.get_dest_mac()))
+                    dest_mac = dual_if.server_if.get_ipv6_dest_mac()))
 
             conf_t_command_set.append('{mode}route-map {pre}_{p1}_to_{p2} permit 10'.format(
                     mode = unconfig_str,
