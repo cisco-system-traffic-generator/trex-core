@@ -10,8 +10,8 @@ class CIfObj_Test(functional_general_test.CGeneralFunctional_Test):
     test_idx = 1
 
     def setUp(self):
-        self.if_1 = CIfObj('gig0/0/1', '1.1.1.1', '2001:DB8:0:2222:0:0:0:1', '0000.0001.0000', '0000.0001.0000', IFType.Client)
-        self.if_2 = CIfObj('TenGig0/0/0', '1.1.2.1', '2001:DB8:1:2222:0:0:0:1', '0000.0002.0000', '0000.0002.0000', IFType.Server)
+        self.if_1 = CIfObj('gig0/0/1', '1.1.1.1', '2001:DB8:0:2222:0:0:0:1', '0000.0001.0000', '0000.0001.0000', 0, IFType.Client)
+        self.if_2 = CIfObj('TenGig0/0/0', '1.1.2.1', '2001:DB8:1:2222:0:0:0:1', '0000.0002.0000', '0000.0002.0000', 0, IFType.Server)
         CIfObj_Test.test_idx += 1
 
     def test_id_allocation(self):
