@@ -84,49 +84,14 @@ def getmacbyip(ip, chainCC=0):
 class DestMACField(MACField):
     def __init__(self, name):
         MACField.__init__(self, name, None)
-    def i2h(self, pkt, x):
-        if x is None:
-            x = conf.neighbor.resolve(pkt,pkt.payload)
-            if x is None:
-                x = "ff:ff:ff:ff:ff:ff"
-                warning("Mac address to reach destination not found. Using broadcast.")
-        return MACField.i2h(self, pkt, x)
-    def i2m(self, pkt, x):
-        return MACField.i2m(self, pkt, self.i2h(pkt, x))
         
 class SourceMACField(MACField):
     def __init__(self, name):
         MACField.__init__(self, name, None)
-    def i2h(self, pkt, x):
-        if x is None:
-            iff,a,gw = pkt.payload.route()
-            if iff:
-                try:
-                    x = get_if_hwaddr(iff)
-                except:
-                    pass
-            if x is None:
-                x = "00:00:00:00:00:00"
-        return MACField.i2h(self, pkt, x)
-    def i2m(self, pkt, x):
-        return MACField.i2m(self, pkt, self.i2h(pkt, x))
         
 class ARPSourceMACField(MACField):
     def __init__(self, name):
         MACField.__init__(self, name, None)
-    def i2h(self, pkt, x):
-        if x is None:
-            iff,a,gw = pkt.route()
-            if iff:
-                try:
-                    x = get_if_hwaddr(iff)
-                except:
-                    pass
-            if x is None:
-                x = "00:00:00:00:00:00"
-        return MACField.i2h(self, pkt, x)
-    def i2m(self, pkt, x):
-        return MACField.i2m(self, pkt, self.i2h(pkt, x))
 
 
 

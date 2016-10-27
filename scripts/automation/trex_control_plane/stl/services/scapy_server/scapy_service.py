@@ -12,8 +12,22 @@ import numbers
 import inspect
 import json
 from pprint import pprint
-#from scapy.layers.dns import DNS
-#from scapy.contrib.mpls import MPLS
+
+# add some layers as an example
+# need to test more 
+from scapy.layers.dns import *
+from scapy.layers.dhcp import *
+from scapy.layers.ipsec import *
+from scapy.layers.netflow import *
+from scapy.layers.sctp import *
+from scapy.layers.tftp import *
+
+from scapy.contrib.mpls import *
+from scapy.contrib.igmp import *
+from scapy.contrib.igmpv3 import *
+
+
+
 
 #additional_stl_udp_pkts = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir, os.pardir,'stl'))
 #sys.path.append(additional_stl_udp_pkts)
