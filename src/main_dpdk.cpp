@@ -76,10 +76,8 @@ extern "C" {
 #include "pre_test.h"
 #include "stateful_rx_core.h"
 #include "debug.h"
-<<<<<<< 653629bee578b4888bd0c144386c03a4b0d08eef
 #include "pkt_gen.h"
 #include "trex_port_attr.h"
->>>>>>> 73cffaf2cc2f21cb902dbd672e93577878c9f6b1
 #include "internal_api/trex_platform_api.h"
 #include "main_dpdk.h"
 #include "trex_watchdog.h"
