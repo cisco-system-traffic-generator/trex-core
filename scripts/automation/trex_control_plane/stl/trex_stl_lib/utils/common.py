@@ -27,9 +27,9 @@ def user_input():
         return raw_input()
 
 
-def random_id_gen_unsafe(length=8):
+class random_id_gen:
     """
-    A generator for creating a random chars id of specific length
+    Emulated generator for creating a random chars id of specific length
 
     :parameters:
         length : int
@@ -40,16 +40,6 @@ def random_id_gen_unsafe(length=8):
     :return:
         a random id with each next() request.
     """
-    id_chars = string.ascii_lowercase + string.digits
-    while True:
-        return_id = ''
-        for i in range(length):
-            return_id += random.choice(id_chars)
-        yield return_id
-
-
-class random_id_gen:
-    """ Thread safe version of random_id_gen_unsafe """
     def __init__(self, length=8):
         self.id_chars = string.ascii_lowercase + string.digits
         self.length = length

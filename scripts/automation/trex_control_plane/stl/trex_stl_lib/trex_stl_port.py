@@ -669,10 +669,7 @@ class Port(object):
         else:
             info['prom'] = "N/A"
 
-        if 'description' in info:
-            if len(info['description']) > 18:
-                info['description'] = info['description'][:18]
-        else:
+        if 'description' not in info:
             info['description'] = "N/A"
 
         if 'is_fc_supported' in info:
@@ -710,7 +707,7 @@ class Port(object):
         info = self.get_info()
 
         return {"driver":        info['driver'],
-                "description": info.get('description', 'N/A'),
+                "description": info.get('description', 'N/A')[:18],
                 "HW src mac":  info['hw_macaddr'],
                 "SW src mac":  info['src_macaddr'],
                 "SW dst mac":  info['dst_macaddr'],

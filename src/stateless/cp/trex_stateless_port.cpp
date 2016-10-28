@@ -153,11 +153,12 @@ private:
  * trex stateless port
  * 
  **************************/
-TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : platform_api(api), m_dp_events(this) {
+TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : m_dp_events(this) {
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
     m_port_id = port_id;
     m_port_state = PORT_STATE_IDLE;
+    m_platform_api = api;
 
     /* get the platform specific data */
     api->get_interface_info(port_id, m_api_info);
@@ -253,7 +254,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     assert(mul.m_op == TrexPortMultiplier::OP_ABS);
 
     /* check link state */
-    if ( !platform_api->getPortAttrObj()->is_link_up(m_port_id) && !force ) {
+    if ( !m_platform_api->getPortAttrObj(m_port_id)->is_link_up() && !force ) {
         throw TrexException("Link state is DOWN.");
     }
 
@@ -586,7 +587,7 @@ void
 TrexStatelessPort::get_properties(std::string &driver, uint32_t &speed) {
 
     driver = m_api_info.driver_name;
-    speed = platform_api->getPortAttrObj()->get_link_speed(m_port_id);
+    speed = m_platform_api->getPortAttrObj(m_port_id)->get_link_speed();
 }
 
 bool
@@ -615,7 +616,7 @@ void
 TrexStatelessPort::encode_stats(Json::Value &port) {
 
     TrexPlatformInterfaceStats stats;
-    platform_api->get_interface_stats(m_port_id, stats);
+    m_platform_api->get_interface_stats(m_port_id, stats);
 
     port["tx_bps"]          = stats.m_stats.m_tx_bps;
     port["rx_bps"]          = stats.m_stats.m_rx_bps;
@@ -667,7 +668,7 @@ TrexStatelessPort::send_message_to_rx(TrexStatelessCpToRxMsgBase *msg) {
 
 uint64_t
 TrexStatelessPort::get_port_speed_bps() const {
-    return (uint64_t) platform_api->getPortAttrObj()->get_link_speed(m_port_id) * 1000 * 1000;
+    return (uint64_t) m_platform_api->getPortAttrObj(m_port_id)->get_link_speed() * 1000 * 1000;
 }
 
 static inline double

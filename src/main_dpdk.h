@@ -167,6 +167,7 @@ class CPhyEthIF  {
     int get_rx_stat_capabilities();
 
     const std::vector<std::pair<uint8_t, uint8_t>> & get_core_list();
+    TRexPortAttr * get_port_attr() { return m_port_attr; }
 
  private:
     uint8_t                  m_port_id;
@@ -179,6 +180,7 @@ class CPhyEthIF  {
     CPPSMeasure              m_pps_rx;
     CPhyEthIFStats           m_stats;
     CPhyEthIgnoreStats       m_ignore_stats;
+    TRexPortAttr            *m_port_attr;
     float                    m_last_tx_rate;
     float                    m_last_rx_rate;
     float                    m_last_tx_pps;

@@ -435,7 +435,7 @@ private:
     port_state_e       m_port_state;
 
     TrexPlatformApi::intf_info_st m_api_info;
-    const TrexPlatformApi *platform_api;
+    const TrexPlatformApi *m_platform_api;
 
     uint16_t           m_rx_count_num;
     uint16_t           m_rx_caps;

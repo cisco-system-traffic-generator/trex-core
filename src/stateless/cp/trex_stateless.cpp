@@ -152,10 +152,8 @@ TrexStateless::get_dp_core_count() {
 void
 TrexStateless::encode_stats(Json::Value &global) {
 
-    const TrexPlatformApi *api = get_stateless_obj()->get_platform_api();
-
     TrexPlatformGlobalStats stats;
-    api->get_global_stats(stats);
+    m_platform_api->get_global_stats(stats);
 
     global["cpu_util"] = stats.m_stats.m_cpu_util;
     global["rx_cpu_util"] = stats.m_stats.m_rx_cpu_util;

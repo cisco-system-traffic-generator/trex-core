@@ -539,8 +539,7 @@ class CTRexInfoGenerator(object):
         stats_table.set_cols_dtype(['t'] * (len(relevant_ports) + 1))
         for key, arr in xstats_data.items():
             if include_zero_lines or list(filter(None, arr)):
-                if len(key) > 28:
-                    key = key[:28]
+                key = key[:28]
                 stats_table.add_row([key] + arr)
         return {'xstats:': ExportableStats(None, stats_table)}
 

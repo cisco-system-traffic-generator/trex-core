@@ -155,7 +155,7 @@ public:
     virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
     virtual int get_mbuf_util(Json::Value &result) const = 0;
     virtual CFlowStatParser *get_flow_stat_parser() const = 0;
-    virtual TRexPortAttr *getPortAttrObj() const = 0;
+    virtual TRexPortAttr *getPortAttrObj(uint8_t port_id) const = 0;
     virtual void mark_for_shutdown() const = 0;
     virtual int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const = 0;
     virtual int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const = 0;
@@ -197,7 +197,7 @@ public:
     int get_mbuf_util(Json::Value &result) const;
     void mark_for_shutdown() const;
     CFlowStatParser *get_flow_stat_parser() const;
-    TRexPortAttr *getPortAttrObj() const;
+    TRexPortAttr *getPortAttrObj(uint8_t port_id) const;
 
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const;
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const;
@@ -214,6 +214,11 @@ public:
 
     SimPlatformApi(int dp_core_count) {
         m_dp_core_count = dp_core_count;
+        m_port_attr = new SimTRexPortAttr();
+    }
+
+    ~SimPlatformApi() {
+        delete m_port_attr;
     }
 
     virtual uint8_t get_dp_core_count() const {
@@ -266,7 +271,7 @@ public:
     int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
     int get_mbuf_util(Json::Value &result) const {return 0;}
     CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
-    TRexPortAttr *getPortAttrObj() const {printf("Port attributes should not be used in simulation\n"); return NULL;} // dummy
+    TRexPortAttr *getPortAttrObj(uint8_t port_id) const {return m_port_attr;}
 
     void mark_for_shutdown() const {}
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {return 0;};
@@ -274,6 +279,7 @@ public:
 
 private:
     int m_dp_core_count;
+    SimTRexPortAttr * m_port_attr;
 };
 
 #endif /* __TREX_PLATFORM_API_H__ */
