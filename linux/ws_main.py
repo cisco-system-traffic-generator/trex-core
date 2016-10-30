@@ -103,6 +103,7 @@ bp_sim_gtest = SrcGroup(dir='src',
 
 main_src = SrcGroup(dir='src',
         src_list=[
+             'inet_pton.cpp',
              'bp_sim.cpp',
              'os_time.cpp',
              'rx_check.cpp',

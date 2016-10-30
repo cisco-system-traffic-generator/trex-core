@@ -27,44 +27,8 @@ limitations under the License.
 
 #define INADDRSZ 4
 
-static int my_inet_pton4(const char *src, unsigned char *dst)
-{
-	static const char digits[] = "0123456789";
-	int saw_digit, octets, ch;
-	unsigned char tmp[INADDRSZ], *tp;
-
-	saw_digit = 0;
-	octets = 0;
-	*(tp = tmp) = 0;
-	while ((ch = *src++) != '\0') {
-		const char *pch;
-
-		if ((pch = strchr(digits, ch)) != NULL) {
-			unsigned int _new = *tp * 10 + (pch - digits);
-
-			if (_new > 255)
-				return (0);
-			if (! saw_digit) {
-				if (++octets > 4)
-					return (0);
-				saw_digit = 1;
-			}
-			*tp = (unsigned char)_new;
-		} else if (ch == '.' && saw_digit) {
-			if (octets == 4)
-				return (0);
-			*++tp = 0;
-			saw_digit = 0;
-		} else
-			return (0);
-	}
-	if (octets < 4)
-		return (0);
-
-	memcpy(dst, tmp, INADDRSZ);
-	return (1);
-}
-
+extern int my_inet_pton4(const char *src, unsigned char *dst);
+extern int my_inet_pton6(const char *src, unsigned char *dst);
 
 bool utl_yaml_read_ip_addr(const YAML::Node& node, 
                            const std::string &name,
@@ -270,8 +234,6 @@ YAMLParserWrapper::parse_map(const YAML::Node &node, const std::string &name) {
 
 uint32_t
 YAMLParserWrapper::parse_ip(const YAML::Node &node, const std::string &name) {
-    
-
     try {
         std::string ip_str;
         uint32_t    ip_num;

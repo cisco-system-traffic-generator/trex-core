@@ -106,6 +106,7 @@ def getstatusoutput(cmd):
 
 main_src = SrcGroup(dir='src',
         src_list=[
+             'bp_sim.cpp',
              'utl_term_io.cpp',
              'global_io_mode.cpp',
              'main_dpdk.cpp',
@@ -114,7 +115,7 @@ main_src = SrcGroup(dir='src',
              'debug.cpp',
              'flow_stat.cpp',
              'flow_stat_parser.cpp',
-             'bp_sim.cpp',
+             'inet_pton.cpp',
              'pkt_gen.cpp',
              'platform_cfg.cpp',
              'pre_test.cpp',
