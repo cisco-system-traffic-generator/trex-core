@@ -40,6 +40,7 @@ class CTRexScenario:
     no_daemon        = False
     debug_image      = False
     test             = None
+    json_verbose     = False
 
 class CTRexRunner:
     """This is an instance for generating a CTRexRunner"""

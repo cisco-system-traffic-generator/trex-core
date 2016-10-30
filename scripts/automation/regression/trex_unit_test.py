@@ -206,6 +206,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
         CTRexScenario.debug_image   = options.debug_image
+        CTRexScenario.json_verbose  = self.json_verbose
         if not self.no_daemon:
             CTRexScenario.trex      = CTRexClient(trex_host   = self.configuration.trex['trex_name'],
                                                   verbose     = self.json_verbose,
@@ -255,15 +256,6 @@ class CTRexTestConfiguringPlugin(Plugin):
                     print('TRex is already running')
                     sys.exit(-1)
 
-        if self.stateless:
-            cores = self.configuration.trex.get('trex_cores', 1)
-            if 'virt_nics' in self.modes and cores > 1:
-                raise Exception('Number of cores should be 1 with virtual NICs')
-            if not self.no_daemon:
-                client.start_stateless(c = cores)
-            CTRexScenario.stl_trex = STLClient(username = 'TRexRegression',
-                                               server = self.configuration.trex['trex_name'],
-                                               verbose_level = self.json_verbose)
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg = dict(config_dict      = self.configuration.router,
                                             forceImageReload = self.load_image,

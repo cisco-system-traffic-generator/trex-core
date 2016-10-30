@@ -10,7 +10,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
     """This class defines the general stateless testcase of the TRex traffic generator"""
 
     def setUp(self):
-        self.stl_trex = CTRexScenario.stl_trex
+        self.stl_trex = CTRexScenario.stl_trex if CTRexScenario.stl_trex else 'mock'
         CTRexGeneral_Test.setUp(self)
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.stl_init_error:
@@ -67,15 +67,40 @@ class STLBasic_Test(CStlGeneral_Test):
     def test_connectivity(self):
         if not self.is_loopback:
             try:
+                sys.stdout.flush()
+                sys.stdout.write('Configuring DUT... ')
+                start_time = time.time()
                 if CTRexScenario.router_cfg['forceCleanConfig']:
                     CTRexScenario.router.load_clean_config()
                 CTRexScenario.router.configure_basic_interfaces()
                 CTRexScenario.router.config_pbr(mode = "config")
                 CTRexScenario.router.config_ipv6_pbr(mode = "config")
+                sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
             except Exception as e:
+                print('')
                 CTRexScenario.stl_init_error = 'Could not configure device, err: %s' % e
                 self.fail(CTRexScenario.stl_init_error)
                 return
+
+        try:
+            sys.stdout.write('Starting TRex... ')
+            start_time = time.time()
+            cores = self.configuration.trex.get('trex_cores', 1)
+            if self.is_virt_nics and cores > 1:
+                raise Exception('Number of cores should be 1 with virtual NICs')
+            if not CTRexScenario.no_daemon:
+                self.trex.start_stateless(c = cores)
+            self.stl_trex = STLClient(username = 'TRexRegression',
+                                      server = self.configuration.trex['trex_name'],
+                                      verbose_level = CTRexScenario.json_verbose)
+            CTRexScenario.stl_trex = self.stl_trex
+            sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
+        except Exception as e:
+            print('')
+            CTRexScenario.stl_init_error = 'Could not start stateless TRex, err: %s' % e
+            self.fail(CTRexScenario.stl_init_error)
+            return
+
         if not self.connect():
             CTRexScenario.stl_init_error = 'Client could not connect'
             self.fail(CTRexScenario.stl_init_error)
