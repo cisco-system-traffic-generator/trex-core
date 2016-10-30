@@ -39,7 +39,7 @@ from trex import CTRexScenario
 from trex_stf_lib.trex_client import *
 from trex_stf_lib.trex_exceptions import *
 from trex_stl_lib.api import *
-from trex_stl_lib.utils.GAObjClass import GAmanager
+from trex_stl_lib.utils.GAObjClass import GAmanager_Regression
 import trex
 import socket
 from pprint import pprint
@@ -180,12 +180,20 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.test  = options.test
         if self.collect_only or self.functional:
             return
+        
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
-        if not options.config_path and CTRexScenario.setup_dir:
-            options.config_path = CTRexScenario.setup_dir
-        if not options.config_path:
+
+        if not CTRexScenario.setup_dir and not options.config_path:
             raise Exception('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
+
+        if not options.config_path:
+            options.config_path = CTRexScenario.setup_dir
+        if not CTRexScenario.setup_dir:
+            CTRexScenario.setup_dir = options.config_path
+        
+        CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
+
         self.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
         self.configuration.trex['trex_name'] = address_to_ip(self.configuration.trex['trex_name']) # translate hostname to ip
         self.benchmark     = misc_methods.load_benchmark_config_file(os.path.join(options.config_path, 'benchmark.yaml'))
@@ -213,14 +221,14 @@ class CTRexTestConfiguringPlugin(Plugin):
                 print('Could not connect to master daemon')
                 sys.exit(-1)
         if options.ga and CTRexScenario.setup_name:
-            CTRexScenario.GAManager  = GAmanager(GoogleID       = 'UA-75220362-4',
-                                                 UserID         = CTRexScenario.setup_name,
-                                                 QueueSize      = 100,
-                                                 Timeout        = 5, # seconds
-                                                 UserPermission = 1,
-                                                 BlockingMode   = 1,
-                                                 appName        = 'TRex',
-                                                 appVer         = '1.11.232')
+            CTRexScenario.GAManager  = GAmanager_Regression(GoogleID         = 'UA-75220362-3',
+                                                            AnalyticsUserID  = CTRexScenario.setup_name,
+                                                            QueueSize        = 100,
+                                                            Timeout          = 3,  # seconds
+                                                            UserPermission   = 1,
+                                                            BlockingMode     = 0,
+                                                            appName          = 'TRex',
+                                                            appVer           = CTRexScenario.trex_version)
 
 
     def begin (self):
@@ -318,7 +326,6 @@ if __name__ == "__main__":
     CTRexScenario.scripts_path  = get_trex_path()
     if not CTRexScenario.setup_dir:
         CTRexScenario.setup_dir = check_setup_path(os.path.join('setups', setup_dir))
-
 
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--detailed-errors']
     test_client_package = False

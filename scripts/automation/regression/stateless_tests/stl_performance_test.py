@@ -54,12 +54,24 @@ class PerformanceReport(object):
 
         return self.GOLDEN_NORMAL
 
+    def report_to_analytics(self, ga, golden_mpps):
+        print("\n* Reporting to GA *\n")
+        ga.gaAddTestQuery(TestName = self.scenario,
+                          TRexMode = 'stl',
+                          SetupName = self.machine_name,
+                          TestType = 'performance',
+                          Mppspc = self.avg_mpps_per_core,
+                          GoldenMin = golden_mpps['min'],
+                          GoldenMax = golden_mpps['max'])
+
+        ga.emptyAndReportQ()
 
 
 class STLPerformance_Test(CStlGeneral_Test):
     """Tests for stateless client"""
 
     def setUp(self):
+
         CStlGeneral_Test.setUp(self)
 
         self.c = CTRexScenario.stl_trex
@@ -233,7 +245,10 @@ class STLPerformance_Test(CStlGeneral_Test):
             report = self.execute_single_scenario_iteration(scenario_cfg)
             rc = report.check_golden(golden)
 
-            if rc == PerformanceReport.GOLDEN_NORMAL:
+            if (rc == PerformanceReport.GOLDEN_NORMAL) or (rc == PerformanceReport.GOLDEN_BETTER):
+                if self.GAManager:
+                    report.report_to_analytics(self.GAManager, golden)
+
                 return
 
             if rc == PerformanceReport.GOLDEN_BETTER:
@@ -315,7 +330,7 @@ class STLPerformance_Test(CStlGeneral_Test):
         avg_mpps_per_core = avg_mpps * (100.0 / avg_cpu)
 
         report = PerformanceReport(scenario            =  scenario_cfg['name'],
-                                   machine_name        =  os.uname()[1],
+                                   machine_name        =  CTRexScenario.setup_name,
                                    core_count          =  scenario_cfg['core_count'],
                                    avg_cpu             =  avg_cpu,
                                    avg_gbps            =  avg_gbps,
