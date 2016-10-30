@@ -1,3 +1,5 @@
+import outer_packages
+from nose.plugins.attrib import attr
 import functional_general_test
 from trex import CTRexScenario
 import os, sys
