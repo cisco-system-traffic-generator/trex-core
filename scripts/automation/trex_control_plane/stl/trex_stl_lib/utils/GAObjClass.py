@@ -85,13 +85,15 @@ class GA_EXCEPTION_ObjClass(GA_ObjClass):
 
 #..................................................................class GA_TESTING_ObjClass................................................................
 class GA_TESTING_ObjClass(GA_ObjClass):
-    def __init__(self,cid,trackerID,TRexMode,TestName,SetupName,appName,appVer,TestType,Mppspc):
+    def __init__(self,cid,trackerID,TRexMode,TestName,SetupName,appName,appVer,TestType,Mppspc,GoldenMin,GoldenMax):
         GA_ObjClass.__init__(self,cid,trackerID,appName,appVer)
         self.TRexMode = TRexMode
         self.TestName = TestName
         self.SetupName = SetupName
         self.TestType = TestType
         self.Mppspc = Mppspc
+        self.GoldenMin = GoldenMin
+        self.GoldenMax = GoldenMax
         self.payload = self.generate_payload()
         self.size = sys.getsizeof(self.payload)
 
@@ -103,6 +105,8 @@ class GA_TESTING_ObjClass(GA_ObjClass):
         self.payload+='&cd3='+str(self.SetupName)
         self.payload+='&cd4='+str(self.TestType)
         self.payload+='&cm1='+str(self.Mppspc)
+        self.payload+='&cm2='+str(self.GoldenMin)
+        self.payload+='&cm3='+str(self.GoldenMax)
         return self.payload        
 #.....................................................................class ga_Thread.................................................................
 """
@@ -279,8 +283,8 @@ class GAmanager_Regression(GAmanager):
         self.GoogleID = GoogleID
         self.AnalyticsUserID = AnalyticsUserID
         
-    def gaAddTestQuery(self,TestName,TRexMode,SetupName,TestType,Mppspc):
-        self.gaAddObject(GA_TESTING_ObjClass(self.AnalyticsUserID,self.GoogleID,TRexMode,TestName,SetupName,self.appName,self.appVer,TestType,Mppspc))
+    def gaAddTestQuery(self,TestName,TRexMode,SetupName,TestType,Mppspc,GoldenMin,GoldenMax):
+        self.gaAddObject(GA_TESTING_ObjClass(self.AnalyticsUserID,self.GoogleID,TRexMode,TestName,SetupName,self.appName,self.appVer,TestType,Mppspc,GoldenMin,GoldenMax))
 
 
 
