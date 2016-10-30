@@ -85,27 +85,24 @@ class GA_EXCEPTION_ObjClass(GA_ObjClass):
 
 #..................................................................class GA_TESTING_ObjClass................................................................
 class GA_TESTING_ObjClass(GA_ObjClass):
-    def __init__(self,cid,uuid,trackerID,TRexMode,test_name,setup_name,appName,appVer,commitID,bandwidthPerCore,goldenBPC):
+    def __init__(self,cid,trackerID,TRexMode,TestName,SetupName,appName,appVer,TestType,Mppspc):
         GA_ObjClass.__init__(self,cid,trackerID,appName,appVer)
-        self.uid = uuid
         self.TRexMode = TRexMode
-        self.test_name = test_name
-        self.setup_name = setup_name
-        self.commitID = commitID
-        self.bandwidthPerCore = bandwidthPerCore
-        self.goldenBPC = goldenBPC
+        self.TestName = TestName
+        self.SetupName = SetupName
+        self.TestType = TestType
+        self.Mppspc = Mppspc
         self.payload = self.generate_payload()
         self.size = sys.getsizeof(self.payload)
 
     def generate_payload(self):
-        self.payload+='&ec='+str(self.TRexMode)
+        self.payload+='&ec=TRexTests'
         self.payload+='&ea=RegressionReport'
-        self.payload+='&cd5='+str(self.uid)
-        self.payload+='&cd1='+str(self.test_name)
-        self.payload+='&cd2='+str(self.setup_name)
-        self.payload+='&cd3='+str(self.commitID)
-        self.payload+='&cm1='+str(self.bandwidthPerCore)
-        self.payload+='&cm2='+str(self.goldenBPC)
+        self.payload+='&cd2='+str(self.TRexMode)
+        self.payload+='&cd1='+str(self.TestName)
+        self.payload+='&cd3='+str(self.SetupName)
+        self.payload+='&cd4='+str(self.TestType)
+        self.payload+='&cm1='+str(self.Mppspc)
         return self.payload        
 #.....................................................................class ga_Thread.................................................................
 """
@@ -265,7 +262,6 @@ class GAmanager:
             attributes:
 GoogleID - the tracker ID that Google uses in order to track the activity of a property. for regression use: 'UA-75220362-4'
 AnalyticsUserID - text value  - used by Google to differ between 2 users sending data. (will not be presented on reports). use only as a way to differ between different users
-UUID - text  - will be presented on analysis. put here UUID
 TRexMode - text - will be presented on analysis. put here TRexMode
 appName - text - will be presented on analysis. put here appName as string describing app name
 appVer - text - will be presented on analysis. put here the appVer
@@ -274,83 +270,21 @@ Timeout - integer (seconds) - the timeout in seconds between automated reports w
 UserPermission - boolean (1/0) - required in order to send packets, should be 1.
 BlockingMode - boolean (1/0) - required when each tracked event is critical and program should halt until the event is reported
 SetupName - text - will be presented on analysis. put here setup name as string.
-CommitID - text - will be presented on analysis. put here CommitID 
 """
 class GAmanager_Regression(GAmanager):
-    def __init__(self,GoogleID,AnalyticsUserID,UUID,TRexMode,appName,appVer,
-                 QueueSize,Timeout,UserPermission,BlockingMode,SetupName,CommitID):
+    def __init__(self,GoogleID,AnalyticsUserID,appName,appVer,
+                 QueueSize,Timeout,UserPermission,BlockingMode):
         GAmanager.__init__(self,GoogleID,AnalyticsUserID,appName,appVer,
                            QueueSize,Timeout,UserPermission,BlockingMode)
-        self.UUID = UUID
-        self.TRexMode = TRexMode
-        self.SetupName = SetupName
-        self.CommitID = CommitID
-
-    def gaAddTestQuery(self,TestName,BandwidthPerCore,GoldenBPC):
-        self.gaAddObject(GA_TESTING_ObjClass(self.UserID,self.UUID,self.GoogleID,
-                                             self.TRexMode,TestName,self.SetupName,
-                                             self.appName,self.appVer,self.CommitID,
-                                             BandwidthPerCore,GoldenBPC))
-
-
-
-
-#***************************************------TEST--------------**************************************
-
-
-#if __name__ == '__main__':
-
-#g= GAmanager_Regression(GoogleID='UA-75220362-4',AnalyticsUserID=3845,UUID='trex18UUID_GA_TEST',TRexMode='stateFull_GA_TEST',
-#             appName='TRex_GA_TEST',appVer='1.1_GA_TEST',QueueSize=20,Timeout=11,UserPermission=1,BlockingMode=0,SetupName='setup1_GA_TEST',CommitID='commitID1_GA_TEST')
-#for j in range(1,3,1):
-#for i in range(100,118,1):
-#    g.gaAddTestQuery('test_name_GA_TEST',i+0.5,150)
-#   sleep(11)
-#   print "finished batch"
-#g.emptyAndReportQ()
-
-#g.printSelf()
-#g.emptyAndReportQ()
-
-#g = GAmanager(GoogleID='UA-75220362-4',UserID=1,QueueSize=100,Timeout=5,UserPermission=1,BlockingMode=0,appName='TRex',appVer='1.11.232') #timeout in seconds
-#for i in range(0,35,1):
-#   g.gaAddAction(Event='test',action='start',label='1',value=i)
-#g.gaAddException('MEMFAULT',1)
-#g.emptyAndReportQ()
-#g.printSelf()
-#print g.payload
-#print g.size
-
-
-
-
-#g.activate()
-#g.gaAddAction(Event='test',action='start',label='1',value='1')
-#sys.stdout.write('element added \n')
-#sys.stdout.flush()
-#g.gaAddAction(Event='test',action='start',label='2',value='1')
-#sys.stdout.write('element added \n')
-#sys.stdout.flush()
-#g.gaAddAction(Event='test',action='start',label='3',value='1')
-#sys.stdout.write('element added \n')
-#sys.stdout.flush()
-
-#testdata = "v=1&t=event&tid=UA-75220362-4&cid=2&ec=test&ea=testing&el=testpacket&ev=2"
-#r = requests.post(url_debug,data=testdata)
-#print r
-
-#thread1 = ga_Thread(1,g)
-#thread1.start()
-#thread1.join()
-#for i in range(1,10,1):
-#    sys.stdout.write('yesh %d'% (i))
-#    sys.stdout.flush()
-
-
-
-
-   
+        self.GoogleID = GoogleID
+        self.AnalyticsUserID = AnalyticsUserID
         
+    def gaAddTestQuery(self,TestName,TRexMode,SetupName,TestType,Mppspc):
+        self.gaAddObject(GA_TESTING_ObjClass(self.AnalyticsUserID,self.GoogleID,TRexMode,TestName,SetupName,self.appName,self.appVer,TestType,Mppspc))
+
+
+
+
 
 
 
