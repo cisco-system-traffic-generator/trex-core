@@ -26,7 +26,7 @@ def run_command(command, timeout = 15, poll_rate = 0.1, cwd = None):
         stdout_file.seek(0)
         return (proc.returncode, stdout_file.read().decode(errors = 'replace'))
 
-
+@attr('run_on_trex')
 class CPP_Test(functional_general_test.CGeneralFunctional_Test):
     def test_gtests_all(self):
         print('')
