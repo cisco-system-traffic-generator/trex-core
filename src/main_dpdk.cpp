@@ -3084,7 +3084,7 @@ void CGlobalTRex::pre_test() {
     do {
         ret = pretest.resolve_all();
         count++;
-    } while ((ret != true) && (count < 3));
+    } while ((ret != true) && (count < 10));
 
     if ( CGlobalInfo::m_options.preview.getVMode() > 0) {
         pretest.dump(stdout);
