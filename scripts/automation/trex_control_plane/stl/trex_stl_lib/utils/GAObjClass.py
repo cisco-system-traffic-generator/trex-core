@@ -277,15 +277,15 @@ BlockingMode - boolean (1/0) - required when each tracked event is critical and 
 SetupName - text - will be presented on analysis. put here setup name as string.
 """
 class GAmanager_Regression(GAmanager):
-    def __init__(self,GoogleID,AnalyticsUserID,appName,appVer,
-                 QueueSize,Timeout,UserPermission,BlockingMode):
-        GAmanager.__init__(self,GoogleID,AnalyticsUserID,appName,appVer,
-                           QueueSize,Timeout,UserPermission,BlockingMode)
+    def __init__(self, GoogleID, AnalyticsUserID, appName, appVer,
+                 QueueSize, Timeout, UserPermission, BlockingMode):
+        GAmanager.__init__(self, GoogleID, AnalyticsUserID, appName, appVer,
+                           QueueSize, Timeout, UserPermission, BlockingMode)
         self.GoogleID = GoogleID
         self.AnalyticsUserID = AnalyticsUserID
         
-    def gaAddTestQuery(self,TestName,TRexMode,SetupName,ActionNumber,TestType,Mppspc,GoldenMin,GoldenMax):
-        self.gaAddObject(GA_TESTING_ObjClass(self.AnalyticsUserID,self.GoogleID,TRexMode,TestName,SetupName,self.appName,ActionNumber,self.appVer,TestType,Mppspc,GoldenMin,GoldenMax))
+    def gaAddTestQuery(self, TestName, TRexMode, SetupName, ActionNumber, TestType, Mppspc, GoldenMin, GoldenMax):
+        self.gaAddObject(GA_TESTING_ObjClass(self.AnalyticsUserID, self.GoogleID, TRexMode, TestName, SetupName, self.appName, ActionNumber, self.appVer, TestType, Mppspc, GoldenMin, GoldenMax))
 
 
 

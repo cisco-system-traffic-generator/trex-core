@@ -61,6 +61,7 @@ class PerformanceReport(object):
                           SetupName = self.machine_name,
                           TestType = 'performance',
                           Mppspc = self.avg_mpps_per_core,
+                          ActionNumber = '<fill_me>',
                           GoldenMin = golden_mpps['min'],
                           GoldenMax = golden_mpps['max'])
 
