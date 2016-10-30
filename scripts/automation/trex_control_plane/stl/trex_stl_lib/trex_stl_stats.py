@@ -217,8 +217,7 @@ class CTRexInfoGenerator(object):
      
         stats_data_left = OrderedDict([("connection", "{host}, Port {port}".format(host=global_stats.connection_info.get("server"),
                                                                      port=global_stats.connection_info.get("sync_port"))),
-                             ("version", "{ver}, UUID: {uuid}".format(ver=global_stats.server_version.get("version", "N/A"),
-                                                                      uuid="N/A")),
+                             ("version", "{ver}".format(ver=global_stats.server_version.get("version", "N/A"))),
 
                              ("cpu_util.", "{0}% @ {2} cores ({3} per port) {1}".format( format_threshold(round_float(global_stats.get("m_cpu_util")), [85, 100], [0, 85]),
                                                                                          global_stats.get_trend_gui("m_cpu_util", use_raw = True),

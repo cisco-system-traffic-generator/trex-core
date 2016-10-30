@@ -45,6 +45,10 @@ import getpass
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
+PATH = os.getenv('PATH', '')
+needed_path = '.:/bin:/usr/bin:/usr/sbin'
+if needed_path not in PATH:
+    os.environ['PATH'] = '%s:%s' % (PATH, needed_path)
 
 # global dict ethernet devices present. Dictionary indexed by PCI address.
 # Each device within this is itself a dictionary of device properties

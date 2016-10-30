@@ -1,3 +1,6 @@
+#ifndef __RTE_ETHDEV_INCLUDES_H__
+#define __RTE_ETHDEV_INCLUDES_H__
+
 struct rte_eth_link {
     int link_autoneg;
     int link_speed;
@@ -21,3 +24,4 @@ struct rte_eth_fc_conf {
 struct rte_eth_dev_info {
 };
 
+#endif /* __RTE_ETHDEV_INCLUDES_H__ */

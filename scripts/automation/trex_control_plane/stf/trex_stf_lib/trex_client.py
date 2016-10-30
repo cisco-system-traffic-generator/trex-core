@@ -1087,7 +1087,9 @@ class CTRexClient(object):
         """
         # handle known exceptions based on known error codes.
         # if error code is not known, raise ProtocolError
-        raise exception_handler.gen_exception(err)
+        exc = exception_handler.gen_exception(err)
+        exc.__cause__ = None # remove "During handling of the above exception, another exception occurred:" in Python3.3+
+        raise exc
 
 
 class CTRexResult(object):

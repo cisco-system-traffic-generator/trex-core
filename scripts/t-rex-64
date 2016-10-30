@@ -24,9 +24,16 @@ done <<< "$($PYTHON dpdk_setup_ports.py --dump-pci-description)"
 
 cd $(dirname $0)
 export LD_LIBRARY_PATH=$PWD
-saveterm="$(stty -g)"
+
+if [ -t 0 ] && [ -t 1 ]; then
+    export is_tty=true
+    saveterm="$(stty -g)"
+else
+    export is_tty=false
+fi
+
 # if we have a new core run optimized trex 
-if  cat /proc/cpuinfo | grep -q avx ; then
+if  grep -q avx /proc/cpuinfo ; then
     ./_$(basename $0) $INPUT_ARGS
     RESULT=$?
     if [ $RESULT -eq 132 ]; then
@@ -40,7 +47,10 @@ else
         ./_t-rex-64-o $INPUT_ARGS
         RESULT=$?
 fi
-stty $saveterm  
+
+if $is_tty; then
+    stty $saveterm
+fi
 
 if [ $RESULT -ne 0 ]; then
   exit $RESULT

@@ -19,11 +19,12 @@ class RPCError(Exception):
 
     def __str__(self):
         return self.__repr__()
+
     def __repr__(self):
         if self.args[2] is not None:
-            return u"[errcode:%r] %r. Extended data: %r" % (self.args[0], self.args[1], self.args[2])
+            return u"[errcode:%s] %s. Extended data: %s" % self.args
         else:
-            return u"[errcode:%r] %r" % (self.args[0], self.args[1])
+            return u"[errcode:%s] %s" % self.args[:2]
 
 class TRexException(RPCError):
     """ 

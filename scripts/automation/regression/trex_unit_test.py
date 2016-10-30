@@ -180,20 +180,14 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.test  = options.test
         if self.collect_only or self.functional:
             return
-        
         if CTRexScenario.setup_dir and options.config_path:
             raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
-
-        if not CTRexScenario.setup_dir and not options.config_path:
-            raise Exception('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
-
-        if not options.config_path:
+        if not options.config_path and CTRexScenario.setup_dir:
             options.config_path = CTRexScenario.setup_dir
-        if not CTRexScenario.setup_dir:
-            CTRexScenario.setup_dir = options.config_path
-        
-        CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
-
+        if not options.config_path:
+            raise Exception('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
+        options.config_path = options.config_path.rstrip('/')
+        CTRexScenario.setup_name = os.path.basename(options.config_path)
         self.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
         self.configuration.trex['trex_name'] = address_to_ip(self.configuration.trex['trex_name']) # translate hostname to ip
         self.benchmark     = misc_methods.load_benchmark_config_file(os.path.join(options.config_path, 'benchmark.yaml'))
@@ -326,6 +320,7 @@ if __name__ == "__main__":
     CTRexScenario.scripts_path  = get_trex_path()
     if not CTRexScenario.setup_dir:
         CTRexScenario.setup_dir = check_setup_path(os.path.join('setups', setup_dir))
+
 
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--detailed-errors']
     test_client_package = False
