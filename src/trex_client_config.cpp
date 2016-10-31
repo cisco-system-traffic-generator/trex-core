@@ -127,7 +127,7 @@ ClientCfgDB::parse_single_group(YAMLParserWrapper &parser, const YAML::Node &nod
 void 
 ClientCfgDB::parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDir &dir) {
     if (node.FindValue("src_mac")) {
-        dir.set_dst_mac_addr(parser.parse_mac_addr(node, "src_mac"));
+        dir.set_src_mac_addr(parser.parse_mac_addr(node, "src_mac"));
     }
     
     if (node.FindValue("dst_mac")) {

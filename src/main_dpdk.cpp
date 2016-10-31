@@ -6218,8 +6218,10 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(int port_id) {
     ret = rte_eth_get_fw_ver(port_id, &version);
 
     if (ret == 0) {
-        printf("port %d: FW ver %02d.%02d.%02d\n", port_id, ((version >> 12) & 0xf), ((version >> 4) & 0xff)
-               ,(version & 0xf));
+        if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
+            printf("port %d: FW ver %02d.%02d.%02d\n", port_id, ((version >> 12) & 0xf), ((version >> 4) & 0xff)
+                   ,(version & 0xf));
+        }
 
         if ((((version >> 12) & 0xf) < 5)  || ((((version >> 12) & 0xf) == 5) && ((version >> 4 & 0xff) == 0)
                                                && ((version & 0xf) < 4))) {

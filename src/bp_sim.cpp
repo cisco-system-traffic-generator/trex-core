@@ -4669,7 +4669,7 @@ void CFlowGenList::Dump(FILE *fd){
     int i;
     for (i=0; i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRec * lp=m_cap_gen[i];
-        lp->Dump(stdout);
+        lp->Dump(fd);
     }
 }
 
