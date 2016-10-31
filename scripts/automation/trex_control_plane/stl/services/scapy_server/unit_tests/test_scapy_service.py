@@ -98,6 +98,16 @@ def test_get_payload_classes():
     assert("IP" in eth_payloads)
     assert("Dot1Q" in eth_payloads)
     assert("TCP" not in eth_payloads)
+    assert(eth_payloads[0] == "IP") # order(based on prococols.json)
+
+def test_get_tcp_payload_classes():
+    payloads = get_payload_classes([{"id":"TCP"}])
+    assert("Raw" in payloads)
+
+def test_get_dot1q_payload_classes():
+    payloads = get_payload_classes([{"id":"Dot1Q"}])
+    assert("Dot1Q" in payloads)
+    assert("IP" in payloads)
 
 def test_pcap_read_and_write():
     pkts_to_write = [bytes_to_b64(bytes(TEST_PKT))]
@@ -152,4 +162,15 @@ def test_layer_wrong_structure():
     valid_structure_flags = [layer["valid_structure"] for layer in model]
     assert(real_structure == ["Ether", "IP", "Raw", None, None])
     assert(valid_structure_flags == [True, True, True, False, False])
+
+def test_hand_crafted_definitions():
+    etherDef = get_definition_of("Ether")
+    assert(etherDef['name'] == "Ethernet II")
+    etherFields = etherDef['fields']
+    assert(etherFields[0]['id'] == 'dst')
+    assert(etherFields[0]['name'] == 'Destination')
+    assert(etherFields[1]['id'] == 'src')
+    assert(etherFields[1]['name'] == 'Source')
+    assert(etherFields[2]['id'] == 'type')
+    assert(etherFields[2]['name'] == 'Type')
 

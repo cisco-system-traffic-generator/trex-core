@@ -312,7 +312,16 @@ class Scapy_service(Scapy_service_api):
         self.version_major = '1'
         self.version_minor = '01'
         self.server_v_hashed = self._generate_version_hash(self.version_major,self.version_minor)
-    
+        self.protocol_definitions = {} # protocolId -> prococol definition overrides data
+        self._load_definitions_from_json()
+
+    def _load_definitions_from_json(self):
+        # load protocol definitions from a json file
+        self.protocol_definitions = {}
+        with file('protocols.json') as f:
+            protocols = json.load(f)
+            for protocol in protocols:
+                self.protocol_definitions[ protocol['id'] ] = protocol
 
     def _all_protocol_structs(self):
         old_stdout = sys.stdout
@@ -654,10 +663,9 @@ class Scapy_service(Scapy_service_api):
             return pkt_class()
 
         
-    def _get_payload_classes(self, pkt):
+    def _get_payload_classes(self, pkt_class):
         # tries to find, which subclasses allowed.
         # this can take long time, since it tries to build packets with all subclasses(O(N))
-        pkt_class = type(pkt)
         allowed_subclasses = []
         for pkt_subclass in conf.layers:
             if self._is_packet_class(pkt_subclass):
@@ -671,15 +679,28 @@ class Scapy_service(Scapy_service_api):
                     pass
         return allowed_subclasses
 
-    def _get_fields_definition(self, pkt_class):
+    def _get_fields_definition(self, pkt_class, fieldsDef):
+        # fieldsDef - array of field definitions(or empty array)
         fields = []
         for field_desc in pkt_class.fields_desc:
+            fieldId = field_desc.name
             field_data = {
-                    "id": field_desc.name,
+                    "id": fieldId,
                     "name": field_desc.name
             }
+            for fieldDef in fieldsDef:
+                if fieldDef['id'] == fieldId:
+                    field_data.update(fieldDef)
             if isinstance(field_desc, EnumField):
                 try:
+                    field_data["values_dict"] = field_desc.s2i
+                    if field_data.get("type") == None:
+                        if len(field_data["values_dict"] > 0):
+                            field_data["type"] = "ENUM"
+                        elif fieldId == 'load':
+                            field_data["type"] = "BYTES"
+                        else:
+                            field_data["type"] = "STRING"
                     field_data["values_dict"] = field_desc.s2i
                 except:
                     # MultiEnumField doesn't have s2i. need better handling
@@ -696,17 +717,23 @@ class Scapy_service(Scapy_service_api):
         for pkt_class in all_classes:
             if self._is_packet_class(pkt_class):
                 # enumerate all non-abstract Packet classes
+                protocolId = pkt_class.__name__
+                protoDef = self.protocol_definitions.get(protocolId) or {}
                 protocols.append({
-                    "id": pkt_class.__name__,
-                    "name": pkt_class.name,
-                    "fields": self._get_fields_definition(pkt_class)
+                    "id": protocolId,
+                    "name": protoDef.get('name') or pkt_class.name,
+                    "fields": self._get_fields_definition(pkt_class, protoDef.get('fields') or [])
                     })
         res = {"protocols": protocols}
         return res
 
     def get_payload_classes(self,client_v_handler, pkt_model_descriptor):
         pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
-        return [c.__name__ for c in self._get_payload_classes(pkt)]
+        pkt_class = type(pkt.lastlayer())
+        protocolDef = self.protocol_definitions.get(pkt_class.__name__)
+        if protocolDef and protocolDef.get('payload'):
+            return protocolDef['payload']
+        return [c.__name__ for c in self._get_payload_classes(pkt_class)]
 
 #input in string encoded base64
     def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):
