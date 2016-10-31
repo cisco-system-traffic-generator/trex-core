@@ -114,9 +114,10 @@ int CPretest::handle_rx(int port_id, int queue_id) {
     do {
         cnt = rte_eth_rx_burst(port_id, queue_id, rx_pkts, sizeof(rx_pkts)/sizeof(rx_pkts[0]));
         tries++;
-
+        bool free_pkt;
         for (i = 0; i < cnt; i++) {
             rte_mbuf_t * m = rx_pkts[i];
+            free_pkt = true;
             int pkt_size = rte_pktmbuf_pkt_len(m);
             uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
             ArpHdr *arp;
@@ -125,9 +126,8 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                 m_port_info[port_id].m_stats.m_rx_arp++;
                 if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REQUEST)) {
                     if (verbose >= 3) {
-                        fprintf(stdout, "RX ARP request on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
-                                , ntohl(arp->m_arp_sip)
-                                , ntohl(arp->m_arp_tip));
+                        fprintf(stdout, "RX ARP request on port %d queue %d sip:0x%08x tip:0x%08x\n"
+                                , port_id, queue_id, ntohl(arp->m_arp_sip), ntohl(arp->m_arp_tip));
                     }
                     // is this request for our IP?
                     if (ntohl(arp->m_arp_tip) == port->m_ip) {
@@ -142,14 +142,45 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                                 m_port_info[sent_port_id].m_state = CPretestPortInfo::RESOLVE_DONE;
                                 m_port_info[sent_port_id].m_is_loopback = true;
                             }
+                        } else {
+                            // Not our request. Answer.
+                            free_pkt = false; // We use the same mbuf to send response. Don't free it twice.
+                            arp->m_arp_op = htons(ArpHdr::ARP_HDR_OP_REPLY);
+                            uint32_t tmp_ip = arp->m_arp_sip;
+                            arp->m_arp_sip = arp->m_arp_tip;
+                            arp->m_arp_tip = tmp_ip;
+                            memcpy((uint8_t *)&arp->m_arp_tha, (uint8_t *)&arp->m_arp_sha, ETHER_ADDR_LEN);
+                            memcpy((uint8_t *)&arp->m_arp_sha, port->m_src_mac, ETHER_ADDR_LEN);
+                            EthernetHeader *m_ether = (EthernetHeader *)p;
+                            memcpy((uint8_t *)&m_ether->myDestination, (uint8_t *)&m_ether->mySource, ETHER_ADDR_LEN);
+                            memcpy((uint8_t *)&m_ether->mySource, (uint8_t *)port->m_src_mac, ETHER_ADDR_LEN);
+                            int num_sent = rte_eth_tx_burst(port_id, 0, &m, 1);
+                            if (num_sent < 1) {
+                                fprintf(stderr, "Failed sending ARP reply to port:%d\n", port_id);
+                                rte_pktmbuf_free(m);
+                            } else {
+                                fprintf(stdout, "TX ARP reply on port:%d sip:0x%08x, tip:0x%08x\n"
+                                        , port_id ,htonl(arp->m_arp_sip), htonl(arp->m_arp_tip));
+                                m_port_info[port_id].m_stats.m_tx_arp++;
+                            }
                         }
                     } else {
-                        // ARP request not to our IP. At the moment, we ignore this.
+                        // ARP request not to our IP.
+                        if ((ntohl(arp->m_arp_tip) == port->m_def_gw) && (ntohl(arp->m_arp_sip) == port->m_def_gw)) {
+                            // sip and tip equals def_gw, meaning we got gratitues ARP.
+                            port->set_dst_mac((uint8_t *)&arp->m_arp_sha);
+                        }
                     }
                 } else {
                     if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REPLY)) {
                         if (verbose >= 3) {
-                            fprintf(stdout, "RX ARP response on port %d queue %d sip:0x%08x tip:0x%08x\n", port_id, queue_id
+                            bool is_grat = false;
+                            if (arp->m_arp_sip == arp->m_arp_tip) {
+                                is_grat = true;
+                            }
+                            fprintf(stdout, "RX %s on port %d queue %d sip:0x%08x tip:0x%08x\n"
+                                    , is_grat ? "grat ARP" : "ARP reply"
+                                    , port_id, queue_id
                                     , ntohl(arp->m_arp_sip)
                                     , ntohl(arp->m_arp_tip));
                         }
@@ -160,7 +191,8 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                     }
                 }
             }
-            rte_pktmbuf_free(m);
+            if (free_pkt)
+                rte_pktmbuf_free(m);
         }
     } while ((cnt != 0) && (tries < 1000));
 
