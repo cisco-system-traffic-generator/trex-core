@@ -308,7 +308,7 @@ $sudo ./t-rex-64 -i
 
 * Wait until the server is up and running. 
 * (Optional) Use `-c` to add more cores.
-* (Optional) Use `--cfg` to specify a different configuration file. The default is link:trex_manual.html#_create_minimum_configuration_file[trex_cfg.yaml].
+* (Optional) Use `--cfg` to specify a different configuration file. The default is link:trex_manual.html#_create_minimum_configuration_file[/etc/trex_cfg.yaml].
 
 // IGNORE: this line helps rendering of next line
 
@@ -589,7 +589,7 @@ To set ports to link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous 
 
 [source,bash]
 ----
-trex>portattr -a --prom                                             #<1> 
+trex>portattr -a --prom on                                          #<1> 
 trex>stats --ps
 Port Status
 
@@ -3827,7 +3827,6 @@ Resets the server and client to a known state. Not used in normal scenarios.
 - Stops all traffic on all ports
 - Removes all streams from all ports
 
-// IGNORE: this line helps rendering of next line
 
 *Example*::
 
@@ -3836,18 +3835,36 @@ Resets the server and client to a known state. Not used in normal scenarios.
 $reset  
 ----
 
-//??? command name is portattr, and there is no --cfg arg. there --prom
 ===== portattr
 
-Configures port state. Currently support only turning promiscuous mode on and off
+Configures port attributes.
 
 *Example*::
 
-[source,bash]
+[source,python]
 ----
-$portattr --port 0 --prom
+$portattr --help
+usage: port_attr [-h] [--port PORTS [PORTS ...] | -a] [--prom {on,off}]
+                 [--link {up,down}] [--led {on,off}] [--fc {none,tx,rx,full}]
+                 [--supp]
 
+Sets port attributes
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --port PORTS [PORTS ...], -p PORTS [PORTS ...]
+                        A list of ports on which to apply the command
+  -a                    Set this flag to apply the command on all available
+                        ports
+  --prom {on,off}       Set port promiscuous on/off
+  --link {up,down}      Set link status up/down
+  --led {on,off}        Set LED status on/off
+  --fc {none,tx,rx,full}
+                        Set Flow Control type
+  --supp                Show which attributes are supported by current NICs
 ----
+
+image::images/console_link_down.png[title="Setting link down on port 0 affects port 1 at loopback"]
 
 
 ===== clear 
@@ -3864,7 +3881,8 @@ $clear -a
 
 ===== stats 
 
-Can be used to show global/port/stream statistics.
+Can be used to show global/port/stream statistics. +
+Also, can be used to retrieve extended stats from port (xstats)
 
 *Example*::
 
@@ -3873,6 +3891,8 @@ Can be used to show global/port/stream statistics.
 $stats --port 0 -p
 $stats -s
 ----
+
+image::images/xstats_error.png[title="Xstats error example"]
 
 // IGNORE - this line helps rendering
 

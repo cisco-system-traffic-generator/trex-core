@@ -10,16 +10,22 @@ VERSION='0.0.1'
 APPNAME='wafdocs'
 
 import os, re, shutil
+import sys
 import shlex
 import subprocess
 import json
-
+import re
+from waflib import Logs
 
 
 top = '.'
 out = 'build'
+sphinx_version = None
 
-from HTMLParser import HTMLParser
+try:
+    from HTMLParser import HTMLParser
+except:
+    from html.parser import HTMLParser
 
 class CTocNode:
     def __init__ (self):
@@ -108,7 +114,7 @@ class TocHTMLParser(HTMLParser):
 
     def _get_level (self,level):
         k=str(level)
-        if self.d.has_key(k):
+        if k in self.d:
             n=self.d[k]
             assert(n!=None);
             return n
@@ -210,7 +216,6 @@ def ascii_doc_scan(self):
         
         
 
-import re
 def scansize(self):
     name = 'image::%s\\{PIC\\}\\[.*,(width|height)=(\\d+)' % self.inputs[0].name[:-4]
     re_src = re.compile(name)
@@ -247,14 +252,18 @@ def options(opt):
     opt.add_option('--exe', action='store_true', default=False, help='Execute the program after it is compiled')
 
 def configure(conf):
-    conf.find_program('asciidoc', path_list='/usr/bin/', var='ASCIIDOC')
-    conf.find_program('sphinx-build', path_list='~/.local/bin /usr/local/bin/ /usr/bin', var='SPHINX')
+    search_path = '~/.local/bin /usr/local/bin/ /usr/bin'
+    conf.find_program('asciidoc', path_list=search_path, var='ASCIIDOC')
+    conf.find_program('sphinx-build', path_list=search_path, var='SPHINX')
+    conf.find_program('source-highlight', path_list=search_path, var='SRC_HIGHLIGHT')
+    conf.find_program('dblatex', path_list=search_path, var='DBLATEX')
+    conf.find_program('a2x', path_list=search_path, var='A2X')
     pass;
 
 def convert_to_pdf(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    return  os.system('a2x --no-xmllint -v -f pdf  -d  article %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
+    return  os.system('a2x --no-xmllint %s -f pdf  -d  article %s -D %s ' %('-v' if Log.verbose else '', task.inputs[0].abspath(),out_dir ) )
 
 
 TOC_HEAD = """
@@ -700,7 +709,7 @@ def convert_to_html_toc_book(task):
     json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
 
     cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book  -o {2} {3}'.format(
-            task.env['ASCIIDOC'],
+            task.env['ASCIIDOC'][0],
             task.inputs[1].abspath(),
             tmp,
             task.inputs[0].abspath());
@@ -721,7 +730,7 @@ def convert_to_html_toc_book(task):
 def convert_to_pdf_book(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
-    return os.system('a2x --no-xmllint -v -f pdf  -d book %s -D %s ' %(task.inputs[0].abspath(),out_dir ) )
+    return os.system('a2x --no-xmllint %s -f pdf  -d book %s -D %s ' %('-v' if Logs.verbose else '', task.inputs[0].abspath(),out_dir ) )
 
 
 def ensure_dir(f):
@@ -740,6 +749,21 @@ def my_copy(task):
 def do_visio(bld):
     for x in bld.path.ant_glob('visio\\*.vsd'):
         tg = bld(rule='${VIS} -i ${SRC} -o ${TGT} ', source=x, target=x.change_ext('.png'))
+
+def get_sphinx_version(sphinx_path):
+    try:
+        global sphinx_version
+        if not sphinx_version:
+            sphinx_version_regexp = '^Sphinx \(sphinx-build\) (\d+)\.(\d+)\.\d+$'
+            cmd = '%s %s --version' % (sys.executable, sphinx_path)
+            output = subprocess.check_output(shlex.split(cmd), universal_newlines = True)
+            for line in output.splitlines():
+                ver = re.match(sphinx_version_regexp, line)
+                if ver:
+                    sphinx_version = float('%s.%s' % (ver.group(1), ver.group(2)))
+        return sphinx_version
+    except Exception as e:
+        print('Error getting Sphinx version: %s' % e)
 
 def get_trex_core_git():
     trex_core_git_path = os.path.join(os.getcwd(), os.pardir, "trex-core")
@@ -797,13 +821,28 @@ def build_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc'))
-    build_doc_cmd = shlex.split("{sph} -W -b {bld} {src} {dst}".format(
-        sph= task.env['SPHINX'],
+    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
+    if not sphinx_version:
+        return 1
+    if sphinx_version < 1.3:
+        additional_args = '-D html_theme=default'
+    else:
+        additional_args = ''
+    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
+        pyt= sys.executable,
+        sph= task.env['SPHINX'][0],
+        add= additional_args,
+        ver= '' if Logs.verbose else '-q',
         bld= "html", 
-        src= ".", 
+        src= ".",
         dst= out_dir)
-    )
-    return subprocess.call(build_doc_cmd, cwd = trex_core_docs_path)
+    if Logs.verbose:
+        print(build_doc_cmd)
+    try:
+        return subprocess.call(shlex.split(build_doc_cmd), cwd = trex_core_docs_path)
+    except OSError as e:
+        print('Failed command: %s\nError: %s' % (build_doc_cmd, e))
+        return 1
 
 def build_stl_cp_docs (task):
     out_dir = task.outputs[0].abspath()
@@ -812,13 +851,28 @@ def build_stl_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_stl'))
-    build_doc_cmd = shlex.split("{sph} -W -b {bld} {src} {dst}".format(
-        sph= task.env['SPHINX'],
+    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
+    if not sphinx_version:
+        return 1
+    if sphinx_version < 1.3:
+        additional_args = '-D html_theme=default'
+    else:
+        additional_args = ''
+    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
+        pyt= sys.executable,
+        sph= task.env['SPHINX'][0],
+        add= additional_args,
+        ver= '' if Logs.verbose else '-q',
         bld= "html", 
         src= ".", 
         dst= out_dir)
-    )
-    return subprocess.call(build_doc_cmd, cwd = trex_core_docs_path)
+    if Logs.verbose:
+        print(build_doc_cmd)
+    try:
+        return subprocess.call(shlex.split(build_doc_cmd), cwd = trex_core_docs_path)
+    except OSError as e:
+        print('Failed command: %s\nError: %s' % (build_doc_cmd, e))
+        return 1
 
 
 
@@ -871,13 +925,13 @@ def build(bld):
     if os.path.exists('build/hlt_args.asciidoc'):
         bld.add_manual_dependency(
             bld.path.find_node('trex_stateless.asciidoc'),
-            'build/hlt_args.asciidoc')
+            b'build/hlt_args.asciidoc')
 
-    bld(rule='${ASCIIDOC}  -b deckjs -o ${TGT} ${SRC[0].abspath()}',
+    bld(rule='${ASCIIDOC}  -f ../backends/deckjs/deckjs.conf -o ${TGT} ${SRC[0].abspath()}',
         source='trex_config.asciidoc ', target='trex_config_guide.html', scan=ascii_doc_scan)
 
 
-    bld(rule='${ASCIIDOC}  -b deckjs -o ${TGT} ${SRC[0].abspath()}',
+    bld(rule='${ASCIIDOC}  -f ../backends/deckjs/deckjs.conf -o ${TGT} ${SRC[0].abspath()}',
         source='trex_preso.asciidoc ', target='trex_preso.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
@@ -952,7 +1006,7 @@ class Env(object):
     def get_env(name) :
         s= os.environ.get(name);
         if s == None:
-            print "You should define $",name
+            print("You should define $",name)
             raise Exception("Env error");
         return (s);
     
