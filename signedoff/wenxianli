@@ -1,0 +1,33 @@
+I, WenxianLi hearby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: wenxianl@cisco.com, wofanli@gmail.com
+
+My contributions were:
+
+79eff3545a1e38dd027e1fd94050ec27cfd1e412 - WenxianLi - wofanli@gmail.com - When <ip, mac> mapping file is invalid, directly force stop TRex with error log
+
+3e53fc4cc4bcfcd1e13bf3e136462b15eda238de - WenxianLi - wofanli@gmail.com - minor.
+
+6bdc3bd98fd899f48b792f9d1ae82a313c159450 - WenxianLi - wofanli@gmail.com - Fix crash when # of mac-ip mapping entries exceed than 255.
+
+9a00718033883ff8287f58eac41a4aa179a72c3f - WenxianLi - wofanli@gmail.com - remove one-app-server from yaml configuration.
+
+9b8943c12d77f16a528296bc41f8da1684caf31a - WenxianLi - wofanli@gmail.com - trex-173, remove support for one-app-server in global configuration.
+
+74c3cc9a88beef73d6f319e39a5c51b1d074be18 - WenxianLi - wenxianl@cisco.com - minor
+
+7a7c328c767eeb9466138233fd53d51565f92b37 - WenxianLi - wenxianl@cisco.com - clean up the code
+
+b8e15f0ec903d0e8f7fd23d8e0e03b89b50b817b - WenxianLi - wenxianl@cisco.com - minor change
+
+f2d4fdad463a6d4ba0c3d8d0622fb6931425c7f9 - WenxianLi - wenxianl@cisco.com - trex-131
+
+894ec2ddcd9965f60c4bc7a0b48edf41bfc167d8 - WenxianLi - wenxianl@cisco.com - Code change according to code review comments after Tuple Generator phase 2 commit.
+
+e1979bd94c36f15c2cd7faaa234abde29908f460 - WenxianLi - wenxianl@cisco.com - minor
+
+1dc0b240297cef767c82edc9673bd86573d4db55 - WenxianLi - wenxianl@cisco.com - fix some errors found by valgrind
+
+8b0a8fcda7b2f28c4aee86c135e93529ade712eb - WenxianLi - wenxianl@cisco.com - fix errors found in valgrind
+
+9a524989d331f04abecd3faa72d98157a8651739 - WenxianLi - wenxianl@cisco.com - Add more yaml example for per template tuple generator
+
+569ca4f3a4fe533f067d0c21c0624269b9c36c31 - WenxianLi - wenxianl@cisco.com - tuple generator phase 3.1, support random, support per template client/server generator, Dynamic sellection of client type  
