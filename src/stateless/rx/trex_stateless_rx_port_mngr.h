@@ -27,6 +27,63 @@
 
 #include "common/captureFile.h"
 
+/************************* latency ***********************/
+
+class CPortLatencyHWBase;
+class CRFC2544Info;
+class CRxCoreErrCntrs;
+
+
+class RXLatency {
+public:
+
+    RXLatency() {
+        m_rcv_all    = false;
+        m_rfc2544    = NULL;
+        m_err_cntrs  = NULL;
+
+        for (int i = 0; i < MAX_FLOW_STATS; i++) {
+            m_rx_pg_stat[i].clear();
+            m_rx_pg_stat_payload[i].clear();
+        }
+    }
+
+    void create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
+        m_rfc2544 = rfc2544;
+        m_err_cntrs = err_cntrs;
+    }
+
+    void reset_stats();
+
+    void handle_pkt(const rte_mbuf_t *m);
+
+private:
+    bool is_flow_stat_id(uint32_t id) {
+        if ((id & 0x000fff00) == IP_ID_RESERVE_BASE) return true;
+        return false;
+    }
+
+    bool is_flow_stat_payload_id(uint32_t id) {
+        if (id == FLOW_STAT_PAYLOAD_IP_ID) return true;
+        return false;
+    }
+
+    uint16_t get_hw_id(uint16_t id) {
+    return (0x00ff & id);
+}
+
+public:
+
+    rx_per_flow_t        m_rx_pg_stat[MAX_FLOW_STATS];
+    rx_per_flow_t        m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
+
+    bool                 m_rcv_all;
+    CRFC2544Info         *m_rfc2544;
+    CRxCoreErrCntrs      *m_err_cntrs;
+};
+
+/************************ queue ***************************/
+
 /**                
  * describes a single saved RX packet
  * 
@@ -145,6 +202,8 @@ private:
     RxPacket **m_buffer;
 };
 
+/************************ recoder ***************************/
+
 /**
  * RX packet recorder to PCAP file
  * 
@@ -165,6 +224,8 @@ private:
 };
 
 
+/************************ manager ***************************/
+
 /**
  * per port RX features manager
  * 
@@ -181,7 +242,21 @@ public:
     RXPortManager() {
         m_features = 0;
         m_pkt_buffer = NULL;
+        m_io = NULL;
         set_feature(LATENCY);
+    }
+
+    void create(CPortLatencyHWBase *io, CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
+        m_io = io;
+        m_latency.create(rfc2544, err_cntrs);
+    }
+
+    void clear_stats() {
+        m_latency.reset_stats();
+    }
+
+    RXLatency & get_latency() {
+        return m_latency;
     }
 
     void start_recorder(const std::string &pcap, uint32_t limit_pkts) {
@@ -227,9 +302,11 @@ public:
     }
 
     void handle_pkt(const rte_mbuf_t *m) {
-        /* fast path */
-        if (no_features_set()) {
-            return;
+
+        /* handle features */
+
+        if (is_feature_set(LATENCY)) {
+            m_latency.handle_pkt(m);
         }
 
         if (is_feature_set(RECORD)) {
@@ -239,6 +316,10 @@ public:
         if (is_feature_set(QUEUE)) {
             m_pkt_buffer->push(new RxPacket(m));
         }
+    }
+
+    CPortLatencyHWBase *get_io() {
+        return m_io;
     }
 
 private:
@@ -259,9 +340,12 @@ private:
         return (m_features == 0);
     }
 
-    uint32_t            m_features;
-    RXPacketRecorder    m_recorder;
-    RxPacketBuffer     *m_pkt_buffer;
+    uint32_t                     m_features;
+    RXPacketRecorder             m_recorder;
+    RXLatency                    m_latency;
+    RxPacketBuffer              *m_pkt_buffer;
+
+    CPortLatencyHWBase          *m_io;
 };
 
 

@@ -22,6 +22,27 @@
 #ifndef __TREX_STATELESS_RX_DEFS_H__
 #define __TREX_STATELESS_RX_DEFS_H__
 
+#include "trex_defs.h"
+
+class CPortLatencyHWBase;
+
+/**
+ * general SL cfg
+ * 
+ */
+class CRxSlCfg {
+ public:
+    CRxSlCfg (){
+        m_max_ports = 0;
+        m_cps = 0.0;
+    }
+
+ public:
+    uint32_t             m_max_ports;
+    double               m_cps;
+    CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
+};
+
 /**
  * describes the filter type applied to the RX 
  *  RX_FILTER_MODE_HW - only hardware filtered traffic will

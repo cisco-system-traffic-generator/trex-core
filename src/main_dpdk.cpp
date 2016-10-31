@@ -5457,7 +5457,7 @@ CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
 
 // in 1G we need to wait if links became ready to soon
 void CTRexExtendedDriverBase1G::wait_after_link_up(){
-    wait_x_sec(6 + CGlobalInfo::m_options.m_wait_before_traffic);
+    //wait_x_sec(6 + CGlobalInfo::m_options.m_wait_before_traffic);
 }
 
 int CTRexExtendedDriverBase1G::wait_for_stable_link(){

@@ -29,33 +29,6 @@
 
 class TrexStatelessCpToRxMsgBase;
 
-class CCPortLatencyStl {
- public:
-    void reset();
-
- public:
-    rx_per_flow_t m_rx_pg_stat[MAX_FLOW_STATS];
-    rx_per_flow_t m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
-};
-
-class CLatencyManagerPerPortStl {
-public:
-     CCPortLatencyStl     m_port;
-     CPortLatencyHWBase * m_io;
-};
-
-class CRxSlCfg {
- public:
-    CRxSlCfg (){
-        m_max_ports = 0;
-        m_cps = 0.0;
-    }
-
- public:
-    uint32_t             m_max_ports;
-    double               m_cps;
-    CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
-};
 
 class CRFC2544Info {
  public:
@@ -110,7 +83,7 @@ class CRxCoreErrCntrs {
         m_old_flow = 0;
     }
 
- private:
+ public:
     uint64_t m_bad_header;
     uint64_t m_old_flow;
 };
@@ -159,30 +132,31 @@ class CRxCoreStateless {
     bool periodic_check_for_cp_messages();
     void tickle();
     void idle_state_loop();
-    void handle_rx_pkt(CLatencyManagerPerPortStl * lp, rte_mbuf_t * m);
-    void handle_rx_pkt_2(int port_id, rte_mbuf_t *m);
     void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
-    void flush_rx();
-    int try_rx();
+    void handle_work_stage(bool do_try_rx_queue);
+
+    int try_rx(bool flush_rx = false);
+
+    void flush_rx() {
+        try_rx(true);
+    }
+
     void try_rx_queues();
-    bool is_flow_stat_id(uint32_t id);
-    bool is_flow_stat_payload_id(uint32_t id);
-    uint16_t get_hw_id(uint16_t id);
 
  private:
     TrexMonitor     m_monitor;
     uint32_t m_max_ports;
     bool m_capture;
-    bool m_rcv_all;
-    CLatencyManagerPerPortStl m_ports[TREX_MAX_PORTS];
     state_e   m_state;
     CNodeRing *m_ring_from_cp;
     CNodeRing *m_ring_to_cp;
     CCpuUtlDp m_cpu_dp_u;
     CCpuUtlCp m_cpu_cp_u;
+
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
+
     CRxCoreErrCntrs m_err_cntrs;
     CRFC2544Info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 
