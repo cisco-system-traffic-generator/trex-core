@@ -28,6 +28,7 @@ limitations under the License.
 #include <string.h>
 #include "flow_stat_parser.h"
 #include "trex_defs.h"
+#include "trex_stateless_rx_defs.h"
 #include "trex_port_attr.h"
 #include <json/json.h>
 
@@ -160,6 +161,8 @@ public:
     virtual int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const = 0;
     virtual int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const = 0;
 
+    virtual void set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) const = 0;
+
     virtual ~TrexPlatformApi() {}
 };
 
@@ -197,6 +200,7 @@ public:
     int get_mbuf_util(Json::Value &result) const;
     void mark_for_shutdown() const;
     CFlowStatParser *get_flow_stat_parser() const;
+    void set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) const;
     TRexPortAttr *getPortAttrObj(uint8_t port_id) const;
 
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const;
@@ -276,6 +280,8 @@ public:
     void mark_for_shutdown() const {}
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {return 0;};
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {return 0;};
+
+    void set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) const {}
 
 private:
     int m_dp_core_count;

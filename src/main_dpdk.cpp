@@ -6603,3 +6603,14 @@ TRexPortAttr *TrexDpdkPlatformApi::getPortAttrObj(uint8_t port_id) const {
 void TrexDpdkPlatformApi::mark_for_shutdown() const {
     g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
 }
+
+
+void TrexDpdkPlatformApi::set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) const {
+    
+    CPhyEthIF *_if = &g_trex.m_ports[port_id];
+
+    bool recv_all = (filter_mode == RX_FILTER_MODE_ALL);
+    CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(_if, recv_all);
+}
+
+

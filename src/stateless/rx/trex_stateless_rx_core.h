@@ -25,6 +25,7 @@
 #include "os_time.h"
 #include "pal/linux/sanb_atomic.h"
 #include "utl_cpuu.h"
+#include "trex_stateless_rx_port_mngr.h"
 
 class TrexStatelessCpToRxMsgBase;
 
@@ -140,6 +141,18 @@ class CRxCoreStateless {
     double get_cpu_util();
     void update_cpu_util();
 
+    RxPacketBuffer *get_rx_sw_pkt_buffer(uint8_t port_id) {
+        return m_rx_port_mngr[port_id].get_pkt_buffer();
+    }
+
+    /**
+     * sets the port filter mode
+     * 
+     * @author imarom (10/31/2016)
+     * 
+     * @param filter_mode 
+     */
+    void set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode);
 
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
@@ -147,6 +160,7 @@ class CRxCoreStateless {
     void tickle();
     void idle_state_loop();
     void handle_rx_pkt(CLatencyManagerPerPortStl * lp, rte_mbuf_t * m);
+    void handle_rx_pkt_2(int port_id, rte_mbuf_t *m);
     void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void flush_rx();
@@ -171,5 +185,7 @@ class CRxCoreStateless {
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
     CRxCoreErrCntrs m_err_cntrs;
     CRFC2544Info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
+
+    RXPortManager m_rx_port_mngr[TREX_MAX_PORTS];
 };
 #endif

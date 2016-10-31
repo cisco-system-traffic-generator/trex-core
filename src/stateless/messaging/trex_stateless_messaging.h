@@ -24,11 +24,15 @@ limitations under the License.
 
 #include "msg_manager.h"
 #include "trex_dp_port_events.h"
+#include "trex_exception.h"
+#include "trex_stateless_rx_defs.h"
+#include "os_time.h"
 
 class TrexStatelessDpCore;
 class CRxCoreStateless;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
+class RxPacketBuffer;
 
 /**
  * defines the base class for CP to DP messages
@@ -312,7 +316,7 @@ private:
 /************************* messages from DP to CP **********************/
 
 /**
- * defines the base class for CP to DP messages
+ * defines the base class for DP to CP messages
  *
  * @author imarom (27-Oct-15)
  */
@@ -415,5 +419,77 @@ class TrexStatelessRxStopMsg : public TrexStatelessCpToRxMsgBase {
 class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
 };
+
+
+class TrexStatelessRxSetFilterMode : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxSetFilterMode(uint8_t port_id, rx_filter_mode_e filter_mode) {
+        m_port_id = port_id;
+        m_filter_mode = filter_mode;
+    }
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    rx_filter_mode_e  m_filter_mode;
+};
+
+
+template<typename T> class TrexStatelessMsgReply {
+public:
+    TrexStatelessMsgReply() {
+        m_pending = true;
+    }
+
+    bool is_pending() const {
+        return m_pending;
+    }
+
+    void set(T reply) {
+        m_reply = reply;
+
+        /* before marking as done - memory fence */
+        asm volatile("mfence" ::: "memory");
+        m_pending = false;
+    }
+
+    T wait_for_reply(int timeout_ms = 100, int backoff_ms = 1) {
+        int guard = timeout_ms;
+
+        while (is_pending()) {
+            guard -= backoff_ms;
+            if (guard < 0) {
+                throw TrexException("timeout: RX core has failed to reply");
+            }
+
+            delay(backoff_ms);
+            
+        }
+        return m_reply;
+
+    }
+private:
+    bool  m_pending;
+    T     m_reply;
+};
+
+
+
+class TrexStatelessRxSwGetPkts : public TrexStatelessCpToRxMsgBase {
+public:
+
+    TrexStatelessRxSwGetPkts(uint8_t port_id, TrexStatelessMsgReply<RxPacketBuffer *> &reply);
+
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t                                    m_port_id;
+    TrexStatelessMsgReply<RxPacketBuffer*>    &m_reply;
+};
+
 
 #endif /* __TREX_STATELESS_MESSAGING_H__ */

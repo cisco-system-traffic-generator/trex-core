@@ -1739,6 +1739,10 @@ class STLClient(object):
 
         """
 
+        rc = self.ports[0].set_rx_filter_mode("all")
+        if not rc:
+            raise STLError(rc)
+
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
@@ -3267,12 +3271,13 @@ class STLClient(object):
             return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl)
 
 
+                        
     @__console
     def show_profile_line (self, line):
         '''Shows profile information'''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port",
+                                         "profile",
                                          self.show_profile_line.__doc__,
                                          parsing_opts.FILE_PATH)
 

@@ -26,6 +26,8 @@
 #include "pal/linux/sanb_atomic.h"
 #include "trex_stateless_messaging.h"
 #include "trex_stateless_rx_core.h"
+#include "trex_stateless.h"
+
 
 void CRFC2544Info::create() {
     m_latency.Create();
@@ -127,6 +129,7 @@ bool CRxCoreStateless::periodic_check_for_cp_messages() {
     return true;
 
 }
+
 
 void CRxCoreStateless::idle_state_loop() {
     const int SHORT_DELAY_MS    = 2;
@@ -371,6 +374,7 @@ void CRxCoreStateless::flush_rx() {
     }// all ports
 }
 
+
 int CRxCoreStateless::try_rx() {
     rte_mbuf_t * rx_pkts[64];
     int i, total_pkts = 0;
@@ -385,7 +389,8 @@ int CRxCoreStateless::try_rx() {
             int j;
             for (j = 0; j < cnt_p; j++) {
                 m = rx_pkts[j];
-                handle_rx_pkt(lp, m);
+                //handle_rx_pkt(lp, m);
+                m_rx_port_mngr[i].handle_pkt(m);
                 rte_pktmbuf_free(m);
             }
             /* commit only if there was work to do ! */
@@ -472,3 +477,11 @@ void CRxCoreStateless::update_cpu_util(){
 double CRxCoreStateless::get_cpu_util() {
     return m_cpu_cp_u.GetVal();
 }
+
+
+void
+CRxCoreStateless::set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) {
+    const TrexPlatformApi *api = get_stateless_obj()->get_platform_api();
+    api->set_rx_filter_mode(port_id, filter_mode);
+}
+

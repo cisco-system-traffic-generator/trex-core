@@ -202,7 +202,8 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
-                                    'rx/trex_stateless_rx_core.cpp'
+                                    'rx/trex_stateless_rx_core.cpp',
+                                    'rx/trex_stateless_rx_port_mngr.cpp'
                                     ])
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',

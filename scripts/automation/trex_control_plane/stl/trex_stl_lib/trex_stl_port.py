@@ -487,6 +487,21 @@ class Port(object):
 
         return self.ok()
 
+    @writeable
+    def set_rx_filter_mode (self, filter_mode):
+        assert(filter_mode in ["hw", "all"])
+
+        params = {"handler":      self.handler,
+                  "port_id":      self.port_id,
+                  "type":         "filter_mode",
+                  "filter_type":  filter_mode}
+
+        rc = self.transmit("set_rx_feature", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
     @owned
     def pause (self):
 
@@ -582,6 +597,18 @@ class Port(object):
         #self.attr.update(attr_dict)
 
         return self.ok()
+
+    @owned
+    def get_rx_sw_pkts (self):
+        params = {"handler": self.handler,
+                  "port_id": self.port_id}
+
+        rc = self.transmit("get_rx_sw_pkts", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
 
     @writeable
     def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler):

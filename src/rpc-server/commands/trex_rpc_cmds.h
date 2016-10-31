@@ -27,6 +27,7 @@ limitations under the License.
 #include <memory>
 
 class TrexStream;
+class TrexStatelessPort;
 
 /* all the RPC commands decl. goes here */
 
@@ -143,6 +144,16 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdValidate, "validate", 2, false, APIClass::API_CLAS
 TREX_RPC_CMD_DEFINE(TrexRpcCmdPushRemote, "push_remote", 6, true, APIClass::API_CLASS_TYPE_CORE);
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdShutdown, "shutdown", 2, false, APIClass::API_CLASS_TYPE_CORE);
+
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetRxFeature, "set_rx_feature", 3, false, APIClass::API_CLASS_TYPE_CORE,
+    void parse_filter_mode_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
+	void parse_record_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
+	void parse_queue_msg(const Json::Value &msg,  TrexStatelessPort *port, Json::Value &result);
+	void parse_server_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
+
+);
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetRxSwPkts, "get_rx_sw_pkts", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
 #endif /* __TREX_RPC_CMD_H__ */
 

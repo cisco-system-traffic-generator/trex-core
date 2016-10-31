@@ -25,6 +25,7 @@ limitations under the License.
 #include <trex_streams_compiler.h>
 #include <common/basic_utils.h>
 #include <common/captureFile.h>
+#include "trex_stateless_rx_defs.h"
 
 #include <string>
 
@@ -942,6 +943,32 @@ TrexStatelessPort::remove_and_delete_all_streams() {
         remove_stream(stream);
         delete stream;
     }
+}
+
+/**
+ * set the filter type for a port
+ * 
+ * @author imarom (10/31/2016)
+ * 
+ * @param rx_sw_cfg 
+ */
+void
+TrexStatelessPort::set_rx_filter_mode(rx_filter_mode_e filter_mode) {
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxSetFilterMode(m_port_id, filter_mode);
+    send_message_to_rx(msg);
+}
+
+RxPacketBuffer *
+TrexStatelessPort::get_rx_sw_pkts() {
+
+    /* ask RX core for the pkt queue */
+    TrexStatelessMsgReply<RxPacketBuffer *> msg_reply;
+
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxSwGetPkts(m_port_id, msg_reply);
+    send_message_to_rx(msg);
+
+    RxPacketBuffer *pkt_buffer = msg_reply.wait_for_reply();
+    return pkt_buffer;
 }
 
 /************* Trex Port Owner **************/

@@ -27,6 +27,8 @@ limitations under the License.
 
 #include <internal_api/trex_platform_api.h>
 
+#include "trex_stateless_rx_core.h"
+
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
@@ -640,3 +642,84 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
 }
 
+/**
+ * set on/off RX software receive mode
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetRxFeature::_run(const Json::Value &params, Json::Value &result) {
+    
+    uint8_t port_id = parse_port(params, result);
+	TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    /* decide which feature is being set */
+    const std::string type = parse_choice(params, "type", {"filter_mode", "record", "queue", "server"}, result);
+
+    if (type == "filter_mode") {
+        parse_filter_mode_msg(params, port, result);
+    } else if (type == "record") {
+        parse_record_msg(params, port, result);
+    } else if (type == "queue") {
+        parse_queue_msg(params, port, result);
+    } else if (type == "server") {
+        parse_server_msg(params, port, result);
+    } else {
+        assert(0);
+    }
+
+	result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+   
+}
+
+void 
+TrexRpcCmdSetRxFeature::parse_filter_mode_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+	const std::string type = parse_choice(msg, "filter_type", {"hw", "all"}, result);
+
+	rx_filter_mode_e filter_mode;
+	if (type == "hw") {
+		filter_mode = RX_FILTER_MODE_HW;
+	} else if (type == "all") {
+		filter_mode = RX_FILTER_MODE_ALL;
+	} else {
+		assert(0);
+	}
+
+	try {
+        port->set_rx_filter_mode(filter_mode);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+}
+
+void 
+TrexRpcCmdSetRxFeature::parse_record_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+}
+
+void 
+TrexRpcCmdSetRxFeature::parse_queue_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+}
+
+void 
+TrexRpcCmdSetRxFeature::parse_server_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+}
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetRxSwPkts::_run(const Json::Value &params, Json::Value &result) {
+    
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    try {
+        RxPacketBuffer *pkt_buffer = port->get_rx_sw_pkts();
+        result["result"]["pkts"] = pkt_buffer->to_json();
+
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    
+    return (TREX_RPC_CMD_OK);
+}

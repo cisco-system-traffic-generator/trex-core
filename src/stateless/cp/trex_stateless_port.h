@@ -24,12 +24,14 @@ limitations under the License.
 #include "common/basic_utils.h"
 #include "internal_api/trex_platform_api.h"
 #include "trex_dp_port_events.h"
+#include "trex_stateless_rx_defs.h"
 #include "trex_stream.h"
 
 class TrexStatelessCpToDpMsgBase;
 class TrexStatelessCpToRxMsgBase;
 class TrexStreamsGraphObj;
 class TrexPortMultiplier;
+class RxPacketBuffer;
 
 /**
  * TRex port owner can perform
@@ -369,6 +371,17 @@ public:
 
     void get_pci_info(std::string &pci_addr, int &numa_node);
 
+    /**
+	 *  set RX filter mode
+	 *  can be hardware or software
+     */
+    void set_rx_filter_mode(rx_filter_mode_e);
+
+    /**
+     * fetch the RX software packets from the queue
+     * 
+     */
+    RxPacketBuffer *get_rx_sw_pkts();
 
 private:
 
