@@ -52,38 +52,38 @@ router:
     - client : 
         name          : GigabitEthernet0/1/0
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        dest_ipv6_mac_addr : a036.9f4d.6a3c
       server : 
         name          : GigabitEthernet0/1/1
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        dest_ipv6_mac_addr : a036.9f4d.6a3d
       vrf_name        : 
     - client :
         name          : GigabitEthernet0/1/2
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        det_ipv6_mac_addr : a036.9f4d.6a3e
       server :
         name          : GigabitEthernet0/1/4
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        dest_ipv6_mac_addr : a036.9f4d.6a3f
       vrf_name        :
     - client :
         name          : GigabitEthernet0/1/5
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        dest_ipv6_mac_addr : a036.9f4d.6b78
       server :
         name          : GigabitEthernet0/1/3
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        dest_ipv6_mac_addr : a036.9f4d.6b79
       vrf_name        :
     - client :
         name          : GigabitEthernet0/1/6
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        dest_ipv6_mac_addr : a036.9f4d.6b7a
       server :
         name          : GigabitEthernet0/1/7
         src_mac_addr  : 0000.0001.0000
-        dest_ipv6_mac_addr : 0000.0001.0000
+        dest_ipv6_mac_addr : a036.9f4d.6b7b
       vrf_name      :
 
 tftp:
