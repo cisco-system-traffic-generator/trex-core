@@ -9,6 +9,7 @@ import tempfile
 import hashlib
 import base64
 import numbers
+import random
 import inspect
 import json
 from pprint import pprint
@@ -279,6 +280,48 @@ def get_sample_field_val(scapy_layer, fieldId):
     except:
         pass
 
+def generate_random_bytes(sz, seed, start, end):
+    # generate bytes of specified range with a fixed seed and size
+    rnd = random.Random(seed)
+    end = end + 1 # to include end value
+    res = [rnd.randrange(start, end) for _i in range(sz)]
+    if is_python(2):
+        return ''.join(chr(x) for x in res)
+    else:
+        return bytes(res)
+
+def generate_bytes_from_template(sz, template):
+    # generate bytes by repeating a template
+    res = str_to_bytes('') # new bytes array
+    if len(template) == 0:
+        return res
+    while len(res) < sz:
+        res = res + template
+    return res[:sz]
+
+def parse_template_code(template_code):
+    template_code = re.sub("0[xX]", '', template_code) # remove 0x
+    template_code = re.sub("[\s]", '', template_code) # remove spaces
+    return bytearray.fromhex(template_code)
+
+def generate_bytes(bytes_definition):
+    # accepts a bytes definition object
+    # {generate: random_bytes or random_ascii, seed: <seed_number>, size: <size_bytes>}
+    # {generate: template, template_base64: '<base64str>',  size: <size_bytes>}
+    # {generate: template_code, template_text_code: '<template_code_str>',  size: <size_bytes>}
+    gen_type = bytes_definition.get('generate')
+    bytes_size = bytes_definition.get('size') 
+    seed = bytes_definition.get('seed') or 12345
+    if gen_type == 'random_bytes':
+        return generate_random_bytes(bytes_size, seed, 0, 0xFF)
+    elif gen_type == 'random_ascii':
+        return generate_random_bytes(bytes_size, seed, 0x20, 0x7E)
+    elif gen_type == 'template':
+        return generate_bytes_from_template(bytes_size, b64_to_bytes(bytes_definition["template_base64"]))
+    elif gen_type == 'template_code':
+        return generate_bytes_from_template(bytes_size, bytes_definition["template_code"])
+
+
 class ScapyException(Exception): pass
 class Scapy_service(Scapy_service_api):
 
@@ -381,7 +424,10 @@ class Scapy_service(Scapy_service_api):
             if value_type == 'EXPRESSION':
                 return eval(val['expr'], {})
             elif value_type == 'BYTES':   # bytes payload(ex Raw.load)
-                return b64_to_bytes(val['base64'])
+                if 'generate' in val:
+                    return generate_bytes(val)
+                else:
+                    return b64_to_bytes(val['base64'])
             elif value_type == 'OBJECT':
                 return val['value']
             else:

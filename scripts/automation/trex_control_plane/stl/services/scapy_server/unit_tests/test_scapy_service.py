@@ -163,7 +163,7 @@ def test_layer_wrong_structure():
     assert(real_structure == ["Ether", "IP", "Raw", None, None])
     assert(valid_structure_flags == [True, True, True, False, False])
 
-def test_hand_crafted_definitions():
+def test_ether_definitions():
     etherDef = get_definition_of("Ether")
     assert(etherDef['name'] == "Ethernet II")
     etherFields = etherDef['fields']
@@ -173,4 +173,28 @@ def test_hand_crafted_definitions():
     assert(etherFields[1]['name'] == 'Source')
     assert(etherFields[2]['id'] == 'type')
     assert(etherFields[2]['name'] == 'Type')
+
+def test_ether_definitions():
+    pdef = get_definition_of("ICMP")
+    assert(pdef['id'] == "ICMP")
+    assert(pdef['name'])
+    assert(pdef['fields'])
+
+def test_ip_definitions():
+    pdef = get_definition_of("IP")
+    fields = pdef['fields']
+    assert(fields[0]['id'] == 'version')
+
+    assert(fields[1]['id'] == 'ihl')
+    assert(fields[1]['auto'] == True)
+
+    assert(fields[3]['id'] == 'len')
+    assert(fields[3]['auto'] == True)
+
+    assert(fields[5]['id'] == 'flags')
+    assert(fields[5]['type'] == 'BITMASK')
+    assert(fields[5]['bits'][0]['name'] == 'Reserved')
+
+    assert(fields[9]['id'] == 'chksum')
+    assert(fields[9]['auto'] == True)
 
