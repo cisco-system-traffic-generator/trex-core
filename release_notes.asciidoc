@@ -28,9 +28,14 @@ endif::backend-docbook[]
 * Added support for IP based configuration files (As opposed to MAC based used until now), with the ability of TRex to send
 ARP requests for default gateway, and gratitues ARP for its own addresses.
 See link:trex_manual.html#_configuration_yaml_parameter_of_cfg_option[here] and link:trex_config_guide.html[here] for details.
-* Add RPC commands to Stateless:
+* Added commands to Stateless client/console:
 ** Getting extended counters of port for improved debug purposes. See example: link:trex_stateless.html#_stats[stats]
 ** Changing of port attributes and getting async feedback on the changed status. See example: link:trex_stateless.html#_portattr[portattr]
+* For developers - added/updated RPC commands (which can be used for GUI etc.):
+** Getting system info added new options, for example description of interface: link:trex_rpc_server_spec.html#_get_system_info[get_system_info]
+** Setting port attributes added new options: link:trex_rpc_server_spec.html#_setting_port_attributes[set_port_attr]
+** Getting xstats names (can be polled once and then combined with updated values): link:trex_rpc_server_spec.html#_get_xstat_names[get_port_xstats_names]
+** Getting xstats values: link:trex_rpc_server_spec.html#_get_xstat_values[get_port_xstats_values]
 
 === fix issues: ===
 

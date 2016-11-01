@@ -3892,7 +3892,30 @@ $stats --port 0 -p
 $stats -s
 ----
 
-image::images/xstats_error.png[title="Xstats error example"]
+*Xstats error example*::
+
+[source,bash]
+----
+
+trex>stats -x --port 0 2
+Xstats:
+
+            Name:              |     Port 0:     |     Port 2:
+\------------------------------------------------------------------
+rx_good_packets                |       154612905 |       153744994
+tx_good_packets                |       154612819 |       153745136
+rx_good_bytes                  |      9895225920 |      9839679168
+tx_good_bytes                  |      9276768500 |      9224707392
+rx_unicast_packets             |       154611873 |       153743952
+rx_unknown_protocol_packets    |       154611896 |       153743991
+tx_unicast_packets             |       154612229 |       153744562
+mac_remote_errors              |               1 |               0 #<1>
+rx_size_64_packets             |       154612170 |       153744295
+tx_size_64_packets             |       154612595 |       153744902
+
+----
+
+<1> Error that can be seen only with this command
 
 // IGNORE - this line helps rendering
 
