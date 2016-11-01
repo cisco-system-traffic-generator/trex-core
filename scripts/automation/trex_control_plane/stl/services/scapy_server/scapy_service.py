@@ -424,7 +424,7 @@ class Scapy_service(Scapy_service_api):
         if type(val) == type({}):
             value_type = val['vtype']
             if value_type == 'EXPRESSION':
-                return eval(val['expr'], {})
+                return eval(val['expr'], scapy.all.__dict__)
             elif value_type == 'BYTES':   # bytes payload(ex Raw.load)
                 return generate_bytes(val)
             elif value_type == 'OBJECT':

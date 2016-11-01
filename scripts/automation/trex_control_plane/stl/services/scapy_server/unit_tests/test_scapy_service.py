@@ -159,6 +159,28 @@ def test_layer_random_value():
     ether_fields = fields_to_map(res['data'][0]['fields'])
     assert(re.match(RE_MAC, ether_fields['src']['value']))
 
+def test_IP_options():
+    options_expr = "[IPOption_SSRR(copy_flag=0, routers=['1.2.3.4', '5.6.7.8'])]"
+    res = build_pkt([
+        layer_def("Ether"),
+        layer_def("IP", options={"vtype": "EXPRESSION", "expr": options_expr}),
+        ])
+    pkt = build_pkt_to_scapy(res)
+    options = pkt[IP].options
+    assert(options[0].__class__.__name__ == 'IPOption_SSRR')
+    assert(options[0].copy_flag == 0)
+    assert(options[0].routers == ['1.2.3.4', '5.6.7.8'])
+
+def test_TCP_options():
+    options_expr = "[('MSS', 1460), ('NOP', None), ('NOP', None), ('SAckOK', b'')]"
+    pkt = build_pkt_get_scapy([
+        layer_def("Ether"),
+        layer_def("IP"),
+        layer_def("TCP", options={"vtype": "EXPRESSION", "expr": options_expr}),
+        ])
+    options = pkt[TCP].options
+    assert(options[0] == ('MSS', 1460) )
+
 def test_layer_wrong_structure():
     payload = [
             layer_def("Ether"),
