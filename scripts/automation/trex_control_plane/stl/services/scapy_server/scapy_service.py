@@ -320,6 +320,8 @@ def generate_bytes(bytes_definition):
         return generate_bytes_from_template(bytes_size, b64_to_bytes(bytes_definition["template_base64"]))
     elif gen_type == 'template_code':
         return generate_bytes_from_template(bytes_size, bytes_definition["template_code"])
+    elif gen_type == None:
+        return b64_to_bytes(bytes_definition['base64'])
 
 
 class ScapyException(Exception): pass
@@ -424,10 +426,7 @@ class Scapy_service(Scapy_service_api):
             if value_type == 'EXPRESSION':
                 return eval(val['expr'], {})
             elif value_type == 'BYTES':   # bytes payload(ex Raw.load)
-                if 'generate' in val:
-                    return generate_bytes(val)
-                else:
-                    return b64_to_bytes(val['base64'])
+                return generate_bytes(val)
             elif value_type == 'OBJECT':
                 return val['value']
             else:
@@ -437,7 +436,7 @@ class Scapy_service(Scapy_service_api):
         else:
             return val
 
-    def _field_value_from_def(self, layer, fieldId, val):
+    def _field_value_from_def(self, scapy_pkt, layer, fieldId, val):
         field_desc = layer.get_field(fieldId)
         sample_val = get_sample_field_val(layer, fieldId)
         # extensions for field values
@@ -449,6 +448,16 @@ class Scapy_service(Scapy_service_api):
                 return field_desc.randval()
             elif value_type == 'MACHINE': # internal machine field repr
                 return field_desc.m2i(layer, b64_to_bytes(val['base64']))
+            elif value_type == 'BYTES':
+                if 'total_size' in val: # custom case for total pkt size
+                    gen = {}
+                    gen.update(val)
+                    total_sz = gen['total_size']
+                    del gen['total_size']
+                    gen['size'] = total_sz - len(scapy_pkt)
+                    return generate_bytes(gen)
+                else:
+                    return generate_bytes(val)
         if is_number(sample_val) and is_string(val):
             # human-value. guess the type and convert to internal value
             # seems setfieldval already does this for some fields,
@@ -638,22 +647,24 @@ class Scapy_service(Scapy_service_api):
     def _verify_version_handler(self,client_v_handler):
         return (self.server_v_hashed == client_v_handler)
 
-    def _parse_packet_dict(self,layer,scapy_layers,scapy_layer_names):
-        class_name = scapy_layer_names.index(layer['id'])
-        class_p = scapy_layers[class_name] # class pointer
+    def _parse_packet_dict(self, layer, layer_classes, base_layer):
+        class_p = layer_classes[layer['id']] # class id -> class dict
         scapy_layer = class_p()
         if isinstance(scapy_layer, Raw):
             scapy_layer.load = str_to_bytes("dummy")
+        if base_layer == None:
+            base_layer = scapy_layer
         if 'fields' in layer:
-            self._modify_layer(scapy_layer, layer['fields'])
+            self._modify_layer(base_layer, scapy_layer, layer['fields'])
         return scapy_layer
 
     def _packet_model_to_scapy_packet(self,data):
-        layers = Packet.__subclasses__()
-        layer_names = [ layer.__name__ for layer in layers]
-        base_layer = self._parse_packet_dict(data[0],layers,layer_names)
+        layer_classes = {}
+        for layer_class in Packet.__subclasses__():
+            layer_classes[layer_class.__name__] = layer_class
+        base_layer = self._parse_packet_dict(data[0], layer_classes, None)
         for i in range(1,len(data),1):
-            packet_layer = self._parse_packet_dict(data[i],layers,layer_names)
+            packet_layer = self._parse_packet_dict(data[i], layer_classes, base_layer)
             base_layer = base_layer/packet_layer
         return base_layer
 
@@ -798,10 +809,10 @@ class Scapy_service(Scapy_service_api):
         else:
             raise ScapyException("Fields DB is not up to date")
 
-    def _modify_layer(self, scapy_layer, fields):
+    def _modify_layer(self, scapy_pkt, scapy_layer, fields):
         for field in fields:
             fieldId = str(field['id'])
-            fieldval = self._field_value_from_def(scapy_layer, fieldId, field['value'])
+            fieldval = self._field_value_from_def(scapy_pkt, scapy_layer, fieldId, field['value'])
             if fieldval is not None:
                 scapy_layer.setfieldval(fieldId, fieldval)
             else:
@@ -840,7 +851,7 @@ class Scapy_service(Scapy_service_api):
                 # TODO: support replacing payload, instead of breaking
                 raise ScapyException("Protocol id inconsistent")
             if 'fields' in model_layer:
-                self._modify_layer(scapy_layer, model_layer['fields'])
+                self._modify_layer(scapy_pkt, scapy_layer, model_layer['fields'])
         return self._pkt_data(scapy_pkt)
 
     def read_pcap(self,client_v_handler,pcap_base64):

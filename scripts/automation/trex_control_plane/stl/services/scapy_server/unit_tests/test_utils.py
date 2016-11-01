@@ -14,6 +14,10 @@ def test_generate_bytes_from_template_empty():
     print(res)
     assert(res == b"")
 
+def test_generate_bytes_from_template_neg():
+    res = generate_bytes_from_template(-5, b"qwe")
+    assert(res == b"")
+
 def test_generate_bytes_from_template_less():
     res = generate_bytes_from_template(5, b"qwe")
     print(res)

@@ -78,6 +78,35 @@ def test_build_Raw():
         ])
     assert(str(pkt[Raw].load == "hi"))
 
+def test_build_fixed_pkt_size_bytes_gen():
+    pkt = build_pkt_get_scapy([
+        layer_def("Ether"),
+        layer_def("IP"),
+        layer_def("TCP"),
+        layer_def("Raw", load={
+            "vtype": "BYTES",
+            "generate": "template",
+            "total_size": 64,
+            "template_base64": bytes_to_b64(b"hi")
+        })
+        ])
+    print(len(pkt))
+    assert(len(pkt) == 64)
+
+def test_build_fixed_pkt_size_bytes_gen():
+    pkt = build_pkt_get_scapy([
+        layer_def("Ether"),
+        layer_def("IP"),
+        layer_def("TCP"),
+        layer_def("Raw", load={
+            "vtype": "BYTES",
+            "generate": "random_ascii",
+            "total_size": 256
+        })
+        ])
+    print(len(pkt))
+    assert(len(pkt) == 256)
+
 def test_get_all():
     service.get_all(v_handler)
 
