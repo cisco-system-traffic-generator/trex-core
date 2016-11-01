@@ -282,12 +282,17 @@ def get_sample_field_val(scapy_layer, fieldId):
 
 def generate_random_bytes(sz, seed, start, end):
     # generate bytes of specified range with a fixed seed and size
-    rnd = random.Random(seed)
-    end = end + 1 # to include end value
-    res = [rnd.randrange(start, end) for _i in range(sz)]
+    rnd = random.Random()
+    n = end - start + 1
     if is_python(2):
+        rnd = random.Random(seed)
+        res = [start + int(rnd.random()*n) for _i in range(sz)]
         return ''.join(chr(x) for x in res)
     else:
+        rnd = random.Random()
+        # to generate same random sequence as 2.x
+        rnd.seed(seed, version=1)
+        res = [start + int(rnd.random()*n) for _i in range(sz)]
         return bytes(res)
 
 def generate_bytes_from_template(sz, template):
@@ -363,7 +368,7 @@ class Scapy_service(Scapy_service_api):
     def _load_definitions_from_json(self):
         # load protocol definitions from a json file
         self.protocol_definitions = {}
-        with file('protocols.json') as f:
+        with open('protocols.json', 'r') as f:
             protocols = json.load(f)
             for protocol in protocols:
                 self.protocol_definitions[ protocol['id'] ] = protocol

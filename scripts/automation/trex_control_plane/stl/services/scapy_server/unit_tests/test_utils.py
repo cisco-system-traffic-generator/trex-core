@@ -7,7 +7,7 @@ def test_generate_random_bytes():
     res = generate_random_bytes(10, 333, ord('0'), ord('9'))
     print(res)
     assert(len(res) == 10)
-    assert(res == '5390532937') # random value with this seed
+    assert(res == b'5390532937') # random value with this seed
 
 def test_generate_bytes_from_template_empty():
     res = generate_bytes_from_template(5, b"")
