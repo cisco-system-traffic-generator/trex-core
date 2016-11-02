@@ -659,9 +659,12 @@ Other network devices
 
 def parse_parent_cfg (parent_cfg):
     parent_parser = argparse.ArgumentParser(add_help = False)
+    parent_parser.add_argument('-?', '-h', '--help', dest = 'help', action = 'store_true')
     parent_parser.add_argument('--cfg', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
-    args, unkown = parent_parser.parse_known_args(shlex.split(parent_cfg))
+    args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
+    if args.help:
+        sys.exit(0)
     return (args.cfg, args.dump_interfaces)
 
 def process_options ():
