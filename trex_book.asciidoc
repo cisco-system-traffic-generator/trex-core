@@ -1511,9 +1511,6 @@ This can be used to verify port connectivity. You can send packets from one port
 *-m <num>*::
    Rate multiplier. TRex will multiply the CPS rate of each template by num.
 
-*--mac-spread*::
-  Spread the destination mac by this this factor. e.g 2 will generate the traffic to 2 devices DEST-MAC ,DEST-MAC+1. The maximum is up to 128 devices.
-
 *--nc*::
     If set, will terminate exacly at the end of the specified duration.
     This provides faster, more accurate TRex termination.
