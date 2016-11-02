@@ -93,16 +93,15 @@ class ConfigCreator(object):
         self.ignore_numa         = ignore_numa
 
     @staticmethod
-    def _convert_mac(mac_string):
+    def verify_mac(mac_string):
         if not ConfigCreator.mac_re.match(mac_string):
             raise DpdkSetup('MAC address should be in format of 12:34:56:78:9a:bc, got: %s' % mac_string)
-        return ', '.join([('0x%s' % elem).lower() for elem in mac_string.split(':')])
+        return mac_string.lower()
 
     @staticmethod
     def _exit_if_bad_ip(ip):
         if not ConfigCreator._verify_ip(ip):
-            print("Got bad IP %s" % ip)
-            sys.exit(1)
+            raise DpdkSetup("Got bad IP %s" % ip)
 
     @staticmethod
     def _verify_ip(ip):
@@ -146,12 +145,12 @@ class ConfigCreator(object):
                 config_str += ' '*6 + '- ip: %s\n' % interface['ip']
                 config_str += ' '*8 + 'default_gw: %s\n' % interface['def_gw']
             else:
-                config_str += ' '*6 + '- dest_mac: [%s]' % self._convert_mac(interface['dest_mac'])
+                config_str += ' '*6 + '- dest_mac: %s' % self.verify_mac(interface['dest_mac'])
                 if interface.get('loopback_dest'):
                     config_str += " # MAC OF LOOPBACK TO IT'S DUAL INTERFACE\n"
                 else:
                     config_str += '\n'
-                config_str += ' '*8 + 'src_mac:  [%s]\n' % self._convert_mac(interface['src_mac'])
+                config_str += ' '*8 + 'src_mac:  %s\n' % self.verify_mac(interface['src_mac'])
             if index % 2:
                 config_str += '\n' # dual if barrier
         if not self.ignore_numa:
@@ -484,17 +483,20 @@ Other network devices
         ips = map_driver.args.ips
         def_gws = map_driver.args.def_gws
         dest_macs = map_driver.args.dest_macs
-        if ips:
+        if map_driver.args.force_macs:
+            ip_config = False
+            if ips:
+                raise DpdkSetup("If using --force-macs, should not specify ips")
+            if def_gws:
+                raise DpdkSetup("If using --force-macs, should not specify default gateways")
+        elif ips:
             ip_config = True
             if not def_gws:
-                print("If specifying ips, must specify also def-gws")
-                sys.exit(1)
+                raise DpdkSetup("If specifying ips, must specify also def-gws")
             if dest_macs:
-                print("If specifying ips, should not specify dest--macs")
-                sys.exit(1)
+                raise DpdkSetup("If specifying ips, should not specify dest--macs")
             if len(ips) != len(def_gws) or len(ips) != len(wanted_interfaces):
-                print("Number of given IPs should equal number of given def-gws and number of interfaces")
-                sys.exit(1)
+                raise DpdkSetup("Number of given IPs should equal number of given def-gws and number of interfaces")
         else:
             if dest_macs:
                 ip_config = False
@@ -513,15 +515,17 @@ Other network devices
                 else:
                     interface['def_gw'] = ".".join(list(str(dual_index+1))*4)
             else:
+                dual_if = wanted_interfaces[dual_index]
                 if 'MAC' not in interface:
                     raise DpdkSetup('Could not determine MAC of interface: %s. Please verify with -t flag.' % interface['Interface_argv'])
+                if 'MAC' not in dual_if:
+                    raise DpdkSetup('Could not determine MAC of interface: %s. Please verify with -t flag.' % dual_if['Interface_argv'])
                 interface['src_mac'] = interface['MAC']
                 if isinstance(dest_macs, list) and len(dest_macs) > i:
                     interface['dest_mac'] = dest_macs[i]
-
-                if 'dest_mac' not in wanted_interfaces[dual_index]:
-                    wanted_interfaces[dual_index]['dest_mac'] = interface['MAC'] # loopback
-                    wanted_interfaces[dual_index]['loopback_dest'] = True
+                else:
+                    interface['dest_mac'] = dual_if['MAC']
+                    interface['loopback_dest'] = True
 
         config = ConfigCreator(self._get_cpu_topology(), wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
                                only_first_thread = map_driver.args.no_ht, ignore_numa = map_driver.args.ignore_numa,
@@ -533,8 +537,7 @@ Other network devices
         cpu_topology = self._get_cpu_topology()
         total_lcores = sum([len(lcores) for cores in cpu_topology.values() for lcores in cores.values()])
         if total_lcores < 1:
-            print('Script could not determine number of cores of the system, exiting.')
-            sys.exit(1)
+            raise DpdkSetup('Script could not determine number of cores of the system, exiting.')
         elif total_lcores < 2:
             if dpdk_nic_bind.confirm("You only have 1 core and can't run TRex at all. Ignore and continue? (y/N): "):
                 ignore_numa = True
@@ -576,7 +579,9 @@ Other network devices
                 if not dpdk_nic_bind.confirm('Ignore and continue? (y/N): '):
                     sys.exit(1)
 
-        if dpdk_nic_bind.confirm("By default, IP based configuration file will be created. Do you want to change to MAC based config? (y/N)"):
+        if map_driver.args.force_macs:
+            ip_based = False
+        elif dpdk_nic_bind.confirm("By default, IP based configuration file will be created. Do you want to change to MAC based config? (y/N)"):
             ip_based = False
         else:
             ip_based = True
@@ -598,7 +603,6 @@ Other network devices
                     return
 
             if ip_based:
-                loopback_dest = True
                 if ip_addr_digit % 2 == 0:
                     dual_ip_digit = ip_addr_digit - 1
                 else:
@@ -737,6 +741,10 @@ To see more detailed info on interfaces (table):
                       help="""Destination MACs to be used in created yaml file. Without them, will assume loopback (0<->1, 2<->3 etc.)""",
      )
 
+    parser.add_argument("--force-macs", default=False, action='store_true',
+                      help="""Use MACs in created config file.""",
+     )
+
     parser.add_argument("--ips", nargs='*', default=[], action='store',
                       help="""IP addresses to be used in created yaml file. Without them, will assume loopback (0<->1, 2<->3 etc.)""",
      )
@@ -786,6 +794,9 @@ To see more detailed info on interfaces (table):
 
 def main ():
     try:
+        if getpass.getuser() != 'root':
+            raise DpdkSetup('Please run this program as root/with sudo')
+
         process_options ()
 
         if map_driver.args.show:
@@ -816,8 +827,5 @@ def main ():
         exit(-1)
 
 if __name__ == '__main__':
-    if getpass.getuser() != 'root':
-        print('Please run this program as root/with sudo')
-        exit(1)
     main()
 
