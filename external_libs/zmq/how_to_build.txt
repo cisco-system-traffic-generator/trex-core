@@ -1,6 +1,6 @@
 - download version 4.0.3 
 - cd src
 - make 
-- copy the so files to this folder 
+- copy the so file libzmq.so.3 to trex-core/scripts 
 
 
