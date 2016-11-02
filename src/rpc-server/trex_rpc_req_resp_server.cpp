@@ -56,6 +56,8 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
     std::stringstream ss;
     int zmq_rc;
 
+    pthread_setname_np(pthread_self(), "Trex ZMQ sync");
+
     m_monitor.create(m_name, 1);
     TrexWatchDog::getInstance().register_monitor(&m_monitor);
 

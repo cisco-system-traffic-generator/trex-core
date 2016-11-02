@@ -957,10 +957,16 @@ public:
     /* return  the map betwean virtual to phy id */
     virtual physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id)=0;
 
-    virtual bool thread_phy_is_master(physical_thread_id_t  phy_id)=0;
+
+    virtual physical_thread_id_t get_master_phy_id() = 0;
     virtual bool thread_phy_is_rx(physical_thread_id_t  phy_id)=0;
 
     virtual void dump(FILE *fd)=0;
+
+    bool thread_phy_is_master(physical_thread_id_t  phy_id) {
+        return (get_master_phy_id() == phy_id);
+    }
+
 };
 
 class CPlatformSocketInfoNoConfig : public CPlatformSocketInfoBase {
@@ -999,7 +1005,7 @@ public:
     /* return  the map betwean virtual to phy id */
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
-    bool thread_phy_is_master(physical_thread_id_t  phy_id);
+    physical_thread_id_t get_master_phy_id();
     bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
     virtual void dump(FILE *fd);
@@ -1045,7 +1051,7 @@ public:
     /* return  the map betwean virtual to phy id */
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
-    bool thread_phy_is_master(physical_thread_id_t  phy_id);
+    physical_thread_id_t get_master_phy_id();
     bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
 public:
@@ -1110,6 +1116,7 @@ public:
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
     bool thread_phy_is_master(physical_thread_id_t  phy_id);
+    physical_thread_id_t get_master_phy_id();
     bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
     void dump(FILE *fd);

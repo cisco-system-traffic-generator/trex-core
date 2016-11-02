@@ -128,7 +128,7 @@ static char * global_dpdk_args[MAX_DPDK_ARGS];
 static char global_cores_str[100];
 static char global_prefix_str[100];
 static char global_loglevel_str[20];
-
+static char global_master_id_str[10];
 
 class CTRexExtendedDriverBase {
 public:
@@ -4391,6 +4391,8 @@ void CGlobalTRex::shutdown() {
 
 int CGlobalTRex::run_in_master() {
 
+    //rte_thread_setname(pthread_self(), "TRex Control");
+
     if ( get_is_stateless() ) {
         m_trex_stateless->launch_control_plane();
     }
@@ -4441,6 +4443,8 @@ int CGlobalTRex::run_in_master() {
 
 int CGlobalTRex::run_in_rx_core(void){
 
+    rte_thread_setname(pthread_self(), "TRex RX");
+
     if (get_is_stateless()) {
         m_sl_rx_running = true;
         m_rx_sl.start();
@@ -4457,7 +4461,9 @@ int CGlobalTRex::run_in_rx_core(void){
 
 int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     std::stringstream ss;
-    ss << "DP core " << int(virt_core_id);
+
+    ss << "Trex DP core " << int(virt_core_id);
+    rte_thread_setname(pthread_self(), ss.str().c_str());
 
     CPreviewMode *lp=&CGlobalInfo::m_options.preview;
     if ( lp->getSingleCore() &&
@@ -5069,25 +5075,28 @@ int  update_dpdk_args(void){
     }
 
     /* set the DPDK options */
-    global_dpdk_args_num =7;
+    global_dpdk_args_num = 0;
 
-    global_dpdk_args[0]=(char *)"xx";
-    global_dpdk_args[1]=(char *)"-c";
-    global_dpdk_args[2]=(char *)global_cores_str;
-    global_dpdk_args[3]=(char *)"-n";
-    global_dpdk_args[4]=(char *)"4";
+    global_dpdk_args[global_dpdk_args_num++]=(char *)"xx";
+    global_dpdk_args[global_dpdk_args_num++]=(char *)"-c";
+    global_dpdk_args[global_dpdk_args_num++]=(char *)global_cores_str;
+    global_dpdk_args[global_dpdk_args_num++]=(char *)"-n";
+    global_dpdk_args[global_dpdk_args_num++]=(char *)"4";
 
     if ( CGlobalInfo::m_options.preview.getVMode() == 0  ) {
-        global_dpdk_args[5]=(char *)"--log-level";
+        global_dpdk_args[global_dpdk_args_num++]=(char *)"--log-level";
         snprintf(global_loglevel_str, sizeof(global_loglevel_str), "%d", 4);
-        global_dpdk_args[6]=(char *)global_loglevel_str;
+        global_dpdk_args[global_dpdk_args_num++]=(char *)global_loglevel_str;
     }else{
-        global_dpdk_args[5]=(char *)"--log-level";
+        global_dpdk_args[global_dpdk_args_num++]=(char *)"--log-level";
         snprintf(global_loglevel_str, sizeof(global_loglevel_str), "%d", CGlobalInfo::m_options.preview.getVMode()+1);
-        global_dpdk_args[6]=(char *)global_loglevel_str;
+        global_dpdk_args[global_dpdk_args_num++]=(char *)global_loglevel_str;
     }
 
-    global_dpdk_args_num = 7;
+    global_dpdk_args[global_dpdk_args_num++] = (char *)"--master-lcore";
+
+    snprintf(global_master_id_str, sizeof(global_master_id_str), "%u", lpsock->get_master_phy_id());
+    global_dpdk_args[global_dpdk_args_num++] = global_master_id_str;
 
     /* add white list */
     if (lpop->m_run_mode == CParserOption::RUN_MODE_DUMP_INFO and lpop->dump_interfaces.size()) {
@@ -5178,6 +5187,7 @@ void dump_interfaces_info() {
 
 int main_test(int argc , char * argv[]){
 
+
     utl_termio_init();
 
     int ret;
@@ -5232,6 +5242,12 @@ int main_test(int argc , char * argv[]){
         printf("try 'sudo' %s \n",argv[0]);
         return (-1);
     }
+
+    /* set affinity to the master core as default */
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(CGlobalInfo::m_socket.get_master_phy_id(), &mask);
+    pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
 
     ret = rte_eal_init(global_dpdk_args_num, (char **)global_dpdk_args);
     if (ret < 0){

@@ -177,8 +177,8 @@ physical_thread_id_t CPlatformSocketInfoNoConfig::thread_virt_to_phy(virtual_thr
     return (virt_id);
 }
 
-bool CPlatformSocketInfoNoConfig::thread_phy_is_master(physical_thread_id_t  phy_id){
-    return (phy_id==0);
+physical_thread_id_t CPlatformSocketInfoNoConfig::get_master_phy_id() {
+    return (0);
 }
 
 bool CPlatformSocketInfoNoConfig::thread_phy_is_rx(physical_thread_id_t  phy_id){
@@ -402,8 +402,8 @@ physical_thread_id_t CPlatformSocketInfoConfig::thread_virt_to_phy(virtual_threa
     return ( m_thread_virt_to_phy[virt_id]);
 }
 
-bool CPlatformSocketInfoConfig::thread_phy_is_master(physical_thread_id_t  phy_id){
-    return (m_platform->m_master_thread==phy_id?true:false);
+physical_thread_id_t CPlatformSocketInfoConfig::get_master_phy_id() {
+    return m_platform->m_master_thread;
 }
 
 bool CPlatformSocketInfoConfig::thread_phy_is_rx(physical_thread_id_t  phy_id){
@@ -479,6 +479,10 @@ physical_thread_id_t CPlatformSocketInfo::thread_virt_to_phy(virtual_thread_id_t
 
 bool CPlatformSocketInfo::thread_phy_is_master(physical_thread_id_t  phy_id){
     return ( m_obj->thread_phy_is_master(phy_id));
+}
+
+physical_thread_id_t CPlatformSocketInfo::get_master_phy_id() {
+    return ( m_obj->get_master_phy_id());
 }
 
 bool CPlatformSocketInfo::thread_phy_is_rx(physical_thread_id_t  phy_id) {
