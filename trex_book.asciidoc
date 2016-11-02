@@ -126,9 +126,9 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 |=================
 | Bandwidth | Chipset |  Example
 | 1Gb/sec  | Intel I350 | Intel 4x1GE 350-T4 NIC
-| 10Gb/sec | Intel 82599| Intel x520-D2 Cisco Order tool 2X Intel N2XX-AIPCI01, Intel X520 Dual Port 10Gb SFP+ Adapter
-| 10Gb/sec | Intel X710   | link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
-| 40Gb/sec | Intel XL710  | link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
+| 10Gb/sec | Intel 82599|   Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter
+| 10Gb/sec | Intel X710   | Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
+| 40Gb/sec | Intel XL710  | Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
 | 100Gb/sec | Intel Intel FM10420  | QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[Silicom PE3100G2DQiR_96] (*in development*)
 | VMXNET / +
 VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
