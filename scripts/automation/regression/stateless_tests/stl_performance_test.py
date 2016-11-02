@@ -322,7 +322,7 @@ class STLPerformance_Test(CStlGeneral_Test):
 
 
         
-        avg_values = {k:avg(v) for k, v in samples.iteritems()}
+        avg_values = {k:avg(v) for k, v in samples.items()}
         avg_cpu  = avg_values['cpu'] * scenario_cfg['core_count']
         avg_gbps = avg_values['bps'] / 1e9
         avg_mpps = avg_values['pps'] / 1e6
